@@ -521,8 +521,6 @@ object AniListGate {
         }
     }
 
-    internal companion object {
-        /** Kuyruk/UX katmanının kota hatasını tanıdığı işaret. */
-        const val QUOTA_MARKER = "AniList istek sınırı (kota) doldu"
-    }
+    /** Kuyruk/UX katmanının kota hatasını tanıdığı işaret. */
+    const val QUOTA_MARKER = "AniList istek sınırı (kota) doldu"
 }

@@ -135,7 +135,7 @@ object NotificationDiagnostics {
         return try {
             val payload = JSONObject().put("query", query).toString()
             // Teşhis isteği de AniList kotasından yer: arka plan önceliğiyle kapıdan geçir.
-            val http = com.kitsugi.animelist.data.auth.AniListGate.withPermitBlocking(
+            val http = com.kitsugi.animelist.data.auth.AniListGate.withPermit(
                 priority = com.kitsugi.animelist.data.auth.AniListGate.Priority.BACKGROUND,
                 maxWaitMs = 5_000L
             ) {
