@@ -24,6 +24,7 @@ class NotifDateGroupingTest {
     fun dateGroupsUseDayBoundaries() {
         val now = at(2026, Calendar.OCTOBER, 31)
 
+        assertEquals(NotifDateGroup.UPCOMING, notifDateGroup(at(2026, Calendar.NOVEMBER, 2, 9), now))
         assertEquals(NotifDateGroup.TODAY, notifDateGroup(at(2026, Calendar.OCTOBER, 31, 9), now))
         assertEquals(NotifDateGroup.YESTERDAY, notifDateGroup(at(2026, Calendar.OCTOBER, 30, 23), now))
         assertEquals(NotifDateGroup.THIS_WEEK, notifDateGroup(at(2026, Calendar.OCTOBER, 27, 10), now))

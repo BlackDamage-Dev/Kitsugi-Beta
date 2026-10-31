@@ -391,6 +391,7 @@
     <string name="notif_filter_notifications">Notifications</string>
     <string name="notif_filter_progress">Progress</string>
     <!-- Notification list time groups (shared by every source) -->
+    <string name="notif_group_upcoming">Upcoming</string>
     <string name="notif_group_today">Today</string>
     <string name="notif_group_yesterday">Yesterday</string>
     <string name="notif_group_this_week">This Week</string>

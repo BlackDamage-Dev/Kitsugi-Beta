@@ -391,6 +391,7 @@
     <string name="notif_filter_notifications">Bildirimler</string>
     <string name="notif_filter_progress">İlerleme</string>
     <!-- Bildirim listesi zaman grupları (tüm kaynaklarda ortak) -->
+    <string name="notif_group_upcoming">Yaklaşan</string>
     <string name="notif_group_today">Bugün</string>
     <string name="notif_group_yesterday">Dün</string>
     <string name="notif_group_this_week">Bu Hafta</string>

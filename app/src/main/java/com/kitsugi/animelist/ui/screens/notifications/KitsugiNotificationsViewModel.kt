@@ -413,6 +413,10 @@ class KitsugiNotificationsViewModel(application: Application) : AndroidViewModel
             userId = userId,
             userName = userName,
             userAvatarUrl = userAvatarUrl,
+            // AniList `createdAt` değeri epoch SANİYEDİR; zaman grupları (Bugün/Dün/…)
+            // ve "en yeni önce" sıralaması bu alan olmadan çalışamıyordu (tüm satırlar
+            // "Tarihsiz" oluyordu).
+            tsMs = createdAt?.let { if (it > 10_000_000_000L) it else it * 1000L },
             source = "AniList"
         )
     }
@@ -1546,6 +1550,7 @@ class KitsugiNotificationsViewModel(application: Application) : AndroidViewModel
                         title = h.targetTitle,
                         body = h.description.ifBlank { ctx.getString(R.string.notif_shikimori_activity_fallback) },
                         dateText = h.createdAt.take(10),
+                        tsMs = parseIsoToEpochMs(h.createdAt),
                         mediaId = h.targetId?.toInt(),
                         mediaType = h.targetType ?: "anime",
                         typeIdentifier = "history",
@@ -1581,6 +1586,7 @@ class KitsugiNotificationsViewModel(application: Application) : AndroidViewModel
             else -> ctx.getString(R.string.notif_shikimori_kind_generic)
         }
         val text = stripBbcode(body).ifBlank { stripHtml(htmlBody) }
+        val createdMs = parseIsoToEpochMs(createdAt)
         return NotifItem(
             id = "shikimori_msg_${type}_${id}",
             imageUrl = targetImageUrl ?: fromAvatarUrl,
@@ -1589,7 +1595,8 @@ class KitsugiNotificationsViewModel(application: Application) : AndroidViewModel
                 append(kindLabel)
                 if (text.isNotBlank()) append(" • ").append(text.take(160))
             },
-            dateText = parseIsoToEpochMs(createdAt)?.let { formatEpochMs(it) } ?: createdAt.take(10),
+            dateText = createdMs?.let { formatEpochMs(it) } ?: createdAt.take(10),
+            tsMs = createdMs,
             isUnread = !read,
             mediaId = linkedId?.toInt(),
             mediaType = linkedType?.lowercase(),

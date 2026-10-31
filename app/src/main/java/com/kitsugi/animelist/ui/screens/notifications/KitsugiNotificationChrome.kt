@@ -4,7 +4,11 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -37,6 +41,8 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.ArrowDropDown
 import androidx.compose.material.icons.rounded.BugReport
 import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.KeyboardArrowUp
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.NotificationsNone
 import androidx.compose.material.icons.rounded.Refresh
@@ -70,6 +76,10 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -133,6 +143,8 @@ internal data class NotifFilterTab(
 
 /** Bildirim listesinin ortak zaman grupları (kaynak fark etmeksizin). */
 internal enum class NotifDateGroup(val labelResId: Int) {
+    /** Tarihi gelecekte olan kayıtlar (Simkl/Kitsu yayın takvimi, MAL yaklaşan bölüm). */
+    UPCOMING(R.string.notif_group_upcoming),
     TODAY(R.string.notif_group_today),
     YESTERDAY(R.string.notif_group_yesterday),
     THIS_WEEK(R.string.notif_group_this_week),
@@ -159,6 +171,8 @@ private fun dayOffsetStartMs(nowMs: Long, daysBack: Int): Long =
 internal fun notifDateGroup(tsMs: Long?, nowMs: Long): NotifDateGroup {
     if (tsMs == null) return NotifDateGroup.UNDATED
     return when {
+        // Yarın ve sonrası: "Bugün" demek yanlış olur (yaklaşan bölüm/film).
+        tsMs >= dayOffsetStartMs(nowMs, -1) -> NotifDateGroup.UPCOMING
         tsMs >= startOfDayMs(nowMs) -> NotifDateGroup.TODAY
         tsMs >= dayOffsetStartMs(nowMs, 1) -> NotifDateGroup.YESTERDAY
         tsMs >= dayOffsetStartMs(nowMs, 6) -> NotifDateGroup.THIS_WEEK
@@ -177,10 +191,12 @@ internal fun groupNotifRows(items: List<NotifItem>, nowMs: Long): List<NotifGrou
     if (items.isEmpty()) return emptyList()
     // Gün sınırları tek seferde hesaplanır; satır başına takvim nesnesi üretilmez.
     val todayStart = startOfDayMs(nowMs)
+    val tomorrowStart = dayOffsetStartMs(nowMs, -1)
     val yesterdayStart = dayOffsetStartMs(nowMs, 1)
     val weekStart = dayOffsetStartMs(nowMs, 6)
     fun groupOf(tsMs: Long?): NotifDateGroup = when {
         tsMs == null -> NotifDateGroup.UNDATED
+        tsMs >= tomorrowStart -> NotifDateGroup.UPCOMING
         tsMs >= todayStart -> NotifDateGroup.TODAY
         tsMs >= yesterdayStart -> NotifDateGroup.YESTERDAY
         tsMs >= weekStart -> NotifDateGroup.THIS_WEEK
@@ -242,11 +258,6 @@ internal class NotifChromeCollapseState {
         val applied = collapsedPx - target
         collapsedPx = target
         return applied
-    }
-
-    /** Sekme/kaynak değişiminde üst bölümü anında aç (liste başına dönüldüğü için). */
-    fun reset() {
-        collapsedPx = 0f
     }
 
     /** Üst bölümü kullanıcıya hissettirmeden yumuşakça açar. */
@@ -351,7 +362,9 @@ internal fun NotifChromeHeader(
     onOpenSourcePicker: () -> Unit,
     onRefresh: () -> Unit,
     onDiagnostics: () -> Unit,
-    onSelectTab: (NotifFilterTab) -> Unit
+    onSelectTab: (NotifFilterTab) -> Unit,
+    /** Seçili kaynak şu anda veri çekiyor mu? (yenile simgesi döner) */
+    isRefreshing: Boolean = false
 ) {
     Column(
         modifier = Modifier
@@ -381,6 +394,7 @@ internal fun NotifChromeHeader(
                 NotifTopBarRow(
                     title = title,
                     accentColor = accentColor,
+                    isRefreshing = isRefreshing,
                     onBack = onBack,
                     onRefresh = onRefresh,
                     onDiagnostics = onDiagnostics
@@ -422,6 +436,7 @@ internal fun NotifChromeHeader(
 private fun NotifTopBarRow(
     title: String,
     accentColor: Color,
+    isRefreshing: Boolean,
     onBack: () -> Unit,
     onRefresh: () -> Unit,
     onDiagnostics: () -> Unit
@@ -457,11 +472,49 @@ private fun NotifTopBarRow(
                 tint = KitsugiColors.TextPrimary
             )
         }
-        IconButton(onClick = onRefresh) {
+        NotifRefreshButton(
+            accentColor = accentColor,
+            isRefreshing = isRefreshing,
+            onClick = onRefresh
+        )
+    }
+}
+
+/**
+ * Yenile düğmesi. İstek sürerken simge döner (dokunuşun karşılığı görünür olur);
+ * boştayken hiçbir animasyon kurulmaz, böylece gereksiz kare maliyeti oluşmaz.
+ */
+@Composable
+private fun NotifRefreshButton(
+    accentColor: Color,
+    isRefreshing: Boolean,
+    onClick: () -> Unit
+) {
+    IconButton(onClick = onClick) {
+        if (isRefreshing) {
+            val spin = rememberInfiniteTransition(label = "notif_refresh_spin").animateFloat(
+                initialValue = 0f,
+                targetValue = 360f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(durationMillis = 900, easing = LinearEasing),
+                    repeatMode = RepeatMode.Restart
+                ),
+                label = "notif_refresh_angle"
+            )
             Icon(
                 imageVector = Icons.Rounded.Refresh,
                 contentDescription = stringResource(R.string.notif_action_refresh),
-                tint = accentColor
+                tint = accentColor,
+                modifier = Modifier
+                    .size(24.dp)
+                    .graphicsLayer { rotationZ = spin.value }
+            )
+        } else {
+            Icon(
+                imageVector = Icons.Rounded.Refresh,
+                contentDescription = stringResource(R.string.notif_action_refresh),
+                tint = accentColor,
+                modifier = Modifier.size(24.dp)
             )
         }
     }
@@ -605,6 +658,10 @@ private fun NotifFilterChip(
             }
             .clip(shape)
             .background(chipBackground)
+            .semantics {
+                role = Role.Tab
+                selected = active
+            }
             .tvClickable(shape = shape, onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -763,7 +820,10 @@ internal fun NotifFeedList(
         derivedStateOf {
             val total = listState.layoutInfo.totalItemsCount
             val last = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
-            (total == 0 && hasMore) || (total > 0 && last >= total - 8)
+            // total == 0 → sayfa henüz ölçülmedi (ör. yandaki AniList filtre sayfası).
+            // Bu durumda sayfalama İSTENMEZ; aksi hâlde görünmeyen sekmeler için de
+            // ağ isteği tetikleniyordu.
+            total > 0 && last >= total - 8
         }
     }
     LaunchedEffect(nearListEnd, hasMore, state.isLoading, state.loadMoreError) {
@@ -828,9 +888,21 @@ internal fun NotifFeedList(
                     }
                 }
 
+                // Liste dolu ama son istek hata verdiyse sessiz kalma: kompakt bir
+                // hata satırı + "Tekrar dene" göster (kaydırma konumu korunur).
+                if (errorText != null && items.isNotEmpty()) {
+                    item(key = "notif_inline_error") {
+                        NotifLoadMoreError(
+                            message = errorText,
+                            accentColor = accentColor,
+                            onRetry = onRefresh
+                        )
+                    }
+                }
+
                 when {
                     state.isLoading && items.isEmpty() -> {
-                        item(key = "notif_loading") { NotifLoadingState(accentColor = accentColor) }
+                        item(key = "notif_loading") { NotifLoadingState() }
                     }
 
                     errorText != null && items.isEmpty() -> {
@@ -883,7 +955,9 @@ internal fun NotifFeedList(
                                 onClick = { onItemClick(row.item) }
                             )
                         }
-                        if (state.isLoading) {
+                        // Sayfa zaten aşağı çekilerek yenileniyorsa altta ikinci bir
+                        // gösterge çıkmasın (aynı işi iki kez göstermek gürültü).
+                        if (state.isLoading && !isRefreshing) {
                             item(key = "notif_footer_loading") {
                                 Box(
                                     Modifier
@@ -983,6 +1057,15 @@ private fun NotifNoticeRow(
                 maxLines = if (expanded) Int.MAX_VALUE else 2,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f)
+            )
+            // Açılıp kapanabildiğini belli eden küçük ok (dokunma alanı kartın tamamı).
+            Icon(
+                imageVector = if (expanded) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.KeyboardArrowDown,
+                contentDescription = null,
+                tint = KitsugiColors.TextMuted,
+                modifier = Modifier
+                    .padding(top = 1.dp)
+                    .size(16.dp)
             )
         }
         AnimatedVisibility(
@@ -1147,7 +1230,7 @@ internal fun NotifItemRow(
 // ─── Ortak boş / yükleniyor hâlleri ─────────────────────────────────────────
 
 @Composable
-internal fun NotifLoadingState(accentColor: Color) {
+internal fun NotifLoadingState() {
     Box(
         modifier = Modifier
             .fillMaxWidth()

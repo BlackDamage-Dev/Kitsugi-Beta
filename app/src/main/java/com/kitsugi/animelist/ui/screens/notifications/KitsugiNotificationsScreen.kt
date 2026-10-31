@@ -277,6 +277,12 @@ fun KitsugiNotificationsScreen(
         if (malSessionRefreshToken > 0 && isMalConnected) viewModel.loadMal(mediaEntries)
     }
 
+    // Kaynak ya da AniList filtresi değiştiğinde (kaydırma dahil) üst bölüm yumuşakça
+    // geri açılır: yeni sayfa listenin başından başladığı için toplanmış bar anlamsız kalırdı.
+    LaunchedEffect(pagerState.currentPage, currentAniListFilter) {
+        chrome.expandSmoothly()
+    }
+
     val malListState       = rememberLazyListState()
     val tmdbSimklListState = rememberLazyListState()
     val kitsuListState     = rememberLazyListState()
@@ -430,10 +436,26 @@ fun KitsugiNotificationsScreen(
         NotifPlatform.SHIKIMORI  -> shikimoriState.items.count { it.isUnread }
         NotifPlatform.BANGUMI    -> bangumiState.items.count { it.isUnread }
     }
+    val currentLoading = when (currentPlatform) {
+        NotifPlatform.ANILIST    -> aniListState.isLoading
+        NotifPlatform.MAL        -> malState.isLoading
+        NotifPlatform.TMDB_SIMKL -> simklState.isLoading
+        NotifPlatform.KITSU      -> kitsuState.isLoading
+        NotifPlatform.SHIKIMORI  -> shikimoriState.isLoading
+        NotifPlatform.BANGUMI    -> bangumiState.isLoading
+    }
+
     val headerSummary = when {
         !isCurrentConnected -> stringResource(R.string.bagli_degil)
         platformTotal <= 0 -> null
-        platformNew > 0 -> stringResource(R.string.notif_summary_total_new, platformTotal, platformNew)
+        // AniList'te "yeni" sayısı sunucudan GLOBAL gelir; seçili sekmenin kayıt
+        // sayısından büyük çıkarsa "5 bildirim • 12 yeni" gibi tutarsız bir özet
+        // yazılmasın diye toplamla sınırlanır.
+        platformNew > 0 -> stringResource(
+            R.string.notif_summary_total_new,
+            platformTotal,
+            platformNew.coerceAtMost(platformTotal)
+        )
         else -> stringResource(R.string.notif_summary_total, platformTotal)
     }
 
@@ -532,7 +554,8 @@ fun KitsugiNotificationsScreen(
             onDiagnostics = {
                 showDiagnostics = true
             },
-            onSelectTab = { tab -> selectTab(tab) }
+            onSelectTab = { tab -> selectTab(tab) },
+            isRefreshing = currentLoading
         )
 
         // ── Pager ──
@@ -622,6 +645,18 @@ fun KitsugiNotificationsScreen(
                             malState
                         }
                     }
+                    // "Okunmamış" sekmesi ham listenin istemci tarafı süzgecidir; yüklü
+                    // sayfalarda hiç okunmamış kalmadıysa ama sunucuda daha eski sayfa
+                    // varsa bir sonraki sayfa istenir (aksi hâlde sekme boş görünürdü).
+                    LaunchedEffect(malUnreadOnly, malDisplayState.items.isEmpty(), malState.hasMore, malState.isLoading) {
+                        if (malUnreadOnly &&
+                            malDisplayState.items.isEmpty() &&
+                            malState.hasMore &&
+                            !malState.isLoading
+                        ) {
+                            viewModel.loadMalMore()
+                        }
+                    }
                     val malWebSessionTitle = stringResource(
                         when {
                             malState.malAccountMismatch -> R.string.notif_mal_account_mismatch_action
@@ -658,22 +693,23 @@ fun KitsugiNotificationsScreen(
                         hasMore = malState.hasMore,
                         onLoadMore = { viewModel.loadMalMore() },
                         onRefresh = { viewModel.loadMal(mediaEntries) },
-                        actionCard = {
-                            MalWebSessionActionCard(
-                                title = malWebSessionTitle,
-                                hint = malWebSessionHint,
-                                accentColor = accentColor,
-                                onClick = {
-                                    if (malState.malAccountMismatch ||
-                                        malState.requiresMalWebLogin ||
-                                        !isMalConnected
-                                    ) {
-                                        onOpenMalAccountSettings()
-                                    } else {
-                                        viewModel.loadMal(mediaEntries)
-                                    }
-                                }
-                            )
+                        // Kart yalnızca bir eylem GEREKTİĞİNDE (hesap eşleşmiyor /
+                        // web oturumu yok) gösterilir. Her şey yolundaysa liste başında
+                        // boşuna yer kaplamaz: yenileme zaten aşağı çekme ve üst barda var.
+                        actionCard = if (malState.malAccountMismatch ||
+                            malState.requiresMalWebLogin ||
+                            !isMalConnected
+                        ) {
+                            {
+                                MalWebSessionActionCard(
+                                    title = malWebSessionTitle,
+                                    hint = malWebSessionHint,
+                                    accentColor = accentColor,
+                                    onClick = onOpenMalAccountSettings
+                                )
+                            }
+                        } else {
+                            null
                         },
                         onItemClick = { notif -> openMalNotification(notif) }
                     )
