@@ -381,6 +381,28 @@
     <string name="notif_filter_forum">Forum</string>
     <string name="notif_filter_follows">Takip</string>
     <string name="notif_filter_media">Medya</string>
+    <!-- Tüm kaynaklarda ortak filtre şeridi (istemci tarafı süzgeçler) -->
+    <string name="notif_filter_unread">Okunmamış</string>
+    <string name="notif_filter_anime">Anime</string>
+    <string name="notif_filter_manga">Manga</string>
+    <string name="notif_filter_aired">Yayınlanan</string>
+    <string name="notif_filter_upcoming">Yaklaşan</string>
+    <string name="notif_filter_news">Haberler</string>
+    <string name="notif_filter_notifications">Bildirimler</string>
+    <string name="notif_filter_progress">İlerleme</string>
+    <!-- Bildirim listesi zaman grupları (tüm kaynaklarda ortak) -->
+    <string name="notif_group_today">Bugün</string>
+    <string name="notif_group_yesterday">Dün</string>
+    <string name="notif_group_this_week">Bu Hafta</string>
+    <string name="notif_group_earlier">Daha Eski</string>
+    <string name="notif_group_undated">Tarihsiz</string>
+    <!-- Kaynak başlığındaki özet: 25 bildirim / 47 bildirim • 25 yeni -->
+    <string name="notif_summary_total">%1$d bildirim</string>
+    <string name="notif_summary_total_new">%1$d bildirim • %2$d yeni</string>
+    <string name="notif_notice_collapse_hint">Daraltmak için dokun</string>
+    <string name="notif_empty_filter">Bu filtrede bildirim yok</string>
+    <string name="notif_empty_no_unread">Okunmamış bildirim yok</string>
+    <string name="notif_retry">Tekrar dene</string>
 
     <string name="notif_title">Bildirimler</string>
     <string name="notif_action_back">Geri</string>

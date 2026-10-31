@@ -151,7 +151,16 @@ class KitsugiNotificationsViewModel(application: Application) : AndroidViewModel
     private val _aniListStates = AniListFilter.entries.associateWith { MutableStateFlow(NotifUiState()) }
     val aniListStates: Map<AniListFilter, StateFlow<NotifUiState>> = _aniListStates.mapValues { it.value.asStateFlow() }
 
-    fun getAniListState(filter: AniListFilter): StateFlow<NotifUiState> = _aniListStates[filter]!!.asStateFlow()
+    /**
+     * Filtre başına SABİT akış döner.
+     *
+     * Daha önce her çağrıda `asStateFlow()` ile yeni bir sarmalayıcı üretiliyordu; Compose
+     * `collectAsState(flow)` akış kimliği değişince aboneliği yeniden kurduğu için sekme
+     * geçişlerinde liste bir an boş görünüp yeniden doluyordu. Artık haritadaki akış
+     * doğrudan paylaşılır.
+     */
+    fun getAniListState(filter: AniListFilter): StateFlow<NotifUiState> =
+        aniListStates[filter] ?: _aniListStates.getValue(filter).asStateFlow()
 
     /** AniList okunmamış bildirim sayısı (sekme rozeti için). */
     private val _aniListUnread = MutableStateFlow<Int?>(null)
@@ -789,6 +798,13 @@ class KitsugiNotificationsViewModel(application: Application) : AndroidViewModel
         }
     }
 
+    /**
+     * Okunmamış MAL bildirimi sayısı — kategori filtresinden BAĞIMSIZ ham listeden
+     * hesaplanır; böylece başlıktaki "47 bildirim • 25 yeni" özeti seçili kategoriyle
+     * birlikte yanlış sayı göstermez.
+     */
+    fun getMalUnreadCount(): Int = malUnfilteredItems.count { it.isUnread }
+
     fun getMalCategoryCounts(): Map<MalNotificationCategory, Int> {
         if (malUnfilteredItems.isEmpty() && malSidebarCounts.isEmpty()) return emptyMap()
         val localCounts = mutableMapOf<MalNotificationCategory, Int>()
@@ -1064,6 +1080,8 @@ class KitsugiNotificationsViewModel(application: Application) : AndroidViewModel
                             tsMs = entry.airingAtMs,
                             mediaId = entry.simklId,
                             mediaType = if (entry.isMovie) "movie" else "tv",
+                            // Ortak filtre şeridi (Yayınlanan / Yaklaşan) bu alanı kullanır.
+                            typeIdentifier = if (aired) "aired" else "upcoming",
                             source = "Simkl"
                         )
                     }
@@ -1128,6 +1146,7 @@ class KitsugiNotificationsViewModel(application: Application) : AndroidViewModel
                                 tsMs = releaseMs,
                                 mediaId = entry.animeId ?: entry.mangaId,
                                 mediaType = if (entry.animeId != null) "anime" else "manga",
+                                typeIdentifier = "release",
                                 source = "Kitsu"
                             )
                         )
@@ -1151,6 +1170,7 @@ class KitsugiNotificationsViewModel(application: Application) : AndroidViewModel
                                     tsMs = null,
                                     mediaId = entry.animeId ?: entry.mangaId,
                                     mediaType = if (entry.animeId != null) "anime" else "manga",
+                                    typeIdentifier = "list",
                                     source = "Kitsu"
                                 )
                             )
@@ -1172,6 +1192,7 @@ class KitsugiNotificationsViewModel(application: Application) : AndroidViewModel
                                 dateText = null,
                                 mediaId = me.malId ?: me.id,
                                 mediaType = "anime",
+                                typeIdentifier = "list",
                                 source = "Kitsu"
                             )
                         )
@@ -1405,6 +1426,8 @@ class KitsugiNotificationsViewModel(application: Application) : AndroidViewModel
                             tsMs = entry.airingAt * 1000L,
                             mediaId = entry.malId?.let { malToStable[it] },
                             mediaType = "anime",
+                            // Ortak filtre şeridi (Yayın / İlerleme) bu alanı kullanır.
+                            typeIdentifier = "airing",
                             source = "Bangumi"
                         )
                     )
@@ -1427,6 +1450,7 @@ class KitsugiNotificationsViewModel(application: Application) : AndroidViewModel
                                 tsMs = w.updatedAtMs,
                                 mediaId = w.stableId,
                                 mediaType = "anime",
+                                typeIdentifier = "watching",
                                 source = "Bangumi"
                             )
                         )
@@ -1524,6 +1548,7 @@ class KitsugiNotificationsViewModel(application: Application) : AndroidViewModel
                         dateText = h.createdAt.take(10),
                         mediaId = h.targetId?.toInt(),
                         mediaType = h.targetType ?: "anime",
+                        typeIdentifier = "history",
                         source = "Shikimori"
                     )
                 }
@@ -1571,6 +1596,8 @@ class KitsugiNotificationsViewModel(application: Application) : AndroidViewModel
             userId = fromUserId,
             userName = fromNickname,
             userAvatarUrl = fromAvatarUrl,
+            // Ortak filtre şeridi (Bildirimler / Haberler) bu alanı kullanır.
+            typeIdentifier = type,
             source = "Shikimori"
         )
     }
