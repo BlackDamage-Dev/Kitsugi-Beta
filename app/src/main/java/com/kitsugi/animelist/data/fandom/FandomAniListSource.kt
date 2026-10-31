@@ -1,5 +1,7 @@
 package com.kitsugi.animelist.data.fandom
 
+import com.kitsugi.animelist.data.auth.AniListGate
+
 import android.util.Log
 import com.kitsugi.animelist.core.memory.BoundedCache
 import com.kitsugi.animelist.data.remote.KitsugiApiBase
@@ -69,7 +71,12 @@ internal object FandomAniListSource {
                 .put("search", title)
                 .put("type", if (isManga) "MANGA" else "ANIME")
             val body = try {
-                KitsugiApiBase.executeAniListQuery(SEARCH_QUERY, variables)
+                KitsugiApiBase.executeAniListQuery(
+                    query = SEARCH_QUERY,
+                    variables = variables,
+                    // Vikipedi/Fandom zenginleştirmesi: kıtlıkta kullanıcı kotasını yemesin.
+                    priority = AniListGate.Priority.BACKGROUND
+                )
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -104,7 +111,11 @@ internal object FandomAniListSource {
             variables.put("type", if (isManga) "MANGA" else "ANIME")
         }
         val body = try {
-            KitsugiApiBase.executeAniListQuery(QUERY, variables)
+            KitsugiApiBase.executeAniListQuery(
+                query = QUERY,
+                variables = variables,
+                priority = AniListGate.Priority.BACKGROUND
+            )
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

@@ -211,6 +211,19 @@ object PlatformFailureRegistry {
             rawReason = rawMessage?.takeIf { it.isNotBlank() } ?: error?.message,
             atMillis = now,
         )
+        // v2.4.342: tanı kaydı **kalıcı** günlüğe de yazılır. Kullanıcı sonradan
+        // "hangi kaynak, hangi kod, ne zaman" sorusunu günlükten cevaplayabilir.
+        runCatching {
+            com.kitsugi.animelist.core.diagnostics.KitsugiLog.log(
+                level = com.kitsugi.animelist.core.diagnostics.KitsugiLog.Level.WARN,
+                channel = com.kitsugi.animelist.core.diagnostics.KitsugiLog.Channel.NET,
+                tag = platform.name.lowercase(),
+                message = "hata kodu ${code.code} · ${platform.codePrefix}",
+                detail = rawMessage?.takeIf { it.isNotBlank() }
+                    ?: error?.let { "${it.javaClass.simpleName}: ${it.message}" },
+                throwable = null
+            )
+        }
         return code
     }
 }

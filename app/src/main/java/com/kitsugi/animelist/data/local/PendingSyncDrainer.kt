@@ -7,11 +7,17 @@ import com.kitsugi.animelist.data.auth.SyncField
 import com.kitsugi.animelist.model.MediaEntry
 import com.kitsugi.animelist.model.MediaType
 import com.kitsugi.animelist.model.WatchStatus
+import com.kitsugi.animelist.data.auth.AniListGate
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
 /**
@@ -30,6 +36,47 @@ import org.json.JSONObject
 object PendingSyncDrainer {
 
     private val drainMutex = Mutex()
+
+    // ── Kota nedeniyle ertelenen kuyruk için kendiliğinden yeniden deneme ──
+    private val resumeScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val resumeGuard = Any()
+    private var resumeJob: Job? = null
+
+    /** Planlanan yeniden deneme zamanı (epoch ms). 0 = plan yok. */
+    private var resumeAt: Long = 0L
+
+    /**
+     * AniList kota cezası (429) bittiğinde kuyruğu **kendiliğinden** boşaltır.
+     *
+     * Eskiden bekleme kuyruğu yalnızca uygulama açılışında, ağ geri geldiğinde veya bir
+     * sonraki başarılı eşitlemede deneniyordu. 60 sn'lik ceza penceresi bu tetiklemelerin
+     * hiçbirine denk gelmediği için kullanıcı aynı düğmeye tekrar tekrar basıyor, her
+     * denemede aynı "kota doldu" mesajını görüyordu. Artık ceza bitince iş kendisi döner.
+     */
+    fun scheduleResume(context: Context, dao: PendingSyncDao, delayMs: Long) {
+        val appContext = context.applicationContext ?: context
+        val wait = delayMs.coerceIn(1_000L, 120_000L)
+        val due = System.currentTimeMillis() + wait
+        synchronized(resumeGuard) {
+            val existing = resumeJob
+            // Zaten daha GEÇ bir zamana planlanmış bir iş varsa onu koru; yeni plan ondan
+            // önce biteceği için ek bir iş açmanın anlamı yok.
+            if (existing != null && existing.isActive && resumeAt > due) return
+
+            // DİKKAT: `drain()` kendi resume işinin içinden de çağırabilir (kota nedeniyle
+            // yarıda kaldığında). O durumda `existing` şu an çalışan iştir; iptal etmek
+            // güvenlidir çünkü drain bu noktadan sonra askıya alınmıyor ve kilit `finally`
+            // içinde bırakılıyor. Eski kod "iş aktif" diye erken dönüyordu → kuyruk bir
+            // daha asla kendiliğinden denenmiyordu.
+            existing?.cancel()
+            resumeAt = due
+            resumeJob = resumeScope.launch {
+                delay(wait)
+                synchronized(resumeGuard) { if (resumeAt == due) resumeAt = 0L }
+                runSyncCatching { drain(appContext, dao, freshBudget = false) }
+            }
+        }
+    }
 
     // ────────────────────────────────────────────────
     // Kuyruğa Ekleme
@@ -249,10 +296,27 @@ object PendingSyncDrainer {
         if (freshBudget) dao.resetRetries()
         val pending = dao.getAll().filter { PendingSyncPolicy.isEligible(it.retryCount) }
         if (pending.isEmpty()) return@withContext 0
+        // v2.4.342: arka plan kuyruğu boşaltma turu kalıcı günlüğe yazılır. Kullanıcı
+        // "kaç iş bekliyordu, kaçı gitti" sorusunu sonradan cevaplayabilir.
+        runCatching {
+            com.kitsugi.animelist.core.diagnostics.KitsugiLog.i(
+                com.kitsugi.animelist.core.diagnostics.KitsugiLog.Channel.WORK,
+                "kuyruk",
+                "boşaltma başladı",
+                "bekleyen=${pending.size} | yeni bütçe=$freshBudget | " +
+                    "anilist soğuma=${AniListGate.cooldownRemainingMs()}ms"
+            )
+        }
 
         var successCount = 0
 
-        for (item in pending) {
+            // Kota cezası sürüyorsa kalan işleri denemek cezayı uzatmaktan başka işe yaramaz.
+            val cooldown = AniListGate.cooldownRemainingMs()
+            if (cooldown > 3_000L) {
+                scheduleResume(context, dao, cooldown + 2_000L)
+                break
+            }
+
             val decoded = runSyncCatching { item.entryJson.decodeJob() }.getOrNull()
             val entry = decoded?.entry
             if (entry == null) {
@@ -273,11 +337,6 @@ object PendingSyncDrainer {
 
             result.exceptionOrNull()?.let { if (it is CancellationException) throw it }
             val syncResult = result.getOrNull()
-            // Yalnızca GERÇEK hata (ağ/HTTP) yeniden denemeyi haklı çıkarır. "Kimlik çözülemedi"
-            // ya da "değişiklik yok" gibi sonuçlar hatasız olduğu için iş kuyruktan düşer;
-            // aksi hâlde bu işler 5 kez denenip sonsuza kadar kuyrukta kalıyordu.
-            // Yetki hatası — sonuçtaki hata metninde de fırlatılan istisnada da (E74) —
-            // deneme sayacını artırmaz; kararın tamamı PendingSyncPolicy'dedir.
             when (
                 PendingSyncPolicy.decision(
                     hasResult = result.isSuccess && syncResult != null,
@@ -290,9 +349,39 @@ object PendingSyncDrainer {
                     dao.deleteById(item.id)
                     successCount++
                 }
-                PendingSyncPolicy.RetryDecision.KEEP_INCREMENT -> dao.incrementRetry(item.id)
+                PendingSyncPolicy.RetryDecision.KEEP_INCREMENT -> {
+                    val allErrors = syncResult?.errors.orEmpty().joinToString(" | ")
+                    runCatching {
+                        com.kitsugi.animelist.core.diagnostics.KitsugiLog.w(
+                            com.kitsugi.animelist.core.diagnostics.KitsugiLog.Channel.WORK,
+                            "kuyruk",
+                            "iş gönderilemedi (${item.operation})",
+                            "deneme=${item.retryCount + 1} | " +
+                                (allErrors.ifBlank { result.exceptionOrNull()?.message }.orEmpty().take(400))
+                        )
+                    }
+                    val isQuota = AniListGate.isQuotaMessage(allErrors) || AniListGate.isCoolingDown()
+                    if (!isQuota) {
+                        dao.incrementRetry(item.id)
+                    } else {
+                        scheduleResume(context, dao, AniListGate.cooldownRemainingMs() + 2_000L)
+                        break
+                    }
+                }
                 PendingSyncPolicy.RetryDecision.KEEP_WITHOUT_INCREMENT -> Unit
             }
+            }
+        }
+
+        // Tur özeti: kaç iş gönderildi, kaç iş kaldı.
+        runCatching {
+            val remaining = dao.getAll().size
+            com.kitsugi.animelist.core.diagnostics.KitsugiLog.i(
+                com.kitsugi.animelist.core.diagnostics.KitsugiLog.Channel.WORK,
+                "kuyruk",
+                "boşaltma bitti",
+                "gönderilen=$successCount | kalan=$remaining"
+            )
         }
 
         successCount

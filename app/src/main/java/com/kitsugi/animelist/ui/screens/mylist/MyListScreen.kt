@@ -589,6 +589,28 @@ fun MyListScreen(
             )
         }
 
+        // ── AniList eşitleme durum şeridi (v2.4.341) ────────────────────────────
+        // Kullanıcı geri bildirimi: "günlerdir hiçbir şey AniList ile eşitlenmemiş ama
+        // nedenini anlamıyorum". Artık neden (kota / oturum / internet / kimlik / kapalı)
+        // ve bekleyen değişiklik sayısı burada açıkça yazıyor; "Şimdi dene" kuyruğu zorlar.
+        val syncHealth by viewModel.syncHealth.collectAsState()
+        LaunchedEffect(Unit) {
+            while (true) {
+                viewModel.refreshSyncHealth()
+                kotlinx.coroutines.delay(5_000L)
+            }
+        }
+        if (syncHealth.visible) {
+            SyncStatusBanner(
+                title = stringResource(R.string.sync_status_title),
+                lines = syncHealth.lines,
+                pending = syncHealth.pending,
+                isError = syncHealth.isError,
+                onRetry = { viewModel.retryAllSourcesSyncNow() },
+                modifier = Modifier.padding(horizontal = horizontalPadding)
+            )
+        }
+
         // ── HorizontalPager: her sekme kendi scroll alanı ──────────────────────
         // tabScrollStates declared at composable top level
 
@@ -1174,5 +1196,72 @@ fun MyListScreen(
                 }
             }
         )
+    }
+}
+
+/**
+ * "Arka planda ne oluyor?" şeridi (v2.4.341).
+ *
+ * Kaynak başına **tek satır** gösterir: "⏳ AniList istek sınırı doldu — 3 değişiklik
+ * 42 sn sonra gönderilecek", "🔑 MyAnimeList oturumu geçersiz …". Metinler
+ * [com.kitsugi.animelist.data.auth.SourceSyncStatus] tarafından üretilir; burada yalnızca
+ * gösterim yapılır. "Şimdi dene" tüm kaynakların kuyruğunu zorlar.
+ */
+@androidx.compose.runtime.Composable
+private fun SyncStatusBanner(
+    title: String,
+    lines: List<String>,
+    pending: Int,
+    isError: Boolean,
+    onRetry: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    // Bilgi satırları (kapalı / bağlı değil) kırmızı hata gibi görünmesin: v2.4.341.
+    val containerColor = if (isError) {
+        MaterialTheme.colorScheme.errorContainer
+    } else {
+        MaterialTheme.colorScheme.secondaryContainer
+    }
+    val contentColor = if (isError) {
+        MaterialTheme.colorScheme.onErrorContainer
+    } else {
+        MaterialTheme.colorScheme.onSecondaryContainer
+    }
+    androidx.compose.material3.Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(top = 4.dp, bottom = 2.dp),
+        color = containerColor,
+        shape = RoundedCornerShape(12.dp),
+        tonalElevation = 2.dp
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.Top
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                androidx.compose.material3.Text(
+                    text = title,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = contentColor
+                )
+                lines.forEach { line ->
+                    androidx.compose.material3.Text(
+                        text = line,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = contentColor,
+                        modifier = Modifier.padding(top = 2.dp)
+                    )
+                }
+            }
+            if (pending > 0) {
+                androidx.compose.material3.TextButton(onClick = onRetry) {
+                    androidx.compose.material3.Text(
+                        text = stringResource(R.string.sync_retry_now),
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                }
+            }
+        }
     }
 }

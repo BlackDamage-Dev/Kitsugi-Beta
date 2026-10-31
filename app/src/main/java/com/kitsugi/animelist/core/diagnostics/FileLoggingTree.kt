@@ -45,6 +45,18 @@ object FileLoggingTree {
             else -> Log.d(safeTag, message, throwable)
         }
 
+        // v2.4.342: oynatıcı, akış ve manga tanı satırları da **kalıcı** uygulama günlüğüne
+        // düşsün. Böylece "Günlükler" ekranı ve paylaşılan günlük tek dosyadan okunur.
+        runCatching {
+            KitsugiLog.log(
+                level = runCatching { kitsugiLevelOf(priority) }.getOrDefault(KitsugiLog.Level.DEBUG),
+                channel = channelForTag(safeTag),
+                tag = safeTag,
+                message = message,
+                throwable = throwable
+            )
+        }
+
         val context = appContext ?: return
         val level = when (priority) {
             Log.VERBOSE -> "VERBOSE"
@@ -125,5 +137,32 @@ object FileLoggingTree {
         } catch (e: Exception) {
             Log.e(TAG, "Log rotasyonu başarısız: ${e.message}")
         }
+    }
+}
+
+/** `android.util.Log` önceliğini [KitsugiLog] seviyesine çevirir (v2.4.342). */
+private fun kitsugiLevelOf(priority: Int): KitsugiLog.Level = when (priority) {
+    Log.VERBOSE -> KitsugiLog.Level.VERBOSE
+    Log.DEBUG -> KitsugiLog.Level.DEBUG
+    Log.INFO -> KitsugiLog.Level.INFO
+    Log.WARN -> KitsugiLog.Level.WARN
+    Log.ERROR, Log.ASSERT -> KitsugiLog.Level.ERROR
+    else -> KitsugiLog.Level.DEBUG
+}
+
+/** Etikete bakarak günlük kanalını tahmin eder (görüntüleyicideki konu filtresi için). */
+private fun channelForTag(tag: String): KitsugiLog.Channel {
+    val lower = tag.lowercase()
+    return when {
+        lower.contains("player") || lower.contains("stream") || lower.contains("mpv") ->
+            KitsugiLog.Channel.PLAYER
+        lower.contains("manga") || lower.contains("source") || lower.contains("plugin") ||
+            lower.contains("cloudstream") -> KitsugiLog.Channel.SOURCE
+        lower.contains("sync") || lower.contains("anilist") || lower.contains("mal") ||
+            lower.contains("kitsu") || lower.contains("shikimori") || lower.contains("simkl") ||
+            lower.contains("bangumi") -> KitsugiLog.Channel.SYNC
+        lower.contains("net") || lower.contains("http") || lower.contains("api") ->
+            KitsugiLog.Channel.NET
+        else -> KitsugiLog.Channel.APP
     }
 }

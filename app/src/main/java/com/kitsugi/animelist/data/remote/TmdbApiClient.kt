@@ -43,6 +43,8 @@ class TmdbApiClient(
         .followRedirects(true)
         .followSslRedirects(true)
         .addInterceptor(com.kitsugi.animelist.core.network.PlatformFailureInterceptor())
+        // v2.4.342: TMDB çağrıları da kalıcı günlüğe düşsün.
+        .addInterceptor(com.kitsugi.animelist.core.network.KitsugiNetworkLogInterceptor())
         .build()
     // Most call sites use TmdbApiClient() and are not rebuilt when preferences change.
     // Resolve the shared active key here so personal keys work consistently throughout the app.

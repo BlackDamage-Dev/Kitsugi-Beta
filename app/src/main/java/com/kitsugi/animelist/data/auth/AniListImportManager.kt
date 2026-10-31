@@ -47,6 +47,13 @@ object AniListImportManager {
     suspend fun fetchAllLists(
         accessToken: String
     ): List<MediaEntry> {
+        // Soğuma (429 cezası) aktifse hiç başlamayalım: sayfa aralarında dakikalarca bekleyip
+        // yarım liste bırakmak yerine kullanıcıya net bilgi verilir (AuthViewModel bunu
+        // "liste %1$d sn sonra yeniden çekilebilir" olarak gösterir).
+        val cooldown = AniListGate.cooldownRemainingMs()
+        if (cooldown > 5_000L) {
+            throw IllegalStateException(AniListGate.quotaMessage(cooldown))
+        }
         return withContext(Dispatchers.IO) {
             val viewer = fetchViewer(accessToken)
             val anime = fetchMediaEntries(accessToken, viewer.userId, "ANIME")
@@ -82,9 +89,32 @@ object AniListImportManager {
         }
     }
 
+    // ─── Önbellekler (v2.4.341) ──────────────────────────────────────────────
+    // Liste yenileme her seferinde 1 Viewer + 1 profil isteğiyle başlıyordu; ikisi de
+    // neredeyse hiç değişmez. 30 istek/dk bütçesinde bu 2 istek, bir sayfalık liste
+    // çekiminden çalınan kotaydı. Artık bellek içinde önbelleklenir.
+    private const val VIEWER_CACHE_MS = 24L * 60L * 60L * 1_000L
+    private const val PROFILE_CACHE_MS = 15L * 60L * 1_000L
+
+    @Volatile private var cachedViewerToken: String? = null
+    @Volatile private var cachedViewer: ViewerInfo? = null
+    @Volatile private var cachedViewerAt: Long = 0L
+
+    @Volatile private var cachedProfileToken: String? = null
+    @Volatile private var cachedProfile: AniListUserProfile? = null
+    @Volatile private var cachedProfileAt: Long = 0L
+
+    @Synchronized
     private fun fetchViewer(
         accessToken: String
     ): ViewerInfo {
+        val now = System.currentTimeMillis()
+        cachedViewer?.let { viewer ->
+            if (cachedViewerToken == accessToken && now - cachedViewerAt < VIEWER_CACHE_MS) {
+                return viewer
+            }
+        }
+
         val query = """
             query {
                 Viewer {
@@ -107,11 +137,15 @@ object AniListImportManager {
             .getJSONObject("data")
             .getJSONObject("Viewer")
 
-        return ViewerInfo(
+        val info = ViewerInfo(
             userId = viewer.getInt("id"),
             name = viewer.optNullableString("name") ?: "Bilinmeyen",
             avatarUrl = viewer.optJSONObject("avatar")?.optNullableString("large")
         )
+        cachedViewerToken = accessToken
+        cachedViewer = info
+        cachedViewerAt = now
+        return info
     }
 
     private fun fetchMediaEntries(
@@ -408,31 +442,42 @@ object AniListImportManager {
             .build()
 
         try {
-            com.kitsugi.animelist.core.network.KitsugiHttpClient.aniListClient.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) {
-                    val errorText = response.body?.string().orEmpty()
+            // BULK önceliği: kullanıcı ilerlemeyi görüyor, liste çekimi dakikalar sürebilir.
+            // Kota kapısı sayesinde sayfalar 30/dk sınırının altında tempolu gider.
+            // 20 sn'den uzun sıra beklemesi: kullanıcıya dönen bir spinner bırakmak yerine
+            // "kota doldu, N sn sonra tekrar dene" demek daha doğru.
+            return AniListGate.withPermitBlocking(
+                priority = AniListGate.Priority.BULK,
+                maxWaitMs = 40_000L
+            ) {
+                com.kitsugi.animelist.core.network.KitsugiHttpClient.aniListClient.newCall(request).execute().use { response ->
+                    val body = runCatching { response.body?.string().orEmpty() }.getOrDefault("")
+                    AniListGate.onResponse(response.code, response.headers, body)
+
                     com.kitsugi.animelist.data.remote.KitsugiApiBase
-                        .extractAniListServiceDownMessage(errorText)
+                        .extractAniListServiceDownMessage(body)
                         ?.let { downMsg ->
                             val down = com.kitsugi.animelist.data.remote.KitsugiApiBase
                                 .recordAniListServiceDown(downMsg, response.code)
                             throw IllegalStateException(down.message, down)
                         }
-                    throw IllegalStateException("AniList API hatası: ${response.code} $errorText")
-                }
 
-                val body = response.body?.string().orEmpty()
-                com.kitsugi.animelist.data.remote.KitsugiApiBase
-                    .extractAniListServiceDownMessage(body)
-                    ?.let { downMsg ->
-                        val down = com.kitsugi.animelist.data.remote.KitsugiApiBase
-                            .recordAniListServiceDown(downMsg, 503)
-                        throw IllegalStateException(down.message, down)
+                    if (!response.isSuccessful) {
+                        if (response.code == 429) {
+                            val waitMs = AniListGate.cooldownRemainingMs()
+                            throw AniListGate.QuotaExhaustedException(waitMs, AniListGate.quotaMessage(waitMs))
+                        }
+                        throw IllegalStateException("AniList API hatası: ${response.code} $body")
                     }
-                val errors = JSONObject(body).optJSONArray("errors")
-                require(errors == null || errors.length() == 0) { "AniList GraphQL liste okuma hatası: $errors" }
-                return body
+
+                    val errors = JSONObject(body).optJSONArray("errors")
+                    require(errors == null || errors.length() == 0) { "AniList GraphQL liste okuma hatası: $errors" }
+                    body
+                }
             }
+        } catch (quota: AniListGate.QuotaExhaustedException) {
+            // Kota: liste yenileme iptal edilir, kullanıcıya bekleme süresi söylenir.
+            throw IllegalStateException(quota.message, quota)
         } catch (e: Exception) {
             if (e is IllegalStateException) throw e
             throw IllegalStateException("AniList bağlantı hatası: ${e.message}", e)
@@ -498,6 +543,12 @@ object AniListImportManager {
     suspend fun fetchUserProfile(
         accessToken: String
     ): AniListUserProfile {
+        val now = System.currentTimeMillis()
+        cachedProfile?.let { profile ->
+            if (cachedProfileToken == accessToken && now - cachedProfileAt < PROFILE_CACHE_MS) {
+                return profile
+            }
+        }
         return withContext(Dispatchers.IO) {
             val query = """
                 query {
@@ -521,11 +572,15 @@ object AniListImportManager {
                 .getJSONObject("data")
                 .getJSONObject("Viewer")
 
-            AniListUserProfile(
+            val profile = AniListUserProfile(
                 name = viewer.optNullableString("name") ?: KitsugiStrings.get(R.string.ui_profile_anilist_fallback),
                 avatarUrl = viewer.optJSONObject("avatar")?.optNullableString("large"),
                 bannerUrl = viewer.optNullableString("bannerImage")
             )
+            cachedProfileToken = accessToken
+            cachedProfile = profile
+            cachedProfileAt = now
+            profile
         }
     }
 }

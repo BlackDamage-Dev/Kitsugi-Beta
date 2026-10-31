@@ -1,5 +1,6 @@
 package com.kitsugi.animelist.data.remote
 
+import com.kitsugi.animelist.data.auth.AniListGate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -13,31 +14,6 @@ import org.json.JSONObject
  * Kimlik doğrulama: Bearer token (yalnızca oturum açık kullanıcılar için bildirim alınabilir)
  */
 class KitsugiAniListNotificationClient {
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // Önbellek
-    //
-    // AniList kotası 30 istek/dk. Bildirim ekranı açıldığında eskiden 2 istek
-    // gidiyordu (sayfa + okunmamış sayacı), her sekme değişiminde de yeni bir
-    // istek üretiliyordu. Artık:
-    //  - sayfa + okunmamış sayacı TEK GraphQL belgesinde istenir,
-    //  - 60 sn içindeki tekrarlar önbellekten karşılanır,
-    //  - "Tümü" yanıtı önbellekteyse diğer sekmeler istemci tarafında filtrelenir.
-    // ─────────────────────────────────────────────────────────────────────────
-
-    private data class CachedPage(val page: KitsugiNotificationPage, val storedAtMs: Long)
-
-    private companion object {
-        const val PAGE_TTL_MS = 60_000L
-        const val UNREAD_TTL_MS = 60_000L
-
-        /** Sayfa önbelleği: sınıf örneği her yüklemede yeniden üretildiği için ORTAK. */
-        val pageCache = java.util.concurrent.ConcurrentHashMap<String, CachedPage>()
-
-        /** Son bilinen okunmamış sayısı — fetchNotifications() aynı yanıtta getirir. */
-        @Volatile var lastUnreadCount: Int? = null
-        @Volatile var lastUnreadAtMs: Long = 0L
-    }
 
     // ─────────────────────────────────────────────────────────────────────────
     // Veri modelleri
@@ -100,11 +76,6 @@ class KitsugiAniListNotificationClient {
      * Token olmadan null döner.
      */
     suspend fun fetchUnreadCount(accessToken: String): Int? {
-        // 1) fetchNotifications() aynı belgede sayacı da getiriyor: ek istek YOK.
-        val cached = lastUnreadCount
-        if (cached != null && System.currentTimeMillis() - lastUnreadAtMs <= UNREAD_TTL_MS) {
-            return cached
-        }
         return withContext(Dispatchers.IO) {
             val query = """
                 query UnreadNotificationCount {
@@ -114,20 +85,19 @@ class KitsugiAniListNotificationClient {
                 }
             """.trimIndent()
             runCatching {
+                // Arka plan sorgusu: kullanıcıya ayrılmış kota payını tüketmemeli.
                 val response = KitsugiApiBase.executeAniListQuery(
                     query = query,
                     variables = JSONObject(),
                     accessToken = accessToken,
-                    priority = AniListQuotaGate.Priority.CRITICAL
-                ) ?: return@runCatching null
+                    priority = AniListGate.Priority.BACKGROUND
+                )
+                    ?: return@runCatching null
                 JSONObject(response)
                     .optJSONObject("data")
                     ?.optJSONObject("Viewer")
                     ?.optInt("unreadNotificationCount")
-            }.getOrNull()?.also { count ->
-                lastUnreadCount = count
-                lastUnreadAtMs = System.currentTimeMillis()
-            }
+            }.getOrNull()
         }
     }
 
@@ -151,29 +121,11 @@ class KitsugiAniListNotificationClient {
         group: NotificationGroup = NotificationGroup.ALL,
         resetCount: Boolean = false
     ): KitsugiNotificationPage {
-        // 0) Aynı sayfa son 60 sn içinde çekildiyse ağa hiç çıkma.
-        val cacheKey = "anilist:notif:$page:$perPage:${group.name}:$resetCount"
-        pageCache[cacheKey]?.let { cached ->
-            if (System.currentTimeMillis() - cached.storedAtMs <= PAGE_TTL_MS) return cached.page
-        }
-        // 0b) "Tümü" önbellekte ise sekmeleri sunucuda değil, burada filtrele:
-        //     6 sekme gezinmek = 6 istek yerine 0 istek.
-        if (group != NotificationGroup.ALL) {
-            val allKey = "anilist:notif:$page:$perPage:${NotificationGroup.ALL.name}:false"
-            val all = pageCache[allKey]
-            if (all != null && System.currentTimeMillis() - all.storedAtMs <= PAGE_TTL_MS) {
-                val filtered = all.page.notifications.filter { it.type in group.apiTypes }
-                return all.page.copy(notifications = filtered)
-            }
-        }
-
         return withContext(Dispatchers.IO) {
             val typeInParam = if (group.apiTypes.isEmpty()) "" else ", \$typeIn: [NotificationType]"
             val typeInArg   = if (group.apiTypes.isEmpty()) "" else ", type_in: \$typeIn"
 
-            // TASK-108: Tüm bildirim alt tiplerini kapsayan kapsamlı query.
-            // NOT: `Viewer { unreadNotificationCount }` aynı belgede KARDEŞ kök alandır
-            // (Page kısıtı yalnızca Page içindir). Böylece sayfa + sayaç = 1 istek.
+            // TASK-108: Tüm bildirim alt tiplerini kapsayan kapsamlı query
             val query = """
                 query Notifications(${'$'}page: Int, ${'$'}perPage: Int$typeInParam, ${'$'}resetCount: Boolean) {
                     Page(page: ${'$'}page, perPage: ${'$'}perPage) {
@@ -273,7 +225,6 @@ class KitsugiAniListNotificationClient {
                         }
                         pageInfo { currentPage hasNextPage }
                     }
-                    Viewer { unreadNotificationCount }
                 }
             """.trimIndent()
 
@@ -292,22 +243,13 @@ class KitsugiAniListNotificationClient {
                     query = query,
                     variables = variables,
                     accessToken = accessToken,
-                    throwOnServiceDown = true
+                    throwOnServiceDown = true,
+                    // Bildirim listesi arka planda da çekilir → kullanıcı kotasına dokunmaz.
+                    priority = AniListGate.Priority.BACKGROUND
                 )
-                    ?: run {
-                        // Eskiden burada tek bir "ağ/sunucu hatası" yazıyordu; oysa
-                        // gerçek sebep çoğu zaman kota idi. Kullanıcı kaç saniye
-                        // bekleyeceğini görsün.
-                        val waitMs = AniListQuotaGate.cooldownRemainingMs()
-                            .takeIf { it > 0L }
-                            ?: AniListQuotaGate.waitEstimateMs(AniListQuotaGate.Priority.CRITICAL)
-                        val detail = if (waitMs > 0L) {
-                            "AniList kotası dolu; yaklaşık ${(waitMs / 1000).coerceAtLeast(1)} sn sonra yeniden deneyin."
-                        } else {
-                            "AniList bildirim isteği yanıtsız kaldı (ağ/sunucu hatası)."
-                        }
-                        throw AniListNotificationException(detail, null, waitMs)
-                    }
+                    ?: throw AniListNotificationException(
+                        "AniList bildirim isteği yanıtsız kaldı (ağ/sunucu hatası)."
+                    )
 
                 // GraphQL hataları daha önce sessizce yutuluyordu; bu yüzden kullanıcı
                 // "bildirim yok" sanıyordu. Artık hata açıkça fırlatılır.
@@ -330,20 +272,6 @@ class KitsugiAniListNotificationClient {
                 val hasNext = pageInfo?.optBoolean("hasNextPage", false) ?: false
                 val currentP = pageInfo?.optInt("currentPage", page) ?: page
 
-                // Aynı yanıtta gelen okunmamış sayacı (varsa) önbelleğe yaz.
-                val unreadFromDoc = root.optJSONObject("data")
-                    ?.optJSONObject("Viewer")
-                    ?.optInt("unreadNotificationCount", -1)
-                    ?.takeIf { it >= 0 }
-                if (resetCount) {
-                    // Sunucu sayacı sıfırladı; rozet hemen düşsün.
-                    lastUnreadCount = 0
-                    lastUnreadAtMs = System.currentTimeMillis()
-                } else if (unreadFromDoc != null) {
-                    lastUnreadCount = unreadFromDoc
-                    lastUnreadAtMs = System.currentTimeMillis()
-                }
-
                 val list = mutableListOf<KitsugiNotification>()
                 if (notificationsArr != null) {
                     for (i in 0 until notificationsArr.length()) {
@@ -351,9 +279,7 @@ class KitsugiAniListNotificationClient {
                         list.add(parseNotification(item))
                     }
                 }
-                val resultPage = KitsugiNotificationPage(list, hasNext, currentP)
-                pageCache[cacheKey] = CachedPage(resultPage, System.currentTimeMillis())
-                resultPage
+                KitsugiNotificationPage(list, hasNext, currentP)
             }.getOrElse { cause ->
                 // Sessiz boş liste YOK: çağıran katman gerçek nedeni gösterebilsin.
                 if (cause is AniListNotificationException) throw cause
@@ -365,13 +291,9 @@ class KitsugiAniListNotificationClient {
         }
     }
 
-    /** AniList bildirim akışındaki hataları taşır (ağ, token, GraphQL, kota). */
-    class AniListNotificationException(
-        message: String,
-        cause: Throwable? = null,
-        /** Kota nedeniyleyse: kaç ms sonra yeniden denenebilir (0 = bilinmiyor). */
-        val retryInMs: Long = 0L
-    ) : Exception(message, cause)
+    /** AniList bildirim akışındaki hataları taşır (ağ, token, GraphQL). */
+    class AniListNotificationException(message: String, cause: Throwable? = null) :
+        Exception(message, cause)
 
     // ─────────────────────────────────────────────────────────────────────────
     // Private — JSON parser

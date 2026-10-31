@@ -1,14 +1,14 @@
 {
   "_comment": "Kitsugi Eklenti Domain Listesi — GitHub Actions + AI tarafından otomatik güncellenir.",
   "_format": "eklentiAdi (küçük harf) → güncel ana URL",
-  "_updated": "2026-10-25 03:18 UTC",
+  "_updated": "2026-10-31 03:30 UTC",
   "_stats": {
-    "total": 81,
+    "total": 79,
     "added": 0,
     "removed": 0,
     "changed": 0,
     "ai_assisted": 0,
-    "blocked": 152
+    "blocked": 155
   },
   "domains": {
     "animecix": "https://animecix.tv",
@@ -17,7 +17,6 @@
     "anizium": "https://api.anizium.co",
     "asyaanimeleri": "https://asyaanimeleri.top",
     "asyaanimeleri2": "https://asyaanimeleri.top",
-    "asyafilmizlesene": "https://asyafilmizlesene.com",
     "asyawatch": "https://asyawatch.com",
     "belgeselx": "https://belgeselx.com",
     "cizgimax": "https://cizgimax.online",
@@ -32,7 +31,6 @@
     "dizikorea": "https://dizikorea3.com",
     "dizilife": "https://dizi77.life",
     "dizilla": "https://dizilla.now",
-    "dizimom": "https://www.dizimom.cafe",
     "dizipal": "https://dizipal3008.com",
     "dizipaloriginal": "https://dizipal3008.com",
     "dizipod": "https://dizipod.com",
@@ -105,6 +103,7 @@
     "animeav",
     "animejara",
     "animeworld",
+    "asyafilmizlesene",
     "aznude",
     "badtv",
     "basketballreplays",
@@ -119,6 +118,7 @@
     "cumlouder",
     "dirtyship",
     "dizimag",
+    "dizimom",
     "documentaryarea",
     "doeda",
     "doedaorijinal",
@@ -239,6 +239,7 @@
     "xprime",
     "xrares",
     "xvideos",
+    "xxxtime",
     "yablom",
     "yereldiziler",
     "yerelprogramlar",

@@ -46,6 +46,22 @@ object MangaLogger {
     private fun write(context: Context, level: String, tag: String, message: String) {
         val safeContext = context.applicationContext
         Log.d(TAG, "[$level] [$tag] $message")
+        // v2.4.342: manga kaynağı tanı satırları kalıcı uygulama günlüğünde "Kaynak"
+        // konusu altında toplanır; kullanıcı kaynak arızalarını tek yerden görür.
+        runCatching {
+            val kitsugiLevel = when (level.uppercase()) {
+                "ERROR" -> com.kitsugi.animelist.core.diagnostics.KitsugiLog.Level.ERROR
+                "WARN" -> com.kitsugi.animelist.core.diagnostics.KitsugiLog.Level.WARN
+                "INFO" -> com.kitsugi.animelist.core.diagnostics.KitsugiLog.Level.INFO
+                else -> com.kitsugi.animelist.core.diagnostics.KitsugiLog.Level.DEBUG
+            }
+            com.kitsugi.animelist.core.diagnostics.KitsugiLog.log(
+                level = kitsugiLevel,
+                channel = com.kitsugi.animelist.core.diagnostics.KitsugiLog.Channel.SOURCE,
+                tag = tag,
+                message = message
+            )
+        }
         val logTime = Date()
         logExecutor.execute {
             val line = "[${formatDate(logTime)}] [$level] [$tag] $message"

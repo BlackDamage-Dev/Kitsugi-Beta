@@ -1,5 +1,7 @@
 package com.kitsugi.animelist.data.remote
 
+import com.kitsugi.animelist.data.auth.AniListGate
+
 import com.kitsugi.animelist.data.auth.BangumiApiClient
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -390,7 +392,12 @@ object KitsugiPersonImageAggregator {
         val directImage = if (aniListId != null && aniListId > 0) {
             runCatching {
                 val query = "query (\$id: Int) { $node(id: \$id) { image { large } } }"
-                val response = KitsugiApiBase.executeAniListQuery(query, JSONObject().put("id", aniListId))
+                // Kişi görseli zenginleştirmesi: kullanıcı kotasına dokunmaz, kıtlıkta atlanır.
+                val response = KitsugiApiBase.executeAniListQuery(
+                    query = query,
+                    variables = JSONObject().put("id", aniListId),
+                    priority = AniListGate.Priority.BACKGROUND
+                )
                 response?.let {
                     JSONObject(it).optJSONObject("data")?.optJSONObject(node)
                         ?.optJSONObject("image")?.optNullableString("large")
@@ -415,7 +422,11 @@ object KitsugiPersonImageAggregator {
                 }
             """.trimIndent()
             val response = runCatching {
-                KitsugiApiBase.executeAniListQuery(query, JSONObject().put("search", name))
+                KitsugiApiBase.executeAniListQuery(
+                    query = query,
+                    variables = JSONObject().put("search", name),
+                    priority = AniListGate.Priority.BACKGROUND
+                )
             }.getOrNull() ?: continue
             val arr = runCatching {
                 JSONObject(response).optJSONObject("data")?.optJSONObject("Page")?.optJSONArray(pageField)

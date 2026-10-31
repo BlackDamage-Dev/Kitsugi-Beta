@@ -76,12 +76,14 @@ object ExternalListSyncManager {
     private const val BANGUMI = "Bangumi"
     private const val TMDB = "TMDB"
 
-    private fun Context.sourceFailure(platform: String, error: Throwable): String =
-        getString(
+    private fun Context.sourceFailure(platform: String, error: Throwable): String {
+        runCatching { com.kitsugi.animelist.data.platform.PlatformFailureRegistry.report(platformLabel = platform, error = error) }
+        return getString(
             R.string.account_sync_source_failure,
             platform,
             error.message ?: getString(R.string.account_sync_unknown_error)
         )
+    }
 
     /**
      * Bir eşitleme turunun DEĞİŞMEZ bağlamı. Altı kaynak bloğu bunu paylaşır; hiçbiri

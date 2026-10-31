@@ -6388,10 +6388,10 @@
     <string name="pf_err_com_1025_fix">Narrow the filters or repeat the operation in smaller chunks.</string>
     <string name="pf_err_anl_2001_title">AniList is in degraded mode (30 req/min)</string>
     <string name="pf_err_anl_2001_why">AniList has temporarily lowered its documented 90 req/min limit to 30 req/min. Heavy syncing therefore returns 429.</string>
-    <string name="pf_err_anl_2001_fix">The app paces requests automatically; avoid restarting the sync repeatedly.</string>
+    <string name="pf_err_anl_2001_fix">Since v2.4.341 all AniList traffic flows through a single quota gate (60 s window, priorities, 429 cool-down), so there is no need to restart the sync repeatedly.</string>
     <string name="pf_err_anl_2002_title">AniList rate limited (GraphQL 429)</string>
     <string name="pf_err_anl_2002_why">The GraphQL response returned \"Too Many Requests\". Besides the per-minute limit, AniList runs a separate burst limiter against short request spikes.</string>
-    <string name="pf_err_anl_2002_fix">Wait a minute; the Retry-After delay is applied automatically.</string>
+    <string name="pf_err_anl_2002_fix">No need to wait: once the penalty window ends, queued changes are pushed automatically.</string>
     <string name="pf_err_anl_2003_title">AniList server error (500)</string>
     <string name="pf_err_anl_2003_why">The AniList GraphQL layer could not process the request, which happens during brief service-side degradation.</string>
     <string name="pf_err_anl_2003_fix">Try again in a few minutes.</string>
@@ -6591,6 +6591,29 @@
     <string name="account_sync_anilist_media_id_unresolved">Could not resolve the AniList ID.</string>
     <string name="account_sync_anilist_user_id_unavailable">Could not retrieve the AniList user ID (the token may be invalid).</string>
     <string name="account_sync_anilist_rate_limit">AniList API error: rate limit 429 (%1$d attempts, Retry-After=%2$ds).</string>
+    <string name="account_sync_anilist_quota_wait">⏳ AniList rate limit reached — retrying automatically in %1$d s (your change is saved locally)</string>
+    <!-- v2.4.341: source-agnostic sync status — "why isn't it syncing?" (plain language) -->
+    <string name="sync_status_quota">⏳ %1$s rate limit reached — %2$d change(s) will be sent automatically in %3$d s</string>
+    <string name="sync_status_auth">🔑 %1$s session is invalid — %2$d change(s) cannot be sent. Sign in again via Settings &gt; Platforms.</string>
+    <string name="sync_status_not_connected">🔌 %1$s is not connected — %2$d change(s) live only on this device</string>
+    <string name="sync_status_disabled">⚙️ %1$s sync is disabled in settings — %2$d change(s) live only on this device</string>
+    <string name="sync_status_offline">📵 No internet — %2$d change(s) for %1$s will be sent when the connection returns</string>
+    <string name="sync_status_service">🛠 %1$s is temporarily unavailable — %2$d change(s) will be sent later</string>
+    <string name="sync_status_identity">🔎 %1$s: the title match for %2$d change(s) could not be verified (held back to avoid writing to the wrong entry)</string>
+    <string name="sync_status_generic">⚠️ %1$s: %2$d change(s) could not be sent</string>
+    <string name="sync_snack_quota">⏳ %1$s rate limit reached — %2$d change(s) will be sent in %3$d s</string>
+    <string name="sync_snack_auth">🔑 %1$s session is invalid — sign in again; your change is queued</string>
+    <string name="sync_snack_not_connected">🔌 %1$s is not connected — the change stays on this device only</string>
+    <string name="sync_snack_disabled">⚙️ %1$s sync is disabled — the change stays on this device only</string>
+    <string name="sync_snack_offline">📵 No internet — the %1$s change will be sent when the connection returns</string>
+    <string name="sync_snack_service">🛠 %1$s is not responding right now — the change will be sent later</string>
+    <string name="sync_snack_identity">🔎 %1$s: could not verify this title — skipped to avoid writing to the wrong entry</string>
+    <string name="sync_snack_generic">⚠️ %1$s — the change could not be sent right now; it is queued and will be retried automatically</string>
+    <string name="sync_status_title">What is happening in the background?</string>
+    <string name="sync_retry_now">Retry now</string>
+    <string name="sync_retried_n">%1$d change(s) sent</string>
+    <string name="sync_status_all_ok">✅ Sync with all connected sources is healthy</string>
+    <string name="account_sync_anilist_quota_refresh">⏳ AniList rate limit reached — the list can be refreshed again in %1$d s</string>
     <string name="account_sync_mal_type_unsupported">MAL only supports anime and manga.</string>
     <string name="account_sync_mal_id_invalid">A valid MAL ID was not found.</string>
     <string name="account_sync_no_valid_mal_id">MAL: no verified media ID.</string>

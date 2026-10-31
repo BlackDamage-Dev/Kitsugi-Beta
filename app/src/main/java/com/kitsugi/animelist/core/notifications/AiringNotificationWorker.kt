@@ -203,7 +203,8 @@ class AiringNotificationWorker(
                     val importedEntries = SimklImportManager.fetchAllLists(simklToken)
                     val repository = MediaEntryRepository(
                         dao = db.mediaEntryDao(),
-                        pendingSyncDao = db.pendingSyncDao()
+                        pendingSyncDao = db.pendingSyncDao(),
+                        context = context
                     )
                     // Fark-tabanlı birleştirme: sil-yeniden-yaz YOK. Yalnızca değişen satırlar
                     // yazılır, +18 işaretleri korunur ve Room tek invalidation yayar.

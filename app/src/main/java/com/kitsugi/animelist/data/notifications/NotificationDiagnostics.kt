@@ -73,12 +73,14 @@ object NotificationDiagnostics {
 
     suspend fun runAll(context: Context, mediaEntries: List<MediaEntry>): List<Row> {
         val rows = mutableListOf<Row>()
-        rows += checkAniList(context)
-        rows += checkMal(context)
-        rows += checkSimkl(context, mediaEntries)
-        rows += checkKitsu(context)
-        rows += checkBangumi(context, mediaEntries)
-        rows += checkShikimori(context)
+        // v2.4.341: teşhis çağrıları ağ/IO işidir. `runDiagnostics` ana iş parçacığından
+        // çağırdığı için buradaki kontroller IO'ya alındı (AniList kota kapısı da bloklayabilir).
+        rows += withContext(Dispatchers.IO) { checkAniList(context) }
+        rows += withContext(Dispatchers.IO) { checkMal(context) }
+        rows += withContext(Dispatchers.IO) { checkSimkl(context, mediaEntries) }
+        rows += withContext(Dispatchers.IO) { checkKitsu(context) }
+        rows += withContext(Dispatchers.IO) { checkBangumi(context, mediaEntries) }
+        rows += withContext(Dispatchers.IO) { checkShikimori(context) }
         // Merkezi son adım: başarısız her satıra kaynağa özgü hata kodu ata.
         val tagged = rows.map { row -> if (row.ok) row else row.copy(errorCode = classifyRow(row)) }
         tagged.forEach { row ->
@@ -132,7 +134,13 @@ object NotificationDiagnostics {
 
         return try {
             val payload = JSONObject().put("query", query).toString()
-            val http = httpPostJson("https://graphql.anilist.co", payload, token)
+            // Teşhis isteği de AniList kotasından yer: arka plan önceliğiyle kapıdan geçir.
+            val http = com.kitsugi.animelist.data.auth.AniListGate.withPermit(
+                priority = com.kitsugi.animelist.data.auth.AniListGate.Priority.BACKGROUND,
+                maxWaitMs = 5_000L
+            ) {
+                httpPostJson("https://graphql.anilist.co", payload, token)
+            }
             val status = http.first
             val body = http.second
             val duration = System.currentTimeMillis() - started

@@ -9,6 +9,7 @@ import com.kitsugi.animelist.data.local.toDomain
 import com.kitsugi.animelist.model.EntryAutoRules
 import com.kitsugi.animelist.model.MediaEntry
 import com.kitsugi.animelist.model.WatchStatus
+import com.kitsugi.animelist.data.auth.SourceSyncStatus
 import com.kitsugi.animelist.data.auth.ExternalAuthManager
 import com.kitsugi.animelist.data.remote.BangumiIdNamespace
 import com.kitsugi.animelist.data.remote.BangumiLibraryTitleHydrator
@@ -18,6 +19,7 @@ import com.kitsugi.animelist.model.MediaType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -45,6 +47,68 @@ class MyListViewModel(application: Application) : AndroidViewModel(application) 
                 viewModelScope.launch { _syncMessages.send(msg) }
             }
         )
+    }
+
+    // ─── Kaynak eşitleme sağlığı (v2.4.341) ─────────────────────────────────
+    // Listem ekranı bu bilgiyle "arka planda ne oluyor?" şeridini çizer: kaynak kaynak
+    // kota / oturum / bağlantı / kimlik / kapalı ayrımı. Eskiden bu durumların hiçbiri
+    // (AniList dahil) kullanıcıya gösterilmiyordu.
+    data class SyncHealth(
+        val lines: List<String> = emptyList(),
+        val pending: Int = 0,
+        /** Satırlardan en az biri gerçek bir sorun mu? (bilgi satırları kırmızı çizilmez) */
+        val isError: Boolean = false
+    ) {
+        val visible: Boolean get() = lines.isNotEmpty()
+    }
+
+    private val _syncHealth = MutableStateFlow(SyncHealth())
+    val syncHealth: StateFlow<SyncHealth> = _syncHealth
+
+    /** Kuyruk/bağlantı durumunu yeniden okur (ekran açılışında ve periyodik olarak). */
+    fun refreshSyncHealth() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val perSource = runCatching { repository.pendingSyncBySource() }.getOrDefault(emptyMap())
+            val snapshots = SourceSyncStatus.snapshotAll(context)
+            val lines = mutableListOf<String>()
+            var totalPending = 0
+            var anyError = false
+            SourceSyncStatus.Source.entries.forEach { source ->
+                val pending = perSource[source] ?: 0
+                totalPending += pending
+                val snapshot = snapshots[source] ?: SourceSyncStatus.Snapshot()
+                val text = SourceSyncStatus.describe(
+                    context = context,
+                    source = source,
+                    snapshot = snapshot,
+                    pending = pending
+                )
+                if (text.isNotBlank()) {
+                    lines += text
+                    if (SourceSyncStatus.isError(snapshot.reason)) anyError = true
+                }
+            }
+            _syncHealth.value = SyncHealth(
+                lines = lines.take(4),
+                pending = totalPending,
+                isError = anyError
+            )
+        }
+    }
+
+    /** "Şimdi dene": deneme sayaçlarını tazeler ve tüm kaynakların kuyruğunu zorla boşaltır. */
+    fun retryAllSourcesSyncNow() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val sent = runCatching { repository.retryPendingSyncNow() }.getOrDefault(0)
+            refreshSyncHealth()
+            if (sent > 0) {
+                runCatching {
+                    _syncMessages.send(
+                        context.getString(com.kitsugi.animelist.R.string.sync_retried_n, sent)
+                    )
+                }
+            }
+        }
     }
 
     val entriesFlow: StateFlow<List<MediaEntry>> = repository.entriesFlow.stateIn(
@@ -106,6 +170,7 @@ class MyListViewModel(application: Application) : AndroidViewModel(application) 
         // taramayı kaçırır. Bu yüzden aktarım sonrası AuthViewModel ve başlık dili
         // değişiminde ekran da aynı taramayı tetikler (bkz. refreshBangumiTitles).
         refreshBangumiTitles()
+        refreshSyncHealth()
     }
 
     /**

@@ -1262,19 +1262,39 @@ class KitsugiProfileViewModel(application: Application) : AndroidViewModel(appli
                 .header("Authorization", "Bearer $token")
                 .build()
 
-            com.kitsugi.animelist.core.network.KitsugiHttpClient.aniListClient.newCall(request).execute().use { response ->
-                val bodyText = runCatching { response.body?.string() ?: "" }.getOrDefault("")
-                com.kitsugi.animelist.data.remote.KitsugiApiBase
-                    .extractAniListServiceDownMessage(bodyText)
-                    ?.let { downMsg ->
-                        throw com.kitsugi.animelist.data.remote.KitsugiApiBase
-                            .recordAniListServiceDown(downMsg, response.code)
+            // v2.4.341: AniList kota kapısı — bu yol daha önce hiçbir hız sınırına uymuyordu.
+            com.kitsugi.animelist.data.auth.AniListGate.withPermit(
+                com.kitsugi.animelist.data.auth.AniListGate.Priority.INTERACTIVE
+            ) {
+                com.kitsugi.animelist.core.network.KitsugiHttpClient.aniListClient.newCall(request).execute().use { response ->
+                    val bodyText = runCatching { response.body?.string() ?: "" }.getOrDefault("")
+                    com.kitsugi.animelist.data.auth.AniListGate.onResponse(response.code, response.headers, bodyText)
+                    com.kitsugi.animelist.data.remote.KitsugiApiBase
+                        .extractAniListServiceDownMessage(bodyText)
+                        ?.let { downMsg ->
+                            throw com.kitsugi.animelist.data.remote.KitsugiApiBase
+                                .recordAniListServiceDown(downMsg, response.code)
+                        }
+                    if (response.code == 429) {
+                        val waitMs = com.kitsugi.animelist.data.auth.AniListGate.cooldownRemainingMs()
+                        throw com.kitsugi.animelist.data.auth.AniListGate.QuotaExhaustedException(
+                            waitMs,
+                            // Kullanıcıya gösterilecek metin: dile ve "halk dili" kuralına uygun
+                            // (kapı içindeki ham mesaj yerine kaynak adıyla yazılır).
+                            context.getString(
+                                com.kitsugi.animelist.R.string.sync_snack_quota,
+                                "AniList",
+                                1,
+                                (waitMs / 1_000L).coerceAtLeast(1L)
+                            )
+                        )
                     }
-                if (!response.isSuccessful) {
-                    // Keep raw JSON payloads out of user-facing exceptions when it's a normal HTTP error.
-                    throw PlatformHttpException(response.code, "AniList profile request failed")
+                    if (!response.isSuccessful) {
+                        // Keep raw JSON payloads out of user-facing exceptions when it's a normal HTTP error.
+                        throw PlatformHttpException(response.code, "AniList profile request failed")
+                    }
+                    bodyText
                 }
-                bodyText
             }
         }
     }

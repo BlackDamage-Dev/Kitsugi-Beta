@@ -6390,10 +6390,10 @@ Eklentiler ekranından eklenti etkinleştirin.</string>
     <string name="pf_err_com_1025_fix">Filtreleri daraltın veya işlemi daha küçük parçalarla tekrarlayın.</string>
     <string name="pf_err_anl_2001_title">AniList kısıtlı modda (30 istek/dk)</string>
     <string name="pf_err_anl_2001_why">AniList, dokümante edilen 90 istek/dk sınırını geçici olarak 30 istek/dk\'ya düşürmüş durumda. Yoğun eşitlemede bu yüzden 429 döner.</string>
-    <string name="pf_err_anl_2001_fix">Uygulama istekleri otomatik geciktirir; eşitlemeyi tekrar tekrar başlatmayın.</string>
+    <string name="pf_err_anl_2001_fix">v2.4.341\'den itibaren tüm AniList trafiği tek bir kota kapısından geçer (60 sn\'lik pencere, öncelik, 429 soğuması). Eşitlemeyi tekrar tekrar başlatmanız gerekmez.</string>
     <string name="pf_err_anl_2002_title">AniList çok fazla istek (GraphQL 429)</string>
     <string name="pf_err_anl_2002_why">GraphQL yanıtı \"Too Many Requests\" döndü. AniList\'in dakikalık limitinin yanında kısa aralıklı patlamaları engelleyen ayrı bir burst limiter\'ı da var.</string>
-    <string name="pf_err_anl_2002_fix">Bir dakika bekleyin; Retry-After başlığı kadar bekleme otomatik uygulanır.</string>
+    <string name="pf_err_anl_2002_fix">Beklemeniz gerekmez: ceza penceresi bitince bekleyen değişiklikler kendiliğinden gönderilir.</string>
     <string name="pf_err_anl_2003_title">AniList sunucu hatası (500)</string>
     <string name="pf_err_anl_2003_why">AniList GraphQL katmanı isteği işleyemedi. Servis tarafında geçici bir bozulma olduğunda görülür.</string>
     <string name="pf_err_anl_2003_fix">Birkaç dakika sonra tekrar deneyin.</string>
@@ -6593,6 +6593,29 @@ Eklentiler ekranından eklenti etkinleştirin.</string>
     <string name="account_sync_anilist_media_id_unresolved">AniList kimliği çözülemedi</string>
     <string name="account_sync_anilist_user_id_unavailable">AniList kullanıcı kimliği alınamadı (token geçersiz olabilir)</string>
     <string name="account_sync_anilist_rate_limit">AniList API hatası: 429 hız sınırı (%1$d deneme, Retry-After=%2$ds)</string>
+    <string name="account_sync_anilist_quota_wait">⏳ AniList istek sınırı doldu — %1$d sn sonra kendiliğinden yeniden denenecek (kaydın yerelde güvende)</string>
+    <!-- v2.4.341: kaynak bağımsız eşitleme durumu — "neden eşitlenmiyor?" (halk dili) -->
+    <string name="sync_status_quota">⏳ %1$s istek sınırı doldu — %2$d değişiklik %3$d sn sonra kendiliğinden gönderilecek</string>
+    <string name="sync_status_auth">🔑 %1$s oturumu geçersiz — %2$d değişiklik gönderilemiyor. Ayarlar &gt; Platformlar üzerinden yeniden giriş yapın.</string>
+    <string name="sync_status_not_connected">🔌 %1$s hesabı bağlı değil — %2$d değişiklik yalnızca bu cihazda duruyor</string>
+    <string name="sync_status_disabled">⚙️ %1$s eşitlemesi ayarlardan kapalı — %2$d değişiklik yalnızca bu cihazda duruyor</string>
+    <string name="sync_status_offline">📵 İnternet yok — %1$s için %2$d değişiklik bağlantı gelince gönderilecek</string>
+    <string name="sync_status_service">🛠 %1$s servisi geçici olarak yanıt vermiyor — %2$d değişiklik daha sonra gönderilecek</string>
+    <string name="sync_status_identity">🔎 %1$s: %2$d değişikliğin yapım karşılığı doğrulanamadı (yanlış kayda yazmamak için beklemede)</string>
+    <string name="sync_status_generic">⚠️ %1$s: %2$d değişiklik gönderilemedi</string>
+    <string name="sync_snack_quota">⏳ %1$s istek sınırı doldu — %2$d değişiklik %3$d sn sonra gönderilecek</string>
+    <string name="sync_snack_auth">🔑 %1$s oturumu geçersiz — yeniden giriş yapın; değişiklik kuyrukta bekliyor</string>
+    <string name="sync_snack_not_connected">🔌 %1$s hesabı bağlı değil — değişiklik yalnızca bu cihazda duruyor</string>
+    <string name="sync_snack_disabled">⚙️ %1$s eşitlemesi kapalı — değişiklik yalnızca bu cihazda duruyor</string>
+    <string name="sync_snack_offline">📵 İnternet yok — %1$s değişikliği bağlantı gelince gönderilecek</string>
+    <string name="sync_snack_service">🛠 %1$s servisi şu an yanıt vermiyor — değişiklik daha sonra gönderilecek</string>
+    <string name="sync_snack_identity">🔎 %1$s: bu yapımın karşılığı doğrulanamadı — yanlış kayda yazmamak için atlandı</string>
+    <string name="sync_snack_generic">⚠️ %1$s — değişiklik şu an gönderilemedi, kuyrukta bekliyor (kendiliğinden yeniden denenecek)</string>
+    <string name="sync_status_title">Arka planda ne oluyor?</string>
+    <string name="sync_retry_now">Şimdi dene</string>
+    <string name="sync_retried_n">%1$d değişiklik gönderildi</string>
+    <string name="sync_status_all_ok">✅ Tüm bağlı kaynaklarla eşitleme sorunsuz</string>
+    <string name="account_sync_anilist_quota_refresh">⏳ AniList istek sınırı doldu — liste %1$d sn sonra yeniden çekilebilir</string>
     <string name="account_sync_mal_type_unsupported">MAL yalnızca anime/manga destekler</string>
     <string name="account_sync_mal_id_invalid">Geçerli MAL kimliği bulunamadı</string>
     <string name="account_sync_no_valid_mal_id">MAL: doğrulanmış medya kimliği yok</string>
