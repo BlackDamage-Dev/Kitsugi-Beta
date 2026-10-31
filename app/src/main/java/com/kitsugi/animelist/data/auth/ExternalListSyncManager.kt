@@ -173,7 +173,7 @@ object ExternalListSyncManager {
                 skipped.add(context.getString(R.string.cross_sync_reason_identity_unverified, realMalId.toString()))
             } else {
                 runSyncCatching {
-                    PlatformRateLimiter.acquire("anilist")
+                    // Kota/hız denetimi AniListGate içinde (AniListSyncManager.postAniList).
                     AniListSyncManager.updateAniListEntry(
                         token = aniListToken,
                         entry = remoteEntry,
@@ -204,35 +204,42 @@ object ExternalListSyncManager {
                     errors.add(context.sourceFailure("AniList", error))
                 }
 
-                // AniList favori durumu senkronizasyonu
-                runSyncCatching {
-                    val remoteFav = AniListSyncManager.getAniListMediaFavoriteStatus(
-                        aniListToken, remoteEntry, context, knownAniListMediaId = identity.aniListId
-                    )
-                    if (remoteFav != null && remoteFav != entry.isFavorite) {
-                        check(
-                            AniListSyncManager.toggleAniListFavourite(
-                                aniListToken, remoteEntry, context, knownAniListMediaId = identity.aniListId
-                            )
-                        ) {
-                            context.getString(R.string.account_sync_anilist_update_unconfirmed)
-                        }
-                        true
-                    } else {
-                        false
-                    }
-                }.onSuccess { changed ->
-                    if (changed && !syncedSources.contains("AniList")) {
-                        syncedSources.add("AniList")
-                        outcomes["AniList"] = OUTCOME_SYNCED
-                    }
-                }.onFailure { error ->
-                    errors.add(
-                        context.getString(
-                            R.string.account_sync_favorite_error,
-                            error.message ?: context.getString(R.string.account_sync_unknown_error)
+                // ── AniList favori durumu (v2.4.341: gereksizse atlanır) ─────────
+                // Önceden HER düzenlemede (yalnızca bölüm +1 bile) önce `Media.isFavourite`
+                // sorgusu, fark varsa `ToggleFavourite` mutasyonu gidiyordu: kayıt başına
+                // 2–3 fazladan istek. Son eşitlenen favori değeri yerelde tutulduğu için
+                // değer değişmediyse hiç istek çıkmaz; favoriye ekleme her zaman yayılır.
+                if (AniListSyncManager.shouldSyncFavorite(context, entry)) {
+                    runSyncCatching {
+                        val remoteFav = AniListSyncManager.getAniListMediaFavoriteStatus(
+                            aniListToken, remoteEntry, context, knownAniListMediaId = identity.aniListId
                         )
-                    )
+                        if (remoteFav != null && remoteFav != entry.isFavorite) {
+                            check(
+                                AniListSyncManager.toggleAniListFavourite(
+                                    aniListToken, remoteEntry, context, knownAniListMediaId = identity.aniListId
+                                )
+                            ) {
+                                context.getString(R.string.account_sync_anilist_update_unconfirmed)
+                            }
+                            true
+                        } else {
+                            false
+                        }
+                    }.onSuccess { changed ->
+                        AniListSyncManager.markFavoriteSynced(context, entry)
+                        if (changed && !syncedSources.contains("AniList")) {
+                            syncedSources.add("AniList")
+                            outcomes["AniList"] = OUTCOME_SYNCED
+                        }
+                    }.onFailure { error ->
+                        errors.add(
+                            context.getString(
+                                R.string.account_sync_favorite_error,
+                                error.message ?: context.getString(R.string.account_sync_unknown_error)
+                            )
+                        )
+                    }
                 }
             }
 
@@ -570,7 +577,7 @@ object ExternalListSyncManager {
 
             if (syncEnabledAniList && !aniListToken.isNullOrBlank() && isAnimeOrManga && allowFanOut && !crossWriteBlocked("anilist")) {
                 runSyncCatching {
-                    PlatformRateLimiter.acquire("anilist")
+                    // Kota/hız denetimi AniListGate içinde (AniListSyncManager.postAniList).
                     AniListSyncManager.deleteAniListEntry(
                         token = aniListToken,
                         entry = remoteEntry,

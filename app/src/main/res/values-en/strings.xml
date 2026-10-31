@@ -5823,10 +5823,10 @@
     <string name="pf_err_com_1025_fix">Narrow the filters or repeat the operation in smaller chunks.</string>
     <string name="pf_err_anl_2001_title">AniList is in degraded mode (30 req/min)</string>
     <string name="pf_err_anl_2001_why">AniList has temporarily lowered its documented 90 req/min limit to 30 req/min. Heavy syncing therefore returns 429.</string>
-    <string name="pf_err_anl_2001_fix">The app paces requests automatically; avoid restarting the sync repeatedly.</string>
+    <string name="pf_err_anl_2001_fix">Since v2.4.341 all AniList traffic flows through a single quota gate (60 s window, priorities, 429 cool-down), so there is no need to restart the sync repeatedly.</string>
     <string name="pf_err_anl_2002_title">AniList rate limited (GraphQL 429)</string>
     <string name="pf_err_anl_2002_why">The GraphQL response returned \"Too Many Requests\". Besides the per-minute limit, AniList runs a separate burst limiter against short request spikes.</string>
-    <string name="pf_err_anl_2002_fix">Wait a minute; the Retry-After delay is applied automatically.</string>
+    <string name="pf_err_anl_2002_fix">No need to wait: once the penalty window ends, queued changes are pushed automatically.</string>
     <string name="pf_err_anl_2003_title">AniList server error (500)</string>
     <string name="pf_err_anl_2003_why">The AniList GraphQL layer could not process the request, which happens during brief service-side degradation.</string>
     <string name="pf_err_anl_2003_fix">Try again in a few minutes.</string>
@@ -6020,6 +6020,8 @@
     <string name="account_sync_anilist_media_id_unresolved">Could not resolve the AniList ID.</string>
     <string name="account_sync_anilist_user_id_unavailable">Could not retrieve the AniList user ID (the token may be invalid).</string>
     <string name="account_sync_anilist_rate_limit">AniList API error: rate limit 429 (%1$d attempts, Retry-After=%2$ds).</string>
+    <string name="account_sync_anilist_quota_wait">⏳ AniList rate limit reached — retrying automatically in %1$d s (your change is saved locally)</string>
+    <string name="account_sync_anilist_quota_refresh">⏳ AniList rate limit reached — the list can be refreshed again in %1$d s</string>
     <string name="account_sync_mal_type_unsupported">MAL only supports anime and manga.</string>
     <string name="account_sync_mal_id_invalid">A valid MAL ID was not found.</string>
     <string name="account_sync_no_valid_mal_id">MAL: no verified media ID.</string>

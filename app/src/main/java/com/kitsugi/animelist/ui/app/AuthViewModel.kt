@@ -536,14 +536,23 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                     repository.smartImport("anilist", importedEntries, allowDelete = false)
                 }
                 if (importResult.isSuccess) {
+                    // Liste uzaktan geldi: yerel "son eşitlenen favori" işaretleri geçersiz.
+                    AniListSyncManager.resetFavoriteSyncMarkers(context)
                     onShowMessage?.invoke(context.getString(R.string.account_sync_import_success, importedEntries.size, "AniList"))
                 } else {
                     onShowMessage?.invoke(context.getString(R.string.account_sync_import_save_failed, "AniList", importResult.exceptionOrNull()?.message ?: context.getString(R.string.account_sync_unknown_error)))
                 }
             }.onFailure { error ->
-                onShowMessage?.invoke(
+                // Kota (429) ayrı mesaj: liste biraz sonra yeniden çekilebilir, veri kaybı yok.
+                val message = if (com.kitsugi.animelist.data.auth.AniListGate.isQuotaMessage(error.message)) {
+                    val waitSeconds = (
+                        com.kitsugi.animelist.data.auth.AniListGate.cooldownRemainingMs() / 1_000L
+                    ).coerceAtLeast(1L)
+                    context.getString(R.string.account_sync_anilist_quota_refresh, waitSeconds)
+                } else {
                     error.message ?: context.getString(R.string.account_sync_import_failed, "AniList")
-                )
+                }
+                onShowMessage?.invoke(message)
             }
 
             isAniListImportRunning = false
@@ -1395,7 +1404,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                             recordIdentitySkip("AniList", mergedEntry.title)
                         } else if (current == null) {
                             // AniList'te eksik -> EKLE!
-                            com.kitsugi.animelist.data.auth.PlatformRateLimiter.acquire("anilist")
+                            // AniList hız/kota denetimi AniListGate'te (postAniList).
                             val res = runSyncCatching { AniListSyncManager.updateAniListEntry(aniListToken!!, mergedEntry, context = context) }
                             if (res.isSuccess && res.getOrNull() != null) {
                                 statsMap["AniList"] = statsMap["AniList"]!!.let { it.copy(addedCount = it.addedCount + 1) }
@@ -1423,7 +1432,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                                     (current.startDate.isNullOrBlank() && !bestStartDate.isNullOrBlank()) ||
                                     (current.endDate.isNullOrBlank() && !bestEndDate.isNullOrBlank()))
                             if (needsUpdate) {
-                                com.kitsugi.animelist.data.auth.PlatformRateLimiter.acquire("anilist")
+                                // AniList hız/kota denetimi AniListGate'te (postAniList).
                                 val target = mergedEntry.copy(aniListEntryId = current.aniListEntryId)
                                 val res = runSyncCatching { AniListSyncManager.updateAniListEntry(aniListToken!!, target, context = context) }
                                 if (res.isSuccess && res.getOrNull() != null) {

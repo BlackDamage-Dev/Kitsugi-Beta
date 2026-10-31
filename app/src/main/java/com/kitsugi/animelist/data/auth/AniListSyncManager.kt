@@ -422,7 +422,79 @@ object AniListSyncManager {
         return null
     }
 
+    /**
+     * Kimlik doğrulamasının sonucu (v2.4.341).
+     *
+     * Eskiden HER düzenlemede, kimliği zaten doğrulanmış bir kayıt için bile yeniden
+     * `Media(id) { ... }` sorgusu atılıyordu. Bir kullanıcı "+1 bölüm"e üst üste bastığında
+     * bu tek başına kotanın üçte birini yiyordu. Aynı (mediaId, tür, MAL kimliği, yıl,
+     * başlık kümesi) için sonuç 6 saat (olumsuzsa 10 dk) önbellekte tutulur.
+     */
+    private data class VerificationCacheEntry(val verified: Boolean, val expiresAt: Long)
+
+    private const val VERIFICATION_TTL_MS = 6L * 60L * 60L * 1_000L
+    private const val VERIFICATION_NEGATIVE_TTL_MS = 10L * 60L * 1_000L
+    private const val FAVORITE_PREFS = "kitsugi_anilist_favorite_sync"
+
+    private val verificationCache =
+        object : LinkedHashMap<String, VerificationCacheEntry>(32, 0.75f, true) {
+            override fun removeEldestEntry(
+                eldest: MutableMap.MutableEntry<String, VerificationCacheEntry>
+            ): Boolean = size > 128
+        }
+
+    private fun verificationCacheKey(
+        mediaId: Int,
+        expectedType: String,
+        entry: MediaEntry,
+        expectedTitles: Collection<String>
+    ): String = buildString {
+        append(mediaId).append('|')
+        append(expectedType).append('|')
+        append(MediaIdentity.realMalId(entry)).append('|')
+        append(MediaIdentity.aniListId(entry)).append('|')
+        append(entry.year).append('|')
+        append(expectedTitles.map { it.trim().lowercase() }.sorted().joinToString("\u0001"))
+    }
+
     private fun verifyAniListMediaIdentity(
+        token: String,
+        mediaId: Int,
+        expectedType: String,
+        entry: MediaEntry,
+        expectedTitles: Collection<String>,
+        context: Context
+    ): Boolean {
+        val cacheKey = verificationCacheKey(mediaId, expectedType, entry, expectedTitles)
+        synchronized(verificationCache) {
+            val cached = verificationCache[cacheKey]
+            if (cached != null && cached.expiresAt > System.currentTimeMillis()) {
+                return cached.verified
+            }
+        }
+
+        val verified = runSyncCatching {
+            verifyAniListMediaIdentityUncached(
+                token = token,
+                mediaId = mediaId,
+                expectedType = expectedType,
+                entry = entry,
+                expectedTitles = expectedTitles,
+                context = context
+            )
+        }.getOrDefault(false)
+
+        val ttl = if (verified) VERIFICATION_TTL_MS else VERIFICATION_NEGATIVE_TTL_MS
+        synchronized(verificationCache) {
+            verificationCache[cacheKey] = VerificationCacheEntry(
+                verified = verified,
+                expiresAt = System.currentTimeMillis() + ttl
+            )
+        }
+        return verified
+    }
+
+    private fun verifyAniListMediaIdentityUncached(
         token: String,
         mediaId: Int,
         expectedType: String,
@@ -626,10 +698,44 @@ object AniListSyncManager {
         val animeCategories: List<String>,
         val animeEnabled: Boolean,
         val mangaCategories: List<String>,
-        val mangaEnabled: Boolean
+        val mangaEnabled: Boolean,
+        /** Özel liste adları (v2.4.341: aynı Viewer sorgusunda gelir, ayrı istek gerekmez). */
+        val animeCustomLists: List<String> = emptyList(),
+        val mangaCustomLists: List<String> = emptyList()
     )
 
+    private data class TimedValue<T>(val value: T, val expiresAt: Long)
+
+    private const val VIEWER_OPTIONS_TTL_MS = 30L * 60L * 1_000L
+    private const val MEDIA_LIST_METADATA_TTL_MS = 5L * 60L * 1_000L
+
+    private val viewerOptionsCache =
+        java.util.concurrent.ConcurrentHashMap<String, TimedValue<ViewerOptions>>()
+    private val mediaListMetadataCache =
+        java.util.concurrent.ConcurrentHashMap<String, TimedValue<MediaListMetadata>>()
+
+    /**
+     * Görüntüleyici listesi seçenekleri (puanlama biçimi, gelişmiş puanlama kategorileri,
+     * özel liste adları).
+     *
+     * v2.4.341: Düzenleyici her açıldığında bu bilgiler için **iki ayrı** GraphQL isteği
+     * (biri `getViewerOptions`, biri `getViewerCustomLists`) atılıyordu; ikisi de aynı
+     * `Viewer.mediaListOptions` nesnesini okuyordu. Artık tek sorgu + 30 dk önbellek.
+     */
     fun getViewerOptions(token: String): ViewerOptions? {
+        val key = token.hashCode().toString()
+        viewerOptionsCache[key]?.let { cached ->
+            if (cached.expiresAt > System.currentTimeMillis()) return cached.value
+        }
+        val fresh = getViewerOptionsUncached(token) ?: return null
+        viewerOptionsCache[key] = TimedValue(
+            value = fresh,
+            expiresAt = System.currentTimeMillis() + VIEWER_OPTIONS_TTL_MS
+        )
+        return fresh
+    }
+
+    private fun getViewerOptionsUncached(token: String): ViewerOptions? {
         val query = """
             query {
                 Viewer {
@@ -638,10 +744,12 @@ object AniListSyncManager {
                         animeList {
                             advancedScoring
                             advancedScoringEnabled
+                            customLists
                         }
                         mangaList {
                             advancedScoring
                             advancedScoringEnabled
+                            customLists
                         }
                     }
                 }
@@ -655,7 +763,7 @@ object AniListSyncManager {
                 ?.optJSONObject("Viewer")
             val mediaListOptions = viewer?.optJSONObject("mediaListOptions")
             val scoreFormat = mediaListOptions?.optString("scoreFormat", "POINT_10") ?: "POINT_10"
-            
+
             val animeList = mediaListOptions?.optJSONObject("animeList")
             val animeEnabled = animeList?.optBoolean("advancedScoringEnabled", false) ?: false
             val animeCatsArray = animeList?.optJSONArray("advancedScoring")
@@ -681,11 +789,23 @@ object AniListSyncManager {
                 animeCategories = animeCategories,
                 animeEnabled = animeEnabled,
                 mangaCategories = mangaCategories,
-                mangaEnabled = mangaEnabled
+                mangaEnabled = mangaEnabled,
+                animeCustomLists = animeList?.optJSONArray("customLists").toStringList(),
+                mangaCustomLists = mangaList?.optJSONArray("customLists").toStringList()
             )
         } catch (e: java.lang.Exception) {
             null
         }
+    }
+
+    private fun org.json.JSONArray?.toStringList(): List<String> {
+        val array = this ?: return emptyList()
+        val result = ArrayList<String>(array.length())
+        for (i in 0 until array.length()) {
+            val item = array.optString(i)
+            if (item.isNotBlank()) result.add(item)
+        }
+        return result
     }
 
     data class MediaListMetadata(
@@ -693,7 +813,28 @@ object AniListSyncManager {
         val advancedScores: Map<String, Double>?
     )
 
+    /**
+     * Bir liste kaydının özel listeleri + gelişmiş puanları (düzenleyici açılışı).
+     * v2.4.341: 5 dk önbellek — düzenleyiciyi açıp kapatmak kotayı tüketmez.
+     */
     fun getMediaListMetadata(
+        token: String,
+        entryId: Int,
+        userId: Int
+    ): MediaListMetadata? {
+        val key = "${token.hashCode()}|$entryId|$userId"
+        mediaListMetadataCache[key]?.let { cached ->
+            if (cached.expiresAt > System.currentTimeMillis()) return cached.value
+        }
+        val fresh = getMediaListMetadataUncached(token, entryId, userId) ?: return null
+        mediaListMetadataCache[key] = TimedValue(
+            value = fresh,
+            expiresAt = System.currentTimeMillis() + MEDIA_LIST_METADATA_TTL_MS
+        )
+        return fresh
+    }
+
+    private fun getMediaListMetadataUncached(
         token: String,
         entryId: Int,
         userId: Int
@@ -743,50 +884,15 @@ object AniListSyncManager {
         }
     }
 
+    /**
+     * Özel liste adları. v2.4.341: ayrı istek atılmaz — [getViewerOptions] önbelleğinden gelir.
+     */
     fun getViewerCustomLists(
         token: String,
         isManga: Boolean
     ): List<String>? {
-        val query = """
-            query {
-                Viewer {
-                    mediaListOptions {
-                        animeList {
-                            customLists
-                        }
-                        mangaList {
-                            customLists
-                        }
-                    }
-                }
-            }
-        """.trimIndent()
-
-        return try {
-            val response = postAniList(token = token, query = query, variables = JSONObject())
-            val viewer = JSONObject(response)
-                .optJSONObject("data")
-                ?.optJSONObject("Viewer")
-            val listOptions = viewer?.optJSONObject("mediaListOptions")
-            val list = if (isManga) {
-                listOptions?.optJSONObject("mangaList")
-            } else {
-                listOptions?.optJSONObject("animeList")
-            }
-            val customListsArray = list?.optJSONArray("customLists")
-            val result = mutableListOf<String>()
-            if (customListsArray != null) {
-                for (i in 0 until customListsArray.length()) {
-                    val item = customListsArray.optString(i)
-                    if (!item.isNullOrBlank()) {
-                        result.add(item)
-                    }
-                }
-            }
-            result
-        } catch (e: java.lang.Exception) {
-            null
-        }
+        val options = getViewerOptions(token) ?: return null
+        return if (isManga) options.mangaCustomLists else options.animeCustomLists
     }
 
     /**
@@ -809,7 +915,9 @@ object AniListSyncManager {
             .put("mangaLists", org.json.JSONArray(customLists))
         return try {
             val response = postAniList(token = token, query = query, variables = variables)
-            JSONObject(response).optJSONObject("data")?.optJSONObject("UpdateUser") != null
+            val updated = JSONObject(response).optJSONObject("data")?.optJSONObject("UpdateUser") != null
+            if (updated) invalidateViewerCaches()
+            updated
         } catch (e: java.lang.Exception) {
             false
         }
@@ -844,12 +952,39 @@ object AniListSyncManager {
 
         return try {
             postAniList(token = token, query = query, variables = variables)
+            // Özel liste verisi değişti → görüntüleyici önbellekleri geçersiz.
+            invalidateViewerCaches()
             true
         } catch (e: java.lang.Exception) {
             false
         }
     }
 
+    /** Görüntüleyici/liste meta önbelleklerini temizler (yazma veya yeniden giriş sonrası). */
+    fun invalidateViewerCaches() {
+        viewerOptionsCache.clear()
+        mediaListMetadataCache.clear()
+        cachedAniListUserId = null
+        cachedAniListToken = null
+    }
+
+    /**
+     * Tek AniList GraphQL isteği.
+     *
+     * v2.4.341 — KÖK NEDEN DÜZELTMESİ: Bu yol eskiden **hiçbir hız sınırına uymuyordu**.
+     * "Listem" ekranındaki ekleme/düzenleme/silme yazmaları (SaveMediaListEntry,
+     * DeleteMediaListEntry, ToggleFavourite, kimlik doğrulama sorguları) tam olarak
+     * buradan çıkıyordu; liste yenileme ve arka plan senkronuyla birleşince AniList'in
+     * fiilî 30 istek/dk kotası dakikalar içinde tükeniyordu. Ayrıca 429 alındığında
+     * `PlatformRateLimiter.notifyRateLimited` **çağıran thread'i 60–120 sn uyutuyordu**
+     * (kilit altında) ve bu sırada diğer istekler kotayı tüketmeye devam ediyordu.
+     *
+     * Artık her istek [AniListGate] üzerinden gider: kayan pencere, patlama sınırı,
+     * 429 soğuması ve öncelik (kullanıcı işlemi > arka plan) tek merkezde uygulanır.
+     * Kota nedeniyle sıra gelmezse **thread kilitlenmez**; çağırana bekleme süresiyle
+     * [AniListGate.QuotaExhaustedException] fırlar, [com.kitsugi.animelist.data.local.MediaEntryRepository]
+     * işi bekleyen-senkron kuyruğuna alır ve soğuma bitince kendiliğinden yeniden dener.
+     */
     private fun postAniList(
         token: String?,
         query: String,
@@ -866,6 +1001,7 @@ object AniListSyncManager {
             .post(payload.toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull()))
             .header("Content-Type", "application/json")
             .header("Accept", "application/json")
+            .header("User-Agent", "KitsugiAnimeList/1.0")
 
         if (!token.isNullOrBlank()) {
             requestBuilder.header("Authorization", "Bearer $token")
@@ -873,68 +1009,95 @@ object AniListSyncManager {
 
         val request = requestBuilder.build()
 
-        // AniList'in fiili limiti 30 istek/dk; 429 aldığımızda Retry-After kadar (yoksa 60 sn)
-        // bekleyip aynı isteği en fazla 3 kez tekrarlıyoruz. Böylece toplu eşitlemede tek bir
-        // hız sınırı yanıtı kaydı "hata" olarak işaretlemiyor.
         var attempt = 0
         while (true) {
             attempt++
-            try {
-                com.kitsugi.animelist.core.network.KitsugiHttpClient.aniListClient.newCall(request).execute().use { response ->
-                    if (response.code == 429) {
-                        val retrySec = response.header("Retry-After")?.toLongOrNull()?.coerceIn(1L, 120L) ?: 60L
-                        kotlinx.coroutines.runBlocking {
-                            PlatformRateLimiter.notifyRateLimited("anilist", retrySec)
-                        }
-                        if (attempt >= MAX_ANILIST_ATTEMPTS) {
-                            throw IllegalStateException(
-                                context?.getString(R.string.account_sync_anilist_rate_limit, attempt, retrySec)
-                                    ?: "AniList API hatası: 429 hız sınırı ($attempt deneme, Retry-After=${retrySec}s)"
+
+            val outcome: AniListHttpOutcome = try {
+                // Yazma işlemi: kota sırası 3 sn'den uzun sürerse thread'i bekletmek yerine
+                // işi kuyruğa bırakırız (çağıran taraf QuotaExhaustedException'ı yakalar).
+                AniListGate.withPermitBlocking(
+                    priority = AniListGate.Priority.INTERACTIVE,
+                    maxWaitMs = 3_000L
+                ) {
+                    com.kitsugi.animelist.core.network.KitsugiHttpClient.aniListClient
+                        .newCall(request)
+                        .execute()
+                        .use { response ->
+                            val bodyText = runCatching { response.body?.string().orEmpty() }
+                                .getOrDefault("")
+                            // Pencere/patlama/soğuma muhasebesi tek merkezde.
+                            AniListGate.onResponse(response.code, response.headers, bodyText)
+                            AniListHttpOutcome(
+                                code = response.code,
+                                body = bodyText,
+                                isSuccessful = response.isSuccessful
                             )
                         }
-                        return@use
-                    }
-                    if (!response.isSuccessful) {
-                        val errorText = response.body?.string().orEmpty().take(300)
-                        com.kitsugi.animelist.data.remote.KitsugiApiBase
-                            .extractAniListServiceDownMessage(errorText)
-                            ?.let { downMsg ->
-                                val down = com.kitsugi.animelist.data.remote.KitsugiApiBase
-                                    .recordAniListServiceDown(downMsg, response.code)
-                                throw IllegalStateException(down.message, down)
-                            }
-                        throw IllegalStateException(
-                            context?.getString(R.string.account_sync_api_error, "AniList", response.code, errorText)
-                                ?: "AniList API hatası: ${response.code} $errorText"
-                        )
-                    }
-
-                    val responseText = response.body?.string() ?: ""
-                    com.kitsugi.animelist.data.remote.KitsugiApiBase
-                        .extractAniListServiceDownMessage(responseText)
-                        ?.let { downMsg ->
-                            val down = com.kitsugi.animelist.data.remote.KitsugiApiBase
-                                .recordAniListServiceDown(downMsg, 503)
-                            throw IllegalStateException(down.message, down)
-                        }
-                    val errors = JSONObject(responseText).optJSONArray("errors")
-                    if (errors != null && errors.length() > 0) {
-                        throw IllegalStateException(errors.toString())
-                    }
-
-                    return responseText
                 }
-            } catch (e: Exception) {
-                if (e is IllegalStateException) throw e
-                val reason = e.message ?: context?.getString(R.string.account_sync_unknown_error) ?: "Bilinmeyen hata"
+            } catch (quota: AniListGate.QuotaExhaustedException) {
+                // Kota doldu: kuyruk/UX katmanı bu işareti görüp işi erteler.
+                throw IllegalStateException(quota.message, quota)
+            } catch (error: Exception) {
+                val reason = error.message
+                    ?: context?.getString(R.string.account_sync_unknown_error)
+                    ?: "Bilinmeyen hata"
                 throw IllegalStateException(
                     context?.getString(R.string.account_sync_connection_error, "AniList", reason)
                         ?: "AniList bağlantı hatası: $reason",
-                    e
+                    error
                 )
             }
+
+            com.kitsugi.animelist.data.remote.KitsugiApiBase
+                .extractAniListServiceDownMessage(outcome.body)
+                ?.let { downMsg ->
+                    val down = com.kitsugi.animelist.data.remote.KitsugiApiBase
+                        .recordAniListServiceDown(downMsg, outcome.code)
+                    throw IllegalStateException(down.message, down)
+                }
+
+            if (outcome.code == 429) {
+                // AniList cezası tipik olarak 60 sn: bu thread'i uyutmak yerine bekleme
+                // süresini çağırana bildiriyoruz. Kayıt bekleyen-senkron kuyruğuna girer ve
+                // ceza bitince PendingSyncDrainer tarafından kendiliğinden gönderilir.
+                val waitMs = AniListGate.cooldownRemainingMs()
+                throw IllegalStateException(
+                    context?.getString(
+                        R.string.account_sync_anilist_rate_limit,
+                        attempt,
+                        (waitMs / 1_000L).coerceAtLeast(1L)
+                    ) ?: AniListGate.quotaMessage(waitMs)
+                )
+            }
+
+            if (!outcome.isSuccessful) {
+                throw IllegalStateException(
+                    context?.getString(R.string.account_sync_api_error, "AniList", outcome.code, outcome.body.take(300))
+                        ?: "AniList API hatası: ${outcome.code} ${outcome.body.take(300)}"
+                )
+            }
+
+            val errors = JSONObject(outcome.body).optJSONArray("errors")
+            if (errors != null && errors.length() > 0) {
+                throw IllegalStateException(errors.toString())
+            }
+
+            // Yazma sonrası okuma önbelleği bayatlamış olabilir.
+            if (query.contains("mutation", ignoreCase = true)) {
+                AniListGate.invalidateReadCache()
+            }
+
+            return outcome.body
         }
     }
+
+    /** [postAniList] için ham HTTP sonucu (gövde bir kez okunur). */
+    private data class AniListHttpOutcome(
+        val code: Int,
+        val body: String,
+        val isSuccessful: Boolean
+    )
 
     private const val MAX_ANILIST_ATTEMPTS = 3
 
@@ -946,6 +1109,48 @@ object AniListSyncManager {
             WatchStatus.Dropped -> "DROPPED"
             WatchStatus.Paused -> "PAUSED"
             WatchStatus.Repeating -> "REPEATING"
+        }
+    }
+
+    /**
+     * Favori eşitlemesi gerekiyor mu?
+     *
+     * Eskiden her düzenlemede `Media.isFavourite` sorgusu + gerekirse `ToggleFavourite`
+     * mutasyonu çalışıyordu: kullanıcı yalnızca bölüm sayısını değiştirse bile 2–3 ek AniList
+     * isteği gidiyordu. Son eşitlenen favori değeri yerelde tutulur; değer değişmediyse
+     * sorgu atlanır. Favoriye EKLEME her zaman yayılır (uzak taraf değişmiş olabilir).
+     */
+    fun shouldSyncFavorite(context: Context, entry: MediaEntry): Boolean {
+        if (entry.isFavorite) return true
+        if (entry.id <= 0) return true
+        val prefs = context.getSharedPreferences(FAVORITE_PREFS, Context.MODE_PRIVATE)
+        val key = "fav_${entry.id}_${entry.source}"
+        if (!prefs.contains(key)) return true
+        return prefs.getBoolean(key, false) != entry.isFavorite
+    }
+
+    /** Favori durumu uzak tarafla eşitlendi olarak işaretlenir. */
+    fun markFavoriteSynced(context: Context, entry: MediaEntry) {
+        if (entry.id <= 0) return
+        runCatching {
+            context.getSharedPreferences(FAVORITE_PREFS, Context.MODE_PRIVATE)
+                .edit()
+                .putBoolean("fav_${entry.id}_${entry.source}", entry.isFavorite)
+                .apply()
+        }
+    }
+
+    /**
+     * Liste uzaktan yenilendiğinde çağrılır: favori bilgisi AniList'ten geldiği için yerel
+     * "son eşitlenen" işaretleri geçersizdir. Temizlenmezlerse sitenin dışında değiştirilen
+     * bir favori, sonraki düzenlemede fark edilmeden atlanabilirdi.
+     */
+    fun resetFavoriteSyncMarkers(context: Context) {
+        runCatching {
+            context.getSharedPreferences(FAVORITE_PREFS, Context.MODE_PRIVATE)
+                .edit()
+                .clear()
+                .apply()
         }
     }
 

@@ -664,18 +664,31 @@ class KitsugiUserProfileViewModel(application: Application) : AndroidViewModel(a
                 requestBuilder.header("Authorization", "Bearer $token")
             }
 
-            com.kitsugi.animelist.core.network.KitsugiHttpClient.aniListClient.newCall(requestBuilder.build()).execute().use { response ->
-                val bodyText = runCatching { response.body?.string() }.getOrNull()
-                com.kitsugi.animelist.data.remote.KitsugiApiBase
-                    .extractAniListServiceDownMessage(bodyText)
-                    ?.let { downMsg ->
-                        throw com.kitsugi.animelist.data.remote.KitsugiApiBase
-                            .recordAniListServiceDown(downMsg, response.code)
+            // v2.4.341: AniList kota kapısı — bu yol daha önce hiçbir hız sınırına uymuyordu.
+            com.kitsugi.animelist.data.auth.AniListGate.withPermit(
+                com.kitsugi.animelist.data.auth.AniListGate.Priority.INTERACTIVE
+            ) {
+                com.kitsugi.animelist.core.network.KitsugiHttpClient.aniListClient.newCall(requestBuilder.build()).execute().use { response ->
+                    val bodyText = runCatching { response.body?.string() }.getOrNull()
+                    com.kitsugi.animelist.data.auth.AniListGate.onResponse(response.code, response.headers, bodyText)
+                    com.kitsugi.animelist.data.remote.KitsugiApiBase
+                        .extractAniListServiceDownMessage(bodyText)
+                        ?.let { downMsg ->
+                            throw com.kitsugi.animelist.data.remote.KitsugiApiBase
+                                .recordAniListServiceDown(downMsg, response.code)
+                        }
+                    if (response.code == 429) {
+                        val waitMs = com.kitsugi.animelist.data.auth.AniListGate.cooldownRemainingMs()
+                        throw com.kitsugi.animelist.data.auth.AniListGate.QuotaExhaustedException(
+                            waitMs,
+                            com.kitsugi.animelist.data.auth.AniListGate.quotaMessage(waitMs)
+                        )
                     }
-                if (!response.isSuccessful) {
-                    throw Exception("HTTP ${response.code}: ${response.message}")
+                    if (!response.isSuccessful) {
+                        throw Exception("HTTP ${response.code}: ${response.message}")
+                    }
+                    bodyText ?: throw Exception(KitsugiStrings.get(R.string.profile_empty_response))
                 }
-                bodyText ?: throw Exception(KitsugiStrings.get(R.string.profile_empty_response))
             }
         }
     }

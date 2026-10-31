@@ -5825,10 +5825,10 @@ Eklentiler ekranından eklenti etkinleştirin.</string>
     <string name="pf_err_com_1025_fix">Filtreleri daraltın veya işlemi daha küçük parçalarla tekrarlayın.</string>
     <string name="pf_err_anl_2001_title">AniList kısıtlı modda (30 istek/dk)</string>
     <string name="pf_err_anl_2001_why">AniList, dokümante edilen 90 istek/dk sınırını geçici olarak 30 istek/dk\'ya düşürmüş durumda. Yoğun eşitlemede bu yüzden 429 döner.</string>
-    <string name="pf_err_anl_2001_fix">Uygulama istekleri otomatik geciktirir; eşitlemeyi tekrar tekrar başlatmayın.</string>
+    <string name="pf_err_anl_2001_fix">v2.4.341\'den itibaren tüm AniList trafiği tek bir kota kapısından geçer (60 sn\'lik pencere, öncelik, 429 soğuması). Eşitlemeyi tekrar tekrar başlatmanız gerekmez.</string>
     <string name="pf_err_anl_2002_title">AniList çok fazla istek (GraphQL 429)</string>
     <string name="pf_err_anl_2002_why">GraphQL yanıtı \"Too Many Requests\" döndü. AniList\'in dakikalık limitinin yanında kısa aralıklı patlamaları engelleyen ayrı bir burst limiter\'ı da var.</string>
-    <string name="pf_err_anl_2002_fix">Bir dakika bekleyin; Retry-After başlığı kadar bekleme otomatik uygulanır.</string>
+    <string name="pf_err_anl_2002_fix">Beklemeniz gerekmez: ceza penceresi bitince bekleyen değişiklikler kendiliğinden gönderilir.</string>
     <string name="pf_err_anl_2003_title">AniList sunucu hatası (500)</string>
     <string name="pf_err_anl_2003_why">AniList GraphQL katmanı isteği işleyemedi. Servis tarafında geçici bir bozulma olduğunda görülür.</string>
     <string name="pf_err_anl_2003_fix">Birkaç dakika sonra tekrar deneyin.</string>
@@ -6022,6 +6022,8 @@ Eklentiler ekranından eklenti etkinleştirin.</string>
     <string name="account_sync_anilist_media_id_unresolved">AniList kimliği çözülemedi</string>
     <string name="account_sync_anilist_user_id_unavailable">AniList kullanıcı kimliği alınamadı (token geçersiz olabilir)</string>
     <string name="account_sync_anilist_rate_limit">AniList API hatası: 429 hız sınırı (%1$d deneme, Retry-After=%2$ds)</string>
+    <string name="account_sync_anilist_quota_wait">⏳ AniList istek sınırı doldu — %1$d sn sonra kendiliğinden yeniden denenecek (kaydın yerelde güvende)</string>
+    <string name="account_sync_anilist_quota_refresh">⏳ AniList istek sınırı doldu — liste %1$d sn sonra yeniden çekilebilir</string>
     <string name="account_sync_mal_type_unsupported">MAL yalnızca anime/manga destekler</string>
     <string name="account_sync_mal_id_invalid">Geçerli MAL kimliği bulunamadı</string>
     <string name="account_sync_no_valid_mal_id">MAL: doğrulanmış medya kimliği yok</string>

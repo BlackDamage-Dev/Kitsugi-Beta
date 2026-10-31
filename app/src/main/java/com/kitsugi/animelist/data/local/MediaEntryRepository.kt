@@ -1,5 +1,7 @@
 package com.kitsugi.animelist.data.local
 
+import com.kitsugi.animelist.R
+import com.kitsugi.animelist.data.auth.AniListGate
 import com.kitsugi.animelist.data.auth.runSyncCatching
 import android.content.Context
 import com.kitsugi.animelist.data.auth.ExternalListSyncManager
@@ -18,6 +20,48 @@ class MediaEntryRepository(
     val context: Context? = null,
     private val onExternalSyncMessage: ((String) -> Unit)? = null
 ) {
+    /**
+     * Bir kaydın uzak eşitlemesi için bekleyen son istek (v2.4.341).
+     * Aynı kayda art arda gelen düzenlemeler [ExternalSyncCoalescer] tarafından tek yazmaya
+     * indirilir; burada yalnızca "en son istenen" parametreler tutulur.
+     */
+    private data class PendingExternalSync(
+        val advancedScores: List<Double>? = null,
+        val skipBangumiWrite: Boolean = false
+    )
+
+    private val pendingExternalSyncs = java.util.concurrent.ConcurrentHashMap<Int, PendingExternalSync>()
+
+    private fun pendingKey(entryId: Int): String = "entry-$entryId"
+
+    /**
+     * Uzak eşitlemeyi [quietMs] sessizlikten sonra, sırayla çalıştırır.
+     * Yerel yazım zaten tamamlanmıştır; buradaki gecikme yalnızca ağ tarafındadır.
+     */
+    private fun scheduleExternalSync(entryId: Int, quietMs: Long = ExternalSyncCoalescer.QUIET_PERIOD_MS) {
+        if (entryId <= 0) return
+        ExternalSyncCoalescer.schedule(pendingKey(entryId), quietMs) {
+            // Kuyrukta beklerken kayıt silinmiş olabilir → yapacak bir şey yok.
+            val latest = dao.getById(entryId)?.toDomain() ?: return@schedule
+            val pending = pendingExternalSyncs.remove(entryId)
+            syncEntryIfPossible(
+                latest,
+                pending?.advancedScores,
+                pending?.skipBangumiWrite ?: false
+            )
+        }
+    }
+
+    /**
+     * Kota nedeniyle ertelenen işleri, AniList'in ceza penceresi bittiğinde kendiliğinden
+     * yeniden dener. Kullanıcının aynı düğmeye tekrar basmasına gerek kalmaz.
+     */
+    private suspend fun scheduleQuotaResume() {
+        val appContext = context ?: return
+        val queueDao = pendingSyncDao ?: return
+        val waitMs = (AniListGate.cooldownRemainingMs() + 2_000L).coerceAtLeast(2_000L)
+        PendingSyncDrainer.scheduleResume(appContext, queueDao, waitMs)
+    }
     /**
      * PERF (2026-10-20): [withCrossSourceAdultFlags] tüm tabloyu entity→domain'e çevirip
      * satır başına kimlik anahtarları hesaplar; büyük kütüphanelerde onlarca-milisaniyelik
@@ -57,7 +101,13 @@ class MediaEntryRepository(
         val persistedEntry = dao.getById(newId.toInt())?.toDomain() ?: entryWithTime.copy(id = newId.toInt())
         // Aynı yapımın başka kaynaklardaki yerel satırları da aynı kullanıcı değerlerini alsın.
         mirrorUserFieldsToSiblings(persistedEntry)
-        if (syncExternal) syncEntryIfPossible(persistedEntry, skipBangumiWrite = skipBangumiWrite)
+        if (syncExternal) {
+            if (skipBangumiWrite) {
+                pendingExternalSyncs[persistedEntry.id] = PendingExternalSync(skipBangumiWrite = true)
+            }
+            // Uzak yazma kısa bir sessizlikten sonra sıraya girer (kotayı korur).
+            scheduleExternalSync(persistedEntry.id)
+        }
     }
 
     suspend fun insertAll(entries: List<MediaEntry>) {
@@ -226,7 +276,14 @@ class MediaEntryRepository(
         mirrorUserFieldsToSiblings(entryWithTime)
 
         if (syncExternal) {
-            syncEntryIfPossible(entryWithTime, advancedScores, skipBangumiWrite)
+            // Aynı kayda art arda gelen düzenlemeler (bölüm +1, puan, not) tek uzak yazmaya
+            // birleşir: son hâl gönderilir, ara hâller için istek harcanmaz.
+            val previous = pendingExternalSyncs[entryWithTime.id]
+            pendingExternalSyncs[entryWithTime.id] = PendingExternalSync(
+                advancedScores = advancedScores ?: previous?.advancedScores,
+                skipBangumiWrite = skipBangumiWrite || previous?.skipBangumiWrite == true
+            )
+            scheduleExternalSync(entryWithTime.id)
         }
     }
 
@@ -246,7 +303,11 @@ class MediaEntryRepository(
         siblingIds.forEach { siblingId -> dao.deleteById(siblingId) }
 
         if (syncExternal && entry != null) {
-            syncDeleteIfPossible(entry)
+            // Silme de aynı sıraya girer: bekleyen bir güncellemenin arkasından çalışır,
+            // böylece silinen kayıt uzakta yeniden görünmez. Sessizlik beklemez.
+            ExternalSyncCoalescer.schedule(pendingKey(entry.id), quietMs = 0L) {
+                syncDeleteIfPossible(entry)
+            }
         }
     }
 
@@ -415,11 +476,19 @@ class MediaEntryRepository(
             enqueuePending("UPDATE", entry)
             val allErrors = syncResult?.errors.orEmpty().joinToString(" | ")
             val isAuthError = allErrors.contains("401") || allErrors.contains("token geçersiz") || allErrors.contains("Unauthorized")
-            val displayMessage = if (isAuthError) {
-                "🔑 Oturum süresi doldu, lütfen ayarlardan tekrar bağlanın"
-            } else {
-                "📵 Çevrimdışı kaydedildi, bağlantı gelince gönderilecek"
+            // Kota (429) ayrı ele alınır: çevrimdışı değil, "kısa süre sonra kendiliğinden
+            // denenecek" demektir. Eski davranış her 429'u "çevrimdışı" diye gösterip
+            // kullanıcıyı internetini kontrol etmeye yönlendiriyordu.
+            val isQuotaError = AniListGate.isQuotaMessage(allErrors) || AniListGate.isCoolingDown()
+            val displayMessage = when {
+                isAuthError -> "🔑 Oturum süresi doldu, lütfen ayarlardan tekrar bağlanın"
+                isQuotaError -> context?.getString(
+                    R.string.account_sync_anilist_quota_wait,
+                    (AniListGate.cooldownRemainingMs() / 1_000L).coerceAtLeast(1L)
+                ) ?: "⏳ AniList istek sınırı doldu — kısa süre sonra kendiliğinden denenecek"
+                else -> "📵 Çevrimdışı kaydedildi, bağlantı gelince gönderilecek"
             }
+            if (isQuotaError) scheduleQuotaResume()
             notifySyncResult(
                 syncResult?.messages.orEmpty() + listOf(displayMessage) +
                     listOfNotNull(syncOutcomeNote(syncResult?.outcomes))
@@ -456,11 +525,19 @@ class MediaEntryRepository(
             enqueuePending("DELETE", entry)
             val allErrors = syncResult?.errors.orEmpty().joinToString(" | ")
             val isAuthError = allErrors.contains("401") || allErrors.contains("token geçersiz") || allErrors.contains("Unauthorized")
-            val displayMessage = if (isAuthError) {
-                "🔑 Oturum süresi doldu, lütfen ayarlardan tekrar bağlanın"
-            } else {
-                "📵 Çevrimdışı kaydedildi, bağlantı gelince gönderilecek"
+            // Kota (429) ayrı ele alınır: çevrimdışı değil, "kısa süre sonra kendiliğinden
+            // denenecek" demektir. Eski davranış her 429'u "çevrimdışı" diye gösterip
+            // kullanıcıyı internetini kontrol etmeye yönlendiriyordu.
+            val isQuotaError = AniListGate.isQuotaMessage(allErrors) || AniListGate.isCoolingDown()
+            val displayMessage = when {
+                isAuthError -> "🔑 Oturum süresi doldu, lütfen ayarlardan tekrar bağlanın"
+                isQuotaError -> context?.getString(
+                    R.string.account_sync_anilist_quota_wait,
+                    (AniListGate.cooldownRemainingMs() / 1_000L).coerceAtLeast(1L)
+                ) ?: "⏳ AniList istek sınırı doldu — kısa süre sonra kendiliğinden denenecek"
+                else -> "📵 Çevrimdışı kaydedildi, bağlantı gelince gönderilecek"
             }
+            if (isQuotaError) scheduleQuotaResume()
             notifySyncResult(
                 syncResult?.messages.orEmpty() + listOf(displayMessage) +
                     listOfNotNull(syncOutcomeNote(syncResult?.outcomes))
