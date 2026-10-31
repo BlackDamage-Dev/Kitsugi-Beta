@@ -1,35 +1,54 @@
 package com.kitsugi.animelist.core.notifications
 
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.app.PendingIntent
 import android.content.Context
-import android.content.Intent
-import android.os.Build
+import android.content.SharedPreferences
 import android.util.Log
-import androidx.core.app.NotificationCompat
-import androidx.core.app.NotificationManagerCompat
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
-import com.kitsugi.animelist.MainActivity
+import com.kitsugi.animelist.R
 import com.kitsugi.animelist.data.auth.ExternalAuthManager
+import com.kitsugi.animelist.data.auth.KitsuApiClient
+import com.kitsugi.animelist.data.auth.ShikimoriApiClient
 import com.kitsugi.animelist.data.auth.SimklImportManager
 import com.kitsugi.animelist.data.local.KitsugiDatabase
 import com.kitsugi.animelist.data.local.MediaEntryRepository
 import com.kitsugi.animelist.data.local.toDomain
-import com.kitsugi.animelist.data.auth.KitsuApiClient
-import com.kitsugi.animelist.data.auth.ShikimoriApiClient
+import com.kitsugi.animelist.data.remote.BangumiIdNamespace
 import com.kitsugi.animelist.data.remote.KitsugiAniListNotificationClient
 import com.kitsugi.animelist.data.remote.KitsugiAiringCalendarClient
+import com.kitsugi.animelist.data.remote.KitsugiBangumiDetailClient
 import com.kitsugi.animelist.data.remote.SimklCalendarClient
 import com.kitsugi.animelist.data.settings.SettingsDataStore
+import com.kitsugi.animelist.model.MediaType
 import com.kitsugi.animelist.model.WatchStatus
+import com.kitsugi.animelist.utils.KitsugiStrings
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first
 import java.time.Instant
 import java.time.OffsetDateTime
-import com.kitsugi.animelist.utils.KitsugiStrings
-import com.kitsugi.animelist.R
 
+/**
+ * Arka plan bildirim üretecisi.
+ *
+ * **Cihaza gerçekten düşen** bildirimlerin tek kaynağı burasıdır; uygulama içindeki
+ * Bildirimler sayfası ise kaynak API'lerinden canlı okur. İkisinin ayrışmaması için:
+ *   • Her kaynak ayrı ayrı sayılır ve sonucu [NotificationDeliveryTracker]'a yazılır
+ *     (teşhis panelinde "cihaz bildirimleri" bölümü bunu gösterir).
+ *   • Hat kapalıysa (izin yok / bildirimler kapatılmış) ağ isteği bile atılmaz.
+ *   • İlk çalıştırmada geçmiş kayıtlar bildirim olarak DÜŞMEZ (yalnızca "görüldü"
+ *     işaretlenir); aksi hâlde bir kaynağı açan kullanıcıya onlarca bildirim birden
+ *     geliyordu.
+ *   • Bir çalıştırmada kaynak başına en fazla [MAX_PER_SOURCE_PER_RUN] bildirim düşer.
+ *
+ * Kaynak gerçekleri (değişmedi, ama artık daha görünür):
+ *   AniList   → `Page.notifications` (gerçek bildirim ucu)
+ *   MAL       → takvim + izleme listesi eşleşmesi (API'de bildirim ucu yok)
+ *   Simkl     → takvim v2 CDN + izleme listesi (bildirim ucu yok)
+ *   Kitsu     → `nextRelease` alanı (bildirim ucu yok)
+ *   Shikimori → `/api/users/:id/messages` (gerçek bildirim ucu, `messages` izni gerekir)
+ *   Bangumi   → MAL takvimi + çapraz kimlik (bgm subject → MAL id) eşleşmesi
+ */
 class AiringNotificationWorker(
     private val context: Context,
     workerParams: WorkerParameters
@@ -37,23 +56,31 @@ class AiringNotificationWorker(
 
     companion object {
         private const val TAG = "AiringWorker"
-        private const val CHANNEL_ID = "Kitsugi_airing_channel"
         private const val PREFS_NAME = "Kitsugi_notified_prefs"
         private const val KEY_NOTIFIED_ANILIST = "notified_anilist_ids"
         private const val KEY_NOTIFIED_MAL = "notified_mal_keys"
         private const val KEY_NOTIFIED_SIMKL = "notified_simkl_keys"
         private const val KEY_NOTIFIED_KITSU = "notified_kitsu_keys"
         private const val KEY_NOTIFIED_SHIKIMORI = "notified_shikimori_ids"
+        private const val KEY_NOTIFIED_BANGUMI = "notified_bangumi_keys"
+
+        /** Sel hâlinde bildirim yağmasın: kaynak başına çalıştırma limiti. */
+        private const val MAX_PER_SOURCE_PER_RUN = 6
+
+        /** Bangumi → MAL çapraz kimlik çözümü ağ isteği gerektirir; üst sınır. */
+        private const val BANGUMI_MAX_RESOLVE = 15
+
+        /** Son 24 saat penceresi (MAL/Simkl/Kitsu/Bangumi yayın eşleşmesi). */
+        private const val AIRING_WINDOW_MS = 24 * 60 * 60 * 1000L
     }
 
     override suspend fun doWork(): Result {
         Log.d(TAG, "AiringNotificationWorker background check started")
 
-        // Load settings
         val settings = SettingsDataStore(context).settingsFlow.first()
 
-        // A saved toggle alone is not enough: source notifications must never poll or
-        // produce local airing alerts after the corresponding account was disconnected.
+        // Kaydedilmiş bir anahtar, hesap koptuktan sonra da duruyor olabilir:
+        // bağlantı yoksa o kaynak için hiç istek atılmaz.
         val aniListTokenForGate = ExternalAuthManager.getAniListToken(context)
         val malTokenForGate = ExternalAuthManager.getMalToken(context)
         val simklTokenForGate = ExternalAuthManager.getSimklToken(context)
@@ -75,7 +102,6 @@ class AiringNotificationWorker(
         val isKitsuEnabled = settings.kitsuNotificationsEnabled && !kitsuTokenForGate.isNullOrBlank()
         val isShikimoriEnabled = settings.shikimoriNotificationsEnabled && !shikimoriTokenForGate.isNullOrBlank()
 
-        // If no notifications are enabled, stop immediately
         if (!isAiringEnabled && !isAniListEnabled && !isMalEnabled && !isSimklEnabled &&
             !isKitsuEnabled && !isShikimoriEnabled
         ) {
@@ -84,118 +110,159 @@ class AiringNotificationWorker(
             return Result.success()
         }
 
+        // ── Cihaz hattı ön kontrolü ──────────────────────────────────────────
+        // İzin yoksa her `notify()` çağrısı SecurityException üretiyordu; artık hiç
+        // ağ isteği atılmadan, sebebi kaydedilerek çıkılır.
+        val gate = KitsugiNotificationDispatcher.gate(context)
+        if (gate != KitsugiNotificationDispatcher.Gate.OK) {
+            val reason = if (gate == KitsugiNotificationDispatcher.Gate.PERMISSION) {
+                NotificationDeliveryTracker.BLOCKED_PERMISSION
+            } else {
+                NotificationDeliveryTracker.BLOCKED_DISABLED
+            }
+            Log.w(TAG, "Device notifications blocked ($reason); skipping this run")
+            NotificationDeliveryTracker.recordBlocked(context, reason)
+            NotificationScheduler.cancelIfNoActiveSources(context)
+            return Result.success()
+        }
+        KitsugiNotificationDispatcher.ensureChannels(context)
+
         val sharedPrefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
-        // 1. Fetch watching entries from DB
+        // Seri hâle getirilmiş izleme listesi (yerel DB)
         val db = KitsugiDatabase.getDatabase(context)
         val watchingEntries = try {
-            val allEntities = db.mediaEntryDao().getAll()
-            allEntities.filter { entity ->
-                entity.status == WatchStatus.Watching.name ||
-                entity.status == WatchStatus.Repeating.name
-            }.map { it.toDomain() }
+            db.mediaEntryDao().getAll()
+                .filter { entity ->
+                    entity.status == WatchStatus.Watching.name ||
+                        entity.status == WatchStatus.Repeating.name
+                }
+                .map { it.toDomain() }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to load database watching entries: ${e.message}")
             emptyList()
         }
 
-        // 2. AniList Polling
+        // ── 1. AniList (gerçek bildirim ucu) ─────────────────────────────────
         if (isAniListEnabled) {
             val aniListToken = ExternalAuthManager.getAniListToken(context)
             if (!aniListToken.isNullOrBlank()) {
+                var posted = 0
+                var seen = 0
                 try {
                     val client = KitsugiAniListNotificationClient()
                     val page = client.fetchNotifications(aniListToken, page = 1, perPage = 25)
-                    val notifiedIds = sharedPrefs.getStringSet(KEY_NOTIFIED_ANILIST, emptySet())?.toMutableSet() ?: mutableSetOf()
+                    val notifiedIds = sharedPrefs.getStringSet(KEY_NOTIFIED_ANILIST, emptySet())?.toMutableSet()
+                        ?: mutableSetOf()
+                    val firstRun = isFirstRun(sharedPrefs, KEY_NOTIFIED_ANILIST)
 
                     for (notif in page.notifications) {
                         val notifIdStr = notif.id.toString()
-                        if (!notifiedIds.contains(notifIdStr)) {
-                            val title = notif.mediaTitle ?: notif.userName ?: notif.threadTitle ?: "AniList"
-                            val body = formatAniListBody(notif)
-                            val isMedia = notif.type in listOf("AIRING", "RELATED_MEDIA_ADDITION", "MEDIA_DATA_CHANGE", "MEDIA_MERGE")
+                        if (notifiedIds.contains(notifIdStr)) continue
+                        notifiedIds.add(notifIdStr)
+                        seen++
+                        // İlk çalıştırma: geçmiş kayıtlar sessizce "görüldü" işaretlenir.
+                        if (firstRun) continue
+                        if (posted >= MAX_PER_SOURCE_PER_RUN) continue
 
-                            showNotification(
-                                id = notif.id,
-                                title = title,
-                                bodyText = body,
-                                source = "AniList",
-                                imageUrl = notif.mediaCoverUrl,
-                                avatarUrl = notif.userAvatarUrl,
-                                isMedia = isMedia,
-                                mediaId = notif.mediaId
-                            )
-                            notifiedIds.add(notifIdStr)
-                        }
+                        val title = notif.mediaTitle ?: notif.userName ?: notif.threadTitle ?: "AniList"
+                        val isMedia = notif.type in setOf(
+                            "AIRING",
+                            "RELATED_MEDIA_ADDITION",
+                            "MEDIA_DATA_CHANGE",
+                            "MEDIA_MERGE"
+                        )
+                        val ok = postItem(
+                            id = notif.id,
+                            title = title,
+                            body = formatAniListBody(notif),
+                            source = "AniList",
+                            imageUrl = notif.mediaCoverUrl,
+                            avatarUrl = notif.userAvatarUrl,
+                            isMedia = isMedia,
+                            mediaId = notif.mediaId,
+                            whenMs = notif.createdAt?.let { value ->
+                                if (value > 10_000_000_000L) value else value * 1000L
+                            } ?: System.currentTimeMillis()
+                        )
+                        if (ok) posted++
                     }
-                    val keptIds = notifiedIds.toList().takeLast(200).toSet()
-                    sharedPrefs.edit().putStringSet(KEY_NOTIFIED_ANILIST, keptIds).apply()
+                    pruneNotifiedIds(sharedPrefs, KEY_NOTIFIED_ANILIST, notifiedIds, 200)
+                    NotificationDeliveryTracker.recordRun(
+                        context = context,
+                        source = "AniList",
+                        posted = posted,
+                        seen = seen
+                    )
                 } catch (e: Exception) {
                     Log.e(TAG, "AniList notifications fetch failed: ${e.message}", e)
+                    NotificationDeliveryTracker.recordRun(
+                        context, "AniList", posted, seen, error = e.message
+                    )
                 }
             }
         }
 
-        // 3. MyAnimeList (Airing Calendar) Polling
+        // ── 2. MAL takvimi + yerel izleme listesi ────────────────────────────
         if (isMalEnabled || isAiringEnabled) {
+            var posted = 0
+            var seen = 0
             try {
                 val calendarClient = KitsugiAiringCalendarClient()
                 val nowMs = System.currentTimeMillis()
-                // Hafta sınırına takılmayan kayan pencere: son 24 saat + önümüzdeki 1 saat.
-                // (Eski hâli takvim haftasına bağlıydı; Pazartesi sabahı Pazar gecesi
-                // yayınlanan bölümler gözden kaçabiliyordu.)
                 val allEntries = calendarClient.fetchAiringWindow(
-                    fromEpochSec = (nowMs - 24 * 60 * 60 * 1000L) / 1000L,
+                    fromEpochSec = (nowMs - AIRING_WINDOW_MS) / 1000L,
                     toEpochSec = (nowMs + 60 * 60 * 1000L) / 1000L
                 )
-                val now = nowMs
 
                 val matched = allEntries.filter { entry ->
                     watchingEntries.any { me ->
                         (entry.malId != null && me.malId == entry.malId) ||
-                        (me.source == "anilist" && me.malId == 100_000_000 + entry.aniListId)
+                            (me.source == "anilist" && me.malId == 100_000_000 + entry.aniListId)
                     }
                 }
 
-                val notifiedMalKeys = sharedPrefs.getStringSet(KEY_NOTIFIED_MAL, emptySet())?.toMutableSet() ?: mutableSetOf()
+                val notifiedMalKeys = sharedPrefs.getStringSet(KEY_NOTIFIED_MAL, emptySet())?.toMutableSet()
+                    ?: mutableSetOf()
+                val firstRun = isFirstRun(sharedPrefs, KEY_NOTIFIED_MAL)
 
                 for (entry in matched) {
                     val triggerMs = entry.airingAt * 1000L
-                    // Recently aired (within past 24 hours)
-                    if (triggerMs <= now && triggerMs > now - 24 * 60 * 60 * 1000L) {
-                        val malKey = "${entry.malId}_${entry.episode}"
-                        if (!notifiedMalKeys.contains(malKey)) {
-                            val title = entry.title
-                            val body = KitsugiStrings.get(R.string.bolum_x_artik_yayinda, entry.episode)
-                            val malId = entry.malId ?: 0
-                            val notifId = (malId * 1000 + entry.episode) and Int.MAX_VALUE
+                    if (triggerMs > nowMs || triggerMs <= nowMs - AIRING_WINDOW_MS) continue
+                    val malKey = "${entry.malId}_${entry.episode}"
+                    if (notifiedMalKeys.contains(malKey)) continue
+                    notifiedMalKeys.add(malKey)
+                    seen++
+                    if (firstRun) continue
+                    if (posted >= MAX_PER_SOURCE_PER_RUN) continue
 
-                            showNotification(
-                                id = notifId,
-                                title = title,
-                                bodyText = body,
-                                source = "MyAnimeList",
-                                imageUrl = entry.coverUrl,
-                                isMedia = true,
-                                mediaId = malId
-                            )
-                            notifiedMalKeys.add(malKey)
-                        }
-                    }
+                    val malId = entry.malId ?: 0
+                    val ok = postItem(
+                        id = (malId * 1000 + entry.episode) and Int.MAX_VALUE,
+                        title = entry.title,
+                        body = KitsugiStrings.get(R.string.bolum_x_artik_yayinda, entry.episode),
+                        source = "MyAnimeList",
+                        imageUrl = entry.coverUrl,
+                        isMedia = true,
+                        mediaId = malId,
+                        whenMs = triggerMs
+                    )
+                    if (ok) posted++
                 }
-                val keptMalKeys = notifiedMalKeys.toList().takeLast(200).toSet()
-                sharedPrefs.edit().putStringSet(KEY_NOTIFIED_MAL, keptMalKeys).apply()
+                pruneNotifiedIds(sharedPrefs, KEY_NOTIFIED_MAL, notifiedMalKeys, 200)
+                NotificationDeliveryTracker.recordRun(context, "MyAnimeList", posted, seen)
             } catch (e: Exception) {
                 Log.e(TAG, "MAL Airing Calendar fetch failed: ${e.message}", e)
+                NotificationDeliveryTracker.recordRun(context, "MyAnimeList", posted, seen, error = e.message)
             }
         }
 
-        // 4. Simkl Polling (Watchlist Sync + v2 CDN takvim eşleşmesi)
-        //    NOT: Simkl API'sinde bildirim ucu yoktur; resmî yöntem izleme listesi +
-        //    https://data.simkl.in/calendar/v2/{tv|anime|movie_release}.json birleşimidir.
+        // ── 3. Simkl (takvim v2 + izleme listesi) ────────────────────────────
         if (isSimklEnabled) {
             val simklToken = ExternalAuthManager.getSimklToken(context)
             if (!simklToken.isNullOrBlank()) {
+                var posted = 0
+                var seen = 0
                 try {
                     val importedEntries = SimklImportManager.fetchAllLists(simklToken)
                     val repository = MediaEntryRepository(db.mediaEntryDao())
@@ -207,95 +274,120 @@ class AiringNotificationWorker(
                     val watchingIds = runCatching { calendarClient.fetchWatchingIds(simklToken) }.getOrNull()
                     val calendar = calendarClient.fetchAll()
                     val now = System.currentTimeMillis()
-                    val notifiedSimklKeys = sharedPrefs.getStringSet(KEY_NOTIFIED_SIMKL, emptySet())?.toMutableSet() ?: mutableSetOf()
+                    val notifiedSimklKeys = sharedPrefs.getStringSet(KEY_NOTIFIED_SIMKL, emptySet())?.toMutableSet()
+                        ?: mutableSetOf()
+                    val firstRun = isFirstRun(sharedPrefs, KEY_NOTIFIED_SIMKL)
 
-                    var matched = 0
+                    var matchedCount = 0
                     for (entry in calendar) {
                         val isMatched = watchingIds != null && !watchingIds.isEmpty &&
                             watchingIds.matches(entry)
                         if (!isMatched) continue
 
                         val airingAt = entry.airingAtMs
-                        // Yalnızca son 24 saat içinde yayınlananlar bildirilir.
-                        if (airingAt > now || airingAt <= now - 24 * 60 * 60 * 1000L) continue
-                        matched++
+                        if (airingAt > now || airingAt <= now - AIRING_WINDOW_MS) continue
+                        matchedCount++
 
-                        // Düzeltme: her bölüm kendi anahtarına sahip (eskiden bölüm ayırt
-                        // edilmiyordu, bu yüzden dizi başına yalnızca bir bildirim gidiyordu).
+                        // Her bölüm kendi anahtarına sahip (eskiden bölüm ayırt
+                        // edilmiyordu, dizi başına tek bildirim gidiyordu).
                         val key = "simkl_${entry.simklId}_${entry.episode ?: 0}_$airingAt"
                         if (notifiedSimklKeys.contains(key)) continue
+                        notifiedSimklKeys.add(key)
+                        seen++
+                        if (firstRun) continue
+                        if (posted >= MAX_PER_SOURCE_PER_RUN) continue
 
                         val label = entry.episodeLabel
-                        showNotification(
+                        val ok = postItem(
                             id = key.hashCode() and 0x7fffffff,
                             title = entry.title,
-                            bodyText = if (label != null) KitsugiStrings.get(R.string.notification_episode_released, label) else KitsugiStrings.get(R.string.notification_new_movie_release),
+                            body = if (label != null) {
+                                KitsugiStrings.get(R.string.notification_episode_released, label)
+                            } else {
+                                KitsugiStrings.get(R.string.notification_new_movie_release)
+                            },
                             source = "Simkl",
                             imageUrl = entry.posterUrl,
                             isMedia = true,
-                            mediaId = entry.simklId
+                            mediaId = entry.simklId,
+                            whenMs = airingAt
                         )
-                        notifiedSimklKeys.add(key)
+                        if (ok) posted++
                     }
-                    Log.d(TAG, "Simkl airing matched=$matched")
-                    val keptSimklKeys = notifiedSimklKeys.toList().takeLast(400).toSet()
-                    sharedPrefs.edit().putStringSet(KEY_NOTIFIED_SIMKL, keptSimklKeys).apply()
+                    Log.d(TAG, "Simkl airing matched=$matchedCount")
+                    pruneNotifiedIds(sharedPrefs, KEY_NOTIFIED_SIMKL, notifiedSimklKeys, 400)
+                    NotificationDeliveryTracker.recordRun(context, "TMDB & Simkl", posted, seen)
                 } catch (e: Exception) {
                     Log.e(TAG, "Simkl background sync failed: ${e.message}", e)
+                    NotificationDeliveryTracker.recordRun(context, "TMDB & Simkl", posted, seen, error = e.message)
                 }
             }
         }
 
-        // 5. Kitsu Polling (takip listesi + nextRelease yayın tarihleri)
-        //    Kitsu'nun genel API'sinde bildirim kaynağı yoktur; `nextRelease` alanı
-        //    sonraki bölümün yayın zamanını verir ve bildirim bundan üretilir.
+        // ── 4. Kitsu (nextRelease alanı) ─────────────────────────────────────
         if (isKitsuEnabled || isAiringEnabled) {
             val kitsuToken = ExternalAuthManager.getKitsuToken(context)
             val kitsuUserId = ExternalAuthManager.getKitsuUserId(context)
             if (!kitsuToken.isNullOrBlank() && !kitsuUserId.isNullOrBlank()) {
+                var posted = 0
+                var seen = 0
                 try {
                     val entries = KitsuApiClient.fetchAllLibraryEntries(kitsuToken, kitsuUserId)
                     val active = entries.filter {
                         it.status.equals("current", true) || it.status.equals("watching", true)
                     }
-                    val notifiedKitsuKeys = sharedPrefs.getStringSet(KEY_NOTIFIED_KITSU, emptySet())?.toMutableSet() ?: mutableSetOf()
+                    val notifiedKitsuKeys = sharedPrefs.getStringSet(KEY_NOTIFIED_KITSU, emptySet())?.toMutableSet()
+                        ?: mutableSetOf()
+                    val firstRun = isFirstRun(sharedPrefs, KEY_NOTIFIED_KITSU)
                     val now = System.currentTimeMillis()
 
                     for (entry in active) {
                         val releaseMs = parseIsoToEpochMs(entry.nextRelease) ?: continue
-                        if (releaseMs > now || releaseMs <= now - 24 * 60 * 60 * 1000L) continue
+                        if (releaseMs > now || releaseMs <= now - AIRING_WINDOW_MS) continue
 
                         val key = "kitsu_${entry.id}_$releaseMs"
                         if (notifiedKitsuKeys.contains(key)) continue
+                        notifiedKitsuKeys.add(key)
+                        seen++
+                        if (firstRun) continue
+                        if (posted >= MAX_PER_SOURCE_PER_RUN) continue
 
-                        showNotification(
+                        val ok = postItem(
                             id = key.hashCode() and 0x7fffffff,
                             title = entry.title,
-                            bodyText = KitsugiStrings.get(R.string.bolum_entry_progress_1_yayinlandi, entry.progress + 1),
+                            body = KitsugiStrings.get(
+                                R.string.bolum_entry_progress_1_yayinlandi,
+                                entry.progress + 1
+                            ),
                             source = "Kitsu",
                             imageUrl = entry.imageUrl,
                             isMedia = true,
-                            mediaId = entry.animeId ?: entry.mangaId
+                            mediaId = entry.animeId ?: entry.mangaId,
+                            whenMs = releaseMs
                         )
-                        notifiedKitsuKeys.add(key)
+                        if (ok) posted++
                     }
-                    val keptKitsuKeys = notifiedKitsuKeys.toList().takeLast(400).toSet()
-                    sharedPrefs.edit().putStringSet(KEY_NOTIFIED_KITSU, keptKitsuKeys).apply()
+                    pruneNotifiedIds(sharedPrefs, KEY_NOTIFIED_KITSU, notifiedKitsuKeys, 400)
+                    NotificationDeliveryTracker.recordRun(context, "Kitsu", posted, seen)
                 } catch (e: Exception) {
                     Log.e(TAG, "Kitsu polling failed: ${e.message}", e)
+                    NotificationDeliveryTracker.recordRun(context, "Kitsu", posted, seen, error = e.message)
                 }
             }
         }
 
-        // 6. Shikimori Polling (gerçek bildirim ucu: GET /api/users/:id/messages)
-        //    `messages` OAuth izni gerekir; izin yoksa sessizce atlanır ve loglanır.
+        // ── 5. Shikimori (gerçek bildirim ucu: /api/users/:id/messages) ──────
         if (isShikimoriEnabled) {
             val shikiToken = runCatching { ExternalAuthManager.getOrRefreshShikimoriToken(context) }
                 .getOrNull() ?: ExternalAuthManager.getShikimoriToken(context)
             val shikiUserId = ExternalAuthManager.getShikimoriUserId(context)
             if (!shikiToken.isNullOrBlank() && shikiUserId != null) {
+                var posted = 0
+                var seen = 0
                 try {
-                    val notifiedShikiIds = sharedPrefs.getStringSet(KEY_NOTIFIED_SHIKIMORI, emptySet())?.toMutableSet() ?: mutableSetOf()
+                    val notifiedShikiIds = sharedPrefs.getStringSet(KEY_NOTIFIED_SHIKIMORI, emptySet())?.toMutableSet()
+                        ?: mutableSetOf()
+                    val firstRun = isFirstRun(sharedPrefs, KEY_NOTIFIED_SHIKIMORI)
                     val messages = ShikimoriApiClient.fetchMessages(
                         token = shikiToken,
                         userId = shikiUserId,
@@ -313,32 +405,112 @@ class AiringNotificationWorker(
                         if (message.read) continue
                         val key = "${message.type}_${message.id}"
                         if (notifiedShikiIds.contains(key)) continue
+                        notifiedShikiIds.add(key)
+                        seen++
+                        if (firstRun) continue
+                        if (posted >= MAX_PER_SOURCE_PER_RUN) continue
 
                         val bodyText = message.body
                             .replace(Regex("\\[/?[a-zA-Z0-9=*]+[^\\]]*\\]"), " ")
                             .replace(Regex("\\s+"), " ")
                             .trim()
-                            .ifBlank { "Yeni Shikimori bildirimi" }
+                            .ifBlank { KitsugiStrings.get(R.string.notif_sys_generic) }
 
-                        showNotification(
+                        val ok = postItem(
                             id = key.hashCode() and 0x7fffffff,
                             title = message.targetTitle ?: "Shikimori",
-                            bodyText = bodyText.take(200),
+                            body = bodyText.take(200),
                             source = "Shikimori",
                             imageUrl = message.targetImageUrl,
                             avatarUrl = message.fromAvatarUrl,
                             isMedia = message.targetImageUrl != null,
-                            mediaId = message.linkedId?.toInt()
+                            mediaId = message.linkedId?.toInt(),
+                            whenMs = parseIsoToEpochMs(message.createdAt) ?: System.currentTimeMillis()
                         )
-                        notifiedShikiIds.add(key)
+                        if (ok) posted++
                     }
-                    val keptShikiKeys = notifiedShikiIds.toList().takeLast(400).toSet()
-                    sharedPrefs.edit().putStringSet(KEY_NOTIFIED_SHIKIMORI, keptShikiKeys).apply()
+                    pruneNotifiedIds(sharedPrefs, KEY_NOTIFIED_SHIKIMORI, notifiedShikiIds, 400)
+                    NotificationDeliveryTracker.recordRun(context, "Shikimori", posted, seen)
                 } catch (e: ShikimoriApiClient.ShikimoriScopeException) {
                     Log.w(TAG, "Shikimori 'messages' izni yok; bildirim atlanıyor: ${e.message}")
+                    NotificationDeliveryTracker.recordRun(
+                        context, "Shikimori", posted, seen, error = "messages izni yok"
+                    )
                 } catch (e: Exception) {
                     Log.e(TAG, "Shikimori polling failed: ${e.message}", e)
+                    NotificationDeliveryTracker.recordRun(context, "Shikimori", posted, seen, error = e.message)
                 }
+            }
+        }
+
+        // ── 6. Bangumi (MAL takvimi + çapraz kimlik eşleşmesi) ───────────────
+        // Bangumi API'sinde bildirim ucu yoktur. Uygulama içi sayfa da aynı yolu
+        // kullanır: bgm subject → MAL id çözümü + yayın takvimi.
+        if (isAiringEnabled && bangumiConnected) {
+            var posted = 0
+            var seen = 0
+            try {
+                val bangumiWatching = watchingEntries.filter {
+                    it.source.equals(BangumiIdNamespace.SOURCE, ignoreCase = true) &&
+                        BangumiIdNamespace.isStableId(it.malId)
+                }
+                if (bangumiWatching.isNotEmpty()) {
+                    val malToStable = coroutineScope {
+                        bangumiWatching.take(BANGUMI_MAX_RESOLVE).map { me ->
+                            async {
+                                val cross = runCatching {
+                                    KitsugiBangumiDetailClient.resolveCrossIds(me.malId, MediaType.Anime)
+                                }.getOrNull()
+                                cross?.malId?.takeIf { it in 1..99_999_999 }?.let { it to (me.malId ?: 0) }
+                            }
+                        }.mapNotNull { it.await() }
+                    }.toMap()
+
+                    if (malToStable.isNotEmpty()) {
+                        val nowMs = System.currentTimeMillis()
+                        val airings = KitsugiAiringCalendarClient()
+                            .fetchAiringWindow(
+                                fromEpochSec = (nowMs - AIRING_WINDOW_MS) / 1000L,
+                                toEpochSec = (nowMs + 60 * 60 * 1000L) / 1000L
+                            )
+                        val notifiedBangumiKeys = sharedPrefs.getStringSet(KEY_NOTIFIED_BANGUMI, emptySet())
+                            ?.toMutableSet() ?: mutableSetOf()
+                        val firstRun = isFirstRun(sharedPrefs, KEY_NOTIFIED_BANGUMI)
+
+                        for (entry in airings) {
+                            val malId = entry.malId ?: continue
+                            val stableId = malToStable[malId] ?: continue
+                            val triggerMs = entry.airingAt * 1000L
+                            if (triggerMs > nowMs || triggerMs <= nowMs - AIRING_WINDOW_MS) continue
+
+                            val key = "bangumi_${malId}_${entry.episode}"
+                            if (notifiedBangumiKeys.contains(key)) continue
+                            notifiedBangumiKeys.add(key)
+                            seen++
+                            if (firstRun) continue
+                            if (posted >= MAX_PER_SOURCE_PER_RUN) continue
+
+                            val ok = postItem(
+                                id = key.hashCode() and 0x7fffffff,
+                                title = entry.title,
+                                body = KitsugiStrings.get(R.string.bolum_x_artik_yayinda, entry.episode),
+                                source = "Bangumi",
+                                imageUrl = entry.coverUrl,
+                                isMedia = true,
+                                mediaId = stableId,
+                                whenMs = triggerMs
+                            )
+                            if (ok) posted++
+                        }
+                        pruneNotifiedIds(sharedPrefs, KEY_NOTIFIED_BANGUMI, notifiedBangumiKeys, 200)
+                    }
+                }
+                // İzlenen Bangumi kaydı yoksa da satır yazılır: teşhis paneli
+                // "henüz çalışmadı" ile "çalıştı, eşleşme yok" durumunu ayırt etsin.
+                NotificationDeliveryTracker.recordRun(context, "Bangumi", posted, seen)
+            } catch (e: Exception) {
+                Log.e(TAG, "Bangumi airing matching failed: ${e.message}", e)
+                NotificationDeliveryTracker.recordRun(context, "Bangumi", posted, seen, error = e.message)
             }
         }
 
@@ -346,100 +518,97 @@ class AiringNotificationWorker(
         return Result.success()
     }
 
-    private fun formatAniListBody(notif: KitsugiAniListNotificationClient.KitsugiNotification): String {
-        return when (notif.type) {
-            "AIRING" -> "Bölüm ${notif.episode ?: 1} artık yayında! 🎬"
-            "FOLLOWING" -> "${notif.userName ?: "Bir kullanıcı"} sizi takip etti."
-            "ACTIVITY_MESSAGE" -> "${notif.userName ?: "Bir kullanıcı"} size mesaj gönderdi."
-            "ACTIVITY_REPLY" -> "${notif.userName ?: "Bir kullanıcı"} aktivitenize yanıt verdi."
-            "ACTIVITY_REPLY_SUBSCRIBED" -> "${notif.userName ?: "Bir kullanıcı"} abone olduğunuz aktiviteye yanıt verdi."
-            "ACTIVITY_MENTION" -> "${notif.userName ?: "Bir kullanıcı"} sizden bahsetti."
-            "ACTIVITY_LIKE" -> "${notif.userName ?: "Bir kullanıcı"} aktivitenizi beğendi."
-            "ACTIVITY_REPLY_LIKE" -> "${notif.userName ?: "Bir kullanıcı"} yanıtınızı beğendi."
-            "THREAD_COMMENT_MENTION" -> "${notif.userName ?: "Bir kullanıcı"} forumda sizi etiketledi."
-            "THREAD_COMMENT_REPLY" -> "${notif.userName ?: "Bir kullanıcı"} forum yorumunuza yanıt verdi."
-            "THREAD_COMMENT_SUBSCRIBED" -> "${notif.userName ?: "Bir kullanıcı"} takip ettiğiniz konuya yorum yaptı."
-            "THREAD_COMMENT_LIKE" -> "${notif.userName ?: "Bir kullanıcı"} forum yorumunuzu beğendi."
-            "THREAD_LIKE" -> "${notif.userName ?: "Bir kullanıcı"} forum konunuzu beğendi."
-            "RELATED_MEDIA_ADDITION" -> "${notif.mediaTitle ?: "İçerik"} için yeni bağlantılı içerik eklendi."
-            "MEDIA_DATA_CHANGE" -> "${notif.mediaTitle ?: "İçerik"} verileri güncellendi (${notif.reason ?: "Site veri güncellemesi"})."
-            "MEDIA_MERGE" -> "${notif.mediaTitle ?: "İçerik"} başka bir içerikle birleştirildi."
-            "MEDIA_DELETION" -> "${notif.deletedMediaTitle ?: "Bir içerik"} siteden silindi."
-            else -> notif.context ?: "Yeni bir bildiriminiz var."
-        }
+    // ─── Yardımcılar ────────────────────────────────────────────────────────
+
+    private fun isFirstRun(prefs: SharedPreferences, key: String): Boolean = !prefs.contains(key)
+
+    /**
+     * Anahtar kümesini sınırlar. `StringSet` okunduğunda sıra bilgisi kaybolduğu için
+     * "en eskiyi at" yapılamaz; bu yüzden küçük bir rastgele budama yerine boyut
+     * sınırı yeterli ölçüde korur ve tekrar bildirim riski düşük kalır.
+     */
+    private fun pruneNotifiedIds(
+        prefs: SharedPreferences,
+        key: String,
+        ids: MutableSet<String>,
+        limit: Int
+    ) {
+        val kept = if (ids.size > limit) ids.toList().takeLast(limit).toSet() else ids.toSet()
+        prefs.edit().putStringSet(key, kept).apply()
     }
 
-    private fun showNotification(
+    private fun postItem(
         id: Int,
         title: String,
-        bodyText: String,
+        body: String,
         source: String,
         imageUrl: String? = null,
         avatarUrl: String? = null,
         isMedia: Boolean = true,
-        mediaId: Int? = null
-    ) {
-        createNotificationChannel()
-
-        val intent = Intent(context, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            putExtra("NAV_TARGET", "NOTIFICATIONS")
-            if (mediaId != null) putExtra("NAV_MEDIA_ID", mediaId)
-            putExtra("NAV_SOURCE", source)
-        }
-        val pendingIntent = PendingIntent.getActivity(
-            context,
-            id,
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        mediaId: Int? = null,
+        whenMs: Long = System.currentTimeMillis()
+    ): Boolean {
+        val bitmap = KitsugiNotificationDispatcher.downloadBitmap(avatarUrl ?: imageUrl)
+        return KitsugiNotificationDispatcher.post(
+            context = context,
+            item = KitsugiNotificationDispatcher.Item(
+                id = id,
+                source = source,
+                title = title,
+                body = body,
+                imageUrl = imageUrl,
+                avatarUrl = avatarUrl,
+                isMedia = isMedia,
+                mediaId = mediaId,
+                whenMs = whenMs
+            ),
+            bitmap = bitmap
         )
+    }
 
-        val targetUrl = avatarUrl ?: imageUrl
-        val bitmap = if (!targetUrl.isNullOrBlank()) {
-            downloadBitmap(targetUrl)
-        } else null
-
-        val displayTitle = "[$source] $title"
-
-        val builder = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(com.kitsugi.animelist.R.mipmap.ic_launcher)
-            .setContentTitle(displayTitle)
-            .setContentText(bodyText)
-            .setSubText(source)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setAutoCancel(true)
-            .setContentIntent(pendingIntent)
-
-        if (bitmap != null) {
-            builder.setLargeIcon(bitmap)
-            if (isMedia) {
-                builder.setStyle(
-                    NotificationCompat.BigPictureStyle()
-                        .bigPicture(bitmap)
-                        .setBigContentTitle(displayTitle)
-                        .setSummaryText(bodyText)
-                )
-            } else {
-                builder.setStyle(
-                    NotificationCompat.BigTextStyle()
-                        .setBigContentTitle(displayTitle)
-                        .bigText(bodyText)
-                )
-            }
-        } else {
-            builder.setStyle(
-                NotificationCompat.BigTextStyle()
-                    .setBigContentTitle(displayTitle)
-                    .bigText(bodyText)
+    private fun formatAniListBody(notif: KitsugiAniListNotificationClient.KitsugiNotification): String {
+        return when (notif.type) {
+            "AIRING" -> KitsugiStrings.get(
+                R.string.bolum_x_artik_yayinda,
+                notif.episode ?: 1
             )
-        }
-
-        try {
-            NotificationManagerCompat.from(context).notify(id, builder.build())
-        } catch (e: SecurityException) {
-            Log.w(TAG, "Cannot show notification: permission missing: ${e.message}")
+            "FOLLOWING" -> KitsugiStrings.get(R.string.notif_sys_following, userName(notif))
+            "ACTIVITY_MESSAGE" -> KitsugiStrings.get(R.string.notif_sys_message, userName(notif))
+            "ACTIVITY_REPLY" -> KitsugiStrings.get(R.string.notif_sys_reply, userName(notif))
+            "ACTIVITY_REPLY_SUBSCRIBED" ->
+                KitsugiStrings.get(R.string.notif_sys_reply_subscribed, userName(notif))
+            "ACTIVITY_MENTION" -> KitsugiStrings.get(R.string.notif_sys_mention, userName(notif))
+            "ACTIVITY_LIKE" -> KitsugiStrings.get(R.string.notif_sys_like, userName(notif))
+            "ACTIVITY_REPLY_LIKE" -> KitsugiStrings.get(R.string.notif_sys_reply_like, userName(notif))
+            "THREAD_COMMENT_MENTION" -> KitsugiStrings.get(R.string.notif_sys_forum_mention, userName(notif))
+            "THREAD_COMMENT_REPLY" -> KitsugiStrings.get(R.string.notif_sys_forum_reply, userName(notif))
+            "THREAD_SUBSCRIBED", "THREAD_COMMENT_SUBSCRIBED" ->
+                KitsugiStrings.get(R.string.notif_sys_forum_subscribed, userName(notif))
+            "THREAD_COMMENT_LIKE" -> KitsugiStrings.get(R.string.notif_sys_forum_like, userName(notif))
+            "THREAD_LIKE" -> KitsugiStrings.get(R.string.notif_sys_thread_like, userName(notif))
+            "RELATED_MEDIA_ADDITION" -> KitsugiStrings.get(
+                R.string.notif_sys_related_media,
+                notif.mediaTitle ?: "AniList"
+            )
+            "MEDIA_DATA_CHANGE" -> KitsugiStrings.get(
+                R.string.notif_sys_media_updated,
+                notif.mediaTitle ?: "AniList",
+                notif.reason ?: "site"
+            )
+            "MEDIA_MERGE" -> KitsugiStrings.get(
+                R.string.notif_sys_media_merged,
+                notif.mediaTitle ?: "AniList"
+            )
+            "MEDIA_DELETION" -> KitsugiStrings.get(
+                R.string.notif_sys_media_deleted,
+                notif.deletedMediaTitle ?: "AniList"
+            )
+            else -> notif.context ?: KitsugiStrings.get(R.string.notif_sys_generic)
         }
     }
+
+    private fun userName(notif: KitsugiAniListNotificationClient.KitsugiNotification): String =
+        notif.userName ?: KitsugiStrings.get(R.string.notif_sys_some_user)
 
     /** "2026-07-20T04:00:00Z" / "+09:00 ofsetli" ISO damgalarını epoch ms'e çevirir. */
     private fun parseIsoToEpochMs(raw: String?): Long? {
@@ -450,35 +619,6 @@ class AiringNotificationWorker(
             else OffsetDateTime.parse(text).toInstant().toEpochMilli()
         } catch (_: Exception) {
             null
-        }
-    }
-
-    private fun downloadBitmap(urlString: String): android.graphics.Bitmap? {
-        return try {
-            val url = java.net.URL(urlString)
-            val connection = url.openConnection()
-            connection.connectTimeout = 7_000
-            connection.readTimeout = 7_000
-            connection.inputStream.use { stream ->
-                android.graphics.BitmapFactory.decodeStream(stream)
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "Notification image download failed for $urlString: ${e.message}")
-            null
-        }
-    }
-
-    private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                "Kitsugi Bildirimleri",
-                NotificationManager.IMPORTANCE_DEFAULT
-            ).apply {
-                description = KitsugiStrings.get(R.string.notification_channel_description)
-            }
-            val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            nm.createNotificationChannel(channel)
         }
     }
 }

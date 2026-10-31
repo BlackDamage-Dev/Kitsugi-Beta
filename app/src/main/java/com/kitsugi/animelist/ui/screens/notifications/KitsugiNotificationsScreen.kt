@@ -105,7 +105,20 @@ private enum class NotifPlatform(
         label = "Bangumi",
         logoId = "bangumi",
         description = KitsugiStrings.get(R.string.izleme_listesi_yayin_takvimi_bildirimleri)
-    )
+    );
+
+    /**
+     * Deep link / sistem bildirimi anahtarını ("anilist", "mal", "simkl" …) bu
+     * sayfaya eşler. Eşleşme yoksa `false`.
+     */
+    fun matchesSourceKey(key: String): Boolean = when (this) {
+        ANILIST    -> key == "anilist"
+        MAL        -> key == "mal" || key == "myanimelist"
+        TMDB_SIMKL -> key == "simkl" || key == "tmdb"
+        KITSU      -> key == "kitsu"
+        SHIKIMORI  -> key == "shikimori" || key == "shiki"
+        BANGUMI    -> key == "bangumi"
+    }
 }
 
 // ─── Kaynak başına istemci tarafı filtreler ──────────────────────────────────
@@ -226,8 +239,15 @@ fun KitsugiNotificationsScreen(
     val malCategory    by viewModel.malCategory.collectAsState()
 
     // ── Sayfa + filtre state ──
+    // Sistem bildirimine dokunulduysa o kaynağın sekmesi açılır (ilk karede, sıçramasız).
+    val requestedPlatform = remember {
+        NotifOpenRequest.consume()?.let { key ->
+            NotifPlatform.entries.firstOrNull { it.matchesSourceKey(key) }
+        }
+    }
+
     val pagerState = rememberPagerState(
-        initialPage = when {
+        initialPage = requestedPlatform?.ordinal ?: when {
             isAniListConnected   -> 0
             isMalConnected       -> 1
             isSimklConnected     -> 2
@@ -238,6 +258,13 @@ fun KitsugiNotificationsScreen(
         },
         pageCount = { 6 }
     )
+
+    // Kompozisyon yeniden kullanılırsa (sayfa zaten açıksa) isteği yine uygula.
+    LaunchedEffect(requestedPlatform) {
+        if (requestedPlatform != null && pagerState.currentPage != requestedPlatform.ordinal) {
+            pagerState.scrollToPage(requestedPlatform.ordinal)
+        }
+    }
 
     val aniListPagerState = rememberPagerState(
         initialPage = 0,
@@ -892,6 +919,7 @@ fun KitsugiNotificationsScreen(
     if (showDiagnostics) {
         NotificationDiagnosticsSheet(
             state = diagState,
+            notificationIntervalMinutes = appSettings.notificationInterval,
             onRerun = { viewModel.runDiagnostics(mediaEntries) },
             onDismiss = { showDiagnostics = false }
         )
@@ -975,6 +1003,7 @@ private fun MalWebSessionActionCard(
 @Composable
 private fun NotificationDiagnosticsSheet(
     state: NotifDiagnosticsUiState,
+    notificationIntervalMinutes: Int,
     onRerun: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -1015,6 +1044,14 @@ private fun NotificationDiagnosticsSheet(
                 color = KitsugiColors.TextMuted,
                 fontSize = 12.sp,
                 lineHeight = 16.sp
+            )
+            Spacer(Modifier.height(14.dp))
+
+            // "Ağ çalışıyor" ile "telefonuma bildirim düştü" farkını gösteren bölüm.
+            NotifDeviceDeliverySection(
+                sources = NotifPlatform.entries.map { it.label },
+                accentColor = accentColor,
+                notificationIntervalMinutes = notificationIntervalMinutes
             )
             Spacer(Modifier.height(14.dp))
 

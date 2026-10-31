@@ -51,3 +51,42 @@ filtre sekmeleri bu alandan türetilir. Ek ağ isteği yoktur.
 
 ## Sürüm
 `appVersionName` 2.4.340 → **2.4.341** (`release_notes_v2.4.341.md`).
+
+---
+
+## Ek tur (v2.4.342) — cihaz bildirim hattı
+
+Soru: "Bildirimler sayfasına her kaynaktan kayıt geliyor; peki **telefonun kendi bildirim
+alanına** da gerçekten düşüyor mu?"
+
+### Bulunan gerçek hatalar
+
+| # | Hata | Etki | Düzeltme |
+|---|------|------|----------|
+| 1 | Tek kanal + `IMPORTANCE_DEFAULT`, bildirimde `PRIORITY_HIGH` | Ekranda üst bildirim hiç görünmüyordu; yalnızca sessiz gölgelik kaydı | Kaynak başına `IMPORTANCE_HIGH` kanal (`KitsugiNotificationDispatcher.ensureChannels`) |
+| 2 | `PendingIntent` yalnızca `NAV_TARGET` extra'sı taşıyordu; uygulama bu anahtarı hiç okumuyor | Bildirime dokunmak rastgele ekran açıyordu | `kitsugianimelist://v1/notifications?source=…` + `NotifOpenRequest` |
+| 3 | `DeepLinkParser` sürümü ilk yol parçasında arıyordu; `Kitsugianimelist://v1/…` biçiminde sürüm *authority*'de | Uygulamanın kendi v1 bağlantıları (TV kanalı dâhil) sessizce çözümlenmiyordu | `host == "v1"` ise segment listesinin başına sürüm eklenir |
+| 4 | Android 13+ izni yokken her `notify()` `SecurityException` atıyor, worker yutuyordu | Sessiz başarısızlık | `KitsugiNotificationDispatcher.gate()` + `NotificationDeliveryTracker.recordBlocked` |
+| 5 | İlk çalıştırmada 24 saatlik/25 kayıt birikmiş durumdaydı | Kaynağı yeni açan kullanıcıya onlarca bildirim birden | İlk çalıştırma "seed" + kaynak başına 6/çalıştırma sınırı |
+| 6 | Bangumi için cihaz bildirimi hiç yoktu | Bangumi kullanıcısı yalnızca uygulama içinde görüyordu | bgm subject → MAL kimliği çözümü + takvim eşleşmesi (uygulama içi sayfayla aynı yol) |
+| 7 | Bildirim `id`'leri kaynaklar arasında çakışabiliyordu (AniList küçük id, diğerleri hash) | Bir bildirim diğerini eziyordu | `notify(tag = kaynakAnahtarı, id, …)` |
+| 8 | Hat kapalıyken worker yine tam ağ turu atıyordu | Boşa istek, boşa pil | Erken çıkış + sebep kaydı |
+
+### Yeni bileşenler
+
+- `core/notifications/KitsugiNotificationDispatcher.kt` — kanal yönetimi, ön kontrol (gate),
+  etiketli/gruplu gönderim, test bildirimi, sistem ayarlarına yönlendirme.
+- `core/notifications/NotificationDeliveryTracker.kt` — kaynak başına son çalıştırma /
+  gönderilen sayı / hata kaydı (teşhis paneli okur).
+- `ui/screens/notifications/KitsugiNotificationDeviceStatus.kt` — panelin "Cihaz
+  bildirimleri" bölümü (izin, WorkManager durumu, son çalışma, kaynak satırları, test).
+- `ui/screens/notifications/NotifOpenRequest.kt` — deep link → sekme ön seçimi.
+- `res/drawable/ic_notification_bell.xml` — tek renkli küçük simge.
+- `NotificationScheduler.WORK_NAME` artık `public` (panel WorkManager durumunu sorgular).
+
+### Kaynak gerçekleri (değişmedi)
+
+AniList ve Shikimori'de **gerçek** bildirim ucu var. MAL, Simkl, Kitsu ve Bangumi'de yok;
+cihaz bildirimleri uygulama içi sayfayla aynı türetilmiş yoldan üretilir (takvim + izleme
+listesi, gerektiğinde çapraz kimlik). Bu yüzden "bildirim gelmiyor" şikâyeti olduğunda ilk
+bakılacak yer: teşhis panelindeki **izin**, **planlı iş** ve **kaynak başına gönderilen** satırı.

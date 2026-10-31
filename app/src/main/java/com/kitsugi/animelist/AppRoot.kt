@@ -355,6 +355,12 @@ fun AppRoot(
                 is com.kitsugi.animelist.core.deeplink.TvDeepLink.Manga -> {
                     navState.openMangaBrowse(mediaId = link.mangaId.toIntOrNull())
                 }
+                is com.kitsugi.animelist.core.deeplink.TvDeepLink.Notifications -> {
+                    // Cihaz bildirimine dokunuldu: Bildirimler sayfasını aç ve
+                    // bildirimin geldiği kaynağın sekmesini seç.
+                    com.kitsugi.animelist.ui.screens.notifications.NotifOpenRequest.request(link.source)
+                    navState.navigateToDetail(DetailScreen.Notifications)
+                }
                 else -> {}
             }
         }

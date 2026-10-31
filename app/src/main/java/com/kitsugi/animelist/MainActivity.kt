@@ -162,6 +162,15 @@ class MainActivity : AppCompatActivity() {
 
     override fun onStart() {
         super.onStart()
+        // Bildirim izni/ayarı uygulama kapalıyken değişmiş olabilir (kullanıcı sistem
+        // ayarlarından kapatıp geri döner). Yalnızca DURUM DEĞİŞTİYSE planlı işi
+        // uzlaştır; her açılışta WorkManager isteğini yeniden kurmak gereksiz.
+        lifecycleScope.launch {
+            runCatching {
+                com.kitsugi.animelist.core.notifications.NotificationScheduler
+                    .reconcileIfGateChanged(this@MainActivity)
+            }
+        }
         if (formFactor == DeviceFormFactor.TV) {
             // B1.11: Servisi baslatir (ilk cagirida periyodik job planlanir).
             // Sonraki cagirilar no-op'tur (job zaten planlanmis).

@@ -227,6 +227,8 @@ fun TvNavigationState.drainDeepLink() {
                 chapterId = link.chapterId
             )
         }
+        // Bildirimler sayfası TV yüzeyinde yok; dokunuş zaten uygulamayı açmış olur.
+        is com.kitsugi.animelist.core.deeplink.TvDeepLink.Notifications -> Unit
         com.kitsugi.animelist.core.deeplink.TvDeepLink.None,
         com.kitsugi.animelist.core.deeplink.TvDeepLink.Auth -> Unit
     }
