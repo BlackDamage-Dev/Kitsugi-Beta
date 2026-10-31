@@ -1,5 +1,10 @@
 package com.kitsugi.animelist.ui.components.addons
 
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Row
+import androidx.compose.material3.Icon
+import com.kitsugi.animelist.ui.components.KitsugiEmojiLabel
 import com.kitsugi.animelist.ui.theme.gradient.CircularProgressIndicator
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import com.kitsugi.animelist.ui.theme.gradient.LinearProgressIndicator
@@ -191,8 +196,10 @@ internal fun CsRepoCard(
                         )
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
-                    Text(
-                        text = if (allInstalled) "✓ $installedCount/$totalCount" else stringResource(R.string.x_x_yuklu, installedCount, totalCount),
+                    KitsugiEmojiLabel(
+                        label = if (allInstalled) "$installedCount/$totalCount" else stringResource(R.string.x_x_yuklu, installedCount, totalCount),
+                        icon = if (allInstalled) Icons.Check else null,
+                        iconSize = 11.dp,
                         color = when {
                             allInstalled -> KitsugiColors.AccentGreen
                             hasUpdates -> accentColor
@@ -289,7 +296,15 @@ internal fun CsRepoCard(
                 }
                 if (bulkInstallCurrentName.isNotBlank()) {
                     Spacer(Modifier.height(3.dp))
-                    Text(text = "📦 $bulkInstallCurrentName", color = KitsugiColors.TextSecondary, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Icon(
+                            imageVector = Icons.Package,
+                            contentDescription = null,
+                            tint = KitsugiColors.TextSecondary,
+                            modifier = Modifier.size(12.dp)
+                        )
+                        Text(text = bulkInstallCurrentName, color = KitsugiColors.TextSecondary, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+                    }
                 }
                 Spacer(Modifier.height(6.dp))
                 LinearProgressIndicator(

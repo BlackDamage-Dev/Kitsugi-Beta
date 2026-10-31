@@ -1,5 +1,6 @@
 package com.kitsugi.animelist.ui.tv.detail
 
+import com.kitsugi.animelist.ui.components.KitsugiEmojiLabel
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import com.kitsugi.animelist.ui.theme.gradient.Text
 
@@ -682,8 +683,10 @@ private fun TvReviewCard(
                 )
             }
             if (review.helpfulCount != null && review.helpfulCount > 0) {
-                Text(
-                    text = "👍 ${review.helpfulCount}",
+                KitsugiEmojiLabel(
+                    label = "${review.helpfulCount}",
+                    icon = Icons.ThumbsUp,
+                    iconSize = 10.dp,
                     color = KitsugiColors.TextMuted,
                     style = MaterialTheme.typography.labelSmall
                 )

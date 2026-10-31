@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.ExperimentalFoundationApi
+import com.kitsugi.animelist.ui.components.KitsugiEmojiLabel
 import com.kitsugi.animelist.ui.theme.gradient.background
 import com.kitsugi.animelist.ui.theme.gradient.border
 import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
@@ -454,8 +455,10 @@ private fun TvSearchResultCard(
                         .background(Color.Black.copy(alpha = 0.7f))
                         .padding(horizontal = 4.dp, vertical = 2.dp)
                 ) {
-                    Text(
-                        text = "★ $score",
+                    KitsugiEmojiLabel(
+                        label = score,
+                        icon = Icons.StarSolid,
+                        iconSize = 9.dp,
                         style = MaterialTheme.typography.labelSmall,
                         color = Color(0xFFFFD700)
                     )

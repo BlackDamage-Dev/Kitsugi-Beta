@@ -198,8 +198,10 @@ fun KitsugiRankingMediaCard(
                             fontWeight = FontWeight.Bold
                         )
                         if (mediaEntry.score != null) {
-                            Text(
-                                text = "• ★${mediaEntry.score}",
+                            KitsugiEmojiLabel(
+                                label = "${mediaEntry.score}",
+                                icon = Icons.StarSolid,
+                                iconSize = 9.dp,
                                 color = KitsugiColors.TextMuted,
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold

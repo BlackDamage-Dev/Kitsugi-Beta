@@ -1,4 +1,8 @@
 package com.kitsugi.animelist.ui.components.addons
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Row
+import androidx.compose.material3.Icon
 import androidx.compose.foundation.lazy.itemsIndexed
 import com.kitsugi.animelist.ui.components.KitsugiTonalButton
 import com.kitsugi.animelist.ui.components.KitsugiButton
@@ -567,7 +571,15 @@ internal fun MangaExtensionsTab(
                                 }
                                 if (bulkInstallCurrentName.isNotBlank()) {
                                     Spacer(Modifier.height(3.dp))
-                                    Text(text = "📦 $bulkInstallCurrentName", color = KitsugiColors.TextSecondary, fontSize = 10.sp, maxLines = 1)
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        Icon(
+                                            imageVector = Icons.Package,
+                                            contentDescription = null,
+                                            tint = KitsugiColors.TextSecondary,
+                                            modifier = Modifier.size(12.dp)
+                                        )
+                                        Text(text = bulkInstallCurrentName, color = KitsugiColors.TextSecondary, fontSize = 10.sp, maxLines = 1)
+                                    }
                                 }
                                 Spacer(Modifier.height(6.dp))
                                 LinearProgressIndicator(

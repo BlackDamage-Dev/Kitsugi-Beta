@@ -1,5 +1,7 @@
 package com.kitsugi.animelist.ui.screens.home.components
 
+import com.kitsugi.animelist.ui.components.KitsugiEmojiLabel
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.Text
 
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -165,8 +167,10 @@ private fun ModernHomeMediaCard(
                         overflow = TextOverflow.Ellipsis
                     )
                     if (item.score != null && item.score > 0.0) {
-                        Text(
-                            text = "⭐ ${"%.1f".format(item.score)}",
+                        KitsugiEmojiLabel(
+                            label = "%.1f".format(item.score),
+                            icon = Icons.StarSolid,
+                            iconSize = 9.dp,
                             style = MaterialTheme.typography.labelSmall,
                             color = Color.White.copy(alpha = 0.8f)
                         )

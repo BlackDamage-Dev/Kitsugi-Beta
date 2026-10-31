@@ -425,7 +425,8 @@ internal fun DetailHero(
 
                     if (entry.isFavorite) {
                         DetailPill(
-                            text = "★ Favori",
+                            text = stringResource(R.string.favori_label),
+                            icon = Icons.HeartSolid,
                             color = accentColor
                         )
                     }

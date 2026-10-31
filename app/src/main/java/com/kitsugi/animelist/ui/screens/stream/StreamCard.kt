@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import com.kitsugi.animelist.ui.components.KitsugiEmojiLabel
 import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -221,9 +222,9 @@ fun StreamCard(
                     }
                     if (source.isTorrent) {
                         val cacheLabel = when (cacheState) {
-                            DebridCacheState.CACHED -> "⚡ " + stringResource(R.string.stream_cached)
-                            DebridCacheState.NOT_CACHED -> "⚡ Debrid"
-                            DebridCacheState.P2P -> "🔗 P2P"
+                            DebridCacheState.CACHED -> stringResource(R.string.stream_cached)
+                            DebridCacheState.NOT_CACHED -> "Debrid"
+                            DebridCacheState.P2P -> "P2P"
                         }
                         MetaChip(
                             text = cacheLabel,
@@ -357,14 +358,22 @@ fun MetaChip(
             .background(bg)
             .padding(horizontal = 6.dp, vertical = 2.dp)
     ) {
-        Text(
-            text = if (isVerified) "$text ✓" else text,
-            color = color,
-            fontSize = 10.sp,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            softWrap = false
-        )
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+            KitsugiEmojiLabel(
+                label = text,
+                color = color,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.SemiBold,
+                iconSize = 9.dp
+            )
+            if (isVerified) {
+                Icon(
+                    imageVector = Icons.Check,
+                    contentDescription = null,
+                    tint = color,
+                    modifier = Modifier.size(9.dp)
+                )
+            }
+        }
     }
 }

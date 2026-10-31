@@ -4387,8 +4387,10 @@ Eklentiler ekranından eklenti etkinleştirin.</string>
 	<string name="secili">Seçili</string>
 	<string name="filtre_ve_siralama">Filtre ve Sıralama</string>
 	<!-- Keşfet "Tümünü Gör" sayfası: filtrelerin kaynak API'sinde mi cihazda mı uygulandığı -->
-	<string name="filtre_kaynak_sunucu_bilgi">☁️ Tür ve sıralama %1$s API\'sinde uygulanır</string>
-	<string name="filtre_kaynak_yerel_bilgi">📱 Cihazda uygulanan: %1$s</string>
+	<string name="filtre_kaynak_sunucu_bilgi">Tür ve sıralama %1$s API\'sinde uygulanır</string>
+	<string name="filtre_kaynak_yerel_bilgi">Cihazda uygulanan: %1$s</string>
+	<string name="filter_scope_server">sunucuda uygulandı</string>
+	<string name="filter_scope_device">cihazda uygulandı</string>
 	<string name="sonraki_bolum">Sonraki Bölüm</string>
 	<string name="vazgec">Vazgeç</string>
 	<string name="kisisel_dusuncelerinizi_yazin">Kişisel düşüncelerinizi yazın...</string>
@@ -17764,4 +17766,6 @@ Eklentiler ekranından eklenti etkinleştirin.</string>
     <string name="inline_open_fullscreen">Tam ekranda aç</string>
     <!-- Ortak üst çubuk aksiyonları (bkz. ui/components/KitsugiTopActionBar.kt) -->
     <string name="top_action_random">Rastgele</string>
+    <string name="favori_label">Favori</string>
+    <string name="eklendi">Eklendi</string>
 </resources>

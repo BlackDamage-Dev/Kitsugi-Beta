@@ -1,5 +1,8 @@
 package com.kitsugi.animelist.ui.components
 
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.graphics.vector.ImageVector
 import com.kitsugi.animelist.ui.utils.localizedLabel
 import com.kitsugi.animelist.ui.theme.gradient.background
 import androidx.compose.foundation.layout.Arrangement
@@ -252,7 +255,8 @@ fun KitsugiMediaEntryDetailDialog(
 
                             if (entry.isFavorite) {
                                 DetailPill(
-                                    text = "★ Favori",
+                                    text = stringResource(R.string.favori_label),
+                                    icon = Icons.HeartSolid,
                                     color = accentColor
                                 )
                             }
@@ -324,7 +328,8 @@ fun KitsugiMediaEntryDetailDialog(
 
                         if (entry.isFavorite) {
                             DetailPill(
-                                text = "★ Favori",
+                                text = stringResource(R.string.favori_label),
+                                icon = Icons.HeartSolid,
                                 color = accentColor
                             )
                         }
@@ -628,7 +633,8 @@ private fun DetailInfoRow(
 @Composable
 private fun DetailPill(
     text: String,
-    color: Color
+    color: Color,
+    icon: ImageVector? = null
 ) {
     Box(
         modifier = Modifier
@@ -636,12 +642,25 @@ private fun DetailPill(
             .background(color.copy(alpha = 0.16f))
             .padding(horizontal = 10.dp, vertical = 6.dp)
     ) {
-        Text(
-            text = text,
-            color = color,
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.Bold
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = color,
+                    modifier = Modifier.size(12.dp)
+                )
+            }
+            Text(
+                text = text,
+                color = color,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold
+            )
+        }
     }
 }
 

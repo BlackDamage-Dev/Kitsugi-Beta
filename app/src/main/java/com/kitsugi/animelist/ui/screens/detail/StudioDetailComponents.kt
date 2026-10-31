@@ -1,5 +1,6 @@
 package com.kitsugi.animelist.ui.screens.detail
 
+import com.kitsugi.animelist.ui.components.KitsugiEmojiLabel
 import com.kitsugi.animelist.ui.components.KitsugiGalleryIconButton
 import com.kitsugi.animelist.ui.theme.gradient.background
 import com.kitsugi.animelist.ui.utils.tvClickable
@@ -528,8 +529,8 @@ internal val STUDIO_TYPE_FILTERS = listOf(
 
 internal enum class StudioSortOption(val emoji: String, @StringRes val titleRes: Int) {
     DEFAULT("🏆", R.string.studio_sort_default),
-    TITLE_ASC("🔤", R.string.studio_sort_title_asc),
-    TITLE_DESC("🔠", R.string.studio_sort_title_desc);
+    TITLE_ASC("A→Z", R.string.studio_sort_title_asc),
+    TITLE_DESC("Z→A", R.string.studio_sort_title_desc);
 
     @Composable
     @ReadOnlyComposable
@@ -683,11 +684,12 @@ internal fun KitsugiStudioFilterBottomSheet(
                             contentAlignment = Alignment.Center
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = sort.displayLabel(),
+                                KitsugiEmojiLabel(
+                                    label = sort.displayLabel(),
                                     color = if (isSelected) accentColor else KitsugiColors.TextPrimary,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                    fontSize = 13.sp
+                                    style = MaterialTheme.typography.bodySmall,
+                                    iconSize = 13.dp
                                 )
                                 if (isSelected) {
                                     Spacer(modifier = Modifier.width(6.dp))

@@ -356,10 +356,10 @@ fun KitsugiSeasonalFilterBottomSheet(
                         fontWeight = FontWeight.Bold
                     )
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "▾",
-                        color = KitsugiColors.TextMuted,
-                        style = MaterialTheme.typography.bodyMedium
+                    KitsugiChevronIcon(
+                        expanded = sortMenuExpanded,
+                        tint = KitsugiColors.TextMuted,
+                        size = 16.dp
                     )
                 }
 

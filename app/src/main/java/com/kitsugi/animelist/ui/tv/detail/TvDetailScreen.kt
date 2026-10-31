@@ -4,6 +4,7 @@ import android.view.KeyEvent
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
+import com.kitsugi.animelist.ui.components.KitsugiEmojiLabel
 import com.kitsugi.animelist.ui.theme.gradient.background
 import com.kitsugi.animelist.ui.theme.gradient.border
 import androidx.compose.foundation.focusGroup
@@ -427,7 +428,7 @@ fun TvDetailScreen(
                                     BadgeText(text = displayResult.year.toString())
                                 }
                                 if (displayResult.score != null && displayResult.score > 0) {
-                                    BadgeText(text = "⭐ %.1f".format(displayResult.score.toDouble()))
+                                    KitsugiEmojiLabel(label = "%.1f".format(displayResult.score.toDouble()), icon = Icons.StarSolid, iconSize = 11.dp, color = LocalContentColor.current, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
                                 }
                                 if (displayResult.isAdult) {
                                     BadgeText(text = "18+", color = Color(0xFFD32F2F))
@@ -1253,11 +1254,22 @@ private fun TvEpisodeCard(
                             .background(Color(0xFFFFB300), RoundedCornerShape(4.dp))
                             .padding(horizontal = 6.dp, vertical = 2.dp)
                     ) {
-                        Text(
-                            text = "⭐ %.1f".format(rating),
-                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                            color = Color.Black
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(3.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.StarSolid,
+                                contentDescription = null,
+                                tint = Color.Black,
+                                modifier = Modifier.size(9.dp)
+                            )
+                            Text(
+                                text = "%.1f".format(rating),
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                color = Color.Black
+                            )
+                        }
                     }
                 }
             }
@@ -1543,10 +1555,13 @@ private fun TvStatsSection(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text(
-                            text = "${s.score}★",
+                        KitsugiEmojiLabel(
+                            label = "${s.score}",
+                            icon = Icons.StarSolid,
+                            iconSize = 9.dp,
                             color = KitsugiColors.TextSecondary,
-                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
                             modifier = Modifier.width(30.dp)
                         )
                         Box(
@@ -1724,8 +1739,10 @@ private fun TvReviewCard(review: KitsugiReview) {
                 )
             }
             if (review.helpfulCount != null && review.helpfulCount > 0) {
-                Text(
-                    text = "👍 ${review.helpfulCount}",
+                KitsugiEmojiLabel(
+                    label = "${review.helpfulCount}",
+                    icon = Icons.ThumbsUp,
+                    iconSize = 10.dp,
                     color = KitsugiColors.TextMuted,
                     style = MaterialTheme.typography.labelSmall
                 )

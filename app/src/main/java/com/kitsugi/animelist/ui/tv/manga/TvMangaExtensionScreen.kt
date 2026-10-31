@@ -1,5 +1,9 @@
 package com.kitsugi.animelist.ui.tv.manga
 
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Row
+import androidx.compose.material3.Icon
 import com.kitsugi.animelist.ui.components.KitsugiChevronIcon
 import com.kitsugi.animelist.R
 import androidx.compose.ui.res.stringResource
@@ -13,6 +17,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
+import com.kitsugi.animelist.ui.components.KitsugiEmojiLabel
 import com.kitsugi.animelist.ui.theme.gradient.background
 import com.kitsugi.animelist.ui.theme.gradient.border
 import androidx.compose.foundation.focusable
@@ -735,10 +740,12 @@ private fun TvExtQuickAddCard(
                     )
                     .padding(horizontal = 10.dp, vertical = 5.dp)
             ) {
-                Text(
-                    if (alreadyAdded) "✓ Eklendi" else stringResource(R.string.ekle),
+                KitsugiEmojiLabel(
+                    label = if (alreadyAdded) stringResource(R.string.eklendi) else stringResource(R.string.ekle),
+                    icon = if (alreadyAdded) Icons.Check else null,
+                    iconSize = 11.dp,
                     color = if (alreadyAdded) KitsugiColors.AccentGreen else KitsugiColors.AccentBlue,
-                    fontSize = 11.sp,
+                    style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold
                 )
             }
@@ -888,7 +895,15 @@ private fun TvExtRepoCard(
                 }
                 if (bulkInstallCurrentName.isNotBlank()) {
                     Spacer(Modifier.height(3.dp))
-                    Text("📦 $bulkInstallCurrentName", color = KitsugiColors.TextSecondary, fontSize = 10.sp, maxLines = 1)
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Icon(
+                            imageVector = Icons.Package,
+                            contentDescription = null,
+                            tint = KitsugiColors.TextSecondary,
+                            modifier = Modifier.size(12.dp)
+                        )
+                        Text(bulkInstallCurrentName, color = KitsugiColors.TextSecondary, fontSize = 10.sp, maxLines = 1)
+                    }
                 }
                 Spacer(Modifier.height(6.dp))
                 LinearProgressIndicator(
@@ -1094,11 +1109,12 @@ private fun TvExtSourceRow(
                         fontSize = 11.sp
                     )
                     if (stats.successCount > 0 || stats.failureCount > 0) {
-                        Text(
-                            "✓${stats.successCount} ✗${stats.failureCount}",
-                            color = KitsugiColors.TextMuted,
-                            fontSize = 10.sp
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Icon(Icons.Check, null, tint = KitsugiColors.AccentGreen, modifier = Modifier.size(10.dp))
+                            Text("${stats.successCount}", color = KitsugiColors.TextMuted, fontSize = 10.sp)
+                            Icon(Icons.X, null, tint = KitsugiColors.AccentRed, modifier = Modifier.size(10.dp))
+                            Text("${stats.failureCount}", color = KitsugiColors.TextMuted, fontSize = 10.sp)
+                        }
                     }
                 }
             }

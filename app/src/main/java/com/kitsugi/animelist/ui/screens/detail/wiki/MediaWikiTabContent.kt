@@ -28,6 +28,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
+import com.kitsugi.animelist.ui.components.KitsugiEmojiLabel
 import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.CircularProgressIndicator
 import androidx.compose.material3.IconButton
@@ -547,11 +548,13 @@ private fun MediaWikiHeaderCard(
                                     onClick = { onSwitchSource(index) }
                                 )
                         ) {
-                            Text(
-                                text = (if (isSourceWp) "📖 " else "🌐 ") + sourceTitle,
+                            KitsugiEmojiLabel(
+                                label = sourceTitle,
                                 color = if (isSelected) accentColor else KitsugiColors.TextSecondary,
                                 style = MaterialTheme.typography.labelMedium,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                iconSize = 13.dp,
+                                icon = if (isSourceWp) Icons.BookOpen else Icons.Globe
                             )
                         }
                     }

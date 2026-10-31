@@ -22,8 +22,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.R
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -41,26 +43,26 @@ import com.kitsugi.animelist.ui.theme.KitsugiColors
 
 data class SearchGenre(
     val label: String,
-    val emoji: String,
+    val icon: ImageVector,
     val color: Color
 )
 
 private val popularGenres = listOf(
-    SearchGenre("Action",    "⚔️",  Color(0xFFEF4444)),
-    SearchGenre("Comedy",     "😂",  Color(0xFFF59E0B)),
-    SearchGenre("Romance",  "💕",  Color(0xFFEC4899)),
-    SearchGenre("Fantasy",  "🧙",  Color(0xFF8B5CF6)),
-    SearchGenre("Adventure",     "🗺️",  Color(0xFF10B981)),
-    SearchGenre("Drama",       "🎭",  Color(0xFF6366F1)),
-    SearchGenre("Horror",      "👻",  Color(0xFF374151)),
-    SearchGenre("Sci-Fi",     "🚀",  Color(0xFF0EA5E9)),
-    SearchGenre("Sports",       "⚽",  Color(0xFF16A34A)),
-    SearchGenre("Psychological",  "🧠",  Color(0xFF7C3AED)),
-    SearchGenre("Supernatural",  "✨",  Color(0xFFF97316)),
-    SearchGenre("Music",      "🎵",  Color(0xFF06B6D4)),
-    SearchGenre("School",       "🏫",  Color(0xFF84CC16)),
-    SearchGenre("Historical",     "🏯",  Color(0xFF78716C)),
-    SearchGenre("Mecha",      "🤖",  Color(0xFF475569)),
+    SearchGenre("Action", Icons.Swords,  Color(0xFFEF4444)),
+    SearchGenre("Comedy", Icons.Laugh,  Color(0xFFF59E0B)),
+    SearchGenre("Romance", Icons.HeartSolid,  Color(0xFFEC4899)),
+    SearchGenre("Fantasy", Icons.WandSparkles,  Color(0xFF8B5CF6)),
+    SearchGenre("Adventure", Icons.Compass,  Color(0xFF10B981)),
+    SearchGenre("Drama", Icons.Theater,  Color(0xFF6366F1)),
+    SearchGenre("Horror", Icons.Ghost,  Color(0xFF374151)),
+    SearchGenre("Sci-Fi", Icons.Rocket,  Color(0xFF0EA5E9)),
+    SearchGenre("Sports", Icons.Dumbbell,  Color(0xFF16A34A)),
+    SearchGenre("Psychological", Icons.Brain,  Color(0xFF7C3AED)),
+    SearchGenre("Supernatural", Icons.Moon,  Color(0xFFF97316)),
+    SearchGenre("Music", Icons.AudioLines,  Color(0xFF06B6D4)),
+    SearchGenre("School", Icons.School,  Color(0xFF84CC16)),
+    SearchGenre("Historical", Icons.Landmark,  Color(0xFF78716C)),
+    SearchGenre("Mecha", Icons.Bot,  Color(0xFF475569)),
 )
 
 @Composable
@@ -76,9 +78,11 @@ fun SearchGenreChips(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Text(
-                text = "🔥",
-                style = MaterialTheme.typography.bodyMedium
+            Icon(
+                imageVector = Icons.Flame,
+                contentDescription = null,
+                tint = accentColor,
+                modifier = Modifier.size(14.dp)
             )
             Text(
                 text = stringResource(R.string.inline_popular_genres_679db58),
@@ -143,9 +147,11 @@ private fun GenreChip(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Text(
-                text = genre.emoji,
-                style = MaterialTheme.typography.bodySmall
+            Icon(
+                imageVector = genre.icon,
+                contentDescription = null,
+                tint = genre.color,
+                modifier = Modifier.size(13.dp)
             )
             Text(
                 text = SearchTranslation.displayLabel(genre.label),

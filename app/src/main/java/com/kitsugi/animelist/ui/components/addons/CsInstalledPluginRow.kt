@@ -121,7 +121,12 @@ internal fun CsInstalledPluginRow(
                         onError = { isError = true }
                     )
                 } else {
-                    Text("⚠️", style = MaterialTheme.typography.titleMedium)
+                    Icon(
+                        imageVector = Icons.AlertTriangle,
+                        contentDescription = null,
+                        tint = KitsugiColors.AccentOrange,
+                        modifier = Modifier.size(18.dp)
+                    )
                 }
             }
             Spacer(Modifier.width(12.dp))

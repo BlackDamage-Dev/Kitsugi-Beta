@@ -1139,7 +1139,7 @@ class Media3PlayerEngine(
      * uygulamaz ve sessizce eski parça çalmaya devam eder; sebep arayüzde görünmüyordu.
      */
     private fun trackLabelWithSupport(baseLabel: String, supported: Boolean): String =
-        if (supported) baseLabel else "$baseLabel ⚠️ (cihaz desteklemiyor)"
+        if (supported) baseLabel else "$baseLabel (cihaz desteklemiyor)"
 
     override fun selectTrack(trackOption: TrackOption) {
         runOnMainThread {

@@ -558,7 +558,8 @@ fun KitsugiDetailHero(
 
                     if (isFavorite) {
                         HeroDetailPill(
-                            text = "★ Favori",
+                            text = stringResource(R.string.favori_label),
+                            icon = Icons.HeartSolid,
                             color = accentColor
                         )
                     }
@@ -587,7 +588,8 @@ fun KitsugiDetailHero(
 @Composable
 private fun HeroDetailPill(
     text: String,
-    color: Color
+    color: Color,
+    icon: ImageVector? = null
 ) {
     Box(
         modifier = Modifier
@@ -595,12 +597,25 @@ private fun HeroDetailPill(
             .background(color.copy(alpha = 0.16f))
             .padding(horizontal = 10.dp, vertical = 6.dp)
     ) {
-        Text(
-            text = text,
-            color = color,
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.Bold
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = color,
+                    modifier = Modifier.size(12.dp)
+                )
+            }
+            Text(
+                text = text,
+                color = color,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold
+            )
+        }
     }
 }
 

@@ -5,6 +5,8 @@
 
 package com.kitsugi.animelist.ui.screens.mylist
 
+import com.kitsugi.animelist.ui.components.KitsugiChevronIcon
+import com.kitsugi.animelist.ui.components.KitsugiEmojiLabel
 import com.kitsugi.animelist.ui.components.KitsugiPlatformLogo
 import com.kitsugi.animelist.ui.components.KitsugiStickyHeaderReveal
 import androidx.compose.animation.AnimatedVisibility
@@ -295,8 +297,10 @@ fun MyListHeaderSection(
                                 }
                                 .padding(horizontal = 12.dp, vertical = 7.dp)
                         ) {
-                            Text(
-                                text = if (isSelected) "✓ $label" else label,
+                            KitsugiEmojiLabel(
+                                label = label,
+                                icon = if (isSelected) Icons.Check else null,
+                                iconSize = 11.dp,
                                 color = if (isSelected) KitsugiColors.background else KitsugiColors.textPrimary,
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold
@@ -315,12 +319,28 @@ fun MyListHeaderSection(
                                 }
                                 .padding(horizontal = 12.dp, vertical = 7.dp)
                         ) {
-                            Text(
-                                text = "≡ $activeSortTitle ▾",
-                                color = accentColor,
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.ListOrdered,
+                                    contentDescription = null,
+                                    tint = accentColor,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                                Text(
+                                    text = activeSortTitle,
+                                    color = accentColor,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                KitsugiChevronIcon(
+                                    expanded = showSortMenu,
+                                    tint = accentColor,
+                                    size = 12.dp
+                                )
+                            }
                         }
 
                         KitsugiMyListSortMenu(
@@ -449,7 +469,12 @@ fun MyListSingleSourceBar(
                 },
             contentAlignment = Alignment.Center
         ) {
-            Text(text = "🎲", fontSize = 16.sp)
+            Icon(
+                imageVector = Icons.Dices,
+                contentDescription = null,
+                tint = LocalContentColor.current,
+                modifier = Modifier.size(18.dp)
+            )
         }
     }
 }

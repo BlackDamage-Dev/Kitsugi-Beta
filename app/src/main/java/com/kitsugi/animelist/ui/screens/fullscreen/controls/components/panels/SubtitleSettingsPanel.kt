@@ -27,6 +27,7 @@ import androidx.compose.foundation.pager.PageSize
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import com.kitsugi.animelist.ui.components.KitsugiChevronIcon
 import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -584,7 +585,7 @@ private fun FontDropdown(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(selectedFont, color = Color.White, style = MaterialTheme.typography.bodyMedium)
-                Text("▼", color = Color.White.copy(alpha = 0.6f), style = MaterialTheme.typography.bodySmall)
+                KitsugiChevronIcon(expanded = expanded, tint = Color.White.copy(alpha = 0.6f), size = 14.dp)
             }
             DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                 fonts.forEach { font ->
@@ -629,7 +630,7 @@ private fun BorderStyleDropdown(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(displayText, color = Color.White, style = MaterialTheme.typography.bodyMedium)
-                Text("▼", color = Color.White.copy(alpha = 0.6f), style = MaterialTheme.typography.bodySmall)
+                KitsugiChevronIcon(expanded = expanded, tint = Color.White.copy(alpha = 0.6f), size = 14.dp)
             }
             DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                 options.forEach { (value, label) ->

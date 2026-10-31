@@ -41,6 +41,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
@@ -988,20 +989,9 @@ private fun GalleryLandscapeLayout(
                             }
 
                             // Category
-                            val catEmoji = when (currentItem.category) {
-                                GalleryCategory.POSTER    -> "📋"
-                                GalleryCategory.BACKDROP  -> "🖼️"
-                                GalleryCategory.LOGO      -> "🎨"
-                                GalleryCategory.CLEARART  -> "✨"
-                                GalleryCategory.CHARACTER -> "🎭"
-                                GalleryCategory.PERSON    -> "👤"
-                                GalleryCategory.THUMBNAIL -> "🌐"
-                                GalleryCategory.BANNER    -> "🎫"
-                                GalleryCategory.SQUARE    -> "🟩"
-                                GalleryCategory.OTHER     -> "📁"
-                            }
+                            val catIcon = galleryCategoryIcon(currentItem.category)
                             item {
-                                DetailRow(label = stringResource(R.string.gallery_field_type), value = "$catEmoji ${currentItem.category.localizedLabel()}")
+                                DetailRow(label = stringResource(R.string.gallery_field_type), value = currentItem.category.localizedLabel(), icon = catIcon)
                             }
 
                             // Language
@@ -1029,7 +1019,7 @@ private fun GalleryLandscapeLayout(
                             val resStr = formatResolution(currentItem.width, currentItem.height)
                             if (resStr != null) {
                                 item {
-                                    DetailRow(label = stringResource(R.string.gallery_field_size), value = "📐 $resStr")
+                                    DetailRow(label = stringResource(R.string.gallery_field_size), value = resStr)
                                 }
                             }
 
@@ -1281,18 +1271,7 @@ private fun GalleryPortraitLayout(
                             }
 
                             // 2. Kategori Rozeti
-                            val catEmoji = when (item.category) {
-                                GalleryCategory.POSTER    -> "📋"
-                                GalleryCategory.BACKDROP  -> "🖼️"
-                                GalleryCategory.LOGO      -> "🎨"
-                                GalleryCategory.CLEARART  -> "✨"
-                                GalleryCategory.CHARACTER -> "🎭"
-                                GalleryCategory.PERSON    -> "👤"
-                                GalleryCategory.THUMBNAIL -> "🌐"
-                                GalleryCategory.BANNER    -> "🎫"
-                                GalleryCategory.SQUARE    -> "🟩"
-                                GalleryCategory.OTHER     -> "📁"
-                            }
+                            val catIcon = galleryCategoryIcon(item.category)
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(6.dp))
@@ -1300,11 +1279,13 @@ private fun GalleryPortraitLayout(
                                     .border(1.dp, KitsugiColors.Border, RoundedCornerShape(6.dp))
                                     .padding(horizontal = 7.dp, vertical = 3.dp)
                             ) {
-                                Text(
-                                    text = "$catEmoji ${item.category.localizedLabel()}",
+                                KitsugiEmojiLabel(
+                                    label = item.category.localizedLabel(),
                                     color = KitsugiColors.TextPrimary,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.SemiBold
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    iconSize = 11.dp,
+                                    icon = catIcon
                                 )
                             }
 
@@ -1371,7 +1352,7 @@ private fun GalleryPortraitLayout(
                                         .padding(horizontal = 7.dp, vertical = 3.dp)
                                 ) {
                                     Text(
-                                        text = "📐 $resStr",
+                                        text = resStr,
                                         color = KitsugiColors.TextSecondary,
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Medium
@@ -1528,18 +1509,7 @@ private fun GalleryDetailsSheet(
         else        -> accentColor
     }
 
-    val catEmoji = when (item.category) {
-        GalleryCategory.POSTER    -> "📋"
-        GalleryCategory.BACKDROP  -> "🖼️"
-        GalleryCategory.LOGO      -> "🎨"
-        GalleryCategory.CLEARART  -> "✨"
-        GalleryCategory.CHARACTER -> "🎭"
-        GalleryCategory.PERSON    -> "👤"
-        GalleryCategory.THUMBNAIL -> "🌐"
-        GalleryCategory.BANNER    -> "🎫"
-        GalleryCategory.SQUARE    -> "🟩"
-        GalleryCategory.OTHER     -> "📁"
-    }
+    val catIcon = galleryCategoryIcon(item.category)
 
     val langInfo = formatLanguage(item.language)
     val resStr = formatResolution(item.width, item.height)
@@ -1611,7 +1581,7 @@ private fun GalleryDetailsSheet(
             })
 
             // Tür
-            DetailRow(label = stringResource(R.string.gallery_field_type), value = "$catEmoji ${item.category.localizedLabel()}")
+            DetailRow(label = stringResource(R.string.gallery_field_type), value = item.category.localizedLabel(), icon = catIcon)
 
             // Sezon
             val seasonLabel = formatGallerySeason(item.season)
@@ -1632,7 +1602,7 @@ private fun GalleryDetailsSheet(
 
             // Boyut (API/kaynak sağladıysa)
             if (resStr != null) {
-                DetailRow(label = stringResource(R.string.gallery_field_size), value = "📐 $resStr")
+                DetailRow(label = stringResource(R.string.gallery_field_size), value = resStr)
             }
 
             // API'ye özgü detay satırları (örn. Fanart.tv: Ad, IMDb ID)
@@ -1658,11 +1628,26 @@ private fun GalleryDetailsSheet(
 // ─────────────────────────────────────────────────────────────────────────────
 // Detail row helper for the right panel
 // ─────────────────────────────────────────────────────────────────────────────
+/** Galeri kategorisi → HD ikon (tek kaynak; önceden üç yerde kopyalanmıştı). */
+private fun galleryCategoryIcon(category: GalleryCategory): ImageVector = when (category) {
+    GalleryCategory.POSTER    -> Icons.GalleryVertical
+    GalleryCategory.BACKDROP  -> Icons.Image
+    GalleryCategory.LOGO      -> Icons.Palette
+    GalleryCategory.CLEARART  -> Icons.Sparkles
+    GalleryCategory.CHARACTER -> Icons.Theater
+    GalleryCategory.PERSON    -> Icons.User
+    GalleryCategory.THUMBNAIL -> Icons.Globe
+    GalleryCategory.BANNER    -> Icons.Ticket
+    GalleryCategory.SQUARE    -> Icons.Square
+    GalleryCategory.OTHER     -> Icons.Folder
+}
+
 @Composable
 private fun DetailRow(
     label: String,
     value: String?,
-    badge: (@Composable () -> Unit)? = null
+    badge: (@Composable () -> Unit)? = null,
+    icon: ImageVector? = null
 ) {
     Column(
         modifier = Modifier
@@ -1680,11 +1665,13 @@ private fun DetailRow(
         if (badge != null) {
             badge()
         } else if (value != null) {
-            Text(
-                text = value,
+            KitsugiEmojiLabel(
+                label = value,
                 color = KitsugiColors.TextPrimary,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.Medium,
+                iconSize = 12.dp,
+                icon = icon
             )
         }
         Spacer(modifier = Modifier.height(4.dp))

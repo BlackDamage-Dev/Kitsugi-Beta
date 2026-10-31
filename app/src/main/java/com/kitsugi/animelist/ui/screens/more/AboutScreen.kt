@@ -660,14 +660,32 @@ fun AboutScreen(
 
             item {
                 Spacer(modifier = Modifier.height(32.dp))
-                Text(
-                    text = "Made with ❤️ by $developer",
-                    color = KitsugiColors.textMuted,
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Medium,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        text = "Made with",
+                        color = KitsugiColors.textMuted,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Medium,
+                        textAlign = TextAlign.Center
+                    )
+                    Icon(
+                        imageVector = Icons.HeartSolid,
+                        contentDescription = null,
+                        tint = Color(0xFFE5484D),
+                        modifier = Modifier.size(11.dp)
+                    )
+                    Text(
+                        text = "by $developer",
+                        color = KitsugiColors.textMuted,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Medium,
+                        textAlign = TextAlign.Center
+                    )
+                }
                 Spacer(modifier = Modifier.height(40.dp))
             }
         }

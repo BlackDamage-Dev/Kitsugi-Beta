@@ -1,6 +1,9 @@
 package com.kitsugi.animelist.ui.screens.offline
 
 import com.kitsugi.animelist.ui.components.KitsugiChevronIcon
+import com.kitsugi.animelist.ui.components.KitsugiTopAction
+import com.kitsugi.animelist.ui.components.KitsugiTopActionButton
+import com.kitsugi.animelist.ui.components.KitsugiTopActionTokens
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import com.kitsugi.animelist.ui.theme.gradient.LinearProgressIndicator
 import com.kitsugi.animelist.ui.theme.gradient.Text
@@ -335,8 +338,9 @@ fun DownloadsScreen(
                     .padding(start = 4.dp)
             )
 
-            // Quick open root downloads folder
-            IconButton(
+            // İndirme klasörünü aç → ortak üst çubuk aksiyon butonu
+            KitsugiTopActionButton(
+                action = KitsugiTopAction.FOLDER,
                 onClick = {
                     val rootDir = when (pagerState.currentPage) {
                         1 -> File(
@@ -353,14 +357,10 @@ fun DownloadsScreen(
                         ).also { it.mkdirs() }
                     }
                     openFolderInFileManager(context, rootDir)
-                }
-            ) {
-                Icon(
-                    imageVector = Icons.FolderOpen,
-                    contentDescription = stringResource(R.string.indirme_klasorunu_ac),
-                    tint = accentColor
-                )
-            }
+                },
+                size = KitsugiTopActionTokens.CompactButtonSize,
+                cornerRadius = KitsugiTopActionTokens.CompactCornerRadius
+            )
         }
 
         // Sekme bandı: Videolar | Altyazılar | Resimler — "Görünüm & Tercihler" bandıyla aynı

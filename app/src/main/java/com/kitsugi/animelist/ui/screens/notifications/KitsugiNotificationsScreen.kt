@@ -1,5 +1,8 @@
 package com.kitsugi.animelist.ui.screens.notifications
 
+import com.kitsugi.animelist.ui.components.KitsugiTopAction
+import com.kitsugi.animelist.ui.components.KitsugiTopActionRow
+import com.kitsugi.animelist.ui.components.KitsugiTopActionTokens
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import com.kitsugi.animelist.ui.theme.gradient.Text
 
@@ -290,23 +293,22 @@ fun KitsugiNotificationsScreen(
                     .weight(1f)
                     .padding(start = 4.dp)
             )
-            IconButton(onClick = {
-                showDiagnostics = true
-                viewModel.runDiagnostics(mediaEntries)
-            }) {
-                Icon(
-                    imageVector = Icons.BugReport,
-                    contentDescription = stringResource(R.string.notif_diag_action),
-                    tint = KitsugiColors.TextPrimary
-                )
-            }
-            IconButton(onClick = { refreshCurrentPage() }) {
-                Icon(
-                    imageVector = Icons.Refresh,
-                    contentDescription = stringResource(R.string.notif_action_refresh),
-                    tint = accentColor
-                )
-            }
+            // Yenile + tanılama → ortak üst çubuk aksiyon satırı (kanonik sıra)
+            KitsugiTopActionRow(
+                actions = listOf(KitsugiTopAction.REFRESH, KitsugiTopAction.DIAGNOSTICS),
+                onActionClick = { action ->
+                    when (action) {
+                        KitsugiTopAction.REFRESH -> refreshCurrentPage()
+                        KitsugiTopAction.DIAGNOSTICS -> {
+                            showDiagnostics = true
+                            viewModel.runDiagnostics(mediaEntries)
+                        }
+                        else -> Unit
+                    }
+                },
+                size = KitsugiTopActionTokens.CompactButtonSize,
+                cornerRadius = KitsugiTopActionTokens.CompactCornerRadius
+            )
         }
 
         val currentPlatform = NotifPlatform.entries.getOrElse(pagerState.currentPage) { NotifPlatform.ANILIST }

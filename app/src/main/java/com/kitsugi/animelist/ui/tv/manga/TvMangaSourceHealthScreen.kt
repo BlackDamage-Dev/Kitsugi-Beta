@@ -147,9 +147,9 @@ fun TvMangaSourceHealthScreen(
                         Spacer(Modifier.height(8.dp))
                         // Özet rozetleri
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            TvHealthSummaryBadge("✓ $healthyCount", KitsugiColors.AccentGreen)
+                            TvHealthSummaryBadge("$healthyCount", KitsugiColors.AccentGreen, Icons.Check)
                             TvHealthSummaryBadge("~ $degradedCount", Color(0xFFFF9800))
-                            TvHealthSummaryBadge("✗ $brokenCount", KitsugiColors.AccentRed)
+                            TvHealthSummaryBadge("$brokenCount", KitsugiColors.AccentRed, Icons.X)
                         }
                         Spacer(Modifier.height(8.dp))
                         // Tümünü Temizle
@@ -286,13 +286,27 @@ fun TvMangaSourceHealthScreen(
 // ── SummaryBadge ───────────────────────────────────────────────────────────
 
 @Composable
-private fun TvHealthSummaryBadge(text: String, color: Color) {
-    Box(
+private fun TvHealthSummaryBadge(
+    text: String,
+    color: Color,
+    icon: androidx.compose.ui.graphics.vector.ImageVector? = null
+) {
+    Row(
         modifier = Modifier
             .clip(RoundedCornerShape(6.dp))
             .background(color.copy(alpha = 0.15f))
-            .padding(horizontal = 8.dp, vertical = 4.dp)
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(3.dp)
     ) {
+        if (icon != null) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = color,
+                modifier = Modifier.size(11.dp)
+            )
+        }
         Text(text, color = color, fontSize = 11.sp, fontWeight = FontWeight.Bold)
     }
 }

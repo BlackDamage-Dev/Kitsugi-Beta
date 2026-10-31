@@ -273,12 +273,15 @@ private fun ReposTab(
                         Icon(Icons.Extension, null, tint = accent, modifier = Modifier.size(24.dp))
                     }
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("⚡ Keiyoushi Resmi Reposu", color = KitsugiColors.TextPrimary,
+                        Text("Keiyoushi Resmi Reposu", color = KitsugiColors.TextPrimary,
                             fontWeight = FontWeight.Bold, fontSize = 14.sp)
                         Text(stringResource(R.string.inline_1_s_mihon_extensions_including_dd28005, if (keiyoushiTotal > 0) keiyoushiTotal else "5000"),
                             color = KitsugiColors.TextSecondary, fontSize = 11.sp)
                     }
-                    Text("✓ Eklendi", color = Color(0xFF4CAF50), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Icon(Icons.Check, null, tint = Color(0xFF4CAF50), modifier = Modifier.size(12.dp))
+                        Text("Eklendi", color = Color(0xFF4CAF50), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
         }
@@ -305,7 +308,7 @@ private fun ReposTab(
                         Icon(Icons.AutoAwesome, null, tint = Color(0xFF7B61FF), modifier = Modifier.size(24.dp))
                     }
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("🤖 Kotatsu-Redo (Futon)", color = KitsugiColors.TextPrimary,
+                        Text("Kotatsu-Redo (Futon)", color = KitsugiColors.TextPrimary,
                             fontWeight = FontWeight.Bold, fontSize = 14.sp)
                         Text(
                             buildString {
@@ -317,7 +320,10 @@ private fun ReposTab(
                         )
                     }
                     if (kotatsuSourceCount > 0)
-                        Text("✓ Aktif", color = Color(0xFF4CAF50), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Icon(Icons.Check, null, tint = Color(0xFF4CAF50), modifier = Modifier.size(12.dp))
+                            Text("Aktif", color = Color(0xFF4CAF50), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
                     else
                         Text("Otomatik", color = KitsugiColors.TextMuted, fontSize = 11.sp)
                 }

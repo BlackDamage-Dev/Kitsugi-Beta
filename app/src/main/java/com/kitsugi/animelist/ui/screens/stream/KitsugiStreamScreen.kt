@@ -849,7 +849,7 @@ private fun TvStreamSettingsDialog(
                     // GitHub Vekil Sunucu (jsDelivr) — telefonda diyalog içinde, TV'de bu satırda
                     item {
                         TvSettingsActionRow(
-                            title = "🌐 GitHub Vekil Sunucu (jsDelivr)",
+                            title = "GitHub Vekil Sunucu (jsDelivr)",
                             description = if (useGithubProxy) {
                                 "Etkin: raw.githubusercontent.com istekleri jsDelivr CDN üzerinden gider."
                             } else {

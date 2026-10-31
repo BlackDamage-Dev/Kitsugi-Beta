@@ -1,5 +1,6 @@
 package com.kitsugi.animelist.ui.screens.detail
 
+import androidx.compose.ui.graphics.vector.ImageVector
 import com.kitsugi.animelist.ui.components.KitsugiChevronIcon
 import com.kitsugi.animelist.ui.components.animateDetailContentSize
 import com.kitsugi.animelist.ui.theme.gradient.background
@@ -526,10 +527,11 @@ internal fun ApiTrailerCard(
                     .background(accentColor.copy(alpha = 0.15f))
                     .padding(10.dp)
             ) {
-                Text(
-                    text = "▶",
-                    color = accentColor,
-                    style = MaterialTheme.typography.titleMedium
+                Icon(
+                    imageVector = Icons.Play,
+                    contentDescription = null,
+                    tint = accentColor,
+                    modifier = Modifier.size(18.dp)
                 )
             }
         }
@@ -706,10 +708,11 @@ internal fun ApiThemesList(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(
-                        text = if (!theme.videoUrl.isNullOrBlank()) "▶" else "🔍",
-                        color = accentColor,
-                        style = MaterialTheme.typography.labelSmall
+                    Icon(
+                        imageVector = if (!theme.videoUrl.isNullOrBlank()) Icons.Play else Icons.Search,
+                        contentDescription = null,
+                        tint = accentColor,
+                        modifier = Modifier.size(14.dp)
                     )
                     Text(
                         text = theme.label,
@@ -780,10 +783,11 @@ internal fun ApiThemesList(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(
-                        text = if (!theme.videoUrl.isNullOrBlank()) "▶" else "🔍",
-                        color = accentColor.copy(alpha = 0.8f),
-                        style = MaterialTheme.typography.labelSmall
+                    Icon(
+                        imageVector = if (!theme.videoUrl.isNullOrBlank()) Icons.Play else Icons.Search,
+                        contentDescription = null,
+                        tint = accentColor.copy(alpha = 0.8f),
+                        modifier = Modifier.size(14.dp)
                     )
                     Text(
                         text = theme.label,
@@ -894,7 +898,8 @@ internal fun ApiDetailPill(
  * Letterboxd, TMDB, Trakt).
  */
 internal data class MdbRatingItem(
-    val emoji: String,
+    /** Marka ikonu (HD vektör) — emoji yerine. */
+    val icon: ImageVector,
     val label: String,
     val value: String,
     val accent: Color,
@@ -952,7 +957,7 @@ private fun buildMdbRatingItems(
         if (showImdb && imdbScore != null && imdbScore > 0.0) {
             add(
                 MdbRatingItem(
-                    emoji = "⭐",
+                    icon = Icons.StarSolid,
                     label = "IMDb",
                     value = String.format("%.1f", imdbScore),
                     accent = MdbImdbAccent,
@@ -969,7 +974,7 @@ private fun buildMdbRatingItems(
         if (showTomatoes && tomatoScore != null && tomatoScore > 0) {
             add(
                 MdbRatingItem(
-                    emoji = "🍅",
+                    icon = Icons.CircleCheck,
                     label = "Tomatometer",
                     value = "$tomatoScore%",
                     accent = MdbTomatoAccent,
@@ -982,7 +987,7 @@ private fun buildMdbRatingItems(
         if (showAudience && audienceScore != null && audienceScore > 0) {
             add(
                 MdbRatingItem(
-                    emoji = "🍿",
+                    icon = Icons.Popcorn,
                     label = "Audience",
                     value = "$audienceScore%",
                     accent = MdbAudienceAccent,
@@ -995,7 +1000,7 @@ private fun buildMdbRatingItems(
         if (showMetacritic && metacriticScore != null && metacriticScore > 0) {
             add(
                 MdbRatingItem(
-                    emoji = "🎖️",
+                    icon = Icons.Award,
                     label = "Metacritic",
                     value = "$metacriticScore",
                     accent = mdbMetacriticAccent(metacriticScore),
@@ -1008,7 +1013,7 @@ private fun buildMdbRatingItems(
         if (showLetterboxd && letterboxdScore != null && letterboxdScore > 0.0) {
             add(
                 MdbRatingItem(
-                    emoji = "📽️",
+                    icon = Icons.Clapperboard,
                     label = "Letterboxd",
                     value = String.format("%.1f", letterboxdScore),
                     accent = MdbLetterboxdAccent,
@@ -1025,7 +1030,7 @@ private fun buildMdbRatingItems(
         if (showTmdb && tmdbScore != null && tmdbScore > 0.0) {
             add(
                 MdbRatingItem(
-                    emoji = "🎬",
+                    icon = Icons.Film,
                     label = "TMDB",
                     value = String.format("%.1f", tmdbScore),
                     accent = MdbTmdbAccent,
@@ -1038,7 +1043,7 @@ private fun buildMdbRatingItems(
         if (showTrakt && traktScore != null && traktScore > 0.0) {
             add(
                 MdbRatingItem(
-                    emoji = "📺",
+                    icon = Icons.Tv,
                     label = "Trakt",
                     value = String.format("%.0f%%", traktScore),
                     accent = MdbTraktAccent,
@@ -1245,10 +1250,11 @@ private fun MdbRatingBadge(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(3.dp)
         ) {
-            Text(
-                text = item.emoji,
-                fontSize = 10.sp,
-                lineHeight = 12.sp
+            Icon(
+                imageVector = item.icon,
+                contentDescription = null,
+                tint = accent,
+                modifier = Modifier.size(11.dp)
             )
             Text(
                 text = item.label,

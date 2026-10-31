@@ -417,11 +417,13 @@ fun KitsugiAllReviewsBottomSheet(
                                 }
 
                                 if (rev.score != null) {
-                                    Text(
-                                        text = "★ ${rev.score}",
+                                    KitsugiEmojiLabel(
+                                        label = "${rev.score}",
                                         color = accentColor,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Black
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Black,
+                                        iconSize = 11.dp,
+                                        icon = Icons.StarSolid
                                     )
                                 }
                             }

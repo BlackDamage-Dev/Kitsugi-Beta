@@ -1,5 +1,8 @@
 package com.kitsugi.animelist.ui.screens.history
 
+import com.kitsugi.animelist.ui.components.KitsugiTopAction
+import com.kitsugi.animelist.ui.components.KitsugiTopActionButton
+import com.kitsugi.animelist.ui.components.KitsugiTopActionTokens
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import com.kitsugi.animelist.ui.theme.gradient.Text
 
@@ -77,13 +80,13 @@ fun WatchHistoryScreen(
                     .padding(start = 4.dp)
             )
             AnimatedVisibility(visible = history.isNotEmpty(), enter = fadeIn(), exit = fadeOut()) {
-                IconButton(onClick = { showClearDialog = true }) {
-                    Icon(
-                        imageVector = Icons.DeleteSweep,
-                        contentDescription = stringResource(R.string.tumunu_temizle),
-                        tint = KitsugiColors.TextMuted
-                    )
-                }
+                // Tümünü temizle → ortak üst çubuk aksiyon butonu (diğer ekranlarla aynı görünüm)
+                KitsugiTopActionButton(
+                    action = KitsugiTopAction.CLEAR,
+                    onClick = { showClearDialog = true },
+                    size = KitsugiTopActionTokens.CompactButtonSize,
+                    cornerRadius = KitsugiTopActionTokens.CompactCornerRadius
+                )
             }
         }
 

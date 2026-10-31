@@ -28,6 +28,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import com.kitsugi.animelist.ui.icons.KitsugiEmojiIcons
 import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -895,7 +896,7 @@ private fun SearchOptionsSummaryRow(
 
     val parts = buildList {
         if (scopeChanged) add(uiState.selectedScope.localizedDisplayLabel())
-        if (sortChanged) add(localizedSourceSearchLabel(getSortDisplayLabel(uiState)))
+        if (sortChanged) add(KitsugiEmojiIcons.stripLeadingEmoji(localizedSourceSearchLabel(getSortDisplayLabel(uiState))))
         if (activeFilterCount > 0) add(activeFilterCountLabel)
     }
 

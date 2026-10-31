@@ -650,7 +650,12 @@ private fun LanguageSelectionDialog(
                             fontWeight = if (lang.code == selectedLanguage) FontWeight.Bold else FontWeight.Normal
                         )
                         if (lang.code == selectedLanguage) {
-                            Text("✓", color = LocalKitsugiAccent.current, fontWeight = FontWeight.Bold)
+                            Icon(
+                                    imageVector = Icons.Check,
+                                    contentDescription = null,
+                                    tint = LocalKitsugiAccent.current,
+                                    modifier = Modifier.size(16.dp)
+                                )
                         }
                     }
                 }

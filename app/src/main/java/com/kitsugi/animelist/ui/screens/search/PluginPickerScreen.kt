@@ -678,7 +678,12 @@ private fun AllPluginsListItem(
                 .background(accentColor.copy(alpha = 0.12f)),
             contentAlignment = Alignment.Center
         ) {
-            Text(text = "🌐", fontSize = 18.sp)
+            Icon(
+                    imageVector = Icons.Globe,
+                    contentDescription = null,
+                    tint = KitsugiColors.TextMuted,
+                    modifier = Modifier.size(18.dp)
+                )
         }
 
         Column(modifier = Modifier.weight(1f)) {

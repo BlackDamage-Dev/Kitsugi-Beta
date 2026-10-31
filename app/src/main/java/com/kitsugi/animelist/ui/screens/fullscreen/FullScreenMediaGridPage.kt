@@ -2,6 +2,7 @@
 
 package com.kitsugi.animelist.ui.screens.fullscreen
 
+import com.kitsugi.animelist.ui.components.KitsugiEmojiLabel
 import com.kitsugi.animelist.ui.utils.rememberKitsugiGridColumns
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
@@ -929,9 +930,9 @@ fun FullScreenMediaGridPage(
                         val activeFilterDesc = buildString {
                             activeGenreLabel?.let { append(" • $it") }
                             activeSortLabel?.let { append(" • $it") }
-                            // ☁️ = kaynak API'sinde uygulandı, 📱 = kaynak desteklemediği için cihazda.
-                            if (serverFilterActive) append(" ☁️")
-                            else if (localGenreFilter || localSort) append(" 📱")
+                            // Sunucu/cihaz ayrımı emoji ile değil, ayrı ikon rozetleriyle gösterilir.
+                            if (serverFilterActive) append(" • ${stringResource(R.string.filter_scope_server)}")
+                            else if (localGenreFilter || localSort) append(" • ${stringResource(R.string.filter_scope_device)}")
                         }
 
                         Row(
@@ -1137,9 +1138,9 @@ fun FullScreenMediaGridPage(
                     val activeFilterDesc = buildString {
                         activeGenreLabel?.let { append(" • $it") }
                         activeSortLabel?.let { append(" • $it") }
-                        // ☁️ = kaynak API'sinde uygulandı, 📱 = kaynak desteklemediği için cihazda.
-                        if (serverFilterActive) append(" ☁️")
-                        else if (localGenreFilter || localSort) append(" 📱")
+                        // Sunucu/cihaz ayrımı emoji ile değil, metin etiketiyle gösterilir.
+                        if (serverFilterActive) append(" • ${stringResource(R.string.filter_scope_server)}")
+                        else if (localGenreFilter || localSort) append(" • ${stringResource(R.string.filter_scope_device)}")
                     }
 
                     Column {
@@ -1433,11 +1434,13 @@ private fun GridGenreChipRow(
                     .padding(horizontal = 13.dp, vertical = 7.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = genre.displayLabel(),
+                KitsugiEmojiLabel(
+                    label = genre.displayLabel(),
                     color = if (isSelected) accentColor else KitsugiColors.TextPrimary,
                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                    style = MaterialTheme.typography.labelMedium
+                    style = MaterialTheme.typography.labelMedium,
+                    iconSize = 13.dp,
+                    icon = genre.icon
                 )
             }
         }

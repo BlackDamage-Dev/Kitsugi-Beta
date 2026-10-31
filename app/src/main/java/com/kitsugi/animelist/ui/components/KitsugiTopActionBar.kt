@@ -66,7 +66,10 @@ enum class KitsugiTopAction(
     SHARE(KitsugiIcons.Share2, order = 70),
     FAVORITE(KitsugiIcons.Heart, order = 75, selectedIcon = KitsugiIcons.HeartSolid),
     GALLERY(KitsugiIcons.Image, order = 80),
+    FOLDER(KitsugiIcons.FolderOpen, order = 85),
+    DIAGNOSTICS(KitsugiIcons.Bug, order = 88),
     RANDOM(KitsugiIcons.Dices, order = 90),
+    CLEAR(KitsugiIcons.Eraser, order = 95),
 
     /** Her zaman en sağda durur. */
     NOTIFICATIONS(KitsugiIcons.Bell, order = 100);
@@ -103,6 +106,9 @@ fun KitsugiTopAction.defaultLabel(): String = when (this) {
     KitsugiTopAction.SHARE -> stringResource(R.string.paylas)
     KitsugiTopAction.FAVORITE -> stringResource(R.string.action_favourite_add)
     KitsugiTopAction.GALLERY -> stringResource(R.string.action_gallery)
+    KitsugiTopAction.FOLDER -> stringResource(R.string.indirme_klasorunu_ac)
+    KitsugiTopAction.DIAGNOSTICS -> stringResource(R.string.notif_diag_action)
+    KitsugiTopAction.CLEAR -> stringResource(R.string.tumunu_temizle)
     KitsugiTopAction.RANDOM -> stringResource(R.string.top_action_random)
     KitsugiTopAction.NOTIFICATIONS -> stringResource(R.string.notif_title)
 }

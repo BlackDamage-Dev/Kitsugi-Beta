@@ -294,14 +294,14 @@ internal fun CloudstreamExtensionsTab(
                     ) {
                         val predefinedRepos = listOf(
                             Triple(stringResource(R.string.kitsugi_eklentileri_onerilen), stringResource(R.string.dizipal_rectv_ddizi_dizilla_vb_160_derlenmis_ve_guncel_turkce_ek), "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/repo.json"),
-                            Triple("⚡ Kraptor (Kraptor123)", stringResource(R.string.animecix_animeler_animeelysium_eklentilerini_iceren_dizi_film_ve), "https://raw.githubusercontent.com/Kraptor123/cs-kraptor/builds/plugins.json"),
-                            Triple("⚡ Kekik (feroxx)", stringResource(R.string.aktif_kekik_eklenti_deposu_derlemeleri_builds_ve_turkce_topluluk), "https://raw.githubusercontent.com/feroxx/Kekik-cloudstream/refs/heads/builds/repo.json"),
-                            Triple("⚡ CS-Karma (Kraptor123)", stringResource(R.string.kraptor_un_alternatif_karma_turkce_eklenti_deposu), "https://raw.githubusercontent.com/Kraptor123/Cs-Karma/builds/plugins.json"),
-                            Triple("⚡ KerimmKirac (cs-kekikanime)", stringResource(R.string.turkanime_eklentisi_ve_kraptor_ortakligindaki_turkce_anime_dizi), "https://raw.githubusercontent.com/Kraptor123/cs-kekikanime/builds/plugins.json"),
-                            Triple("⚡ Nikyokki (nik-cloudstream)", stringResource(R.string.animpow_asyaanimeleri_eklentilerini_iceren_turkce_eklenti_deposu), "https://raw.githubusercontent.com/nikyokki/nik-cloudstream/master/repo.json"),
-                            Triple("⚡ Makoto2 (Sertel392)", stringResource(R.string.makoto2_gecici_turkce_dizi_film_eklenti_deposu), "https://raw.githubusercontent.com/Sertel392/Makotogecici/main/repo.json"),
-                            Triple("🔗 CS3 Hexated (Stremio Bridge)", stringResource(R.string.stremio_koprusu_ve_uluslararasi_saglayicilari_iceren_hexated_dep), "https://raw.githubusercontent.com/hexated/cloudstream-extensions-hexated/builds/plugins.json"),
-                            Triple("🌍 ReCloudStream Eklentileri", stringResource(R.string.uluslararasi_icerikler_icin_resmi_cloudstream_eklentileri_deposu), "https://raw.githubusercontent.com/recloudstream/extensions/master/repo.json")
+                            Triple("Kraptor (Kraptor123)", stringResource(R.string.animecix_animeler_animeelysium_eklentilerini_iceren_dizi_film_ve), "https://raw.githubusercontent.com/Kraptor123/cs-kraptor/builds/plugins.json"),
+                            Triple("Kekik (feroxx)", stringResource(R.string.aktif_kekik_eklenti_deposu_derlemeleri_builds_ve_turkce_topluluk), "https://raw.githubusercontent.com/feroxx/Kekik-cloudstream/refs/heads/builds/repo.json"),
+                            Triple("CS-Karma (Kraptor123)", stringResource(R.string.kraptor_un_alternatif_karma_turkce_eklenti_deposu), "https://raw.githubusercontent.com/Kraptor123/Cs-Karma/builds/plugins.json"),
+                            Triple("KerimmKirac (cs-kekikanime)", stringResource(R.string.turkanime_eklentisi_ve_kraptor_ortakligindaki_turkce_anime_dizi), "https://raw.githubusercontent.com/Kraptor123/cs-kekikanime/builds/plugins.json"),
+                            Triple("Nikyokki (nik-cloudstream)", stringResource(R.string.animpow_asyaanimeleri_eklentilerini_iceren_turkce_eklenti_deposu), "https://raw.githubusercontent.com/nikyokki/nik-cloudstream/master/repo.json"),
+                            Triple("Makoto2 (Sertel392)", stringResource(R.string.makoto2_gecici_turkce_dizi_film_eklenti_deposu), "https://raw.githubusercontent.com/Sertel392/Makotogecici/main/repo.json"),
+                            Triple("CS3 Hexated (Stremio Bridge)", stringResource(R.string.stremio_koprusu_ve_uluslararasi_saglayicilari_iceren_hexated_dep), "https://raw.githubusercontent.com/hexated/cloudstream-extensions-hexated/builds/plugins.json"),
+                            Triple("ReCloudStream Eklentileri", stringResource(R.string.uluslararasi_icerikler_icin_resmi_cloudstream_eklentileri_deposu), "https://raw.githubusercontent.com/recloudstream/extensions/master/repo.json")
                         )
                         predefinedRepos.forEach { (name, desc, url) ->
                             val isAdded = repos.any { it.repoUrl.trim().lowercase() == url.trim().lowercase() }

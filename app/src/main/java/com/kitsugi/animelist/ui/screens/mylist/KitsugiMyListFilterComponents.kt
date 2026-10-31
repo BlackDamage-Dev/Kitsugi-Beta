@@ -1,5 +1,6 @@
 package com.kitsugi.animelist.ui.screens.mylist
 
+import com.kitsugi.animelist.ui.components.KitsugiEmojiLabel
 import com.kitsugi.animelist.ui.theme.gradient.background
 import com.kitsugi.animelist.ui.utils.tvClickable
 import androidx.compose.foundation.horizontalScroll
@@ -318,8 +319,10 @@ internal fun MyListContentTypeRow(
                     })
                     .padding(horizontal = 14.dp, vertical = 9.dp)
             ) {
-                Text(
-                    text = if (isSelected) "✓ $label" else label,
+                KitsugiEmojiLabel(
+                    label = label,
+                    icon = if (isSelected) Icons.Check else null,
+                    iconSize = 13.dp,
                     color = if (isSelected) accentColor else KitsugiColors.TextPrimary,
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold

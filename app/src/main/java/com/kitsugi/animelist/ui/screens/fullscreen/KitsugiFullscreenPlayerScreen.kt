@@ -1,5 +1,6 @@
 package com.kitsugi.animelist.ui.screens.fullscreen
 
+import com.kitsugi.animelist.ui.components.KitsugiEmojiLabel
 import com.kitsugi.animelist.ui.theme.gradient.CircularProgressIndicator
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import com.kitsugi.animelist.ui.theme.gradient.Text
@@ -489,7 +490,13 @@ fun KitsugiFullscreenPlayerScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     CircularProgressIndicator(color = Color.White)
-                    Text("⚡ Yedek kaynak deneniyor...", color = Color.White.copy(alpha = 0.85f))
+                    KitsugiEmojiLabel(
+                        label = "Yedek kaynak deneniyor...",
+                        color = Color.White.copy(alpha = 0.85f),
+                        style = MaterialTheme.typography.bodyMedium,
+                        iconSize = 14.dp,
+                        icon = Icons.Zap
+                    )
                     Text(
                         text = "Kaynak: ${currentAddonName.orEmpty()} → sonraki",
                         color = Color.White.copy(alpha = 0.5f),

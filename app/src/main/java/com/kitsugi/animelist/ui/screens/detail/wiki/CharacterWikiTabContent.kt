@@ -2,6 +2,7 @@ package com.kitsugi.animelist.ui.screens.detail.wiki
 
 import com.kitsugi.animelist.ui.components.KitsugiChevronIcon
 import com.kitsugi.animelist.ui.components.KitsugiDetailReveal
+import com.kitsugi.animelist.ui.components.KitsugiEmojiLabel
 import com.kitsugi.animelist.ui.components.animateDetailContentSize
 
 import android.content.Context
@@ -1235,11 +1236,13 @@ private fun WikiSourceChips(
                     .padding(horizontal = 12.dp, vertical = 6.dp)
                     .tvClickable(enabled = !selected, shape = RoundedCornerShape(8.dp)) { onSwitchSource(index) }
             ) {
-                Text(
-                    text = (if (isWikipedia) "📖 " else "🌐 ") + label,
+                KitsugiEmojiLabel(
+                    label = label,
                     color = if (selected) accentColor else KitsugiColors.TextSecondary,
                     style = MaterialTheme.typography.labelMedium,
-                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
+                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                    iconSize = 13.dp,
+                    icon = if (isWikipedia) Icons.BookOpen else Icons.Globe
                 )
             }
         }

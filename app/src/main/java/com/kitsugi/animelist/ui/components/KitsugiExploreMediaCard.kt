@@ -208,15 +208,15 @@ fun KitsugiExploreMediaCard(
                             )
                             val displayScore = mediaEntry.getDisplayScore(scoreFormat, hideScores)
                             val isUnrated = displayScore == "unrated" || displayScore == "Unrated" || displayScore == "Puanlanmamış" || displayScore == "Puan yok"
-                            val scoreLabel = if (isUnrated) "—" else "★ $displayScore"
+                            val scoreLabel = if (isUnrated) "—" else displayScore
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "• $scoreLabel",
+                            KitsugiEmojiLabel(
+                                label = scoreLabel,
+                                icon = if (isUnrated) null else Icons.StarSolid,
+                                iconSize = 9.dp,
                                 color = KitsugiColors.TextMuted,
                                 style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 9.sp,
-                                maxLines = 1
+                                fontWeight = FontWeight.Bold
                             )
                         }
                         Spacer(modifier = Modifier.height(4.dp))
@@ -373,10 +373,12 @@ fun KitsugiExploreMediaCard(
                             )
                             val displayScore = mediaEntry.getDisplayScore(scoreFormat, hideScores)
                             val isUnrated = displayScore == "unrated" || displayScore == "Unrated" || displayScore == "Puanlanmamış" || displayScore == "Puan yok"
-                            val scoreLabel = if (isUnrated) "—" else "★ $displayScore"
+                            val scoreLabel = if (isUnrated) "—" else displayScore
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "• $scoreLabel",
+                            KitsugiEmojiLabel(
+                                label = scoreLabel,
+                                icon = if (isUnrated) null else Icons.StarSolid,
+                                iconSize = 9.dp,
                                 color = KitsugiColors.TextMuted,
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold
@@ -522,10 +524,12 @@ fun KitsugiExploreMediaCard(
                             )
                             val displayScore = mediaEntry.getDisplayScore(scoreFormat, hideScores)
                             val isUnrated = displayScore == "unrated" || displayScore == "Unrated" || displayScore == "Puanlanmamış" || displayScore == "Puan yok"
-                            val scoreLabel = if (isUnrated) "—" else "★ $displayScore"
+                            val scoreLabel = if (isUnrated) "—" else displayScore
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "• $scoreLabel",
+                            KitsugiEmojiLabel(
+                                label = scoreLabel,
+                                icon = if (isUnrated) null else Icons.StarSolid,
+                                iconSize = 9.dp,
                                 color = KitsugiColors.TextMuted,
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold

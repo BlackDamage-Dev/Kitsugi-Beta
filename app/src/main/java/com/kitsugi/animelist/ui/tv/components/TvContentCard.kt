@@ -1,6 +1,8 @@
 package com.kitsugi.animelist.ui.tv.components
 
 import androidx.compose.foundation.BorderStroke
+import com.kitsugi.animelist.ui.components.KitsugiEmojiLabel
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -108,8 +110,10 @@ fun TvContentCard(
                             .background(Color.Black.copy(alpha = 0.72f), RoundedCornerShape(4.dp))
                             .padding(horizontal = 4.dp, vertical = 2.dp)
                     ) {
-                        Text(
-                            text = "★ $score",
+                        KitsugiEmojiLabel(
+                            label = score,
+                            icon = Icons.StarSolid,
+                            iconSize = 9.dp,
                             style = MaterialTheme.typography.labelSmall,
                             color = Color(0xFFFFD700)
                         )

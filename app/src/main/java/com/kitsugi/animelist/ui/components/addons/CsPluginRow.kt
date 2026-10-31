@@ -1,5 +1,6 @@
 package com.kitsugi.animelist.ui.components.addons
 
+import com.kitsugi.animelist.ui.components.KitsugiEmojiLabel
 import com.kitsugi.animelist.ui.theme.gradient.background
 import com.kitsugi.animelist.ui.theme.gradient.border
 import com.kitsugi.animelist.ui.utils.tvClickable
@@ -98,7 +99,7 @@ internal fun CsPluginRow(
                 when (plugin.status) {
                     0 -> {
                         Text(
-                            text = "🔴 Down",
+                            text = "Down",
                             color = KitsugiColors.AccentRed,
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
@@ -110,7 +111,7 @@ internal fun CsPluginRow(
                     }
                     2 -> {
                         Text(
-                            text = "🟡 Beta",
+                            text = "Beta",
                             color = KitsugiColors.AccentOrange,
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
@@ -174,11 +175,19 @@ internal fun CsPluginRow(
                 )
             }
             if (!plugin.language.isNullOrBlank()) {
-                Text(
-                    "🌐 ${plugin.language?.uppercase()}",
-                    color = KitsugiColors.TextMuted,
-                    style = MaterialTheme.typography.labelSmall
-                )
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Icon(
+                        imageVector = Icons.Globe,
+                        contentDescription = null,
+                        tint = KitsugiColors.TextMuted,
+                        modifier = Modifier.size(10.dp)
+                    )
+                    Text(
+                        text = plugin.language?.uppercase().orEmpty(),
+                        color = KitsugiColors.TextMuted,
+                        style = MaterialTheme.typography.labelSmall
+                    )
+                }
             }
         }
         Spacer(Modifier.width(8.dp))
@@ -205,7 +214,7 @@ internal fun CsPluginRow(
                         text = stringResource(R.string.hata_37fcfb3),
                         color = KitsugiColors.AccentRed,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 11.sp,
+                        style = MaterialTheme.typography.labelSmall,
                         modifier = Modifier
                             .clip(RoundedCornerShape(8.dp))
                             .background(KitsugiColors.AccentRed.copy(alpha = 0.13f))
@@ -253,7 +262,7 @@ internal fun CsPluginRow(
                     val localContext = LocalContext.current
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(
-                            text = "✓ Kuruldu",
+                            text = "Kuruldu",
                             color = KitsugiColors.AccentGreen,
                             fontWeight = FontWeight.Bold,
                             fontSize = 11.sp,
@@ -327,11 +336,13 @@ internal fun CsPluginRow(
                         )
                     }
                 } else if (isInstalled) {
-                    Text(
-                        text = "✓ Kuruldu",
+                    KitsugiEmojiLabel(
+                        label = "Kuruldu",
+                        icon = Icons.Check,
+                        iconSize = 12.dp,
                         color = KitsugiColors.AccentGreen,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 11.sp,
+                        style = MaterialTheme.typography.labelSmall,
                         modifier = Modifier
                             .clip(RoundedCornerShape(8.dp))
                             .background(KitsugiColors.AccentGreen.copy(alpha = 0.12f))

@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import com.kitsugi.animelist.ui.components.KitsugiEmojiLabel
 import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.Checkbox
 import com.kitsugi.animelist.ui.theme.gradient.Icon
@@ -123,8 +124,14 @@ fun SubtitleTracksSheet(
             if (supportsSecondary) {
                 TextButton(onClick = { onSelectSecondary(track.id) },
                     enabled = track.id == -99 || track.id !in selectedIndices) {
-                    Text(if (track.id == selectedSecondaryIndex) "İkinci altyazı: seçili ✓"
-                        else if (track.id == -99) "İkinci altyazıyı kapat" else "İkinci altyazı olarak seç")
+                    KitsugiEmojiLabel(
+                        label = if (track.id == selectedSecondaryIndex) "İkinci altyazı: seçili"
+                            else if (track.id == -99) "İkinci altyazıyı kapat" else "İkinci altyazı olarak seç",
+                        icon = if (track.id == selectedSecondaryIndex) Icons.Check else null,
+                        color = LocalContentColor.current,
+                        style = MaterialTheme.typography.labelLarge,
+                        iconSize = 12.dp
+                    )
                 }
             }
             SubtitleTrackRow(

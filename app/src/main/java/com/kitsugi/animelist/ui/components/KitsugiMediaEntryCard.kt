@@ -40,6 +40,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -253,11 +254,11 @@ private fun CompactMediaEntryCard(
 
                     if (entry.isFavorite) {
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "★",
-                            color = LocalKitsugiAccent.current,
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold
+                        Icon(
+                            imageVector = Icons.HeartSolid,
+                            contentDescription = stringResource(R.string.favori_label),
+                            tint = LocalKitsugiAccent.current,
+                            modifier = Modifier.size(11.dp)
                         )
                     }
                 }
@@ -388,12 +389,20 @@ private fun ComfortableMediaEntryCard(
                     if (entry.isFavorite) {
                         Spacer(modifier = Modifier.width(8.dp))
 
-                        Text(
-                            text = "★ Favori",
-                            color = LocalKitsugiAccent.current,
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Icon(
+                                imageVector = Icons.HeartSolid,
+                                contentDescription = null,
+                                tint = LocalKitsugiAccent.current,
+                                modifier = Modifier.size(11.dp)
+                            )
+                            Text(
+                                text = "Favori",
+                                color = LocalKitsugiAccent.current,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
                 }
 
@@ -573,12 +582,20 @@ private fun LargeMediaEntryCard(
                         }
 
                         if (entry.isFavorite) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Icon(
+                                imageVector = Icons.HeartSolid,
+                                contentDescription = null,
+                                tint = LocalKitsugiAccent.current,
+                                modifier = Modifier.size(11.dp)
+                            )
                             Text(
-                                text = "★ Favori",
+                                text = "Favori",
                                 color = LocalKitsugiAccent.current,
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold
                             )
+                        }
                         }
                     }
 
@@ -694,12 +711,20 @@ private fun LargeMediaEntryCard(
                     }
 
                     if (entry.isFavorite) {
-                        Text(
-                            text = "★ Favori",
-                            color = LocalKitsugiAccent.current,
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Icon(
+                                imageVector = Icons.HeartSolid,
+                                contentDescription = null,
+                                tint = LocalKitsugiAccent.current,
+                                modifier = Modifier.size(11.dp)
+                            )
+                            Text(
+                                text = "Favori",
+                                color = LocalKitsugiAccent.current,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
                 }
 
@@ -1158,12 +1183,20 @@ private fun MinimalistMediaEntryCard(
                     if (entry.isFavorite) {
                         Spacer(modifier = Modifier.width(8.dp))
 
-                        Text(
-                            text = "★ Favori",
-                            color = LocalKitsugiAccent.current,
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Icon(
+                                imageVector = Icons.HeartSolid,
+                                contentDescription = null,
+                                tint = LocalKitsugiAccent.current,
+                                modifier = Modifier.size(11.dp)
+                            )
+                            Text(
+                                text = "Favori",
+                                color = LocalKitsugiAccent.current,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
                 }
 
@@ -1249,7 +1282,8 @@ private fun PosterCornerTag(
     text: String,
     tint: Color,
     modifier: Modifier = Modifier,
-    shape: RoundedCornerShape = RoundedCornerShape(6.dp)
+    shape: RoundedCornerShape = RoundedCornerShape(6.dp),
+    icon: ImageVector? = null
 ) {
     Box(
         modifier = modifier
@@ -1258,15 +1292,28 @@ private fun PosterCornerTag(
             .background(Color.Black.copy(alpha = 0.66f))
             .padding(horizontal = 6.dp, vertical = 3.dp)
     ) {
-        Text(
-            text = text,
-            color = tint,
-            style = MaterialTheme.typography.labelSmall,
-            fontSize = 9.sp,
-            fontWeight = FontWeight.Bold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = tint,
+                    modifier = Modifier.size(9.dp)
+                )
+            }
+            Text(
+                text = text,
+                color = tint,
+                style = MaterialTheme.typography.labelSmall,
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
     }
 }
 
@@ -1338,12 +1385,11 @@ private fun PosterGridMediaEntryCard(
                         .background(accentColor)
                         .padding(horizontal = 5.dp, vertical = 3.dp)
                 ) {
-                    Text(
-                        text = "★",
-                        color = KitsugiColors.OnAccent,
-                        style = MaterialTheme.typography.labelSmall,
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.Black
+                    Icon(
+                        imageVector = Icons.StarSolid,
+                        contentDescription = stringResource(R.string.puan),
+                        tint = KitsugiColors.OnAccent,
+                        modifier = Modifier.size(9.dp)
                     )
                 }
             }
@@ -1365,7 +1411,8 @@ private fun PosterGridMediaEntryCard(
             // Puan rozeti — sağ alt köşe
             if (!hideScores && (entry.score ?: 0) > 0) {
                 PosterCornerTag(
-                    text = "★ ${entry.getDisplayScore(scoreFormat, hideScores)}",
+                    text = entry.getDisplayScore(scoreFormat, hideScores),
+                    icon = Icons.StarSolid,
                     tint = KitsugiColors.AccentYellow,
                     shape = BottomEndCornerShape,
                     modifier = Modifier.align(Alignment.BottomEnd)

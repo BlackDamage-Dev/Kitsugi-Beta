@@ -412,7 +412,18 @@ private fun InlineHeroBanner(
                         .clickable { onPlayClick() }
                         .padding(horizontal = 28.dp, vertical = 10.dp)
                 ) {
-                    Text("▶  Oynat", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Play,
+                            contentDescription = null,
+                            tint = Color.Black,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(stringResource(R.string.oynat), color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    }
                 }
             }
         }
