@@ -100,6 +100,8 @@ data class GeneralSettings(
     val onKitsuNotificationsChanged: (Boolean) -> Unit = {},
     val shikimoriNotificationsEnabled: Boolean = false,
     val onShikimoriNotificationsChanged: (Boolean) -> Unit = {},
+    val bangumiNotificationsEnabled: Boolean = false,
+    val onBangumiNotificationsChanged: (Boolean) -> Unit = {},
     val isAniListConnected: Boolean = false,
     val isMalConnected: Boolean = false,
     val isSimklConnected: Boolean = false,

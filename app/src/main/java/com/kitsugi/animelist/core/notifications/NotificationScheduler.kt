@@ -30,6 +30,7 @@ internal fun shouldScheduleNotificationWork(
     accounts: NotificationAccountLinks
 ): Boolean =
     (settings.airingNotificationsEnabled && accounts.any) ||
+        (settings.bangumiNotificationsEnabled && accounts.bangumi) ||
         (settings.aniListNotificationsEnabled && accounts.aniList) ||
         (settings.malNotificationsEnabled && accounts.mal) ||
         (settings.simklNotificationsEnabled && accounts.simkl) ||

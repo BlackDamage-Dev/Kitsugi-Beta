@@ -112,6 +112,8 @@ fun KitsugiPreferencesSettingsDialog(
     onSimklNotificationsChanged: (Boolean) -> Unit = {},
     onKitsuNotificationsChanged: (Boolean) -> Unit = {},
     onShikimoriNotificationsChanged: (Boolean) -> Unit = {},
+    bangumiNotificationsEnabled: Boolean = false,
+    onBangumiNotificationsChanged: (Boolean) -> Unit = {},
     isAniListConnected: Boolean = false,
     isMalConnected: Boolean = false,
     isSimklConnected: Boolean = false,
@@ -250,6 +252,8 @@ fun KitsugiPreferencesSettingsDialog(
                         onSimklNotificationsChanged = onSimklNotificationsChanged,
                         onKitsuNotificationsChanged = onKitsuNotificationsChanged,
                         onShikimoriNotificationsChanged = onShikimoriNotificationsChanged,
+                        bangumiNotificationsEnabled = bangumiNotificationsEnabled,
+                        onBangumiNotificationsChanged = onBangumiNotificationsChanged,
                         isAniListConnected = isAniListConnected,
                         isMalConnected = isMalConnected,
                         isSimklConnected = isSimklConnected,
@@ -712,6 +716,8 @@ private fun ListScoreTab(
     onSimklNotificationsChanged: (Boolean) -> Unit = {},
     onKitsuNotificationsChanged: (Boolean) -> Unit = {},
     onShikimoriNotificationsChanged: (Boolean) -> Unit = {},
+    bangumiNotificationsEnabled: Boolean = false,
+    onBangumiNotificationsChanged: (Boolean) -> Unit = {},
     isAniListConnected: Boolean = false,
     isMalConnected: Boolean = false,
     isSimklConnected: Boolean = false,
@@ -841,6 +847,14 @@ private fun ListScoreTab(
         }
     } else null
 
+    val bangumiPermissionLauncher = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.RequestPermission()
+        ) { granted ->
+            if (granted) onBangumiNotificationsChanged(true)
+        }
+    } else null
+
     fun handleAiringNotificationsToggle(enabled: Boolean) {
         if (!enabled) {
             onAiringNotificationsChanged(false)
@@ -952,6 +966,25 @@ private fun ListScoreTab(
             }
         } else {
             onShikimoriNotificationsChanged(true)
+        }
+    }
+
+    fun handleBangumiNotificationsToggle(enabled: Boolean) {
+        if (!enabled) {
+            onBangumiNotificationsChanged(false)
+            return
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val hasPermission = ContextCompat.checkSelfPermission(
+                context, Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
+            if (hasPermission) {
+                onBangumiNotificationsChanged(true)
+            } else {
+                bangumiPermissionLauncher?.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        } else {
+            onBangumiNotificationsChanged(true)
         }
     }
 
@@ -1488,6 +1521,22 @@ private fun ListScoreTab(
                 checked = isShikimoriConnected && appSettings.shikimoriNotificationsEnabled,
                 enabled = isShikimoriConnected,
                 onCheckedChange = { if (isShikimoriConnected) handleShikimoriNotificationsToggle(it) }
+            )
+
+            KitsugiSettingsDivider()
+
+            KitsugiSettingsSwitchItem(
+                title = stringResource(R.string.settings_notif_bangumi),
+                description = when {
+                    !isBangumiConnected -> stringResource(R.string.settings_notifications_connect_account, "Bangumi")
+                    bangumiNotificationsEnabled -> stringResource(R.string.settings_notif_bangumi_on)
+                    else -> stringResource(R.string.settings_notif_bangumi_off)
+                },
+                icon = Icons.Rounded.Settings,
+                iconColor = accentColor,
+                checked = isBangumiConnected && bangumiNotificationsEnabled,
+                enabled = isBangumiConnected,
+                onCheckedChange = { if (isBangumiConnected) handleBangumiNotificationsToggle(it) }
             )
 
             KitsugiSettingsDivider()

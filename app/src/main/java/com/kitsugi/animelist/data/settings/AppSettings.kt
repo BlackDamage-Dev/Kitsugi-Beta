@@ -252,6 +252,12 @@ data class IntegrationsAndNotificationsSettings(
     val simklNotificationsEnabled: Boolean = false,
     val kitsuNotificationsEnabled: Boolean = false,
     val shikimoriNotificationsEnabled: Boolean = false,
+    /**
+     * Bangumi bildirimleri. Bangumi'nin bildirim ucu yok; kayıtlar "在 看" koleksiyonu
+     * + yayın takvimi eşleşmesinden üretilir. Diğer kaynaklar gibi ayrı anahtar olması
+     * kullanıcının Bangumi'yi tek başına açıp kapatabilmesini sağlar.
+     */
+    val bangumiNotificationsEnabled: Boolean = false,
     val notificationInterval: Int = 180
 )
 
@@ -436,6 +442,7 @@ data class AppSettings(
     val simklNotificationsEnabled: Boolean get() = integrations.simklNotificationsEnabled
     val kitsuNotificationsEnabled: Boolean get() = integrations.kitsuNotificationsEnabled
     val shikimoriNotificationsEnabled: Boolean get() = integrations.shikimoriNotificationsEnabled
+    val bangumiNotificationsEnabled: Boolean get() = integrations.bangumiNotificationsEnabled
     val notificationInterval: Int get() = integrations.notificationInterval
     val searchHistoryEnabled: Boolean get() = themeUi.searchHistoryEnabled
     val stillWatchingEnabled: Boolean get() = playback.stillWatchingEnabled

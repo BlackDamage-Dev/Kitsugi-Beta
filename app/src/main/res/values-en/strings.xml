@@ -17831,4 +17831,10 @@
     <string name="notif_device_total">Total posted: %1$d</string>
     <string name="notif_device_hint">Sources: AniList, MyAnimeList, TMDB &amp; Simkl, Kitsu, Shikimori, Bangumi.</string>
     <string name="notif_sys_some_user">A user</string>
+    <string name="settings_notif_bangumi">Bangumi notifications</string>
+    <string name="settings_notif_bangumi_on">New episodes of the Bangumi titles you watch are announced.</string>
+    <string name="settings_notif_bangumi_off">No device notifications are sent for Bangumi.</string>
+    <string name="bangumi_bildirimleri_etkinlestirildi">Bangumi notifications enabled.</string>
+    <string name="bangumi_bildirimleri_devre_disi_birakildi">Bangumi notifications disabled.</string>
+    <string name="notif_mark_all_read">Mark all read</string>
 </resources>

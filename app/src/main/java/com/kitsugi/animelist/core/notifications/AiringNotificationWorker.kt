@@ -107,9 +107,10 @@ class AiringNotificationWorker(
         val isSimklEnabled = settings.simklNotificationsEnabled && !simklTokenForGate.isNullOrBlank()
         val isKitsuEnabled = settings.kitsuNotificationsEnabled && !kitsuTokenForGate.isNullOrBlank()
         val isShikimoriEnabled = settings.shikimoriNotificationsEnabled && !shikimoriTokenForGate.isNullOrBlank()
+        val isBangumiEnabled = settings.bangumiNotificationsEnabled && bangumiConnected
 
         if (!isAiringEnabled && !isAniListEnabled && !isMalEnabled && !isSimklEnabled &&
-            !isKitsuEnabled && !isShikimoriEnabled
+            !isKitsuEnabled && !isShikimoriEnabled && !isBangumiEnabled
         ) {
             Log.d(TAG, "No linked notification sources are enabled. Canceling stale periodic work.")
             NotificationScheduler.cancelIfNoActiveSources(context)
@@ -470,7 +471,7 @@ class AiringNotificationWorker(
         // ── 6. Bangumi (MAL takvimi + çapraz kimlik eşleşmesi) ───────────────
         // Bangumi API'sinde bildirim ucu yoktur. Uygulama içi sayfa da aynı yolu
         // kullanır: bgm subject → MAL id çözümü + yayın takvimi.
-        if (isAiringEnabled && bangumiConnected) {
+        if (isBangumiEnabled) {
             var posted = 0
             var seen = 0
             try {

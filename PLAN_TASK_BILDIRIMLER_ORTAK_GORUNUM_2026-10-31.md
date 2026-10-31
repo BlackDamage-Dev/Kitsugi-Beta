@@ -99,7 +99,31 @@ bakılacak yer: teşhis panelindeki **izin**, **planlı iş** ve **kaynak başı
 | 10 | Aynı bölüm MAL + Kitsu + Bangumi'de izleniyorsa iki-üç ayrı bildirim | ✔ çalıştırma içi `title#episode` tekrar engeli |
 | 11 | Bangumi bildirimleri yalnızca yerel DB'yi görüyordu (sunucudaki "在看" listesi kaçıyordu) | ✔ `getUserCollections(DOING)` + yerel yedek |
 | 12 | Simkl tam liste senkronu her çalıştırmada DB'yi yeniden yazıyordu | ✔ 6 saatlik eşik (`simkl_full_sync_at`) |
-| 13 | **Bangumi'nin kendi bildirim anahtarı yok**; "Yayın bildirimleri" ana anahtarına bağlı | ⏳ bilinçli: ayar eklemek 8 dosyada değişiklik; bir sonraki tura bırakıldı |
-| 14 | **Shikimori okundu durumu uygulamada işaretlenmiyor** → "Okunmamış" rozeti hiç düşmüyor | ⏳ API'de okundu işaretleme ucu yok/haritalanmadı; yerel "görüldü" damgası gerekir |
+| 13 | **Bangumi'nin kendi bildirim anahtarı yok** | ✔ `bangumiNotificationsEnabled` ayarı tüm zincire eklendi (AppSettings → DataStore → SettingsScreen/Parameters → dialog + izin launcher → Scheduler → Worker) |
+| 14 | **Okundu durumu işaretlenmiyordu** → "Okunmamış" rozeti/sekmesi hep dolu | ✔ `NotifSeenStore` (yerel görüldü defteri) + dokunuşta işaretleme + "Tümünü okundu" çipi; Simkl/Kitsu/Bangumi'ye de Okunmamış sekmesi |
 | 15 | MAL'ın web bildirimleri (kulüp/forum) cihaz bildirimi olarak düşmüyor | ⏳ arka planda MAL web çerezi kullanmak riskli (bot koruması) |
 | 16 | Kitsu gövdesi `progress + 1` varsayıyor; `nextRelease` 2 bölüm ileriyi gösteriyorsa numara kayabilir | ⏳ düşük etki, API ek alan vermiyor |
+
+### Üçüncü tur — kapanan son iki açık (v2.4.343)
+
+**A) Bangumi bildirim anahtarı.** Zincir: `AppSettings.IntegrationsAndNotificationsSettings.bangumiNotificationsEnabled`
+→ `SettingsDataStore` (`bangumi_notifications_enabled` + setter) → `SettingsScreenParameters`
+(`onBangumiNotificationsChanged`) → `SettingsScreen` (updatedState + eşleme) → `AppRootSettingsExtras`
+(işleyici + snackbar) → `KitsugiPreferencesSettingsDialog` (anahtar + POST_NOTIFICATIONS launcher)
+→ `NotificationScheduler.shouldScheduleNotificationWork` (anahtar artık planlama sebebi)
+→ `AiringNotificationWorker` (`isBangumiEnabled`). Eski davranışta Bangumi yalnızca "Yayın
+bildirimleri" ana anahtarı açıkken çalışıyordu.
+
+**B) Okundu durumu (`NotifSeenStore`).**
+   • Sunucuda okundu alanı olmayan kaynaklar (MAL türetilmiş, Simkl, Kitsu, Bangumi) ve
+     Shikimori için kaynak başına `id → epochMs` defteri (SharedPreferences, 600 kayıt).
+   • `isUnread` artık buradan hesaplanıyor: görülmemiş **ve** son 72 saat. Böylece arşivden
+     gelen aylık eski kayıtlar rozeti şişirmiyor.
+   • Bildirime dokunmak kaydı "görüldü" işaretler; liste anında güncellenir (ağ yok).
+   • Filtre şeridinin sonunda **"Tümünü okundu"** çipi (yalnızca yerel okundu tutan kaynaklarda;
+     MAL/AniList sayaçları sunucudan geldiği için orada gösterilmez).
+   • Simkl / Kitsu / Bangumi'ye de **Okunmamış** sekmesi eklendi (tüm kaynaklarda aynı şerit).
+
+**Bilinçli olarak yapılmayanlar:** sessiz saatler (yeni ayar yüzeyi), cihaz bildirimi ile
+uygulama içi "okundu" durumunun çift yönlü senkronu, MAL web bildirimlerinin arka planda
+çekilmesi (bot koruması riski).

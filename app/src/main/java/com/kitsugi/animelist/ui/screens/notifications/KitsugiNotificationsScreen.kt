@@ -111,6 +111,21 @@ private enum class NotifPlatform(
      * Deep link / sistem bildirimi anahtarını ("anilist", "mal", "simkl" …) bu
      * sayfaya eşler. Eşleşme yoksa `false`.
      */
+    /** Yerel "görüldü" defteri ve cihaz bildirimleri için sabit anahtar. */
+    val sourceKey: String
+        get() = when (this) {
+            ANILIST    -> "anilist"
+            MAL        -> "mal"
+            TMDB_SIMKL -> "simkl"
+            KITSU      -> "kitsu"
+            SHIKIMORI  -> "shikimori"
+            BANGUMI    -> "bangumi"
+        }
+
+    /** "Tümünü okundu" eylemi yalnızca okundu durumu yerelde tutulan kaynaklarda. */
+    val supportsLocalMarkRead: Boolean
+        get() = this == TMDB_SIMKL || this == KITSU || this == SHIKIMORI || this == BANGUMI
+
     fun matchesSourceKey(key: String): Boolean = when (this) {
         ANILIST    -> key == "anilist"
         MAL        -> key == "mal" || key == "myanimelist"
@@ -143,12 +158,14 @@ private class LocalFilterSpec(
 
 private val SIMKL_FILTERS = listOf(
     LocalFilterSpec(KEY_ALL, R.string.notif_filter_all),
+    LocalFilterSpec(KEY_UNREAD, R.string.notif_filter_unread) { it.isUnread },
     LocalFilterSpec("aired", R.string.notif_filter_aired) { it.typeIdentifier == "aired" },
     LocalFilterSpec("upcoming", R.string.notif_filter_upcoming) { it.typeIdentifier == "upcoming" }
 )
 
 private val KITSU_FILTERS = listOf(
     LocalFilterSpec(KEY_ALL, R.string.notif_filter_all),
+    LocalFilterSpec(KEY_UNREAD, R.string.notif_filter_unread) { it.isUnread },
     LocalFilterSpec("release", R.string.notif_filter_airing) { it.typeIdentifier == "release" },
     LocalFilterSpec("anime", R.string.notif_filter_anime) { it.mediaType.equals("anime", true) },
     LocalFilterSpec("manga", R.string.notif_filter_manga) { it.mediaType.equals("manga", true) }
@@ -166,6 +183,7 @@ private val SHIKIMORI_FILTERS = listOf(
 
 private val BANGUMI_FILTERS = listOf(
     LocalFilterSpec(KEY_ALL, R.string.notif_filter_all),
+    LocalFilterSpec(KEY_UNREAD, R.string.notif_filter_unread) { it.isUnread },
     LocalFilterSpec("airing", R.string.notif_filter_airing) { it.typeIdentifier == "airing" },
     LocalFilterSpec("progress", R.string.notif_filter_progress) { it.typeIdentifier == "watching" }
 )
@@ -582,7 +600,15 @@ fun KitsugiNotificationsScreen(
                 showDiagnostics = true
             },
             onSelectTab = { tab -> selectTab(tab) },
-            isRefreshing = currentLoading
+            isRefreshing = currentLoading,
+            // Okundu durumu sunucuda tutulmayan kaynaklarda tek dokunuşla sıfırlama.
+            // MAL ve AniList'te "yeni" sayısı SUNUCUDAN gelir; yerelde işaretlemek
+            // sayacı düşürmez, o yüzden buralarda eylem gösterilmez (yanıltıcı olurdu).
+            onMarkAllRead = if (platformNew > 0 && currentPlatform.supportsLocalMarkRead) {
+                { viewModel.markAllNotificationsSeen(currentPlatform.sourceKey) }
+            } else {
+                null
+            }
         )
 
         // ── Pager ──
@@ -640,6 +666,7 @@ fun KitsugiNotificationsScreen(
                                     )
                                 },
                                 onItemClick = { notif ->
+                                    viewModel.markNotificationSeen(notif, "anilist")
                                     if (notif.activityId != null && notif.activityId > 0) {
                                         activeActivityIdForDetail = notif.activityId
                                     } else if (notif.mediaId != null) {
@@ -738,7 +765,10 @@ fun KitsugiNotificationsScreen(
                         } else {
                             null
                         },
-                        onItemClick = { notif -> openMalNotification(notif) }
+                        onItemClick = { notif ->
+                            viewModel.markNotificationSeen(notif, "mal")
+                            openMalNotification(notif)
+                        }
                     )
                 }
 
@@ -760,6 +790,7 @@ fun KitsugiNotificationsScreen(
                         onUserProfileClick = onUserProfileClick,
                         onRefresh = { viewModel.loadTmdbSimkl(mediaEntries) },
                         onItemClick = { notif ->
+                            viewModel.markNotificationSeen(notif, "simkl")
                             notif.mediaId?.let { id ->
                                 onOpenApiDetail?.invoke(
                                     id,
@@ -791,6 +822,7 @@ fun KitsugiNotificationsScreen(
                         onUserProfileClick = onUserProfileClick,
                         onRefresh = { viewModel.loadKitsu(mediaEntries) },
                         onItemClick = { notif ->
+                            viewModel.markNotificationSeen(notif, "kitsu")
                             notif.mediaId?.let { id ->
                                 onOpenApiDetail?.invoke(
                                     id,
@@ -822,6 +854,7 @@ fun KitsugiNotificationsScreen(
                         onUserProfileClick = onUserProfileClick,
                         onRefresh = { viewModel.loadShikimori(mediaEntries) },
                         onItemClick = { notif ->
+                            viewModel.markNotificationSeen(notif, "shikimori")
                             notif.mediaId?.let { id ->
                                 onOpenApiDetail?.invoke(
                                     id,
@@ -853,6 +886,7 @@ fun KitsugiNotificationsScreen(
                         onUserProfileClick = onUserProfileClick,
                         onRefresh = { viewModel.loadBangumi(mediaEntries, appSettings.titleLanguage) },
                         onItemClick = { notif ->
+                            viewModel.markNotificationSeen(notif, "bangumi")
                             // mediaId Bangumi stableId'sidir (500M+); detay yönlendirmesi
                             // bu kimlikle yerel kaydı bulur, bulamazsa API detay açar.
                             notif.mediaId?.let { id ->

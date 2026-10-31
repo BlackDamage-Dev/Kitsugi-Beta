@@ -17836,4 +17836,10 @@ Eklentiler ekranından eklenti etkinleştirin.</string>
     <string name="notif_device_total">Toplam gönderilen: %1$d</string>
     <string name="notif_device_hint">Kaynaklar: AniList, MyAnimeList, TMDB ve Simkl, Kitsu, Shikimori, Bangumi.</string>
     <string name="notif_sys_some_user">Bir kullanıcı</string>
+    <string name="settings_notif_bangumi">Bangumi bildirimleri</string>
+    <string name="settings_notif_bangumi_on">İzlediğiniz Bangumi yapıtlarının yeni bölümleri bildirilir.</string>
+    <string name="settings_notif_bangumi_off">Bangumi için cihaz bildirimi gönderilmez.</string>
+    <string name="bangumi_bildirimleri_etkinlestirildi">Bangumi bildirimleri etkinleştirildi.</string>
+    <string name="bangumi_bildirimleri_devre_disi_birakildi">Bangumi bildirimleri devre dışı bırakıldı.</string>
+    <string name="notif_mark_all_read">Tümünü okundu</string>
 </resources>

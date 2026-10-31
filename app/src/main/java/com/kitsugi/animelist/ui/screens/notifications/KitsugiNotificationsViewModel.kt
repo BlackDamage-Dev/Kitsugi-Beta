@@ -14,6 +14,7 @@ import com.kitsugi.animelist.data.auth.ExternalAuthManager
 import com.kitsugi.animelist.data.auth.KitsuApiClient
 import com.kitsugi.animelist.data.auth.MalImportManager
 import com.kitsugi.animelist.data.auth.ShikimoriApiClient
+import com.kitsugi.animelist.data.notifications.NotifSeenStore
 import com.kitsugi.animelist.data.notifications.NotificationArchiveStore
 import com.kitsugi.animelist.data.notifications.NotificationDiagnostics
 import com.kitsugi.animelist.data.remote.BangumiIdNamespace
@@ -269,6 +270,70 @@ class KitsugiNotificationsViewModel(application: Application) : AndroidViewModel
         else merged.sortedWith(
             compareByDescending<NotifItem> { it.tsMs ?: Long.MIN_VALUE }
         )
+    }
+
+    // ─── "Gördüm" defteri (sunucuda okundu durumu olmayan kaynaklar) ─────────
+
+    /**
+     * Kaydın `isUnread` değerini yerel deftere göre yeniden hesaplar.
+     *
+     * [serverState] true ise sunucunun `read` alanı esas alınır (Shikimori): kayıt
+     * yalnızca sunucu "okunmadı" diyorsa **ve** yerelde görülmemişse yeni kalır.
+     * false ise (Simkl / Kitsu / Bangumi / MAL türetilmiş kayıtlar) yenilik tamamen
+     * yerel defterden gelir: görülmemiş + son 72 saat.
+     */
+    private fun List<NotifItem>.withLocalSeen(
+        sourceKey: String,
+        serverState: Boolean = false
+    ): List<NotifItem> = NotifSeenStore.applyTo(
+        context = ctx,
+        source = sourceKey,
+        items = this,
+        idOf = { it.id },
+        tsOf = { it.tsMs },
+        unreadOf = { it.isUnread },
+        hadServerState = serverState,
+        copy = { item, unread -> if (item.isUnread == unread) item else item.copy(isUnread = unread) }
+    )
+
+    /** Bir bildirim açıldığında çağrılır: rozet düşsün, "Okunmamış" sekmesinden çıksın. */
+    fun markNotificationSeen(item: NotifItem, sourceKey: String) {
+        NotifSeenStore.markSeen(ctx, sourceKey, item.id)
+        markSeenInState(sourceKey, setOf(item.id))
+    }
+
+    /** Kaynağın yüklü tüm bildirimlerini okundu sayar ("Tümünü okundu işaretle"). */
+    fun markAllNotificationsSeen(sourceKey: String) {
+        val current = when (sourceKey) {
+            "simkl" -> _tmdbSimkl.value
+            "kitsu" -> _kitsu.value
+            "shikimori" -> _shikimori.value
+            "bangumi" -> _bangumi.value
+            "anilist" -> getAniListState(AniListFilter.ALL).value
+            else -> null
+        } ?: return
+        val ids = current.items.filter { it.isUnread }.map { it.id }.toSet()
+        if (ids.isEmpty()) return
+        NotifSeenStore.markAllSeen(ctx, sourceKey, ids)
+        markSeenInState(sourceKey, ids)
+    }
+
+    /** Yüklü listelerde isUnread=false yapar (ağ isteği yok). */
+    private fun markSeenInState(sourceKey: String, ids: Set<String>) {
+        fun NotifUiState.cleared(): NotifUiState =
+            copy(items = items.map { if (it.id in ids && it.isUnread) it.copy(isUnread = false) else it })
+
+        when (sourceKey) {
+            "simkl" -> _tmdbSimkl.value = _tmdbSimkl.value.cleared()
+            "kitsu" -> _kitsu.value = _kitsu.value.cleared()
+            "shikimori" -> _shikimori.value = _shikimori.value.cleared()
+            "bangumi" -> _bangumi.value = _bangumi.value.cleared()
+            "anilist" -> AniListFilter.entries.forEach { filter ->
+                val flow = _aniListStates.getValue(filter)
+                flow.value = flow.value.cleared()
+            }
+            "mal" -> _mal.value = _mal.value.cleared()
+        }
     }
 
     private fun NotifItem.toArchived(): NotificationArchiveStore.ArchivedNotif =
@@ -1091,7 +1156,7 @@ class KitsugiNotificationsViewModel(application: Application) : AndroidViewModel
                     }
 
                 _tmdbSimkl.value = NotifUiState(
-                    items = archiveAndMerge("Simkl", items),
+                    items = archiveAndMerge("Simkl", items).withLocalSeen("simkl"),
                     isLoading = false,
                     hasMore = false,
                     notice = notice
@@ -1209,7 +1274,7 @@ class KitsugiNotificationsViewModel(application: Application) : AndroidViewModel
                     ctx.getString(R.string.notif_notice_kitsu_api)
 
                 _kitsu.value = NotifUiState(
-                    items = archiveAndMerge("Kitsu", items),
+                    items = archiveAndMerge("Kitsu", items).withLocalSeen("kitsu"),
                     isLoading = false,
                     hasMore = false,
                     notice = notice
@@ -1467,7 +1532,7 @@ class KitsugiNotificationsViewModel(application: Application) : AndroidViewModel
                 }
 
                 _bangumi.value = NotifUiState(
-                    items = archiveAndMerge("Bangumi", items),
+                    items = archiveAndMerge("Bangumi", items).withLocalSeen("bangumi"),
                     isLoading = false,
                     hasMore = false,
                     notice = notice
@@ -1533,7 +1598,7 @@ class KitsugiNotificationsViewModel(application: Application) : AndroidViewModel
                     } ?: ""
 
                     _shikimori.value = NotifUiState(
-                        items = items,
+                        items = items.withLocalSeen("shikimori", serverState = true),
                         isLoading = false,
                         hasMore = false,
                         notice = ctx.getString(R.string.notif_notice_shikimori_real, items.size) + unreadText

@@ -40,6 +40,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.ArrowDropDown
 import androidx.compose.material.icons.rounded.BugReport
+import androidx.compose.material.icons.rounded.DoneAll
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.KeyboardArrowUp
@@ -364,7 +365,9 @@ internal fun NotifChromeHeader(
     onDiagnostics: () -> Unit,
     onSelectTab: (NotifFilterTab) -> Unit,
     /** Seçili kaynak şu anda veri çekiyor mu? (yenile simgesi döner) */
-    isRefreshing: Boolean = false
+    isRefreshing: Boolean = false,
+    /** Okundu durumu yerelde tutulan kaynaklarda "Tümünü okundu" eylemi. */
+    onMarkAllRead: (() -> Unit)? = null
 ) {
     Column(
         modifier = Modifier
@@ -421,6 +424,7 @@ internal fun NotifChromeHeader(
                 selectedKey = selectedTabKey,
                 accentColor = accentColor,
                 onSelect = onSelectTab,
+                onMarkAllRead = onMarkAllRead,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
             )
         }
@@ -579,7 +583,12 @@ internal fun NotifFilterBand(
     selectedKey: String,
     accentColor: Color,
     onSelect: (NotifFilterTab) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /**
+     * Okundu durumu sunucuda tutulmayan kaynaklarda gösterilen son eylem.
+     * "Tümünü okundu işaretle" — dokunuş tek seferde rozeti sıfırlar.
+     */
+    onMarkAllRead: (() -> Unit)? = null
 ) {
     val listState = rememberLazyListState()
     val selectedIndex = remember(tabs, selectedKey) {
@@ -622,7 +631,44 @@ internal fun NotifFilterBand(
                     onClick = { onSelect(tab) }
                 )
             }
+            onMarkAllRead?.let { action ->
+                item(key = "notif_mark_all_read") {
+                    MarkAllReadChip(accentColor = accentColor, onClick = action)
+                }
+            }
         }
+    }
+}
+
+/** Şeridin sonundaki "Tümünü okundu" eylemi (seçili sekmeyi değiştirmez). */
+@Composable
+private fun MarkAllReadChip(
+    accentColor: Color,
+    onClick: () -> Unit
+) {
+    val shape = RoundedCornerShape(22.dp)
+    Row(
+        modifier = Modifier
+            .clip(shape)
+            .border(1.dp, accentColor.copy(alpha = 0.35f), shape)
+            .tvClickable(shape = shape, onClick = onClick)
+            .semantics { role = Role.Button }
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(5.dp)
+    ) {
+        Icon(
+            imageVector = Icons.Rounded.DoneAll,
+            contentDescription = null,
+            tint = accentColor,
+            modifier = Modifier.size(13.dp)
+        )
+        Text(
+            text = stringResource(R.string.notif_mark_all_read),
+            color = accentColor,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.SemiBold
+        )
     }
 }
 
