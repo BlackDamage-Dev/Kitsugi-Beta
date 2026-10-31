@@ -1,5 +1,6 @@
 package com.kitsugi.animelist.ui.app
 
+import com.kitsugi.animelist.data.auth.SourceSyncStatus
 import com.kitsugi.animelist.R
 import com.kitsugi.animelist.utils.KitsugiStrings
 import com.kitsugi.animelist.ui.utils.plainLabel
@@ -499,6 +500,26 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         onShowMessage?.invoke(context.getString(R.string.account_sync_disconnected, displayName))
     }
 
+    /**
+     * Liste içe aktarma hatasını **kaynak adı + halk dili** ile özetler (v2.4.341).
+     *
+     * Eskiden her içe aktarma ekranı ham istisna metnini (`HTTP 401`,
+     * `JSONException: Expected BEGIN_OBJECT`) gösteriyordu; kullanıcı bunun "şifrem
+     * doldu mu, internet mi gitti, sunucu mu kapalı" olduğunu anlayamıyordu. Artık
+     * neden [SourceSyncStatus] ile sınıflandırılır, kalıcı duruma yazılır (Listem
+     * şeridi ve bildirim ekranı aynı cümleyi gösterir) ve kullanıcıya tek cümlelik
+     * açıklama döner.
+     */
+    private fun importFailureMessage(
+        source: SourceSyncStatus.Source,
+        error: Throwable
+    ): String {
+        val text = error.message
+        val reason = SourceSyncStatus.classify(text)
+        SourceSyncStatus.reportFailure(context, source, reason, text)
+        return SourceSyncStatus.describeAction(context, source, reason)
+    }
+
     fun importAniListAnimeList(
         currentEntries: List<MediaEntry>,
         repository: MediaEntryRepository
@@ -538,6 +559,8 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                 if (importResult.isSuccess) {
                     // Liste uzaktan geldi: yerel "son eşitlenen favori" işaretleri geçersiz.
                     AniListSyncManager.resetFavoriteSyncMarkers(context)
+                    // İçe aktarma başarılı: kaynağın hata durumu temizlenir (v2.4.341).
+                    SourceSyncStatus.reportSuccess(context, SourceSyncStatus.Source.ANILIST)
                     onShowMessage?.invoke(context.getString(R.string.account_sync_import_success, importedEntries.size, "AniList"))
                 } else {
                     onShowMessage?.invoke(context.getString(R.string.account_sync_import_save_failed, "AniList", importResult.exceptionOrNull()?.message ?: context.getString(R.string.account_sync_unknown_error)))
@@ -598,13 +621,15 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                     repository.smartImport("mal", importedEntries, allowDelete = false)
                 }
                 if (importResult.isSuccess) {
+                    // İçe aktarma başarılı: kaynağın hata durumu temizlenir (v2.4.341).
+                    SourceSyncStatus.reportSuccess(context, SourceSyncStatus.Source.MAL)
                     onShowMessage?.invoke(context.getString(R.string.account_sync_import_success, importedEntries.size, "MyAnimeList"))
                 } else {
                     onShowMessage?.invoke(context.getString(R.string.account_sync_import_save_failed, "MyAnimeList", importResult.exceptionOrNull()?.message ?: context.getString(R.string.account_sync_unknown_error)))
                 }
             }.onFailure { error ->
                 onShowMessage?.invoke(
-                    error.message ?: context.getString(R.string.account_sync_import_failed, "MyAnimeList")
+                    importFailureMessage(SourceSyncStatus.Source.MAL, error)
                 )
             }
 
@@ -2147,12 +2172,14 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                     repository.smartImport("kitsu", importedEntries, allowDelete = false)
                 }
                 if (importResult.isSuccess) {
+                    // İçe aktarma başarılı: kaynağın hata durumu temizlenir (v2.4.341).
+                    SourceSyncStatus.reportSuccess(context, SourceSyncStatus.Source.KITSU)
                     onShowMessage?.invoke(context.getString(R.string.account_sync_import_success, importedEntries.size, "Kitsu"))
                 } else {
                     onShowMessage?.invoke(context.getString(R.string.account_sync_import_save_failed, "Kitsu", importResult.exceptionOrNull()?.message ?: context.getString(R.string.account_sync_unknown_error)))
                 }
             }.onFailure { error ->
-                onShowMessage?.invoke(error.message ?: context.getString(R.string.account_sync_import_failed, "Kitsu"))
+                onShowMessage?.invoke(importFailureMessage(SourceSyncStatus.Source.KITSU, error))
             }
 
             isKitsuImportRunning = false
@@ -2190,12 +2217,14 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                     repository.smartImport("shikimori", importedEntries, allowDelete = false)
                 }
                 if (importResult.isSuccess) {
+                    // İçe aktarma başarılı: kaynağın hata durumu temizlenir (v2.4.341).
+                    SourceSyncStatus.reportSuccess(context, SourceSyncStatus.Source.SHIKIMORI)
                     onShowMessage?.invoke(context.getString(R.string.account_sync_import_success, importedEntries.size, "Shikimori"))
                 } else {
                     onShowMessage?.invoke(context.getString(R.string.account_sync_import_save_failed, "Shikimori", importResult.exceptionOrNull()?.message ?: context.getString(R.string.account_sync_unknown_error)))
                 }
             }.onFailure { error ->
-                onShowMessage?.invoke(error.message ?: context.getString(R.string.account_sync_import_failed, "Shikimori"))
+                onShowMessage?.invoke(importFailureMessage(SourceSyncStatus.Source.SHIKIMORI, error))
             }
 
             isShikimoriImportRunning = false
@@ -2292,6 +2321,8 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                     repository.smartImport("bangumi", importedEntries, allowDelete = false)
                 }
                 if (importResult.isSuccess) {
+                    // İçe aktarma başarılı: kaynağın hata durumu temizlenir (v2.4.341).
+                    SourceSyncStatus.reportSuccess(context, SourceSyncStatus.Source.BANGUMI)
                     onShowMessage?.invoke(context.getString(R.string.account_sync_import_success, importedEntries.size, "Bangumi"))
                     // Koleksiyon satırları yalnızca özgün (Japonca/Çince) adla gelir.
                     // Aktarım biter bitmez Latin/İngilizce adları tamamla; aksi halde
@@ -2304,7 +2335,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                     )
                 }
             }.onFailure { error ->
-                onShowMessage?.invoke(error.message ?: context.getString(R.string.account_sync_import_failed, "Bangumi"))
+                onShowMessage?.invoke(importFailureMessage(SourceSyncStatus.Source.BANGUMI, error))
             }
 
             isBangumiImportRunning = false
@@ -2359,13 +2390,15 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                     repository.smartImport("simkl", importedEntries, allowDelete = false)
                 }
                 if (importResult.isSuccess) {
+                    // İçe aktarma başarılı: kaynağın hata durumu temizlenir (v2.4.341).
+                    SourceSyncStatus.reportSuccess(context, SourceSyncStatus.Source.SIMKL)
                     onShowMessage?.invoke(context.getString(R.string.account_sync_import_success, importedEntries.size, "Simkl"))
                 } else {
                     onShowMessage?.invoke(context.getString(R.string.account_sync_import_save_failed, "Simkl", importResult.exceptionOrNull()?.message ?: context.getString(R.string.account_sync_unknown_error)))
                 }
             }.onFailure { error ->
                 onShowMessage?.invoke(
-                    error.message ?: context.getString(R.string.account_sync_import_failed, "Simkl")
+                    importFailureMessage(SourceSyncStatus.Source.SIMKL, error)
                 )
             }
 

@@ -311,7 +311,18 @@ class KitsugiApplication : Application(), SingletonImageLoader.Factory {
                 )
                 val sent = repo.drainPendingQueue(freshBudget = true)
                 if (sent > 0) {
-                    com.kitsugi.animelist.data.auth.AniListSyncStatus.reportSuccess(this@KitsugiApplication)
+                    // Kuyruğu boşalan kaynakların durumu "sorunsuz"a çekilir.
+                    val remaining = repo.pendingSyncBySource()
+                    com.kitsugi.animelist.data.auth.SourceSyncStatus.Source.entries.forEach { source ->
+                        if ((remaining[source] ?: 0) == 0) {
+                            val snapshot = com.kitsugi.animelist.data.auth.SourceSyncStatus
+                                .snapshot(this@KitsugiApplication, source)
+                            if (!snapshot.isHealthy) {
+                                com.kitsugi.animelist.data.auth.SourceSyncStatus
+                                    .reportSuccess(this@KitsugiApplication, source)
+                            }
+                        }
+                    }
                     android.util.Log.d("KitsugiAutoSync", "Bekleyen $sent değişiklik gönderildi.")
                 }
             }
@@ -352,14 +363,18 @@ class KitsugiApplication : Application(), SingletonImageLoader.Factory {
                             // eşleşen satırlar güncellenir, yerelde kalanlar SİLİNMEZ, bekleyen
                             // değişikliği olan satırlar uzak veriyle ezilmez.
                             repo.smartImport("anilist", entries, allowDelete = false)
-                            com.kitsugi.animelist.data.auth.AniListSyncStatus.reportSuccess(this@KitsugiApplication)
+                            com.kitsugi.animelist.data.auth.SourceSyncStatus.reportSuccess(
+                                this@KitsugiApplication,
+                                com.kitsugi.animelist.data.auth.SourceSyncStatus.Source.ANILIST
+                            )
                             syncCount += entries.size
                             android.util.Log.d("KitsugiAutoSync", "AniList: ${entries.size} kayıt yenilendi.")
                         } catch (e: Exception) {
                             android.util.Log.w("KitsugiAutoSync", "AniList yenileme hatası: ${e.message}")
-                            com.kitsugi.animelist.data.auth.AniListSyncStatus.reportFailure(
+                            com.kitsugi.animelist.data.auth.SourceSyncStatus.reportFailure(
                                 this@KitsugiApplication,
-                                com.kitsugi.animelist.data.auth.AniListSyncStatus.classify(
+                                com.kitsugi.animelist.data.auth.SourceSyncStatus.Source.ANILIST,
+                                com.kitsugi.animelist.data.auth.SourceSyncStatus.classify(
                                     e.message,
                                     com.kitsugi.animelist.data.auth.AniListGate.isCoolingDown()
                                 ),
@@ -377,10 +392,20 @@ class KitsugiApplication : Application(), SingletonImageLoader.Factory {
                             val showAdult = dataStore.settingsFlow.first().showAdultContent
                             val entries = com.kitsugi.animelist.data.auth.MalImportManager.fetchAllLists(malToken, showAdult)
                             repo.smartImport("mal", entries, allowDelete = false) // v2.4.341: sil-yaz yerine birleştir (yerel kayıtlar korunur)
+                            com.kitsugi.animelist.data.auth.SourceSyncStatus.reportSuccess(
+                                this@KitsugiApplication,
+                                com.kitsugi.animelist.data.auth.SourceSyncStatus.Source.MAL
+                            )
                             syncCount += entries.size
                             android.util.Log.d("KitsugiAutoSync", "MAL: ${entries.size} kayıt yenilendi.")
                         } catch (e: Exception) {
                             android.util.Log.w("KitsugiAutoSync", "MAL yenileme hatası: ${e.message}")
+                            com.kitsugi.animelist.data.auth.SourceSyncStatus.reportFailure(
+                                this@KitsugiApplication,
+                                com.kitsugi.animelist.data.auth.SourceSyncStatus.Source.MAL,
+                                com.kitsugi.animelist.data.auth.SourceSyncStatus.classify(e.message),
+                                e.message
+                            )
                         }
                     }
 
@@ -393,10 +418,20 @@ class KitsugiApplication : Application(), SingletonImageLoader.Factory {
                             // Simkl liste API'si `adult` taşımaz → eski +18 işaretleri
                             // korunmalı ve hemen ardından kimlik üzerinden tamamlanmalı.
                             repo.smartImport("simkl", entries, allowDelete = false) // v2.4.341: sil-yaz yerine birleştir (yerel kayıtlar korunur)
+                            com.kitsugi.animelist.data.auth.SourceSyncStatus.reportSuccess(
+                                this@KitsugiApplication,
+                                com.kitsugi.animelist.data.auth.SourceSyncStatus.Source.SIMKL
+                            )
                             syncCount += entries.size
                             android.util.Log.d("KitsugiAutoSync", "Simkl: ${entries.size} kayıt yenilendi.")
                         } catch (e: Exception) {
                             android.util.Log.w("KitsugiAutoSync", "Simkl yenileme hatası: ${e.message}")
+                            com.kitsugi.animelist.data.auth.SourceSyncStatus.reportFailure(
+                                this@KitsugiApplication,
+                                com.kitsugi.animelist.data.auth.SourceSyncStatus.Source.SIMKL,
+                                com.kitsugi.animelist.data.auth.SourceSyncStatus.classify(e.message),
+                                e.message
+                            )
                         }
                     }
 

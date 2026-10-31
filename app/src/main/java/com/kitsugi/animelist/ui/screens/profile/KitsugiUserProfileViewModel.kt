@@ -681,7 +681,14 @@ class KitsugiUserProfileViewModel(application: Application) : AndroidViewModel(a
                         val waitMs = com.kitsugi.animelist.data.auth.AniListGate.cooldownRemainingMs()
                         throw com.kitsugi.animelist.data.auth.AniListGate.QuotaExhaustedException(
                             waitMs,
-                            com.kitsugi.animelist.data.auth.AniListGate.quotaMessage(waitMs)
+                            // Kullanıcıya gösterilecek metin: dile ve "halk dili" kuralına uygun
+                            // (kapı içindeki ham mesaj yerine kaynak adıyla yazılır).
+                            context.getString(
+                                com.kitsugi.animelist.R.string.sync_snack_quota,
+                                "AniList",
+                                1,
+                                (waitMs / 1_000L).coerceAtLeast(1L)
+                            )
                         )
                     }
                     if (!response.isSuccessful) {

@@ -6023,24 +6023,27 @@ Eklentiler ekranından eklenti etkinleştirin.</string>
     <string name="account_sync_anilist_user_id_unavailable">AniList kullanıcı kimliği alınamadı (token geçersiz olabilir)</string>
     <string name="account_sync_anilist_rate_limit">AniList API hatası: 429 hız sınırı (%1$d deneme, Retry-After=%2$ds)</string>
     <string name="account_sync_anilist_quota_wait">⏳ AniList istek sınırı doldu — %1$d sn sonra kendiliğinden yeniden denenecek (kaydın yerelde güvende)</string>
-    <!-- v2.4.341: AniList eşitleme durumu — "neden eşitlenmiyor?" şeridi ve mesajları -->
-    <string name="anilist_sync_stalled_quota">⏳ AniList istek sınırı doldu — %1$d değişiklik %2$d sn sonra kendiliğinden gönderilecek</string>
-    <string name="anilist_sync_stalled_auth">🔑 AniList oturumu geçersiz — %1$d değişiklik gönderilemiyor. Ayarlar &gt; Platformlar üzerinden yeniden giriş yapın.</string>
-    <string name="anilist_sync_stalled_not_connected">🔌 AniList bağlı değil — %1$d değişiklik yalnızca bu cihazda duruyor</string>
-    <string name="anilist_sync_stalled_disabled">⚙️ AniList eşitlemesi ayarlardan kapalı — %1$d değişiklik yalnızca bu cihazda duruyor</string>
-    <string name="anilist_sync_stalled_offline">📵 İnternet yok — %1$d değişiklik bağlantı gelince gönderilecek</string>
-    <string name="anilist_sync_stalled_service">🛠 AniList API geçici olarak kapalı — %1$d değişiklik daha sonra gönderilecek</string>
-    <string name="anilist_sync_stalled_identity">🔎 %1$d değişikliğin AniList karşılığı doğrulanamadı (yanlış yapıma yazmamak için beklemede)</string>
-    <string name="anilist_sync_stalled_generic">⚠️ %1$d değişiklik AniList ile eşitlenemedi</string>
-    <string name="anilist_sync_retry_now">Şimdi dene</string>
-    <string name="anilist_sync_retried_n">%1$d değişiklik AniList ile eşitlendi</string>
-    <string name="anilist_sync_snack_auth">🔑 AniList oturumu geçersiz — Ayarlar &gt; Platformlar üzerinden yeniden giriş yapın (değişiklik kuyrukta bekliyor)</string>
-    <string name="anilist_sync_snack_offline">📵 İnternet yok — değişiklik bağlantı gelince gönderilecek</string>
-    <string name="anilist_sync_snack_service">🛠 AniList geçici olarak kapalı — değişiklik daha sonra gönderilecek</string>
-    <string name="anilist_sync_snack_identity">🔎 Bu kaydın AniList karşılığı doğrulanamadı — yanlış yapıma yazmamak için atlandı</string>
-    <string name="anilist_sync_snack_not_connected">🔌 AniList bağlı değil — değişiklik yalnızca bu cihazda duruyor</string>
-    <string name="anilist_sync_snack_disabled">⚙️ AniList eşitlemesi kapalı — değişiklik yalnızca bu cihazda duruyor</string>
-    <string name="anilist_sync_snack_generic">📵 AniList bağlantısı kurulamadı — değişiklik kuyruğa alındı, bağlantı gelince gönderilecek</string>
+    <!-- v2.4.341: kaynak bağımsız eşitleme durumu — "neden eşitlenmiyor?" (halk dili) -->
+    <string name="sync_status_quota">⏳ %1$s istek sınırı doldu — %2$d değişiklik %3$d sn sonra kendiliğinden gönderilecek</string>
+    <string name="sync_status_auth">🔑 %1$s oturumu geçersiz — %2$d değişiklik gönderilemiyor. Ayarlar &gt; Platformlar üzerinden yeniden giriş yapın.</string>
+    <string name="sync_status_not_connected">🔌 %1$s hesabı bağlı değil — %2$d değişiklik yalnızca bu cihazda duruyor</string>
+    <string name="sync_status_disabled">⚙️ %1$s eşitlemesi ayarlardan kapalı — %2$d değişiklik yalnızca bu cihazda duruyor</string>
+    <string name="sync_status_offline">📵 İnternet yok — %1$s için %2$d değişiklik bağlantı gelince gönderilecek</string>
+    <string name="sync_status_service">🛠 %1$s servisi geçici olarak yanıt vermiyor — %2$d değişiklik daha sonra gönderilecek</string>
+    <string name="sync_status_identity">🔎 %1$s: %2$d değişikliğin yapım karşılığı doğrulanamadı (yanlış kayda yazmamak için beklemede)</string>
+    <string name="sync_status_generic">⚠️ %1$s: %2$d değişiklik gönderilemedi</string>
+    <string name="sync_snack_quota">⏳ %1$s istek sınırı doldu — %2$d değişiklik %3$d sn sonra gönderilecek</string>
+    <string name="sync_snack_auth">🔑 %1$s oturumu geçersiz — yeniden giriş yapın; değişiklik kuyrukta bekliyor</string>
+    <string name="sync_snack_not_connected">🔌 %1$s hesabı bağlı değil — değişiklik yalnızca bu cihazda duruyor</string>
+    <string name="sync_snack_disabled">⚙️ %1$s eşitlemesi kapalı — değişiklik yalnızca bu cihazda duruyor</string>
+    <string name="sync_snack_offline">📵 İnternet yok — %1$s değişikliği bağlantı gelince gönderilecek</string>
+    <string name="sync_snack_service">🛠 %1$s servisi şu an yanıt vermiyor — değişiklik daha sonra gönderilecek</string>
+    <string name="sync_snack_identity">🔎 %1$s: bu yapımın karşılığı doğrulanamadı — yanlış kayda yazmamak için atlandı</string>
+    <string name="sync_snack_generic">⚠️ %1$s — değişiklik şu an gönderilemedi, kuyrukta bekliyor (kendiliğinden yeniden denenecek)</string>
+    <string name="sync_status_title">Arka planda ne oluyor?</string>
+    <string name="sync_retry_now">Şimdi dene</string>
+    <string name="sync_retried_n">%1$d değişiklik gönderildi</string>
+    <string name="sync_status_all_ok">✅ Tüm bağlı kaynaklarla eşitleme sorunsuz</string>
     <string name="account_sync_anilist_quota_refresh">⏳ AniList istek sınırı doldu — liste %1$d sn sonra yeniden çekilebilir</string>
     <string name="account_sync_mal_type_unsupported">MAL yalnızca anime/manga destekler</string>
     <string name="account_sync_mal_id_invalid">Geçerli MAL kimliği bulunamadı</string>

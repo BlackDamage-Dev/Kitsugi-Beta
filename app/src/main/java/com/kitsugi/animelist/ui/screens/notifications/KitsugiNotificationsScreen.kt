@@ -343,6 +343,14 @@ fun KitsugiNotificationsScreen(
             )
         }
 
+        // ── "Arka planda ne oluyor?" (v2.4.341) ──
+        // Bildirimler yalnızca okuma değil; arka plan eşitlemesinin durumu da burada
+        // görünür: hangi kaynak neden bekliyor, kaç değişiklik kuyrukta. Sorun yoksa
+        // kart hiç çizilmez.
+        com.kitsugi.animelist.ui.components.SourceSyncStatusCard(
+            modifier = Modifier.padding(horizontal = if (isLandscape) 18.dp else 16.dp)
+        )
+
         HorizontalDivider(
             color = KitsugiColors.SurfaceStrong.copy(alpha = 0.5f),
             modifier = Modifier.fillMaxWidth()

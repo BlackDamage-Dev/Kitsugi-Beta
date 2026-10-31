@@ -6021,24 +6021,27 @@
     <string name="account_sync_anilist_user_id_unavailable">Could not retrieve the AniList user ID (the token may be invalid).</string>
     <string name="account_sync_anilist_rate_limit">AniList API error: rate limit 429 (%1$d attempts, Retry-After=%2$ds).</string>
     <string name="account_sync_anilist_quota_wait">⏳ AniList rate limit reached — retrying automatically in %1$d s (your change is saved locally)</string>
-    <!-- v2.4.341: AniList sync status — "why isn't it syncing?" banner and messages -->
-    <string name="anilist_sync_stalled_quota">⏳ AniList rate limit reached — %1$d change(s) will be sent automatically in %2$d s</string>
-    <string name="anilist_sync_stalled_auth">🔑 AniList session is invalid — %1$d change(s) cannot be sent. Sign in again via Settings &gt; Platforms.</string>
-    <string name="anilist_sync_stalled_not_connected">🔌 AniList is not connected — %1$d change(s) live only on this device</string>
-    <string name="anilist_sync_stalled_disabled">⚙️ AniList sync is disabled in settings — %1$d change(s) live only on this device</string>
-    <string name="anilist_sync_stalled_offline">📵 No internet — %1$d change(s) will be sent when the connection returns</string>
-    <string name="anilist_sync_stalled_service">🛠 AniList API is temporarily unavailable — %1$d change(s) will be sent later</string>
-    <string name="anilist_sync_stalled_identity">🔎 Could not verify the AniList match for %1$d change(s) (held back to avoid writing to the wrong title)</string>
-    <string name="anilist_sync_stalled_generic">⚠️ %1$d change(s) could not be synced with AniList</string>
-    <string name="anilist_sync_retry_now">Retry now</string>
-    <string name="anilist_sync_retried_n">%1$d change(s) synced with AniList</string>
-    <string name="anilist_sync_snack_auth">🔑 AniList session is invalid — sign in again via Settings &gt; Platforms (your change is queued)</string>
-    <string name="anilist_sync_snack_offline">📵 No internet — the change will be sent when the connection returns</string>
-    <string name="anilist_sync_snack_service">🛠 AniList is temporarily unavailable — the change will be sent later</string>
-    <string name="anilist_sync_snack_identity">🔎 Could not verify this title on AniList — skipped to avoid writing to the wrong entry</string>
-    <string name="anilist_sync_snack_not_connected">🔌 AniList is not connected — the change stays on this device only</string>
-    <string name="anilist_sync_snack_disabled">⚙️ AniList sync is disabled — the change stays on this device only</string>
-    <string name="anilist_sync_snack_generic">📵 Could not reach AniList — the change is queued and will be sent once it is reachable</string>
+    <!-- v2.4.341: source-agnostic sync status — "why isn't it syncing?" (plain language) -->
+    <string name="sync_status_quota">⏳ %1$s rate limit reached — %2$d change(s) will be sent automatically in %3$d s</string>
+    <string name="sync_status_auth">🔑 %1$s session is invalid — %2$d change(s) cannot be sent. Sign in again via Settings &gt; Platforms.</string>
+    <string name="sync_status_not_connected">🔌 %1$s is not connected — %2$d change(s) live only on this device</string>
+    <string name="sync_status_disabled">⚙️ %1$s sync is disabled in settings — %2$d change(s) live only on this device</string>
+    <string name="sync_status_offline">📵 No internet — %2$d change(s) for %1$s will be sent when the connection returns</string>
+    <string name="sync_status_service">🛠 %1$s is temporarily unavailable — %2$d change(s) will be sent later</string>
+    <string name="sync_status_identity">🔎 %1$s: the title match for %2$d change(s) could not be verified (held back to avoid writing to the wrong entry)</string>
+    <string name="sync_status_generic">⚠️ %1$s: %2$d change(s) could not be sent</string>
+    <string name="sync_snack_quota">⏳ %1$s rate limit reached — %2$d change(s) will be sent in %3$d s</string>
+    <string name="sync_snack_auth">🔑 %1$s session is invalid — sign in again; your change is queued</string>
+    <string name="sync_snack_not_connected">🔌 %1$s is not connected — the change stays on this device only</string>
+    <string name="sync_snack_disabled">⚙️ %1$s sync is disabled — the change stays on this device only</string>
+    <string name="sync_snack_offline">📵 No internet — the %1$s change will be sent when the connection returns</string>
+    <string name="sync_snack_service">🛠 %1$s is not responding right now — the change will be sent later</string>
+    <string name="sync_snack_identity">🔎 %1$s: could not verify this title — skipped to avoid writing to the wrong entry</string>
+    <string name="sync_snack_generic">⚠️ %1$s — the change could not be sent right now; it is queued and will be retried automatically</string>
+    <string name="sync_status_title">What is happening in the background?</string>
+    <string name="sync_retry_now">Retry now</string>
+    <string name="sync_retried_n">%1$d change(s) sent</string>
+    <string name="sync_status_all_ok">✅ Sync with all connected sources is healthy</string>
     <string name="account_sync_anilist_quota_refresh">⏳ AniList rate limit reached — the list can be refreshed again in %1$d s</string>
     <string name="account_sync_mal_type_unsupported">MAL only supports anime and manga.</string>
     <string name="account_sync_mal_id_invalid">A valid MAL ID was not found.</string>

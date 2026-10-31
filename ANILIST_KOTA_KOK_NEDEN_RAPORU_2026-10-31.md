@@ -405,3 +405,78 @@ Yeni `AniListSyncStatus` (yeni dosya) son başarılı yazmanın zamanını ve so
   ayrımı yapılır. Aynı gerekçe 2 dakikada bir defadan sık gösterilmez.
 - **Başarılı görünen ama AniList'in atlandığı** turlar (bağlı değil / kimlik çözülemedi /
   kapalı) artık sessiz değil: durum kaydedilir ve şeritte görünür.
+
+---
+
+# 9. Üçüncü tur — TÜM kaynaklar, TÜM ekranlar, halk dili (v2.4.341)
+
+Kullanıcı talebi: *"Bir kaynağa ait durum/uyarı/bilgi nerede görünüyorsa — sadece
+AniList değil, MyAnimeList, Kitsu, Shikimori, Bangumi, Simkl, TMDB, eklenti
+kaynakları da — doğru mantık ve doğru cümleyle, sade günlük dille yazılsın."*
+
+## 9.1 İncelenen yerler (envanter)
+
+| Alan | Durum (öncesi) | v2.4.341 |
+|------|----------------|----------|
+| Listem / kitaplık | Yalnız AniList için şerit; diğer beş kaynağın durumu **hiç yok** | `SourceSyncStatus` + kaynak kaynak şerit, bekleyen sayısı, "Şimdi dene" |
+| Tek işlem bildirimi (ekle/düzenle/sil) | Her hata "📵 Çevrimdışı kaydedildi" | Kota / oturum / bağlı değil / kapalı / internet / servis / kimlik ayrımı |
+| Bildirimler ekranı | Yalnız hata kaydı listesi | Üstte kaynak durum kartı (aynı cümleler) |
+| Liste içe aktarma (6 kaynak) | Ham istisna metni (`HTTP 401`, `JSONException`) | Kaynak adı + sınıflandırılmış halk dili cümlesi |
+| Arama / Keşfet / detay / sezon takvimi / çapraz senkron | Hata kodu rozeti + "ne oldu / ne yapmalı" bloğu vardı ama **kaynak eşitleme** durumu yok | Ayrıca eşitleme hataları `PlatformFailureRegistry`'ye yazılıyor → rozet/panel aynı dili konuşuyor |
+| Profil ekranları (kendi/profil) | Kota uyarısı "bekleyin" diyordu, süre yok | Süre + kaynak adı |
+| Manga/eklenti kaynak sağlığı (KTS-SRC / KTS-CSP kodları) | Kod + açıklama vardı | **Değişmedi** — bu aile ayrı; bkz. 9.4 |
+
+## 9.2 Tek doğruluk kaynağı: `SourceSyncStatus`
+
+`data/auth/SourceSyncStatus.kt` (eski `AniListSyncStatus` yerine) altı kaynak için
+kalıcı durum tutar: `ANILIST, MAL, KITSU, SHIKIMORI, SIMKL, BANGUMI`.
+Gerekçeler: `NONE, OK, QUOTA, AUTH, NOT_CONNECTED, DISABLED, OFFLINE, SERVICE_DOWN,
+IDENTITY, UNKNOWN`.
+
+Aynı cümleler üç yerde kullanılır: Listem şeridi, bildirim ekranı kartı, işlem
+bildirimleri. Metinler (`describe`, `describeAction`) şöyle:
+
+```
+⏳ AniList istek sınırı doldu — 12 değişiklik 43 sn sonra kendiliğinden gönderilecek
+🔑 MyAnimeList oturumu geçersiz — 3 değişiklik gönderilemiyor. Ayarlar > Platformlar üzerinden yeniden giriş yapın.
+🔌 Kitsu hesabı bağlı değil — 5 değişiklik yalnızca bu cihazda duruyor
+⚙️ Shikimori eşitlemesi ayarlardan kapalı — 2 değişiklik yalnızca bu cihazda duruyor
+📵 İnternet yok — Simkl için 1 değişiklik bağlantı gelince gönderilecek
+🛠 Bangumi servisi geçici olarak yanıt vermiyor — 4 değişiklik daha sonra gönderilecek
+🔎 AniList: 2 değişikliğin yapım karşılığı doğrulanamadı (yanlış kayda yazmamak için beklemede)
+```
+
+**Bilgi ≠ hata:** `DISABLED` ve `NOT_CONNECTED` kullanıcının bilinçli seçimi / henüz
+kurulmamış bir bağlantı. `SourceSyncStatus.isError(reason)` bunları ayırır; şerit ve
+kart **nötr ton** kullanır, gerçek arızalarda (kota/oturum/internet/servis/kimlik)
+kırmızı ton kullanılır.
+
+## 9.3 Sessiz kalan yerler kapatıldı
+
+- `KitsugiApplication` açılış boşaltması ve AniList/MAL/Simkl otomatik senkronu artık
+  kaynak başına `reportSuccess` / `reportFailure` yazar → "hiçbir şey eşitlenmiyor ama
+  neden yok" durumu kalmadı.
+- `ExternalListSyncManager.sourceFailure(...)` her yazma hatasını
+  `PlatformFailureRegistry`'ye de kaydeder → hata kodu rozetinden "ne oldu / ne yapmalı"
+  görülebilir.
+- Liste içe aktarma hataları `importFailureMessage(...)` ile kaynak adı + sınıflandırma
+  üretir; içe aktarma başarısı da kaynağın eski hata durumunu temizler.
+- Profil ekranlarındaki kota uyarısı artık kaynak adı + kalan saniye içeriyor.
+
+## 9.4 Kasıtlı olarak ayrı tutulan kod aileleri
+
+- `data/platform/PlatformErrorCode.kt` → **KTS-ANL/MAL/KIT/SHK/BGM/SIM/TMDB-…** uç nokta
+  hataları (65 kod; `pf_err_<prefix>_<NNNN>_<title|why|fix>` anahtarları, TR+EN tam).
+- `data/diagnostics/PlatformErrorCatalog.kt` → **KTS-SRC-90xx** (manga kaynağı) ve
+  **KTS-CSP-91xx** (CloudStream eklentisi) kodları; `platform_error_src_*` /
+  `platform_error_csp_*` anahtarları.
+
+İkisi **kopya değil**, farklı arıza aileleri. Birleştirilmemeli; kullanıcıya gösterilen
+numara şeması (KTS-…) korunmalı.
+
+## 9.5 Doğrulama
+
+- `R.string.*` taraması: Kotlin'de referans verilen **tüm** anahtarlar `res/values/*.xml`
+  içinde var (0 eksik).
+- XML'ler parse ediliyor; yeni anahtarlar TR+EN çift.
+- `./gradlew :app:testDebugUnitTest` (kullanıcı tarafında çalıştırılacak).

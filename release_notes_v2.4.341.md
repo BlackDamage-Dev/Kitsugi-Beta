@@ -67,6 +67,26 @@
 - Başarılı görünen ama AniList'in **atlandığı** turlar (bağlı değil / kimlik / kapalı)
   artık sessiz değil.
 
+### 🌍 "Arka planda ne oluyor?" — Artık **tüm** kaynaklar için, sade dille
+- **AniList ile sınırlı değil:** MyAnimeList, Kitsu, Shikimori, Simkl ve Bangumi'nin
+  eşitleme durumu da aynı yerde, aynı cümleyle gösteriliyor. Listem ekranındaki şerit ve
+  Bildirimler ekranındaki yeni kart kaynak kaynak yazıyor:
+  - `⏳ AniList istek sınırı doldu — 12 değişiklik 43 sn sonra kendiliğinden gönderilecek`
+  - `🔑 MyAnimeList oturumu geçersiz — 3 değişiklik gönderilemiyor. Ayarlar > Platformlar üzerinden yeniden giriş yapın.`
+  - `🔌 Kitsu hesabı bağlı değil — 5 değişiklik yalnızca bu cihazda duruyor`
+  - `⚙️ Shikimori eşitlemesi ayarlardan kapalı — 2 değişiklik yalnızca bu cihazda duruyor`
+  - `📵 İnternet yok — Simkl için 1 değişiklik bağlantı gelince gönderilecek`
+  - `🛠 Bangumi servisi geçici olarak yanıt vermiyor — 4 değişiklik daha sonra gönderilecek`
+  - `🔎 AniList: 2 değişikliğin yapım karşılığı doğrulanamadı (yanlış kayda yazmamak için beklemede)`
+- **Bilgi, hata gibi bağırmıyor:** "kapalı" ve "bağlı değil" satırları nötr renkte;
+  kırmızı yalnızca gerçek arızalarda (kota, oturum, internet, servis, kimlik).
+- **Sessiz kalan yerler kapandı:** açılıştaki otomatik eşitleme ve liste yenileme artık
+  kaynak başına sonuç yazıyor; liste içe aktarma hataları ham `HTTP 401` yerine
+  "oturum geçersiz, yeniden giriş yapın" diyor; eşitleme hataları hata kodu kaydına da
+  düşüyor, böylece arama/detay ekranlarındaki kod rozetinden aynı açıklama okunabiliyor.
+- **Profil ekranları:** kota uyarısı artık kaynağı ve kalan saniyeyi söylüyor
+  (eskiden yalnız "bekleyin" diyordu).
+
 ---
 
 ## 🇬🇧 English
@@ -130,3 +150,22 @@
 - Rate limiting and being offline are now reported separately.
 - Edits deferred by the quota are pushed automatically once the penalty window ends — no
   repeated tapping required.
+
+### 🌍 "What is happening in the background?" — now for **every** source, in plain words
+- **Not just AniList:** the sync state of MyAnimeList, Kitsu, Shikimori, Simkl and Bangumi is
+  shown in the same place with the same wording. The Library banner and a new card on the
+  Notifications screen list them source by source:
+  - `⏳ AniList rate limit reached — 12 changes will be sent automatically in 43 s`
+  - `🔑 MyAnimeList session expired — 3 changes can't be sent. Sign in again in Settings > Platforms.`
+  - `🔌 Kitsu is not connected — 5 changes exist only on this device`
+  - `⚙️ Shikimori sync is turned off — 2 changes exist only on this device`
+  - `📵 No internet — 1 change for Simkl will be sent when you're back online`
+  - `🛠 Bangumi is temporarily unavailable — 4 changes will be sent later`
+  - `🔎 AniList: 2 changes could not be matched to a title (held back to avoid writing to the wrong entry)`
+- **Informational, not alarming:** "turned off" and "not connected" lines use a neutral
+  colour; red is reserved for real failures (quota, session, offline, service, identity).
+- **Silent paths closed:** startup auto-sync and list refresh now record a per-source
+  outcome; import errors say "session expired, sign in again" instead of raw `HTTP 401`;
+  sync failures are also written to the error-code registry, so the code chip on search and
+  detail screens shows the same explanation.
+- **Profile screens:** the quota notice now names the source and the remaining seconds.

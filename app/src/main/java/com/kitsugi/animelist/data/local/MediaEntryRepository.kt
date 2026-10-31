@@ -2,7 +2,7 @@ package com.kitsugi.animelist.data.local
 
 import com.kitsugi.animelist.R
 import com.kitsugi.animelist.data.auth.AniListGate
-import com.kitsugi.animelist.data.auth.AniListSyncStatus
+import com.kitsugi.animelist.data.auth.SourceSyncStatus
 import com.kitsugi.animelist.data.auth.runSyncCatching
 import android.content.Context
 import com.kitsugi.animelist.data.auth.ExternalListSyncManager
@@ -97,15 +97,47 @@ class MediaEntryRepository(
     }
 
     /**
+     * Bekleyen değişikliklerin **kaynak başına** dağılımı.
+     *
+     * Durum şeridi "AniList: 3, MyAnimeList: 1" gibi konuşabilsin diye kuyruk işlerinin
+     * `entryJson` içindeki `source` alanı okunur. (Kaynak bilgisi olmayan işler sayılmaz.)
+     */
+    suspend fun pendingSyncBySource(): Map<SourceSyncStatus.Source, Int> {
+        val queue = pendingSyncDao ?: return emptyMap()
+        val counts = mutableMapOf<SourceSyncStatus.Source, Int>()
+        try {
+            for (job in queue.getAll()) {
+                val source = runCatching {
+                    SourceSyncStatus.Source.fromEntrySource(JSONObject(job.entryJson).optString("source"))
+                }.getOrNull() ?: continue
+                counts[source] = (counts[source] ?: 0) + 1
+            }
+        } catch (e: Exception) {
+            return emptyMap()
+        }
+        return counts
+    }
+
+    /**
      * Kullanıcı "Şimdi dene"ye bastığında: deneme sayaçları tazelenir (5 denemeyi aşmış,
      * "asla denenmeyecek" duruma düşmüş işler dahil) ve kuyruk zorla boşaltılır.
+     *
+     * Gönderim sonrası kuyruğu boşalan kaynakların durumu "sorunsuz"a çekilir; böylece
+     * şerit eski hatayı göstermeye devam etmez.
+     *
      * @return gönderilen işlem sayısı
      */
     suspend fun retryPendingSyncNow(): Int {
         val sent = drainPendingQueue(freshBudget = true)
         val appContext = context
         if (appContext != null && sent > 0) {
-            AniListSyncStatus.reportSuccess(appContext)
+            val remaining = pendingSyncBySource()
+            SourceSyncStatus.Source.entries.forEach { source ->
+                if ((remaining[source] ?: 0) == 0) {
+                    val snapshot = SourceSyncStatus.snapshot(appContext, source)
+                    if (!snapshot.isHealthy) SourceSyncStatus.reportSuccess(appContext, source)
+                }
+            }
         }
         return sent
     }
@@ -481,54 +513,66 @@ class MediaEntryRepository(
     // ────────────────────────────────────────────────
 
     /**
-     * Kullanıcıya gösterilecek, **nedeni açıkça söyleyen** mesaj (v2.4.341).
-     * Eski sürüm hatayı yalnızca "📵 Çevrimdışı kaydedildi" olarak özetliyordu.
+     * Kaynak başına, **halk diliyle** yazılmış tek satırlık eşitleme durumu (v2.4.341).
+     * Örn. "⏳ AniList istek sınırı doldu — 3 değişiklik 42 sn sonra gönderilecek".
      */
-    private fun syncFailureMessage(context: Context, reason: AniListSyncStatus.Reason): String = when (reason) {
-        AniListSyncStatus.Reason.QUOTA -> context.getString(
-            R.string.account_sync_anilist_quota_wait,
-            (AniListGate.cooldownRemainingMs() / 1_000L).coerceAtLeast(1L)
-        )
-        AniListSyncStatus.Reason.AUTH -> context.getString(R.string.anilist_sync_snack_auth)
-        AniListSyncStatus.Reason.OFFLINE -> context.getString(R.string.anilist_sync_snack_offline)
-        AniListSyncStatus.Reason.SERVICE_DOWN -> context.getString(R.string.anilist_sync_snack_service)
-        AniListSyncStatus.Reason.IDENTITY -> context.getString(R.string.anilist_sync_snack_identity)
-        AniListSyncStatus.Reason.NOT_CONNECTED -> context.getString(R.string.anilist_sync_snack_not_connected)
-        AniListSyncStatus.Reason.DISABLED -> context.getString(R.string.anilist_sync_snack_disabled)
-        else -> context.getString(R.string.anilist_sync_snack_generic)
-    }
+    private fun sourceMessage(
+        context: Context,
+        source: SourceSyncStatus.Source,
+        reason: SourceSyncStatus.Reason,
+        pending: Int = 1
+    ): String = SourceSyncStatus.describeAction(context, source, reason, pending)
 
     /** Aynı gerekçeyi 2 dakikada birden fazla göstermemek için. */
-    private fun shouldNotify(reason: AniListSyncStatus.Reason): Boolean {
+    private fun shouldNotify(reason: SourceSyncStatus.Reason, source: SourceSyncStatus.Source): Boolean {
         val now = System.currentTimeMillis()
-        val previous = syncNoticeAt[reason.name] ?: 0L
+        val key = "${source.key}:${reason.name}"
+        val previous = syncNoticeAt[key] ?: 0L
         if (now - previous < 120_000L) return false
-        syncNoticeAt[reason.name] = now
+        syncNoticeAt[key] = now
         return true
     }
 
+    /** Hata metninden sorumlu kaynağı bulur (outcomes yoksa tahmin). */
+    private fun failedSources(
+        entry: MediaEntry,
+        syncResult: ExternalListSyncManager.SyncResult?
+    ): List<SourceSyncStatus.Source> {
+        val fromOutcomes = syncResult?.outcomes.orEmpty()
+            .filterValues { it == ExternalListSyncManager.OUTCOME_FAILED }
+            .keys
+            .mapNotNull { SourceSyncStatus.Source.fromOutcomeLabel(it) }
+        if (fromOutcomes.isNotEmpty()) return fromOutcomes
+        return listOfNotNull(SourceSyncStatus.Source.fromEntrySource(entry.source))
+    }
+
     /**
-     * "Başarılı" görünen bir turda AniList **atlanmışsa** (bağlı değil / kimlik çözülemedi /
-     * ayarlardan kapalı) bunu sessizce yutmak yerine kalıcı duruma ve kullanıcıya taşır.
+     * Sonucu **tüm kaynaklar** için kalıcı duruma yazar ve yalnızca gerçekten sorun
+     * olanlar için kullanıcıya tek satır gösterir.
      *
-     * Eski davranışta bu durumlar `errors` boş olduğu için "başarı" sayılıyor, tek bir mesaj
-     * bile üretilmiyordu: kullanıcı günlerce hiçbir şeyin eşitlenmediğini fark etmiyordu.
+     * Eskiden bu bilgi yalnızca AniList için tutuluyor, MAL/Kitsu/Shikimori/Simkl/Bangumi
+     * atlamaları **tamamen sessiz** kalıyordu.
      */
-    private fun reportAniListOutcome(
+    private fun reportOutcomes(
         context: Context,
         syncResult: ExternalListSyncManager.SyncResult?
     ) {
-        val outcome = syncResult?.outcomes?.get("AniList") ?: return
-        when (val reason = AniListSyncStatus.classifyOutcome(outcome)) {
-            AniListSyncStatus.Reason.OK -> AniListSyncStatus.reportSuccess(context)
-            AniListSyncStatus.Reason.NONE -> Unit
-            else -> {
-                AniListSyncStatus.reportFailure(context, reason, syncResult.skipped.firstOrNull())
-                if (shouldNotify(reason)) {
-                    notifySyncResult(listOf(syncFailureMessage(context, reason)))
+        if (syncResult == null) return
+        val notices = mutableListOf<String>()
+        for ((label, outcome) in syncResult.outcomes) {
+            val source = SourceSyncStatus.Source.fromOutcomeLabel(label) ?: continue
+            when (val reason = SourceSyncStatus.classifyOutcome(outcome)) {
+                SourceSyncStatus.Reason.OK -> SourceSyncStatus.reportSuccess(context, source)
+                SourceSyncStatus.Reason.NONE -> Unit
+                else -> {
+                    SourceSyncStatus.reportFailure(context, source, reason, syncResult.skipped.firstOrNull())
+                    if (shouldNotify(reason, source)) {
+                        notices += sourceMessage(context, source, reason)
+                    }
                 }
             }
         }
+        if (notices.isNotEmpty()) notifySyncResult(notices)
     }
 
     private suspend fun syncEntryIfPossible(
@@ -567,7 +611,7 @@ class MediaEntryRepository(
             val messages = syncResult?.messages.orEmpty()
             if (messages.isNotEmpty()) removeFromQueueIfPresent(entry, "UPDATE")
             notifySyncResult(messages)
-            reportAniListOutcome(appContext, syncResult)
+            reportOutcomes(appContext, syncResult)
 
             // Dual-write: AniList'ten dönen list entry ID'yi yerel DB'ye kaydet
             val newAniListEntryId = syncResult?.aniListEntryId
@@ -580,15 +624,18 @@ class MediaEntryRepository(
         } else {
             enqueuePending("UPDATE", entry)
             val allErrors = syncResult?.errors.orEmpty().joinToString(" | ")
-            // v2.4.341: mesaj artık gerçek nedeni söyler (kota / oturum / internet / API kapalı
-            // / kimlik). Eskiden her hata "📵 Çevrimdışı kaydedildi" diyordu: kullanıcı
-            // internetini kontrol ediyor, sorun değişmiyordu. Gerekçe ayrıca kalıcı olarak
-            // [AniListSyncStatus]'a yazılır → liste ekranındaki durum şeridi gösterir.
-            val reason = AniListSyncStatus.classify(allErrors, AniListGate.isCoolingDown())
-            AniListSyncStatus.reportFailure(appContext, reason, allErrors)
-            if (reason == AniListSyncStatus.Reason.QUOTA) scheduleQuotaResume()
+            // v2.4.341: mesaj artık **hangi kaynak** ve **neden** bilgisini birlikte verir.
+            // Eskiden her hata "📵 Çevrimdışı kaydedildi" diyordu; kullanıcı internetini
+            // kontrol ediyor, sorun değişmiyordu. Kaynak başına gerekçe kalıcı olarak
+            // [SourceSyncStatus]'a yazılır → Listem şeridi ve bildirim ekranı gösterir.
+            val reason = SourceSyncStatus.classify(allErrors, AniListGate.isCoolingDown())
+            val sources = failedSources(entry, syncResult)
+            sources.forEach { source -> SourceSyncStatus.reportFailure(appContext, source, reason, allErrors) }
+            if (reason == SourceSyncStatus.Reason.QUOTA) scheduleQuotaResume()
+            val sourceMessages = sources.map { source -> sourceMessage(appContext, source, reason) }
+                .ifEmpty { listOf(sourceMessage(appContext, SourceSyncStatus.Source.ANILIST, reason)) }
             notifySyncResult(
-                syncResult?.messages.orEmpty() + listOf(syncFailureMessage(appContext, reason)) +
+                syncResult?.messages.orEmpty() + sourceMessages +
                     listOfNotNull(syncOutcomeNote(syncResult?.outcomes))
             )
         }
@@ -618,20 +665,23 @@ class MediaEntryRepository(
             val messages = syncResult?.messages.orEmpty()
             if (messages.isNotEmpty()) removeFromQueueIfPresent(entry, "DELETE")
             notifySyncResult(messages)
-            reportAniListOutcome(appContext, syncResult)
+            reportOutcomes(appContext, syncResult)
             if (messages.isNotEmpty()) drainPendingQueue()
         } else {
             enqueuePending("DELETE", entry)
             val allErrors = syncResult?.errors.orEmpty().joinToString(" | ")
-            // v2.4.341: mesaj artık gerçek nedeni söyler (kota / oturum / internet / API kapalı
-            // / kimlik). Eskiden her hata "📵 Çevrimdışı kaydedildi" diyordu: kullanıcı
-            // internetini kontrol ediyor, sorun değişmiyordu. Gerekçe ayrıca kalıcı olarak
-            // [AniListSyncStatus]'a yazılır → liste ekranındaki durum şeridi gösterir.
-            val reason = AniListSyncStatus.classify(allErrors, AniListGate.isCoolingDown())
-            AniListSyncStatus.reportFailure(appContext, reason, allErrors)
-            if (reason == AniListSyncStatus.Reason.QUOTA) scheduleQuotaResume()
+            // v2.4.341: mesaj artık **hangi kaynak** ve **neden** bilgisini birlikte verir.
+            // Eskiden her hata "📵 Çevrimdışı kaydedildi" diyordu; kullanıcı internetini
+            // kontrol ediyor, sorun değişmiyordu. Kaynak başına gerekçe kalıcı olarak
+            // [SourceSyncStatus]'a yazılır → Listem şeridi ve bildirim ekranı gösterir.
+            val reason = SourceSyncStatus.classify(allErrors, AniListGate.isCoolingDown())
+            val sources = failedSources(entry, syncResult)
+            sources.forEach { source -> SourceSyncStatus.reportFailure(appContext, source, reason, allErrors) }
+            if (reason == SourceSyncStatus.Reason.QUOTA) scheduleQuotaResume()
+            val sourceMessages = sources.map { source -> sourceMessage(appContext, source, reason) }
+                .ifEmpty { listOf(sourceMessage(appContext, SourceSyncStatus.Source.ANILIST, reason)) }
             notifySyncResult(
-                syncResult?.messages.orEmpty() + listOf(syncFailureMessage(appContext, reason)) +
+                syncResult?.messages.orEmpty() + sourceMessages +
                     listOfNotNull(syncOutcomeNote(syncResult?.outcomes))
             )
         }

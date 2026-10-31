@@ -513,10 +513,12 @@ fun MyListScreen(
             }
         }
         if (syncHealth.visible) {
-            AniListSyncStatusBanner(
-                message = syncHealth.message,
+            SyncStatusBanner(
+                title = stringResource(R.string.sync_status_title),
+                lines = syncHealth.lines,
                 pending = syncHealth.pending,
-                onRetry = { viewModel.retryAniListSyncNow() },
+                isError = syncHealth.isError,
+                onRetry = { viewModel.retryAllSourcesSyncNow() },
                 modifier = Modifier.padding(horizontal = horizontalPadding)
             )
         }
@@ -1086,38 +1088,64 @@ fun MyListScreen(
 }
 
 /**
- * AniList eşitlemesinin **neden** durduğunu söyleyen ince şerit (v2.4.341).
- * Yalnızca gerçekten bir şeyler bekliyorsa gösterilir; mesaj nedeni içerir.
+ * "Arka planda ne oluyor?" şeridi (v2.4.341).
+ *
+ * Kaynak başına **tek satır** gösterir: "⏳ AniList istek sınırı doldu — 3 değişiklik
+ * 42 sn sonra gönderilecek", "🔑 MyAnimeList oturumu geçersiz …". Metinler
+ * [com.kitsugi.animelist.data.auth.SourceSyncStatus] tarafından üretilir; burada yalnızca
+ * gösterim yapılır. "Şimdi dene" tüm kaynakların kuyruğunu zorlar.
  */
 @androidx.compose.runtime.Composable
-private fun AniListSyncStatusBanner(
-    message: String,
+private fun SyncStatusBanner(
+    title: String,
+    lines: List<String>,
     pending: Int,
+    isError: Boolean,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    // Bilgi satırları (kapalı / bağlı değil) kırmızı hata gibi görünmesin: v2.4.341.
+    val containerColor = if (isError) {
+        MaterialTheme.colorScheme.errorContainer
+    } else {
+        MaterialTheme.colorScheme.secondaryContainer
+    }
+    val contentColor = if (isError) {
+        MaterialTheme.colorScheme.onErrorContainer
+    } else {
+        MaterialTheme.colorScheme.onSecondaryContainer
+    }
     androidx.compose.material3.Surface(
         modifier = modifier
             .fillMaxWidth()
             .padding(top = 4.dp, bottom = 2.dp),
-        color = MaterialTheme.colorScheme.errorContainer,
+        color = containerColor,
         shape = RoundedCornerShape(12.dp),
         tonalElevation = 2.dp
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.Top
         ) {
-            androidx.compose.material3.Text(
-                text = message,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onErrorContainer,
-                modifier = Modifier.weight(1f)
-            )
+            Column(modifier = Modifier.weight(1f)) {
+                androidx.compose.material3.Text(
+                    text = title,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = contentColor
+                )
+                lines.forEach { line ->
+                    androidx.compose.material3.Text(
+                        text = line,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = contentColor,
+                        modifier = Modifier.padding(top = 2.dp)
+                    )
+                }
+            }
             if (pending > 0) {
                 androidx.compose.material3.TextButton(onClick = onRetry) {
                     androidx.compose.material3.Text(
-                        text = stringResource(R.string.anilist_sync_retry_now),
+                        text = stringResource(R.string.sync_retry_now),
                         style = MaterialTheme.typography.labelMedium
                     )
                 }

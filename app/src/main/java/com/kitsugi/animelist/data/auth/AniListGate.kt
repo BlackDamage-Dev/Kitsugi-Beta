@@ -197,6 +197,9 @@ object AniListGate {
         val lower = text.lowercase()
         return text.contains(QUOTA_MARKER) ||
             lower.contains("too many requests") ||
+            lower.contains("istek sınırı") ||
+            lower.contains("kota") ||
+            lower.contains("rate limit") ||
             (lower.contains("429") && (lower.contains("rate") || lower.contains("limit") || lower.contains("hız")))
     }
 

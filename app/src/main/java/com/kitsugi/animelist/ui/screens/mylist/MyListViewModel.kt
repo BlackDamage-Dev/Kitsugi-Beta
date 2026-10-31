@@ -8,7 +8,7 @@ import com.kitsugi.animelist.data.local.KitsugiDatabase
 import com.kitsugi.animelist.model.EntryAutoRules
 import com.kitsugi.animelist.model.MediaEntry
 import com.kitsugi.animelist.model.WatchStatus
-import com.kitsugi.animelist.data.auth.AniListSyncStatus
+import com.kitsugi.animelist.data.auth.SourceSyncStatus
 import com.kitsugi.animelist.data.auth.ExternalAuthManager
 import com.kitsugi.animelist.data.remote.BangumiIdNamespace
 import com.kitsugi.animelist.data.remote.BangumiLibraryTitleHydrator
@@ -47,16 +47,17 @@ class MyListViewModel(application: Application) : AndroidViewModel(application) 
         )
     }
 
-    // ─── AniList eşitleme sağlığı (v2.4.341) ────────────────────────────────
-    // Listem ekranı bu bilgiyle "neden eşitlenmiyor?" şeridini çizer: kota mı, oturum mu,
-    // kimlik mi, internet mi? Eskiden bu durumların hiçbiri kullanıcıya gösterilmiyordu.
+    // ─── Kaynak eşitleme sağlığı (v2.4.341) ─────────────────────────────────
+    // Listem ekranı bu bilgiyle "arka planda ne oluyor?" şeridini çizer: kaynak kaynak
+    // kota / oturum / bağlantı / kimlik / kapalı ayrımı. Eskiden bu durumların hiçbiri
+    // (AniList dahil) kullanıcıya gösterilmiyordu.
     data class SyncHealth(
-        val reason: AniListSyncStatus.Reason = AniListSyncStatus.Reason.NONE,
-        val message: String = "",
+        val lines: List<String> = emptyList(),
         val pending: Int = 0,
-        val lastSuccessAt: Long = 0L
+        /** Satırlardan en az biri gerçek bir sorun mu? (bilgi satırları kırmızı çizilmez) */
+        val isError: Boolean = false
     ) {
-        val visible: Boolean get() = message.isNotBlank()
+        val visible: Boolean get() = lines.isNotEmpty()
     }
 
     private val _syncHealth = MutableStateFlow(SyncHealth())
@@ -65,27 +66,43 @@ class MyListViewModel(application: Application) : AndroidViewModel(application) 
     /** Kuyruk/bağlantı durumunu yeniden okur (ekran açılışında ve periyodik olarak). */
     fun refreshSyncHealth() {
         viewModelScope.launch(Dispatchers.IO) {
-            val snapshot = AniListSyncStatus.snapshot(context)
-            val pending = runCatching { repository.pendingSyncCount() }.getOrDefault(0)
-            val message = AniListSyncStatus.describe(context, snapshot, pending)
+            val perSource = runCatching { repository.pendingSyncBySource() }.getOrDefault(emptyMap())
+            val snapshots = SourceSyncStatus.snapshotAll(context)
+            val lines = mutableListOf<String>()
+            var totalPending = 0
+            var anyError = false
+            SourceSyncStatus.Source.entries.forEach { source ->
+                val pending = perSource[source] ?: 0
+                totalPending += pending
+                val snapshot = snapshots[source] ?: SourceSyncStatus.Snapshot()
+                val text = SourceSyncStatus.describe(
+                    context = context,
+                    source = source,
+                    snapshot = snapshot,
+                    pending = pending
+                )
+                if (text.isNotBlank()) {
+                    lines += text
+                    if (SourceSyncStatus.isError(snapshot.reason)) anyError = true
+                }
+            }
             _syncHealth.value = SyncHealth(
-                reason = snapshot.reason,
-                message = message,
-                pending = pending,
-                lastSuccessAt = snapshot.lastSuccessAt
+                lines = lines.take(4),
+                pending = totalPending,
+                isError = anyError
             )
         }
     }
 
-    /** "Şimdi dene": deneme sayaçlarını tazeler ve kuyruğu zorla boşaltır. */
-    fun retryAniListSyncNow() {
+    /** "Şimdi dene": deneme sayaçlarını tazeler ve tüm kaynakların kuyruğunu zorla boşaltır. */
+    fun retryAllSourcesSyncNow() {
         viewModelScope.launch(Dispatchers.IO) {
             val sent = runCatching { repository.retryPendingSyncNow() }.getOrDefault(0)
             refreshSyncHealth()
             if (sent > 0) {
                 runCatching {
                     _syncMessages.send(
-                        context.getString(com.kitsugi.animelist.R.string.anilist_sync_retried_n, sent)
+                        context.getString(com.kitsugi.animelist.R.string.sync_retried_n, sent)
                     )
                 }
             }

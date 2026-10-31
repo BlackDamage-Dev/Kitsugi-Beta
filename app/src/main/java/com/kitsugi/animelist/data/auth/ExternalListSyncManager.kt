@@ -14,6 +14,7 @@ import com.kitsugi.animelist.data.settings.SettingsDataStore
 import com.kitsugi.animelist.data.local.NetworkMonitor
 import com.kitsugi.animelist.data.local.toDomain
 import com.kitsugi.animelist.data.local.toEntity
+import com.kitsugi.animelist.data.platform.PlatformFailureRegistry
 
 /**
  * Bir listedeki değişikliği **altı kaynağın tamamına** yayan canlı eşitleme hattı.
@@ -44,12 +45,22 @@ object ExternalListSyncManager {
     /** Bangumi yazması çağrıda zaten yapıldı (`skipBangumiWrite`). */
     internal const val OUTCOME_WRITTEN_BY_CALLER = "çağıran yazdı"
 
-    private fun Context.sourceFailure(platform: String, error: Throwable): String =
-        getString(
+    /**
+     * Bir kaynağın yazma hatasını **tek biçimde** raporlar.
+     *
+     * v2.4.341: hata aynı zamanda [PlatformFailureRegistry]'ye yazılır; böylece ilgili
+     * ekranlardaki hata kodu rozetinden "ne oldu / ne yapmalı" açıklaması açılabilir.
+     * Eskiden eşitleme hataları yalnızca düz metin olarak kalıyor, hiçbir yerde
+     * sınıflandırılmış açıklama üretilmiyordu.
+     */
+    private fun Context.sourceFailure(platform: String, error: Throwable): String {
+        runCatching { PlatformFailureRegistry.report(platformLabel = platform, error = error) }
+        return getString(
             R.string.account_sync_source_failure,
             platform,
             error.message ?: getString(R.string.account_sync_unknown_error)
         )
+    }
 
     /**
      * @param skipBangumiWrite Bangumi yazması çağrının kendisi tarafından zaten yapıldıysa
