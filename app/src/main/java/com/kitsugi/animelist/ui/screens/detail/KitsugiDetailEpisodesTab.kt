@@ -22,18 +22,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.KeyboardArrowDown
-import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.PlayCircle
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.CircularProgressIndicator
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.MaterialTheme
 import com.kitsugi.animelist.ui.theme.gradient.Text
-import androidx.compose.material.icons.rounded.Download
-import androidx.compose.material.icons.rounded.DownloadDone
-import androidx.compose.material.icons.rounded.Error
-import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material3.IconButton
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.Composable
@@ -281,7 +274,7 @@ private fun SeasonAccordionItem(
             }
 
             Icon(
-                imageVector = Icons.Rounded.KeyboardArrowDown,
+                imageVector = Icons.KeyboardArrowDown,
                 contentDescription = if (isExpanded) stringResource(R.string.settings_close) else stringResource(R.string.ac),
                 tint = if (isExpanded) accentColor else KitsugiColors.TextSecondary,
                 modifier = Modifier
@@ -532,7 +525,7 @@ private fun EpisodeRow(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.PlayCircle,
+                        imageVector = Icons.PlayCircle,
                         contentDescription = stringResource(R.string.oynat),
                         tint = androidx.compose.ui.graphics.Color.White,
                         modifier = Modifier.size(28.dp)
@@ -550,7 +543,7 @@ private fun EpisodeRow(
                         fontWeight = FontWeight.Black
                     )
                     Icon(
-                        imageVector = Icons.Rounded.PlayCircle,
+                        imageVector = Icons.PlayCircle,
                         contentDescription = null,
                         tint = accentColor.copy(alpha = 0.6f),
                         modifier = Modifier.size(16.dp)
@@ -608,7 +601,7 @@ private fun EpisodeRow(
                 when (download.status) {
                     com.kitsugi.animelist.data.model.AnimeDownload.Status.QUEUE -> {
                         Icon(
-                            imageVector = Icons.Rounded.Download,
+                            imageVector = Icons.Download,
                             contentDescription = "Kuyrukta",
                             tint = KitsugiColors.TextMuted,
                             modifier = Modifier.size(22.dp)
@@ -636,7 +629,7 @@ private fun EpisodeRow(
                     }
                     com.kitsugi.animelist.data.model.AnimeDownload.Status.COMPLETED -> {
                         Icon(
-                            imageVector = Icons.Rounded.DownloadDone,
+                            imageVector = Icons.DownloadDone,
                             contentDescription = stringResource(R.string.indirildi),
                             tint = KitsugiColors.AccentGreen,
                             modifier = Modifier.size(22.dp)
@@ -644,7 +637,7 @@ private fun EpisodeRow(
                     }
                     com.kitsugi.animelist.data.model.AnimeDownload.Status.ERROR -> {
                         Icon(
-                            imageVector = Icons.Rounded.Error,
+                            imageVector = Icons.Error,
                             contentDescription = stringResource(R.string.hata),
                             tint = KitsugiColors.AccentRed,
                             modifier = Modifier.size(22.dp)
@@ -652,7 +645,7 @@ private fun EpisodeRow(
                     }
                     com.kitsugi.animelist.data.model.AnimeDownload.Status.PAUSED -> {
                         Icon(
-                            imageVector = Icons.Rounded.Pause,
+                            imageVector = Icons.Pause,
                             contentDescription = stringResource(R.string.duraklatildi),
                             tint = KitsugiColors.AccentOrange,
                             modifier = Modifier.size(22.dp)
@@ -666,7 +659,7 @@ private fun EpisodeRow(
                         modifier = Modifier.size(36.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.Download,
+                            imageVector = Icons.Download,
                             contentDescription = stringResource(R.string.indir),
                             tint = KitsugiColors.TextSecondary,
                             modifier = Modifier.size(22.dp)
@@ -676,7 +669,7 @@ private fun EpisodeRow(
             }
 
             Icon(
-                imageVector = Icons.Rounded.PlayArrow,
+                imageVector = Icons.PlayArrow,
                 contentDescription = stringResource(R.string.oynat),
                 tint = if (download?.status == com.kitsugi.animelist.data.model.AnimeDownload.Status.COMPLETED) KitsugiColors.AccentGreen else accentColor.copy(alpha = 0.7f),
                 modifier = Modifier.size(22.dp)

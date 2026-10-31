@@ -12,8 +12,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.*
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.CircularProgressIndicator
 import com.kitsugi.animelist.ui.components.KitsugiPlasmaLoader
 import com.kitsugi.animelist.ui.theme.gradient.Icon
@@ -133,7 +132,7 @@ fun TvMangaSourceHealthScreen(
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             Icon(
-                                Icons.Rounded.HealthAndSafety,
+                                Icons.HealthAndSafety,
                                 null,
                                 tint = KitsugiColors.AccentGreen,
                                 modifier = Modifier.size(22.dp)
@@ -155,7 +154,7 @@ fun TvMangaSourceHealthScreen(
                         Spacer(Modifier.height(8.dp))
                         // Tümünü Temizle
                         TvHealthActionRow(
-                            icon = Icons.Rounded.ClearAll,
+                            icon = Icons.ClearAll,
                             label = stringResource(R.string.tum_tanilari_sifirla),
                             color = KitsugiColors.TextMuted,
                             onClick = onClearAllDiagnostics
@@ -163,7 +162,7 @@ fun TvMangaSourceHealthScreen(
                         Spacer(Modifier.height(4.dp))
                         // Geri
                         TvHealthActionRow(
-                            icon = Icons.Rounded.ArrowBack,
+                            icon = Icons.ArrowBack,
                             label = stringResource(R.string.geri),
                             color = KitsugiColors.TextMuted,
                             onClick = onBack
@@ -186,7 +185,7 @@ fun TvMangaSourceHealthScreen(
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 Icon(
-                                    Icons.Rounded.SearchOff,
+                                    Icons.SearchOff,
                                     null,
                                     tint = KitsugiColors.TextMuted,
                                     modifier = Modifier.size(40.dp)
@@ -247,7 +246,7 @@ fun TvMangaSourceHealthScreen(
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             Icon(
-                                Icons.Rounded.HealthAndSafety,
+                                Icons.HealthAndSafety,
                                 null,
                                 tint = KitsugiColors.TextMuted.copy(alpha = 0.4f),
                                 modifier = Modifier.size(64.dp)
@@ -456,7 +455,7 @@ private fun TvHealthDetailPanel(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    Icons.Rounded.MenuBook,
+                    Icons.MenuBook,
                     null,
                     tint = KitsugiColors.AccentBlue,
                     modifier = Modifier.size(26.dp)
@@ -504,19 +503,19 @@ private fun TvHealthDetailPanel(
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             TvHealthDetailButton(
                 label = stringResource(R.string.hizli_kontrol),
-                icon = Icons.Rounded.PlayArrow,
+                icon = Icons.PlayArrow,
                 color = KitsugiColors.AccentBlue,
                 onClick = onQuickCheck
             )
             TvHealthDetailButton(
                 label = "Ayna Yenile",
-                icon = Icons.Rounded.Refresh,
+                icon = Icons.Refresh,
                 color = Color(0xFFFF9800),
                 onClick = onRefreshMirror
             )
             TvHealthDetailButton(
                 label = stringResource(R.string.tanilari_sifirla),
-                icon = Icons.Rounded.ClearAll,
+                icon = Icons.ClearAll,
                 color = KitsugiColors.TextMuted,
                 onClick = onClearDiagnostics
             )
@@ -595,7 +594,7 @@ private fun TvHealthDetailPanel(
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Icon(
-                    Icons.Rounded.Info,
+                    Icons.Info,
                     null,
                     tint = KitsugiColors.TextMuted,
                     modifier = Modifier.size(16.dp).padding(top = 2.dp)

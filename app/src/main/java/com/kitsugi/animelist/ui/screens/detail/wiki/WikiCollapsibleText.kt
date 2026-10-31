@@ -13,9 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Visibility
-import androidx.compose.material.icons.rounded.VisibilityOff
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -93,7 +91,7 @@ internal fun WikiCollapsibleText(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
-                    imageVector = if (isExpanded) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
+                    imageVector = if (isExpanded) Icons.VisibilityOff else Icons.Visibility,
                     contentDescription = null,
                     tint = accentColor,
                     modifier = Modifier.size(16.dp)

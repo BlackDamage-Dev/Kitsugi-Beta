@@ -7,8 +7,7 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Image
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.CircularProgressIndicator
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.IconButton
@@ -67,7 +66,7 @@ fun KitsugiGalleryIconButton(
     ) {
         Box(contentAlignment = Alignment.Center, modifier = Modifier.size(40.dp)) {
             Icon(
-                imageVector = Icons.Rounded.Image,
+                imageVector = Icons.Image,
                 contentDescription = stringResource(R.string.action_gallery),
                 tint = accentColor,
                 modifier = Modifier.alpha(if (isLoading) pulseAlpha * 0.6f else 1f)

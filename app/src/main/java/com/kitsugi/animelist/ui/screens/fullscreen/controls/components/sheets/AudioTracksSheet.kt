@@ -5,8 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.MoreTime
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import com.kitsugi.animelist.ui.theme.gradient.RadioButton
 import com.kitsugi.animelist.ui.theme.gradient.Text
@@ -49,7 +48,7 @@ fun AudioTracksSheet(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(4.dp),
                         ) {
-                            Icon(imageVector = Icons.Default.MoreTime, contentDescription = null)
+                            Icon(imageVector = Icons.MoreTime, contentDescription = null)
                             Text("Gecikme")
                         }
                     }

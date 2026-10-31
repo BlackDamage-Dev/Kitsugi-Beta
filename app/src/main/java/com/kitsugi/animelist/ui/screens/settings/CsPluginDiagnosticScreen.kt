@@ -13,8 +13,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.*
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -86,7 +85,7 @@ fun CsPluginDiagnosticScreen(
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Icon(
-                        Icons.Rounded.BugReport,
+                        Icons.BugReport,
                         contentDescription = null,
                         tint = accent,
                         modifier = Modifier.size(24.dp)
@@ -111,7 +110,7 @@ fun CsPluginDiagnosticScreen(
                     }
                     if (!isRunning) {
                         IconButton(onClick = onDismiss) {
-                            Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.action_close), tint = KitsugiColors.TextSecondary)
+                            Icon(Icons.Close, contentDescription = stringResource(R.string.action_close), tint = KitsugiColors.TextSecondary)
                         }
                     }
                 }
@@ -215,7 +214,7 @@ fun CsPluginDiagnosticScreen(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(12.dp)
                         ) {
-                            Icon(Icons.Rounded.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Icon(Icons.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(6.dp))
                             Text(stringResource(if (results.isEmpty()) R.string.cs_diag_start else R.string.cs_diag_restart), fontWeight = FontWeight.Bold)
                         }
@@ -226,7 +225,7 @@ fun CsPluginDiagnosticScreen(
                             shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = KitsugiColors.AccentRed)
                         ) {
-                            Icon(Icons.Rounded.Stop, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Icon(Icons.Stop, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(6.dp))
                             Text(stringResource(R.string.cs_diag_stop), fontWeight = FontWeight.Bold)
                         }
@@ -252,7 +251,7 @@ fun CsPluginDiagnosticScreen(
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = accent)
                     ) {
-                        Icon(Icons.Rounded.Share, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Share, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(6.dp))
                         Text(stringResource(R.string.inline_share_live_monitoring_report_md_ff2cf01), fontWeight = FontWeight.Bold)
                     }
@@ -263,7 +262,7 @@ fun CsPluginDiagnosticScreen(
                             shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = accent),
                         ) {
-                            Icon(Icons.Rounded.Info, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Icon(Icons.Info, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(6.dp))
                             Text(stringResource(R.string.platform_error_catalog_open), fontWeight = FontWeight.Bold)
                         }
@@ -296,7 +295,7 @@ fun CsPluginDiagnosticScreen(
                             shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = accent)
                         ) {
-                            Icon(Icons.Rounded.Share, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Icon(Icons.Share, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(6.dp))
                             Text(stringResource(R.string.inline_share_report_md_79b230f), fontWeight = FontWeight.Bold)
                         }

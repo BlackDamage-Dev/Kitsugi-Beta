@@ -16,12 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.BarChart
-import androidx.compose.material.icons.rounded.DonutLarge
-import androidx.compose.material.icons.rounded.EmojiEvents
-import androidx.compose.material.icons.rounded.FavoriteBorder
-import androidx.compose.material.icons.rounded.StarBorder
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -209,7 +204,7 @@ private fun StatsCardHeader(
 private fun RankingsCard(rankings: List<KitsugiRanking>, isTurkish: Boolean) {
     StatsCard {
         StatsCardHeader(
-            icon = Icons.Rounded.EmojiEvents,
+            icon = Icons.EmojiEvents,
             title = stringResource(R.string.detail_stats_rankings_title),
             subtitle = stringResource(R.string.detail_stats_rankings_subtitle)
         )
@@ -267,7 +262,7 @@ private fun RankingRow(ranking: KitsugiRanking, isTurkish: Boolean) {
             Spacer(modifier = Modifier.height(3.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
-                    imageVector = if (isPopular) Icons.Rounded.FavoriteBorder else Icons.Rounded.StarBorder,
+                    imageVector = if (isPopular) Icons.FavoriteBorder else Icons.StarBorder,
                     contentDescription = null,
                     tint = tone,
                     modifier = Modifier.size(13.dp)
@@ -326,7 +321,7 @@ private fun StatusDistributionCard(slices: List<StatusSlice>, isTurkish: Boolean
     val total = slices.sumOf { it.count }
     StatsCard {
         StatsCardHeader(
-            icon = Icons.Rounded.DonutLarge,
+            icon = Icons.DonutLarge,
             title = stringResource(R.string.detail_stats_status_title),
             subtitle = stringResource(R.string.detail_stats_status_subtitle, formatNumber(total))
         )
@@ -419,7 +414,7 @@ private fun ScoreDistributionCard(distribution: List<KitsugiScoreStat>, isTurkis
 
     StatsCard {
         StatsCardHeader(
-            icon = Icons.Rounded.BarChart,
+            icon = Icons.BarChart,
             title = stringResource(R.string.detail_stats_score_title),
             subtitle = if (totalVotes > 0) {
                 stringResource(

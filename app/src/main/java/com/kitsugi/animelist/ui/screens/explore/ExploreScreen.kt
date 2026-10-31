@@ -24,11 +24,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowUpward
-import androidx.compose.material.icons.rounded.Notifications
-import androidx.compose.material.icons.rounded.Key
-import androidx.compose.material.icons.rounded.Login
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import com.kitsugi.animelist.ui.components.KitsugiPullToRefreshIndicator
@@ -492,9 +488,11 @@ fun ExploreScreen(
                                             verticalAlignment = Alignment.CenterVertically,
                                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                                         ) {
-                                            Text(
-                                                text = "📡",
-                                                style = MaterialTheme.typography.bodyLarge
+                                            com.kitsugi.animelist.ui.theme.gradient.Icon(
+                                                imageVector = Icons.Satellite,
+                                                contentDescription = null,
+                                                tint = accentColor,
+                                                modifier = Modifier.size(20.dp)
                                             )
                                             Column {
                                                 Text(
@@ -536,7 +534,7 @@ fun ExploreScreen(
                                                         border = ButtonDefaults.outlinedButtonBorder
                                                     ) {
                                                         Icon(
-                                                            imageVector = Icons.Rounded.Key,
+                                                            imageVector = Icons.Key,
                                                             contentDescription = null,
                                                             modifier = Modifier.size(16.dp)
                                                         )
@@ -556,7 +554,7 @@ fun ExploreScreen(
                                                         border = ButtonDefaults.outlinedButtonBorder
                                                     ) {
                                                         Icon(
-                                                            imageVector = Icons.Rounded.Login,
+                                                            imageVector = Icons.Login,
                                                             contentDescription = null,
                                                             modifier = Modifier.size(16.dp)
                                                         )

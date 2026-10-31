@@ -17,26 +17,7 @@ import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.DarkMode
-import androidx.compose.material.icons.rounded.LightMode
-import androidx.compose.material.icons.rounded.ListAlt
-import androidx.compose.material.icons.rounded.Palette
-import androidx.compose.material.icons.rounded.Settings
-import androidx.compose.material.icons.rounded.Star
-import androidx.compose.material.icons.rounded.People
-import androidx.compose.material.icons.rounded.PriorityHigh
-import androidx.compose.material.icons.rounded.PlaylistAdd
-import androidx.compose.material.icons.rounded.ManageSearch
-import androidx.compose.material.icons.rounded.MenuBook
-import androidx.compose.material.icons.rounded.Translate
-import androidx.compose.material.icons.rounded.Tablet
-import androidx.compose.material.icons.rounded.Movie
-import androidx.compose.material.icons.rounded.ViewList
-import androidx.compose.material.icons.rounded.PlaylistAddCheck
-import androidx.compose.material.icons.rounded.Event
-import androidx.compose.material.icons.rounded.DoneAll
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -176,15 +157,15 @@ fun KitsugiPreferencesSettingsDialog(
                             fontWeight = FontWeight.Bold
                         )
                         IconButton(onClick = onDismiss) {
-                            Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.settings_close), tint = KitsugiColors.textSecondary)
+                            Icon(Icons.Close, contentDescription = stringResource(R.string.settings_close), tint = KitsugiColors.textSecondary)
                         }
                     }
                 }
                 KitsugiSettingsSegmentedTabs(
                     tabs = listOf(
-                        KitsugiSettingsTabOption(stringResource(R.string.settings_tab_appearance), Icons.Rounded.Palette),
-                        KitsugiSettingsTabOption(stringResource(R.string.settings_tab_list_score), Icons.Rounded.ListAlt),
-                        KitsugiSettingsTabOption(stringResource(R.string.settings_tab_manga_reader), Icons.Rounded.MenuBook)
+                        KitsugiSettingsTabOption(stringResource(R.string.settings_tab_appearance), Icons.Palette),
+                        KitsugiSettingsTabOption(stringResource(R.string.settings_tab_list_score), Icons.ListAlt),
+                        KitsugiSettingsTabOption(stringResource(R.string.settings_tab_manga_reader), Icons.MenuBook)
                     ),
                     selectedIndex = pagerState.currentPage,
                     accentColor = accentColor,
@@ -390,7 +371,7 @@ private fun AppearanceTab(
                 description = if (themeMode == "DARK") stringResource(R.string.settings_dark_theme_night)
                 else if (themeMode == "LIGHT") stringResource(R.string.settings_dark_theme_day)
                 else stringResource(R.string.settings_dark_theme_system),
-                icon = if (isDarkThemeActive) Icons.Rounded.DarkMode else Icons.Rounded.LightMode,
+                icon = if (isDarkThemeActive) Icons.DarkMode else Icons.LightMode,
                 iconColor = accentColor,
                 checked = isDarkThemeActive,
                 onCheckedChange = { isDark ->
@@ -405,7 +386,7 @@ private fun AppearanceTab(
                     title = stringResource(R.string.settings_theme_mode),
                     description = stringResource(R.string.settings_theme_mode_desc),
                     value = themeModeOptions.find { it.id == themeMode }?.title ?: "",
-                    icon = Icons.Rounded.Palette,
+                    icon = Icons.Palette,
                     iconColor = accentColor,
                     onClick = { showThemeModeMenu = true }
                 )
@@ -428,7 +409,7 @@ private fun AppearanceTab(
             KitsugiSettingsSwitchItem(
                 title = stringResource(R.string.settings_amoled_black),
                 description = stringResource(R.string.settings_amoled_black_desc),
-                icon = Icons.Rounded.Palette,
+                icon = Icons.Palette,
                 iconColor = accentColor,
                 checked = amoledBlack,
                 enabled = themeMode != "LIGHT",
@@ -441,7 +422,7 @@ private fun AppearanceTab(
             KitsugiSettingsSwitchItem(
                 title = stringResource(R.string.kart_cerceveleri),
                 description = if (cardFramesEnabled) stringResource(R.string.kartlarin_renkli_cercevesi_gorunur) else stringResource(R.string.kartlarin_cercevesi_gizli),
-                icon = Icons.Rounded.Palette,
+                icon = Icons.Palette,
                 iconColor = accentColor,
                 checked = cardFramesEnabled,
                 onCheckedChange = onCardFramesEnabledChanged
@@ -560,7 +541,7 @@ private fun AppearanceTab(
                     title = stringResource(R.string.settings_app_language),
                     description = stringResource(R.string.settings_app_language_desc),
                     value = appLanguageOptions.find { it.id == appSettings.appLanguage }?.title ?: "",
-                    icon = Icons.Rounded.Translate,
+                    icon = Icons.Translate,
                     iconColor = accentColor,
                     onClick = { showLanguageMenu = true }
                 )
@@ -585,7 +566,7 @@ private fun AppearanceTab(
                     title = stringResource(R.string.option_last_used),
                     description = stringResource(R.string.settings_default_tab_desc),
                     value = defaultTabOptions.find { it.id == defaultTab }?.title ?: "",
-                    icon = Icons.Rounded.Settings,
+                    icon = Icons.Settings,
                     iconColor = accentColor,
                     onClick = { showDefaultTabMenu = true }
                 )
@@ -608,7 +589,7 @@ private fun AppearanceTab(
             KitsugiSettingsSwitchItem(
                 title = stringResource(R.string.settings_fixed_nav_bar),
                 description = stringResource(R.string.settings_fixed_nav_bar_desc),
-                icon = Icons.Rounded.Settings,
+                icon = Icons.Settings,
                 iconColor = accentColor,
                 checked = fixedNavBar,
                 onCheckedChange = onFixedNavBarChanged
@@ -619,7 +600,7 @@ private fun AppearanceTab(
             KitsugiSettingsSwitchItem(
                 title = stringResource(R.string.settings_adult_content),
                 description = if (showAdultContent) stringResource(R.string.settings_adult_content_enabled_desc) else stringResource(R.string.settings_adult_content_disabled_desc),
-                icon = Icons.Rounded.Palette,
+                icon = Icons.Palette,
                 iconColor = accentColor,
                 checked = showAdultContent,
                 onCheckedChange = onAdultContentChanged
@@ -630,7 +611,7 @@ private fun AppearanceTab(
             KitsugiSettingsSwitchItem(
                 title = stringResource(R.string.settings_blur_adult),
                 description = if (blurAdultMedia) stringResource(R.string.settings_blur_adult_enabled_desc) else stringResource(R.string.settings_blur_adult_disabled_desc),
-                icon = Icons.Rounded.Palette,
+                icon = Icons.Palette,
                 iconColor = accentColor,
                 checked = blurAdultMedia,
                 onCheckedChange = onBlurAdultMediaChanged
@@ -641,7 +622,7 @@ private fun AppearanceTab(
             KitsugiSettingsSwitchItem(
                 title = stringResource(R.string.settings_anime_logos),
                 description = if (showAnimeLogos) stringResource(R.string.settings_anime_logos_enabled_desc) else stringResource(R.string.settings_anime_logos_disabled_desc),
-                icon = Icons.Rounded.Palette,
+                icon = Icons.Palette,
                 iconColor = accentColor,
                 checked = showAnimeLogos,
                 onCheckedChange = onShowAnimeLogosChanged
@@ -653,7 +634,7 @@ private fun AppearanceTab(
             KitsugiSettingsSwitchItem(
                 title = stringResource(R.string.settings_splash_animation_and_sound),
                 description = if (splashAnimationEnabled) stringResource(R.string.settings_splash_animation_and_sound_enabled) else stringResource(R.string.settings_splash_animation_and_sound_disabled),
-                icon = Icons.Rounded.Palette,
+                icon = Icons.Palette,
                 iconColor = accentColor,
                 checked = splashAnimationEnabled,
                 onCheckedChange = { enabled ->
@@ -970,7 +951,7 @@ private fun ListScoreTab(
                     title = stringResource(R.string.settings_anime_title_language),
                     description = stringResource(R.string.settings_anime_title_language_desc),
                     value = titleLanguageOptions.find { it.id == titleLanguage }?.title ?: "",
-                    icon = Icons.Rounded.Translate,
+                    icon = Icons.Translate,
                     iconColor = accentColor,
                     onClick = { showTitleLanguageMenu = true }
                 )
@@ -997,7 +978,7 @@ private fun ListScoreTab(
                     title = KitsugiStrings.get(R.string.ekip_karakter_adi_dili),
                     description = KitsugiStrings.get(R.string.seiyuu_yonetmen_ve_karakter_adlarinin_gosterim_dili),
                     value = staffNameLanguageOptions.find { it.id == staffNameLanguage }?.title ?: "",
-                    icon = Icons.Rounded.People,
+                    icon = Icons.People,
                     iconColor = accentColor,
                     onClick = { showStaffNameLanguageMenu = true }
                 )
@@ -1024,7 +1005,7 @@ private fun ListScoreTab(
                     title = stringResource(R.string.settings_movies_title_language),
                     description = stringResource(R.string.settings_movies_title_language_desc),
                     value = currentTmdbLang,
-                    icon = Icons.Rounded.Movie,
+                    icon = Icons.Movie,
                     iconColor = accentColor,
                     onClick = { showTmdbLanguageMenu = true }
                 )
@@ -1050,7 +1031,7 @@ private fun ListScoreTab(
                     title = stringResource(R.string.settings_list_layout),
                     description = stringResource(R.string.settings_list_layout_desc),
                     value = listLayoutOptions.find { it.id == selectedListLayoutId }?.title ?: "",
-                    icon = Icons.Rounded.ViewList,
+                    icon = Icons.ViewList,
                     iconColor = accentColor,
                     onClick = { showListLayoutMenu = true }
                 )
@@ -1079,7 +1060,7 @@ private fun ListScoreTab(
                     title = stringResource(R.string.settings_score_format),
                     description = stringResource(R.string.settings_score_format_desc),
                     value = scoreFormatOptions.find { it.id == scoreFormat }?.title ?: "",
-                    icon = Icons.Rounded.Settings,
+                    icon = Icons.Settings,
                     iconColor = accentColor,
                     onClick = { showScoreFormatMenu = true }
                 )
@@ -1105,7 +1086,7 @@ private fun ListScoreTab(
                     title = KitsugiStrings.get(R.string.puanlama_adimlari),
                     description = KitsugiStrings.get(R.string.puan_girerken_kullanilacak_adim_hassasiyeti),
                     value = scoreStepOptions.find { it.id == scoreStep }?.title ?: "1",
-                    icon = Icons.Rounded.Star,
+                    icon = Icons.Star,
                     iconColor = accentColor,
                     onClick = { showScoreStepMenu = true }
                 )
@@ -1128,7 +1109,7 @@ private fun ListScoreTab(
             KitsugiSettingsSwitchItem(
                 title = stringResource(R.string.settings_hide_scores),
                 description = if (hideScores) stringResource(R.string.settings_hide_scores_enabled_desc) else stringResource(R.string.settings_hide_scores_disabled_desc),
-                icon = Icons.Rounded.Settings,
+                icon = Icons.Settings,
                 iconColor = accentColor,
                 checked = hideScores,
                 onCheckedChange = onHideScoresChanged
@@ -1139,7 +1120,7 @@ private fun ListScoreTab(
             KitsugiSettingsSwitchItem(
                 title = stringResource(R.string.settings_auto_translate),
                 description = stringResource(R.string.settings_auto_translate_desc),
-                icon = Icons.Rounded.Translate,
+                icon = Icons.Translate,
                 iconColor = accentColor,
                 checked = autoTranslateEnabled,
                 onCheckedChange = onAutoTranslateEnabledChanged
@@ -1159,7 +1140,7 @@ private fun ListScoreTab(
                 title = stringResource(R.string.settings_translator),
                 description = stringResource(R.string.settings_translator_desc),
                 value = preferredTranslatorOptions.find { it.id == appSettings.preferredTranslator }?.title ?: stringResource(R.string.translator_option_default),
-                icon = Icons.Rounded.Translate,
+                icon = Icons.Translate,
                 iconColor = accentColor,
                 onClick = { showTranslatorDialog = true }
             )
@@ -1253,7 +1234,7 @@ private fun ListScoreTab(
                 title = stringResource(R.string.settings_translate_source),
                 description = stringResource(R.string.settings_translate_source_desc),
                 value = translateSourceLanguages.find { it.id == appSettings.translateSourceLanguage }?.title ?: stringResource(R.string.translate_auto_detect),
-                icon = Icons.Rounded.Translate,
+                icon = Icons.Translate,
                 iconColor = accentColor,
                 onClick = { showSourceLangDialog = true }
             )
@@ -1325,7 +1306,7 @@ private fun ListScoreTab(
                 title = stringResource(R.string.settings_translate_target),
                 description = stringResource(R.string.settings_translate_target_desc),
                 value = translateTargetLanguages.find { it.id == appSettings.translateTargetLanguage }?.title ?: KitsugiStrings.get(R.string.pd_lang_tr),
-                icon = Icons.Rounded.Translate,
+                icon = Icons.Translate,
                 iconColor = accentColor,
                 onClick = { showTargetLangDialog = true }
             )
@@ -1403,7 +1384,7 @@ private fun ListScoreTab(
                     appSettings.airingNotificationsEnabled -> stringResource(R.string.settings_airing_notifications_desc_enabled)
                     else -> stringResource(R.string.settings_airing_notifications_desc_disabled)
                 },
-                icon = Icons.Rounded.Settings,
+                icon = Icons.Settings,
                 iconColor = accentColor,
                 checked = hasAnyNotificationAccount && appSettings.airingNotificationsEnabled,
                 enabled = hasAnyNotificationAccount,
@@ -1419,7 +1400,7 @@ private fun ListScoreTab(
                     appSettings.aniListNotificationsEnabled -> stringResource(R.string.settings_notif_anilist_on)
                     else -> stringResource(R.string.settings_notif_anilist_off)
                 },
-                icon = Icons.Rounded.Settings,
+                icon = Icons.Settings,
                 iconColor = accentColor,
                 checked = isAniListConnected && appSettings.aniListNotificationsEnabled,
                 enabled = isAniListConnected,
@@ -1435,7 +1416,7 @@ private fun ListScoreTab(
                     appSettings.malNotificationsEnabled -> stringResource(R.string.settings_notif_mal_on)
                     else -> stringResource(R.string.settings_notif_mal_off)
                 },
-                icon = Icons.Rounded.Settings,
+                icon = Icons.Settings,
                 iconColor = accentColor,
                 checked = isMalConnected && appSettings.malNotificationsEnabled,
                 enabled = isMalConnected,
@@ -1451,7 +1432,7 @@ private fun ListScoreTab(
                     appSettings.simklNotificationsEnabled -> stringResource(R.string.settings_notif_simkl_on)
                     else -> stringResource(R.string.settings_notif_simkl_off)
                 },
-                icon = Icons.Rounded.Settings,
+                icon = Icons.Settings,
                 iconColor = accentColor,
                 checked = isSimklConnected && appSettings.simklNotificationsEnabled,
                 enabled = isSimklConnected,
@@ -1467,7 +1448,7 @@ private fun ListScoreTab(
                     appSettings.kitsuNotificationsEnabled -> stringResource(R.string.settings_notif_kitsu_on)
                     else -> stringResource(R.string.settings_notif_kitsu_off)
                 },
-                icon = Icons.Rounded.Settings,
+                icon = Icons.Settings,
                 iconColor = accentColor,
                 checked = isKitsuConnected && appSettings.kitsuNotificationsEnabled,
                 enabled = isKitsuConnected,
@@ -1483,7 +1464,7 @@ private fun ListScoreTab(
                     appSettings.shikimoriNotificationsEnabled -> stringResource(R.string.settings_notif_shikimori_on)
                     else -> stringResource(R.string.settings_notif_shikimori_off)
                 },
-                icon = Icons.Rounded.Settings,
+                icon = Icons.Settings,
                 iconColor = accentColor,
                 checked = isShikimoriConnected && appSettings.shikimoriNotificationsEnabled,
                 enabled = isShikimoriConnected,
@@ -1506,7 +1487,7 @@ private fun ListScoreTab(
                 title = stringResource(R.string.settings_notif_interval),
                 description = stringResource(R.string.settings_notif_interval_desc),
                 value = intervalOptions.find { it.id == appSettings.notificationInterval.toString() }?.title ?: "${appSettings.notificationInterval} Dakika",
-                icon = Icons.Rounded.Settings,
+                icon = Icons.Settings,
                 iconColor = accentColor,
                 onClick = { showIntervalDialog = true }
             )
@@ -1586,7 +1567,7 @@ private fun ListScoreTab(
                     stringResource(R.string.settings_save_search_history_desc_enabled)
                 else
                     stringResource(R.string.settings_save_search_history_desc_disabled),
-                icon = Icons.Rounded.Settings,
+                icon = Icons.Settings,
                 iconColor = accentColor,
                 checked = appSettings.searchHistoryEnabled,
                 onCheckedChange = onSearchHistoryEnabledChanged
@@ -1614,7 +1595,7 @@ private fun ListScoreTab(
                     KitsugiStrings.get(R.string.listem_durum_baslikli_gruplar_halinde_gosterilir)
                 else
                     KitsugiStrings.get(R.string.settings_list_flat_description),
-                icon = Icons.Rounded.ViewList,
+                icon = Icons.ViewList,
                 iconColor = accentColor,
                 checked = separatedListStyle,
                 onCheckedChange = onSeparatedListStyleChanged
@@ -1626,7 +1607,7 @@ private fun ListScoreTab(
                 title = stringResource(R.string.ozel_listeler),
                 description = KitsugiStrings.get(R.string.anilist_ozel_listelerini_olustur_yeniden_adlandir_veya_sil),
                 value = "",
-                icon = Icons.Rounded.PlaylistAdd,
+                icon = Icons.PlaylistAdd,
                 iconColor = accentColor,
                 onClick = onOpenCustomListsEditor
             )
@@ -1642,7 +1623,7 @@ private fun ListScoreTab(
                 description = KitsugiStrings.get(R.string.varsayilan_ekleme_durumu_desc),
                 value = defaultAddStatusOptions.find { it.id == defaultAddStatus }?.title
                     ?: defaultAddStatusOptions.first().title,
-                icon = Icons.Rounded.PlaylistAddCheck,
+                icon = Icons.PlaylistAddCheck,
                 iconColor = accentColor,
                 onClick = { showDefaultAddStatusMenu = true }
             )
@@ -1671,7 +1652,7 @@ private fun ListScoreTab(
                     KitsugiStrings.get(R.string.otomatik_tarih_doldur_desc_on)
                 else
                     KitsugiStrings.get(R.string.otomatik_tarih_doldur_desc_off),
-                icon = Icons.Rounded.Event,
+                icon = Icons.Event,
                 iconColor = accentColor,
                 checked = autoDateOnStatusChange,
                 onCheckedChange = onAutoDateOnStatusChangeChanged
@@ -1685,7 +1666,7 @@ private fun ListScoreTab(
                     KitsugiStrings.get(R.string.otomatik_ilerleme_tamamla_desc_on)
                 else
                     KitsugiStrings.get(R.string.otomatik_ilerleme_tamamla_desc_off),
-                icon = Icons.Rounded.DoneAll,
+                icon = Icons.DoneAll,
                 iconColor = accentColor,
                 checked = autoProgressOnComplete,
                 onCheckedChange = onAutoProgressOnCompleteChanged
@@ -1699,7 +1680,7 @@ private fun ListScoreTab(
                     KitsugiStrings.get(R.string.dusuk_oncelikli_0_girislerde_de_oncelik_rozeti_gorunur)
                 else
                     KitsugiStrings.get(R.string.settings_priority_badge_medium_high),
-                icon = Icons.Rounded.PriorityHigh,
+                icon = Icons.PriorityHigh,
                 iconColor = accentColor,
                 checked = showLowPriority,
                 onCheckedChange = onShowLowPriorityChanged
@@ -1711,7 +1692,7 @@ private fun ListScoreTab(
                 title = KitsugiStrings.get(R.string.oncelik_renklerini_degistir),
                 description = KitsugiStrings.get(R.string.dusuk_orta_yuksek_oncelik_rozetlerinin_rengini_ozellestir),
                 value = if (priorityColorsJson.isBlank()) KitsugiStrings.get(R.string.translator_option_default) else KitsugiStrings.get(R.string.pd_custom),
-                icon = Icons.Rounded.Palette,
+                icon = Icons.Palette,
                 iconColor = accentColor,
                 onClick = { showPriorityColorsDialog = true }
             )
@@ -1802,7 +1783,7 @@ private fun ListScoreTab(
                 title = KitsugiStrings.get(R.string.settings_fuzzy_search),
                 description = KitsugiStrings.get(R.string.yazim_hatalarini_kelime_siralamasinin_bozuk_olmasini_ve_kisaltma) +
                     KitsugiStrings.get(R.string.ornegin_aot_eslestirir_eski_cihazlarda_performansi_etkileyebilir),
-                icon = Icons.Rounded.ManageSearch,
+                icon = Icons.ManageSearch,
                 iconColor = accentColor,
                 checked = fuzzySearchEnabled,
                 onCheckedChange = onFuzzySearchEnabledChanged
@@ -1816,7 +1797,7 @@ private fun ListScoreTab(
                     KitsugiStrings.get(R.string.roman_novel_sonuclari_mangalardan_ayri_bolumde_listelenir)
                 else
                     KitsugiStrings.get(R.string.settings_novels_with_manga),
-                icon = Icons.Rounded.MenuBook,
+                icon = Icons.MenuBook,
                 iconColor = accentColor,
                 checked = separateNovelsManga,
                 onCheckedChange = onSeparateNovelsMangaChanged
@@ -1940,7 +1921,7 @@ private fun MangaReaderTab(
                     title = stringResource(R.string.manga_reading_direction),
                     description = stringResource(R.string.manga_reading_direction_desc),
                     value = readingModeOptions.find { it.id == appSettings.mangaReadingMode }?.title ?: "",
-                    icon = Icons.Rounded.Settings,
+                    icon = Icons.Settings,
                     iconColor = accentColor,
                     onClick = { showReadingModeMenu = true }
                 )
@@ -1965,7 +1946,7 @@ private fun MangaReaderTab(
                     title = stringResource(R.string.manga_color_filter),
                     description = stringResource(R.string.manga_color_filter_desc),
                     value = colorFilterOptions.find { it.id == appSettings.mangaColorFilter }?.title ?: "",
-                    icon = Icons.Rounded.Palette,
+                    icon = Icons.Palette,
                     iconColor = accentColor,
                     onClick = { showColorFilterMenu = true }
                 )
@@ -1990,7 +1971,7 @@ private fun MangaReaderTab(
                     title = stringResource(R.string.manga_page_fit),
                     description = stringResource(R.string.manga_page_fit_desc),
                     value = fitModeOptions.find { it.id == appSettings.mangaFitMode }?.title ?: "",
-                    icon = Icons.Rounded.Tablet,
+                    icon = Icons.Tablet,
                     iconColor = accentColor,
                     onClick = { showFitModeMenu = true }
                 )

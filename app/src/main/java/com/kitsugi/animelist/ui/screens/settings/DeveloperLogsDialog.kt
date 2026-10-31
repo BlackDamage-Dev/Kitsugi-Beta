@@ -18,8 +18,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.*
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -236,7 +235,7 @@ fun DeveloperLogsDialog(
                         )
                     }
                     LogToolButton(
-                        icon = Icons.Rounded.Close,
+                        icon = Icons.Close,
                         description = stringResource(R.string.kapat),
                         tint = KitsugiColors.TextPrimary,
                         onClick = onDismiss
@@ -253,10 +252,10 @@ fun DeveloperLogsDialog(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    LogToolButton(Icons.Rounded.Refresh, stringResource(R.string.yenile), KitsugiColors.TextPrimary) {
+                    LogToolButton(Icons.Refresh, stringResource(R.string.yenile), KitsugiColors.TextPrimary) {
                         scope.launch { loadLogs(true) }
                     }
-                    LogToolButton(Icons.Rounded.ContentCopy, stringResource(R.string.action_copy), KitsugiColors.TextPrimary) {
+                    LogToolButton(Icons.ContentCopy, stringResource(R.string.action_copy), KitsugiColors.TextPrimary) {
                         val textToCopy = buildString {
                             if (crashReport != null) {
                                 append("=== SON ÇÖKME RAPORU ===\n")
@@ -268,7 +267,7 @@ fun DeveloperLogsDialog(
                         clipboardManager.setText(AnnotatedString(textToCopy))
                         Toast.makeText(context, KitsugiStrings.get(R.string.loglar_panoya_kopyalandi), Toast.LENGTH_SHORT).show()
                     }
-                    LogToolButton(Icons.Rounded.Save, stringResource(R.string.kaydet), KitsugiColors.TextPrimary) {
+                    LogToolButton(Icons.Save, stringResource(R.string.kaydet), KitsugiColors.TextPrimary) {
                         logSnapshotRef.value = crashReport to filteredLines
                         val timestamp = java.text.SimpleDateFormat(
                             "yyyyMMdd-HHmm",
@@ -276,7 +275,7 @@ fun DeveloperLogsDialog(
                         ).format(java.util.Date())
                         saveLogLauncher.launch("Kitsugi-logcat-$timestamp.txt")
                     }
-                    LogToolButton(Icons.Rounded.Share, stringResource(R.string.paylas), KitsugiColors.TextPrimary) {
+                    LogToolButton(Icons.Share, stringResource(R.string.paylas), KitsugiColors.TextPrimary) {
                         // Filtrelenmiş metni düz metin olarak paylaş (dosya sağlayıcısı gerektirmez).
                         val shareText = buildString {
                             if (crashReport != null) {
@@ -292,7 +291,7 @@ fun DeveloperLogsDialog(
                         }
                         context.startActivity(Intent.createChooser(intent, KitsugiStrings.get(R.string.loglari_paylas)))
                     }
-                    LogToolButton(Icons.Rounded.Delete, stringResource(R.string.temizle), KitsugiColors.AccentRed) {
+                    LogToolButton(Icons.Delete, stringResource(R.string.temizle), KitsugiColors.AccentRed) {
                         scope.launch { clearLogs() }
                     }
                 }
@@ -365,11 +364,11 @@ fun DeveloperLogsDialog(
                     },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
-                    leadingIcon = { Icon(Icons.Rounded.Search, null, tint = KitsugiColors.TextSecondary) },
+                    leadingIcon = { Icon(Icons.Search, null, tint = KitsugiColors.TextSecondary) },
                     trailingIcon = {
                         if (searchQuery.isNotEmpty()) {
                             IconButton(onClick = { searchQuery = "" }) {
-                                Icon(Icons.Rounded.Clear, null, tint = KitsugiColors.TextSecondary)
+                                Icon(Icons.Clear, null, tint = KitsugiColors.TextSecondary)
                             }
                         }
                     },
@@ -404,7 +403,7 @@ fun DeveloperLogsDialog(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                Icon(Icons.Rounded.Warning, null, tint = KitsugiColors.AccentRed)
+                                Icon(Icons.Warning, null, tint = KitsugiColors.AccentRed)
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
                                         text = stringResource(R.string.inline_latest_crash_report_detected_cff3667),

@@ -5,10 +5,7 @@ import com.kitsugi.animelist.ui.theme.gradient.border
 import com.kitsugi.animelist.ui.utils.tvClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Refresh
-import androidx.compose.material.icons.rounded.Settings
-import androidx.compose.material.icons.rounded.Extension
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.CircularProgressIndicator
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.MaterialTheme
@@ -81,7 +78,7 @@ internal fun CsPluginRow(
                     onError = { isError = true }
                 )
             } else {
-                Icon(Icons.Rounded.Extension, contentDescription = null, tint = accentColor, modifier = Modifier.size(18.dp))
+                Icon(Icons.Extension, contentDescription = null, tint = accentColor, modifier = Modifier.size(18.dp))
             }
         }
         Spacer(Modifier.width(10.dp))
@@ -274,7 +271,7 @@ internal fun CsPluginRow(
                         var isSettingsOpening by remember { mutableStateOf(false) }
                         if (pluginHasSettings) {
                             Icon(
-                                imageVector = Icons.Rounded.Settings,
+                                imageVector = Icons.Settings,
                                 contentDescription = stringResource(R.string.eklenti_ayarlari),
                                 tint = accentColor,
                                 modifier = Modifier
@@ -314,7 +311,7 @@ internal fun CsPluginRow(
                             )
                         }
                         Icon(
-                            imageVector = Icons.Rounded.Refresh,
+                            imageVector = Icons.Refresh,
                             contentDescription = stringResource(R.string.yeniden_kur),
                             tint = KitsugiColors.TextMuted,
                             modifier = Modifier

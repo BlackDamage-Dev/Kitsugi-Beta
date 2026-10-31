@@ -1,5 +1,6 @@
 package com.kitsugi.animelist.ui.screens.offline
 
+import com.kitsugi.animelist.ui.components.KitsugiChevronIcon
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import com.kitsugi.animelist.ui.theme.gradient.LinearProgressIndicator
 import com.kitsugi.animelist.ui.theme.gradient.Text
@@ -23,9 +24,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.*
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -321,7 +320,7 @@ fun DownloadsScreen(
         ) {
             IconButton(onClick = onBack) {
                 Icon(
-                    imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                    imageVector = Icons.ArrowBack,
                     contentDescription = stringResource(R.string.geri),
                     tint = KitsugiColors.TextPrimary
                 )
@@ -357,7 +356,7 @@ fun DownloadsScreen(
                 }
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.FolderOpen,
+                    imageVector = Icons.FolderOpen,
                     contentDescription = stringResource(R.string.indirme_klasorunu_ac),
                     tint = accentColor
                 )
@@ -370,15 +369,15 @@ fun DownloadsScreen(
             tabs = listOf(
                 KitsugiSettingsTabOption(
                     title = stringResource(R.string.downloads_videos_count, downloads.size),
-                    icon = Icons.Rounded.VideoLibrary
+                    icon = Icons.VideoLibrary
                 ),
                 KitsugiSettingsTabOption(
                     title = stringResource(R.string.inline_subtitles_1_s_b81ee5c, allSubtitles.size),
-                    icon = Icons.Rounded.Subtitles
+                    icon = Icons.Subtitles
                 ),
                 KitsugiSettingsTabOption(
                     title = stringResource(R.string.downloads_images_count, allImages.size),
-                    icon = Icons.Rounded.Image
+                    icon = Icons.Image
                 )
             ),
             selectedIndex = pagerState.currentPage,
@@ -404,7 +403,7 @@ fun DownloadsScreen(
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(
-                            imageVector = Icons.Rounded.DownloadForOffline,
+                            imageVector = Icons.DownloadForOffline,
                             contentDescription = null,
                             tint = KitsugiColors.TextMuted,
                             modifier = Modifier.size(64.dp)
@@ -510,7 +509,7 @@ fun DownloadsScreen(
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Icon(
-                                imageVector = Icons.Rounded.Subtitles,
+                                imageVector = Icons.Subtitles,
                                 contentDescription = null,
                                 tint = KitsugiColors.TextMuted,
                                 modifier = Modifier.size(64.dp)
@@ -656,7 +655,7 @@ fun DownloadedImagesTab(
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(
-                    imageVector = Icons.Rounded.ImageNotSupported,
+                    imageVector = Icons.ImageNotSupported,
                     contentDescription = null,
                     tint = KitsugiColors.TextMuted,
                     modifier = Modifier.size(64.dp)
@@ -701,7 +700,7 @@ fun DownloadedImagesTab(
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = Icons.Rounded.VideoLibrary,
+                                imageVector = Icons.VideoLibrary,
                                 contentDescription = null,
                                 tint = accentColor,
                                 modifier = Modifier.size(14.dp)
@@ -920,7 +919,7 @@ fun DownloadedImageCard(
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.FolderOpen,
+                            imageVector = Icons.FolderOpen,
                             contentDescription = stringResource(R.string.klasoru_ac),
                             tint = accentColor,
                             modifier = Modifier.size(16.dp)
@@ -1148,7 +1147,7 @@ fun DownloadItemRow(
                     modifier = Modifier.size(36.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.FolderOpen,
+                        imageVector = Icons.FolderOpen,
                         contentDescription = stringResource(R.string.klasoru_ac),
                         tint = KitsugiColors.AccentBlue,
                         modifier = Modifier.size(20.dp)
@@ -1158,17 +1157,17 @@ fun DownloadItemRow(
                 when (download.status) {
                     AnimeDownload.Status.DOWNLOADING -> {
                         IconButton(onClick = onPause, modifier = Modifier.size(36.dp)) {
-                            Icon(Icons.Rounded.Pause, contentDescription = stringResource(R.string.downloads_pause_action), tint = KitsugiColors.TextPrimary, modifier = Modifier.size(20.dp))
+                            Icon(Icons.Pause, contentDescription = stringResource(R.string.downloads_pause_action), tint = KitsugiColors.TextPrimary, modifier = Modifier.size(20.dp))
                         }
                     }
                     AnimeDownload.Status.PAUSED, AnimeDownload.Status.ERROR, AnimeDownload.Status.QUEUE -> {
                         IconButton(onClick = onResume, modifier = Modifier.size(36.dp)) {
-                            Icon(Icons.Rounded.PlayArrow, contentDescription = stringResource(R.string.tv_start), tint = accentColor, modifier = Modifier.size(20.dp))
+                            Icon(Icons.PlayArrow, contentDescription = stringResource(R.string.tv_start), tint = accentColor, modifier = Modifier.size(20.dp))
                         }
                     }
                     AnimeDownload.Status.COMPLETED -> {
                         IconButton(onClick = onPlay, modifier = Modifier.size(36.dp)) {
-                            Icon(Icons.Rounded.PlayArrow, contentDescription = stringResource(R.string.oynat), tint = KitsugiColors.AccentGreen, modifier = Modifier.size(22.dp))
+                            Icon(Icons.PlayArrow, contentDescription = stringResource(R.string.oynat), tint = KitsugiColors.AccentGreen, modifier = Modifier.size(22.dp))
                         }
                     }
                 }
@@ -1198,7 +1197,7 @@ fun DownloadItemRow(
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.Subtitles,
+                        imageVector = Icons.Subtitles,
                         contentDescription = null,
                         tint = KitsugiColors.TextSecondary,
                         modifier = Modifier.size(15.dp)
@@ -1210,8 +1209,8 @@ fun DownloadItemRow(
                         fontWeight = FontWeight.Bold
                     )
                 }
-                Icon(
-                    imageVector = if (isExpanded) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.KeyboardArrowDown,
+                KitsugiChevronIcon(
+                    expanded = isExpanded,
                     contentDescription = null,
                     tint = KitsugiColors.TextMuted,
                     modifier = Modifier.size(18.dp)
@@ -1230,7 +1229,7 @@ fun DownloadItemRow(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.CheckCircle,
+                            imageVector = Icons.CheckCircle,
                             contentDescription = null,
                             tint = KitsugiColors.AccentGreen,
                             modifier = Modifier.size(15.dp)
@@ -1262,7 +1261,7 @@ fun DownloadItemRow(
                             modifier = Modifier.size(28.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Rounded.FolderOpen,
+                                imageVector = Icons.FolderOpen,
                                 contentDescription = stringResource(R.string.altyazi_klasorunu_ac),
                                 tint = KitsugiColors.AccentOrange,
                                 modifier = Modifier.size(17.dp)
@@ -1302,7 +1301,7 @@ fun SubtitleCardItem(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.Subtitles,
+                    imageVector = Icons.Subtitles,
                     contentDescription = null,
                     tint = KitsugiColors.AccentOrange,
                     modifier = Modifier.size(22.dp)
@@ -1392,7 +1391,7 @@ fun SubtitleCardItem(
                     modifier = Modifier.size(36.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.FolderOpen,
+                        imageVector = Icons.FolderOpen,
                         contentDescription = stringResource(R.string.klasoru_ac),
                         tint = KitsugiColors.AccentBlue,
                         modifier = Modifier.size(20.dp)

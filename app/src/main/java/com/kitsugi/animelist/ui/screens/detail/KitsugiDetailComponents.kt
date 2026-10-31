@@ -1,5 +1,6 @@
 package com.kitsugi.animelist.ui.screens.detail
 
+import com.kitsugi.animelist.ui.components.KitsugiChevronIcon
 import com.kitsugi.animelist.ui.components.animateDetailContentSize
 import com.kitsugi.animelist.ui.theme.gradient.background
 import com.kitsugi.animelist.ui.theme.gradient.border
@@ -16,11 +17,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.KeyboardArrowDown
-import androidx.compose.material.icons.rounded.KeyboardArrowUp
-import androidx.compose.material.icons.rounded.Lock
-import androidx.compose.material.icons.rounded.OpenInBrowser
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.MaterialTheme
 import com.kitsugi.animelist.ui.theme.gradient.Text
@@ -214,7 +211,7 @@ fun KitsugiTagsCard(
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.Lock,
+                        imageVector = Icons.Lock,
                         contentDescription = null,
                         tint = KitsugiColors.TextSecondary,
                         modifier = Modifier.size(13.dp)
@@ -247,8 +244,8 @@ fun KitsugiTagsCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                Icon(
-                    imageVector = if (expanded) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.KeyboardArrowDown,
+                KitsugiChevronIcon(
+                    expanded = expanded,
                     contentDescription = null,
                     tint = accentColor,
                     modifier = Modifier.size(18.dp)
@@ -384,7 +381,7 @@ fun KitsugiGenresCard(
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.Lock,
+                        imageVector = Icons.Lock,
                         contentDescription = null,
                         tint = KitsugiColors.TextSecondary,
                         modifier = Modifier.size(13.dp)
@@ -522,7 +519,7 @@ private fun LinkChip(
             )
         }
         Icon(
-            imageVector = Icons.Rounded.OpenInBrowser,
+            imageVector = Icons.OpenInBrowser,
             contentDescription = null,
             tint = (if (solid) color else KitsugiColors.TextSecondary).copy(alpha = 0.6f),
             modifier = Modifier.size(13.dp)

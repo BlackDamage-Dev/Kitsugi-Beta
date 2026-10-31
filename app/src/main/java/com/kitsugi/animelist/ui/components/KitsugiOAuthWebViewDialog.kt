@@ -13,10 +13,7 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.OpenInNew
-import androidx.compose.material.icons.rounded.Refresh
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -176,13 +173,13 @@ fun KitsugiOAuthWebViewDialog(
                     }
                     Spacer(Modifier.width(8.dp))
                     IconButton(onClick = { webViewInstance?.reload() }) {
-                        Icon(Icons.Rounded.Refresh, contentDescription = stringResource(R.string.yenile), tint = KitsugiColors.TextSecondary)
+                        Icon(Icons.Refresh, contentDescription = stringResource(R.string.yenile), tint = KitsugiColors.TextSecondary)
                     }
                     IconButton(onClick = {
                         CookieManager.getInstance().flush()
                         onDismiss()
                     }) {
-                        Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.kapat), tint = KitsugiColors.TextPrimary)
+                        Icon(Icons.Close, contentDescription = stringResource(R.string.kapat), tint = KitsugiColors.TextPrimary)
                     }
                 }
 
@@ -411,7 +408,7 @@ fun KitsugiOAuthWebViewDialog(
                             shape = RoundedCornerShape(16.dp)
                         ) {
                             Icon(
-                                Icons.Rounded.OpenInNew,
+                                Icons.OpenInNew,
                                 contentDescription = null,
                                 modifier = Modifier.size(16.dp),
                                 tint = accentColor

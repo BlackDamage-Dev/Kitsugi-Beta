@@ -15,10 +15,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Bookmarks
-import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.Movie
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.ui.platform.LocalContext
 import com.kitsugi.animelist.ui.components.KitsugiUiverseGlowButton
 import com.kitsugi.animelist.ui.theme.gradient.Icon
@@ -496,7 +493,7 @@ fun TvDetailScreen(
                                     },
                                     focusRequester = playButtonFocusRequester,
                                     text = if (isMovie) stringResource(R.string.tv_detail_play) else stringResource(R.string.tv_detail_select_episode),
-                                    icon = Icons.Rounded.PlayArrow,
+                                    icon = Icons.PlayArrow,
                                     backgroundColor = accentColor,
                                     textColor = Color.White,
                                     modifier = Modifier.focusProperties {
@@ -518,7 +515,7 @@ fun TvDetailScreen(
                                     onClick = onToggleLibrary,
                                     focusRequester = libraryButtonFocusRequester,
                                     text = if (existingEntry != null) stringResource(R.string.tv_detail_remove_library) else stringResource(R.string.tv_detail_add_library),
-                                    icon = Icons.Rounded.Bookmarks,
+                                    icon = Icons.Bookmarks,
                                     backgroundColor = KitsugiColors.SurfaceStrong,
                                     textColor = KitsugiColors.TextPrimary,
                                     modifier = Modifier.focusProperties {
@@ -538,7 +535,7 @@ fun TvDetailScreen(
                                     onClick = { loadAndShowTrailer() },
                                     focusRequester = trailerButtonFocusRequester,
                                     text = stringResource(R.string.tv_detail_trailer),
-                                    icon = Icons.Rounded.Movie,
+                                    icon = Icons.Movie,
                                     backgroundColor = KitsugiColors.SurfaceStrong,
                                     textColor = KitsugiColors.TextPrimary,
                                     modifier = Modifier.focusProperties {
@@ -1776,7 +1773,7 @@ private fun TvThemeCard(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.PlayArrow,
+                    imageVector = Icons.PlayArrow,
                     contentDescription = null,
                     tint = accentColor,
                     modifier = Modifier.size(20.dp)

@@ -71,7 +71,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.material3.IconButton
 import com.kitsugi.animelist.ui.theme.gradient.Icon
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import com.kitsugi.animelist.utils.rememberScrollVisibilityState
 import com.kitsugi.animelist.utils.rememberScrollConnection
 import androidx.compose.ui.graphics.Brush
@@ -127,13 +126,7 @@ import com.kitsugi.animelist.ui.screens.stream.KitsugiStreamActivity
 import com.kitsugi.animelist.data.settings.SettingsDataStore
 import com.kitsugi.animelist.data.settings.AppSettings
 import com.kitsugi.animelist.ui.components.KitsugiIntegrationsSettingsDialog
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoStories
-import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.Share
-import androidx.compose.material.icons.rounded.Favorite
-import androidx.compose.material.icons.rounded.FavoriteBorder
-import androidx.compose.material.icons.rounded.Image
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.AlertDialog
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.OutlinedTextField
@@ -908,7 +901,7 @@ fun ApiResultDetailPage(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.PlayArrow,
+                        imageVector = Icons.PlayArrow,
                         contentDescription = null,
                         tint = accentColor
                     )

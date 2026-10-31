@@ -6,8 +6,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.*
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -60,7 +59,7 @@ fun FolderDetailScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Rounded.ArrowBack, contentDescription = stringResource(R.string.geri))
+                        Icon(Icons.ArrowBack, contentDescription = stringResource(R.string.geri))
                     }
                 },
                 actions = {
@@ -68,10 +67,10 @@ fun FolderDetailScreen(
                         TextButton(onClick = { reorderMode = false }) { Text("Bitti") }
                     } else {
                         IconButton(onClick = { reorderMode = true }) {
-                            Icon(Icons.Rounded.DragHandle, contentDescription = stringResource(R.string.sirayi_duzenle))
+                            Icon(Icons.DragHandle, contentDescription = stringResource(R.string.sirayi_duzenle))
                         }
                         IconButton(onClick = onEditFolder) {
-                            Icon(Icons.Rounded.Edit, contentDescription = stringResource(R.string.klasoru_duzenle))
+                            Icon(Icons.Edit, contentDescription = stringResource(R.string.klasoru_duzenle))
                         }
                     }
                 }
@@ -85,7 +84,7 @@ fun FolderDetailScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Icon(Icons.Rounded.FolderOpen, contentDescription = null, modifier = Modifier.size(56.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Icon(Icons.FolderOpen, contentDescription = null, modifier = Modifier.size(56.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(stringResource(R.string.inline_this_collection_is_empty_852ab9f), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(stringResource(R.string.inline_you_can_add_titles_from_a587f29), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
@@ -143,7 +142,7 @@ private fun CollectionItemCard(
                 color = MaterialTheme.colorScheme.surfaceVariant
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    Icon(Icons.Rounded.Movie, contentDescription = null, modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Icon(Icons.Movie, contentDescription = null, modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
 
@@ -165,7 +164,7 @@ private fun CollectionItemCard(
                     onClick = onRemove,
                     modifier = Modifier.align(Alignment.TopEnd).size(32.dp)
                 ) {
-                    Icon(Icons.Rounded.RemoveCircle, contentDescription = stringResource(R.string.kaldir), tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp))
+                    Icon(Icons.RemoveCircle, contentDescription = stringResource(R.string.kaldir), tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp))
                 }
             }
         }

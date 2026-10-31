@@ -17,22 +17,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.Label
-import androidx.compose.material.icons.automirrored.rounded.Notes
-import androidx.compose.material.icons.rounded.Bookmark
-import androidx.compose.material.icons.rounded.Book
-import androidx.compose.material.icons.rounded.CalendarToday
-import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.DateRange
-import androidx.compose.material.icons.rounded.Delete
-import androidx.compose.material.icons.rounded.EventAvailable
-import androidx.compose.material.icons.rounded.Pause
-import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.PriorityHigh
-import androidx.compose.material.icons.rounded.Repeat
-import androidx.compose.material.icons.rounded.RepeatOne
-import androidx.compose.material.icons.rounded.Star
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import com.kitsugi.animelist.ui.theme.gradient.Icon
@@ -212,11 +197,11 @@ internal fun KitsugiMalMediaEntryEditorSheet(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     listOf(
-                        WatchStatus.Watching to Icons.Rounded.PlayArrow,
-                        WatchStatus.Completed to Icons.Rounded.Check,
-                        WatchStatus.Paused to Icons.Rounded.Pause,
-                        WatchStatus.Dropped to Icons.Rounded.Delete,
-                        WatchStatus.Planned to Icons.Rounded.Bookmark
+                        WatchStatus.Watching to Icons.PlayArrow,
+                        WatchStatus.Completed to Icons.Check,
+                        WatchStatus.Paused to Icons.Pause,
+                        WatchStatus.Dropped to Icons.Delete,
+                        WatchStatus.Planned to Icons.Bookmark
                     ).forEach { (status, icon) ->
                         val selected = selectedStatus == status
                         Box(
@@ -236,7 +221,7 @@ internal fun KitsugiMalMediaEntryEditorSheet(
 
                 val progressSuffix = if (parsedTotal != null) " / $parsedTotal" else ""
                 SheetRow(
-                    icon = if (selectedType == MediaType.Anime) Icons.Rounded.PlayArrow else Icons.Rounded.Book,
+                    icon = if (selectedType == MediaType.Anime) Icons.PlayArrow else Icons.Book,
                     label = if (selectedType == MediaType.Anime) stringResource(R.string.tv_detail_episodes) else stringResource(R.string.bolumler_chapter),
                     value = progressText,
                     onValueChange = { newValue ->
@@ -266,7 +251,7 @@ internal fun KitsugiMalMediaEntryEditorSheet(
 
                 if (selectedType == MediaType.Manga) {
                     SheetRow(
-                        icon = Icons.Rounded.Bookmark,
+                        icon = Icons.Bookmark,
                         label = "Ciltler (Volume)",
                         value = volumeProgress.toString(),
                         onValueChange = { newValue ->
@@ -310,7 +295,7 @@ internal fun KitsugiMalMediaEntryEditorSheet(
                 }
 
                 SheetRow(
-                    icon = Icons.Rounded.Star,
+                    icon = Icons.Star,
                     label = stringResource(R.string.detail_stat_score),
                     value = scoreText,
                     onValueChange = null,
@@ -355,29 +340,29 @@ internal fun KitsugiMalMediaEntryEditorSheet(
                     }, year, month, day).show()
                 }
 
-                SheetRow(icon = Icons.Rounded.CalendarToday, label = stringResource(R.string.baslangic_tarihi),
+                SheetRow(icon = Icons.CalendarToday, label = stringResource(R.string.baslangic_tarihi),
                     value = startDateText.ifBlank { KitsugiStrings.get(R.string.tarih_secilmemis) },
                     onClick = { selectDate(startDateText) { startDateText = it } },
                     onClearClick = if (startDateText.isNotBlank()) { { startDateText = "" } } else null)
-                SheetRow(icon = Icons.Rounded.EventAvailable, label = stringResource(R.string.bitis_tarihi),
+                SheetRow(icon = Icons.EventAvailable, label = stringResource(R.string.bitis_tarihi),
                     value = endDateText.ifBlank { KitsugiStrings.get(R.string.tarih_secilmemis) },
                     onClick = { selectDate(endDateText) { endDateText = it } },
                     onClearClick = if (endDateText.isNotBlank()) { { endDateText = "" } } else null)
 
                 val priorityText = when (priority) { 1 -> "Orta"; 2 -> "Yüksek"; else -> "Düşük" }
                 SheetRow(
-                    icon = Icons.Rounded.PriorityHigh, label = stringResource(R.string.oncelik), value = priorityText,
+                    icon = Icons.PriorityHigh, label = stringResource(R.string.oncelik), value = priorityText,
                     onDecrement = { priority = ((priority ?: 0) - 1).coerceAtLeast(0) },
                     onIncrement = { priority = ((priority ?: 0) + 1).coerceAtMost(2) }
                 )
 
                 SheetRow(
-                    icon = Icons.Rounded.Repeat,
+                    icon = Icons.Repeat,
                     label = if (selectedType == MediaType.Manga) KitsugiStrings.get(R.string.yeniden_okunuyor) else KitsugiStrings.get(R.string.watch_repeating),
                     switchChecked = isRepeating, onSwitchCheckedChange = { isRepeating = it }
                 )
                 SheetRow(
-                    icon = Icons.Rounded.RepeatOne,
+                    icon = Icons.RepeatOne,
                     label = if (selectedType == MediaType.Manga) KitsugiStrings.get(R.string.toplam_tekrar_okuma) else KitsugiStrings.get(R.string.toplam_tekrar_izleme),
                     value = repeatCount.toString(),
                     onDecrement = { repeatCount = (repeatCount - 1).coerceAtLeast(0) },
@@ -386,7 +371,7 @@ internal fun KitsugiMalMediaEntryEditorSheet(
 
                 val repeatValueText = when (repeatValue) { 1 -> "Çok Düşük"; 2 -> "Düşük"; 3 -> "Orta"; 4 -> "Yüksek"; 5 -> "Çok Yüksek"; else -> "─" }
                 SheetRow(
-                    icon = Icons.Rounded.DateRange,
+                    icon = Icons.DateRange,
                     label = if (selectedType == MediaType.Manga) KitsugiStrings.get(R.string.tekrar_okuma_degeri) else KitsugiStrings.get(R.string.tekrar_izleme_degeri),
                     value = repeatValueText,
                     onDecrement = { repeatValue = (repeatValue - 1).coerceAtLeast(0) },
@@ -395,7 +380,7 @@ internal fun KitsugiMalMediaEntryEditorSheet(
 
                 Spacer(modifier = Modifier.height(10.dp))
                 Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(imageVector = Icons.AutoMirrored.Rounded.Label, contentDescription = "Etiketler",
+                    Icon(imageVector = Icons.Label, contentDescription = "Etiketler",
                         tint = KitsugiColors.TextSecondary, modifier = Modifier.size(24.dp))
                     Spacer(modifier = Modifier.width(16.dp))
                     DialogTextField(value = tags, onValueChange = { tags = it },
@@ -405,7 +390,7 @@ internal fun KitsugiMalMediaEntryEditorSheet(
 
                 Spacer(modifier = Modifier.height(10.dp))
                 Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.Top) {
-                    Icon(imageVector = Icons.AutoMirrored.Rounded.Notes, contentDescription = "Notlar",
+                    Icon(imageVector = Icons.Notes, contentDescription = "Notlar",
                         tint = KitsugiColors.TextSecondary, modifier = Modifier.size(24.dp).padding(top = 12.dp))
                     Spacer(modifier = Modifier.width(16.dp))
                     TextField(value = notes, onValueChange = { notes = it },
@@ -422,13 +407,13 @@ internal fun KitsugiMalMediaEntryEditorSheet(
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
-                SheetRow(icon = Icons.Rounded.Star, label = "Favori",
+                SheetRow(icon = Icons.Star, label = "Favori",
                     switchChecked = isFavorite, onSwitchCheckedChange = { isFavorite = it })
 
                 if (isEditing && onDeleteClick != null) {
                     Spacer(modifier = Modifier.height(16.dp))
                     HorizontalDivider(color = KitsugiColors.Border, modifier = Modifier.padding(horizontal = 16.dp))
-                    SheetRow(icon = Icons.Rounded.Delete, label = KitsugiStrings.get(R.string.action_delete),
+                    SheetRow(icon = Icons.Delete, label = KitsugiStrings.get(R.string.action_delete),
                         onClick = onDeleteClick, modifier = Modifier.padding(vertical = 4.dp))
                 }
 

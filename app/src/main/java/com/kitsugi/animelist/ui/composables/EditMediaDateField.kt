@@ -5,8 +5,7 @@ import com.kitsugi.animelist.ui.theme.gradient.Text
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.DateRange
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -30,7 +29,7 @@ fun EditMediaDateField(
         readOnly = true,
         trailingIcon = {
             Icon(
-                imageVector = Icons.Rounded.DateRange,
+                imageVector = Icons.DateRange,
                 contentDescription = null,
                 modifier = Modifier.clickable { onPickDateClick() }
             )

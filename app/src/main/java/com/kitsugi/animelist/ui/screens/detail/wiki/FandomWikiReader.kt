@@ -1,5 +1,6 @@
 package com.kitsugi.animelist.ui.screens.detail.wiki
 
+import com.kitsugi.animelist.ui.components.KitsugiChevronIcon
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.runtime.key
 import androidx.compose.runtime.SideEffect
@@ -37,22 +38,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.automirrored.rounded.ArrowForward
-import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.BrokenImage
-import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.KeyboardArrowDown
-import androidx.compose.material.icons.rounded.KeyboardArrowUp
-import androidx.compose.material.icons.rounded.Language
-import androidx.compose.material.icons.rounded.MoreVert
-import androidx.compose.material.icons.rounded.OpenInNew
-import androidx.compose.material.icons.rounded.Refresh
-import androidx.compose.material.icons.rounded.Web
-import androidx.compose.material.icons.rounded.MenuBook
-import androidx.compose.material.icons.rounded.Tune
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -484,7 +470,7 @@ private fun ReaderBrowserMenu(
     var showMenu by remember { mutableStateOf(false) }
     Box {
         WikiIconAction(
-            icon = Icons.Rounded.MoreVert,
+            icon = Icons.MoreVert,
             contentDescription = stringResource(R.string.wiki_more_actions),
             tint = KitsugiColors.TextSecondary,
             onClick = { showMenu = true }
@@ -497,13 +483,13 @@ private fun ReaderBrowserMenu(
             // ── Gezinme ──────────────────────────────────────────────────────
             ReaderMenuItem(
                 label = stringResource(R.string.fandom_reader_back),
-                icon = Icons.AutoMirrored.Rounded.ArrowBack,
+                icon = Icons.ArrowBack,
                 enabled = canGoBack,
                 onClick = { showMenu = false; onBack() }
             )
             ReaderMenuItem(
                 label = stringResource(R.string.fandom_reader_forward),
-                icon = Icons.AutoMirrored.Rounded.ArrowForward,
+                icon = Icons.ArrowForward,
                 enabled = canGoForward,
                 onClick = { showMenu = false; onForward() }
             )
@@ -511,13 +497,13 @@ private fun ReaderBrowserMenu(
             // ── Görünüm modu ─────────────────────────────────────────────
             ReaderMenuItem(
                 label = stringResource(R.string.wiki_original_page),
-                icon = Icons.Rounded.Language,
+                icon = Icons.Language,
                 checked = webMode,
                 onClick = { showMenu = false; onSelectOriginal() }
             )
             ReaderMenuItem(
                 label = stringResource(R.string.wiki_simple_reader),
-                icon = Icons.Rounded.MenuBook,
+                icon = Icons.MenuBook,
                 checked = !webMode,
                 onClick = { showMenu = false; onSelectReader() }
             )
@@ -526,7 +512,7 @@ private fun ReaderBrowserMenu(
                 // ── Sayfa araçları (çeviri, reklam engeli, görünüm…) ─────
                 ReaderMenuItem(
                     label = stringResource(R.string.wiki_page_tools),
-                    icon = Icons.Rounded.Tune,
+                    icon = Icons.Tune,
                     onClick = { showMenu = false; onOpenPageTools() }
                 )
                 ReaderMenuItem(
@@ -534,12 +520,12 @@ private fun ReaderBrowserMenu(
                         if (desktopMode) R.string.wiki_mobile_layout
                         else R.string.wiki_desktop_layout
                     ),
-                    icon = Icons.Rounded.Web,
+                    icon = Icons.Web,
                     onClick = { showMenu = false; onToggleDesktop() }
                 )
                 ReaderMenuItem(
                     label = stringResource(R.string.yenile),
-                    icon = Icons.Rounded.Refresh,
+                    icon = Icons.Refresh,
                     onClick = { showMenu = false; onReload() }
                 )
             }
@@ -547,19 +533,19 @@ private fun ReaderBrowserMenu(
             // ── Tarayıcı eylemleri ───────────────────────────────────────
             ReaderMenuItem(
                 label = stringResource(R.string.fandom_reader_open_browser),
-                icon = Icons.Rounded.OpenInNew,
+                icon = Icons.OpenInNew,
                 enabled = hasPage,
                 onClick = { showMenu = false; onOpenInBrowser() }
             )
             ReaderMenuItem(
                 label = stringResource(R.string.fandom_reader_new_tab),
-                icon = Icons.Rounded.Add,
+                icon = Icons.Add,
                 enabled = canOpenNewTab,
                 onClick = { showMenu = false; onNewTab() }
             )
             ReaderMenuItem(
                 label = stringResource(R.string.fandom_reader_close),
-                icon = Icons.Rounded.Close,
+                icon = Icons.Close,
                 onClick = { showMenu = false; onClose() }
             )
         }
@@ -598,7 +584,7 @@ private fun ReaderMenuItem(
         trailingIcon = if (checked) {
             {
                 Icon(
-                    imageVector = Icons.Rounded.Check,
+                    imageVector = Icons.Check,
                     contentDescription = null,
                     tint = KitsugiColors.TextPrimary,
                     modifier = Modifier.size(17.dp)
@@ -744,7 +730,7 @@ private fun ReaderNewTabChip(
         contentAlignment = Alignment.Center
     ) {
         Icon(
-            imageVector = Icons.Rounded.Add,
+            imageVector = Icons.Add,
             contentDescription = stringResource(R.string.fandom_reader_new_tab),
             tint = if (enabled) accentColor else KitsugiColors.TextMuted.copy(alpha = 0.4f),
             modifier = Modifier.size(16.dp)
@@ -800,7 +786,7 @@ private fun ReaderTabChip(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.Close,
+                    imageVector = Icons.Close,
                     contentDescription = stringResource(R.string.fandom_reader_close_tab, title),
                     tint = if (selected) accentColor else KitsugiColors.TextMuted,
                     modifier = Modifier.size(13.dp)
@@ -1130,7 +1116,7 @@ private fun ReaderContent(
             modifier = Modifier.size(56.dp)
         ) {
             androidx.compose.material3.Icon(
-                imageVector = Icons.Rounded.KeyboardArrowUp,
+                imageVector = Icons.KeyboardArrowUp,
                 contentDescription = null,
                 modifier = Modifier.size(30.dp)
             )
@@ -1315,7 +1301,7 @@ private fun ReaderHeaderCard(
                     },
                     error = {
                         Box(Modifier.fillMaxSize().background(KitsugiColors.SurfaceStrong), contentAlignment = Alignment.Center) {
-                            Icon(Icons.Rounded.BrokenImage, null, tint = KitsugiColors.TextMuted)
+                            Icon(Icons.BrokenImage, null, tint = KitsugiColors.TextMuted)
                         }
                     }
                 )
@@ -1406,7 +1392,7 @@ private fun ReaderContentsCard(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.MenuBook,
+                            imageVector = Icons.MenuBook,
                             contentDescription = null,
                             tint = accentColor,
                             modifier = Modifier.size(16.dp)
@@ -1431,8 +1417,8 @@ private fun ReaderContentsCard(
                             isFailed -> Text("!", color = KitsugiColors.AccentOrange, fontWeight = FontWeight.Bold)
                         }
                         Spacer(Modifier.width(4.dp))
-                        Icon(
-                            imageVector = if (isExpanded) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.KeyboardArrowDown,
+                        KitsugiChevronIcon(
+                            expanded = isExpanded,
                             contentDescription = null,
                             tint = if (isExpanded) accentColor else KitsugiColors.TextMuted,
                             modifier = Modifier.size(19.dp)

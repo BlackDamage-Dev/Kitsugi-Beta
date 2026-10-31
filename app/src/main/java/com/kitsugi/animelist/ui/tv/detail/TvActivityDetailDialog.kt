@@ -14,9 +14,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Favorite
-import androidx.compose.material.icons.rounded.FavoriteBorder
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -211,7 +209,7 @@ fun TvActivityDetailDialog(
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Icon(
-                                    imageVector = if (isActLikedState) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                                    imageVector = if (isActLikedState) Icons.Favorite else Icons.FavoriteBorder,
                                     contentDescription = stringResource(R.string.begen),
                                     tint = if (isActLikedState) accentColor else KitsugiColors.TextSecondary,
                                     modifier = Modifier.size(16.dp)
@@ -559,7 +557,7 @@ private fun TvActivityReplyCard(
                     .padding(horizontal = 6.dp, vertical = 4.dp)
             ) {
                 Icon(
-                    imageVector = if (likedState) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                    imageVector = if (likedState) Icons.Favorite else Icons.FavoriteBorder,
                     contentDescription = stringResource(R.string.begen),
                     tint = if (likedState) accentColor else KitsugiColors.TextMuted,
                     modifier = Modifier.size(14.dp)

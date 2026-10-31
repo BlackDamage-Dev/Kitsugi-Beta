@@ -26,10 +26,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.FilterAlt
-import androidx.compose.material.icons.rounded.Sort
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.MaterialTheme
 import com.kitsugi.animelist.ui.theme.gradient.Text
@@ -222,7 +219,7 @@ fun KitsugiMediaFilterBottomSheet(
                 // ── 1. SIRALAMA VE AYIRMA ────────────────────────────────────
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
-                        imageVector = Icons.Rounded.Sort,
+                        imageVector = Icons.Sort,
                         contentDescription = null,
                         tint = accentColor,
                         modifier = Modifier.size(18.dp)
@@ -273,7 +270,7 @@ fun KitsugiMediaFilterBottomSheet(
                                 if (isSelected) {
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Icon(
-                                        imageVector = Icons.Rounded.Check,
+                                        imageVector = Icons.Check,
                                         contentDescription = null,
                                         tint = accentColor,
                                         modifier = Modifier.size(14.dp)
@@ -289,7 +286,7 @@ fun KitsugiMediaFilterBottomSheet(
                 // ── 2. TÜR FİLTRESİ ──────────────────────────────────────────
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
-                        imageVector = Icons.Rounded.FilterAlt,
+                        imageVector = Icons.FilterAlt,
                         contentDescription = null,
                         tint = accentColor,
                         modifier = Modifier.size(18.dp)
@@ -340,7 +337,7 @@ fun KitsugiMediaFilterBottomSheet(
                                 if (isSelected) {
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Icon(
-                                        imageVector = Icons.Rounded.Check,
+                                        imageVector = Icons.Check,
                                         contentDescription = null,
                                         tint = accentColor,
                                         modifier = Modifier.size(14.dp)

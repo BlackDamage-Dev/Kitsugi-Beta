@@ -1,11 +1,6 @@
 package com.kitsugi.animelist.ui.navigation
 
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ListAlt
-import androidx.compose.material.icons.rounded.Explore
-import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material.icons.rounded.Settings
-import androidx.compose.material.icons.rounded.Person
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.ui.graphics.vector.ImageVector
 
 import androidx.annotation.StringRes
@@ -15,9 +10,9 @@ enum class MainTab(
     @StringRes val labelRes: Int,
     val icon: ImageVector
 ) {
-    Explore(R.string.tab_explore, Icons.Rounded.Explore),
-    MyList(R.string.tab_mylist, Icons.AutoMirrored.Rounded.ListAlt),
-    Search(R.string.tab_search, Icons.Rounded.Search),
-    Profile(R.string.tab_profile, Icons.Rounded.Person),
-    Settings(R.string.tab_settings, Icons.Rounded.Settings)
+    Explore(R.string.tab_explore, Icons.Explore),
+    MyList(R.string.tab_mylist, Icons.ListAlt),
+    Search(R.string.tab_search, Icons.Search),
+    Profile(R.string.tab_profile, Icons.Person),
+    Settings(R.string.tab_settings, Icons.Settings)
 }

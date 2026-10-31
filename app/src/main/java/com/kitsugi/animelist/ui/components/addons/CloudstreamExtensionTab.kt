@@ -17,8 +17,7 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.*
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -153,7 +152,12 @@ internal fun CloudstreamExtensionsTab(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Text("🔬", fontSize = 20.sp)
+                    Icon(
+                        imageVector = Icons.FlaskConical,
+                        contentDescription = null,
+                        tint = accentColor,
+                        modifier = Modifier.size(20.dp)
+                    )
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             stringResource(R.string.inline_plugin_diagnostics_mode_bea2832),
@@ -168,7 +172,7 @@ internal fun CloudstreamExtensionsTab(
                         )
                     }
                     Icon(
-                        Icons.Rounded.ChevronRight,
+                        Icons.ChevronRight,
                         contentDescription = null,
                         tint = accentColor,
                         modifier = Modifier.size(20.dp)
@@ -186,8 +190,8 @@ internal fun CloudstreamExtensionsTab(
             ) {
                 AddonSubsectionTabs(
                     tabs = listOf(
-                        AddonSubsectionTab(stringResource(R.string.addon_repositories_count, repos.size), Icons.Rounded.Language),
-                        AddonSubsectionTab(stringResource(R.string.addon_installed_count, csPlugins.size), Icons.Rounded.Extension)
+                        AddonSubsectionTab(stringResource(R.string.addon_repositories_count, repos.size), Icons.Language),
+                        AddonSubsectionTab(stringResource(R.string.addon_installed_count, csPlugins.size), Icons.Extension)
                     ),
                     selectedIndex = if (activeSection == CsTabSection.REPOS) 0 else 1,
                     accentColor = accentColor,
@@ -208,7 +212,7 @@ internal fun CloudstreamExtensionsTab(
                         if (isCheckingUpdates) {
                             CircularProgressIndicator(modifier = Modifier.size(14.dp), color = accentColor, strokeWidth = 2.dp)
                         } else {
-                            Icon(Icons.Rounded.Refresh, contentDescription = null, tint = accentColor, modifier = Modifier.size(15.dp))
+                            Icon(Icons.Refresh, contentDescription = null, tint = accentColor, modifier = Modifier.size(15.dp))
                         }
                         Text(stringResource(R.string.yenile), color = accentColor, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
@@ -235,7 +239,7 @@ internal fun CloudstreamExtensionsTab(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Icon(Icons.Rounded.ArrowCircleUp, contentDescription = null, tint = accentColor, modifier = Modifier.size(22.dp))
+                        Icon(Icons.ArrowCircleUp, contentDescription = null, tint = accentColor, modifier = Modifier.size(22.dp))
                         Column {
                             Text(
                                 stringResource(R.string.inline_1_s_extension_updates_available_1f54c44, availableUpdatesCount),
@@ -314,7 +318,7 @@ internal fun CloudstreamExtensionsTab(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(
-                                    Icons.Rounded.Language,
+                                    Icons.Language,
                                     contentDescription = null,
                                     tint = accentColor,
                                     modifier = Modifier.size(20.dp)
@@ -363,7 +367,7 @@ internal fun CloudstreamExtensionsTab(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(18.dp),
                     ) {
-                        Icon(Icons.Rounded.Add, contentDescription = stringResource(R.string.ekle))
+                        Icon(Icons.Add, contentDescription = stringResource(R.string.ekle))
                         Spacer(Modifier.width(6.dp))
                         Text(stringResource(R.string.ekle), fontWeight = FontWeight.Bold)
                     }
@@ -485,7 +489,7 @@ internal fun CloudstreamExtensionsTab(
                                 shape = RoundedCornerShape(12.dp),
                                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                             ) {
-                                Icon(Icons.Rounded.ArrowCircleUp, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                                Icon(Icons.ArrowCircleUp, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
                                 Spacer(Modifier.width(6.dp))
                                 Text(stringResource(R.string.inline_update_all_1_s_1a95494, availableUpdatesCount), color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             }
@@ -495,7 +499,7 @@ internal fun CloudstreamExtensionsTab(
                                 onClick = onOpenPluginPicker,
                                 shape = RoundedCornerShape(12.dp)
                             ) {
-                                Icon(Icons.Rounded.Extension, contentDescription = null, tint = accentColor, modifier = Modifier.size(16.dp))
+                                Icon(Icons.Extension, contentDescription = null, tint = accentColor, modifier = Modifier.size(16.dp))
                                 Spacer(Modifier.width(6.dp))
                                 Text(stringResource(R.string.eklenti_portali), color = accentColor, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             }
@@ -511,7 +515,7 @@ internal fun CloudstreamExtensionsTab(
                                 ),
                                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                             ) {
-                                Icon(Icons.Rounded.DeleteForever, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                                Icon(Icons.DeleteForever, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
                                 Spacer(Modifier.width(6.dp))
                                 Text(stringResource(R.string.eklenti_toplu_sil), color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             }
@@ -523,7 +527,7 @@ internal fun CloudstreamExtensionsTab(
             if (csPlugins.isEmpty()) {
                 item {
                     AddonEmptyCard(
-                        icon = Icons.Rounded.ExtensionOff,
+                        icon = Icons.ExtensionOff,
                         text = stringResource(R.string.henuz_eklenti_kurulmamis_depolar_sekmesinden_eklenti_kurabilirsi)
                     )
                 }
@@ -543,7 +547,7 @@ internal fun CloudstreamExtensionsTab(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            Icon(Icons.Rounded.CheckCircle, contentDescription = null, tint = accentColor, modifier = Modifier.size(20.dp))
+                            Icon(Icons.CheckCircle, contentDescription = null, tint = accentColor, modifier = Modifier.size(20.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(stringResource(R.string.cs_reenable_disabled_plugins_title), color = accentColor, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                                 Text(
@@ -552,7 +556,7 @@ internal fun CloudstreamExtensionsTab(
                                     fontSize = 11.sp
                                 )
                             }
-                            Icon(Icons.Rounded.ChevronRight, contentDescription = null, tint = accentColor, modifier = Modifier.size(20.dp))
+                            Icon(Icons.ChevronRight, contentDescription = null, tint = accentColor, modifier = Modifier.size(20.dp))
                         }
                     }
                 }

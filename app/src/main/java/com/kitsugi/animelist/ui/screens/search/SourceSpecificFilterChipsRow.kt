@@ -15,8 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Check
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.MaterialTheme
 import com.kitsugi.animelist.ui.theme.gradient.Text
@@ -816,7 +815,7 @@ fun SortOptionsContent(
                 )
                 if (isSelected) {
                     Icon(
-                        imageVector = Icons.Rounded.Check,
+                        imageVector = Icons.Check,
                         contentDescription = stringResource(R.string.secili),
                         tint = accentColor,
                         modifier = Modifier.size(18.dp)

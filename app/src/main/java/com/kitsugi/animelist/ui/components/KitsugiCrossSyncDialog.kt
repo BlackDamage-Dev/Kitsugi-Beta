@@ -40,19 +40,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.Send
-import androidx.compose.material.icons.rounded.AddCircleOutline
-import androidx.compose.material.icons.rounded.CheckCircle
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.Download
-import androidx.compose.material.icons.rounded.Edit
-import androidx.compose.material.icons.rounded.ErrorOutline
-import androidx.compose.material.icons.rounded.KeyboardArrowDown
-import androidx.compose.material.icons.rounded.KeyboardArrowUp
-import androidx.compose.material.icons.rounded.Security
-import androidx.compose.material.icons.rounded.Sync
-import androidx.compose.material.icons.rounded.WarningAmber
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.AlertDialog
 import com.kitsugi.animelist.ui.theme.gradient.FilterChip
 import androidx.compose.material3.HorizontalDivider
@@ -470,9 +458,9 @@ private fun CrossSyncHeader(
         ) {
             Icon(
                 imageVector = when {
-                    state.isCompleted -> Icons.Rounded.CheckCircle
-                    state.errorMessage != null -> Icons.Rounded.ErrorOutline
-                    else -> Icons.Rounded.Sync
+                    state.isCompleted -> Icons.CheckCircle
+                    state.errorMessage != null -> Icons.ErrorOutline
+                    else -> Icons.Sync
                 },
                 contentDescription = null,
                 tint = statusColor,
@@ -508,7 +496,7 @@ private fun CrossSyncHeader(
         }
         IconButton(onClick = onDismiss) {
             Icon(
-                imageVector = Icons.Rounded.Close,
+                imageVector = Icons.Close,
                 contentDescription = stringResource(R.string.kapat),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -632,7 +620,7 @@ private fun StalledBanner() {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Icon(Icons.Rounded.WarningAmber, contentDescription = null, tint = WARNING_COLOR, modifier = Modifier.size(18.dp))
+            Icon(Icons.WarningAmber, contentDescription = null, tint = WARNING_COLOR, modifier = Modifier.size(18.dp))
             Text(
                 stringResource(R.string.inline_progress_hasn_t_updated_for_e587968),
                 style = MaterialTheme.typography.bodySmall,
@@ -940,7 +928,7 @@ private fun SafetyNote() {
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.Security,
+                    imageVector = Icons.Security,
                     contentDescription = null,
                     tint = KitsugiColors.AccentGreen,
                     modifier = Modifier.size(14.dp)
@@ -958,8 +946,8 @@ private fun SafetyNote() {
                     fontWeight = FontWeight.Bold,
                     color = LocalKitsugiAccent.current
                 )
-                Icon(
-                    imageVector = if (expanded) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.KeyboardArrowDown,
+                KitsugiChevronIcon(
+                    expanded = expanded,
                     contentDescription = null,
                     tint = LocalKitsugiAccent.current,
                     modifier = Modifier.size(16.dp)
@@ -1002,7 +990,7 @@ private fun ColumnScope.ActionButtons(
                     .height(buttonHeight),
                 shape = RoundedCornerShape(10.dp)
             ) {
-                Icon(Icons.AutoMirrored.Rounded.Send, contentDescription = null, modifier = Modifier.size(16.dp))
+                Icon(Icons.Send, contentDescription = null, modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(5.dp))
                 Text(stringResource(R.string.inline_partial_report_b0be79e), maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 12.sp)
             }
@@ -1013,7 +1001,7 @@ private fun ColumnScope.ActionButtons(
                     .height(buttonHeight),
                 shape = RoundedCornerShape(10.dp)
             ) {
-                Icon(Icons.Rounded.Close, contentDescription = null, modifier = Modifier.size(16.dp))
+                Icon(Icons.Close, contentDescription = null, modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(5.dp))
                 Text(stringResource(R.string.cross_sync_action_stop), maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 12.sp)
             }
@@ -1034,7 +1022,7 @@ private fun ColumnScope.ActionButtons(
                 shape = RoundedCornerShape(10.dp),
                 enabled = hasReportContent
             ) {
-                Icon(Icons.Rounded.Download, contentDescription = null, modifier = Modifier.size(16.dp))
+                Icon(Icons.Download, contentDescription = null, modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(5.dp))
                 Text(stringResource(R.string.dosyaya_kaydet), maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 12.sp)
             }
@@ -1047,7 +1035,7 @@ private fun ColumnScope.ActionButtons(
                 shape = RoundedCornerShape(10.dp),
                 enabled = hasReportContent
             ) {
-                Icon(Icons.AutoMirrored.Rounded.Send, contentDescription = null, modifier = Modifier.size(16.dp))
+                Icon(Icons.Send, contentDescription = null, modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(5.dp))
                 Text(stringResource(R.string.inline_share_report_a47e5b0), maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 12.sp)
             }
@@ -1064,7 +1052,7 @@ private fun ColumnScope.ActionButtons(
                     shape = RoundedCornerShape(10.dp),
                     enabled = hasReportContent
                 ) {
-                    Icon(Icons.Rounded.Download, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Download, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(stringResource(R.string.kaydet), maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 12.sp)
                 }
@@ -1076,7 +1064,7 @@ private fun ColumnScope.ActionButtons(
                     shape = RoundedCornerShape(10.dp),
                     enabled = hasReportContent
                 ) {
-                    Icon(Icons.AutoMirrored.Rounded.Send, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Send, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(stringResource(R.string.paylas), maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 12.sp)
                 }
@@ -1096,7 +1084,7 @@ private fun ColumnScope.ActionButtons(
                 onClick = onStart,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Icon(Icons.Rounded.Sync, contentDescription = null, modifier = Modifier.size(15.dp))
+                Icon(Icons.Sync, contentDescription = null, modifier = Modifier.size(15.dp))
                 Spacer(modifier = Modifier.width(5.dp))
                 Text(stringResource(R.string.inline_start_new_sync_22f8bdc), fontSize = 12.sp)
             }
@@ -1124,10 +1112,10 @@ private fun LogItemRow(log: CrossSyncLogEntry) {
         else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
     val icon = when {
-        log.isError -> Icons.Rounded.ErrorOutline
-        log.isWarning -> Icons.Rounded.WarningAmber
-        log.isAddition -> Icons.Rounded.AddCircleOutline
-        log.isUpdate -> Icons.Rounded.Edit
+        log.isError -> Icons.ErrorOutline
+        log.isWarning -> Icons.WarningAmber
+        log.isAddition -> Icons.AddCircleOutline
+        log.isUpdate -> Icons.Edit
         else -> null
     }
 

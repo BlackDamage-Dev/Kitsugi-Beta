@@ -32,16 +32,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.CheckCircle
-import androidx.compose.material.icons.rounded.ChevronLeft
-import androidx.compose.material.icons.rounded.ChevronRight
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.Delete
-import androidx.compose.material.icons.rounded.Download
-import androidx.compose.material.icons.rounded.Image
-import androidx.compose.material.icons.rounded.Info
-import androidx.compose.material.icons.rounded.Share
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -705,7 +696,7 @@ private fun GalleryLandscapeLayout(
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = Icons.Rounded.ChevronLeft,
+                                imageVector = Icons.ChevronLeft,
                                 contentDescription = stringResource(R.string.onceki),
                                 tint = KitsugiColors.TextPrimary,
                                 modifier = Modifier.size(24.dp)
@@ -729,7 +720,7 @@ private fun GalleryLandscapeLayout(
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = Icons.Rounded.ChevronRight,
+                                imageVector = Icons.ChevronRight,
                                 contentDescription = stringResource(R.string.gallery_next_image),
                                 tint = KitsugiColors.TextPrimary,
                                 modifier = Modifier.size(24.dp)
@@ -808,7 +799,7 @@ private fun GalleryLandscapeLayout(
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = if (isAlreadyDownloaded) Icons.Rounded.CheckCircle else Icons.Rounded.Download,
+                                imageVector = if (isAlreadyDownloaded) Icons.CheckCircle else Icons.Download,
                                 contentDescription = stringResource(if (isAlreadyDownloaded) R.string.gallery_downloaded_status else R.string.gallery_download_action),
                                 tint = downloadBtnColor,
                                 modifier = Modifier.size(18.dp)
@@ -850,7 +841,7 @@ private fun GalleryLandscapeLayout(
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.Close,
+                            imageVector = Icons.Close,
                             contentDescription = stringResource(R.string.kapat),
                             tint = KitsugiColors.TextSecondary,
                             modifier = Modifier.size(18.dp)
@@ -877,7 +868,7 @@ private fun GalleryLandscapeLayout(
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = Icons.Rounded.Image,
+                                imageVector = Icons.Image,
                                 contentDescription = null,
                                 tint = accentColor,
                                 modifier = Modifier.size(14.dp)
@@ -1945,7 +1936,7 @@ private fun KitsugiGalleryHeader(
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.Image,
+                            imageVector = Icons.Image,
                             contentDescription = null,
                             tint = accentColor,
                             modifier = Modifier.size(18.dp)
@@ -2007,7 +1998,7 @@ private fun KitsugiGalleryHeader(
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = Icons.Rounded.Info,
+                                imageVector = Icons.Info,
                                 contentDescription = stringResource(R.string.gallery_details_accessibility),
                                 tint = accentColor,
                                 modifier = Modifier.size(20.dp)
@@ -2036,7 +2027,7 @@ private fun KitsugiGalleryHeader(
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = if (isAlreadyDownloaded) Icons.Rounded.CheckCircle else Icons.Rounded.Download,
+                                imageVector = if (isAlreadyDownloaded) Icons.CheckCircle else Icons.Download,
                                 contentDescription = stringResource(if (isAlreadyDownloaded) R.string.gallery_downloaded_status else R.string.gallery_download_action),
                                 tint = downloadBtnColor,
                                 modifier = Modifier.size(20.dp)
@@ -2081,7 +2072,7 @@ private fun KitsugiGalleryHeader(
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.Close,
+                            imageVector = Icons.Close,
                             contentDescription = stringResource(R.string.kapat),
                             tint = KitsugiColors.TextSecondary,
                             modifier = Modifier.size(20.dp)
@@ -2167,7 +2158,7 @@ internal fun KitsugiGalleryDeleteButton(
         contentAlignment = Alignment.Center
     ) {
         Icon(
-            imageVector = Icons.Rounded.Delete,
+            imageVector = Icons.Delete,
             contentDescription = contentDescription.ifBlank { stringResource(R.string.gallery_delete_downloaded_accessibility) },
             tint = tint,
             modifier = Modifier.size(iconSize)

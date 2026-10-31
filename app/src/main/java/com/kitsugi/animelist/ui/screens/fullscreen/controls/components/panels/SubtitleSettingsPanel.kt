@@ -27,25 +27,7 @@ import androidx.compose.foundation.pager.PageSize
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.FormatAlignLeft
-import androidx.compose.material.icons.automirrored.filled.FormatAlignRight
-import androidx.compose.material.icons.filled.BorderColor
-import androidx.compose.material.icons.filled.BorderStyle
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.FormatAlignCenter
-import androidx.compose.material.icons.filled.FormatAlignJustify
-import androidx.compose.material.icons.filled.FormatBold
-import androidx.compose.material.icons.filled.FormatClear
-import androidx.compose.material.icons.filled.FormatColorFill
-import androidx.compose.material.icons.filled.FormatColorReset
-import androidx.compose.material.icons.filled.FormatColorText
-import androidx.compose.material.icons.filled.FormatItalic
-import androidx.compose.material.icons.filled.FormatSize
-import androidx.compose.material.icons.filled.Palette
-import androidx.compose.material.icons.filled.Tune
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
@@ -116,7 +98,7 @@ fun SubtitleSettingsPanel(
                 ) {
                     IconButton(onClick = onDismissRequest) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Default.ArrowBack,
+                            imageVector = Icons.ArrowBack,
                             contentDescription = null,
                             tint = Color.White,
                         )
@@ -192,7 +174,7 @@ fun SubtitleSettingsPanel(
                     )
                     IconButton(onClick = onDismissRequest) {
                         Icon(
-                            imageVector = Icons.Default.Close,
+                            imageVector = Icons.Close,
                             contentDescription = null,
                             tint = Color.White,
                         )
@@ -223,7 +205,7 @@ private fun SubtitleTypographyCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Icon(Icons.Default.FormatColorText, contentDescription = null, tint = Color.White)
+                Icon(Icons.FormatColorText, contentDescription = null, tint = Color.White)
                 Text("Topografi", style = MaterialTheme.typography.titleMedium, color = Color.White)
             }
 
@@ -239,20 +221,20 @@ private fun SubtitleTypographyCard(
                     checked = style.bold,
                     onCheckedChange = { onStyleChange(style.copy(bold = it)) },
                 ) {
-                    Icon(Icons.Default.FormatBold, contentDescription = "Kalın", modifier = Modifier.size(24.dp), tint = if (style.bold) Color.White else Color.White.copy(alpha = 0.6f))
+                    Icon(Icons.FormatBold, contentDescription = "Kalın", modifier = Modifier.size(24.dp), tint = if (style.bold) Color.White else Color.White.copy(alpha = 0.6f))
                 }
                 IconToggleButton(
                     checked = style.italic,
                     onCheckedChange = { onStyleChange(style.copy(italic = it)) },
                 ) {
-                    Icon(Icons.Default.FormatItalic, contentDescription = "İtalik", modifier = Modifier.size(24.dp), tint = if (style.italic) Color.White else Color.White.copy(alpha = 0.6f))
+                    Icon(Icons.FormatItalic, contentDescription = "İtalik", modifier = Modifier.size(24.dp), tint = if (style.italic) Color.White else Color.White.copy(alpha = 0.6f))
                 }
                 // Justification: left / center / right / auto
                 val justifications = listOf(
-                    "left" to Icons.AutoMirrored.Default.FormatAlignLeft,
-                    "center" to Icons.Default.FormatAlignCenter,
-                    "right" to Icons.AutoMirrored.Default.FormatAlignRight,
-                    "auto" to Icons.Default.FormatAlignJustify,
+                    "left" to Icons.FormatAlignLeft,
+                    "center" to Icons.FormatAlignCenter,
+                    "right" to Icons.FormatAlignRight,
+                    "auto" to Icons.FormatAlignJustify,
                 )
                 justifications.forEach { (value, icon) ->
                     IconToggleButton(
@@ -280,7 +262,7 @@ private fun SubtitleTypographyCard(
                     ))
                 }) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Icon(Icons.Default.FormatClear, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                        Icon(Icons.FormatClear, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                         Text(stringResource(R.string.sifirla), color = MaterialTheme.colorScheme.primary)
                     }
                 }
@@ -365,7 +347,7 @@ private fun SubtitleColorsCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Icon(Icons.Default.Palette, contentDescription = null, tint = Color.White)
+                Icon(Icons.Palette, contentDescription = null, tint = Color.White)
                 Text("Renkler", style = MaterialTheme.typography.titleMedium, color = Color.White)
             }
 
@@ -384,9 +366,9 @@ private fun SubtitleColorsCard(
                     ) {
                         Icon(
                             when (type) {
-                                SubColorType.Text -> Icons.Default.FormatColorText
-                                SubColorType.Border -> Icons.Default.BorderColor
-                                SubColorType.Background -> Icons.Default.FormatColorFill
+                                SubColorType.Text -> Icons.FormatColorText
+                                SubColorType.Border -> Icons.BorderColor
+                                SubColorType.Background -> Icons.FormatColorFill
                             },
                             contentDescription = type.label,
                             tint = if (currentColorType == type) Color.White else Color.White.copy(alpha = 0.6f)
@@ -418,7 +400,7 @@ private fun SubtitleColorsCard(
                     }
                 }) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Icon(Icons.Default.FormatColorReset, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                        Icon(Icons.FormatColorReset, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                         Text(stringResource(R.string.sifirla), color = MaterialTheme.colorScheme.primary)
                     }
                 }
@@ -460,7 +442,7 @@ private fun SubtitleMiscCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Icon(Icons.Default.Tune, contentDescription = null, tint = Color.White)
+                Icon(Icons.Tune, contentDescription = null, tint = Color.White)
                 Text("Diğer", style = MaterialTheme.typography.titleMedium, color = Color.White)
             }
 
@@ -481,7 +463,7 @@ private fun SubtitleMiscCard(
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Icon(Icons.Default.FormatSize, contentDescription = null, tint = Color.White.copy(alpha = 0.8f), modifier = Modifier.size(18.dp))
+                        Icon(Icons.FormatSize, contentDescription = null, tint = Color.White.copy(alpha = 0.8f), modifier = Modifier.size(18.dp))
                         Text("Boyut", style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.8f))
                     }
                     Text(String.format("%.1f", style.fontScale), style = MaterialTheme.typography.bodySmall, color = Color.White)
@@ -498,7 +480,7 @@ private fun SubtitleMiscCard(
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Icon(Icons.Default.Tune, contentDescription = null, tint = Color.White.copy(alpha = 0.8f), modifier = Modifier.size(18.dp))
+                        Icon(Icons.Tune, contentDescription = null, tint = Color.White.copy(alpha = 0.8f), modifier = Modifier.size(18.dp))
                         Text("Konum", style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.8f))
                     }
                     Text("${style.pos}", style = MaterialTheme.typography.bodySmall, color = Color.White)
@@ -552,7 +534,7 @@ private fun SubtitleMiscCard(
                     ))
                 }) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Icon(Icons.Default.FormatClear, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                        Icon(Icons.FormatClear, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                         Text(stringResource(R.string.sifirla), color = MaterialTheme.colorScheme.primary)
                     }
                 }
@@ -613,7 +595,7 @@ private fun FontDropdown(
                             expanded = false
                         },
                         trailingIcon = {
-                            if (font == selectedFont) Icon(Icons.Default.Check, contentDescription = null)
+                            if (font == selectedFont) Icon(Icons.Check, contentDescription = null)
                         }
                     )
                 }
@@ -658,7 +640,7 @@ private fun BorderStyleDropdown(
                             expanded = false
                         },
                         trailingIcon = {
-                            if (value == selectedStyle) Icon(Icons.Default.Check, contentDescription = null)
+                            if (value == selectedStyle) Icon(Icons.Check, contentDescription = null)
                         }
                     )
                 }

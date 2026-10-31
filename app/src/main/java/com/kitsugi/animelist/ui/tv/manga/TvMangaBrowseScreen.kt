@@ -24,12 +24,7 @@ import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.Book
-import androidx.compose.material.icons.rounded.Extension
-import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material.icons.rounded.TravelExplore
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.CircularProgressIndicator
 import com.kitsugi.animelist.ui.components.KitsugiPlasmaLoader
 import com.kitsugi.animelist.ui.theme.gradient.Icon
@@ -188,7 +183,7 @@ fun TvMangaBrowseScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        Icons.AutoMirrored.Rounded.ArrowBack,
+                        Icons.ArrowBack,
                         contentDescription = stringResource(R.string.geri),
                         tint = KitsugiColors.TextPrimary,
                         modifier = Modifier.size(20.dp)
@@ -203,7 +198,7 @@ fun TvMangaBrowseScreen(
                 )
                 Spacer(Modifier.weight(1f))
                 Icon(
-                    Icons.Rounded.TravelExplore,
+                    Icons.TravelExplore,
                     contentDescription = null,
                     tint = KitsugiColors.AccentBlue,
                     modifier = Modifier.size(24.dp)
@@ -222,7 +217,7 @@ fun TvMangaBrowseScreen(
                 value = query,
                 onValueChange = { vm.search(it) },
                 placeholder = { Text(stringResource(R.string.manga_ara), color = KitsugiColors.TextMuted, style = MaterialTheme.typography.bodyMedium) },
-                leadingIcon  = { Icon(Icons.Rounded.Search, null, tint = KitsugiColors.TextMuted) },
+                leadingIcon  = { Icon(Icons.Search, null, tint = KitsugiColors.TextMuted) },
                 singleLine   = true,
                 shape        = RoundedCornerShape(10.dp),
                 colors = OutlinedTextFieldDefaults.colors(
@@ -321,7 +316,7 @@ fun TvMangaBrowseScreen(
                         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Icon(
-                                    Icons.Rounded.Extension,
+                                    Icons.Extension,
                                     contentDescription = null,
                                     tint = KitsugiColors.TextMuted,
                                     modifier = Modifier.size(56.dp)
@@ -451,7 +446,7 @@ private fun TvMangaCard(
         if (manga.thumbnailUrl.isNullOrBlank()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Icon(
-                    Icons.Rounded.Book,
+                    Icons.Book,
                     contentDescription = null,
                     tint = KitsugiColors.TextMuted,
                     modifier = Modifier.size(40.dp)

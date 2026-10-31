@@ -20,11 +20,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.Done
-import androidx.compose.material.icons.filled.Remove
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.ButtonDefaults
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.MaterialTheme
@@ -176,7 +172,7 @@ fun SearchFilterSheet(
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.height(36.dp)
                     ) {
-                        Icon(Icons.Default.Clear, contentDescription = stringResource(R.string.temizle), modifier = Modifier.size(16.dp))
+                        Icon(Icons.Clear, contentDescription = stringResource(R.string.temizle), modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(text = stringResource(R.string.temizle), fontSize = 12.sp)
                     }
@@ -451,7 +447,7 @@ fun SearchFilterSheet(
                         .weight(1.5f)
                         .height(48.dp)
                 ) {
-                    Icon(Icons.Default.Done, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Done, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(stringResource(R.string.search_filter_apply), fontWeight = FontWeight.Bold)
                 }
@@ -535,8 +531,8 @@ private fun GenreCycleChip(
     }
 
     val icon = when {
-        isIncluded -> Icons.Default.Add
-        isExcluded -> Icons.Default.Remove
+        isIncluded -> Icons.Add
+        isExcluded -> Icons.Remove
         else -> null
     }
 

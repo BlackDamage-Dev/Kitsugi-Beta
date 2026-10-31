@@ -20,11 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Extension
-import androidx.compose.material.icons.filled.Search
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -211,13 +207,13 @@ fun PluginPickerBottomSheet(
             ) {
                 IconButton(onClick = onDismissRequest) {
                     Icon(
-                        imageVector = Icons.Default.ArrowBack,
+                        imageVector = Icons.ArrowBack,
                         contentDescription = stringResource(R.string.geri),
                         tint = KitsugiColors.TextPrimary
                     )
                 }
                 Icon(
-                    imageVector = Icons.Default.Extension,
+                    imageVector = Icons.Extension,
                     contentDescription = null,
                     tint = accentColor,
                     modifier = Modifier.size(22.dp)
@@ -251,7 +247,7 @@ fun PluginPickerBottomSheet(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Search,
+                        imageVector = Icons.Search,
                         contentDescription = null,
                         tint = KitsugiColors.TextMuted,
                         modifier = Modifier.size(20.dp)
@@ -291,7 +287,7 @@ fun PluginPickerBottomSheet(
                             modifier = Modifier.size(20.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Close,
+                                imageVector = Icons.Close,
                                 contentDescription = stringResource(R.string.temizle),
                                 tint = KitsugiColors.TextMuted,
                                 modifier = Modifier.size(16.dp)
@@ -721,7 +717,7 @@ private fun PortalResultItemCard(
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Extension,
+                            imageVector = Icons.Extension,
                             contentDescription = null,
                             tint = KitsugiColors.TextMuted,
                             modifier = Modifier.size(36.dp)

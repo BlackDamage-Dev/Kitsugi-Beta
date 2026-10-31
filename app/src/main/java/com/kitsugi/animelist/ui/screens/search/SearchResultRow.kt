@@ -13,10 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.Favorite
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -257,7 +254,7 @@ fun SearchResultRow(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = if (alreadyInList) Icons.Rounded.Check else Icons.Rounded.Add,
+                    imageVector = if (alreadyInList) Icons.Check else Icons.Add,
                     contentDescription = if (alreadyInList) "Listede" else "Listeye ekle",
                     tint = if (alreadyInList) KitsugiColors.AccentGreen else accentColor,
                     modifier = Modifier.size(20.dp)
@@ -404,7 +401,7 @@ fun CharacterStaffResultRow(
                             horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Rounded.Favorite,
+                                imageVector = Icons.Favorite,
                                 contentDescription = stringResource(R.string.search_accessibility_favorite),
                                 tint = KitsugiColors.AccentRed,
                                 modifier = Modifier.size(12.dp)

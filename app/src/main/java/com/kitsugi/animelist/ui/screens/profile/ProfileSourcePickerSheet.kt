@@ -15,9 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.ArrowDropDown
-import androidx.compose.material.icons.rounded.Check
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.ExperimentalMaterial3Api
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.MaterialTheme
@@ -129,7 +127,7 @@ fun ProfileSourceSelectorPill(
             )
         }
         Icon(
-            imageVector = Icons.Rounded.ArrowDropDown,
+            imageVector = Icons.ArrowDropDown,
             contentDescription = stringResource(R.string.profil_kaynagi_sec),
             tint = accentColor,
             modifier = Modifier.size(18.dp)
@@ -320,7 +318,7 @@ fun ProfileSourcePickerSheet(
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = Icons.Rounded.Check,
+                                imageVector = Icons.Check,
                                 contentDescription = stringResource(R.string.secili),
                                 tint = KitsugiColors.Background,
                                 modifier = Modifier.size(16.dp)

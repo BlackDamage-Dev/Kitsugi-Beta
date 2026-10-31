@@ -16,15 +16,7 @@ import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.Image
-import androidx.compose.material.icons.rounded.Movie
-import androidx.compose.material.icons.rounded.Star
-import androidx.compose.material.icons.rounded.SkipNext
-import androidx.compose.material.icons.rounded.Key
-import androidx.compose.material.icons.rounded.Visibility
-import androidx.compose.material.icons.rounded.VisibilityOff
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -168,16 +160,16 @@ fun KitsugiIntegrationsSettingsDialog(
                             fontWeight = FontWeight.Bold
                         )
                         IconButton(onClick = onDismiss) {
-                            Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.action_close), tint = KitsugiColors.TextSecondary)
+                            Icon(Icons.Close, contentDescription = stringResource(R.string.action_close), tint = KitsugiColors.TextSecondary)
                         }
                     }
                 }
                 KitsugiSettingsSegmentedTabs(
                     tabs = listOf(
-                        KitsugiSettingsTabOption(stringResource(R.string.integrations_tab_tmdb), Icons.Rounded.Movie),
-                        KitsugiSettingsTabOption(stringResource(R.string.integrations_tab_mdblist), Icons.Rounded.Star),
-                        KitsugiSettingsTabOption(stringResource(R.string.integrations_tab_skip), Icons.Rounded.SkipNext),
-                        KitsugiSettingsTabOption("Fanart.tv", Icons.Rounded.Image)
+                        KitsugiSettingsTabOption(stringResource(R.string.integrations_tab_tmdb), Icons.Movie),
+                        KitsugiSettingsTabOption(stringResource(R.string.integrations_tab_mdblist), Icons.Star),
+                        KitsugiSettingsTabOption(stringResource(R.string.integrations_tab_skip), Icons.SkipNext),
+                        KitsugiSettingsTabOption("Fanart.tv", Icons.Image)
                     ),
                     selectedIndex = pagerState.currentPage,
                     accentColor = accentColor,
@@ -345,7 +337,7 @@ private fun TmdbSettingsTab(
             KitsugiSettingsSwitchItem(
                 title = stringResource(R.string.etkinlestir),
                 description = stringResource(R.string.tmdb_desc),
-                icon = Icons.Rounded.Movie,
+                icon = Icons.Movie,
                 iconColor = accentColor,
                 checked = enabled,
                 onCheckedChange = onEnabledChanged
@@ -375,7 +367,7 @@ private fun TmdbSettingsTab(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 IconButton(onClick = { keyVisible = !keyVisible }) {
                                     Icon(
-                                        imageVector = if (keyVisible) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
+                                        imageVector = if (keyVisible) Icons.VisibilityOff else Icons.Visibility,
                                         contentDescription = stringResource(
                                             if (keyVisible) R.string.integration_hide_key else R.string.integration_show_key
                                         ),
@@ -392,7 +384,7 @@ private fun TmdbSettingsTab(
                                         enabled = !keyValidating
                                     ) {
                                         Icon(
-                                            imageVector = Icons.Rounded.Close,
+                                            imageVector = Icons.Close,
                                             contentDescription = stringResource(R.string.action_clear),
                                             tint = KitsugiColors.TextSecondary
                                         )
@@ -456,7 +448,7 @@ private fun TmdbSettingsTab(
                 KitsugiSettingsSwitchItem(
                     title = stringResource(R.string.tmdb_modern_home),
                     description = stringResource(R.string.tmdb_modern_home_desc),
-                    icon = Icons.Rounded.Movie,
+                    icon = Icons.Movie,
                     iconColor = accentColor,
                     checked = modernHomeEnabled,
                     onCheckedChange = onModernHomeEnabledChanged
@@ -467,7 +459,7 @@ private fun TmdbSettingsTab(
                 KitsugiSettingsSwitchItem(
                     title = stringResource(R.string.tmdb_enrich_continue_watching),
                     description = stringResource(R.string.tmdb_enrich_continue_watching_desc),
-                    icon = Icons.Rounded.Movie,
+                    icon = Icons.Movie,
                     iconColor = accentColor,
                     checked = enrichContinueWatching,
                     onCheckedChange = onEnrichContinueWatchingChanged
@@ -480,7 +472,7 @@ private fun TmdbSettingsTab(
                     title = stringResource(R.string.tmdb_language),
                     description = stringResource(R.string.tmdb_language_desc),
                     value = currentLangName,
-                    icon = Icons.Rounded.Movie,
+                    icon = Icons.Movie,
                     iconColor = accentColor,
                     onClick = { showLanguageDialog = true }
                 )
@@ -492,7 +484,7 @@ private fun TmdbSettingsTab(
                 KitsugiSettingsSwitchItem(
                     title = stringResource(R.string.tmdb_artwork),
                     description = stringResource(R.string.tmdb_artwork_desc),
-                    icon = Icons.Rounded.Movie,
+                    icon = Icons.Movie,
                     iconColor = accentColor,
                     checked = useArtwork,
                     onCheckedChange = onUseArtworkChanged
@@ -503,7 +495,7 @@ private fun TmdbSettingsTab(
                 KitsugiSettingsSwitchItem(
                     title = stringResource(R.string.tmdb_basic_info),
                     description = stringResource(R.string.tmdb_basic_info_desc),
-                    icon = Icons.Rounded.Movie,
+                    icon = Icons.Movie,
                     iconColor = accentColor,
                     checked = useBasicInfo,
                     onCheckedChange = onUseBasicInfoChanged
@@ -514,7 +506,7 @@ private fun TmdbSettingsTab(
                 KitsugiSettingsSwitchItem(
                     title = stringResource(R.string.tmdb_details),
                     description = stringResource(R.string.tmdb_details_desc),
-                    icon = Icons.Rounded.Movie,
+                    icon = Icons.Movie,
                     iconColor = accentColor,
                     checked = useDetails,
                     onCheckedChange = onUseDetailsChanged
@@ -525,7 +517,7 @@ private fun TmdbSettingsTab(
                 KitsugiSettingsSwitchItem(
                     title = stringResource(R.string.tmdb_release_dates),
                     description = stringResource(R.string.tmdb_release_dates_desc),
-                    icon = Icons.Rounded.Movie,
+                    icon = Icons.Movie,
                     iconColor = accentColor,
                     checked = useReleaseDates,
                     onCheckedChange = onUseReleaseDatesChanged
@@ -536,7 +528,7 @@ private fun TmdbSettingsTab(
                 KitsugiSettingsSwitchItem(
                     title = stringResource(R.string.tmdb_credits),
                     description = stringResource(R.string.tmdb_credits_desc),
-                    icon = Icons.Rounded.Movie,
+                    icon = Icons.Movie,
                     iconColor = accentColor,
                     checked = useCredits,
                     onCheckedChange = onUseCreditsChanged
@@ -547,7 +539,7 @@ private fun TmdbSettingsTab(
                 KitsugiSettingsSwitchItem(
                     title = stringResource(R.string.tmdb_productions),
                     description = stringResource(R.string.tmdb_productions_desc),
-                    icon = Icons.Rounded.Movie,
+                    icon = Icons.Movie,
                     iconColor = accentColor,
                     checked = useProductions,
                     onCheckedChange = onUseProductionsChanged
@@ -558,7 +550,7 @@ private fun TmdbSettingsTab(
                 KitsugiSettingsSwitchItem(
                     title = stringResource(R.string.tmdb_networks),
                     description = stringResource(R.string.tmdb_networks_desc),
-                    icon = Icons.Rounded.Movie,
+                    icon = Icons.Movie,
                     iconColor = accentColor,
                     checked = useNetworks,
                     onCheckedChange = onUseNetworksChanged
@@ -569,7 +561,7 @@ private fun TmdbSettingsTab(
                 KitsugiSettingsSwitchItem(
                     title = stringResource(R.string.tmdb_episodes),
                     description = stringResource(R.string.tmdb_episodes_desc),
-                    icon = Icons.Rounded.Movie,
+                    icon = Icons.Movie,
                     iconColor = accentColor,
                     checked = useEpisodes,
                     onCheckedChange = onUseEpisodesChanged
@@ -580,7 +572,7 @@ private fun TmdbSettingsTab(
                 KitsugiSettingsSwitchItem(
                     title = stringResource(R.string.tmdb_trailers),
                     description = stringResource(R.string.tmdb_trailers_desc),
-                    icon = Icons.Rounded.Movie,
+                    icon = Icons.Movie,
                     iconColor = accentColor,
                     checked = useTrailers,
                     onCheckedChange = onUseTrailersChanged
@@ -591,7 +583,7 @@ private fun TmdbSettingsTab(
                 KitsugiSettingsSwitchItem(
                     title = stringResource(R.string.tmdb_more_like_this),
                     description = stringResource(R.string.tmdb_more_like_this_desc),
-                    icon = Icons.Rounded.Movie,
+                    icon = Icons.Movie,
                     iconColor = accentColor,
                     checked = useMoreLikeThis,
                     onCheckedChange = onUseMoreLikeThisChanged
@@ -602,7 +594,7 @@ private fun TmdbSettingsTab(
                 KitsugiSettingsSwitchItem(
                     title = stringResource(R.string.tmdb_collections),
                     description = stringResource(R.string.tmdb_collections_desc),
-                    icon = Icons.Rounded.Movie,
+                    icon = Icons.Movie,
                     iconColor = accentColor,
                     checked = useCollections,
                     onCheckedChange = onUseCollectionsChanged
@@ -709,7 +701,7 @@ private fun MdbListSettingsTab(
             KitsugiSettingsSwitchItem(
                 title = stringResource(R.string.etkinlestir),
                 description = stringResource(R.string.mdblist_desc),
-                icon = Icons.Rounded.Movie,
+                icon = Icons.Movie,
                 iconColor = accentColor,
                 checked = enabled,
                 onCheckedChange = onEnabledChanged
@@ -724,7 +716,7 @@ private fun MdbListSettingsTab(
                     title = stringResource(R.string.mdblist_api_key),
                     description = stringResource(R.string.mdblist_api_key_desc),
                     value = maskApiKey(apiKey, stringResource(R.string.value_not_set)),
-                    icon = Icons.Rounded.Key,
+                    icon = Icons.Key,
                     iconColor = accentColor,
                     onClick = { showApiKeyDialog = true }
                 )
@@ -756,7 +748,7 @@ private fun MdbListSettingsTab(
                 KitsugiSettingsSwitchItem(
                     title = stringResource(R.string.mdblist_imdb),
                     description = stringResource(R.string.mdblist_imdb_desc),
-                    icon = Icons.Rounded.Movie,
+                    icon = Icons.Movie,
                     iconColor = accentColor,
                     checked = showImdb,
                     onCheckedChange = onShowImdbChanged
@@ -767,7 +759,7 @@ private fun MdbListSettingsTab(
                 KitsugiSettingsSwitchItem(
                     title = stringResource(R.string.mdblist_rotten_tomatoes),
                     description = stringResource(R.string.mdblist_rotten_tomatoes_desc),
-                    icon = Icons.Rounded.Star,
+                    icon = Icons.Star,
                     iconColor = accentColor,
                     checked = showTomatoes,
                     onCheckedChange = onShowTomatoesChanged
@@ -778,7 +770,7 @@ private fun MdbListSettingsTab(
                 KitsugiSettingsSwitchItem(
                     title = stringResource(R.string.mdblist_audience),
                     description = stringResource(R.string.mdblist_audience_desc),
-                    icon = Icons.Rounded.Star,
+                    icon = Icons.Star,
                     iconColor = accentColor,
                     checked = showAudience,
                     onCheckedChange = onShowAudienceChanged
@@ -789,7 +781,7 @@ private fun MdbListSettingsTab(
                 KitsugiSettingsSwitchItem(
                     title = stringResource(R.string.mdblist_metacritic),
                     description = stringResource(R.string.mdblist_metacritic_desc),
-                    icon = Icons.Rounded.Star,
+                    icon = Icons.Star,
                     iconColor = accentColor,
                     checked = showMetacritic,
                     onCheckedChange = onShowMetacriticChanged
@@ -800,7 +792,7 @@ private fun MdbListSettingsTab(
                 KitsugiSettingsSwitchItem(
                     title = stringResource(R.string.mdblist_letterboxd),
                     description = stringResource(R.string.mdblist_letterboxd_desc),
-                    icon = Icons.Rounded.Movie,
+                    icon = Icons.Movie,
                     iconColor = accentColor,
                     checked = showLetterboxd,
                     onCheckedChange = onShowLetterboxdChanged
@@ -811,7 +803,7 @@ private fun MdbListSettingsTab(
                 KitsugiSettingsSwitchItem(
                     title = stringResource(R.string.mdblist_tmdb_score),
                     description = stringResource(R.string.mdblist_tmdb_score_desc),
-                    icon = Icons.Rounded.Movie,
+                    icon = Icons.Movie,
                     iconColor = accentColor,
                     checked = showTmdb,
                     onCheckedChange = onShowTmdbChanged
@@ -822,7 +814,7 @@ private fun MdbListSettingsTab(
                 KitsugiSettingsSwitchItem(
                     title = stringResource(R.string.mdblist_trakt),
                     description = stringResource(R.string.mdblist_trakt_desc),
-                    icon = Icons.Rounded.Star,
+                    icon = Icons.Star,
                     iconColor = accentColor,
                     checked = showTrakt,
                     onCheckedChange = onShowTraktChanged
@@ -854,7 +846,7 @@ private fun AniSkipSettingsTab(
             KitsugiSettingsSwitchItem(
                 title = stringResource(R.string.etkinlestir),
                 description = stringResource(R.string.aniskip_desc),
-                icon = Icons.Rounded.SkipNext,
+                icon = Icons.SkipNext,
                 iconColor = accentColor,
                 checked = enabled,
                 onCheckedChange = onEnabledChanged
@@ -866,7 +858,7 @@ private fun AniSkipSettingsTab(
                 KitsugiSettingsSwitchItem(
                     title = stringResource(R.string.aniskip_auto_skip),
                     description = stringResource(R.string.aniskip_auto_skip_desc),
-                    icon = Icons.Rounded.SkipNext,
+                    icon = Icons.SkipNext,
                     iconColor = accentColor,
                     checked = autoSkip,
                     onCheckedChange = onAutoSkipChanged
@@ -888,7 +880,7 @@ private fun AniSkipSettingsTab(
                     title = stringResource(R.string.animeskip_client_id),
                     description = stringResource(R.string.animeskip_client_id_desc),
                     value = maskApiKey(animeSkipClientId, stringResource(R.string.animeskip_default)),
-                    icon = Icons.Rounded.Key,
+                    icon = Icons.Key,
                     iconColor = accentColor,
                     onClick = { showClientIdDialog = true }
                 )
@@ -972,7 +964,7 @@ private fun MdbListApiKeyValidationDialog(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             IconButton(onClick = { keyVisible = !keyVisible }) {
                                 Icon(
-                                    imageVector = if (keyVisible) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
+                                    imageVector = if (keyVisible) Icons.VisibilityOff else Icons.Visibility,
                                     contentDescription = stringResource(
                                         if (keyVisible) R.string.integration_hide_key else R.string.integration_show_key
                                     ),
@@ -982,7 +974,7 @@ private fun MdbListApiKeyValidationDialog(
                             if (value.isNotEmpty()) {
                                 IconButton(onClick = { value = "" }) {
                                     Icon(
-                                        imageVector = Icons.Rounded.Close,
+                                        imageVector = Icons.Close,
                                         contentDescription = stringResource(R.string.action_clear),
                                         tint = KitsugiColors.TextSecondary
                                     )
@@ -1091,7 +1083,7 @@ private fun AnimeSkipClientIdValidationDialog(
                         if (value.isNotEmpty()) {
                             IconButton(onClick = { value = "" }) {
                                 Icon(
-                                    imageVector = Icons.Rounded.Close,
+                                    imageVector = Icons.Close,
                                     contentDescription = stringResource(R.string.action_clear),
                                     tint = KitsugiColors.TextSecondary
                                 )
@@ -1171,7 +1163,7 @@ private fun FanartTvSettingsTab(
             KitsugiSettingsSwitchItem(
                 title = stringResource(R.string.etkinlestir),
                 description = stringResource(R.string.fanart_settings_desc),
-                icon = Icons.Rounded.Movie,
+                icon = Icons.Movie,
                 iconColor = accentColor,
                 checked = enabled,
                 onCheckedChange = onEnabledChanged
@@ -1211,7 +1203,7 @@ private fun FanartTvSettingsTab(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 IconButton(onClick = { keyVisible = !keyVisible }) {
                                     Icon(
-                                        imageVector = if (keyVisible) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
+                                        imageVector = if (keyVisible) Icons.VisibilityOff else Icons.Visibility,
                                         contentDescription = stringResource(
                                             if (keyVisible) R.string.integration_hide_key else R.string.integration_show_key
                                         ),
@@ -1228,7 +1220,7 @@ private fun FanartTvSettingsTab(
                                         enabled = !keyValidating
                                     ) {
                                         Icon(
-                                            imageVector = Icons.Rounded.Close,
+                                            imageVector = Icons.Close,
                                             contentDescription = stringResource(R.string.action_clear),
                                             tint = KitsugiColors.TextSecondary
                                         )

@@ -4,8 +4,7 @@ import com.kitsugi.animelist.ui.theme.gradient.Icon
 import com.kitsugi.animelist.ui.theme.gradient.Text
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.*
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -88,13 +87,13 @@ private fun PosterOptionRow(
     onClick: () -> Unit
 ) {
     val (icon, label) = when (option) {
-        PosterOption.ADD_TO_LIST -> Icons.Rounded.PlaylistAdd to "Listeye Ekle"
-        PosterOption.SET_STATUS -> Icons.Rounded.Edit to "Durumu Değiştir"
-        PosterOption.ADD_TO_COLLECTION -> Icons.Rounded.FolderCopy to "Koleksiyona Ekle"
-        PosterOption.SHARE -> Icons.Rounded.Share to "Paylaş"
-        PosterOption.OPEN_IN_BROWSER -> Icons.Rounded.OpenInNew to "Tarayıcıda Aç"
-        PosterOption.EDIT_PROGRESS -> Icons.Rounded.Numbers to "İlerlemeyi Düzenle"
-        PosterOption.REMOVE_FROM_LIST -> Icons.Rounded.RemoveCircle to "Listeden Kaldır"
+        PosterOption.ADD_TO_LIST -> Icons.PlaylistAdd to "Listeye Ekle"
+        PosterOption.SET_STATUS -> Icons.Edit to "Durumu Değiştir"
+        PosterOption.ADD_TO_COLLECTION -> Icons.FolderCopy to "Koleksiyona Ekle"
+        PosterOption.SHARE -> Icons.Share to "Paylaş"
+        PosterOption.OPEN_IN_BROWSER -> Icons.OpenInNew to "Tarayıcıda Aç"
+        PosterOption.EDIT_PROGRESS -> Icons.Numbers to "İlerlemeyi Düzenle"
+        PosterOption.REMOVE_FROM_LIST -> Icons.RemoveCircle to "Listeden Kaldır"
     }
 
     TextButton(

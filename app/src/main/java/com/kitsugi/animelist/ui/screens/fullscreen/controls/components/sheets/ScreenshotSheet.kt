@@ -5,10 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Photo
-import androidx.compose.material.icons.outlined.Save
-import androidx.compose.material.icons.outlined.Share
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import com.kitsugi.animelist.ui.theme.gradient.Text
@@ -86,26 +83,26 @@ fun ScreenshotSheet(
                     ActionButton(
                         modifier = Modifier.weight(1f),
                         title = "Kapak Yap",
-                        icon = Icons.Outlined.Photo,
+                        icon = Icons.Photo,
                         onClick = { setArtTypeAs = ArtType.Cover },
                     )
                     ActionButton(
                         modifier = Modifier.weight(1f),
                         title = "Arka Plan",
-                        icon = Icons.Outlined.Photo,
+                        icon = Icons.Photo,
                         onClick = { setArtTypeAs = ArtType.Background },
                     )
                     ActionButton(
                         modifier = Modifier.weight(1f),
                         title = stringResource(R.string.gallery_cat_thumbnail),
-                        icon = Icons.Outlined.Photo,
+                        icon = Icons.Photo,
                         onClick = { setArtTypeAs = ArtType.Thumbnail },
                     )
                 }
                 ActionButton(
                     modifier = Modifier.weight(1f),
                     title = stringResource(R.string.paylas),
-                    icon = Icons.Outlined.Share,
+                    icon = Icons.Share,
                     onClick = {
                         capture { image -> onShare(image); onDismissRequest() }
                     },
@@ -113,7 +110,7 @@ fun ScreenshotSheet(
                 ActionButton(
                     modifier = Modifier.weight(1f),
                     title = stringResource(R.string.kaydet),
-                    icon = Icons.Outlined.Save,
+                    icon = Icons.Save,
                     onClick = {
                         capture { image -> onSave(image); onDismissRequest() }
                     },

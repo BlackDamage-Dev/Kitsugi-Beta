@@ -17,16 +17,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoStories
-import androidx.compose.material.icons.rounded.ContentCopy
-import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.Translate
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.material.icons.rounded.Visibility
-import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
@@ -93,7 +87,7 @@ internal fun QuickActions(
     if (isWatchable && onWatchClick != null) {
         KitsugiDetailActionButton(
             text = stringResource(R.string.detail_watch),
-            icon = Icons.Rounded.PlayArrow,
+            icon = Icons.PlayArrow,
             onClick = onWatchClick,
             palette = UiverseButtonPalette.Default,
             modifier = Modifier
@@ -107,7 +101,7 @@ internal fun QuickActions(
     if (entry.type == MediaType.Manga && onReadClick != null) {
         KitsugiDetailActionButton(
             text = stringResource(R.string.oku),
-            icon = Icons.Default.AutoStories,
+            icon = Icons.AutoStories,
             onClick = onReadClick,
             palette = UiverseButtonPalette.Default,
             modifier = Modifier
@@ -609,7 +603,7 @@ internal fun DetailSynopsisCard(
             if (onCopyClick != null && !displayedText.isNullOrBlank()) {
                 IconButton(onClick = { onCopyClick(displayedText) }) {
                     Icon(
-                        imageVector = Icons.Rounded.ContentCopy,
+                        imageVector = Icons.ContentCopy,
                         contentDescription = stringResource(R.string.action_copy),
                         tint = KitsugiColors.TextSecondary
                     )
@@ -664,7 +658,7 @@ internal fun DetailSynopsisCard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
-                        imageVector = if (isExpanded) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
+                        imageVector = if (isExpanded) Icons.VisibilityOff else Icons.Visibility,
                         contentDescription = null,
                         tint = LocalKitsugiAccent.current,
                         modifier = Modifier.size(16.dp)

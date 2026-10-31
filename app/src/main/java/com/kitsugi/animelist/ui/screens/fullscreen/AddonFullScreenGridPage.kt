@@ -40,14 +40,7 @@ import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.automirrored.rounded.ListAlt
-import androidx.compose.material.icons.filled.Extension
-import androidx.compose.material.icons.rounded.FilterList
-import androidx.compose.material.icons.rounded.GridView
-import androidx.compose.material.icons.rounded.KeyboardArrowUp
-import androidx.compose.material.icons.rounded.SearchOff
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -314,7 +307,7 @@ fun AddonFullScreenGridPage(
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Extension,
+                            imageVector = Icons.Extension,
                             contentDescription = null,
                             tint = accentColor,
                             modifier = Modifier.size(14.dp)
@@ -338,7 +331,7 @@ fun AddonFullScreenGridPage(
                         .background(if (hasActiveFilter) accentColor.copy(alpha = 0.25f) else KitsugiColors.Surface)
                 ) {
                     Icon(
-                        Icons.Rounded.FilterList,
+                        Icons.FilterList,
                         contentDescription = stringResource(R.string.filtre_ve_siralama),
                         tint = if (hasActiveFilter) accentColor else KitsugiColors.TextPrimary
                     )
@@ -352,7 +345,7 @@ fun AddonFullScreenGridPage(
                         .background(KitsugiColors.Surface)
                 ) {
                     Icon(
-                        imageVector = if (isGridView) Icons.AutoMirrored.Rounded.ListAlt else Icons.Rounded.GridView,
+                        imageVector = if (isGridView) Icons.ListAlt else Icons.GridView,
                         contentDescription = if (isGridView) stringResource(R.string.cd_list_view) else stringResource(R.string.cd_grid_view),
                         tint = accentColor
                     )
@@ -496,7 +489,7 @@ fun AddonFullScreenGridPage(
                         KitsugiEmptyState(
                             title = stringResource(R.string.henuz_icerik_yok),
                             subtitle = stringResource(R.string.addon_page_empty_subtitle),
-                            icon = Icons.Rounded.SearchOff
+                            icon = Icons.SearchOff
                         )
                     }
                 }
@@ -541,7 +534,7 @@ fun AddonFullScreenGridPage(
                         KitsugiEmptyState(
                             title = stringResource(R.string.henuz_icerik_yok),
                             subtitle = stringResource(R.string.addon_page_empty_subtitle),
-                            icon = Icons.Rounded.SearchOff
+                            icon = Icons.SearchOff
                         )
                     }
                 }
@@ -582,7 +575,7 @@ fun AddonFullScreenGridPage(
             ) {
                 IconButton(onClick = onBackClick) {
                     Icon(
-                        Icons.AutoMirrored.Rounded.ArrowBack,
+                        Icons.ArrowBack,
                         contentDescription = stringResource(R.string.geri),
                         tint = KitsugiColors.TextPrimary
                     )
@@ -609,7 +602,7 @@ fun AddonFullScreenGridPage(
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Extension,
+                            imageVector = Icons.Extension,
                             contentDescription = null,
                             tint = accentColor,
                             modifier = Modifier.size(12.dp)
@@ -629,7 +622,7 @@ fun AddonFullScreenGridPage(
                         .background(if (hasActiveFilter) accentColor.copy(alpha = 0.25f) else androidx.compose.ui.graphics.Color.Transparent)
                 ) {
                     Icon(
-                        Icons.Rounded.FilterList,
+                        Icons.FilterList,
                         contentDescription = stringResource(R.string.filtre_ve_siralama),
                         tint = if (hasActiveFilter) accentColor else KitsugiColors.TextPrimary
                     )
@@ -637,7 +630,7 @@ fun AddonFullScreenGridPage(
                 Spacer(modifier = Modifier.width(4.dp))
                 IconButton(onClick = toggleView) {
                     Icon(
-                        imageVector = if (isGridView) Icons.AutoMirrored.Rounded.ListAlt else Icons.Rounded.GridView,
+                        imageVector = if (isGridView) Icons.ListAlt else Icons.GridView,
                         contentDescription = if (isGridView) KitsugiStrings.get(R.string.liste) else "Grid",
                         tint = accentColor
                     )
@@ -668,7 +661,7 @@ fun AddonFullScreenGridPage(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.KeyboardArrowUp,
+                    imageVector = Icons.KeyboardArrowUp,
                     contentDescription = stringResource(R.string.cd_scroll_top),
                     tint = KitsugiColors.Background,
                     modifier = Modifier.size(28.dp)

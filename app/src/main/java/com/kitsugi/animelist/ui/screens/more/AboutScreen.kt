@@ -14,15 +14,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.Code
-import androidx.compose.material.icons.rounded.Info
-import androidx.compose.material.icons.rounded.NewReleases
-import androidx.compose.material.icons.rounded.OpenInNew
-import androidx.compose.material.icons.rounded.Public
-import androidx.compose.material.icons.rounded.Refresh
-import androidx.compose.material.icons.rounded.Warning
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -153,7 +145,7 @@ fun AboutScreen(
                     modifier = Modifier.align(Alignment.CenterStart)
                 ) {
                     Icon(
-                        imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                        imageVector = Icons.ArrowBack,
                         contentDescription = stringResource(R.string.geri),
                         tint = KitsugiColors.textPrimary
                     )
@@ -190,7 +182,7 @@ fun AboutScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.Info,
+                        imageVector = Icons.Info,
                         contentDescription = null,
                         tint = accentColor,
                         modifier = Modifier.size(40.dp)
@@ -255,7 +247,7 @@ fun AboutScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
-                                imageVector = Icons.Rounded.Public,
+                                imageVector = Icons.Public,
                                 contentDescription = null,
                                 tint = KitsugiColors.textPrimary,
                                 modifier = Modifier.size(24.dp)
@@ -287,7 +279,7 @@ fun AboutScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
-                                imageVector = Icons.Rounded.Code,
+                                imageVector = Icons.Code,
                                 contentDescription = null,
                                 tint = KitsugiColors.textPrimary,
                                 modifier = Modifier.size(24.dp)
@@ -418,7 +410,7 @@ fun AboutScreen(
                                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp),
                                     modifier = Modifier.weight(0.9f)
                                 ) {
-                                    Icon(Icons.Rounded.Code, contentDescription = null, tint = accentColor, modifier = Modifier.size(16.dp))
+                                    Icon(Icons.Code, contentDescription = null, tint = accentColor, modifier = Modifier.size(16.dp))
                                     Spacer(Modifier.width(6.dp))
                                     Text(
                                         text = "Eklentileri Denetle",
@@ -487,7 +479,7 @@ fun AboutScreen(
                             border = androidx.compose.foundation.BorderStroke(1.dp, errorColor.copy(alpha = 0.5f)),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Icon(Icons.Rounded.Warning, contentDescription = null, tint = errorColor, modifier = Modifier.size(18.dp))
+                            Icon(Icons.Warning, contentDescription = null, tint = errorColor, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(8.dp))
                             Text(KitsugiStrings.get(R.string.inline_crash_error_diagnostic_report_53375ae), color = errorColor, fontWeight = FontWeight.Bold)
                         }
@@ -617,7 +609,7 @@ fun AboutScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.Code,
+                        imageVector = Icons.Code,
                         contentDescription = null,
                         tint = accentColor,
                         modifier = Modifier.size(22.dp)
@@ -736,7 +728,7 @@ private fun ReleaseNotesCard(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
-                    imageVector = Icons.Rounded.NewReleases,
+                    imageVector = Icons.NewReleases,
                     contentDescription = null,
                     tint = accentColor,
                     modifier = Modifier.size(22.dp)
@@ -760,7 +752,7 @@ private fun ReleaseNotesCard(
                     enabled = state !is ReleaseNotesUiState.Loading
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.Refresh,
+                        imageVector = Icons.Refresh,
                         contentDescription = stringResource(R.string.about_release_notes_refresh),
                         tint = if (state is ReleaseNotesUiState.Loading) KitsugiColors.textMuted else accentColor,
                         modifier = Modifier.size(20.dp)
@@ -881,7 +873,7 @@ private fun ReleaseNotesCard(
 
                     TextButton(onClick = onOpenReleases) {
                         Icon(
-                            imageVector = Icons.Rounded.OpenInNew,
+                            imageVector = Icons.OpenInNew,
                             contentDescription = null,
                             tint = accentColor,
                             modifier = Modifier.size(16.dp)

@@ -1,5 +1,6 @@
 package com.kitsugi.animelist.ui.screens.detail
 
+import com.kitsugi.animelist.ui.components.KitsugiChevronIcon
 import com.kitsugi.animelist.ui.components.animateDetailContentSize
 import com.kitsugi.animelist.ui.theme.gradient.background
 import com.kitsugi.animelist.ui.utils.tvClickable
@@ -18,14 +19,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.ContentCopy
-import androidx.compose.material.icons.rounded.KeyboardArrowDown
-import androidx.compose.material.icons.rounded.KeyboardArrowUp
-import androidx.compose.material.icons.rounded.Translate
-import androidx.compose.material.icons.rounded.Settings
-import androidx.compose.material.icons.rounded.Visibility
-import androidx.compose.material.icons.rounded.VisibilityOff
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.HorizontalDivider
@@ -406,7 +400,7 @@ internal fun ApiSynopsisCard(
             if (onCopyClick != null && !synopsis.isNullOrBlank()) {
                 IconButton(onClick = onCopyClick) {
                     Icon(
-                        imageVector = Icons.Rounded.ContentCopy,
+                        imageVector = Icons.ContentCopy,
                         contentDescription = stringResource(R.string.action_copy),
                         tint = KitsugiColors.TextSecondary
                     )
@@ -468,7 +462,7 @@ internal fun ApiSynopsisCard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
-                        imageVector = if (isExpanded) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
+                        imageVector = if (isExpanded) Icons.VisibilityOff else Icons.Visibility,
                         contentDescription = null,
                         tint = LocalKitsugiAccent.current,
                         modifier = Modifier.size(16.dp)
@@ -686,8 +680,8 @@ internal fun ApiThemesList(
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Bold
                         )
-                        com.kitsugi.animelist.ui.theme.gradient.Icon(
-                            imageVector = if (openingsExpanded) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.KeyboardArrowDown,
+                        KitsugiChevronIcon(
+                            expanded = openingsExpanded,
                             contentDescription = null,
                             tint = accentColor,
                             modifier = Modifier.size(16.dp)
@@ -760,8 +754,8 @@ internal fun ApiThemesList(
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Bold
                         )
-                        com.kitsugi.animelist.ui.theme.gradient.Icon(
-                            imageVector = if (endingsExpanded) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.KeyboardArrowDown,
+                        KitsugiChevronIcon(
+                            expanded = endingsExpanded,
                             contentDescription = null,
                             tint = accentColor,
                             modifier = Modifier.size(16.dp)
@@ -1147,7 +1141,7 @@ internal fun ApiMdbListRatingCard(
                         modifier = Modifier.size(26.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.Settings,
+                            imageVector = Icons.Settings,
                             contentDescription = stringResource(R.string.ayarlar),
                             tint = KitsugiColors.TextSecondary,
                             modifier = Modifier.size(16.dp)

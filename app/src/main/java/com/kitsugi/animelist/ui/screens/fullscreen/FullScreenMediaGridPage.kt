@@ -34,13 +34,7 @@ import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.automirrored.rounded.ListAlt
-import androidx.compose.material.icons.rounded.FilterList
-import androidx.compose.material.icons.rounded.GridView
-import androidx.compose.material.icons.rounded.PlaylistAdd
-import androidx.compose.material.icons.rounded.SearchOff
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.CircularProgressIndicator
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.IconButton
@@ -92,7 +86,6 @@ import com.kitsugi.animelist.ui.theme.LocalIsTv
 import com.kitsugi.animelist.ui.theme.LocalKitsugiAccent
 import com.kitsugi.animelist.ui.utils.kitsugiLazyKey
 import com.kitsugi.animelist.ui.utils.tvClickable
-import androidx.compose.material.icons.rounded.KeyboardArrowUp
 import kotlinx.coroutines.launch
 import java.util.Calendar
 import androidx.compose.ui.res.stringResource
@@ -871,7 +864,7 @@ fun FullScreenMediaGridPage(
                                         .background(KitsugiColors.Surface)
                                 ) {
                                     Icon(
-                                        Icons.Rounded.PlaylistAdd,
+                                        Icons.PlaylistAdd,
                                         contentDescription = stringResource(R.string.tumunu_listeye_ekle),
                                         tint = accentColor
                                     )
@@ -892,7 +885,7 @@ fun FullScreenMediaGridPage(
                                     .background(if (hasActiveFilter) accentColor.copy(alpha = 0.25f) else KitsugiColors.Surface)
                             ) {
                                 Icon(
-                                    Icons.Rounded.FilterList,
+                                    Icons.FilterList,
                                     contentDescription = stringResource(R.string.filtre_ve_siralama),
                                     tint = if (hasActiveFilter) accentColor else KitsugiColors.TextPrimary
                                 )
@@ -912,7 +905,7 @@ fun FullScreenMediaGridPage(
                                 },
                                 modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(KitsugiColors.Surface)
                             ) {
-                                Icon(Icons.AutoMirrored.Rounded.ListAlt, contentDescription = KitsugiStrings.get(R.string.settings_list_layout), tint = accentColor)
+                                Icon(Icons.ListAlt, contentDescription = KitsugiStrings.get(R.string.settings_list_layout), tint = accentColor)
                             }
                         }
 
@@ -977,7 +970,7 @@ fun FullScreenMediaGridPage(
                         KitsugiEmptyState(
                             title = stringResource(R.string.henuz_icerik_yok),
                             subtitle = stringResource(R.string.bu_kategoride_gosterilecek_icerik_bulunamadi),
-                            icon = Icons.Rounded.SearchOff
+                            icon = Icons.SearchOff
                         )
                     }
                 } else {
@@ -1075,7 +1068,7 @@ fun FullScreenMediaGridPage(
                                         .background(KitsugiColors.Surface)
                                 ) {
                                     Icon(
-                                        Icons.Rounded.PlaylistAdd,
+                                        Icons.PlaylistAdd,
                                         contentDescription = stringResource(R.string.tumunu_listeye_ekle),
                                         tint = accentColor
                                     )
@@ -1096,7 +1089,7 @@ fun FullScreenMediaGridPage(
                                     .background(if (hasActiveFilter) accentColor.copy(alpha = 0.25f) else KitsugiColors.Surface)
                             ) {
                                 Icon(
-                                    Icons.Rounded.FilterList,
+                                    Icons.FilterList,
                                     contentDescription = stringResource(R.string.filtre_ve_siralama),
                                     tint = if (hasActiveFilter) accentColor else KitsugiColors.TextPrimary
                                 )
@@ -1116,7 +1109,7 @@ fun FullScreenMediaGridPage(
                                 },
                                 modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(KitsugiColors.Surface)
                             ) {
-                                Icon(Icons.Rounded.GridView, contentDescription = KitsugiStrings.get(R.string.cd_grid_view), tint = accentColor)
+                                Icon(Icons.GridView, contentDescription = KitsugiStrings.get(R.string.cd_grid_view), tint = accentColor)
                             }
                         }
 
@@ -1186,7 +1179,7 @@ fun FullScreenMediaGridPage(
                         KitsugiEmptyState(
                             title = stringResource(R.string.henuz_icerik_yok),
                             subtitle = stringResource(R.string.bu_kategoride_gosterilecek_icerik_bulunamadi),
-                            icon = Icons.Rounded.SearchOff
+                            icon = Icons.SearchOff
                         )
                     }
                 } else {
@@ -1268,7 +1261,7 @@ fun FullScreenMediaGridPage(
                     .padding(horizontal = 8.dp)
             ) {
                 IconButton(onClick = onBackClick) {
-                    Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.geri), tint = KitsugiColors.TextPrimary)
+                    Icon(Icons.ArrowBack, contentDescription = stringResource(R.string.geri), tint = KitsugiColors.TextPrimary)
                 }
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
@@ -1290,7 +1283,7 @@ fun FullScreenMediaGridPage(
                             .background(Color.Transparent)
                     ) {
                         Icon(
-                            Icons.Rounded.PlaylistAdd,
+                            Icons.PlaylistAdd,
                             contentDescription = stringResource(R.string.tumunu_listeye_ekle),
                             tint = accentColor
                         )
@@ -1312,7 +1305,7 @@ fun FullScreenMediaGridPage(
                         .background(if (hasActiveFilterFloating) accentColor.copy(alpha = 0.25f) else Color.Transparent)
                 ) {
                     Icon(
-                        Icons.Rounded.FilterList,
+                        Icons.FilterList,
                         contentDescription = stringResource(R.string.filtre_ve_siralama),
                         tint = if (hasActiveFilterFloating) accentColor else KitsugiColors.TextPrimary
                     )
@@ -1339,7 +1332,7 @@ fun FullScreenMediaGridPage(
                     }
                 }) {
                     Icon(
-                        imageVector = if (isGridView) Icons.AutoMirrored.Rounded.ListAlt else Icons.Rounded.GridView,
+                        imageVector = if (isGridView) Icons.ListAlt else Icons.GridView,
                         contentDescription = if (isGridView) KitsugiStrings.get(R.string.liste) else "Grid",
                         tint = accentColor
                     )
@@ -1372,7 +1365,7 @@ fun FullScreenMediaGridPage(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.KeyboardArrowUp,
+                    imageVector = Icons.KeyboardArrowUp,
                     contentDescription = stringResource(R.string.yukari_git),
                     tint = KitsugiColors.Background,
                     modifier = Modifier.size(28.dp)

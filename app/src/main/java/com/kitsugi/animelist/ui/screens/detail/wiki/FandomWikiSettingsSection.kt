@@ -1,13 +1,7 @@
 package com.kitsugi.animelist.ui.screens.detail.wiki
 
 import android.widget.Toast
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ManageSearch
-import androidx.compose.material.icons.rounded.AutoStories
-import androidx.compose.material.icons.rounded.DeleteSweep
-import androidx.compose.material.icons.rounded.History
-import androidx.compose.material.icons.rounded.Language
-import androidx.compose.material.icons.rounded.VisibilityOff
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -41,7 +35,7 @@ fun FandomWikiSettingsSection(accentColor: Color) {
         KitsugiSettingsSwitchItem(
             title = stringResource(R.string.fandom_settings_enabled),
             description = stringResource(R.string.fandom_settings_enabled_desc),
-            icon = Icons.Rounded.AutoStories,
+            icon = Icons.AutoStories,
             iconColor = accentColor,
             checked = state.enabled,
             onCheckedChange = { checked -> FandomWikiPrefs.update(context) { it.copy(enabled = checked) } }
@@ -52,7 +46,7 @@ fun FandomWikiSettingsSection(accentColor: Color) {
         KitsugiSettingsSwitchItem(
             title = stringResource(R.string.fandom_settings_name),
             description = stringResource(R.string.fandom_settings_name_desc),
-            icon = Icons.AutoMirrored.Rounded.ManageSearch,
+            icon = Icons.ManageSearch,
             iconColor = accentColor,
             checked = state.nameFallback,
             enabled = state.enabled,
@@ -64,7 +58,7 @@ fun FandomWikiSettingsSection(accentColor: Color) {
         KitsugiSettingsSwitchItem(
             title = stringResource(R.string.fandom_settings_spoiler),
             description = stringResource(R.string.fandom_settings_spoiler_desc),
-            icon = Icons.Rounded.VisibilityOff,
+            icon = Icons.VisibilityOff,
             iconColor = accentColor,
             checked = state.spoilerGuard,
             enabled = state.enabled,
@@ -76,7 +70,7 @@ fun FandomWikiSettingsSection(accentColor: Color) {
         KitsugiSettingsSwitchItem(
             title = stringResource(R.string.fandom_settings_turkish),
             description = stringResource(R.string.fandom_settings_turkish_desc),
-            icon = Icons.Rounded.Language,
+            icon = Icons.Language,
             iconColor = accentColor,
             checked = state.preferTurkish,
             enabled = state.enabled,
@@ -89,7 +83,7 @@ fun FandomWikiSettingsSection(accentColor: Color) {
         KitsugiSettingsItem(
             title = stringResource(R.string.fandom_settings_restore_rejected),
             description = stringResource(R.string.fandom_settings_restore_rejected_desc),
-            icon = Icons.Rounded.History,
+            icon = Icons.History,
             iconColor = accentColor,
             onClick = {
                 scope.launch {
@@ -104,7 +98,7 @@ fun FandomWikiSettingsSection(accentColor: Color) {
         KitsugiSettingsItem(
             title = stringResource(R.string.fandom_settings_clear_cache),
             description = stringResource(R.string.fandom_settings_clear_cache_desc),
-            icon = Icons.Rounded.DeleteSweep,
+            icon = Icons.DeleteSweep,
             iconColor = accentColor,
             onClick = {
                 scope.launch {

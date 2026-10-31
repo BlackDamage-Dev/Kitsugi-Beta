@@ -12,8 +12,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.*
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -96,7 +95,7 @@ fun KitsugiKitsuLoginDialog(
                         .border(1.dp, kitsuBrandColor.copy(alpha = 0.4f), RoundedCornerShape(16.dp)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(text = "🦊", fontSize = 28.sp)
+                    KitsugiPlatformLogo(platformId = "kitsu", size = 34.dp, fallbackTint = kitsuBrandColor)
                 }
 
                 Spacer(modifier = Modifier.height(14.dp))
@@ -132,7 +131,7 @@ fun KitsugiKitsuLoginDialog(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
-                                Icons.Rounded.ErrorOutline,
+                                Icons.ErrorOutline,
                                 contentDescription = null,
                                 tint = KitsugiColors.AccentRed,
                                 modifier = Modifier.size(18.dp)
@@ -160,7 +159,7 @@ fun KitsugiKitsuLoginDialog(
                     },
                     label = { Text(stringResource(R.string.inline_email_or_username_9afd3f0)) },
                     leadingIcon = {
-                        Icon(Icons.Rounded.Person, contentDescription = null, tint = kitsuBrandColor)
+                        Icon(Icons.Person, contentDescription = null, tint = kitsuBrandColor)
                     },
                     singleLine = true,
                     enabled = !isLoading,
@@ -189,12 +188,12 @@ fun KitsugiKitsuLoginDialog(
                     },
                     label = { Text(stringResource(R.string.sifre)) },
                     leadingIcon = {
-                        Icon(Icons.Rounded.Lock, contentDescription = null, tint = kitsuBrandColor)
+                        Icon(Icons.Lock, contentDescription = null, tint = kitsuBrandColor)
                     },
                     trailingIcon = {
                         IconButton(onClick = { passwordVisible = !passwordVisible }) {
                             Icon(
-                                if (passwordVisible) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
+                                if (passwordVisible) Icons.VisibilityOff else Icons.Visibility,
                                 contentDescription = stringResource(R.string.sifreyi_goster),
                                 tint = KitsugiColors.TextSecondary
                             )
@@ -274,7 +273,7 @@ fun KitsugiKitsuLoginDialog(
                     enabled = !isLoading
                 ) {
                     Icon(
-                        Icons.Rounded.OpenInNew,
+                        Icons.OpenInNew,
                         contentDescription = null,
                         modifier = Modifier.size(16.dp),
                         tint = kitsuBrandColor

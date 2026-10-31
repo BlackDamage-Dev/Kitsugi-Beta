@@ -35,8 +35,7 @@ import com.kitsugi.animelist.ui.utils.dpadVerticalFastScroll
 import com.kitsugi.animelist.ui.utils.kitsugiLazyKey
 import com.kitsugi.animelist.ui.theme.KitsugiColors
 import com.kitsugi.animelist.ui.components.KitsugiEmptyState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.SearchOff
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.ui.res.stringResource
 import com.kitsugi.animelist.R
 
@@ -141,7 +140,7 @@ fun KitsugiMediaGridDialog(
                                 } else {
                                     "\"$searchQuery\" araması için sonuç bulunamadı."
                                 },
-                                icon = Icons.Rounded.SearchOff
+                                icon = Icons.SearchOff
                             )
                         }
                     } else {
@@ -241,7 +240,7 @@ fun KitsugiMediaGridDialog(
                             } else {
                                 "\"$searchQuery\" araması için sonuç bulunamadı."
                             },
-                            icon = Icons.Rounded.SearchOff
+                            icon = Icons.SearchOff
                         )
                     } else {
                         LazyVerticalGrid(

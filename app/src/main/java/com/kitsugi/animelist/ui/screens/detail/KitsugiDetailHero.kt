@@ -29,17 +29,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.Share
-import androidx.compose.material.icons.rounded.Image
-import androidx.compose.material.icons.rounded.Favorite
-import androidx.compose.material.icons.rounded.FavoriteBorder
-import androidx.compose.material.icons.rounded.Tv
-import androidx.compose.material.icons.rounded.Book
-import androidx.compose.material.icons.rounded.Schedule
-import androidx.compose.material.icons.rounded.MenuBook
-import androidx.compose.material.icons.rounded.RssFeed
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.IconButton
@@ -350,7 +340,7 @@ fun KitsugiDetailHero(
                 ) {
                     IconButton(onClick = onBackClick) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                            imageVector = Icons.ArrowBack,
                             contentDescription = stringResource(R.string.geri),
                             tint = KitsugiColors.TextPrimary
                         )
@@ -407,7 +397,7 @@ fun KitsugiDetailHero(
                             }
                         }) {
                             Icon(
-                                imageVector = Icons.Rounded.Share,
+                                imageVector = Icons.Share,
                                 contentDescription = stringResource(R.string.paylas),
                                 tint = KitsugiColors.TextPrimary
                             )
@@ -424,7 +414,7 @@ fun KitsugiDetailHero(
                         ) {
                             IconButton(onClick = onToggleFavoriteClick) {
                                 Icon(
-                                    imageVector = if (isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                                    imageVector = if (isFavorite) Icons.Favorite else Icons.FavoriteBorder,
                                     contentDescription = if (isFavorite) stringResource(R.string.action_favourite_remove) else "Favori Yap",
                                     tint = if (isFavorite) accentColor else KitsugiColors.TextPrimary
                                 )
@@ -486,7 +476,7 @@ fun KitsugiDetailHero(
                 ) {
                     // 1. Format
                     val isMangaType = typeLabel.contains("MANGA", ignoreCase = true)
-                    val formatIcon = if (isMangaType) Icons.Rounded.Book else Icons.Rounded.Tv
+                    val formatIcon = if (isMangaType) Icons.Book else Icons.Tv
                     val formatText = when {
                         typeLabel.contains("FİLM", ignoreCase = true) || typeLabel.contains("MOVIE", ignoreCase = true) -> stringResource(R.string.media_type_movie)
                         typeLabel.contains("DİZİ", ignoreCase = true) || typeLabel.contains("TVSHOW", ignoreCase = true) -> stringResource(R.string.media_type_tv)
@@ -498,7 +488,7 @@ fun KitsugiDetailHero(
                     // 2. Episodes / Chapters count — tek parça yapımlarda (film) bölüm sayacı
                     // gösterilmez; "1 Bölüm" satırı kaynak API'sinin dolgu değeriyle üretiliyordu.
                     if (formatText != "Film") {
-                        val countIcon = if (isMangaType) Icons.Rounded.MenuBook else Icons.Rounded.Schedule
+                        val countIcon = if (isMangaType) Icons.MenuBook else Icons.Schedule
                         val countText = if (totalEpisodes != null && totalEpisodes > 0) {
                             if (isMangaType) stringResource(R.string.hero_count_volumes_chapters, totalEpisodes)
                             else stringResource(R.string.hero_count_episodes, totalEpisodes)
@@ -511,7 +501,7 @@ fun KitsugiDetailHero(
 
                     // 3. Status
                     if (statusLabel != null) {
-                        val statusIcon = Icons.Rounded.RssFeed
+                        val statusIcon = Icons.RssFeed
                         MetadataIconText(icon = statusIcon, text = statusLabel, tint = statusColor ?: accentColor)
                     }
                 }
@@ -527,7 +517,7 @@ fun KitsugiDetailHero(
                             .padding(vertical = 2.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.Schedule,
+                            imageVector = Icons.Schedule,
                             contentDescription = stringResource(R.string.cd_airing_soon),
                             tint = KitsugiColors.AccentOrange,
                             modifier = Modifier.size(16.dp)

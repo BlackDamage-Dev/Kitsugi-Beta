@@ -10,8 +10,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.*
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -36,7 +35,6 @@ import com.kitsugi.animelist.utils.PreferenceHelpers.getDisplayTitle
 import com.kitsugi.animelist.ui.theme.LocalKitsugiAccent
 import com.kitsugi.animelist.ui.utils.tvClickable
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.ui.res.stringResource
 import com.kitsugi.animelist.R
 
@@ -263,7 +261,7 @@ fun AiringSoonHorizontalCard(
         if (alreadyInList) {
             Spacer(modifier = Modifier.width(4.dp))
             Icon(
-                imageVector = androidx.compose.material.icons.Icons.Rounded.PlayCircle,
+                imageVector = Icons.PlayCircle,
                 contentDescription = stringResource(R.string.izliyorum),
                 tint = KitsugiColors.AccentGreen,
                 modifier = Modifier.size(18.dp)
@@ -346,7 +344,7 @@ fun ExploreAiringSoonSection(
             )
             IconButton(onClick = onOpenAiringCalendar) {
                 Icon(
-                    imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
+                    imageVector = Icons.ArrowForward,
                     contentDescription = stringResource(R.string.yayin_takvimi),
                     tint = accentColor
                 )

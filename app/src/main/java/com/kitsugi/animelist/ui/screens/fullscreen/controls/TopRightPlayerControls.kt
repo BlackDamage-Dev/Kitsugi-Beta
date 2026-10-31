@@ -4,12 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.OpenInNew
-import androidx.compose.material.icons.filled.Audiotrack
-import androidx.compose.material.icons.filled.HighQuality
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Subtitles
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -45,20 +40,20 @@ fun TopRightPlayerControls(
                 .size(width = 48.dp, height = 24.dp),
         )
         ControlsButton(
-            icon = Icons.Default.Subtitles,
+            icon = Icons.Subtitles,
             onClick = onSubtitlesClick,
             onLongClick = onSubtitlesLongClick,
             horizontalSpacing = 8.dp,
         )
         ControlsButton(
-            icon = Icons.Default.Audiotrack,
+            icon = Icons.Audiotrack,
             onClick = onAudioClick,
             onLongClick = onAudioLongClick,
             horizontalSpacing = 8.dp,
         )
         if (isEpisodeOnline == true) {
             ControlsButton(
-                icon = Icons.Default.HighQuality,
+                icon = Icons.HighQuality,
                 onClick = onQualityClick,
                 onLongClick = onQualityClick,
                 horizontalSpacing = 8.dp,
@@ -66,14 +61,14 @@ fun TopRightPlayerControls(
         }
         if (onOpenExternalClick != null) {
             ControlsButton(
-                icon = Icons.AutoMirrored.Filled.OpenInNew,
+                icon = Icons.OpenInNew,
                 onClick = onOpenExternalClick,
                 onLongClick = onOpenExternalClick,
                 horizontalSpacing = 8.dp,
             )
         }
         ControlsButton(
-            icon = Icons.Default.MoreVert,
+            icon = Icons.MoreVert,
             onClick = onMoreClick,
             onLongClick = onMoreLongClick,
             horizontalSpacing = 8.dp,

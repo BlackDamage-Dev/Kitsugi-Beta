@@ -28,13 +28,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowUpward
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Extension
-import androidx.compose.material.icons.filled.FilterList
-import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material.icons.rounded.SearchOff
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -377,7 +371,7 @@ fun SearchScreen(
                         onClick = { onOpenPluginPicker() },
                         icon = {
                             Icon(
-                                imageVector = Icons.Default.Extension,
+                                imageVector = Icons.Extension,
                                 contentDescription = stringResource(R.string.eklenti_portali),
                                 tint = KitsugiColors.TextMuted,
                                 modifier = Modifier.size(22.dp)
@@ -462,7 +456,7 @@ fun SearchScreen(
                     KitsugiEmptyState(
                         title = stringResource(R.string.sonuc_bulunamadi),
                         subtitle = uiState.errorMessage,
-                        icon = Icons.Rounded.SearchOff
+                        icon = Icons.SearchOff
                     )
                     uiState.platformErrorCode?.let { code ->
                         Spacer(modifier = Modifier.height(12.dp))
@@ -1045,7 +1039,7 @@ fun ActiveFilterChip(
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = Icons.Default.Close,
+                imageVector = Icons.Close,
                 contentDescription = stringResource(R.string.temizle),
                 tint = KitsugiColors.TextMuted,
                 modifier = Modifier.size(14.dp)

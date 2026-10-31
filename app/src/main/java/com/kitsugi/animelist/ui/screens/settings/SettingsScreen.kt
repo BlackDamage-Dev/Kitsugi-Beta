@@ -24,9 +24,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.*
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import com.kitsugi.animelist.ui.theme.gradient.Icon
@@ -602,7 +600,7 @@ private fun SettingsMainPage(
                                 horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally
                             ) {
                                 Icon(
-                                    imageVector = Icons.Rounded.SearchOff,
+                                    imageVector = Icons.SearchOff,
                                     contentDescription = null,
                                     tint = KitsugiColors.TextMuted
                                 )
@@ -646,7 +644,7 @@ private fun SettingsMainPage(
                         KitsugiSettingsItem(
                             title = stringResource(R.string.settings_kitsugi_account),
                             description = stringResource(R.string.settings_kitsugi_account_desc),
-                            icon = Icons.Rounded.AccountCircle,
+                            icon = Icons.AccountCircle,
                             iconColor = KitsugiColors.AccentGreen,
                             onClick = { onNavigate(SettingsRoute.KitsugiAccount) }
                         )
@@ -656,7 +654,7 @@ private fun SettingsMainPage(
                         KitsugiSettingsItem(
                             title = stringResource(R.string.settings_account_connections),
                             description = stringResource(R.string.settings_account_connections_desc),
-                            icon = Icons.Rounded.Person,
+                            icon = Icons.Person,
                             iconColor = KitsugiColors.AccentBlue,
                             onClick = { onNavigate(SettingsRoute.AccountConnections) }
                         )
@@ -671,7 +669,7 @@ private fun SettingsMainPage(
                         KitsugiSettingsItem(
                             title = stringResource(R.string.settings_pref_title),
                             description = stringResource(R.string.settings_pref_desc),
-                            icon = Icons.Rounded.Palette,
+                            icon = Icons.Palette,
                             iconColor = accentColor,
                             onClick = { onNavigate(SettingsRoute.AppearancePreferences) }
                         )
@@ -679,7 +677,7 @@ private fun SettingsMainPage(
                         KitsugiSettingsItem(
                             title = stringResource(R.string.settings_player_title),
                             description = stringResource(R.string.settings_player_desc),
-                            icon = Icons.Rounded.PlayCircle,
+                            icon = Icons.PlayCircle,
                             iconColor = KitsugiColors.AccentOrange,
                             onClick = { onNavigate(SettingsRoute.PlayerSettings) }
                         )
@@ -694,7 +692,7 @@ private fun SettingsMainPage(
                         KitsugiSettingsItem(
                             title = stringResource(R.string.settings_addons_streams),
                             description = stringResource(R.string.settings_addons_streams_desc),
-                            icon = Icons.Rounded.Extension,
+                            icon = Icons.Extension,
                             iconColor = KitsugiColors.AccentPurple,
                             onClick = { onNavigate(SettingsRoute.AddonsExtensions) }
                         )
@@ -702,7 +700,7 @@ private fun SettingsMainPage(
                         KitsugiSettingsItem(
                             title = stringResource(R.string.settings_integrations),
                             description = stringResource(R.string.settings_integrations_desc),
-                            icon = Icons.Rounded.Hub,
+                            icon = Icons.Hub,
                             iconColor = KitsugiColors.AccentBlue,
                             onClick = { onNavigate(SettingsRoute.Integrations) }
                         )
@@ -717,7 +715,7 @@ private fun SettingsMainPage(
                         KitsugiSettingsItem(
                             title = stringResource(R.string.settings_data_backup),
                             description = stringResource(R.string.settings_data_backup_desc),
-                            icon = Icons.Rounded.Storage,
+                            icon = Icons.Storage,
                             iconColor = KitsugiColors.AccentGreen,
                             onClick = { onNavigate(SettingsRoute.DataBackup) }
                         )
@@ -725,7 +723,7 @@ private fun SettingsMainPage(
                         KitsugiSettingsItem(
                             title = stringResource(R.string.storage_title),
                             description = stringResource(R.string.storage_menu_desc),
-                            icon = Icons.Rounded.CleaningServices,
+                            icon = Icons.CleaningServices,
                             iconColor = KitsugiColors.AccentTeal,
                             onClick = { onNavigate(SettingsRoute.Storage) }
                         )
@@ -733,7 +731,7 @@ private fun SettingsMainPage(
                         KitsugiSettingsItem(
                             title = stringResource(R.string.settings_download_settings),
                             description = stringResource(R.string.settings_download_settings_desc),
-                            icon = Icons.Rounded.Tune,
+                            icon = Icons.Tune,
                             iconColor = KitsugiColors.AccentGreen,
                             onClick = { onNavigate(SettingsRoute.Downloads) }
                         )
@@ -741,7 +739,7 @@ private fun SettingsMainPage(
                         KitsugiSettingsItem(
                             title = stringResource(R.string.settings_downloads),
                             description = stringResource(R.string.settings_downloads_desc),
-                            icon = Icons.Rounded.Download,
+                            icon = Icons.Download,
                             iconColor = KitsugiColors.AccentGreen,
                             onClick = onOpenDownloads
                         )
@@ -749,7 +747,7 @@ private fun SettingsMainPage(
                         KitsugiSettingsItem(
                             title = stringResource(R.string.settings_watch_history),
                             description = stringResource(R.string.settings_watch_history_desc),
-                            icon = Icons.Rounded.History,
+                            icon = Icons.History,
                             iconColor = KitsugiColors.AccentTeal,
                             onClick = { params.onOpenWatchHistory?.invoke() }
                         )
@@ -764,7 +762,7 @@ private fun SettingsMainPage(
                         KitsugiSettingsItem(
                             title = stringResource(R.string.settings_about),
                             description = stringResource(R.string.settings_about_desc, BuildConfig.VERSION_NAME),
-                            icon = Icons.Rounded.Info,
+                            icon = Icons.Info,
                             iconColor = KitsugiColors.AccentIndigo,
                             onClick = onOpenAbout
                         )
@@ -772,7 +770,7 @@ private fun SettingsMainPage(
                         KitsugiSettingsItem(
                             title = stringResource(R.string.settings_feedback),
                             description = stringResource(R.string.settings_feedback_desc),
-                            icon = Icons.Rounded.Feedback,
+                            icon = Icons.Feedback,
                             iconColor = KitsugiColors.AccentBlue,
                             onClick = { onNavigate(SettingsRoute.Feedback) }
                         )
@@ -783,7 +781,7 @@ private fun SettingsMainPage(
                         KitsugiSettingsItem(
                             title = stringResource(R.string.platform_error_catalog_open),
                             description = stringResource(R.string.platform_error_catalog_desc),
-                            icon = Icons.Rounded.BugReport,
+                            icon = Icons.BugReport,
                             iconColor = KitsugiColors.AccentOrange,
                             onClick = { onNavigate(SettingsRoute.PlatformErrorCodes) }
                         )
@@ -822,7 +820,7 @@ private fun SettingsSubPage(
             navigationIcon = {
                 IconButton(onClick = onBack) {
                     Icon(
-                        imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                        imageVector = Icons.ArrowBack,
                         contentDescription = stringResource(R.string.action_back),
                         tint = KitsugiColors.TextPrimary
                     )

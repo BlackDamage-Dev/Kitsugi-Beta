@@ -10,9 +10,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.List
-import androidx.compose.material.icons.rounded.*
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -219,7 +217,7 @@ fun ReviewsTabContent(
                         modifier = Modifier.size(32.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Rounded.List,
+                            imageVector = Icons.List,
                             contentDescription = stringResource(R.string.tumunu_gor),
                             tint = KitsugiColors.TextPrimary,
                             modifier = Modifier.size(16.dp)
@@ -301,7 +299,7 @@ fun ReviewsTabContent(
                         modifier = Modifier.size(32.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Rounded.List,
+                            imageVector = Icons.List,
                             contentDescription = stringResource(R.string.tumunu_gor),
                             tint = KitsugiColors.TextPrimary,
                             modifier = Modifier.size(16.dp)
@@ -382,7 +380,7 @@ fun ReviewsTabContent(
                     modifier = Modifier.size(32.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.AutoMirrored.Rounded.List,
+                        imageVector = Icons.List,
                         contentDescription = stringResource(R.string.tumunu_gor),
                         tint = KitsugiColors.TextPrimary,
                         modifier = Modifier.size(16.dp)
@@ -594,7 +592,7 @@ private fun TopicCard(
                         modifier = Modifier.tvClickable(shape = RoundedCornerShape(8.dp), onClick = onLikeClick)
                     ) {
                         Icon(
-                            imageVector = if (topic.isLiked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                            imageVector = if (topic.isLiked) Icons.Favorite else Icons.FavoriteBorder,
                             contentDescription = null,
                             tint = if (topic.isLiked) accentColor else KitsugiColors.TextMuted,
                             modifier = Modifier.size(12.dp)
@@ -613,7 +611,7 @@ private fun TopicCard(
                     horizontalArrangement = Arrangement.spacedBy(3.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.ChatBubbleOutline,
+                        imageVector = Icons.ChatBubbleOutline,
                         contentDescription = null,
                         tint = KitsugiColors.TextMuted,
                         modifier = Modifier.size(12.dp)
@@ -632,7 +630,7 @@ private fun TopicCard(
                         horizontalArrangement = Arrangement.spacedBy(3.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.Visibility,
+                            imageVector = Icons.Visibility,
                             contentDescription = null,
                             tint = KitsugiColors.TextMuted,
                             modifier = Modifier.size(12.dp)
@@ -788,7 +786,7 @@ private fun ActivityCard(
                     modifier = Modifier.tvClickable(shape = RoundedCornerShape(8.dp), onClick = onLikeClick)
                 ) {
                     Icon(
-                        imageVector = if (activity.isLiked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                        imageVector = if (activity.isLiked) Icons.Favorite else Icons.FavoriteBorder,
                         contentDescription = null,
                         tint = if (activity.isLiked) accentColor else KitsugiColors.TextMuted,
                         modifier = Modifier.size(12.dp)

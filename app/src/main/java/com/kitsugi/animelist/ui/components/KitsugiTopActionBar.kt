@@ -1,6 +1,5 @@
 package com.kitsugi.animelist.ui.components
 
-import androidx.annotation.DrawableRes
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
@@ -23,13 +22,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.kitsugi.animelist.R
 import com.kitsugi.animelist.ui.theme.KitsugiColors
 import com.kitsugi.animelist.ui.theme.LocalKitsugiAccent
+import com.kitsugi.animelist.ui.icons.KitsugiIcons
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import com.kitsugi.animelist.ui.utils.tvClickable
 
@@ -50,24 +50,26 @@ import com.kitsugi.animelist.ui.utils.tvClickable
  * Böylece kullanıcı ekran değiştirdiğinde kas hafızası bozulmaz.
  */
 enum class KitsugiTopAction(
-    @DrawableRes val iconRes: Int,
+    val icon: ImageVector,
     /** Kanonik (soldan sağa) sıra. Büyük değer daha sağda. */
-    val order: Int
+    val order: Int,
+    /** Seçili/aktif durumda kullanılacak dolu varyant (varsa). */
+    val selectedIcon: ImageVector? = null
 ) {
-    FILTER(R.drawable.ic_kitsugi_top_filter, order = 10),
-    SEARCH(R.drawable.ic_kitsugi_top_search, order = 15),
-    REFRESH(R.drawable.ic_kitsugi_top_refresh, order = 20),
-    HISTORY(R.drawable.ic_kitsugi_top_history, order = 30),
-    DOWNLOADS(R.drawable.ic_kitsugi_top_download, order = 40),
-    EXTENSIONS(R.drawable.ic_kitsugi_top_extension, order = 50),
-    STATS(R.drawable.ic_kitsugi_top_stats, order = 60),
-    SHARE(R.drawable.ic_kitsugi_top_share, order = 70),
-    FAVORITE(R.drawable.ic_kitsugi_top_favorite, order = 75),
-    GALLERY(R.drawable.ic_kitsugi_top_gallery, order = 80),
-    RANDOM(R.drawable.ic_kitsugi_top_random, order = 90),
+    FILTER(KitsugiIcons.SlidersHorizontal, order = 10),
+    SEARCH(KitsugiIcons.Search, order = 15),
+    REFRESH(KitsugiIcons.RefreshCw, order = 20),
+    HISTORY(KitsugiIcons.ClockArrowUp, order = 30),
+    DOWNLOADS(KitsugiIcons.Download, order = 40),
+    EXTENSIONS(KitsugiIcons.Puzzle, order = 50),
+    STATS(KitsugiIcons.ChartColumn, order = 60),
+    SHARE(KitsugiIcons.Share2, order = 70),
+    FAVORITE(KitsugiIcons.Heart, order = 75, selectedIcon = KitsugiIcons.HeartSolid),
+    GALLERY(KitsugiIcons.Image, order = 80),
+    RANDOM(KitsugiIcons.Dices, order = 90),
 
     /** Her zaman en sağda durur. */
-    NOTIFICATIONS(R.drawable.ic_kitsugi_top_bell, order = 100);
+    NOTIFICATIONS(KitsugiIcons.Bell, order = 100);
 
     companion object {
         /** Verilen aksiyonları kanonik sıraya göre dizer (bildirim daima en sağda). */
@@ -161,7 +163,7 @@ fun KitsugiTopActionButton(
         contentAlignment = Alignment.Center
     ) {
         Icon(
-            painter = painterResource(action.iconRes),
+            imageVector = if (selected) action.selectedIcon ?: action.icon else action.icon,
             contentDescription = contentDescription ?: action.defaultLabel(),
             tint = if (enabled) iconTint else KitsugiColors.TextMuted,
             modifier = Modifier.size(iconSize)

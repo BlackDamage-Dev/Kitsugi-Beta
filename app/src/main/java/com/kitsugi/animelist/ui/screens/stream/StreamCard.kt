@@ -17,10 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Download
-import androidx.compose.material.icons.rounded.Movie
-import androidx.compose.material.icons.rounded.PlayArrow
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -250,7 +247,7 @@ fun StreamCard(
                     )
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.PlayArrow,
+                        imageVector = Icons.PlayArrow,
                         contentDescription = stringResource(R.string.oynat),
                         modifier = Modifier.size(26.dp)
                     )
@@ -265,7 +262,7 @@ fun StreamCard(
                     )
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.Download,
+                        imageVector = Icons.Download,
                         contentDescription = stringResource(R.string.indir),
                         modifier = Modifier.size(19.dp)
                     )
@@ -310,7 +307,7 @@ private fun StreamThumbnail(
             )
         } else {
             Icon(
-                imageVector = Icons.Rounded.Movie,
+                imageVector = Icons.Movie,
                 contentDescription = null,
                 tint = accentColor.copy(alpha = 0.8f),
                 modifier = Modifier.align(Alignment.Center).size(24.dp)

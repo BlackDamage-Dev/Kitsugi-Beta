@@ -19,11 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Extension
-import androidx.compose.material.icons.rounded.Search
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import com.kitsugi.animelist.ui.components.KitsugiPlasmaLoader
 import androidx.compose.runtime.*
@@ -185,7 +181,7 @@ fun AddonSearchDialog(
                 ) {
                     IconButton(onClick = onDismissRequest) {
                         Icon(
-                            imageVector = Icons.Default.ArrowBack,
+                            imageVector = Icons.ArrowBack,
                             contentDescription = stringResource(R.string.geri),
                             tint = KitsugiColors.TextPrimary
                         )
@@ -225,7 +221,7 @@ fun AddonSearchDialog(
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.Search,
+                            imageVector = Icons.Search,
                             contentDescription = stringResource(R.string.ara),
                             tint = KitsugiColors.TextMuted,
                             modifier = Modifier.size(20.dp)
@@ -269,7 +265,7 @@ fun AddonSearchDialog(
                                 modifier = Modifier.size(36.dp)
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.Close,
+                                    imageVector = Icons.Close,
                                     contentDescription = stringResource(R.string.temizle),
                                     tint = KitsugiColors.TextMuted,
                                     modifier = Modifier.size(18.dp)
@@ -410,7 +406,7 @@ fun AddonSearchDialog(
                                                 horizontalArrangement = Arrangement.spacedBy(12.dp)
                                             ) {
                                                 Icon(
-                                                    imageVector = Icons.Default.Extension,
+                                                    imageVector = Icons.Extension,
                                                     contentDescription = "Eklenti",
                                                     tint = accentColor,
                                                     modifier = Modifier.size(24.dp)
@@ -540,7 +536,7 @@ fun ResultItemCard(
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Extension,
+                            imageVector = Icons.Extension,
                             contentDescription = null,
                             tint = KitsugiColors.TextMuted,
                             modifier = Modifier.size(36.dp)

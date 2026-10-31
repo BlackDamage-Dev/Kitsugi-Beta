@@ -8,8 +8,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.*
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -101,7 +100,7 @@ fun KitsugiAccountConnectionsDialog(
                         fontWeight = FontWeight.Bold
                     )
                     IconButton(onClick = onDismiss) {
-                        Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.kapat), tint = KitsugiColors.TextSecondary)
+                        Icon(Icons.Close, contentDescription = stringResource(R.string.kapat), tint = KitsugiColors.TextSecondary)
                     }
                 }
             }
@@ -249,7 +248,7 @@ private fun AccountConnectionsTab(
                     KitsugiSettingsItem(
                         title = stringResource(R.string.anilist_hesabi_anilistusername, anilistUsername),
                         description = if (isAniListImportRunning) "Senkronize ediliyor..." else stringResource(R.string.listenizi_anilist_ten_ice_aktarin),
-                        icon = Icons.Rounded.Sync,
+                        icon = Icons.Sync,
                         iconColor = KitsugiColors.AccentGreen,
                         onClick = { if (!isAniListImportRunning) onAniListImportClick() }
                     )
@@ -257,7 +256,7 @@ private fun AccountConnectionsTab(
                     KitsugiSettingsSwitchItem(
                         title = stringResource(R.string.otomatik_esitleme),
                         description = stringResource(R.string.kitsugi_deki_degisiklikleri_anilist_e_otomat),
-                        icon = Icons.Rounded.CloudSync,
+                        icon = Icons.CloudSync,
                         iconColor = KitsugiColors.AccentBlue,
                         checked = syncEnabledAnilist,
                         onCheckedChange = onSyncEnabledAnilistChanged
@@ -266,7 +265,7 @@ private fun AccountConnectionsTab(
                     KitsugiSettingsItem(
                         title = stringResource(R.string.anilist_baglantisini_kes),
                         description = stringResource(R.string.hesabinizi_uygulamadan_kaldirir),
-                        icon = Icons.Rounded.LinkOff,
+                        icon = Icons.LinkOff,
                         iconColor = KitsugiColors.AccentRed,
                         onClick = onAniListAuthClick
                     )
@@ -274,7 +273,7 @@ private fun AccountConnectionsTab(
                     KitsugiSettingsItem(
                         title = stringResource(R.string.anilist_hesabini_bagla),
                         description = if (isTv) stringResource(R.string.tv_de_qr_kod_ile_giris_yap) else stringResource(R.string.giris_yap_ve_listenizi_esitle),
-                        icon = Icons.Rounded.Link,
+                        icon = Icons.Link,
                         iconColor = KitsugiColors.AccentBlue,
                         onClick = {
                             if (isTv) showTvQrDialog = true
@@ -296,7 +295,7 @@ private fun AccountConnectionsTab(
                     KitsugiSettingsItem(
                         title = stringResource(R.string.myanimelist_hesabi_malusername, malUsername),
                         description = if (isMalImportRunning) "Senkronize ediliyor..." else stringResource(R.string.listenizi_myanimelist_ten_ice_aktarin),
-                        icon = Icons.Rounded.Sync,
+                        icon = Icons.Sync,
                         iconColor = KitsugiColors.AccentGreen,
                         onClick = { if (!isMalImportRunning) onMalImportClick() }
                     )
@@ -304,7 +303,7 @@ private fun AccountConnectionsTab(
                     KitsugiSettingsSwitchItem(
                         title = stringResource(R.string.otomatik_esitleme),
                         description = stringResource(R.string.kitsugi_deki_degisiklikleri_myanimelist_e_ot),
-                        icon = Icons.Rounded.CloudSync,
+                        icon = Icons.CloudSync,
                         iconColor = KitsugiColors.AccentBlue,
                         checked = syncEnabledMal,
                         onCheckedChange = onSyncEnabledMalChanged
@@ -313,7 +312,7 @@ private fun AccountConnectionsTab(
                     KitsugiSettingsItem(
                         title = stringResource(R.string.myanimelist_baglantisini_kes),
                         description = stringResource(R.string.hesabinizi_uygulamadan_kaldirir),
-                        icon = Icons.Rounded.LinkOff,
+                        icon = Icons.LinkOff,
                         iconColor = KitsugiColors.AccentRed,
                         onClick = onMalAuthClick
                     )
@@ -321,7 +320,7 @@ private fun AccountConnectionsTab(
                     KitsugiSettingsItem(
                         title = stringResource(R.string.myanimelist_hesabini_bagla),
                         description = if (isTv) stringResource(R.string.tv_de_qr_kod_ile_giris_yap) else stringResource(R.string.giris_yap_ve_listenizi_esitle),
-                        icon = Icons.Rounded.Link,
+                        icon = Icons.Link,
                         iconColor = KitsugiColors.AccentBlue,
                         onClick = {
                             if (isTv) showTvQrDialog = true
@@ -343,7 +342,7 @@ private fun AccountConnectionsTab(
                     KitsugiSettingsItem(
                         title = stringResource(R.string.simkl_hesabi_simklusername, simklUsername),
                         description = if (isSimklImportRunning) "Senkronize ediliyor..." else stringResource(R.string.listenizi_simkl_dan_ice_aktarin),
-                        icon = Icons.Rounded.Sync,
+                        icon = Icons.Sync,
                         iconColor = KitsugiColors.AccentGreen,
                         onClick = { if (!isSimklImportRunning) onSimklImportClick() }
                     )
@@ -351,7 +350,7 @@ private fun AccountConnectionsTab(
                     KitsugiSettingsSwitchItem(
                         title = stringResource(R.string.otomatik_esitleme),
                         description = stringResource(R.string.kitsugi_deki_degisiklikleri_simkl_e_otomatik),
-                        icon = Icons.Rounded.CloudSync,
+                        icon = Icons.CloudSync,
                         iconColor = KitsugiColors.AccentBlue,
                         checked = syncEnabledSimkl,
                         onCheckedChange = onSyncEnabledSimklChanged
@@ -360,7 +359,7 @@ private fun AccountConnectionsTab(
                     KitsugiSettingsItem(
                         title = stringResource(R.string.simkl_baglantisini_kes),
                         description = stringResource(R.string.hesabinizi_uygulamadan_kaldirir),
-                        icon = Icons.Rounded.LinkOff,
+                        icon = Icons.LinkOff,
                         iconColor = KitsugiColors.AccentRed,
                         onClick = onSimklAuthClick
                     )
@@ -368,7 +367,7 @@ private fun AccountConnectionsTab(
                     KitsugiSettingsItem(
                         title = stringResource(R.string.simkl_baglantisini_yenile_suresi_doldu),
                         description = stringResource(R.string.oturum_suresi_doldu_tekrar_giris_yapin),
-                        icon = Icons.Rounded.Warning,
+                        icon = Icons.Warning,
                         iconColor = KitsugiColors.AccentRed,
                         onClick = {
                             if (isTv) showTvQrDialog = true
@@ -379,7 +378,7 @@ private fun AccountConnectionsTab(
                     KitsugiSettingsItem(
                         title = stringResource(R.string.simkl_hesabini_bagla),
                         description = if (isTv) stringResource(R.string.tv_de_qr_kod_ile_giris_yap) else stringResource(R.string.giris_yap_film_dizi_ve_animelerini_esitle),
-                        icon = Icons.Rounded.Link,
+                        icon = Icons.Link,
                         iconColor = KitsugiColors.AccentBlue,
                         onClick = {
                             if (isTv) showTvQrDialog = true
@@ -402,7 +401,7 @@ private fun AccountConnectionsTab(
                     KitsugiSettingsItem(
                         title = stringResource(R.string.kitsu_hesabi_kitsuusername, kitsuUsername),
                         description = if (isKitsuImportRunning) "Senkronize ediliyor..." else stringResource(R.string.listenizi_kitsu_dan_ice_aktarin),
-                        icon = Icons.Rounded.Sync,
+                        icon = Icons.Sync,
                         iconColor = KitsugiColors.AccentGreen,
                         onClick = { if (!isKitsuImportRunning) onKitsuImportClick() }
                     )
@@ -410,7 +409,7 @@ private fun AccountConnectionsTab(
                     KitsugiSettingsSwitchItem(
                         title = stringResource(R.string.otomatik_esitleme),
                         description = stringResource(R.string.kitsugi_deki_degisiklikleri_kitsu_ya_otomati),
-                        icon = Icons.Rounded.CloudSync,
+                        icon = Icons.CloudSync,
                         iconColor = kitsuColor,
                         checked = syncEnabledKitsu,
                         onCheckedChange = onSyncEnabledKitsuChanged
@@ -419,7 +418,7 @@ private fun AccountConnectionsTab(
                     KitsugiSettingsItem(
                         title = stringResource(R.string.kitsu_baglantisini_kes),
                         description = stringResource(R.string.hesabinizi_uygulamadan_kaldirir),
-                        icon = Icons.Rounded.LinkOff,
+                        icon = Icons.LinkOff,
                         iconColor = KitsugiColors.AccentRed,
                         onClick = onKitsuAuthClick
                     )
@@ -427,7 +426,7 @@ private fun AccountConnectionsTab(
                     KitsugiSettingsItem(
                         title = stringResource(R.string.kitsu_hesabini_bagla),
                         description = stringResource(R.string.kullanici_adi_ve_sifrenizle_giris_yapip_list),
-                        icon = Icons.Rounded.Link,
+                        icon = Icons.Link,
                         iconColor = kitsuColor,
                         onClick = { showKitsuLoginDialog = true }
                     )
@@ -447,7 +446,7 @@ private fun AccountConnectionsTab(
                     KitsugiSettingsItem(
                         title = stringResource(R.string.shikimori_hesabi_shikimoriusername, shikimoriUsername),
                         description = if (isShikimoriImportRunning) "Senkronize ediliyor..." else stringResource(R.string.listenizi_shikimori_den_ice_aktarin),
-                        icon = Icons.Rounded.Sync,
+                        icon = Icons.Sync,
                         iconColor = KitsugiColors.AccentGreen,
                         onClick = { if (!isShikimoriImportRunning) onShikimoriImportClick() }
                     )
@@ -455,7 +454,7 @@ private fun AccountConnectionsTab(
                     KitsugiSettingsSwitchItem(
                         title = stringResource(R.string.otomatik_esitleme),
                         description = stringResource(R.string.kitsugi_deki_degisiklikleri_shikimori_ye_oto),
-                        icon = Icons.Rounded.CloudSync,
+                        icon = Icons.CloudSync,
                         iconColor = shikimoriColor,
                         checked = syncEnabledShikimori,
                         onCheckedChange = onSyncEnabledShikimoriChanged
@@ -464,7 +463,7 @@ private fun AccountConnectionsTab(
                     KitsugiSettingsItem(
                         title = stringResource(R.string.shikimori_baglantisini_kes),
                         description = stringResource(R.string.hesabinizi_uygulamadan_kaldirir),
-                        icon = Icons.Rounded.LinkOff,
+                        icon = Icons.LinkOff,
                         iconColor = KitsugiColors.AccentRed,
                         onClick = onShikimoriAuthClick
                     )
@@ -472,7 +471,7 @@ private fun AccountConnectionsTab(
                     KitsugiSettingsItem(
                         title = stringResource(R.string.shikimori_hesabini_bagla),
                         description = stringResource(R.string.oauth2_yetkilendirme_ile_shikimori_listenizi),
-                        icon = Icons.Rounded.Link,
+                        icon = Icons.Link,
                         iconColor = shikimoriColor,
                         onClick = { showShikimoriLoginDialog = true }
                     )
@@ -520,7 +519,7 @@ private fun AccountConnectionsTab(
                             else -> "Tüm Hesapları Birbiriyle Eşitle ($connectedCount/6)"
                         },
                         description = syncDesc,
-                        icon = Icons.Rounded.Cached,
+                        icon = Icons.Cached,
                         iconColor = KitsugiColors.AccentOrange,
                         onClick = {
                             showCrossSyncDialog = true

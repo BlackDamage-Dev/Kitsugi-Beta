@@ -12,8 +12,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.*
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -402,7 +401,7 @@ private fun TvTopicCard(
                         .tvClickable(shape = RoundedCornerShape(6.dp), onClick = onLikeClick)
                 ) {
                     Icon(
-                        imageVector = if (topic.isLiked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                        imageVector = if (topic.isLiked) Icons.Favorite else Icons.FavoriteBorder,
                         contentDescription = null,
                         tint = if (topic.isLiked) accentColor else KitsugiColors.TextMuted,
                         modifier = Modifier.size(12.dp)
@@ -420,7 +419,7 @@ private fun TvTopicCard(
                 horizontalArrangement = Arrangement.spacedBy(3.dp)
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.ChatBubbleOutline,
+                    imageVector = Icons.ChatBubbleOutline,
                     contentDescription = null,
                     tint = KitsugiColors.TextMuted,
                     modifier = Modifier.size(12.dp)
@@ -561,7 +560,7 @@ private fun TvActivityCard(
                     .tvClickable(shape = RoundedCornerShape(6.dp), onClick = onLikeClick)
             ) {
                 Icon(
-                    imageVector = if (activity.isLiked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                    imageVector = if (activity.isLiked) Icons.Favorite else Icons.FavoriteBorder,
                     contentDescription = null,
                     tint = if (activity.isLiked) accentColor else KitsugiColors.TextMuted,
                     modifier = Modifier.size(12.dp)

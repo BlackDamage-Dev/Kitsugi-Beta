@@ -8,12 +8,7 @@ import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Info
-import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material.icons.rounded.Security
-import androidx.compose.material.icons.rounded.Translate
-import androidx.compose.material.icons.rounded.Tune
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -228,7 +223,7 @@ private fun WikiPageToolsDialog(
                 modifier = Modifier.heightIn(max = 460.dp).verticalScroll(rememberScrollState())
             ) {
                 WikiToolSwitchRow(
-                    icon = Icons.Rounded.Translate,
+                    icon = Icons.Translate,
                     title = stringResource(R.string.wiki_tools_translate_title),
                     detail = translateDetail,
                     checked = translateOn,
@@ -237,7 +232,7 @@ private fun WikiPageToolsDialog(
                     onCheckedChange = onToggleTranslate
                 )
                 WikiToolSwitchRow(
-                    icon = Icons.Rounded.Security,
+                    icon = Icons.Security,
                     title = stringResource(R.string.wiki_tools_ad_block_title),
                     detail = adsDetail,
                     checked = adsOn,
@@ -250,19 +245,19 @@ private fun WikiPageToolsDialog(
                     modifier = Modifier.padding(vertical = 6.dp)
                 )
                 WikiToolActionRow(
-                    icon = Icons.Rounded.Tune,
+                    icon = Icons.Tune,
                     title = stringResource(R.string.wiki_reading_appearance),
                     enabled = canOpenAppearance,
                     onClick = onOpenAppearance
                 )
                 WikiToolActionRow(
-                    icon = Icons.Rounded.Search,
+                    icon = Icons.Search,
                     title = stringResource(R.string.wiki_find_in_page),
                     enabled = canFind,
                     onClick = onOpenFind
                 )
                 WikiToolActionRow(
-                    icon = Icons.Rounded.Info,
+                    icon = Icons.Info,
                     title = stringResource(R.string.wiki_tools_info),
                     enabled = true,
                     onClick = onOpenInfo

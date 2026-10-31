@@ -21,12 +21,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.automirrored.rounded.MenuBook
-import androidx.compose.material.icons.rounded.CheckCircle
-import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.Refresh
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.Button
 import androidx.compose.material3.ButtonDefaults
 import com.kitsugi.animelist.ui.theme.gradient.CircularProgressIndicator
@@ -188,7 +183,7 @@ fun TvMangaDetailScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            Icons.AutoMirrored.Rounded.ArrowBack,
+                            Icons.ArrowBack,
                             contentDescription = stringResource(R.string.geri),
                             tint = Color.White,
                             modifier = Modifier.size(18.dp)
@@ -309,7 +304,7 @@ fun TvMangaDetailScreen(
                         .focusRequester(actionButtonFocusRequester)
                 ) {
                     Icon(
-                        imageVector = if (resume != null) Icons.Rounded.PlayArrow else Icons.AutoMirrored.Rounded.MenuBook,
+                        imageVector = if (resume != null) Icons.PlayArrow else Icons.MenuBook,
                         contentDescription = null,
                         modifier = Modifier.size(20.dp)
                     )
@@ -360,7 +355,7 @@ fun TvMangaDetailScreen(
                                 modifier = Modifier.size(36.dp)
                             ) {
                                 Icon(
-                                    Icons.Rounded.Refresh,
+                                    Icons.Refresh,
                                     contentDescription = stringResource(R.string.yenile),
                                     tint = KitsugiColors.TextSecondary,
                                     modifier = Modifier.size(18.dp)
@@ -470,7 +465,7 @@ private fun TvChapterListItem(
         }
         if (row.isCompleted) {
             Icon(
-                Icons.Rounded.CheckCircle,
+                Icons.CheckCircle,
                 contentDescription = stringResource(R.string.okundu),
                 tint = KitsugiColors.AccentGreen.copy(0.8f),
                 modifier = Modifier.size(16.dp)

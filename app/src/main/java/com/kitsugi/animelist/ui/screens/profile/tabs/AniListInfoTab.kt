@@ -8,9 +8,7 @@ import android.widget.Toast
 import com.kitsugi.animelist.ui.theme.gradient.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.ContentCopy
-import androidx.compose.material.icons.rounded.Translate
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -94,7 +92,7 @@ fun AniListInfoTab(
                             modifier = Modifier.size(28.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Rounded.ContentCopy,
+                                imageVector = Icons.ContentCopy,
                                 contentDescription = stringResource(R.string.action_copy),
                                 tint = KitsugiColors.TextSecondary,
                                 modifier = Modifier.size(16.dp)

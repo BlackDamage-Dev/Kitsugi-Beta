@@ -31,11 +31,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Search
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -249,7 +245,7 @@ private fun TvSearchBar(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
-            imageVector = Icons.Default.Search,
+            imageVector = Icons.Search,
             contentDescription = null,
             tint = if (isFocused) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.5f),
             modifier = Modifier
@@ -305,7 +301,7 @@ private fun TvSearchBar(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Close,
+                        imageVector = Icons.Close,
                         contentDescription = stringResource(R.string.temizle),
                         tint = Color.White,
                         modifier = Modifier.size(14.dp)
@@ -553,7 +549,7 @@ private fun TvSearchHistory(
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Icon(
-                    imageVector = Icons.Default.Delete,
+                    imageVector = Icons.Delete,
                     contentDescription = stringResource(R.string.tumunu_temizle),
                     tint = Color.White.copy(alpha = 0.5f),
                     modifier = Modifier.size(14.dp)
@@ -591,7 +587,7 @@ private fun TvSearchHistory(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
-                        imageVector = Icons.Default.History,
+                        imageVector = Icons.History,
                         contentDescription = null,
                         tint = Color.White.copy(alpha = 0.5f),
                         modifier = Modifier.size(16.dp)
@@ -629,7 +625,7 @@ private fun TvSearchHistory(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Close,
+                        imageVector = Icons.Close,
                         contentDescription = stringResource(R.string.action_delete),
                         tint = Color.White,
                         modifier = Modifier.size(14.dp)

@@ -8,9 +8,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentHeight
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.ErrorOutline
-import androidx.compose.material.icons.rounded.Refresh
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.MaterialTheme
 import com.kitsugi.animelist.ui.theme.gradient.Text
@@ -43,7 +41,7 @@ fun KitsugiErrorState(
         verticalArrangement = Arrangement.Center
     ) {
         Icon(
-            imageVector = Icons.Rounded.ErrorOutline,
+            imageVector = Icons.ErrorOutline,
             contentDescription = null,
             tint = KitsugiColors.AccentRed.copy(alpha = 0.8f),
             modifier = Modifier.size(72.dp)
@@ -72,7 +70,7 @@ fun KitsugiErrorState(
             Spacer(modifier = Modifier.height(24.dp))
             KitsugiDetailActionButton(
                 text = "Tekrar Dene",
-                icon = androidx.compose.material.icons.Icons.Rounded.Refresh,
+                icon = Icons.Refresh,
                 onClick = onRetryClick
             )
         }

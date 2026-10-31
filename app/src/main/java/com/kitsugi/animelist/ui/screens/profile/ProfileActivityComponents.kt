@@ -22,8 +22,7 @@ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.*
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -168,7 +167,7 @@ fun ActivityCard(
                         modifier = Modifier.size(30.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.DeleteOutline,
+                            imageVector = Icons.DeleteOutline,
                             contentDescription = stringResource(R.string.action_delete),
                             tint = KitsugiColors.AccentRed.copy(alpha = 0.85f),
                             modifier = Modifier.size(18.dp)
@@ -277,7 +276,7 @@ fun ActivityCard(
                     }
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.ChatBubbleOutline,
+                        imageVector = Icons.ChatBubbleOutline,
                         contentDescription = stringResource(R.string.yanitlar),
                         tint = KitsugiColors.TextMuted,
                         modifier = Modifier.size(16.dp)
@@ -304,7 +303,7 @@ fun ActivityCard(
                     }
                 ) {
                     Icon(
-                        imageVector = if (isLikedState) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                        imageVector = if (isLikedState) Icons.Favorite else Icons.FavoriteBorder,
                         contentDescription = stringResource(R.string.begen),
                         tint = if (isLikedState) KitsugiColors.AccentPink else KitsugiColors.TextMuted,
                         modifier = Modifier.size(16.dp)
@@ -366,7 +365,7 @@ fun FavoritesHorizontalSection(
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Icon(
-                            imageVector = Icons.Rounded.ChevronRight,
+                            imageVector = Icons.ChevronRight,
                             contentDescription = null,
                             tint = LocalKitsugiAccent.current,
                             modifier = Modifier.size(16.dp)
@@ -411,7 +410,7 @@ fun FavoritesHorizontalSection(
                                 modifier = Modifier.fillMaxSize(),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Icon(imageVector = Icons.Rounded.Favorite, contentDescription = null, tint = KitsugiColors.TextMuted)
+                                Icon(imageVector = Icons.Favorite, contentDescription = null, tint = KitsugiColors.TextMuted)
                             }
                         }
                     }
@@ -484,7 +483,7 @@ fun FavoritesExpandedBottomSheet(
                     )
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.Close,
+                        imageVector = Icons.Close,
                         contentDescription = stringResource(R.string.kapat),
                         tint = KitsugiColors.TextPrimary
                     )
@@ -541,7 +540,7 @@ fun FavoritesExpandedBottomSheet(
                                     modifier = Modifier.fillMaxSize(),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Icon(imageVector = Icons.Rounded.Favorite, contentDescription = null, tint = KitsugiColors.TextMuted)
+                                    Icon(imageVector = Icons.Favorite, contentDescription = null, tint = KitsugiColors.TextMuted)
                                 }
                             }
                         }
@@ -629,7 +628,7 @@ fun PositionalStatItemCard(
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.Person,
+                            imageVector = Icons.Person,
                             contentDescription = null,
                             tint = accentColor.copy(alpha = 0.8f),
                             modifier = Modifier.size(22.dp)

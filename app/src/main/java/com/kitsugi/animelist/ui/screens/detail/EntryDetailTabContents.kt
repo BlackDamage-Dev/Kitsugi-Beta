@@ -23,8 +23,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.PhotoLibrary
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.components.KitsugiPlatformLogo
 import com.kitsugi.animelist.ui.components.LocalKitsugiGalleryLoading
 import androidx.compose.ui.draw.alpha
@@ -318,7 +317,7 @@ internal fun DetailGalleryCard(
                 enabled = !galleryLoading
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.PhotoLibrary,
+                    imageVector = Icons.PhotoLibrary,
                     contentDescription = stringResource(R.string.cd_open_gallery),
                     tint = accentColor,
                     modifier = Modifier.size(22.dp)

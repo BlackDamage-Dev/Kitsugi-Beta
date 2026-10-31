@@ -24,16 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Extension
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.Search
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import com.kitsugi.animelist.ui.components.KitsugiPlasmaLoader
 import androidx.compose.runtime.*
@@ -475,7 +466,7 @@ private fun AddonFloatingSearchBar(
                 .clickable { if (hasSearched) onClear() else onBack() },
             contentAlignment = Alignment.Center
         ) {
-            Icon(Icons.Default.ArrowBack, "Geri", tint = Color.White, modifier = Modifier.size(20.dp))
+            Icon(Icons.ArrowBack, "Geri", tint = Color.White, modifier = Modifier.size(20.dp))
         }
 
         // Arama alanı
@@ -493,7 +484,7 @@ private fun AddonFloatingSearchBar(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Icon(Icons.Rounded.Search, null, tint = Color.White.copy(0.65f), modifier = Modifier.size(18.dp))
+                Icon(Icons.Search, null, tint = Color.White.copy(0.65f), modifier = Modifier.size(18.dp))
                 BasicTextField(
                     value = searchQuery,
                     onValueChange = onQueryChange,
@@ -513,7 +504,7 @@ private fun AddonFloatingSearchBar(
                         Modifier.size(26.dp).clip(CircleShape).background(Color.White.copy(0.2f)).clickable { onClear() },
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Default.Close, null, tint = Color.White, modifier = Modifier.size(14.dp))
+                        Icon(Icons.Close, null, tint = Color.White, modifier = Modifier.size(14.dp))
                     }
                 }
             }
@@ -528,7 +519,7 @@ private fun AddonFloatingSearchBar(
                 .clickable { onRefresh() },
             contentAlignment = Alignment.Center
         ) {
-            Icon(Icons.Default.Refresh, "Yenile", tint = Color.White, modifier = Modifier.size(20.dp))
+            Icon(Icons.Refresh, "Yenile", tint = Color.White, modifier = Modifier.size(20.dp))
         }
     }
 }

@@ -6,14 +6,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.CheckCircle
-import androidx.compose.material.icons.rounded.FormatListBulleted
-import androidx.compose.material.icons.rounded.PauseCircle
-import androidx.compose.material.icons.rounded.PlayCircle
-import androidx.compose.material.icons.rounded.Schedule
-import androidx.compose.material.icons.rounded.Star
-import androidx.compose.material.icons.rounded.StopCircle
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.MaterialTheme
 import com.kitsugi.animelist.ui.theme.gradient.Text
 import androidx.compose.runtime.Composable
@@ -72,23 +65,23 @@ fun KitsugiListStatusBottomSheet(
     val favoritesCount = entries.count { it.isFavorite }
 
     val statusItems = mutableListOf(
-        StatusItemData("all", statusLabels.getValue("all"), Icons.Rounded.FormatListBulleted, entries.size),
-        StatusItemData("watching", statusLabels.getValue("watching"), Icons.Rounded.PlayCircle, watchingCount),
-        StatusItemData("completed", statusLabels.getValue("completed"), Icons.Rounded.CheckCircle, completedCount),
-        StatusItemData("planned", statusLabels.getValue("planned"), Icons.Rounded.Schedule, plannedCount),
-        StatusItemData("paused", statusLabels.getValue("paused"), Icons.Rounded.PauseCircle, pausedCount),
-        StatusItemData("dropped", statusLabels.getValue("dropped"), Icons.Rounded.StopCircle, droppedCount)
+        StatusItemData("all", statusLabels.getValue("all"), Icons.FormatListBulleted, entries.size),
+        StatusItemData("watching", statusLabels.getValue("watching"), Icons.PlayCircle, watchingCount),
+        StatusItemData("completed", statusLabels.getValue("completed"), Icons.CheckCircle, completedCount),
+        StatusItemData("planned", statusLabels.getValue("planned"), Icons.Schedule, plannedCount),
+        StatusItemData("paused", statusLabels.getValue("paused"), Icons.PauseCircle, pausedCount),
+        StatusItemData("dropped", statusLabels.getValue("dropped"), Icons.StopCircle, droppedCount)
     )
 
     if (showAdultContent && adultCount > 0) {
         statusItems.add(
-            StatusItemData("adult", statusLabels.getValue("adult"), Icons.Rounded.Star, adultCount)
+            StatusItemData("adult", statusLabels.getValue("adult"), Icons.Star, adultCount)
         )
     }
 
     if (favoritesCount > 0) {
         statusItems.add(
-            StatusItemData("favorites", statusLabels.getValue("favorites"), Icons.Rounded.Star, favoritesCount)
+            StatusItemData("favorites", statusLabels.getValue("favorites"), Icons.Star, favoritesCount)
         )
     }
 

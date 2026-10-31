@@ -21,13 +21,7 @@ import androidx.compose.material3.CardDefaults
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.MaterialTheme
 import com.kitsugi.animelist.ui.theme.gradient.Text
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.Pause
-import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.Repeat
-import androidx.compose.material.icons.rounded.Schedule
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -574,12 +568,12 @@ private fun StatusBadge(
 ) {
     val color = statusColor(status)
     val icon = when (status) {
-        com.kitsugi.animelist.model.WatchStatus.Watching   -> Icons.Rounded.PlayArrow
-        com.kitsugi.animelist.model.WatchStatus.Completed  -> Icons.Rounded.Check
-        com.kitsugi.animelist.model.WatchStatus.Planned    -> Icons.Rounded.Schedule
-        com.kitsugi.animelist.model.WatchStatus.Dropped    -> Icons.Rounded.Close
-        com.kitsugi.animelist.model.WatchStatus.Paused     -> Icons.Rounded.Pause
-        com.kitsugi.animelist.model.WatchStatus.Repeating  -> Icons.Rounded.Repeat
+        com.kitsugi.animelist.model.WatchStatus.Watching   -> Icons.PlayArrow
+        com.kitsugi.animelist.model.WatchStatus.Completed  -> Icons.Check
+        com.kitsugi.animelist.model.WatchStatus.Planned    -> Icons.Schedule
+        com.kitsugi.animelist.model.WatchStatus.Dropped    -> Icons.Close
+        com.kitsugi.animelist.model.WatchStatus.Paused     -> Icons.Pause
+        com.kitsugi.animelist.model.WatchStatus.Repeating  -> Icons.Repeat
     }
 
     Box(

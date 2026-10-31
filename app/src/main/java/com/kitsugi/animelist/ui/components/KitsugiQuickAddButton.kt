@@ -6,9 +6,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.Check
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -100,7 +98,7 @@ fun KitsugiQuickAddButton(
         contentAlignment = Alignment.Center
     ) {
         Icon(
-            imageVector = if (inList) Icons.Rounded.Check else Icons.Rounded.Add,
+            imageVector = if (inList) Icons.Check else Icons.Add,
             contentDescription = description,
             tint = iconTint,
             modifier = Modifier.size(size * 0.54f)

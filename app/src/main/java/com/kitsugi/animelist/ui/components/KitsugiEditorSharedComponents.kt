@@ -41,8 +41,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.text.input.KeyboardType
 import com.kitsugi.animelist.ui.theme.LocalKitsugiAccent
 import com.kitsugi.animelist.ui.theme.KitsugiColors
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Close
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.ui.res.stringResource
 import com.kitsugi.animelist.R
 
@@ -173,7 +172,7 @@ internal fun SheetRow(
                             contentAlignment = Alignment.Center
                         ) {
                             com.kitsugi.animelist.ui.theme.gradient.Icon(
-                                imageVector = Icons.Rounded.Close,
+                                imageVector = Icons.Close,
                                 contentDescription = stringResource(R.string.temizle),
                                 tint = KitsugiColors.TextMuted,
                                 modifier = Modifier.size(12.dp)

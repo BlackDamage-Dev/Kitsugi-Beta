@@ -1,11 +1,11 @@
 package com.kitsugi.animelist.ui.screens.detail.wiki
 
+import com.kitsugi.animelist.ui.components.KitsugiChevronIcon
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
-import androidx.compose.material.icons.automirrored.rounded.MenuBook
 import androidx.compose.foundation.clickable
 import com.kitsugi.animelist.data.fandom.FandomRelatedPage
 import androidx.compose.foundation.background
@@ -28,10 +28,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.OpenInNew
-import androidx.compose.material.icons.rounded.Search
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.CircularProgressIndicator
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -48,8 +45,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.animation.animateContentSize
-import androidx.compose.material.icons.rounded.ExpandLess
-import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -498,7 +493,7 @@ private fun MediaWikiHeaderCard(
                 }
                 TextButton(onClick = openAction) {
                     Icon(
-                        imageVector = Icons.AutoMirrored.Rounded.MenuBook,
+                        imageVector = Icons.MenuBook,
                         contentDescription = null,
                         tint = accentColor,
                         modifier = Modifier.size(16.dp)
@@ -690,7 +685,7 @@ private fun MediaWikiSearchCard(
             },
             leadingIcon = {
                 Icon(
-                    imageVector = Icons.Rounded.Search,
+                    imageVector = Icons.Search,
                     contentDescription = null,
                     tint = accentColor,
                     modifier = Modifier.size(18.dp)
@@ -700,7 +695,7 @@ private fun MediaWikiSearchCard(
                 if (query.isNotEmpty()) {
                     IconButton(onClick = onClear) {
                         Icon(
-                            imageVector = Icons.Rounded.Close,
+                            imageVector = Icons.Close,
                             contentDescription = null,
                             tint = KitsugiColors.TextMuted,
                             modifier = Modifier.size(18.dp)
@@ -919,7 +914,7 @@ private fun GuideGroupSection(
                                 stringResource(R.string.fandom_guide_show_more_count, hiddenCount)
                             else -> stringResource(R.string.fandom_guide_show_more)
                         },
-                        icon = if (isLoadingMore) null else Icons.Rounded.ExpandMore,
+                        icon = if (isLoadingMore) null else Icons.ExpandMore,
                         loading = isLoadingMore,
                         enabled = !isLoadingMore,
                         accentColor = accentColor,
@@ -932,7 +927,7 @@ private fun GuideGroupSection(
                 if (canCollapse) {
                     GuideActionChip(
                         label = stringResource(R.string.fandom_guide_show_less),
-                        icon = Icons.Rounded.ExpandLess,
+                        icon = Icons.ExpandLess,
                         loading = false,
                         accentColor = accentColor,
                         onClick = { expanded = false }
@@ -1147,7 +1142,7 @@ private fun WikiItemSheet(
                         }
                         IconButton(onClick = onClose) {
                             Icon(
-                                imageVector = Icons.Rounded.Close,
+                                imageVector = Icons.Close,
                                 contentDescription = stringResource(R.string.action_close),
                                 tint = KitsugiColors.TextSecondary
                             )
@@ -1295,7 +1290,7 @@ private fun WikiItemSheet(
                         }
                         TextButton(onClick = { openExternal(context, article.pageUrl) }) {
                             Icon(
-                                imageVector = Icons.Rounded.OpenInNew,
+                                imageVector = Icons.OpenInNew,
                                 contentDescription = null,
                                 tint = accentColor,
                                 modifier = Modifier.size(16.dp)
@@ -1570,8 +1565,8 @@ private fun ArticleSectionRow(
                 .padding(start = (depth * 14).dp, top = 9.dp, bottom = 9.dp, end = 3.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                imageVector = if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+            KitsugiChevronIcon(
+                expanded = expanded,
                 contentDescription = null,
                 tint = accentColor,
                 modifier = Modifier.size(20.dp)

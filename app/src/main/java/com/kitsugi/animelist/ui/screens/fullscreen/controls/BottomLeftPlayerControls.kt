@@ -5,9 +5,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.LockOpen
-import androidx.compose.material.icons.filled.ScreenRotation
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -32,11 +30,11 @@ fun BottomLeftPlayerControls(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         ControlsButton(
-            icon = Icons.Default.LockOpen,
+            icon = Icons.LockOpen,
             onClick = onLockControls,
         )
         ControlsButton(
-            icon = Icons.Default.ScreenRotation,
+            icon = Icons.ScreenRotation,
             onClick = onCycleRotation,
         )
         ControlsButton(

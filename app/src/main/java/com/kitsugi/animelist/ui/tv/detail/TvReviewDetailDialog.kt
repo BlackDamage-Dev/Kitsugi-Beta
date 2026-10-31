@@ -14,8 +14,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.ThumbUp
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -202,7 +201,7 @@ fun TvReviewDetailDialog(
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Icon(
-                                imageVector = Icons.Rounded.ThumbUp,
+                                imageVector = Icons.ThumbUp,
                                 contentDescription = stringResource(R.string.faydali),
                                 tint = if (userRatingState == "UP_VOTE") accentColor else KitsugiColors.TextSecondary,
                                 modifier = Modifier.size(16.dp)

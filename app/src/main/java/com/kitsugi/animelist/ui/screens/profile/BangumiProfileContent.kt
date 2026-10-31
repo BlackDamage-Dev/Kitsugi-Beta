@@ -19,10 +19,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Notifications
-import androidx.compose.material.icons.rounded.OpenInNew
-import androidx.compose.material.icons.rounded.Star
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.FilledTonalButton
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.MaterialTheme
@@ -420,7 +417,7 @@ private fun BangumiHeaderCard(
         ) {
             FilledTonalButton(onClick = onOpenProfile) {
                 Icon(
-                    imageVector = Icons.Rounded.OpenInNew,
+                    imageVector = Icons.OpenInNew,
                     contentDescription = null,
                     modifier = Modifier.size(16.dp)
                 )
@@ -429,7 +426,7 @@ private fun BangumiHeaderCard(
             }
             FilledTonalButton(onClick = onOpenNotifications) {
                 Icon(
-                    imageVector = Icons.Rounded.Notifications,
+                    imageVector = Icons.Notifications,
                     contentDescription = null,
                     modifier = Modifier.size(16.dp)
                 )
@@ -617,7 +614,7 @@ private fun BangumiCollectionRow(
                 )
                 if (collection.rate > 0) {
                     Icon(
-                        imageVector = Icons.Rounded.Star,
+                        imageVector = Icons.Star,
                         contentDescription = null,
                         tint = accentColor,
                         modifier = Modifier.size(12.dp)

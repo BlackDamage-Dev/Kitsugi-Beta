@@ -15,9 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Restore
-import androidx.compose.material.icons.rounded.Translate
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -69,7 +67,7 @@ fun KitsugiTranslateIconButton(
     modifier: Modifier = Modifier,
     isLoading: Boolean = LocalKitsugiTranslationLoading.current,
     tint: Color = LocalKitsugiAccent.current,
-    icon: ImageVector = Icons.Rounded.Translate,
+    icon: ImageVector = Icons.Translate,
     contentDescription: String? = null,
     iconSize: Dp = 24.dp,
     ringSize: Dp = 32.dp,
@@ -205,7 +203,7 @@ fun KitsugiOriginalToggleChip(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
-            imageVector = if (showingOriginal) Icons.Rounded.Translate else Icons.Rounded.Restore,
+            imageVector = if (showingOriginal) Icons.Translate else Icons.Restore,
             contentDescription = null,
             tint = tint,
             modifier = Modifier.size(12.dp)

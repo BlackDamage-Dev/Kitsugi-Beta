@@ -15,9 +15,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.Comment
-import androidx.compose.material.icons.rounded.*
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -204,7 +202,7 @@ fun KitsugiAllTopicsBottomSheet(
                     )
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.Close,
+                        imageVector = Icons.Close,
                         contentDescription = stringResource(R.string.kapat),
                         tint = KitsugiColors.TextPrimary
                     )
@@ -373,7 +371,7 @@ fun KitsugiAllTopicsBottomSheet(
                                         modifier = Modifier.size(28.dp)
                                     ) {
                                         Icon(
-                                            imageVector = Icons.Rounded.ContentCopy,
+                                            imageVector = Icons.ContentCopy,
                                             contentDescription = KitsugiStrings.get(R.string.action_copy),
                                             tint = KitsugiColors.TextSecondary,
                                             modifier = Modifier.size(14.dp)
@@ -463,7 +461,7 @@ fun KitsugiAllTopicsBottomSheet(
                                             }
                                         ) {
                                             Icon(
-                                                imageVector = if (topic.isLiked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                                                imageVector = if (topic.isLiked) Icons.Favorite else Icons.FavoriteBorder,
                                                 contentDescription = stringResource(R.string.begen),
                                                 tint = if (topic.isLiked) accentColor else KitsugiColors.TextSecondary,
                                                 modifier = Modifier.size(14.dp)
@@ -479,7 +477,7 @@ fun KitsugiAllTopicsBottomSheet(
 
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Icon(
-                                            imageVector = Icons.AutoMirrored.Rounded.Comment,
+                                            imageVector = Icons.Comment,
                                             contentDescription = "Yorumlar",
                                             tint = KitsugiColors.TextSecondary,
                                             modifier = Modifier.size(14.dp)
@@ -494,7 +492,7 @@ fun KitsugiAllTopicsBottomSheet(
                                     if (topic.viewCount > 0) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             Icon(
-                                                imageVector = Icons.Rounded.RemoveRedEye,
+                                                imageVector = Icons.RemoveRedEye,
                                                 contentDescription = stringResource(R.string.goruntulenme),
                                                 tint = KitsugiColors.TextSecondary,
                                                 modifier = Modifier.size(14.dp)

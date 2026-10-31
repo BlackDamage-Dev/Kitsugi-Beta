@@ -10,8 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.AccountCircle
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -299,7 +298,7 @@ fun KitsugiAccountContent() {
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Icon(Icons.Rounded.AccountCircle, contentDescription = null, tint = accent, modifier = Modifier.size(48.dp))
+            Icon(Icons.AccountCircle, contentDescription = null, tint = accent, modifier = Modifier.size(48.dp))
             Column {
                 Text(
                     loggedInEmail ?: stringResource(R.string.ui_account_signed_out),

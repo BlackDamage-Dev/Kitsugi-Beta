@@ -7,8 +7,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoStories
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import com.kitsugi.animelist.ui.theme.gradient.Text
 import androidx.compose.material3.TextButton
@@ -72,7 +71,7 @@ fun MangaScreen(
             shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
         ) {
             Icon(
-                imageVector = Icons.Default.AutoStories,
+                imageVector = Icons.AutoStories,
                 contentDescription = null,
                 modifier = Modifier.padding(end = 8.dp)
             )

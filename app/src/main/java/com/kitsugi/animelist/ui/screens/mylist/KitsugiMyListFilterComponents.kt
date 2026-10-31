@@ -14,10 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.ArrowDownward
-import androidx.compose.material.icons.rounded.ArrowUpward
-import androidx.compose.material.icons.rounded.FilterList
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.MaterialTheme
 import com.kitsugi.animelist.ui.theme.gradient.Text
@@ -457,7 +454,7 @@ internal fun RichMyListFilterPanel(
                             )
                             if (isSelected) {
                                 Icon(
-                                    imageVector = if (isAscActive) Icons.Rounded.ArrowUpward else Icons.Rounded.ArrowDownward,
+                                    imageVector = if (isAscActive) Icons.ArrowUpward else Icons.ArrowDownward,
                                     contentDescription = null,
                                     tint = KitsugiColors.Background,
                                     modifier = Modifier.size(12.dp)
@@ -594,6 +591,6 @@ internal fun EmptyListResultCard(
         } else {
             stringResource(R.string.mylist_empty_search_query, searchQuery)
         },
-        icon = Icons.Rounded.FilterList
+        icon = Icons.FilterList
     )
 }

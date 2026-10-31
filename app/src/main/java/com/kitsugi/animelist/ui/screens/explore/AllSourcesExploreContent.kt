@@ -1,5 +1,6 @@
 package com.kitsugi.animelist.ui.screens.explore
 
+import com.kitsugi.animelist.ui.components.KitsugiChevronIcon
 import com.kitsugi.animelist.ui.theme.gradient.CircularProgressIndicator
 import com.kitsugi.animelist.ui.components.PlatformErrorCodeChip
 import com.kitsugi.animelist.ui.theme.gradient.Icon
@@ -13,10 +14,7 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.ExpandLess
-import androidx.compose.material.icons.rounded.ExpandMore
-import androidx.compose.material.icons.rounded.KeyboardArrowUp
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -279,7 +277,7 @@ private fun BackToExploreChip(onClick: () -> Unit) {
         horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         Icon(
-            imageVector = Icons.Rounded.KeyboardArrowUp,
+            imageVector = Icons.KeyboardArrowUp,
             contentDescription = null,
             tint = KitsugiColors.TextSecondary,
             modifier = Modifier.size(18.dp)
@@ -348,8 +346,12 @@ private fun SourceHeader(
                     color = color, style = MaterialTheme.typography.labelMedium)
             }
             IconButton(onClick = onToggle) {
-                Icon(if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
-                    contentDescription = stringResource(if (expanded) R.string.explore_source_collapse else R.string.explore_source_expand, platform.localizedLabel()), tint = color)
+                KitsugiChevronIcon(
+                    expanded = expanded,
+                    contentDescription = stringResource(if (expanded) R.string.explore_source_collapse else R.string.explore_source_expand, platform.localizedLabel()),
+                    tint = color,
+                    modifier = Modifier
+                )
             }
         }
         Spacer(Modifier.height(10.dp))

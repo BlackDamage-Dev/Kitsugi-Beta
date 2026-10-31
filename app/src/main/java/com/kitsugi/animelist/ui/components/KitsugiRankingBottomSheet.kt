@@ -20,9 +20,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.SearchOff
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import com.kitsugi.animelist.ui.theme.gradient.Icon
@@ -172,7 +170,7 @@ fun KitsugiRankingBottomSheet(
 
                 IconButton(onClick = onDismissRequest) {
                     Icon(
-                        imageVector = Icons.Rounded.Close,
+                        imageVector = Icons.Close,
                         contentDescription = stringResource(R.string.kapat),
                         tint = KitsugiColors.TextSecondary
                     )
@@ -210,7 +208,7 @@ fun KitsugiRankingBottomSheet(
                     KitsugiEmptyState(
                         title = KitsugiStrings.get(R.string.sonuc_bulunamadi_b51f9f8),
                         subtitle = KitsugiStrings.get(R.string.secilen_kategori_icin_siralama_verisi_mevcut_degil),
-                        icon = Icons.Rounded.SearchOff
+                        icon = Icons.SearchOff
                     )
                 }
             } else {

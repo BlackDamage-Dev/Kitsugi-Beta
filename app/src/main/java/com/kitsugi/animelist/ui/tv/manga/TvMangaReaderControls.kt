@@ -6,9 +6,7 @@ import com.kitsugi.animelist.ui.theme.gradient.border
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ChevronLeft
-import androidx.compose.material.icons.filled.ChevronRight
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -268,7 +266,7 @@ private fun TvControlCycleRow(
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Icon(
-                imageVector = Icons.Default.ChevronLeft,
+                imageVector = Icons.ChevronLeft,
                 contentDescription = null,
                 tint = if (isFocused) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.4f),
                 modifier = Modifier.size(20.dp)
@@ -283,7 +281,7 @@ private fun TvControlCycleRow(
             )
 
             Icon(
-                imageVector = Icons.Default.ChevronRight,
+                imageVector = Icons.ChevronRight,
                 contentDescription = null,
                 tint = if (isFocused) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.4f),
                 modifier = Modifier.size(20.dp)

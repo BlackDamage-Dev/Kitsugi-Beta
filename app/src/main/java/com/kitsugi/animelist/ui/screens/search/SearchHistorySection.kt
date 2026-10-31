@@ -1,5 +1,6 @@
 package com.kitsugi.animelist.ui.screens.search
 
+import com.kitsugi.animelist.ui.components.KitsugiChevronIcon
 import com.kitsugi.animelist.ui.theme.gradient.background
 import com.kitsugi.animelist.ui.utils.tvClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -11,10 +12,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.Delete
-import androidx.compose.material.icons.rounded.History
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -38,8 +36,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.material.icons.rounded.ExpandMore
-import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.foundation.clickable
 import com.kitsugi.animelist.model.MediaType
 import androidx.compose.ui.res.stringResource
@@ -94,7 +90,7 @@ fun SearchHistorySection(
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.History,
+                    imageVector = Icons.History,
                     contentDescription = null,
                     tint = KitsugiColors.TextSecondary,
                     modifier = Modifier.size(14.dp)
@@ -122,8 +118,8 @@ fun SearchHistorySection(
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Medium
                         )
-                        Icon(
-                            imageVector = if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                        KitsugiChevronIcon(
+                            expanded = expanded,
                             contentDescription = null,
                             tint = accentColor,
                             modifier = Modifier.size(14.dp)
@@ -135,7 +131,7 @@ fun SearchHistorySection(
                     modifier = Modifier.size(28.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.Delete,
+                        imageVector = Icons.Delete,
                         contentDescription = stringResource(R.string.tumunu_temizle),
                         tint = KitsugiColors.TextMuted,
                         modifier = Modifier.size(14.dp)
@@ -176,7 +172,7 @@ fun SearchHistorySection(
                         modifier = Modifier.size(22.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.Close,
+                            imageVector = Icons.Close,
                             contentDescription = stringResource(R.string.kaldir),
                             tint = KitsugiColors.TextMuted,
                             modifier = Modifier.size(12.dp)

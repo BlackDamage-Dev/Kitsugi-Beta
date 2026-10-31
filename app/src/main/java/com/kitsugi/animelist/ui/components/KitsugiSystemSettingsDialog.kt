@@ -20,11 +20,7 @@ import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.Dns
-import androidx.compose.material.icons.rounded.Folder
-import androidx.compose.material.icons.rounded.Storage
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -101,14 +97,14 @@ fun KitsugiSystemSettingsDialog(
                         fontWeight = FontWeight.Bold
                     )
                     IconButton(onClick = onDismiss) {
-                        Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.action_close), tint = KitsugiColors.TextSecondary)
+                        Icon(Icons.Close, contentDescription = stringResource(R.string.action_close), tint = KitsugiColors.TextSecondary)
                     }
                 }
             }
             KitsugiSettingsSegmentedTabs(
                 tabs = listOf(
-                    KitsugiSettingsTabOption(stringResource(R.string.inline_data_management_4b7c656), Icons.Rounded.Storage),
-                    KitsugiSettingsTabOption("DNS (DoH)", Icons.Rounded.Dns)
+                    KitsugiSettingsTabOption(stringResource(R.string.inline_data_management_4b7c656), Icons.Storage),
+                    KitsugiSettingsTabOption("DNS (DoH)", Icons.Dns)
                 ),
                 selectedIndex = pagerState.currentPage,
                 accentColor = accentColor,
@@ -445,7 +441,7 @@ fun StorageSettingsTab(
                         .padding(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Rounded.Folder, contentDescription = null, tint = accentColor)
+                    Icon(Icons.Folder, contentDescription = null, tint = accentColor)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(displayPath, color = KitsugiColors.TextSecondary, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
                 }
@@ -478,7 +474,7 @@ fun StorageSettingsTab(
                         .padding(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Rounded.Folder, contentDescription = null, tint = accentColor)
+                    Icon(Icons.Folder, contentDescription = null, tint = accentColor)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(displayVideoPath, color = KitsugiColors.TextSecondary, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
                 }

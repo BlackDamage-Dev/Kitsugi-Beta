@@ -24,18 +24,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.Share
-import androidx.compose.material.icons.rounded.Image
-import androidx.compose.material.icons.rounded.Favorite
-import androidx.compose.material.icons.rounded.FavoriteBorder
-import androidx.compose.material.icons.rounded.Tv
-import androidx.compose.material.icons.rounded.Book
-import androidx.compose.material.icons.rounded.Schedule
-import androidx.compose.material.icons.rounded.MenuBook
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.material.icons.rounded.RssFeed
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -237,7 +227,7 @@ internal fun DetailHero(
                 ) {
                     IconButton(onClick = onBackClick) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                            imageVector = Icons.ArrowBack,
                             contentDescription = stringResource(R.string.geri),
                             tint = KitsugiColors.TextPrimary
                         )
@@ -285,7 +275,7 @@ internal fun DetailHero(
                     ) {
                         IconButton(onClick = shareAction) {
                             Icon(
-                                imageVector = Icons.Rounded.Share,
+                                imageVector = Icons.Share,
                                 contentDescription = stringResource(R.string.paylas),
                                 tint = KitsugiColors.TextPrimary
                             )
@@ -302,7 +292,7 @@ internal fun DetailHero(
                         ) {
                             IconButton(onClick = onToggleFavoriteClick) {
                                 Icon(
-                                    imageVector = if (entry.isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                                    imageVector = if (entry.isFavorite) Icons.Favorite else Icons.FavoriteBorder,
                                     contentDescription = if (entry.isFavorite) stringResource(R.string.action_favourite_remove) else "Favori Yap",
                                     tint = if (entry.isFavorite) accentColor else KitsugiColors.TextPrimary
                                 )
@@ -366,7 +356,7 @@ internal fun DetailHero(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     // 1. Format
-                    val formatIcon = if (entry.type == MediaType.Manga) Icons.Rounded.Book else Icons.Rounded.Tv
+                    val formatIcon = if (entry.type == MediaType.Manga) Icons.Book else Icons.Tv
                     val formatText = when (entry.type) {
                         MediaType.Anime -> "TV"
                         else -> entry.type.localizedLabel()
@@ -374,7 +364,7 @@ internal fun DetailHero(
                     MetadataIconText(icon = formatIcon, text = formatText, tint = accentColor)
 
                     // 2. Episodes / Chapters count
-                    val countIcon = if (entry.type == MediaType.Manga) Icons.Rounded.MenuBook else Icons.Rounded.Schedule
+                    val countIcon = if (entry.type == MediaType.Manga) Icons.MenuBook else Icons.Schedule
                     val totalVal = entry.total
                     val countText = if (totalVal != null && totalVal > 0) {
                         if (entry.type == MediaType.Manga) stringResource(R.string.hero_count_volumes_chapters, totalVal)
@@ -386,7 +376,7 @@ internal fun DetailHero(
                     MetadataIconText(icon = countIcon, text = countText, tint = accentColor)
 
                     // 3. Status
-                    val statusIcon = Icons.Rounded.RssFeed
+                    val statusIcon = Icons.RssFeed
                     MetadataIconText(icon = statusIcon, text = entry.status.localizedLabel(), tint = statusColor)
                 }
 
@@ -401,7 +391,7 @@ internal fun DetailHero(
                             .padding(vertical = 2.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.Schedule,
+                            imageVector = Icons.Schedule,
                             contentDescription = stringResource(R.string.cd_airing_soon),
                             tint = KitsugiColors.AccentOrange,
                             modifier = Modifier.size(16.dp)

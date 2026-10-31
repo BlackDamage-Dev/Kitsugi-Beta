@@ -21,11 +21,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.Settings
-import androidx.compose.material.icons.rounded.Extension
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -777,7 +773,7 @@ private fun TvStreamRowItem(
 
         // Action Indicator (Play Icon)
         Icon(
-            imageVector = Icons.Rounded.PlayArrow,
+            imageVector = Icons.PlayArrow,
             contentDescription = null,
             tint = if (isFocused) accentColor else KitsugiColors.TextMuted,
             modifier = Modifier.size(24.dp)
@@ -840,7 +836,7 @@ private fun TvStreamErrorItem(
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = if (isVerifyAvailable) Icons.Rounded.Extension else Icons.Rounded.Close,
+                imageVector = if (isVerifyAvailable) Icons.Extension else Icons.Close,
                 contentDescription = null,
                 tint = Color.Red
             )

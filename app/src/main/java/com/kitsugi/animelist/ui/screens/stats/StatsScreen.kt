@@ -16,18 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.AccessTime
-import androidx.compose.material.icons.rounded.BarChart
-import androidx.compose.material.icons.rounded.CalendarToday
-import androidx.compose.material.icons.rounded.DonutLarge
-import androidx.compose.material.icons.rounded.Favorite
-import androidx.compose.material.icons.rounded.MenuBook
-import androidx.compose.material.icons.rounded.Movie
-import androidx.compose.material.icons.rounded.PlayCircle
-import androidx.compose.material.icons.rounded.Slideshow
-import androidx.compose.material.icons.rounded.Star
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -101,7 +90,7 @@ fun StatsScreen(
         ) {
             IconButton(onClick = onBack) {
                 Icon(
-                    imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                    imageVector = Icons.ArrowBack,
                     contentDescription = stringResource(R.string.geri),
                     tint = KitsugiColors.TextPrimary
                 )
@@ -135,7 +124,7 @@ fun StatsScreen(
                     KitsugiStatsCard {
                         KitsugiStatsCardHeader(
                             title = stringResource(R.string.profile_stats_general),
-                            icon = Icons.Rounded.BarChart,
+                            icon = Icons.BarChart,
                             subtitle = stringResource(R.string.profile_records),
                             accentColor = accentColor
                         )
@@ -144,21 +133,21 @@ fun StatsScreen(
                             KitsugiStatsMetricTile(
                                 label = stringResource(R.string.media_type_anime),
                                 value = uiState.totalAnime.toString(),
-                                icon = Icons.Rounded.PlayCircle,
+                                icon = Icons.PlayCircle,
                                 modifier = Modifier.weight(1f),
                                 accentColor = accentColor
                             )
                             KitsugiStatsMetricTile(
                                 label = stringResource(R.string.profile_manga_list),
                                 value = uiState.totalManga.toString(),
-                                icon = Icons.Rounded.MenuBook,
+                                icon = Icons.MenuBook,
                                 modifier = Modifier.weight(1f),
                                 accentColor = accentColor
                             )
                             KitsugiStatsMetricTile(
                                 label = stringResource(R.string.profile_my_favorites),
                                 value = uiState.totalFavorites.toString(),
-                                icon = Icons.Rounded.Favorite,
+                                icon = Icons.Favorite,
                                 modifier = Modifier.weight(1f),
                                 accentColor = accentColor
                             )
@@ -168,21 +157,21 @@ fun StatsScreen(
                             KitsugiStatsMetricTile(
                                 label = stringResource(R.string.profile_stat_episodes_watched),
                                 value = uiState.totalEpisodesWatched.toString(),
-                                icon = Icons.Rounded.Slideshow,
+                                icon = Icons.Slideshow,
                                 modifier = Modifier.weight(1f),
                                 accentColor = accentColor
                             )
                             KitsugiStatsMetricTile(
                                 label = stringResource(R.string.profile_stat_chapters_read),
                                 value = uiState.totalChaptersRead.toString(),
-                                icon = Icons.Rounded.MenuBook,
+                                icon = Icons.MenuBook,
                                 modifier = Modifier.weight(1f),
                                 accentColor = accentColor
                             )
                             KitsugiStatsMetricTile(
                                 label = stringResource(R.string.profile_stat_days_watched_short),
                                 value = String.format(com.kitsugi.animelist.utils.KitsugiStrings.locale(), "%.1f", uiState.daysWatched),
-                                icon = Icons.Rounded.AccessTime,
+                                icon = Icons.AccessTime,
                                 modifier = Modifier.weight(1f),
                                 accentColor = accentColor
                             )
@@ -192,14 +181,14 @@ fun StatsScreen(
                             KitsugiStatsMetricTile(
                                 label = stringResource(R.string.profile_stat_average_score),
                                 value = if (meanScore > 0f) String.format(com.kitsugi.animelist.utils.KitsugiStrings.locale(), "%.1f", meanScore) else "–",
-                                icon = Icons.Rounded.Star,
+                                icon = Icons.Star,
                                 modifier = Modifier.weight(1f),
                                 accentColor = accentColor
                             )
                             KitsugiStatsMetricTile(
                                 label = stringResource(R.string.profile_stat_standard_deviation),
                                 value = if (meanScore > 0f) String.format(com.kitsugi.animelist.utils.KitsugiStrings.locale(), "%.1f", scoreStandardDeviation) else "–",
-                                icon = Icons.Rounded.BarChart,
+                                icon = Icons.BarChart,
                                 modifier = Modifier.weight(1f),
                                 accentColor = accentColor
                             )
@@ -211,7 +200,7 @@ fun StatsScreen(
                     KitsugiStatsCard {
                         KitsugiStatsCardHeader(
                             title = stringResource(R.string.istatistikler),
-                            icon = Icons.Rounded.Movie,
+                            icon = Icons.Movie,
                             subtitle = stringResource(R.string.profile_tab_statistics),
                             accentColor = accentColor
                         )
@@ -250,7 +239,7 @@ fun StatsScreen(
                     KitsugiStatsCard {
                         KitsugiStatsCardHeader(
                             title = if (isAnime) stringResource(R.string.anime_durum_dagilimi) else stringResource(R.string.manga_durum_dagilimi),
-                            icon = Icons.Rounded.DonutLarge,
+                            icon = Icons.DonutLarge,
                             subtitle = stringResource(R.string.detail_stats_status_subtitle, statusStats.sumOf { it.count }),
                             accentColor = accentColor
                         )
@@ -272,7 +261,7 @@ fun StatsScreen(
                         val mean = if (isAnime) uiState.meanScore else uiState.mangaMeanScore
                         KitsugiStatsCardHeader(
                             title = if (isAnime) stringResource(R.string.anime_puan_dagilimi) else "${stringResource(R.string.profile_manga_list)} ${stringResource(R.string.puan_dagilimi)}",
-                            icon = Icons.Rounded.BarChart,
+                            icon = Icons.BarChart,
                             subtitle = stringResource(R.string.detail_stats_score_subtitle, scoreStats.sumOf { it.count }.toString(), String.format(com.kitsugi.animelist.utils.KitsugiStrings.locale(), "%.1f", mean)),
                             accentColor = accentColor
                         )
@@ -294,7 +283,7 @@ fun StatsScreen(
                     KitsugiStatsCard {
                         KitsugiStatsCardHeader(
                             title = stringResource(R.string.tur_dagilimi),
-                            icon = Icons.Rounded.Movie,
+                            icon = Icons.Movie,
                             accentColor = accentColor
                         )
                         Spacer(Modifier.height(12.dp))
@@ -310,7 +299,7 @@ fun StatsScreen(
                     KitsugiStatsCard {
                         KitsugiStatsCardHeader(
                             title = stringResource(R.string.yayin_yili),
-                            icon = Icons.Rounded.CalendarToday,
+                            icon = Icons.CalendarToday,
                             accentColor = accentColor
                         )
                         Spacer(Modifier.height(12.dp))
@@ -326,7 +315,7 @@ fun StatsScreen(
                     KitsugiEmptyState(
                         title = stringResource(R.string.istatistik_icin_liste_gerekli),
                         subtitle = stringResource(R.string.anime_veya_manga_ekledikten_sonra_istatistikler_burada_gorunur),
-                        icon = Icons.Rounded.BarChart
+                        icon = Icons.BarChart
                     )
                 }
             }

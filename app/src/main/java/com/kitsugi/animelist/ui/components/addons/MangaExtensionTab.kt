@@ -20,8 +20,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.*
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -156,8 +155,8 @@ internal fun MangaExtensionsTab(
         item {
             AddonSubsectionTabs(
                 tabs = listOf(
-                    AddonSubsectionTab(stringResource(R.string.addon_repositories_count, repos.size), Icons.Rounded.Language),
-                    AddonSubsectionTab(stringResource(R.string.addon_installed_count, sources.size), Icons.Rounded.Extension)
+                    AddonSubsectionTab(stringResource(R.string.addon_repositories_count, repos.size), Icons.Language),
+                    AddonSubsectionTab(stringResource(R.string.addon_installed_count, sources.size), Icons.Extension)
                 ),
                 selectedIndex = if (activeSection == MangaTabSection.REPOS) 0 else 1,
                 accentColor = accentColor,
@@ -198,7 +197,7 @@ internal fun MangaExtensionsTab(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
-                            Icons.Rounded.Language,
+                            Icons.Language,
                             contentDescription = null,
                             tint = accentColor,
                             modifier = Modifier.size(20.dp)
@@ -249,7 +248,7 @@ internal fun MangaExtensionsTab(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
-                                Icons.Rounded.AutoAwesome,
+                                Icons.AutoAwesome,
                                 contentDescription = null,
                                 tint = kotatsuColor,
                                 modifier = Modifier.size(20.dp)
@@ -412,7 +411,7 @@ internal fun MangaExtensionsTab(
                                     onAddRepo(newRepoUrl.trim())
                                     newRepoUrl = ""
                                 }) {
-                                    Icon(Icons.Rounded.Add, null, tint = accentColor, modifier = Modifier.size(20.dp))
+                                    Icon(Icons.Add, null, tint = accentColor, modifier = Modifier.size(20.dp))
                                 }
                             }
                         }
@@ -424,7 +423,7 @@ internal fun MangaExtensionsTab(
             if (repos.isEmpty()) {
                 item {
                     AddonEmptyCard(
-                        icon = Icons.Rounded.CloudOff,
+                        icon = Icons.CloudOff,
                         text = KitsugiStrings.get(R.string.henuz_repo_eklenmedi_keiyoushi_yi_hizlica_eklemek_icin_yukaridak)
                     )
                 }
@@ -472,7 +471,7 @@ internal fun MangaExtensionsTab(
                             Box(
                                 modifier = Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(accentColor.copy(alpha = 0.15f)),
                                 contentAlignment = Alignment.Center
-                            ) { Icon(Icons.Rounded.Storage, null, tint = accentColor, modifier = Modifier.size(18.dp)) }
+                            ) { Icon(Icons.Storage, null, tint = accentColor, modifier = Modifier.size(18.dp)) }
                             Column(modifier = Modifier.weight(1f)) {
                                 FlatName(repoName)
                                 Text(
@@ -487,7 +486,7 @@ internal fun MangaExtensionsTab(
                             }
                             if (isLoading) KitsugiPlasmaLoader(size = 18.dp)
                             else if (repoPlugins == null) {
-                                Icon(Icons.Rounded.Refresh, null, tint = accentColor, modifier = Modifier.size(18.dp).tvClickable(shape = RoundedCornerShape(999.dp)) { onFetchRepo(repoUrl) })
+                                Icon(Icons.Refresh, null, tint = accentColor, modifier = Modifier.size(18.dp).tvClickable(shape = RoundedCornerShape(999.dp)) { onFetchRepo(repoUrl) })
                             } else {
                                 val isBulkInstalling = bulkInstallRepoUrl == repoUrl
                                 if (hasUpdates && !isBulkInstalling) {
@@ -495,7 +494,7 @@ internal fun MangaExtensionsTab(
                                         onClick = { onUpdateAllExtensions(repoUrl, repoPlugins) },
                                         modifier = Modifier.size(28.dp)
                                     ) {
-                                        Icon(Icons.Rounded.ArrowCircleUp, stringResource(R.string.inline_update_e9a7033), tint = accentColor, modifier = Modifier.size(18.dp))
+                                        Icon(Icons.ArrowCircleUp, stringResource(R.string.inline_update_e9a7033), tint = accentColor, modifier = Modifier.size(18.dp))
                                     }
                                 }
                                 if (!isBulkInstalling && installedCount < totalCount) {
@@ -534,16 +533,18 @@ internal fun MangaExtensionsTab(
                                         onClick = { onInstallAllExtensions(repoUrl, bulkList) },
                                         modifier = Modifier.size(28.dp)
                                     ) {
-                                        Icon(Icons.Rounded.DownloadForOffline, bulkLabel, tint = accentColor, modifier = Modifier.size(18.dp))
+                                        Icon(Icons.DownloadForOffline, bulkLabel, tint = accentColor, modifier = Modifier.size(18.dp))
                                     }
                                 }
                             }
-                            Icon(
-                                if (isExpanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
-                                null, tint = KitsugiColors.TextMuted, modifier = Modifier.size(20.dp)
+                            KitsugiChevronIcon(
+                                expanded = isExpanded,
+                                contentDescription = null,
+                                tint = KitsugiColors.TextMuted,
+                                modifier = Modifier.size(20.dp)
                             )
                             IconButton(onClick = { onDeleteRepo(repoUrl) }, modifier = Modifier.size(28.dp)) {
-                                Icon(Icons.Rounded.DeleteForever, null, tint = KitsugiColors.AccentRed.copy(alpha = 0.6f), modifier = Modifier.size(16.dp))
+                                Icon(Icons.DeleteForever, null, tint = KitsugiColors.AccentRed.copy(alpha = 0.6f), modifier = Modifier.size(16.dp))
                             }
                         }
 
@@ -661,8 +662,8 @@ internal fun MangaExtensionsTab(
                                     }
                                     when (installState) {
                                         MangaInstallState.LOADING -> KitsugiPlasmaLoader(size = 20.dp)
-                                        MangaInstallState.SUCCESS -> Icon(Icons.Rounded.CheckCircle, null, tint = Color(0xFF4CAF50), modifier = Modifier.size(20.dp))
-                                        MangaInstallState.FAILURE -> Icon(Icons.Rounded.Error, null, tint = KitsugiColors.AccentRed, modifier = Modifier.size(20.dp))
+                                        MangaInstallState.SUCCESS -> Icon(Icons.CheckCircle, null, tint = Color(0xFF4CAF50), modifier = Modifier.size(20.dp))
+                                        MangaInstallState.FAILURE -> Icon(Icons.Error, null, tint = KitsugiColors.AccentRed, modifier = Modifier.size(20.dp))
                                         MangaInstallState.IDLE -> {
                                             if (isInstalled) {
                                                 // versionCode karşılaştırması (Mihon'daki hasUpdatedVer)
@@ -723,12 +724,12 @@ internal fun MangaExtensionsTab(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Icon(Icons.Rounded.FolderOpen, null, tint = accentColor, modifier = Modifier.size(20.dp))
+                    Icon(Icons.FolderOpen, null, tint = accentColor, modifier = Modifier.size(20.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(KitsugiStrings.get(R.string.inline_install_from_file_mex_apk_3efa4d4), color = accentColor, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
                         Text(KitsugiStrings.get(R.string.inline_select_an_extension_file_from_816e4e2), color = KitsugiColors.TextMuted, fontSize = 10.sp)
                     }
-                    Icon(Icons.Rounded.ChevronRight, null, tint = KitsugiColors.TextMuted, modifier = Modifier.size(16.dp))
+                    Icon(Icons.ChevronRight, null, tint = KitsugiColors.TextMuted, modifier = Modifier.size(16.dp))
                 }
             }
         }
@@ -760,7 +761,7 @@ internal fun MangaExtensionsTab(
                             if (autoUpdateRunning) {
                                 KitsugiPlasmaLoader(size = 18.dp)
                             } else {
-                                Icon(Icons.Rounded.CloudSync, null, tint = accentColor, modifier = Modifier.size(18.dp))
+                                Icon(Icons.CloudSync, null, tint = accentColor, modifier = Modifier.size(18.dp))
                             }
                         }
                         Column(modifier = Modifier.weight(1f)) {
@@ -829,7 +830,7 @@ internal fun MangaExtensionsTab(
                 // Eklentiler sayfasının ortak boş-durum kartı (bkz. StremioAddonTab.kt).
                 item {
                     AddonEmptyCard(
-                        icon = Icons.Rounded.MenuBook,
+                        icon = Icons.MenuBook,
                         text = KitsugiStrings.get(R.string.yuklu_manga_eklentisi_yok_repolar_sekmesinden_eklenti_kurabilirs)
                     )
                 }
@@ -881,13 +882,13 @@ internal fun MangaExtensionsTab(
                         },
                         modifier = Modifier.size(32.dp)
                     ) {
-                        Icon(Icons.Rounded.Language, stringResource(R.string.manga_source_verify), tint = accentColor, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Language, stringResource(R.string.manga_source_verify), tint = accentColor, modifier = Modifier.size(18.dp))
                     }
                     IconButton(onClick = { manageTarget = source }, modifier = Modifier.size(32.dp)) {
-                        Icon(Icons.Rounded.Tune, stringResource(R.string.manga_source_manage), tint = accentColor, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Tune, stringResource(R.string.manga_source_manage), tint = accentColor, modifier = Modifier.size(18.dp))
                     }
                     IconButton(onClick = { deleteTarget = source }, modifier = Modifier.size(32.dp)) {
-                        Icon(Icons.Rounded.DeleteForever, "Sil", tint = KitsugiColors.AccentRed.copy(alpha = 0.7f), modifier = Modifier.size(18.dp))
+                        Icon(Icons.DeleteForever, "Sil", tint = KitsugiColors.AccentRed.copy(alpha = 0.7f), modifier = Modifier.size(18.dp))
                     }
                 }
             }

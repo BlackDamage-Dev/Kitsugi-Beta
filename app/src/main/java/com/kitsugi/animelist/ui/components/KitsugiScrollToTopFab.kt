@@ -14,8 +14,7 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.KeyboardArrowUp
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.Icon
 import com.kitsugi.animelist.ui.theme.gradient.FloatingActionButton
 import androidx.compose.runtime.Composable
@@ -85,7 +84,7 @@ fun KitsugiScrollToTopFab(
                 }
         ) {
             Icon(
-                imageVector = Icons.Default.KeyboardArrowUp,
+                imageVector = Icons.KeyboardArrowUp,
                 contentDescription = stringResource(R.string.yukari_cik),
                 modifier = Modifier.size(30.dp)
             )

@@ -10,8 +10,7 @@ import com.kitsugi.animelist.ui.theme.gradient.border
 import com.kitsugi.animelist.ui.utils.tvClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.*
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -98,7 +97,7 @@ internal fun CsRepoCard(
                     .background(accentColor.copy(alpha = 0.2f)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Rounded.FolderOpen, contentDescription = null, tint = accentColor)
+                Icon(Icons.FolderOpen, contentDescription = null, tint = accentColor)
             }
             Spacer(Modifier.width(10.dp))
             Column(modifier = Modifier.weight(1f)) {
@@ -121,7 +120,7 @@ internal fun CsRepoCard(
                 modifier = Modifier.size(32.dp)
             ) {
                 Icon(
-                    Icons.Rounded.Refresh,
+                    Icons.Refresh,
                     contentDescription = "Depoyu Yenile",
                     tint = accentColor,
                     modifier = Modifier.size(18.dp)
@@ -131,10 +130,11 @@ internal fun CsRepoCard(
             if (isLoading) {
                 CircularProgressIndicator(modifier = Modifier.size(18.dp), color = accentColor, strokeWidth = 2.dp)
             } else {
-                Icon(
-                    if (isExpanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                KitsugiChevronIcon(
+                    expanded = isExpanded,
                     contentDescription = null,
-                    tint = KitsugiColors.TextSecondary
+                    tint = KitsugiColors.TextSecondary,
+                    modifier = Modifier
                 )
             }
         }
@@ -162,7 +162,7 @@ internal fun CsRepoCard(
                         .tvClickable(shape = RoundedCornerShape(8.dp)) { onDeleteRepo() },
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Rounded.Delete, contentDescription = stringResource(R.string.action_delete), tint = KitsugiColors.AccentRed, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Delete, contentDescription = stringResource(R.string.action_delete), tint = KitsugiColors.AccentRed, modifier = Modifier.size(16.dp))
                 }
             } else {
                 val allInstalled = totalCount > 0 && installedCount == totalCount
@@ -221,7 +221,7 @@ internal fun CsRepoCard(
                                 },
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(Icons.Rounded.ArrowCircleUp, contentDescription = stringResource(R.string.tumunu_guncelle), tint = accentColor, modifier = Modifier.size(16.dp))
+                            Icon(Icons.ArrowCircleUp, contentDescription = stringResource(R.string.tumunu_guncelle), tint = accentColor, modifier = Modifier.size(16.dp))
                         }
                         Spacer(Modifier.width(6.dp))
                     }
@@ -240,7 +240,7 @@ internal fun CsRepoCard(
                                 },
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(Icons.Rounded.DownloadForOffline, contentDescription = stringResource(R.string.tumunu_indir), tint = accentColor, modifier = Modifier.size(16.dp))
+                            Icon(Icons.DownloadForOffline, contentDescription = stringResource(R.string.tumunu_indir), tint = accentColor, modifier = Modifier.size(16.dp))
                         }
                         Spacer(Modifier.width(6.dp))
                     }
@@ -253,7 +253,7 @@ internal fun CsRepoCard(
                             .tvClickable(shape = RoundedCornerShape(8.dp)) { onRefreshRepo() },
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Rounded.Refresh, contentDescription = stringResource(R.string.yenile), tint = accentColor, modifier = Modifier.size(16.dp))
+                        Icon(Icons.Refresh, contentDescription = stringResource(R.string.yenile), tint = accentColor, modifier = Modifier.size(16.dp))
                     }
                     Spacer(Modifier.width(6.dp))
 
@@ -265,7 +265,7 @@ internal fun CsRepoCard(
                             .tvClickable(shape = RoundedCornerShape(8.dp)) { onDeleteRepo() },
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Rounded.Delete, contentDescription = stringResource(R.string.action_delete), tint = KitsugiColors.AccentRed, modifier = Modifier.size(16.dp))
+                        Icon(Icons.Delete, contentDescription = stringResource(R.string.action_delete), tint = KitsugiColors.AccentRed, modifier = Modifier.size(16.dp))
                     }
                 }
             }

@@ -16,15 +16,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.VolumeDown
-import androidx.compose.material.icons.automirrored.filled.VolumeMute
-import androidx.compose.material.icons.automirrored.filled.VolumeOff
-import androidx.compose.material.icons.automirrored.filled.VolumeUp
-import androidx.compose.material.icons.filled.BrightnessHigh
-import androidx.compose.material.icons.filled.BrightnessLow
-import androidx.compose.material.icons.filled.BrightnessMedium
-import androidx.compose.material.icons.filled.ModeNight
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.MaterialTheme
 import com.kitsugi.animelist.ui.theme.gradient.Text
@@ -151,10 +143,10 @@ fun BrightnessSlider(
         )
         Icon(
             imageVector = when (percentage(brightness, positiveRange)) {
-                in -1f..0f -> Icons.Default.ModeNight
-                in 0f..0.3f -> Icons.Default.BrightnessLow
-                in 0.3f..0.6f -> Icons.Default.BrightnessMedium
-                else -> Icons.Default.BrightnessHigh
+                in -1f..0f -> Icons.ModeNight
+                in 0f..0.3f -> Icons.BrightnessLow
+                in 0.3f..0.6f -> Icons.BrightnessMedium
+                else -> Icons.BrightnessHigh
             },
             contentDescription = null,
             tint = Color.White,
@@ -209,10 +201,10 @@ fun VolumeSlider(
         }
         Icon(
             imageVector = when (percentageInt) {
-                0 -> Icons.AutoMirrored.Default.VolumeOff
-                in 0..30 -> Icons.AutoMirrored.Default.VolumeMute
-                in 30..60 -> Icons.AutoMirrored.Default.VolumeDown
-                else -> Icons.AutoMirrored.Default.VolumeUp
+                0 -> Icons.VolumeOff
+                in 0..30 -> Icons.VolumeMute
+                in 30..60 -> Icons.VolumeDown
+                else -> Icons.VolumeUp
             },
             contentDescription = null,
             tint = Color.White,

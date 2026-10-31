@@ -28,15 +28,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Extension
-import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Settings
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.CircularProgressIndicator
 import com.kitsugi.animelist.ui.components.KitsugiPlasmaLoader
 import androidx.compose.runtime.Composable
@@ -160,7 +152,7 @@ fun TvAddonsScreen(
 
                 TvAddonsTabButton(
                     label     = "Stremio Eklentileri",
-                    icon      = Icons.Default.Extension,
+                    icon      = Icons.Extension,
                     selected  = selectedTab == TvAddonsTab.STREMIO,
                     badge     = addons.size,
                     focusRequester = tabFocusRequesters[0],
@@ -169,7 +161,7 @@ fun TvAddonsScreen(
                 )
                 TvAddonsTabButton(
                     label     = stringResource(R.string.repo_eklenti_havuzlari),
-                    icon      = Icons.Default.Folder,
+                    icon      = Icons.Folder,
                     selected  = selectedTab == TvAddonsTab.REPOS,
                     badge     = repos.size,
                     focusRequester = tabFocusRequesters[1],
@@ -195,7 +187,7 @@ fun TvAddonsScreen(
                                 title   = stringResource(R.string.stremio_addon_yonetimi),
                                 subtitle = "${addons.size} addon kurulu",
                                 actionLabel = stringResource(R.string.addon_ekle),
-                                actionIcon  = Icons.Default.Add,
+                                actionIcon  = Icons.Add,
                                 onAction    = { showAddAddonDialog = true }
                             )
                         }
@@ -230,7 +222,7 @@ fun TvAddonsScreen(
                                 title   = stringResource(R.string.repo_eklenti_havuzlari),
                                 subtitle = stringResource(R.string.x_repo_tanimli, repos.size),
                                 actionLabel = stringResource(R.string.repo_ekle),
-                                actionIcon  = Icons.Default.Add,
+                                actionIcon  = Icons.Add,
                                 onAction    = { showAddRepoDialog = true }
                             )
                         }
@@ -426,7 +418,7 @@ private fun TvAddonsDebridRow(debridToken: String, onClick: () -> Unit) {
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = if (isConnected) Icons.Default.Check else Icons.Default.Settings,
+                imageVector = if (isConnected) Icons.Check else Icons.Settings,
                 contentDescription = null,
                 tint = if (isConnected) Color(0xFF4CAF50) else Color.White.copy(0.5f),
                 modifier = Modifier.size(18.dp)
@@ -440,7 +432,7 @@ private fun TvAddonsDebridRow(debridToken: String, onClick: () -> Unit) {
                 color = if (isConnected) Color(0xFF4CAF50) else Color.White.copy(0.4f)
             )
         }
-        Icon(imageVector = Icons.Default.Settings, contentDescription = null, tint = Color.White.copy(0.3f), modifier = Modifier.size(18.dp))
+        Icon(imageVector = Icons.Settings, contentDescription = null, tint = Color.White.copy(0.3f), modifier = Modifier.size(18.dp))
     }
 }
 
@@ -470,7 +462,7 @@ private fun TvAddonCard(
                 .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
             contentAlignment = Alignment.Center
         ) {
-            Icon(Icons.Default.Extension, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+            Icon(Icons.Extension, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
         }
         Column(modifier = Modifier.weight(1f)) {
             Text(text = addon.name, style = MaterialTheme.typography.bodyLarge, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -500,7 +492,7 @@ private fun TvAddonCard(
                 )
             )
         ) {
-            Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.action_delete), tint = Color(0xFFEF5350), modifier = Modifier.padding(8.dp).size(18.dp))
+            Icon(Icons.Delete, contentDescription = stringResource(R.string.action_delete), tint = Color(0xFFEF5350), modifier = Modifier.padding(8.dp).size(18.dp))
         }
     }
 
@@ -548,7 +540,7 @@ private fun TvRepoCard(
             if (isLoading) {
                 KitsugiPlasmaLoader(size = 20.dp)
             } else {
-                Icon(Icons.Default.Folder, contentDescription = null, tint = Color(0xFF42A5F5), modifier = Modifier.size(20.dp))
+                Icon(Icons.Folder, contentDescription = null, tint = Color(0xFF42A5F5), modifier = Modifier.size(20.dp))
             }
         }
         Column(modifier = Modifier.weight(1f)) {
@@ -568,7 +560,7 @@ private fun TvRepoCard(
             shape   = ClickableSurfaceDefaults.shape(CircleShape),
             border  = ClickableSurfaceDefaults.border(focusedBorder = Border(border = androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.primary), shape = CircleShape))
         ) {
-            Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.yenile), tint = Color.White.copy(0.5f), modifier = Modifier.padding(8.dp).size(16.dp))
+            Icon(Icons.Refresh, contentDescription = stringResource(R.string.yenile), tint = Color.White.copy(0.5f), modifier = Modifier.padding(8.dp).size(16.dp))
         }
         // Hepsini Kur
         Button(
@@ -593,7 +585,7 @@ private fun TvRepoCard(
             shape   = ClickableSurfaceDefaults.shape(RoundedCornerShape(8.dp)),
             border  = ClickableSurfaceDefaults.border(focusedBorder = Border(border = androidx.compose.foundation.BorderStroke(2.dp, Color(0xFFC62828)), shape = RoundedCornerShape(8.dp)))
         ) {
-            Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.action_delete), tint = Color(0xFFEF5350), modifier = Modifier.padding(8.dp).size(16.dp))
+            Icon(Icons.Delete, contentDescription = stringResource(R.string.action_delete), tint = Color(0xFFEF5350), modifier = Modifier.padding(8.dp).size(16.dp))
         }
     }
 
@@ -641,7 +633,7 @@ private fun TvAddonsToast(message: String?, isError: Boolean) {
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Icon(
-                        imageVector = if (isError) Icons.Default.Close else Icons.Default.Check,
+                        imageVector = if (isError) Icons.Close else Icons.Check,
                         contentDescription = null,
                         tint = Color.White,
                         modifier = Modifier.size(18.dp)

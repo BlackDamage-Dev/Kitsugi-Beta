@@ -12,10 +12,7 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Extension
-import androidx.compose.material.icons.filled.Refresh
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -362,7 +359,7 @@ private fun InlineHeroBanner(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     Icon(
-                        imageVector = Icons.Default.Extension,
+                        imageVector = Icons.Extension,
                         contentDescription = null,
                         tint = accentColor,
                         modifier = Modifier.size(11.dp)
@@ -385,7 +382,7 @@ private fun InlineHeroBanner(
                     .clickable { onRefresh() },
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Default.Refresh, "Yenile", tint = Color.White, modifier = Modifier.size(16.dp))
+                Icon(Icons.Refresh, "Yenile", tint = Color.White, modifier = Modifier.size(16.dp))
             }
         }
 
@@ -478,7 +475,7 @@ private fun InlineCategoryRow(
                 ) {
                     Text(stringResource(R.string.tumu), color = accentColor, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                     Icon(
-                        imageVector = Icons.Default.ChevronRight,
+                        imageVector = Icons.ChevronRight,
                         contentDescription = null,
                         tint = accentColor,
                         modifier = Modifier.size(18.dp)

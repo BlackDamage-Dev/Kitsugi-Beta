@@ -30,17 +30,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.ArrowDropDown
-import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.DensityMedium
-import androidx.compose.material.icons.rounded.FilterList
-import androidx.compose.material.icons.rounded.FormatListBulleted
-import androidx.compose.material.icons.rounded.GridView
-import androidx.compose.material.icons.rounded.Notifications
-import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material.icons.rounded.ViewStream
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.HorizontalDivider
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.IconButton
@@ -157,7 +147,7 @@ fun MyListHeaderSection(
                         if (onBackClick != null) {
                             IconButton(onClick = onBackClick) {
                                 Icon(
-                                    imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                                    imageVector = Icons.ArrowBack,
                                     contentDescription = stringResource(R.string.geri),
                                     tint = KitsugiColors.textPrimary
                                 )
@@ -203,11 +193,11 @@ fun MyListHeaderSection(
                             }
                         ) {
                             val layoutIcon = when (selectedListLayoutId) {
-                                "compact" -> Icons.Rounded.DensityMedium
-                                "comfortable" -> Icons.Rounded.FormatListBulleted
-                                "large" -> Icons.Rounded.ViewStream
-                                "grid_2col" -> Icons.Rounded.GridView
-                                else -> Icons.Rounded.FormatListBulleted
+                                "compact" -> Icons.DensityMedium
+                                "comfortable" -> Icons.FormatListBulleted
+                                "large" -> Icons.ViewStream
+                                "grid_2col" -> Icons.GridView
+                                else -> Icons.FormatListBulleted
                             }
                             Icon(
                                 imageVector = layoutIcon,
@@ -218,7 +208,7 @@ fun MyListHeaderSection(
 
                         IconButton(onClick = onSearchFieldToggle) {
                             Icon(
-                                imageVector = Icons.Rounded.Search,
+                                imageVector = Icons.Search,
                                 contentDescription = stringResource(R.string.arama),
                                 tint = if (showSearchField || searchQuery.isNotBlank()) accentColor else KitsugiColors.textSecondary
                             )
@@ -227,7 +217,7 @@ fun MyListHeaderSection(
                         Box {
                             IconButton(onClick = onFilterPanelToggle) {
                                 Icon(
-                                    imageVector = Icons.Rounded.FilterList,
+                                    imageVector = Icons.FilterList,
                                     contentDescription = "Filtrele ve Sırala",
                                     tint = if (showFilterPanel || hasActiveFilters) accentColor else KitsugiColors.textSecondary
                                 )
@@ -627,7 +617,7 @@ fun MyListTabBar(
                 )
             )
             Icon(
-                imageVector = Icons.Rounded.ArrowDropDown,
+                imageVector = Icons.ArrowDropDown,
                 contentDescription = "Kaynak Seç",
                 tint = currentPlatform.brandColor,
                 modifier = Modifier.size(18.dp)
@@ -800,7 +790,7 @@ fun MyListTabBar(
                         if (isSelected) {
                             Spacer(modifier = Modifier.width(8.dp))
                             Icon(
-                                imageVector = Icons.Rounded.Check,
+                                imageVector = Icons.Check,
                                 contentDescription = stringResource(R.string.secili),
                                 tint = platform.brandColor,
                                 modifier = Modifier.size(20.dp)

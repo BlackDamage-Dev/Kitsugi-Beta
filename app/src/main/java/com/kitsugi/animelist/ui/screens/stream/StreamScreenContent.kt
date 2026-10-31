@@ -35,19 +35,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.automirrored.rounded.Launch
-import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.Download
-import androidx.compose.material.icons.rounded.ExpandMore
-import androidx.compose.material.icons.rounded.FilterAltOff
-import androidx.compose.material.icons.rounded.History
-import androidx.compose.material.icons.rounded.PlayCircle
-import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material.icons.rounded.Sort
-import androidx.compose.material.icons.rounded.Tune
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -353,7 +341,7 @@ fun StreamScreenContent(
                                         .size(32.dp)
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Rounded.Close,
+                                        imageVector = Icons.Close,
                                         contentDescription = stringResource(R.string.kapat),
                                         tint = KitsugiColors.TextSecondary,
                                         modifier = Modifier.size(20.dp)
@@ -401,7 +389,7 @@ fun StreamScreenContent(
                                     .tvClickable(shape = RoundedCornerShape(12.dp)) { onCancelResolving() }
                             ) {
                                 Icon(
-                                    imageVector = Icons.Rounded.Close,
+                                    imageVector = Icons.Close,
                                     contentDescription = null,
                                     modifier = Modifier.size(16.dp),
                                     tint = KitsugiColors.TextSecondary
@@ -444,7 +432,7 @@ fun StreamScreenContent(
                             Text(stringResource(R.string.inline_which_player_would_you_like_a9168aa), color = KitsugiColors.TextSecondary)
                             Spacer(Modifier.height(4.dp))
                             PlayerPickerCard(
-                                icon = { Icon(Icons.Rounded.PlayCircle, null, tint = accentColor) },
+                                icon = { Icon(Icons.PlayCircle, null, tint = accentColor) },
                                 label = stringResource(R.string.player_engine_internal_exo), sub = stringResource(R.string.uygulama_ici_kesintisiz_oynatma),
                                 accentColor = accentColor,
                                 onClick = {
@@ -454,7 +442,7 @@ fun StreamScreenContent(
                                 }
                             )
                             PlayerPickerCard(
-                                icon = { Icon(Icons.AutoMirrored.Rounded.Launch, null, tint = accentColor) },
+                                icon = { Icon(Icons.Launch, null, tint = accentColor) },
                                 label = stringResource(R.string.harici_oynatici_chooser), sub = stringResource(R.string.mx_player_mi_video_veya_digerleri),
                                 accentColor = accentColor,
                                 onClick = {
@@ -592,7 +580,7 @@ private fun StreamTopBar(
                         contentColor = KitsugiColors.TextPrimary
                     )
                 ) {
-                    Icon(Icons.AutoMirrored.Rounded.ArrowBack, stringResource(R.string.action_back), modifier = Modifier.size(18.dp))
+                    Icon(Icons.ArrowBack, stringResource(R.string.action_back), modifier = Modifier.size(18.dp))
                 }
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
@@ -987,7 +975,7 @@ private fun StreamSearchBar(
             },
             leadingIcon = {
                 Icon(
-                    imageVector = Icons.Rounded.Search,
+                    imageVector = Icons.Search,
                     contentDescription = null,
                     tint = if (searchQuery.isNotBlank()) accentColor else KitsugiColors.TextMuted,
                     modifier = Modifier.size(19.dp)
@@ -997,7 +985,7 @@ private fun StreamSearchBar(
                 if (searchQuery.isNotBlank()) {
                     IconButton(onClick = { onQueryChange("") }) {
                         Icon(
-                            imageVector = Icons.Rounded.Close,
+                            imageVector = Icons.Close,
                             contentDescription = stringResource(R.string.temizle),
                             tint = KitsugiColors.TextMuted,
                             modifier = Modifier.size(17.dp)
@@ -1112,7 +1100,7 @@ private fun AddonChipsRow(
                         .background(accentColor.copy(alpha = 0.16f)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Rounded.Tune, null, tint = accentColor, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Tune, null, tint = accentColor, modifier = Modifier.size(18.dp))
                 }
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
@@ -1136,7 +1124,7 @@ private fun AddonChipsRow(
                     CircularProgressIndicator(Modifier.size(16.dp), color = accentColor, strokeWidth = 2.dp)
                     Spacer(Modifier.width(8.dp))
                 }
-                Icon(Icons.Rounded.ExpandMore, stringResource(R.string.stream_choose_source), tint = accentColor, modifier = Modifier.size(20.dp))
+                Icon(Icons.ExpandMore, stringResource(R.string.stream_choose_source), tint = accentColor, modifier = Modifier.size(20.dp))
             }
         }
 
@@ -1152,7 +1140,7 @@ private fun AddonChipsRow(
                     Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Rounded.Sort, null, modifier = Modifier.size(15.dp), tint = accentColor)
+                    Icon(Icons.Sort, null, modifier = Modifier.size(15.dp), tint = accentColor)
                     Spacer(Modifier.width(6.dp))
                     Text(
                         stringResource(if (sort.byQuality) R.string.stream_sort_quality else R.string.stream_sort_default),
@@ -1194,10 +1182,10 @@ private fun AddonChipsRow(
                 OutlinedTextField(
                     value = addonQuery, onValueChange = { addonQuery = it }, singleLine = true,
                     placeholder = { Text(stringResource(R.string.stream_search_addons), color = KitsugiColors.TextMuted) },
-                    leadingIcon = { Icon(Icons.Rounded.Search, null, tint = accentColor) },
+                    leadingIcon = { Icon(Icons.Search, null, tint = accentColor) },
                     trailingIcon = {
                         if (addonQuery.isNotEmpty()) IconButton(onClick = { addonQuery = "" }) {
-                            Icon(Icons.Rounded.Close, stringResource(R.string.temizle))
+                            Icon(Icons.Close, stringResource(R.string.temizle))
                         }
                     },
                     modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp),
@@ -1274,7 +1262,7 @@ private fun SourcePickerRow(
                 )
                 Text(status, color = KitsugiColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
             }
-            if (selected) Icon(Icons.Rounded.Check, null, tint = accentColor)
+            if (selected) Icon(Icons.Check, null, tint = accentColor)
         }
     }
 }
@@ -1336,7 +1324,7 @@ private fun FilteredEmptyState(
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Icon(
-                imageVector = Icons.Rounded.FilterAltOff,
+                imageVector = Icons.FilterAltOff,
                 contentDescription = null,
                 tint = KitsugiColors.TextMuted,
                 modifier = Modifier.size(36.dp)
@@ -1365,7 +1353,7 @@ private fun FilteredEmptyState(
                 colors = ButtonDefaults.buttonColors(containerColor = accentColor.copy(alpha = 0.2f), contentColor = accentColor),
                 shape = RoundedCornerShape(12.dp)
             ) {
-                Icon(Icons.Rounded.FilterAltOff, contentDescription = null, modifier = Modifier.size(16.dp))
+                Icon(Icons.FilterAltOff, contentDescription = null, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(6.dp))
                 Text(stringResource(R.string.stream_filter_clear), fontWeight = FontWeight.Bold)
             }

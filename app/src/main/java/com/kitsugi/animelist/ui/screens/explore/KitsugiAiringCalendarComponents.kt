@@ -35,18 +35,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.CalendarMonth
-import androidx.compose.material.icons.rounded.CheckCircle
-import androidx.compose.material.icons.rounded.GridView
-import androidx.compose.material.icons.rounded.KeyboardArrowUp
-import androidx.compose.material.icons.rounded.PlayCircle
-import androidx.compose.material.icons.rounded.PlaylistAddCheck
-import androidx.compose.material.icons.rounded.PlaylistPlay
-import androidx.compose.material.icons.rounded.Refresh
-import androidx.compose.material.icons.rounded.Schedule
-import androidx.compose.material.icons.rounded.ViewList
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.CircularProgressIndicator
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.IconButton
@@ -139,14 +128,14 @@ internal fun AiringCalendarHeader(
     ) {
         IconButton(onClick = onBackClick) {
             Icon(
-                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                imageVector = Icons.ArrowBack,
                 contentDescription = stringResource(R.string.geri),
                 tint = KitsugiColors.TextPrimary
             )
         }
         Spacer(modifier = Modifier.width(4.dp))
         Icon(
-            imageVector = Icons.Rounded.CalendarMonth,
+            imageVector = Icons.CalendarMonth,
             contentDescription = null,
             tint = KitsugiColors.Accent,
             modifier = Modifier.size(22.dp)
@@ -190,7 +179,7 @@ internal fun AiringCalendarHeader(
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Icon(
-                    imageVector = if (showOnlyMyList) Icons.Rounded.PlaylistAddCheck else Icons.Rounded.PlaylistPlay,
+                    imageVector = if (showOnlyMyList) Icons.PlaylistAddCheck else Icons.PlaylistPlay,
                     contentDescription = null,
                     tint = if (showOnlyMyList) KitsugiColors.AccentGreen else KitsugiColors.TextSecondary,
                     modifier = Modifier.size(16.dp)
@@ -209,7 +198,7 @@ internal fun AiringCalendarHeader(
         // Grid/List toggle button
         IconButton(onClick = { onGridViewChange(!isGridView) }) {
             Icon(
-                imageVector = if (isGridView) Icons.Rounded.ViewList else Icons.Rounded.GridView,
+                imageVector = if (isGridView) Icons.ViewList else Icons.GridView,
                 contentDescription = stringResource(R.string.gorunum_degistir),
                 tint = KitsugiColors.TextSecondary
             )
@@ -226,7 +215,7 @@ internal fun AiringCalendarHeader(
                 )
             } else {
                 Icon(
-                    imageVector = Icons.Rounded.Refresh,
+                    imageVector = Icons.Refresh,
                     contentDescription = stringResource(R.string.yenile),
                     tint = KitsugiColors.TextSecondary
                 )
@@ -411,7 +400,7 @@ internal fun AiringEntryList(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.KeyboardArrowUp,
+                    imageVector = Icons.KeyboardArrowUp,
                     contentDescription = stringResource(R.string.yukari_git),
                     tint = KitsugiColors.Background,
                     modifier = Modifier.size(28.dp)
@@ -499,7 +488,7 @@ internal fun AiringEntryGridList(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.KeyboardArrowUp,
+                    imageVector = Icons.KeyboardArrowUp,
                     contentDescription = stringResource(R.string.yukari_git),
                     tint = KitsugiColors.Background,
                     modifier = Modifier.size(28.dp)
@@ -565,7 +554,7 @@ internal fun AiringEntryGridCard(
                         )
                 )
                 Icon(
-                    imageVector = Icons.Rounded.CheckCircle,
+                    imageVector = Icons.CheckCircle,
                     contentDescription = stringResource(R.string.yayinda),
                     tint = KitsugiColors.AccentGreen,
                     modifier = Modifier
@@ -585,7 +574,7 @@ internal fun AiringEntryGridCard(
                         .padding(4.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.PlayCircle,
+                        imageVector = Icons.PlayCircle,
                         contentDescription = stringResource(R.string.izliyorum),
                         tint = KitsugiColors.Background,
                         modifier = Modifier.size(14.dp)
@@ -619,7 +608,7 @@ internal fun AiringEntryGridCard(
                 .height(34.dp)
         ) {
             Icon(
-                imageVector = Icons.Rounded.Schedule,
+                imageVector = Icons.Schedule,
                 contentDescription = null,
                 tint = KitsugiColors.TextSecondary,
                 modifier = Modifier
@@ -685,7 +674,7 @@ private fun AiringEntryWideCard(
             )
             if (hasAired) {
                 Icon(
-                    imageVector = Icons.Rounded.CheckCircle,
+                    imageVector = Icons.CheckCircle,
                     contentDescription = stringResource(R.string.yayinda),
                     tint = KitsugiColors.AccentGreen,
                     modifier = Modifier.align(Alignment.BottomEnd).padding(4.dp).size(18.dp)
@@ -709,14 +698,14 @@ private fun AiringEntryWideCard(
             )
             Spacer(modifier = Modifier.height(5.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Rounded.Schedule, contentDescription = null,
+                Icon(Icons.Schedule, contentDescription = null,
                     tint = KitsugiColors.TextSecondary, modifier = Modifier.size(12.dp))
                 Spacer(modifier = Modifier.width(4.dp))
                 AiringTimeText(entry = entry)
             }
         }
         if (isInWatchingList) {
-            Icon(Icons.Rounded.PlayCircle, contentDescription = stringResource(R.string.izliyorum),
+            Icon(Icons.PlayCircle, contentDescription = stringResource(R.string.izliyorum),
                 tint = KitsugiColors.AccentGreen, modifier = Modifier.size(20.dp))
         }
     }
@@ -886,7 +875,7 @@ internal fun AiringErrorState(
         verticalArrangement = Arrangement.Center
     ) {
         Icon(
-            imageVector = Icons.Rounded.CalendarMonth,
+            imageVector = Icons.CalendarMonth,
             contentDescription = null,
             tint = KitsugiColors.TextSecondary,
             modifier = Modifier.size(48.dp)

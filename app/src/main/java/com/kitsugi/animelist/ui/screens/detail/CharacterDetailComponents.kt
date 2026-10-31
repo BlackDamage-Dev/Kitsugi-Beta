@@ -26,14 +26,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.Share
-import androidx.compose.material.icons.rounded.Favorite
-import androidx.compose.material.icons.rounded.FavoriteBorder
-import androidx.compose.material.icons.rounded.Image
-import androidx.compose.material.icons.rounded.Translate
-import androidx.compose.material.icons.rounded.ContentCopy
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -288,7 +281,7 @@ internal fun CharacterDetailLeftPanel(
                 ) {
                     IconButton(onClick = onBackClick) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                            imageVector = Icons.ArrowBack,
                             contentDescription = stringResource(R.string.action_back),
                             tint = KitsugiColors.TextPrimary
                         )
@@ -326,7 +319,7 @@ internal fun CharacterDetailLeftPanel(
                             com.kitsugi.animelist.utils.ShareUtils.shareText(context, detail.name, url)
                         }) {
                             Icon(
-                                imageVector = Icons.Rounded.Share,
+                                imageVector = Icons.Share,
                                 contentDescription = stringResource(R.string.action_share),
                                 tint = KitsugiColors.TextPrimary
                             )
@@ -343,7 +336,7 @@ internal fun CharacterDetailLeftPanel(
                         ) {
                             IconButton(onClick = onToggleFavourite) {
                                 Icon(
-                                    imageVector = if (isFavourite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                                    imageVector = if (isFavourite) Icons.Favorite else Icons.FavoriteBorder,
                                     contentDescription = if (isFavourite) stringResource(R.string.action_favourite_remove) else stringResource(R.string.action_favourite_add),
                                     tint = if (isFavourite) accentColor else KitsugiColors.TextPrimary
                                 )
@@ -470,7 +463,7 @@ internal fun CharacterAboutTabContent(
                             },
                             modifier = Modifier.size(36.dp)
                         ) {
-                            Icon(Icons.Rounded.ContentCopy, contentDescription = stringResource(R.string.action_copy), tint = KitsugiColors.TextSecondary)
+                            Icon(Icons.ContentCopy, contentDescription = stringResource(R.string.action_copy), tint = KitsugiColors.TextSecondary)
                         }
                     }
                 }
@@ -619,7 +612,7 @@ internal fun CharacterPortraitHeroSection(
                 contentAlignment = Alignment.Center
             ) {
                 IconButton(onClick = onBackClick) {
-                    Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.action_back), tint = KitsugiColors.TextPrimary)
+                    Icon(Icons.ArrowBack, contentDescription = stringResource(R.string.action_back), tint = KitsugiColors.TextPrimary)
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -639,7 +632,7 @@ internal fun CharacterPortraitHeroSection(
                         val url = com.kitsugi.animelist.utils.ShareUtils.buildCharacterUrl(source, characterId, detail.name)
                         com.kitsugi.animelist.utils.ShareUtils.shareText(context, detail.name, url)
                     }) {
-                        Icon(Icons.Rounded.Share, contentDescription = stringResource(R.string.action_share), tint = KitsugiColors.TextPrimary)
+                        Icon(Icons.Share, contentDescription = stringResource(R.string.action_share), tint = KitsugiColors.TextPrimary)
                     }
                 }
                 if (isAniListSource) {
@@ -649,7 +642,7 @@ internal fun CharacterPortraitHeroSection(
                     ) {
                         IconButton(onClick = onToggleFavourite) {
                             Icon(
-                                imageVector = if (isFavourite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                                imageVector = if (isFavourite) Icons.Favorite else Icons.FavoriteBorder,
                                 contentDescription = if (isFavourite) stringResource(R.string.action_favourite_remove) else stringResource(R.string.action_favourite_add),
                                 tint = if (isFavourite) accentColor else KitsugiColors.TextPrimary
                             )
@@ -729,7 +722,7 @@ internal fun CharacterDetailStickyHeader(
                     .padding(horizontal = 8.dp)
             ) {
                 IconButton(onClick = onBackClick) {
-                    Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.action_back), tint = KitsugiColors.TextPrimary)
+                    Icon(Icons.ArrowBack, contentDescription = stringResource(R.string.action_back), tint = KitsugiColors.TextPrimary)
                 }
                 Spacer(modifier = androidx.compose.ui.Modifier.width(8.dp))
                 Text(
@@ -748,12 +741,12 @@ internal fun CharacterDetailStickyHeader(
                     val url = com.kitsugi.animelist.utils.ShareUtils.buildCharacterUrl(source, characterId, detail.name)
                     com.kitsugi.animelist.utils.ShareUtils.shareText(context, detail.name, url)
                 }) {
-                    Icon(Icons.Rounded.Share, contentDescription = stringResource(R.string.action_share), tint = KitsugiColors.TextSecondary)
+                    Icon(Icons.Share, contentDescription = stringResource(R.string.action_share), tint = KitsugiColors.TextSecondary)
                 }
                 if (showFavouriteButton) {
                     IconButton(onClick = onToggleFavourite) {
                         Icon(
-                            imageVector = if (isFavourite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                            imageVector = if (isFavourite) Icons.Favorite else Icons.FavoriteBorder,
                             contentDescription = if (isFavourite) stringResource(R.string.action_favourite_remove) else stringResource(R.string.action_favourite_add),
                             tint = if (isFavourite) accentColor else KitsugiColors.TextSecondary
                         )

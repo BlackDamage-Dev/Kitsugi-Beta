@@ -1,5 +1,6 @@
 package com.kitsugi.animelist.ui.tv.manga
 
+import com.kitsugi.animelist.ui.components.KitsugiChevronIcon
 import com.kitsugi.animelist.R
 import androidx.compose.ui.res.stringResource
 import android.view.KeyEvent
@@ -21,8 +22,7 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.*
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.CircularProgressIndicator
 import com.kitsugi.animelist.ui.components.KitsugiPlasmaLoader
 import com.kitsugi.animelist.ui.theme.gradient.Icon
@@ -171,7 +171,7 @@ fun TvMangaExtensionScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            Icons.Rounded.Extension,
+                            Icons.Extension,
                             contentDescription = null,
                             tint = KitsugiColors.AccentBlue,
                             modifier = Modifier.size(20.dp)
@@ -194,8 +194,8 @@ fun TvMangaExtensionScreen(
 
                 // Sekme butonları
                 listOf(
-                    TvExtTab.REPOS to Triple(Icons.Rounded.Storage, "Repolar", repos.size.toString()),
-                    TvExtTab.INSTALLED to Triple(Icons.Rounded.CheckCircle, "Kurulu", sources.size.toString())
+                    TvExtTab.REPOS to Triple(Icons.Storage, "Repolar", repos.size.toString()),
+                    TvExtTab.INSTALLED to Triple(Icons.CheckCircle, "Kurulu", sources.size.toString())
                 ).forEachIndexed { idx, (tab, triple) ->
                     val (icon, label, badge) = triple
                     TvExtTabButton(
@@ -220,7 +220,7 @@ fun TvMangaExtensionScreen(
 
                 // Source Health butonu
                 TvExtActionButton(
-                    icon = Icons.Rounded.HealthAndSafety,
+                    icon = Icons.HealthAndSafety,
                     label = stringResource(R.string.inline_source_health_1595253),
                     color = KitsugiColors.AccentGreen,
                     onClick = onNavigateToHealth
@@ -228,7 +228,7 @@ fun TvMangaExtensionScreen(
 
                 // Geri
                 TvExtActionButton(
-                    icon = Icons.Rounded.ArrowBack,
+                    icon = Icons.ArrowBack,
                     label = stringResource(R.string.geri),
                     color = KitsugiColors.TextMuted,
                     onClick = onBack
@@ -482,7 +482,7 @@ private fun TvExtRepoTab(
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Icon(
-                            Icons.Rounded.CloudOff,
+                            Icons.CloudOff,
                             null,
                             tint = KitsugiColors.TextMuted,
                             modifier = Modifier.size(48.dp)
@@ -605,7 +605,7 @@ private fun TvExtInstalledTab(
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Icon(
-                            Icons.Rounded.BookmarkBorder,
+                            Icons.BookmarkBorder,
                             null,
                             tint = KitsugiColors.TextMuted,
                             modifier = Modifier.size(48.dp)
@@ -708,7 +708,7 @@ private fun TvExtQuickAddCard(
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Icon(
-                Icons.Rounded.Language,
+                Icons.Language,
                 null,
                 tint = KitsugiColors.AccentBlue,
                 modifier = Modifier.size(22.dp)
@@ -805,7 +805,7 @@ private fun TvExtRepoCard(
                     .background(KitsugiColors.AccentBlue.copy(alpha = 0.15f)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Rounded.Storage, null, tint = KitsugiColors.AccentBlue, modifier = Modifier.size(18.dp))
+                Icon(Icons.Storage, null, tint = KitsugiColors.AccentBlue, modifier = Modifier.size(18.dp))
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text(
@@ -825,21 +825,21 @@ private fun TvExtRepoCard(
             when {
                 isLoading -> KitsugiPlasmaLoader(size = 20.dp)
                 repoPlugins == null -> Icon(
-                    Icons.Rounded.Refresh,
+                    Icons.Refresh,
                     null,
                     tint = KitsugiColors.AccentBlue,
                     modifier = Modifier.size(20.dp)
                 )
                 !isBulkInstalling && installedCount < totalCount -> Icon(
-                    Icons.Rounded.DownloadForOffline,
+                    Icons.DownloadForOffline,
                     null,
                     tint = KitsugiColors.AccentBlue,
                     modifier = Modifier.size(20.dp)
                 )
             }
-            Icon(
-                if (isExpanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
-                null,
+            KitsugiChevronIcon(
+                expanded = isExpanded,
+                contentDescription = null,
                 tint = KitsugiColors.TextMuted,
                 modifier = Modifier.size(20.dp)
             )
@@ -861,7 +861,7 @@ private fun TvExtRepoCard(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    Icons.Rounded.DeleteForever,
+                    Icons.DeleteForever,
                     null,
                     tint = KitsugiColors.AccentRed.copy(alpha = 0.7f),
                     modifier = Modifier.size(16.dp)
@@ -1069,7 +1069,7 @@ private fun TvExtSourceRow(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    Icons.Rounded.MenuBook,
+                    Icons.MenuBook,
                     null,
                     tint = KitsugiColors.AccentBlue,
                     modifier = Modifier.size(20.dp)
@@ -1122,7 +1122,7 @@ private fun TvExtSourceRow(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    Icons.Rounded.Delete,
+                    Icons.Delete,
                     null,
                     tint = KitsugiColors.AccentRed.copy(alpha = 0.7f),
                     modifier = Modifier.size(16.dp)

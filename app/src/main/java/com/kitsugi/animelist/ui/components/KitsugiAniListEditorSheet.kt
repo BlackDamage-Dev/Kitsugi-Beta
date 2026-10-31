@@ -17,20 +17,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.Notes
-import androidx.compose.material.icons.rounded.Bookmark
-import androidx.compose.material.icons.rounded.CalendarToday
-import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.Delete
-import androidx.compose.material.icons.rounded.EventAvailable
-import androidx.compose.material.icons.rounded.Lock
-import androidx.compose.material.icons.rounded.Pause
-import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.Book
-import androidx.compose.material.icons.rounded.Repeat
-import androidx.compose.material.icons.rounded.Star
-import androidx.compose.material.icons.rounded.VisibilityOff
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import com.kitsugi.animelist.ui.theme.gradient.Icon
@@ -244,11 +231,11 @@ internal fun KitsugiAniListMediaEntryEditorSheet(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     val statusItems = listOf(
-                        WatchStatus.Watching to Icons.Rounded.PlayArrow,
-                        WatchStatus.Completed to Icons.Rounded.Check,
-                        WatchStatus.Paused to Icons.Rounded.Pause,
-                        WatchStatus.Dropped to Icons.Rounded.Delete,
-                        WatchStatus.Planned to Icons.Rounded.Bookmark
+                        WatchStatus.Watching to Icons.PlayArrow,
+                        WatchStatus.Completed to Icons.Check,
+                        WatchStatus.Paused to Icons.Pause,
+                        WatchStatus.Dropped to Icons.Delete,
+                        WatchStatus.Planned to Icons.Bookmark
                     )
                     statusItems.forEach { (status, icon) ->
                         val selected = selectedStatus == status
@@ -277,7 +264,7 @@ internal fun KitsugiAniListMediaEntryEditorSheet(
                 val progressSuffix = if (parsedTotal != null) " / $parsedTotal" else ""
 
                 SheetRow(
-                    icon = if (selectedType == MediaType.Anime) Icons.Rounded.PlayArrow else Icons.Rounded.Book,
+                    icon = if (selectedType == MediaType.Anime) Icons.PlayArrow else Icons.Book,
                     label = progressLabel,
                     value = progressText,
                     onValueChange = { newValue ->
@@ -325,7 +312,7 @@ internal fun KitsugiAniListMediaEntryEditorSheet(
                 }
 
                 SheetRow(
-                    icon = Icons.Rounded.Star,
+                    icon = Icons.Star,
                     label = stringResource(R.string.detail_stat_score),
                     value = scoreText,
                     onValueChange = null,
@@ -371,34 +358,34 @@ internal fun KitsugiAniListMediaEntryEditorSheet(
                 }
 
                 SheetRow(
-                    icon = Icons.Rounded.CalendarToday,
+                    icon = Icons.CalendarToday,
                     label = stringResource(R.string.baslangic_tarihi),
                     value = startDateText.ifBlank { KitsugiStrings.get(R.string.tarih_secilmemis) },
                     onClick = { selectDate(startDateText) { startDateText = it } },
                     onClearClick = if (startDateText.isNotBlank()) { { startDateText = "" } } else null
                 )
                 SheetRow(
-                    icon = Icons.Rounded.EventAvailable,
+                    icon = Icons.EventAvailable,
                     label = stringResource(R.string.bitis_tarihi),
                     value = endDateText.ifBlank { KitsugiStrings.get(R.string.tarih_secilmemis) },
                     onClick = { selectDate(endDateText) { endDateText = it } },
                     onClearClick = if (endDateText.isNotBlank()) { { endDateText = "" } } else null
                 )
                 SheetRow(
-                    icon = Icons.Rounded.Repeat,
+                    icon = Icons.Repeat,
                     label = stringResource(R.string.tekrar_sayisi),
                     value = repeatCount.toString(),
                     onDecrement = { repeatCount = (repeatCount - 1).coerceAtLeast(0) },
                     onIncrement = { repeatCount = repeatCount + 1 }
                 )
                 SheetRow(
-                    icon = Icons.Rounded.Lock,
+                    icon = Icons.Lock,
                     label = "Gizli",
                     switchChecked = isPrivate,
                     onSwitchCheckedChange = { isPrivate = it }
                 )
                 SheetRow(
-                    icon = Icons.Rounded.VisibilityOff,
+                    icon = Icons.VisibilityOff,
                     label = stringResource(R.string.durum_listelerinden_gizle),
                     switchChecked = isHiddenFromStatusLists,
                     onSwitchCheckedChange = { isHiddenFromStatusLists = it }
@@ -410,7 +397,7 @@ internal fun KitsugiAniListMediaEntryEditorSheet(
                     verticalAlignment = Alignment.Top
                 ) {
                     Icon(
-                        imageVector = Icons.AutoMirrored.Rounded.Notes,
+                        imageVector = Icons.Notes,
                         contentDescription = "Notlar",
                         tint = KitsugiColors.TextSecondary,
                         modifier = Modifier.size(24.dp).padding(top = 12.dp)
@@ -436,7 +423,7 @@ internal fun KitsugiAniListMediaEntryEditorSheet(
 
                 Spacer(modifier = Modifier.height(16.dp))
                 SheetRow(
-                    icon = Icons.Rounded.Star,
+                    icon = Icons.Star,
                     label = "Favori",
                     switchChecked = isFavorite,
                     onSwitchCheckedChange = { isFavorite = it }
@@ -446,7 +433,7 @@ internal fun KitsugiAniListMediaEntryEditorSheet(
                     Spacer(modifier = Modifier.height(16.dp))
                     HorizontalDivider(color = KitsugiColors.Border, modifier = Modifier.padding(horizontal = 16.dp))
                     SheetRow(
-                        icon = Icons.Rounded.Delete,
+                        icon = Icons.Delete,
                         label = KitsugiStrings.get(R.string.action_delete),
                         onClick = onDeleteClick,
                         modifier = Modifier.padding(vertical = 4.dp)
