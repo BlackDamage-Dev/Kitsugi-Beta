@@ -90,3 +90,16 @@ AniList ve Shikimori'de **gerçek** bildirim ucu var. MAL, Simkl, Kitsu ve Bangu
 cihaz bildirimleri uygulama içi sayfayla aynı türetilmiş yoldan üretilir (takvim + izleme
 listesi, gerektiğinde çapraz kimlik). Bu yüzden "bildirim gelmiyor" şikâyeti olduğunda ilk
 bakılacak yer: teşhis panelindeki **izin**, **planlı iş** ve **kaynak başına gönderilen** satırı.
+
+### İkinci kontrol turu — kalan açıklar
+
+| # | Bulgu | Durum |
+|---|-------|-------|
+| 9 | Bildirilen kayıt defteri (`StringSet`) sırasız; budama rastgele silip **tekrar bildirim** üretiyordu | ✔ zaman damgalı `NotifiedKeys` |
+| 10 | Aynı bölüm MAL + Kitsu + Bangumi'de izleniyorsa iki-üç ayrı bildirim | ✔ çalıştırma içi `title#episode` tekrar engeli |
+| 11 | Bangumi bildirimleri yalnızca yerel DB'yi görüyordu (sunucudaki "在看" listesi kaçıyordu) | ✔ `getUserCollections(DOING)` + yerel yedek |
+| 12 | Simkl tam liste senkronu her çalıştırmada DB'yi yeniden yazıyordu | ✔ 6 saatlik eşik (`simkl_full_sync_at`) |
+| 13 | **Bangumi'nin kendi bildirim anahtarı yok**; "Yayın bildirimleri" ana anahtarına bağlı | ⏳ bilinçli: ayar eklemek 8 dosyada değişiklik; bir sonraki tura bırakıldı |
+| 14 | **Shikimori okundu durumu uygulamada işaretlenmiyor** → "Okunmamış" rozeti hiç düşmüyor | ⏳ API'de okundu işaretleme ucu yok/haritalanmadı; yerel "görüldü" damgası gerekir |
+| 15 | MAL'ın web bildirimleri (kulüp/forum) cihaz bildirimi olarak düşmüyor | ⏳ arka planda MAL web çerezi kullanmak riskli (bot koruması) |
+| 16 | Kitsu gövdesi `progress + 1` varsayıyor; `nextRelease` 2 bölüm ileriyi gösteriyorsa numara kayabilir | ⏳ düşük etki, API ek alan vermiyor |

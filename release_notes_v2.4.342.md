@@ -23,6 +23,11 @@ Bu sürüm, uygulama **içindeki** Bildirimler sayfası ile telefonun **kendi** 
   - **"Test bildirimi gönder"** düğmesi (uçtan uca kanıt).
 - **İzin durumu değişince planlı iş uzlaştırılıyor:** Bildirim izni/cihaz ayarı uygulama kapalıyken değişmişse (ör. sistem ayarlarından kapatıldıysa) uygulama açılışında planlı iş yeniden değerlendirilir; her açılışta gereksiz WorkManager isteği kurulmaz.
 
+- **Aynı bölüm iki kez bildirilmiyor:** Aynı yapıt hem MAL hem Kitsu (veya Bangumi) listesinde izleniyorsa her kaynak kendi defterini tuttuğu için aynı bölüm iki ayrı bildirim olarak düşüyordu. Bir çalıştırma içinde başlık + bölüm eşleşmesiyle tekrar engelleniyor.
+- **"Gönderildi" defteri artık zaman damgalı:** Eski `StringSet` defteri okunduğunda sıra bilgisi kaybolduğu için budama rastgele kayıt siliyor, silinen bölüm 24 saatlik pencerede hâlâ göründüğü için **tekrar bildiriliyordu**. Artık `anahtar|zaman` biçiminde tutulup en eski kayıt atılıyor.
+- **Bangumi listesi sunucudan da okunuyor:** Cihaz bildirimleri yalnızca yerel veritabanındaki Bangumi kayıtlarını görüyordu; hiç içe aktarılmamış (yalnızca Bangumi'de duran) kayıtlar sessizce kaçıyordu. Artık uygulama içi sayfayla aynı yol izleniyor: Bangumi "在看" koleksiyonu → MAL kimliği → takvim eşleşmesi, yerel liste yedek olarak duruyor.
+- **Simkl tam liste senkronu 6 saatte bir:** Bildirim için her 30 dakikada bir izleme listesini baştan yazmak boşa pil/DB yüküydü; takvim kontrolü ise her çalıştırmada devam ediyor.
+
 ### 🧪 Test
 - `DeepLinkTest` yeni vakalar: sürümün *authority*'de olduğu `Kitsugianimelist://v1/detail|play` bağlantıları ve `…/v1/notifications?source=…` bağlantısının kaynakla/kaynaksız çözümü.
 
@@ -50,6 +55,11 @@ This release closes the gap between the in-app **Notifications** page and the ph
   - per-source count **posted** in the last run, plus any error,
   - a **"Send a test notification"** button (end-to-end proof).
 - **The scheduled check is reconciled when the permission state changes** (for example after toggling notifications in system settings), without re-enqueuing WorkManager on every launch.
+
+- **No duplicate alerts for the same episode:** If a show is on both your MAL and Kitsu (or Bangumi) list, each source kept its own ledger and the same episode arrived twice. During one run, title + episode matches are now suppressed.
+- **The "already notified" ledger is timestamped:** The old `StringSet` ledger lost its order when read, so trimming dropped random entries — and a dropped episode, still inside the 24-hour window, was **notified again**. Entries are now stored as `key|timestamp` and the oldest are pruned.
+- **Bangumi lists are read from the server too:** Device notifications only saw locally imported Bangumi entries; anything that lived only on Bangumi was silently missed. The worker now follows the same path as the in-app page — Bangumi "在看" collection → MAL id → airing match — with the local list as a fallback.
+- **Simkl full-list sync runs every 6 hours:** Rewriting the watch list every 30 minutes just for airing checks was wasted battery and DB writes; the calendar check still runs on every pass.
 
 ### 🧪 Tests
 - `DeepLinkTest` gained cases for authority-style `Kitsugianimelist://v1/detail|play` links and for `…/v1/notifications?source=…` with and without a source.

@@ -6,6 +6,8 @@ import android.util.Log
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.kitsugi.animelist.R
+import com.kitsugi.animelist.data.auth.BangumiApiClient
+import com.kitsugi.animelist.data.auth.BangumiAuthStore
 import com.kitsugi.animelist.data.auth.ExternalAuthManager
 import com.kitsugi.animelist.data.auth.KitsuApiClient
 import com.kitsugi.animelist.data.auth.ShikimoriApiClient
@@ -72,6 +74,10 @@ class AiringNotificationWorker(
 
         /** Son 24 saat penceresi (MAL/Simkl/Kitsu/Bangumi yayın eşleşmesi). */
         private const val AIRING_WINDOW_MS = 24 * 60 * 60 * 1000L
+
+        /** Simkl tam liste senkronu: her çalıştırmada DB'yi yeniden yazmak gereksiz. */
+        private const val KEY_SIMKL_FULL_SYNC_AT = "simkl_full_sync_at"
+        private const val SIMKL_FULL_SYNC_INTERVAL_MS = 6 * 60 * 60 * 1000L
     }
 
     override suspend fun doWork(): Result {
@@ -143,6 +149,14 @@ class AiringNotificationWorker(
             emptyList()
         }
 
+        // ── Çapraz kaynak tekrar engeli ──────────────────────────────────────
+        // Aynı bölüm birden fazla kaynakta izleniyor olabilir (ör. hem MAL hem Kitsu
+        // listesinde). Her kaynak kendi defterini tuttuğu için aynı bölüm iki ayrı
+        // bildirim olarak düşüyordu. Bu küme YALNIZCA tek çalıştırma içinde geçerlidir.
+        val postedEpisodeKeys = mutableSetOf<String>()
+        fun episodeKey(title: String, episode: Int): String =
+            title.lowercase().replace(Regex("[^a-z0-9]+"), "").take(60) + "#" + episode
+
         // ── 1. AniList (gerçek bildirim ucu) ─────────────────────────────────
         if (isAniListEnabled) {
             val aniListToken = ExternalAuthManager.getAniListToken(context)
@@ -152,9 +166,8 @@ class AiringNotificationWorker(
                 try {
                     val client = KitsugiAniListNotificationClient()
                     val page = client.fetchNotifications(aniListToken, page = 1, perPage = 25)
-                    val notifiedIds = sharedPrefs.getStringSet(KEY_NOTIFIED_ANILIST, emptySet())?.toMutableSet()
-                        ?: mutableSetOf()
-                    val firstRun = isFirstRun(sharedPrefs, KEY_NOTIFIED_ANILIST)
+                    val notifiedIds = NotifiedKeys(sharedPrefs, KEY_NOTIFIED_ANILIST)
+                    val firstRun = notifiedIds.isFirstRun
 
                     for (notif in page.notifications) {
                         val notifIdStr = notif.id.toString()
@@ -187,7 +200,7 @@ class AiringNotificationWorker(
                         )
                         if (ok) posted++
                     }
-                    pruneNotifiedIds(sharedPrefs, KEY_NOTIFIED_ANILIST, notifiedIds, 200)
+                    notifiedIds.save(200)
                     NotificationDeliveryTracker.recordRun(
                         context = context,
                         source = "AniList",
@@ -222,9 +235,8 @@ class AiringNotificationWorker(
                     }
                 }
 
-                val notifiedMalKeys = sharedPrefs.getStringSet(KEY_NOTIFIED_MAL, emptySet())?.toMutableSet()
-                    ?: mutableSetOf()
-                val firstRun = isFirstRun(sharedPrefs, KEY_NOTIFIED_MAL)
+                val notifiedMalKeys = NotifiedKeys(sharedPrefs, KEY_NOTIFIED_MAL)
+                val firstRun = notifiedMalKeys.isFirstRun
 
                 for (entry in matched) {
                     val triggerMs = entry.airingAt * 1000L
@@ -236,6 +248,7 @@ class AiringNotificationWorker(
                     if (firstRun) continue
                     if (posted >= MAX_PER_SOURCE_PER_RUN) continue
 
+                    if (!postedEpisodeKeys.add(episodeKey(entry.title, entry.episode))) continue
                     val malId = entry.malId ?: 0
                     val ok = postItem(
                         id = (malId * 1000 + entry.episode) and Int.MAX_VALUE,
@@ -249,7 +262,7 @@ class AiringNotificationWorker(
                     )
                     if (ok) posted++
                 }
-                pruneNotifiedIds(sharedPrefs, KEY_NOTIFIED_MAL, notifiedMalKeys, 200)
+                notifiedMalKeys.save(200)
                 NotificationDeliveryTracker.recordRun(context, "MyAnimeList", posted, seen)
             } catch (e: Exception) {
                 Log.e(TAG, "MAL Airing Calendar fetch failed: ${e.message}", e)
@@ -264,19 +277,30 @@ class AiringNotificationWorker(
                 var posted = 0
                 var seen = 0
                 try {
-                    val importedEntries = SimklImportManager.fetchAllLists(simklToken)
-                    val repository = MediaEntryRepository(db.mediaEntryDao())
-                    // Sil-yeniden-yaz sırasında +18 işaretlerini koru (bkz. repository)
-                    repository.replaceSourcePreservingAdultFlags("simkl", importedEntries)
-                    Log.d(TAG, "Simkl background sync successful: ${importedEntries.size} entries")
+                    // Tam liste senkronu 6 saatte bir: takvim bildirimi için listeyi her
+                    // 30 dakikada bir yeniden yazmak boşa DB yükü (pil + yazma) demekti.
+                    val lastFullSync = sharedPrefs.getLong(KEY_SIMKL_FULL_SYNC_AT, 0L)
+                    if (System.currentTimeMillis() - lastFullSync > SIMKL_FULL_SYNC_INTERVAL_MS) {
+                        runCatching {
+                            val importedEntries = SimklImportManager.fetchAllLists(simklToken)
+                            val repository = MediaEntryRepository(db.mediaEntryDao())
+                            // Sil-yeniden-yaz sırasında +18 işaretlerini koru (bkz. repository)
+                            repository.replaceSourcePreservingAdultFlags("simkl", importedEntries)
+                            sharedPrefs.edit()
+                                .putLong(KEY_SIMKL_FULL_SYNC_AT, System.currentTimeMillis())
+                                .apply()
+                            Log.d(TAG, "Simkl background sync successful: ${importedEntries.size} entries")
+                        }.onFailure {
+                            Log.w(TAG, "Simkl list sync skipped: ${it.message}")
+                        }
+                    }
 
                     val calendarClient = SimklCalendarClient()
                     val watchingIds = runCatching { calendarClient.fetchWatchingIds(simklToken) }.getOrNull()
                     val calendar = calendarClient.fetchAll()
                     val now = System.currentTimeMillis()
-                    val notifiedSimklKeys = sharedPrefs.getStringSet(KEY_NOTIFIED_SIMKL, emptySet())?.toMutableSet()
-                        ?: mutableSetOf()
-                    val firstRun = isFirstRun(sharedPrefs, KEY_NOTIFIED_SIMKL)
+                    val notifiedSimklKeys = NotifiedKeys(sharedPrefs, KEY_NOTIFIED_SIMKL)
+                    val firstRun = notifiedSimklKeys.isFirstRun
 
                     var matchedCount = 0
                     for (entry in calendar) {
@@ -297,6 +321,7 @@ class AiringNotificationWorker(
                         if (firstRun) continue
                         if (posted >= MAX_PER_SOURCE_PER_RUN) continue
 
+                        if (!postedEpisodeKeys.add(episodeKey(entry.title, entry.episode ?: 0))) continue
                         val label = entry.episodeLabel
                         val ok = postItem(
                             id = key.hashCode() and 0x7fffffff,
@@ -315,7 +340,7 @@ class AiringNotificationWorker(
                         if (ok) posted++
                     }
                     Log.d(TAG, "Simkl airing matched=$matchedCount")
-                    pruneNotifiedIds(sharedPrefs, KEY_NOTIFIED_SIMKL, notifiedSimklKeys, 400)
+                    notifiedSimklKeys.save(400)
                     NotificationDeliveryTracker.recordRun(context, "TMDB & Simkl", posted, seen)
                 } catch (e: Exception) {
                     Log.e(TAG, "Simkl background sync failed: ${e.message}", e)
@@ -336,9 +361,8 @@ class AiringNotificationWorker(
                     val active = entries.filter {
                         it.status.equals("current", true) || it.status.equals("watching", true)
                     }
-                    val notifiedKitsuKeys = sharedPrefs.getStringSet(KEY_NOTIFIED_KITSU, emptySet())?.toMutableSet()
-                        ?: mutableSetOf()
-                    val firstRun = isFirstRun(sharedPrefs, KEY_NOTIFIED_KITSU)
+                    val notifiedKitsuKeys = NotifiedKeys(sharedPrefs, KEY_NOTIFIED_KITSU)
+                    val firstRun = notifiedKitsuKeys.isFirstRun
                     val now = System.currentTimeMillis()
 
                     for (entry in active) {
@@ -352,6 +376,7 @@ class AiringNotificationWorker(
                         if (firstRun) continue
                         if (posted >= MAX_PER_SOURCE_PER_RUN) continue
 
+                        if (!postedEpisodeKeys.add(episodeKey(entry.title, entry.progress + 1))) continue
                         val ok = postItem(
                             id = key.hashCode() and 0x7fffffff,
                             title = entry.title,
@@ -367,7 +392,7 @@ class AiringNotificationWorker(
                         )
                         if (ok) posted++
                     }
-                    pruneNotifiedIds(sharedPrefs, KEY_NOTIFIED_KITSU, notifiedKitsuKeys, 400)
+                    notifiedKitsuKeys.save(400)
                     NotificationDeliveryTracker.recordRun(context, "Kitsu", posted, seen)
                 } catch (e: Exception) {
                     Log.e(TAG, "Kitsu polling failed: ${e.message}", e)
@@ -385,9 +410,8 @@ class AiringNotificationWorker(
                 var posted = 0
                 var seen = 0
                 try {
-                    val notifiedShikiIds = sharedPrefs.getStringSet(KEY_NOTIFIED_SHIKIMORI, emptySet())?.toMutableSet()
-                        ?: mutableSetOf()
-                    val firstRun = isFirstRun(sharedPrefs, KEY_NOTIFIED_SHIKIMORI)
+                    val notifiedShikiIds = NotifiedKeys(sharedPrefs, KEY_NOTIFIED_SHIKIMORI)
+                    val firstRun = notifiedShikiIds.isFirstRun
                     val messages = ShikimoriApiClient.fetchMessages(
                         token = shikiToken,
                         userId = shikiUserId,
@@ -429,7 +453,7 @@ class AiringNotificationWorker(
                         )
                         if (ok) posted++
                     }
-                    pruneNotifiedIds(sharedPrefs, KEY_NOTIFIED_SHIKIMORI, notifiedShikiIds, 400)
+                    notifiedShikiIds.save(400)
                     NotificationDeliveryTracker.recordRun(context, "Shikimori", posted, seen)
                 } catch (e: ShikimoriApiClient.ShikimoriScopeException) {
                     Log.w(TAG, "Shikimori 'messages' izni yok; bildirim atlanıyor: ${e.message}")
@@ -450,18 +474,43 @@ class AiringNotificationWorker(
             var posted = 0
             var seen = 0
             try {
-                val bangumiWatching = watchingEntries.filter {
-                    it.source.equals(BangumiIdNamespace.SOURCE, ignoreCase = true) &&
-                        BangumiIdNamespace.isStableId(it.malId)
-                }
-                if (bangumiWatching.isNotEmpty()) {
+                // Önce Bangumi'nin KENDİ "在看" (DOING) koleksiyonu okunur — uygulama
+                // içindeki Bildirimler sayfası da bunu kullanıyor. Yalnızca yerel DB'ye
+                // bakmak, hiç yerelleştirilmemiş (import edilmemiş) kayıtları kaçırıyordu.
+                val serverStableIds = runCatching {
+                    val token = BangumiAuthStore.getValidToken(context)
+                    val username = if (!token.isNullOrBlank()) {
+                        BangumiAuthStore.resolveUsername(context)
+                    } else null
+                    if (!token.isNullOrBlank() && !username.isNullOrBlank()) {
+                        BangumiApiClient.getUserCollections(
+                            token = token,
+                            username = username,
+                            collectionType = BangumiApiClient.CollectionType.DOING,
+                            limit = 50
+                        ).data.mapNotNull { BangumiIdNamespace.stableIdFromRaw(it.subjectId) }
+                    } else {
+                        emptyList()
+                    }
+                }.onFailure { Log.w(TAG, "Bangumi koleksiyonu okunamadı: ${it.message}") }
+                    .getOrDefault(emptyList())
+
+                val localStableIds = watchingEntries
+                    .filter {
+                        it.source.equals(BangumiIdNamespace.SOURCE, ignoreCase = true) &&
+                            BangumiIdNamespace.isStableId(it.malId)
+                    }
+                    .mapNotNull { it.malId }
+
+                val bangumiStableIds = (serverStableIds + localStableIds).distinct()
+                if (bangumiStableIds.isNotEmpty()) {
                     val malToStable = coroutineScope {
-                        bangumiWatching.take(BANGUMI_MAX_RESOLVE).map { me ->
+                        bangumiStableIds.take(BANGUMI_MAX_RESOLVE).map { stableId ->
                             async {
                                 val cross = runCatching {
-                                    KitsugiBangumiDetailClient.resolveCrossIds(me.malId, MediaType.Anime)
+                                    KitsugiBangumiDetailClient.resolveCrossIds(stableId, MediaType.Anime)
                                 }.getOrNull()
-                                cross?.malId?.takeIf { it in 1..99_999_999 }?.let { it to (me.malId ?: 0) }
+                                cross?.malId?.takeIf { it in 1..99_999_999 }?.let { it to stableId }
                             }
                         }.mapNotNull { it.await() }
                     }.toMap()
@@ -473,9 +522,8 @@ class AiringNotificationWorker(
                                 fromEpochSec = (nowMs - AIRING_WINDOW_MS) / 1000L,
                                 toEpochSec = (nowMs + 60 * 60 * 1000L) / 1000L
                             )
-                        val notifiedBangumiKeys = sharedPrefs.getStringSet(KEY_NOTIFIED_BANGUMI, emptySet())
-                            ?.toMutableSet() ?: mutableSetOf()
-                        val firstRun = isFirstRun(sharedPrefs, KEY_NOTIFIED_BANGUMI)
+                        val notifiedBangumiKeys = NotifiedKeys(sharedPrefs, KEY_NOTIFIED_BANGUMI)
+                        val firstRun = notifiedBangumiKeys.isFirstRun
 
                         for (entry in airings) {
                             val malId = entry.malId ?: continue
@@ -490,6 +538,7 @@ class AiringNotificationWorker(
                             if (firstRun) continue
                             if (posted >= MAX_PER_SOURCE_PER_RUN) continue
 
+                            if (!postedEpisodeKeys.add(episodeKey(entry.title, entry.episode))) continue
                             val ok = postItem(
                                 id = key.hashCode() and 0x7fffffff,
                                 title = entry.title,
@@ -502,7 +551,7 @@ class AiringNotificationWorker(
                             )
                             if (ok) posted++
                         }
-                        pruneNotifiedIds(sharedPrefs, KEY_NOTIFIED_BANGUMI, notifiedBangumiKeys, 200)
+                        notifiedBangumiKeys.save(200)
                     }
                 }
                 // İzlenen Bangumi kaydı yoksa da satır yazılır: teşhis paneli
@@ -520,21 +569,56 @@ class AiringNotificationWorker(
 
     // ─── Yardımcılar ────────────────────────────────────────────────────────
 
-    private fun isFirstRun(prefs: SharedPreferences, key: String): Boolean = !prefs.contains(key)
-
     /**
-     * Anahtar kümesini sınırlar. `StringSet` okunduğunda sıra bilgisi kaybolduğu için
-     * "en eskiyi at" yapılamaz; bu yüzden küçük bir rastgele budama yerine boyut
-     * sınırı yeterli ölçüde korur ve tekrar bildirim riski düşük kalır.
+     * "Bu kayıt için bildirim gönderildi mi?" defteri.
+     *
+     * **Neden zaman damgalı?** Eski sürüm `StringSet` tutuyordu; `StringSet` okunduğunda
+     * sıra bilgisi kaybolduğu için budama (`takeLast`) RASTGELE kayıt siliyordu. Silinen
+     * kayıt 24 saatlik pencerede hâlâ göründüğü için aynı bölüm bir sonraki çalıştırmada
+     * **ikinci kez** bildiriliyordu. Artık her kayıt `anahtar|epochMs` biçiminde tutulur
+     * ve budama **en eskiyi** atar.
+     *
+     * Eski (damgasız) kayıtlar `0` damgasıyla okunur; geçiş sırasında tekrar bildirim
+     * olmaması için korunurlar.
      */
-    private fun pruneNotifiedIds(
-        prefs: SharedPreferences,
-        key: String,
-        ids: MutableSet<String>,
-        limit: Int
+    private class NotifiedKeys(
+        private val prefs: SharedPreferences,
+        private val storeKey: String
     ) {
-        val kept = if (ids.size > limit) ids.toList().takeLast(limit).toSet() else ids.toSet()
-        prefs.edit().putStringSet(key, kept).apply()
+        private val timestamps: MutableMap<String, Long> = run {
+            val raw = prefs.getStringSet(storeKey, emptySet()).orEmpty()
+            val map = LinkedHashMap<String, Long>(raw.size)
+            raw.forEach { entry ->
+                val sep = entry.lastIndexOf('|')
+                if (sep > 0) {
+                    val ts = entry.substring(sep + 1).toLongOrNull()
+                    if (ts != null) {
+                        map[entry.substring(0, sep)] = ts
+                        return@forEach
+                    }
+                }
+                map[entry] = 0L
+            }
+            map
+        }
+
+        /** Defter hiç yazılmamışsa ilk çalıştırma sayılır. */
+        val isFirstRun: Boolean = !prefs.contains(storeKey)
+
+        fun contains(key: String): Boolean = timestamps.containsKey(key)
+
+        fun add(key: String, atMs: Long = System.currentTimeMillis()) {
+            timestamps[key] = atMs
+        }
+
+        fun save(limit: Int) {
+            val kept = timestamps.entries
+                .sortedByDescending { it.value }
+                .take(limit)
+            prefs.edit()
+                .putStringSet(storeKey, kept.map { "${it.key}|${it.value}" }.toSet())
+                .apply()
+        }
     }
 
     private fun postItem(
