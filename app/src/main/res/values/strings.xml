@@ -17762,4 +17762,6 @@ Eklentiler ekranından eklenti etkinleştirin.</string>
     <string name="inline_video_unsupported_title">Bu video uygulama içinde oynatılamadı</string>
     <string name="inline_video_unsupported_body">Bu biçim bu cihazda çözülemiyor olabilir. Tam ekran oynatıcı bu dosyayı yazılım çözücüyle açabilir.</string>
     <string name="inline_open_fullscreen">Tam ekranda aç</string>
+    <!-- Ortak üst çubuk aksiyonları (bkz. ui/components/KitsugiTopActionBar.kt) -->
+    <string name="top_action_random">Rastgele</string>
 </resources>

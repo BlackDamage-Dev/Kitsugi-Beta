@@ -171,7 +171,9 @@ fun MyListScreen(
     isBottomBarVisible: Boolean = true,
     onScrollReset: () -> Unit = {},
     isNotificationsVisible: Boolean = false,
-    onOpenNotifications: () -> Unit = {}
+    onOpenNotifications: () -> Unit = {},
+    onOpenWatchHistory: (() -> Unit)? = null,
+    onOpenDownloads: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -497,7 +499,9 @@ fun MyListScreen(
                 accentColor = accentColor,
                 horizontalPadding = horizontalPadding,
                 isNotificationsVisible = isNotificationsVisible,
-                onOpenNotifications = onOpenNotifications
+                onOpenNotifications = onOpenNotifications,
+                onOpenWatchHistory = onOpenWatchHistory,
+                onOpenDownloads = onOpenDownloads
             )
         }
 

@@ -72,6 +72,8 @@ import androidx.compose.ui.unit.sp
 import com.kitsugi.animelist.model.MediaEntry
 import com.kitsugi.animelist.model.WatchStatus
 import com.kitsugi.animelist.ui.components.KitsugiSearchField
+import com.kitsugi.animelist.ui.components.KitsugiTopAction
+import com.kitsugi.animelist.ui.components.KitsugiTopActionRow
 import com.kitsugi.animelist.ui.screens.mylist.components.KitsugiMyListFilterSheet
 import com.kitsugi.animelist.ui.screens.mylist.components.KitsugiMyListSortMenu
 import com.kitsugi.animelist.ui.theme.LocalKitsugiColors
@@ -486,7 +488,9 @@ fun MyListTabBar(
     accentColor: Color,
     horizontalPadding: Dp,
     isNotificationsVisible: Boolean = false,
-    onOpenNotifications: () -> Unit = {}
+    onOpenNotifications: () -> Unit = {},
+    onOpenWatchHistory: (() -> Unit)? = null,
+    onOpenDownloads: (() -> Unit)? = null
 ) {
     val KitsugiColors = LocalKitsugiColors.current
     var showSourcePickerSheet by rememberSaveable { mutableStateOf(false) }
@@ -633,52 +637,31 @@ fun MyListTabBar(
         // Kaynak değişimi zaten soldaki açılır seçicide var; yinelenen sekme çubuğu kaldırıldı.
         Spacer(modifier = Modifier.weight(1f))
 
-        // Bildirim butonu (Keşfet ile aynı görünüm); yalnızca bir hesap bağlıyken gösterilir
-        if (isNotificationsVisible) {
-            Box(
-                modifier = Modifier
-                    .size(38.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(KitsugiColors.surface)
-                    .border(
-                        width = 1.dp,
-                        color = KitsugiColors.border.copy(alpha = 0.2f),
-                        shape = RoundedCornerShape(14.dp)
-                    )
-                    .tvClickable(shape = RoundedCornerShape(14.dp), onClick = onOpenNotifications),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.Notifications,
-                    contentDescription = "Bildirimler",
-                    tint = KitsugiColors.textPrimary,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-        }
-
-        // Rastgele öğe butonu
-        Box(
-            modifier = Modifier
-                .size(38.dp)
-                .clip(RoundedCornerShape(14.dp))
-                .background(KitsugiColors.surface)
-                .border(
-                    width = 1.dp,
-                    color = KitsugiColors.border.copy(alpha = 0.2f),
-                    shape = RoundedCornerShape(14.dp)
-                )
-                .tvClickable(shape = RoundedCornerShape(14.dp)) {
-                    if (visibleEntries.isNotEmpty()) {
-                        onEntryClick(visibleEntries.random())
-                    } else {
-                        onExternalSyncMessage("Gösterilecek bir öğe yok")
+        // 🎲 Rastgele + 🔔 Bildirim → Keşfet ile birebir aynı ortak aksiyon satırı.
+        // Sıra kanoniktir: rastgele solda, bildirim her zaman en sağda.
+        KitsugiTopActionRow(
+            actions = buildList {
+                if (onOpenWatchHistory != null) add(KitsugiTopAction.HISTORY)
+                if (onOpenDownloads != null) add(KitsugiTopAction.DOWNLOADS)
+                add(KitsugiTopAction.RANDOM)
+                if (isNotificationsVisible) add(KitsugiTopAction.NOTIFICATIONS)
+            },
+            onActionClick = { action ->
+                when (action) {
+                    KitsugiTopAction.RANDOM -> {
+                        if (visibleEntries.isNotEmpty()) {
+                            onEntryClick(visibleEntries.random())
+                        } else {
+                            onExternalSyncMessage("Gösterilecek bir öğe yok")
+                        }
                     }
-                },
-            contentAlignment = Alignment.Center
-        ) {
-            Text(text = "🎲", fontSize = 16.sp)
-        }
+                    KitsugiTopAction.HISTORY -> onOpenWatchHistory?.invoke()
+                    KitsugiTopAction.DOWNLOADS -> onOpenDownloads?.invoke()
+                    KitsugiTopAction.NOTIFICATIONS -> onOpenNotifications()
+                    else -> Unit
+                }
+            }
+        )
     }
 
     if (showSourcePickerSheet) {

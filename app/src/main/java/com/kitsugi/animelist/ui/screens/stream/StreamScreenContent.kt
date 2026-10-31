@@ -108,6 +108,8 @@ import com.kitsugi.animelist.R
 import com.kitsugi.animelist.data.repository.StreamProbe
 import com.kitsugi.animelist.data.repository.StreamSource
 import com.kitsugi.animelist.ui.components.KitsugiButton
+import com.kitsugi.animelist.ui.components.KitsugiTopAction
+import com.kitsugi.animelist.ui.components.KitsugiTopActionButton
 import com.kitsugi.animelist.ui.theme.KitsugiColors
 import com.kitsugi.animelist.ui.theme.gradient.Text
 import com.kitsugi.animelist.ui.theme.gradient.background
@@ -615,37 +617,41 @@ private fun StreamTopBar(
                     ImdbBadge(it)
                 }
                 trailing()
-                if (onOpenDownloads != null) {
-                    TopBarAction(Icons.Rounded.Download, stringResource(R.string.stream_action_downloads), onOpenDownloads)
-                }
+                // Kanonik sıra: Geçmiş → İndirmeler → Arama (uygulamanın her yerinde aynı
+                // ortak üst çubuk butonları; bkz. KitsugiTopActionBar.kt).
                 if (onOpenHistory != null) {
-                    TopBarAction(Icons.Rounded.History, stringResource(R.string.stream_action_history), onOpenHistory)
+                    KitsugiTopActionButton(
+                        action = KitsugiTopAction.HISTORY,
+                        onClick = onOpenHistory,
+                        size = 34.dp,
+                        cornerRadius = 10.dp,
+                        iconSize = 17.dp,
+                        modifier = Modifier.padding(start = 2.dp)
+                    )
+                }
+                if (onOpenDownloads != null) {
+                    KitsugiTopActionButton(
+                        action = KitsugiTopAction.DOWNLOADS,
+                        onClick = onOpenDownloads,
+                        size = 34.dp,
+                        cornerRadius = 10.dp,
+                        iconSize = 17.dp,
+                        modifier = Modifier.padding(start = 2.dp)
+                    )
                 }
                 if (onManualSearchClick != null) {
-                    TopBarAction(Icons.Rounded.Search, stringResource(R.string.stream_action_manual_search), onManualSearchClick)
+                    KitsugiTopActionButton(
+                        action = KitsugiTopAction.SEARCH,
+                        onClick = onManualSearchClick,
+                        size = 34.dp,
+                        cornerRadius = 10.dp,
+                        iconSize = 17.dp,
+                        modifier = Modifier.padding(start = 2.dp)
+                    )
                 }
             }
             HorizontalDivider(color = KitsugiColors.SurfaceStrong.copy(alpha = 0.45f))
         }
-    }
-}
-
-@Composable
-private fun TopBarAction(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    contentDescription: String,
-    onClick: () -> Unit
-) {
-    Spacer(Modifier.width(2.dp))
-    IconButton(
-        onClick = onClick,
-        modifier = Modifier.size(36.dp),
-        colors = IconButtonDefaults.iconButtonColors(
-            containerColor = Color.Transparent,
-            contentColor = KitsugiColors.TextSecondary
-        )
-    ) {
-        Icon(icon, contentDescription, modifier = Modifier.size(19.dp))
     }
 }
 

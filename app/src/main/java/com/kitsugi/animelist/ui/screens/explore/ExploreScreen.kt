@@ -56,6 +56,8 @@ import com.kitsugi.animelist.ui.components.KitsugiErrorState
 import com.kitsugi.animelist.ui.components.KitsugiEmptyState
 import com.kitsugi.animelist.ui.components.KitsugiShimmerProvider
 import com.kitsugi.animelist.ui.components.kitsugiCardFrame
+import com.kitsugi.animelist.ui.components.KitsugiTopAction
+import com.kitsugi.animelist.ui.components.KitsugiTopActionRow
 import com.kitsugi.animelist.ui.theme.KitsugiColors
 import com.kitsugi.animelist.ui.theme.LocalIsTvDevice
 import com.kitsugi.animelist.ui.theme.LocalKitsugiAccent
@@ -71,6 +73,7 @@ fun ExploreScreen(
     onAddSelectionToList: (ApiSearchSelection) -> Unit,
     onSeeAllSection: (title: String, categoryType: ExploreCategoryType, results: List<JikanSearchResult>, platform: ExplorePlatform) -> Unit,
     onNavigateToWatchHistory: () -> Unit = {},
+    onNavigateToDownloads: (() -> Unit)? = null,
     onOpenApiDetail: (JikanSearchResult) -> Unit,
     onEditEntry: (MediaEntry) -> Unit,
     onOpenMangaReader: () -> Unit = {},
@@ -425,65 +428,48 @@ fun ExploreScreen(
                                                     modifier = Modifier.weight(1f)
                                                 )
 
-                                                // 🎲 Rastgele keşfet butonu (bildirim açıkken de görünür)
-                                                Box(
-                                                    modifier = Modifier
-                                                        .size(38.dp)
-                                                        .clip(RoundedCornerShape(12.dp))
-                                                        .background(KitsugiColors.SurfaceElevated)
-                                                        .border(1.dp, KitsugiColors.SurfaceElevated.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
-                                                        .tvClickable(shape = RoundedCornerShape(12.dp)) {
-                                                            val randomPool = mutableListOf<JikanSearchResult>()
-                                                            randomPool.addAll(filteredTopAnime)
-                                                            randomPool.addAll(filteredAiringAnime)
-                                                            randomPool.addAll(filteredUpcomingAnime)
-                                                            randomPool.addAll(filteredTopManga)
-                                                            randomPool.addAll(filteredPublishingManga)
-                                                            randomPool.addAll(filteredTrendingAnime)
-                                                            randomPool.addAll(filteredMovieAnime)
-                                                            randomPool.addAll(filteredBangumiTvShows)
-                                                            randomPool.addAll(filteredBangumiMovies)
-                                                            randomPool.addAll(filteredSeasonalAnime)
-                                                            randomPool.addAll(viewModel.simklContinueMovies)
-                                                            randomPool.addAll(viewModel.simklPlannedMovies)
-                                                            randomPool.addAll(viewModel.simklContinueSeries)
-                                                            randomPool.addAll(viewModel.simklPlannedSeries)
-                                                            if (viewModel.selectedPlatform == ExplorePlatform.ALL) {
-                                                                randomPool.addAll(allSectionsList
-                                                                    .flatMap { it.results }.distinctBy { it.exploreIdentity() })
+                                                // 🎲 Rastgele + 🔔 Bildirim → ortak üst çubuk aksiyon satırı.
+                                                // Sıra ve görünüm uygulamanın her yerinde aynıdır; bildirim
+                                                // her zaman en sağdaki buton olarak kalır.
+                                                KitsugiTopActionRow(
+                                                    actions = buildList {
+                                                        add(KitsugiTopAction.HISTORY)
+                                                        if (onNavigateToDownloads != null) add(KitsugiTopAction.DOWNLOADS)
+                                                        add(KitsugiTopAction.RANDOM)
+                                                        if (isNotificationsVisible) add(KitsugiTopAction.NOTIFICATIONS)
+                                                    },
+                                                    onActionClick = { action ->
+                                                        when (action) {
+                                                            KitsugiTopAction.RANDOM -> {
+                                                                val randomPool = mutableListOf<JikanSearchResult>()
+                                                                randomPool.addAll(filteredTopAnime)
+                                                                randomPool.addAll(filteredAiringAnime)
+                                                                randomPool.addAll(filteredUpcomingAnime)
+                                                                randomPool.addAll(filteredTopManga)
+                                                                randomPool.addAll(filteredPublishingManga)
+                                                                randomPool.addAll(filteredTrendingAnime)
+                                                                randomPool.addAll(filteredMovieAnime)
+                                                                randomPool.addAll(filteredBangumiTvShows)
+                                                                randomPool.addAll(filteredBangumiMovies)
+                                                                randomPool.addAll(filteredSeasonalAnime)
+                                                                randomPool.addAll(viewModel.simklContinueMovies)
+                                                                randomPool.addAll(viewModel.simklPlannedMovies)
+                                                                randomPool.addAll(viewModel.simklContinueSeries)
+                                                                randomPool.addAll(viewModel.simklPlannedSeries)
+                                                                if (viewModel.selectedPlatform == ExplorePlatform.ALL) {
+                                                                    randomPool.addAll(allSectionsList
+                                                                        .flatMap { it.results }.distinctBy { it.exploreIdentity() })
+                                                                }
+                                                                randomPool.filter { showAdultContent || !it.isAdult }
+                                                                    .randomOrNull()?.let(onOpenApiDetail)
                                                             }
-                                                            randomPool.filter { showAdultContent || !it.isAdult }
-                                                                .randomOrNull()?.let(onOpenApiDetail)
-                                                        },
-                                                    contentAlignment = Alignment.Center
-                                                ) {
-                                                    Text(
-                                                        text = "🎲",
-                                                        style = MaterialTheme.typography.bodyMedium
-                                                    )
-                                                }
-
-                                                if (isNotificationsVisible) {
-                                                    // 🔔 Bildirim butonu
-                                                    Box(
-                                                        modifier = Modifier
-                                                            .size(38.dp)
-                                                            .clip(RoundedCornerShape(12.dp))
-                                                            .background(KitsugiColors.SurfaceElevated)
-                                                            .border(1.dp, KitsugiColors.SurfaceElevated.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
-                                                            .tvClickable(shape = RoundedCornerShape(12.dp)) {
-                                                                onOpenNotifications()
-                                                            },
-                                                        contentAlignment = Alignment.Center
-                                                    ) {
-                                                        Icon(
-                                                            imageVector = Icons.Rounded.Notifications,
-                                                            contentDescription = stringResource(R.string.notif_title),
-                                                            tint = KitsugiColors.TextPrimary,
-                                                            modifier = Modifier.size(20.dp)
-                                                        )
+                                                            KitsugiTopAction.HISTORY -> onNavigateToWatchHistory()
+                                                            KitsugiTopAction.DOWNLOADS -> onNavigateToDownloads?.invoke()
+                                                            KitsugiTopAction.NOTIFICATIONS -> onOpenNotifications()
+                                                            else -> Unit
+                                                        }
                                                     }
-                                                }
+                                                )
                                             }
                                         }
                                     }

@@ -7,7 +7,7 @@ package com.kitsugi.animelist.ui.screens.detail
 import com.kitsugi.animelist.ui.components.KitsugiButton
 import com.kitsugi.animelist.ui.components.LocalKitsugiGalleryLoading
 import com.kitsugi.animelist.ui.components.LocalKitsugiTranslationLoading
-import com.kitsugi.animelist.ui.components.KitsugiGalleryIconButton
+import com.kitsugi.animelist.ui.components.KitsugiDetailHeaderActions
 
 import android.content.Intent
 import android.net.Uri
@@ -563,8 +563,25 @@ fun ApiResultDetailPage(
                 )
             },
             floatingHeaderActions = {
-                if (galleryItems.isNotEmpty() || !displayResult.imageUrl.isNullOrBlank()) {
-                    KitsugiGalleryIconButton(onClick = {
+                // Paylaş · Favori · Galeri → ortak üst çubuk aksiyon satırı
+                KitsugiDetailHeaderActions(
+                    accentColor = accentColor,
+                    onShareClick = {
+                        // Bağlantı çözülemezse de paylaşım açılır; başlık bağlantısız gider
+                        // (kullanıcıya 404 bir adres göndermekten iyidir).
+                        val url = buildExternalUrl(displayResult)
+                        com.kitsugi.animelist.utils.ShareUtils.shareText(context, displayResult.title, url)
+                    },
+                    showFavourite = showFavouriteButton && onToggleFavoriteClick != null,
+                    isFavourite = isFavorite,
+                    onFavouriteClick = {
+                        onToggleFavoriteClick?.invoke(
+                            ApiSearchSelection(result = displayResult, synopsis = synopsisForSave)
+                        )
+                    },
+                    showGallery = galleryItems.isNotEmpty() || !displayResult.imageUrl.isNullOrBlank(),
+                    galleryLoading = galleryLoading,
+                    onGalleryClick = {
                         val clickedUrl = displayResult.imageUrl
                         val index = if (!clickedUrl.isNullOrBlank()) {
                             galleryItems.indexOfFirst { item ->
@@ -591,31 +608,8 @@ fun ApiResultDetailPage(
                             if (!galleryLoading) activeGalleryItems = galleryItems
                             activeGalleryIndex = posterIndex
                         }
-                    }, accentColor = accentColor)
-                }
-                IconButton(onClick = {
-                    // Bağlantı çözülemezse de paylaşım açılır; başlık bağlantısız gider
-                    // (kullanıcıya 404 bir adres göndermekten iyidir).
-                    val url = buildExternalUrl(displayResult)
-                    com.kitsugi.animelist.utils.ShareUtils.shareText(context, displayResult.title, url)
-                }) {
-                    Icon(
-                        imageVector = Icons.Rounded.Share,
-                        contentDescription = stringResource(R.string.paylas),
-                        tint = KitsugiColors.TextSecondary
-                    )
-                }
-                if (showFavouriteButton && onToggleFavoriteClick != null) {
-                    IconButton(onClick = {
-                        onToggleFavoriteClick(ApiSearchSelection(result = displayResult, synopsis = synopsisForSave))
-                    }) {
-                        Icon(
-                            imageVector = if (isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
-                            contentDescription = if (isFavorite) stringResource(R.string.action_favourite_remove) else "Favori Yap",
-                            tint = if (isFavorite) accentColor else KitsugiColors.TextSecondary
-                        )
                     }
-                }
+                )
             },
             portraitTopItems = { _, lpFocus, tbFocus ->
                 item(key = "hero") {

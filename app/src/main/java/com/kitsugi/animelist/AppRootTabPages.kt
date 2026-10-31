@@ -224,6 +224,8 @@ fun AppRootTabPages(
                     },
                     isNotificationsVisible = ctx.authViewModel.isAniListConnected || ctx.authViewModel.isMalConnected || ctx.authViewModel.isSimklConnected,
                     onOpenNotifications = { ctx.navState.navigateToDetail(DetailScreen.Notifications) },
+                    onOpenWatchHistory = { ctx.navState.navigateToDetail(DetailScreen.WatchHistory) },
+                    onOpenDownloads = { ctx.navState.navigateToDetail(DetailScreen.Downloads) },
                     onGenreClick = ctx.onSearchByGenre,
                     onTagClick = ctx.onSearchByTag,
                     onUserProfileClick = { userId, username, avatarUrl ->
@@ -261,6 +263,7 @@ private fun ExploreTabPage(ctx: TabPagesContext) {
         onAddSelectionToList = ctx.onAddApiSelectionToList,
         onSeeAllSection = ctx.onSeeAllSection,
         onNavigateToWatchHistory = ctx.onNavigateToWatchHistory,
+        onNavigateToDownloads = { ctx.navState.navigateToDetail(DetailScreen.Downloads) },
         onOpenApiDetail = ctx.onOpenApiDetail,
         onOpenMangaReader = ctx.onOpenMangaReader,
         onEditEntry = ctx.onEditEntry,
@@ -328,6 +331,10 @@ private fun SearchTabPage(ctx: TabPagesContext) {
         hideScores = ctx.appSettings.hideScores,
         bottomBarScrollState = ctx.bottomBarScrollState,
         onScrollReset = ctx.onScrollReset,
+        isNotificationsVisible = ctx.authViewModel.isAniListConnected || ctx.authViewModel.isMalConnected || ctx.authViewModel.isSimklConnected,
+        onOpenNotifications = { ctx.navState.navigateToDetail(DetailScreen.Notifications) },
+        onOpenWatchHistory = { ctx.navState.navigateToDetail(DetailScreen.WatchHistory) },
+        onOpenDownloads = { ctx.navState.navigateToDetail(DetailScreen.Downloads) },
         onOpenSourceSearch = { engine, scope, shelfResults ->
             // "Tümünü Gör": kaynağın filtreleri + sonuçları ayrı sayfada açılır
             ctx.navState.navigateToDetail(
@@ -521,6 +528,8 @@ private fun MyListTabPageWrapper(
         isBottomBarVisible = isBottomBarVisible,
         onScrollReset = onScrollReset,
         isNotificationsVisible = authViewModel.isAniListConnected || authViewModel.isMalConnected || authViewModel.isSimklConnected,
-        onOpenNotifications = { navState.navigateToDetail(DetailScreen.Notifications) }
+        onOpenNotifications = { navState.navigateToDetail(DetailScreen.Notifications) },
+        onOpenWatchHistory = { navState.navigateToDetail(DetailScreen.WatchHistory) },
+        onOpenDownloads = { navState.navigateToDetail(DetailScreen.Downloads) }
     )
 }

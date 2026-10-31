@@ -56,6 +56,8 @@ import com.kitsugi.animelist.model.MediaEntry
 import com.kitsugi.animelist.model.MediaType
 import com.kitsugi.animelist.ui.components.KitsugiEmptyState
 import com.kitsugi.animelist.ui.components.KitsugiPlatformLogo
+import com.kitsugi.animelist.ui.components.KitsugiTopAction
+import com.kitsugi.animelist.ui.components.KitsugiTopActionRow
 import com.kitsugi.animelist.ui.components.KitsugiShimmerProvider
 import com.kitsugi.animelist.ui.components.KitsugiShimmerSearchResultList
 import com.kitsugi.animelist.ui.components.KitsugiShimmerResponsiveMediaRow
@@ -127,7 +129,12 @@ fun SearchScreen(
     // "Tümünü Gör" → kaynağa özel tam arama sayfasını ayrı ekranda açar
     onOpenSourceSearch: (SearchSourceEngine, SearchScope, List<JikanSearchResult>) -> Unit = { _, _, _ -> },
     // Alt sayfa olarak kullanıldığında büyük başlığı gizlemek için null verilebilir
-    pageTitle: String? = "Arama"
+    pageTitle: String? = "Arama",
+    // Diğer sekmelerle aynı ortak üst çubuk bildirim butonu
+    isNotificationsVisible: Boolean = false,
+    onOpenNotifications: () -> Unit = {},
+    onOpenWatchHistory: (() -> Unit)? = null,
+    onOpenDownloads: (() -> Unit)? = null
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val accentColor = LocalKitsugiAccent.current
@@ -285,12 +292,36 @@ fun SearchScreen(
             item {
                 if (pageTitle != null) {
                     Spacer(modifier = Modifier.height(28.dp))
-                    Text(
-                        text = pageTitle,
-                        color = KitsugiColors.TextPrimary,
-                        style = MaterialTheme.typography.headlineLarge,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = pageTitle,
+                            color = KitsugiColors.TextPrimary,
+                            style = MaterialTheme.typography.headlineLarge,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.weight(1f)
+                        )
+                        // 🔔 Bildirim → diğer sekmelerle aynı ortak üst çubuk butonu
+                        // (kanonik sırada her zaman en sağda durur).
+                        KitsugiTopActionRow(
+                            actions = buildList {
+                                if (onOpenWatchHistory != null) add(KitsugiTopAction.HISTORY)
+                                if (onOpenDownloads != null) add(KitsugiTopAction.DOWNLOADS)
+                                if (isNotificationsVisible) add(KitsugiTopAction.NOTIFICATIONS)
+                            },
+                            onActionClick = { action ->
+                                when (action) {
+                                    KitsugiTopAction.HISTORY -> onOpenWatchHistory?.invoke()
+                                    KitsugiTopAction.DOWNLOADS -> onOpenDownloads?.invoke()
+                                    KitsugiTopAction.NOTIFICATIONS -> onOpenNotifications()
+                                    else -> Unit
+                                }
+                            }
+                        )
+                    }
                     Spacer(modifier = Modifier.height(18.dp))
                 } else {
                     Spacer(modifier = Modifier.height(12.dp))

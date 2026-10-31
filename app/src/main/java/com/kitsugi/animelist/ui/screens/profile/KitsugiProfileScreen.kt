@@ -36,6 +36,8 @@ import com.kitsugi.animelist.ui.components.KitsugiImageGalleryDialog
 import com.kitsugi.animelist.ui.components.KitsugiKitsuLoginDialog
 import com.kitsugi.animelist.ui.components.KitsugiShikimoriLoginDialog
 import com.kitsugi.animelist.ui.components.KitsugiBangumiLoginDialog
+import com.kitsugi.animelist.ui.components.KitsugiTopAction
+import com.kitsugi.animelist.ui.components.KitsugiTopActionRow
 import com.kitsugi.animelist.ui.theme.KitsugiColors
 import com.kitsugi.animelist.ui.theme.LocalKitsugiAccent
 import kotlinx.coroutines.launch
@@ -66,6 +68,8 @@ fun KitsugiProfileScreen(
     onOpenStatsClick: (() -> Unit)? = null,
     isNotificationsVisible: Boolean = false,
     onOpenNotifications: (() -> Unit)? = null,
+    onOpenWatchHistory: (() -> Unit)? = null,
+    onOpenDownloads: (() -> Unit)? = null,
     onGenreClick: (String) -> Unit = {},
     onTagClick: (String) -> Unit = {},
     onLoginAniList: () -> Unit = {},
@@ -155,39 +159,31 @@ fun KitsugiProfileScreen(
                 ProfileSourceSelectorPill(
                     selectedPlatform = currentPlatform,
                     isConnected = isCurrentConnected,
-                    onClick = { showSourcePickerSheet = true }
+                    onClick = { showSourcePickerSheet = true },
+                    modifier = Modifier.weight(1f, fill = false)
                 )
 
                 Spacer(modifier = Modifier.weight(1f))
 
-                if (isNotificationsVisible && onOpenNotifications != null) {
-                    // 🔔 Bildirim butonu (Keşfet ile aynı kaynak koşulu: bir hesap bağlıysa)
-                    IconButton(
-                        onClick = onOpenNotifications,
-                        colors = IconButtonDefaults.iconButtonColors(containerColor = KitsugiColors.Surface),
-                        modifier = Modifier.size(40.dp).clip(RoundedCornerShape(16.dp))
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Notifications,
-                            contentDescription = stringResource(R.string.notif_title),
-                            tint = accentColor
-                        )
+                // 📊 İstatistik + 🔔 Bildirim → ortak üst çubuk aksiyon satırı.
+                // Kanonik sıra: istatistik solda, bildirim her zaman en sağda.
+                KitsugiTopActionRow(
+                    actions = buildList {
+                        if (onOpenWatchHistory != null) add(KitsugiTopAction.HISTORY)
+                        if (onOpenDownloads != null) add(KitsugiTopAction.DOWNLOADS)
+                        if (onOpenStatsClick != null) add(KitsugiTopAction.STATS)
+                        if (isNotificationsVisible && onOpenNotifications != null) add(KitsugiTopAction.NOTIFICATIONS)
+                    },
+                    onActionClick = { action ->
+                        when (action) {
+                            KitsugiTopAction.HISTORY -> onOpenWatchHistory?.invoke()
+                            KitsugiTopAction.DOWNLOADS -> onOpenDownloads?.invoke()
+                            KitsugiTopAction.STATS -> onOpenStatsClick?.invoke()
+                            KitsugiTopAction.NOTIFICATIONS -> onOpenNotifications?.invoke()
+                            else -> Unit
+                        }
                     }
-                }
-
-                if (onOpenStatsClick != null) {
-                    IconButton(
-                        onClick = onOpenStatsClick,
-                        colors = IconButtonDefaults.iconButtonColors(containerColor = KitsugiColors.Surface),
-                        modifier = Modifier.size(40.dp).clip(RoundedCornerShape(16.dp))
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.BarChart,
-                            contentDescription = stringResource(R.string.kutuphane_istatistikleri),
-                            tint = accentColor
-                        )
-                    }
-                }
+                )
             }
 
             // ── Main content with pull-to-refresh ─────────────────────────
