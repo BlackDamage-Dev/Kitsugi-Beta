@@ -480,3 +480,85 @@ numara şeması (KTS-…) korunmalı.
   içinde var (0 eksik).
 - XML'ler parse ediliyor; yeni anahtarlar TR+EN çift.
 - `./gradlew :app:testDebugUnitTest` (kullanıcı tarafında çalıştırılacak).
+
+---
+
+# 10. Dördüncü tur — günlükler: eksiksiz, kalıcı, çökmeden (v2.4.342)
+
+Kullanıcı talebi: *"Bu kaynaklarla ilgili oluşabilecek tüm kayıtlar, hatalar, sorunlar,
+uyarılar — arka planda olanları o anda elle kopyalayamadığımız için günlük her şeyi
+alabilmeli; çökme, donma yapmadan."*
+
+## 10.1 Eski durumun kök nedeni
+
+| Sorun | Sonuç |
+|-------|-------|
+| "Günlükler" ekranı `logcat -d` okuyordu | Android 10+ üzerinde yalnızca kendi süreç; **halka tampon dolunca eski satırlar silinir** → "az önce ne oldu" kanıtı kayıp |
+| `FileLoggingTree` yalnızca oynatıcı/birkaç tanı noktasından çağrılıyordu | Eşitleme, ağ, kuyruk, worker hataları **dosyaya hiç girmiyordu** |
+| Ekran yalnızca son 1500 satırı tutuyordu | Uzun süreli arka plan sorunları (gece boyunca süren 429'lar) görünmüyordu |
+| Ekmek kırıntısı dosyası her kullanıcı eyleminde baştan yazılıyordu | Gereksiz disk yükü (donma riski) |
+| Donmalar için hiçbir kayıt yoktu | ANR/`LMKD` kill sonrası yalnızca "temiz kapanmadı" notu kalıyordu; **hangi kodun kilitlediği** kayıp |
+
+## 10.2 Yeni mimari
+
+1. **`KitsugiLog`** (`core/diagnostics/KitsugiLog.kt`) — tek yazma yolu.
+   - Bellek halkası: son 3000 satır (anında görüntüleme).
+   - Kalıcı dosya: `files/diagnostics/kitsugi_runtime.log`, 4 MB'da döner, `.1` yedeği
+     (toplam ≈ 8 MB).
+   - **Kilitlemez:** tek daemon iş parçacığı + 4096 kapasiteli kuyruk; kuyruk dolarsa satır
+     atılır ve `dropped` sayacı artar. Ana iş parçacığı hiç beklemez.
+   - **Tekrar sıkıştırma:** aynı satır 1,5 sn içinde tekrarlanırsa `[… N kez tekrarlandı]`.
+   - Satır biçimi: `2026-10-31 14:03:22.193  W/SYNC   [anilist] mesaj | ayrıntı`.
+   - Kanallar: `APP · SYNC · NET · SOURCE · WORK · PLAYER · CRASH · FREEZE · USER · SYSTEM`.
+
+2. **Besleyiciler (kim, neyi yazıyor)**
+
+   | Kaynak | Kanal | Nereden |
+   |--------|-------|---------|
+   | AniList/MAL/Kitsu/Shikimori/Simkl/Bangumi eşitleme sonucu | SYNC | `SourceSyncStatus.reportSuccess/reportFailure` |
+   | AniList kota kapısı (429, `X-RateLimit-Remaining=0`) | SYNC | `AniListGate.onResponse` |
+   | Kuyruk boşaltma turları ve kalan işler | WORK | `PendingSyncDrainer.drain` |
+   | Her ağ denemesi (host/yol/kod/süre/kota başlıkları) | NET | `KitsugiNetworkLogInterceptor` (paylaşılan `KitsugiHttpClient` + TMDB) |
+   | Hata kodu üretimi (KTS-…) | NET | `PlatformFailureRegistry.record` |
+   | Manga/eklenti tanıları | SOURCE | `MangaLogger` + oynatıcı → `FileLoggingTree` |
+   | Çökmeler (Java/Kotlin) | CRASH | `KitsugiCrashHandler` (+ `flushBlocking(2 sn)`) |
+   | Sessiz ölüm / beklenmedik kapanma | SYSTEM/CRASH | `KitsugiSessionSupervisor` |
+   | **Donmalar** | FREEZE | `UiFreezeWatchdog` (yeni) |
+   | Uygulamanın kendi `Log.*` satırları (kütüphaneler, eklenti çalışma zamanı) | SYSTEM | `LogcatCapture` (yeni, kendi PID'i, saniyede ≤300 satır) |
+   | Ekran geçişleri | USER | `KitsugiSessionSupervisor.noteScreen` |
+
+3. **`UiFreezeWatchdog`** — ana iş parçacığını saniyede bir boş `post` ile yoklar; yanıt
+   2,5 sn'yi geçerse o anki **yığın izi** FREEZE satırı olarak yazılır (≥8 sn → ERROR).
+   Donma başına en fazla 5 sn'de bir kayıt. Kendi hataları yutulur, uygulama etkilenmez.
+
+4. **`LogcatCapture`** — `logcat -v time --pid=<pid>` akışı, daemon iş parçacığı.
+   Kendi yazdığımız `KitsugiLog` satırları etiketle ayıklanır (çift kayıt yok). Cihazda
+   `logcat` çağrılamıyorsa tek satır not düşüp susar.
+
+5. **Görüntüleyici (`DeveloperLogsDialog`)**
+   - Kaynak: **Uygulama günlüğü** (varsayılan, kalıcı) / Sistem (logcat).
+   - Konu çipleri: Tüm konular · Eşitleme · Ağ · Kaynak · Arka plan · Donma · Çökme ·
+     Sistem · Diğer. Seviye çipleri ve arama eskisi gibi çalışır (`I/SYNC` biçimi mevcut
+     `\s[VDIWEF]/` ayrıştırıcısıyla uyumlu).
+   - Üstte boyut/satır/atlanan tekrar bilgisi; kopyala · kaydet · paylaş · temizle.
+   - Diskten yalnızca son ~512 KB okunur → 8 MB'lik günlük bile anında açılır.
+
+6. **Çökme raporu** artık `kitsugi_runtime.log` dosyasını da ek olarak paylaşır.
+
+## 10.3 "Donma yapmama" önlemleri (özet)
+
+- Tüm yazma işi UI dışında; kuyruk doluysa **at, say, devam et**.
+- Görüntüleyici: IO dispatcher + `RandomAccessFile` ile son 512 KB, ekranda en fazla 3000 satır
+  ve `LazyColumn` (zaten satır başına `SelectionContainer` — bilinen Compose seçim çökmesi
+  için korunmuş mevcut çözüm).
+- `logcat` alt süreci asla `waitFor` ile beklenmez; okuma kesilirse akış biter.
+- Kırıntı dosyası yazımı 1,5 sn'de bir ile sınırlandı; çökme anında `flushNow` zorlar.
+
+## 10.4 Doğrulama
+
+- `KitsugiLog.*` çağrılarının tamamı tanımlı üyelerle eşleşiyor (otomatik tarama).
+- Parantez/blok denetimi (`/tmp/balcheck.py`) tüm değişen dosyalarda temiz.
+- `./gradlew :app:testDebugUnitTest` (kullanıcı tarafında).
+- Elle: Ayarlar ▸ Sistem ▸ Geliştirici günlükleri → "Uygulama günlüğü" → Listem'de bir kayıt
+  düzenleyin; `SYNC` ve `NET` satırları görünmeli. Uygulamayı zorla durdurun; yeniden açınca
+  `SYSTEM` kanalında "Önceki oturum temiz kapanmadı" satırı olmalı.

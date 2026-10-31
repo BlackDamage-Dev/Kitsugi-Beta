@@ -49,6 +49,7 @@ import kotlinx.coroutines.withContext
 import java.io.BufferedReader
 import java.io.File
 import java.io.InputStreamReader
+import com.kitsugi.animelist.core.diagnostics.KitsugiLog
 import com.kitsugi.animelist.utils.KitsugiStrings
 
 /** Günlük seviyesi filtreleri (logcat -v time biçimi: "MM-dd HH:mm:ss.SSS L/tag(pid): mesaj"). */
@@ -72,6 +73,43 @@ private val LOG_LEVEL_REGEX = Regex("""\s([VDIWEF])/""")
 
 private fun logLevelOf(line: String): Char? =
     LOG_LEVEL_REGEX.find(line)?.groupValues?.get(1)?.firstOrNull()
+
+/**
+ * Günlük kaynağı (v2.4.342).
+ *
+ * `APP` = uygulamanın **kendi kalıcı günlüğü** (`files/diagnostics/kitsugi_runtime.log`).
+ * Eşitleme, ağ, arka plan işleri, çökme ve donma kayıtları burada **kalıcıdır**; logcat halka
+ * tamponu dolduğunda silinmez. `SYSTEM` = eski davranış (sistem logcat anlık görüntüsü),
+ * yalnızca karşılaştırma/geliştirici için.
+ */
+private enum class LogSource(val label: String) {
+    APP("Uygulama günlüğü"),
+    SYSTEM("Sistem (logcat)")
+}
+
+/** Kalıcı günlükteki "konu" filtresi: satırdaki `I/SYNC` alanına bakar. */
+private enum class LogChannelFilter(val label: String, val key: String?) {
+    ALL("Tüm konular", null),
+    SYNC("Eşitleme", "SYNC"),
+    NET("Ağ", "NET"),
+    SOURCE("Kaynak", "SOURCE"),
+    WORK("Arka plan", "WORK"),
+    FREEZE("Donma", "FREEZE"),
+    CRASH("Çökme", "CRASH"),
+    SYSTEM("Sistem", "SYSTEM"),
+    OTHER("Diğer", "APP");
+
+    fun matches(line: String): Boolean {
+        val expected = key ?: return true
+        val actual = channelOf(line) ?: return false
+        return actual.equals(expected, ignoreCase = true)
+    }
+}
+
+private val CHANNEL_REGEX = Regex("""\s[VDIWEF]/([A-Za-z]+)""")
+
+private fun channelOf(line: String): String? =
+    CHANNEL_REGEX.find(line)?.groupValues?.get(1)
 
 @Composable
 private fun logLevelColor(line: String): Color = when (logLevelOf(line)) {
@@ -98,6 +136,11 @@ fun DeveloperLogsDialog(
     var isLoading by remember { mutableStateOf(true) }
     var crashReport by remember { mutableStateOf<String?>(null) }
     var levelFilter by remember { mutableStateOf(LogLevelFilter.ALL) }
+    // v2.4.342: varsayılan kaynak artık KALICI uygulama günlüğü (logcat değil).
+    var logSource by remember { mutableStateOf(LogSource.APP) }
+    var channelFilter by remember { mutableStateOf(LogChannelFilter.ALL) }
+    var logStats by remember { mutableStateOf("") }
+    var appLogEmpty by remember { mutableStateOf(false) }
     var onlyThisApp by rememberSaveable { mutableStateOf(false) }
     var wrapLines by rememberSaveable { mutableStateOf(true) }
     var autoRefresh by rememberSaveable { mutableStateOf(false) }
@@ -130,7 +173,8 @@ fun DeveloperLogsDialog(
         }
     }
 
-    // Logcat'i ve çökme raporunu okur. showSpinner=false: otomatik yenilemede ekran titremesin.
+    // Çökme raporu + seçili kaynağın günlüğünü okur.
+    // showSpinner=false: otomatik yenilemede ekran titremesin.
     val loadLogs: suspend (Boolean) -> Unit = { showSpinner ->
         if (showSpinner) isLoading = true
         withContext(Dispatchers.IO) {
@@ -138,12 +182,29 @@ fun DeveloperLogsDialog(
                 val crashFile = File(context.filesDir, "crash_log.txt")
                 crashReport = if (crashFile.exists()) crashFile.readText() else null
 
-                val process = Runtime.getRuntime().exec(arrayOf("logcat", "-d", "-v", "time", "*:D"))
-                val lines = BufferedReader(InputStreamReader(process.inputStream)).use { reader ->
-                    reader.readLines()
+                when (logSource) {
+                    // ── Kalıcı uygulama günlüğü (v2.4.342) ──────────────────────────
+                    // Diskten yalnızca son ~512 KB okunur: 8 MB'lik dosya bile hızlı açılır.
+                    LogSource.APP -> {
+                        val fromDisk = KitsugiLog.readDiskTail(context, 512 * 1024)
+                        val fromMemory = KitsugiLog.tail(600)
+                        val merged = if (fromDisk.isNotEmpty()) fromDisk else fromMemory
+                        logStats = KitsugiLog.statsText(context)
+                        appLogEmpty = merged.isEmpty()
+                        logLines = merged.takeLast(3000).reversed()
+                    }
+                    // ── Sistem günlüğü: eski davranış (anlık görüntü) ───────────────
+                    LogSource.SYSTEM -> {
+                        appLogEmpty = false
+                        logStats = ""
+                        val process = Runtime.getRuntime().exec(arrayOf("logcat", "-d", "-v", "time", "*:D"))
+                        val lines = BufferedReader(InputStreamReader(process.inputStream)).use { reader ->
+                            reader.readLines()
+                        }
+                        process.waitFor()
+                        logLines = lines.takeLast(1500).reversed()
+                    }
                 }
-                process.waitFor()
-                logLines = lines.takeLast(1500).reversed()
             } catch (e: Exception) {
                 logLines = listOf(KitsugiStrings.get(R.string.loglar_okunamadi_x, e.localizedMessage))
             } finally {
@@ -156,6 +217,8 @@ fun DeveloperLogsDialog(
         isLoading = true
         withContext(Dispatchers.IO) {
             try {
+                // Kalıcı uygulama günlüğü + yedeği de temizlensin (v2.4.342).
+                runCatching { KitsugiLog.clear(context) }
                 Runtime.getRuntime().exec(arrayOf("logcat", "-c")).waitFor()
                 val crashFile = File(context.filesDir, "crash_log.txt")
                 if (crashFile.exists()) crashFile.delete()
@@ -169,7 +232,8 @@ fun DeveloperLogsDialog(
         }
     }
 
-    LaunchedEffect(Unit) {
+    // Kaynak değişince (uygulama günlüğü ↔ sistem) yeniden oku; ilk açılış da buradan yüklenir.
+    LaunchedEffect(logSource) {
         loadLogs(true)
     }
 
@@ -181,9 +245,10 @@ fun DeveloperLogsDialog(
         }
     }
 
-    val filteredLines = remember(logLines, searchQuery, levelFilter, onlyThisApp) {
+    val filteredLines = remember(logLines, searchQuery, levelFilter, onlyThisApp, channelFilter) {
         val pidTag = "($myPid)"
         logLines.asSequence()
+            .filter { channelFilter.matches(it) }
             .filter { !onlyThisApp || it.contains(pidTag) }
             .filter { levelFilter.matches(it) }
             .filter { searchQuery.isBlank() || it.contains(searchQuery, ignoreCase = true) }
@@ -277,20 +342,52 @@ fun DeveloperLogsDialog(
                         saveLogLauncher.launch("Kitsugi-logcat-$timestamp.txt")
                     }
                     LogToolButton(Icons.Rounded.Share, stringResource(R.string.paylas), KitsugiColors.TextPrimary) {
-                        // Filtrelenmiş metni düz metin olarak paylaş (dosya sağlayıcısı gerektirmez).
-                        val shareText = buildString {
-                            if (crashReport != null) {
-                                append("=== SON ÇÖKME RAPORU ===\n")
-                                append(crashReport)
-                                append("\n=========================\n\n")
+                        // v2.4.342: kalıcı uygulama günlüğünde **dosyanın kendisi** paylaşılır
+                        // (tamamı, kırpılmadan). Eski davranış yalnızca ekranda görünen ilk
+                        // 800 satırı metin olarak gönderiyordu → "her şeyi gönder" mümkün değildi.
+                        val sharedFile = if (logSource == LogSource.APP) {
+                            KitsugiLog.logFile(context)?.takeIf { it.exists() && it.length() > 0 }
+                        } else null
+
+                        if (sharedFile != null) {
+                            runCatching {
+                                val uri = androidx.core.content.FileProvider.getUriForFile(
+                                    context,
+                                    "${context.packageName}.fileprovider",
+                                    sharedFile
+                                )
+                                val intent = Intent(Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(Intent.EXTRA_STREAM, uri)
+                                    putExtra(Intent.EXTRA_SUBJECT, "Kitsugi günlüğü")
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                }
+                                context.startActivity(
+                                    Intent.createChooser(intent, KitsugiStrings.get(R.string.loglari_paylas))
+                                )
+                            }.onFailure {
+                                Toast.makeText(
+                                    context,
+                                    "Günlük dosyası paylaşılamadı; metin olarak kopyalayın.",
+                                    Toast.LENGTH_SHORT
+                                ).show()
                             }
-                            append(filteredLines.take(800).joinToString("\n"))
+                        } else {
+                            // Sistem günlüğü / dosya yoksa: filtrelenmiş metni paylaş.
+                            val shareText = buildString {
+                                if (crashReport != null) {
+                                    append("=== SON ÇÖKME RAPORU ===\n")
+                                    append(crashReport)
+                                    append("\n=========================\n\n")
+                                }
+                                append(filteredLines.take(800).joinToString("\n"))
+                            }
+                            val intent = Intent(Intent.ACTION_SEND).apply {
+                                type = "text/plain"
+                                putExtra(Intent.EXTRA_TEXT, shareText)
+                            }
+                            context.startActivity(Intent.createChooser(intent, KitsugiStrings.get(R.string.loglari_paylas)))
                         }
-                        val intent = Intent(Intent.ACTION_SEND).apply {
-                            type = "text/plain"
-                            putExtra(Intent.EXTRA_TEXT, shareText)
-                        }
-                        context.startActivity(Intent.createChooser(intent, KitsugiStrings.get(R.string.loglari_paylas)))
                     }
                     LogToolButton(Icons.Rounded.Delete, stringResource(R.string.temizle), KitsugiColors.AccentRed) {
                         scope.launch { clearLogs() }
@@ -310,6 +407,54 @@ fun DeveloperLogsDialog(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
+
+                if (logStats.isNotBlank()) {
+                    Text(
+                        text = logStats,
+                        color = KitsugiColors.TextMuted,
+                        fontSize = 10.sp,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // ── Kaynak seçimi: kalıcı uygulama günlüğü (varsayılan) / sistem logcat ──
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    LogSource.entries.forEach { source ->
+                        FilterChip(
+                            selected = logSource == source,
+                            onClick = { logSource = source },
+                            label = { Text(source.label, fontSize = 12.sp) }
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                // ── Konu filtresi (eşitleme / ağ / kaynak / donma / çökme …) ──
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    LogChannelFilter.entries.forEach { filter ->
+                        FilterChip(
+                            selected = channelFilter == filter,
+                            onClick = { channelFilter = filter },
+                            label = { Text(filter.label, fontSize = 12.sp) }
+                        )
+                    }
+                }
 
                 Spacer(modifier = Modifier.height(8.dp))
 
@@ -455,7 +600,12 @@ fun DeveloperLogsDialog(
                         }
                         filteredLines.isEmpty() -> {
                             Text(
-                                text = stringResource(R.string.inline_no_matching_log_entry_found_7aebe62),
+                                text = if (appLogEmpty && logSource == LogSource.APP) {
+                                    "Henüz kayıt yok. Bir kaynakla eşitleme yapınca, bir hata oluşunca " +
+                                        "veya uygulama donunca satırlar burada birikmeye başlar."
+                                } else {
+                                    stringResource(R.string.inline_no_matching_log_entry_found_7aebe62)
+                                },
                                 color = KitsugiColors.TextMuted,
                                 fontSize = 14.sp,
                                 modifier = Modifier.align(Alignment.Center)

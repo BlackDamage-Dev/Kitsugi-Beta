@@ -64,6 +64,9 @@ class KitsugiApplication : Application(), SingletonImageLoader.Factory {
         try { com.kitsugi.animelist.core.diagnostics.StartupStage.mark(base, "attachBaseContext") } catch (_: Throwable) {}
         try { com.kitsugi.animelist.core.diagnostics.KitsugiCrashHandler.install(base) } catch (_: Throwable) {}
         try { com.kitsugi.animelist.core.diagnostics.KitsugiSessionSupervisor.install(base) } catch (_: Throwable) {}
+        // v2.4.342: kalıcı günlük en erken noktada açılır. Böylece açılış sırasında (provider
+        // init, WorkManager, DB) oluşan sorunlar da "Günlükler" ekranında görünür.
+        try { com.kitsugi.animelist.core.diagnostics.KitsugiLog.init(base) } catch (_: Throwable) {}
         // Dil dosyası metinlerinin Composable olmayan bağlamlardan (ViewModel,
         // servis, Worker, veri katmanı) çözülebilmesi için bağlamı burada sakla.
         try { com.kitsugi.animelist.utils.KitsugiStrings.install(base) } catch (_: Throwable) {}
@@ -161,6 +164,15 @@ class KitsugiApplication : Application(), SingletonImageLoader.Factory {
         // ── Çökme yakalayıcı ─────────────────────────────────────────────────────────
         // attachBaseContext() içinde ZATEN kuruldu (provider/erken init çökmelerini de
         // yakalayabilmek için). Burada yalnızca garantiye alıyoruz.
+        // v2.4.342: donma bekçisi + kendi sistem günlüğümüzün kalıcı köprüsü.
+        // Logcat akışı 1,5 sn gecikmeyle başlar: açılış süresini hiç etkilemesin.
+        runCatching { com.kitsugi.animelist.core.diagnostics.UiFreezeWatchdog.start(this) }
+        runCatching {
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                runCatching { com.kitsugi.animelist.core.diagnostics.LogcatCapture.start(this) }
+            }, 1_500L)
+        }
+
         com.kitsugi.animelist.core.diagnostics.StartupStage.mark(this, "KitsugiCrashHandler.install(re)")
         runCatching { com.kitsugi.animelist.core.diagnostics.KitsugiCrashHandler.install(this) }
 

@@ -126,6 +126,9 @@ object KitsugiHttpClient {
             )
             // En içte: her deneme (RetryInterceptor dahil) için gerçek HTTP kodunu görür.
             .addInterceptor(PlatformFailureInterceptor())
+            // v2.4.342: her deneme kalıcı günlüğe yazılır (host, yol, kod, süre, kota başlıkları).
+            // Kullanıcı "hangi kaynak ne zaman ne döndü" sorusunu sonradan cevaplayabilsin.
+            .addInterceptor(KitsugiNetworkLogInterceptor())
             .build()
     }
 }

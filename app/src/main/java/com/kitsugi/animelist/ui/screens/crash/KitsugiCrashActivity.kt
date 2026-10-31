@@ -404,6 +404,14 @@ class KitsugiCrashActivity : ComponentActivity() {
                                             // 5. FileLoggingTree debug log
                                             addFileIfExists(com.kitsugi.animelist.core.diagnostics.FileLoggingTree.getLogFile(context))
 
+                                            // 5b. v2.4.342: kalıcı uygulama günlüğü (eşitleme, ağ, donma,
+                                            // arka plan işleri). Çökme raporuyla birlikte paylaşılır.
+                                            runCatching {
+                                                com.kitsugi.animelist.core.diagnostics.KitsugiLog
+                                                    .logFile(context)
+                                                    ?.let { addFileIfExists(it) }
+                                            }
+
                                             // 6. Anlık logcat dökümü (şimdiki)
                                             val liveLogcatFile = File(context.filesDir, "live_logcat_report.txt")
                                             withContext(Dispatchers.IO) {

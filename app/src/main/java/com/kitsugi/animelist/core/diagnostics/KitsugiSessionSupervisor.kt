@@ -55,6 +55,8 @@ object KitsugiSessionSupervisor {
     private const val HEARTBEAT_MS        = 5_000L
     private const val FLUSH_EVERY_N_TICKS = 3          // ~15 sn'de bir diske yaz
     private const val MAX_BREADCRUMBS     = 40
+    /** Kırıntı dosyası en fazla bu aralıkla yazılır (donma önleme, v2.4.342). */
+    private const val BREADCRUMB_WRITE_INTERVAL_MS = 1_500L
     private const val MAX_LOGCAT_LINES    = 9_000
     private const val LOGCAT_RELEVANT_LIMIT = 220
 
@@ -74,6 +76,8 @@ object KitsugiSessionSupervisor {
 
     private val breadcrumbs = ArrayDeque<String>()
     private val breadcrumbLock = Any()
+    /** Son kırıntı dosyası yazımı (ms) — yazma sıklığını sınırlar (v2.4.342). */
+    @Volatile private var lastBreadcrumbWriteAt: Long = 0L
 
     // SimpleDateFormat thread-safe DEĞİLDİR; bu sınıf ana thread + IO thread + çökme
     // handler'ından birlikte çağrılır → her kullanım kilit altında yapılır.
@@ -179,6 +183,11 @@ object KitsugiSessionSupervisor {
         if (!active) return
         lastScreen = screen
         noteAction("ekran → $screen")
+        // v2.4.342: ekran geçişleri kalıcı günlüğe de yazılır. Donma/çökme anında
+        // "hangi ekrandaydı" sorusunun cevabı böylece günlükte durur.
+        runCatching {
+            KitsugiLog.d(KitsugiLog.Channel.USER, "ekran", screen)
+        }
     }
 
     /** Kullanıcı eylemlerini (galeri aç, resim indir, oynat...) halka tampona ekler. */
@@ -190,6 +199,13 @@ object KitsugiSessionSupervisor {
             while (breadcrumbs.size > MAX_BREADCRUMBS) breadcrumbs.removeFirst()
         }
         val copy = synchronized(breadcrumbLock) { breadcrumbs.toList() }
+        // v2.4.342 — DONMA KORUMASI: eskiden **her** kullanıcı eyleminde kırıntı dosyası
+        // baştan yazılıyordu. Hızlı dokunuşlarda bu, tek iş parçacıklı kuyruğu doldurup
+        // gereksiz disk yükü üretiyordu. Artık en fazla 1,5 sn'de bir yazılır; son hâl
+        // yine kaybolmaz (çökme anında [flushNow] zorla yazar).
+        val now = System.currentTimeMillis()
+        if (now - lastBreadcrumbWriteAt < BREADCRUMB_WRITE_INTERVAL_MS) return
+        lastBreadcrumbWriteAt = now
         ioExecutor.execute {
             try {
                 appContext?.let { ctx ->
@@ -319,6 +335,19 @@ object KitsugiSessionSupervisor {
 
         Log.w(TAG, "Temiz olmayan kapanma tespit edildi (önceki pid=$prevPid, ekran=$screen)")
 
+        // v2.4.342: "sessiz ölüm" (native çökme, LMKD, ANR sonrası kill, zorla durdurma)
+        // kalıcı günlüğe de yazılır. Kullanıcı günlükte tam olarak hangi ekranda, hangi
+        // sürümde ve ne kadar süre sonra öldüğünü görebilir.
+        runCatching {
+            KitsugiLog.w(
+                KitsugiLog.Channel.SYSTEM,
+                "oturum",
+                "Önceki oturum temiz kapanmadı (pid=$prevPid)",
+                "ekran=$screen | ön planda=$wasForeground | sürüm=$build | " +
+                    "son canlılık: ${if (lastAlive > 0) Date(lastAlive) else "?"}"
+            )
+        }
+
         // ── ÖN PLANDa öldüyse kullanıcıya HEMEN haber ver (bu kısım çok ucuz: sadece prefs) ──
         // Uygulama açılışını BLOKLAMAMAK için logcat kazısı + rapor üretimi arka planda yapılır
         // (eskiden bu işler ana thread'de yapılıyordu → her açılışta donma riski).
@@ -435,6 +464,15 @@ object KitsugiSessionSupervisor {
         if (shouldSurface) {
             uncleanExitDetected.set(true)
             setUnreadFlag(ctx, postMortem.headline.lineSequence().firstOrNull() ?: "Beklenmedik kapanma")
+            // v2.4.342: kazı sonucunun özeti günlüğe (kullanıcı paylaştığında kanıt olsun).
+            runCatching {
+                KitsugiLog.e(
+                    KitsugiLog.Channel.CRASH,
+                    "oturum",
+                    "Beklenmedik kapanma raporu üretildi",
+                    postMortem.headline.lineSequence().take(3).joinToString(" / ")
+                )
+            }
         }
     }
 

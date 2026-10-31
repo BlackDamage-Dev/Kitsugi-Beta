@@ -223,6 +223,17 @@ object AniListGate {
                 slowMode = true
                 val waitMs = cooldownFromHeaders(now, retryAfterSec, resetSec)
                 cooldownUntil = maxOf(cooldownUntil, now + waitMs)
+                // v2.4.342: kotanın **ne zaman** ve **hangi kanıtla** dolduğu kalıcı günlüğe yazılır.
+                // Kullanıcı "neden hiçbir şey eşitlenmiyor" sorusunun cevabını günlükte bulur.
+                runCatching {
+                    com.kitsugi.animelist.core.diagnostics.KitsugiLog.w(
+                        com.kitsugi.animelist.core.diagnostics.KitsugiLog.Channel.SYNC,
+                        "anilist-gate",
+                        "istek sınırı doldu (HTTP $httpCode)",
+                        "bekleme=${waitMs}ms | limit=${limit ?: "-"} | kalan=${remaining ?: "-"} | " +
+                            "retry-after=${retryAfterSec ?: "-"} | reset=${resetSec ?: "-"}"
+                    )
+                }
                 return@synchronized
             }
 
@@ -231,6 +242,14 @@ object AniListGate {
                     // Kota bitti ama 429 gelmedi: pencere sıfırlanana kadar bekle.
                     slowMode = true
                     exhaustedUntil = maxOf(exhaustedUntil, now + resetFromHeaders(now, resetSec))
+                    runCatching {
+                        com.kitsugi.animelist.core.diagnostics.KitsugiLog.i(
+                            com.kitsugi.animelist.core.diagnostics.KitsugiLog.Channel.SYNC,
+                            "anilist-gate",
+                            "kota penceresi tükendi (X-RateLimit-Remaining=0)",
+                            "limit=${limit ?: "-"} | reset=${resetSec ?: "-"}"
+                        )
+                    }
                 } else if (remaining != null) {
                     slowMode = remaining <= SLOW_MODE_REMAINING_THRESHOLD
                 } else {

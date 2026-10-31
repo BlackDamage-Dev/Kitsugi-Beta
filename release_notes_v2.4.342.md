@@ -1,4 +1,4 @@
-# Kitsugi Beta v2.4.341
+# Kitsugi Beta v2.4.342
 
 ## 🇹🇷 Türkçe
 
@@ -87,6 +87,29 @@
 - **Profil ekranları:** kota uyarısı artık kaynağı ve kalan saniyeyi söylüyor
   (eskiden yalnız "bekleyin" diyordu).
 
+### 🧾 Günlükler — artık **her şeyi** alıyor, çökmeden ve dondurmadan
+- **Kalıcı günlük:** uygulama artık kendi günlüğünü `files/diagnostics/kitsugi_runtime.log`
+  dosyasına **sürekli** yazıyor (4 MB'da döner, en fazla ~8 MB). Eski "Günlükler" ekranı
+  yalnızca sistem logcat'ini okuyordu; Android 10+ üzerinde logcat halka tamponu dolunca
+  **eski satırlar silinir** ve "az önce arka planda ne oldu" kanıtı kaybolurdu. Artık kaybolmuyor.
+- **Neler kaydediliyor:** liste eşitleme (AniList · MyAnimeList · Kitsu · Shikimori · Simkl ·
+  Bangumi) sonuçları, her ağ isteğinin host/yol/HTTP kodu/süresi ve kota başlıkları
+  (`Retry-After`, `X-RateLimit-*`), kuyruk boşaltma turları, çağrı içe aktarma hataları,
+  manga/eklenti kaynak tanıları, çökmeler, **donmalar** ve hata kodu kayıtları.
+- **Donma tespiti:** ana iş parçacığı 2,5 sn'den uzun yanıt vermezse o anki **yığın izi**
+  (hangi kod kilitledi) günlüğe yazılır. ANR'de süreç öldürülse bile sebep elimizde kalır.
+- **Sistem günlüğü köprüsü:** uygulamanın kendi logcat satırları da kalıcı dosyaya aktarılır
+  (saniyede en fazla 300 satır, tekrarlar sıkıştırılır) — böylece yüzlerce `Log.*` çağrısını
+  tek tek değiştirmek gerekmeden her şey kaydedilir.
+- **Donma yapmaz:** günlük yazımı tek bir düşük öncelikli arka plan iş parçacığında; kuyruk
+  dolarsa satır **atılır ve sayılır** — ana ekran asla beklemez. Ayrıca kırıntı (ekmek
+  kırıntısı) dosyası artık her dokunuşta değil, en fazla 1,5 sn'de bir yazılıyor.
+- **Görüntüleyici:** Ayarlar ▸ Sistem ▸ Geliştirici günlükleri. Yeni "Uygulama günlüğü"
+  (varsayılan) ve "Sistem (logcat)" kaynak seçimi; **konu** filtreleri (Eşitleme · Ağ ·
+  Kaynak · Arka plan · Donma · Çökme · Sistem · Diğer), seviye filtreleri, arama, kopyala,
+  kaydet, paylaş, temizle. Günlük boyutu ve atlanan tekrar sayısı üstte yazar.
+- **Çökme raporuna eklenir:** çökme ekranındaki "paylaş" artık bu kalıcı günlüğü de gönderir.
+
 ---
 
 ## 🇬🇧 English
@@ -169,3 +192,26 @@
   sync failures are also written to the error-code registry, so the code chip on search and
   detail screens shows the same explanation.
 - **Profile screens:** the quota notice now names the source and the remaining seconds.
+
+### 🧾 Logs — now capture **everything**, without crashing or freezing
+- **Persistent log:** the app continuously writes its own log to
+  `files/diagnostics/kitsugi_runtime.log` (rotates at 4 MB, ~8 MB max). The old "Logs" screen
+  read only system logcat; on Android 10+ the logcat ring buffer drops old lines, so the
+  evidence of "what just happened in the background" was usually gone. Not any more.
+- **What is recorded:** list sync outcomes (AniList · MyAnimeList · Kitsu · Shikimori · Simkl ·
+  Bangumi), every network request's host/path/HTTP code/duration plus quota headers
+  (`Retry-After`, `X-RateLimit-*`), queue-drain rounds, import failures, manga/plugin source
+  diagnostics, crashes, **freezes**, and error-code records.
+- **Freeze detection:** if the main thread stops responding for more than 2.5 s, the current
+  stack trace is written to the log — so even an ANR kill leaves the culprit behind.
+- **System-log bridge:** the app's own logcat lines are streamed into the persistent file
+  (max 300 lines per second, repeats collapsed), so all the existing `Log.*` calls are covered
+  without touching hundreds of files.
+- **No freezes:** logging happens on a single low-priority background thread; when the queue is
+  full a line is **dropped and counted**, never blocking the UI. Breadcrumb writes are also
+  throttled to once per 1.5 s.
+- **Viewer:** Settings ▸ System ▸ Developer logs. New "App log" (default) and "System (logcat)"
+  sources, topic filters (Sync · Network · Source · Background · Freeze · Crash · System ·
+  Other), level filters, search, copy, save, share, clear. Log size and suppressed-repeat counts
+  are shown on top.
+- **Included in crash reports:** the crash screen's share action now attaches this persistent log.

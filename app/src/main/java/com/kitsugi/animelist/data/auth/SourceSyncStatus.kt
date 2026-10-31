@@ -3,6 +3,7 @@ package com.kitsugi.animelist.data.auth
 import android.content.Context
 import androidx.annotation.StringRes
 import com.kitsugi.animelist.R
+import com.kitsugi.animelist.core.diagnostics.KitsugiLog
 import java.util.Locale
 
 /**
@@ -145,6 +146,10 @@ object SourceSyncStatus {
             .putString(key(source, "reason"), Reason.OK.name)
             .remove(key(source, "detail"))
             .apply()
+        // v2.4.342: eşitleme sonucu kalıcı günlüğe de yazılır (kaynak bazında).
+        runCatching {
+            KitsugiLog.i(KitsugiLog.Channel.SYNC, source.key, "eşitleme başarılı", source.name)
+        }
     }
 
     fun reportFailure(context: Context, source: Source, reason: Reason, detail: String? = null) {
@@ -154,6 +159,18 @@ object SourceSyncStatus {
             .putString(key(source, "reason"), reason.name)
             .putString(key(source, "detail"), detail?.take(200))
             .apply()
+        // v2.4.342: "hangi kaynak neden durdu" kalıcı günlükte de durur; kullanıcı
+        // ekranda gördüğü cümlenin kanıtını sonradan paylaşabilir.
+        runCatching {
+            val level = if (reason == Reason.UNKNOWN) KitsugiLog.Level.ERROR else KitsugiLog.Level.WARN
+            KitsugiLog.log(
+                level = level,
+                channel = KitsugiLog.Channel.SYNC,
+                tag = source.key,
+                message = "eşitleme durdu: ${reason.name.lowercase()}",
+                detail = detail?.take(500)
+            )
+        }
     }
 
     fun clear(context: Context) {

@@ -121,6 +121,17 @@ object PendingSyncDrainer {
         if (freshBudget) dao.resetRetries()
         val pending = dao.getAll().filter { it.retryCount < MAX_RETRIES }
         if (pending.isEmpty()) return@withContext 0
+        // v2.4.342: arka plan kuyruğu boşaltma turu kalıcı günlüğe yazılır. Kullanıcı
+        // "kaç iş bekliyordu, kaçı gitti" sorusunu sonradan cevaplayabilir.
+        runCatching {
+            com.kitsugi.animelist.core.diagnostics.KitsugiLog.i(
+                com.kitsugi.animelist.core.diagnostics.KitsugiLog.Channel.WORK,
+                "kuyruk",
+                "boşaltma başladı",
+                "bekleyen=${pending.size} | yeni bütçe=$freshBudget | " +
+                    "anilist soğuma=${AniListGate.cooldownRemainingMs()}ms"
+            )
+        }
 
         var successCount = 0
 
@@ -159,6 +170,16 @@ object PendingSyncDrainer {
                 successCount++
             } else {
                 val allErrors = syncResult?.errors.orEmpty().joinToString(" | ")
+                // v2.4.342: kuyrukta kalan işin nedeni kalıcı günlüğe yazılır.
+                runCatching {
+                    com.kitsugi.animelist.core.diagnostics.KitsugiLog.w(
+                        com.kitsugi.animelist.core.diagnostics.KitsugiLog.Channel.WORK,
+                        "kuyruk",
+                        "iş gönderilemedi (${item.operation})",
+                        "deneme=${item.retryCount + 1} | " +
+                            (allErrors.ifBlank { result.exceptionOrNull()?.message }.orEmpty().take(400))
+                    )
+                }
                 val isAuthError = allErrors.contains("401") || allErrors.contains("token geçersiz") || allErrors.contains("Unauthorized")
                 val isQuota = AniListGate.isQuotaMessage(allErrors) || AniListGate.isCoolingDown()
                 // Kota kaynaklı başarısızlık "kullanıcı hatası" değil: deneme bütçesini
@@ -171,6 +192,17 @@ object PendingSyncDrainer {
                     break
                 }
             }
+        }
+
+        // Tur özeti: kaç iş gönderildi, kaç iş kaldı.
+        runCatching {
+            val remaining = dao.getAll().size
+            com.kitsugi.animelist.core.diagnostics.KitsugiLog.i(
+                com.kitsugi.animelist.core.diagnostics.KitsugiLog.Channel.WORK,
+                "kuyruk",
+                "boşaltma bitti",
+                "gönderilen=$successCount | kalan=$remaining"
+            )
         }
 
         successCount
