@@ -198,9 +198,15 @@ class AiringNotificationWorker(
             if (!simklToken.isNullOrBlank()) {
                 try {
                     val importedEntries = SimklImportManager.fetchAllLists(simklToken)
-                    val repository = MediaEntryRepository(db.mediaEntryDao())
-                    // Sil-yeniden-yaz sırasında +18 işaretlerini koru (bkz. repository)
-                    repository.replaceSourcePreservingAdultFlags("simkl", importedEntries)
+                    // v2.4.341: repository kuyruk erişimiyle kurulur; sil-yeniden-yaz yerine
+                    // birleştirme yapılır. Eski davranış, Simkl'de henüz push edilmemiş yerel
+                    // kayıtları (ve kuyruk işlerini) her gece siliyordu.
+                    val repository = MediaEntryRepository(
+                        dao = db.mediaEntryDao(),
+                        pendingSyncDao = db.pendingSyncDao(),
+                        context = context
+                    )
+                    repository.smartImport("simkl", importedEntries, allowDelete = false)
                     Log.d(TAG, "Simkl background sync successful: ${importedEntries.size} entries")
 
                     val calendarClient = SimklCalendarClient()

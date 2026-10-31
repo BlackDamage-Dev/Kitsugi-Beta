@@ -42,6 +42,31 @@
 - Kota nedeniyle ertelenen kayıtlar ceza bitiminde kendiliğinden gönderiliyor; kullanıcının
   aynı düğmeye tekrar basmasına gerek yok.
 
+### 🧩 "Günlerdir hiçbir şey AniList'e gitmiyor" — Sessiz Veri Kaybı Düzeltmesi
+- **24 saatlik otomatik yenileme yerel kayıtları siliyordu:** açılışta listeler
+  `replaceSourcePreservingAdultFlags` ile **sil-yeniden-yaz** yapıyordu. Uzak listede
+  bulunmayan (yani henüz AniList'e gönderilememiş) **yeni kayıtlar** ve o kaynak için
+  bekleyen **kuyruk işleri** her 24 saatte bir yok oluyordu. Artık birleştirme yapılıyor
+  (`smartImport`, `allowDelete = false`) ve **önce bekleyen değişiklikler gönderiliyor**.
+- **Bekleyen değişiklik uzak kopyayla ezilmiyor:** kuyrukta işi olan satır, liste
+  yenilemesinde/otomatik senkronda korunur.
+- **Deneme sayacı artık "ölüm cezası" değil:** 5 denemeyi aşmış işler uygulama açılışında
+  ve **"Şimdi dene"** ile tazelenir; kota hatası sayacı hiç artırmaz.
+- **Kimlik doğrulaması her şeyi sessizce kilitleyemez:** MAL kataloğuna ulaşılamadığında
+  (429/403/timeout) yazma sessizce atlanıyordu; artık yalnızca guard'ın **açıkça
+  reddettiği** eşleşmeler durdurur, katalog erişilemezse native MAL satırlarında yazma
+  devam eder ve durum kullanıcıya bildirilir.
+
+### 💬 "Neden eşitlenmiyor?" — Doğru ve tek anlamlı uyarılar
+- Listem ekranına **durum şeridi** eklendi: kota · oturum geçersiz · bağlı değil ·
+  eşitleme kapalı · internet yok · AniList API kapalı · kimlik doğrulanamadı.
+  Şerit bekleyen değişiklik sayısını ve (kotada) kalan saniyeyi gösterir, **"Şimdi dene"**
+  düğmesiyle kuyruğu zorlar.
+- Tek tek işlemlerde çıkan mesajlar da nedene göre ayrıldı; eskiden her hata
+  "📵 Çevrimdışı kaydedildi" diyordu. Aynı gerekçe 2 dakikada birden sık gösterilmez.
+- Başarılı görünen ama AniList'in **atlandığı** turlar (bağlı değil / kimlik / kapalı)
+  artık sessiz değil.
+
 ---
 
 ## 🇬🇧 English
@@ -61,6 +86,29 @@
 - **429 no longer blocks a thread:** previously the caller was slept for 60–120 s (while
   holding a lock). Now the write is queued and **retried automatically** when the penalty
   window ends.
+
+### 🧩 "Nothing has synced to AniList for days" — Silent Data Loss Fix
+- **The 24-hour auto refresh was deleting local rows:** on startup, lists were written with
+  `replaceSourcePreservingAdultFlags`, a **delete-and-reinsert** cycle. New entries that were
+  not yet on AniList (i.e. never pushed) and the **pending queue jobs** for that source were
+  wiped every 24 hours. The auto refresh now **merges** (`smartImport`, `allowDelete = false`)
+  and **pushes pending changes first**.
+- **Pending changes are no longer overwritten** by the remote copy during refresh/auto sync.
+- **The retry counter is no longer a death sentence:** jobs past 5 attempts are refreshed on
+  app start and via **"Retry now"**; quota errors never consume attempts.
+- **Identity verification can no longer block everything silently:** when the MAL catalog is
+  unreachable (429/403/timeout) writes used to be skipped with no message. Now only explicit
+  *rejections* stop a write; unreachable-catalog cases proceed for native MAL rows and the
+  reason is surfaced to the user.
+
+### 💬 "Why isn't it syncing?" — Accurate, single-cause warnings
+- New **status banner** in the Library screen: quota · invalid session · not connected ·
+  sync disabled · no internet · AniList API down · identity unverified. It shows the pending
+  change count (and remaining seconds for quota) and offers **"Retry now"**.
+- Per-action messages are now reason-specific (the old build always said
+  "📵 Saved offline"), and the same reason is not repeated more than once every 2 minutes.
+- Turns that *look* successful but skipped AniList (not connected / identity / disabled) are
+  no longer silent.
 
 ### ✍️ Requests per Edit: 4–7 → 1
 - **Identity verification cache (6 h):** the repeated `Media(id)` lookup per edit is gone.

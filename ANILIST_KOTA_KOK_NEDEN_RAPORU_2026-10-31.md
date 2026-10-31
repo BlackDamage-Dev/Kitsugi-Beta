@@ -317,6 +317,91 @@ AniList'e giden **tüm** trafik artık tek kapıdan geçiyor:
 ~ ui/app/AuthViewModel.kt                         (favori işaretlerinin sıfırlanması)
 ~ ui/app/KitsugiProfileViewModel.kt               (gate)
 ~ ui/screens/profile/KitsugiUserProfileViewModel.kt (gate)
-~ data/notifications/NotificationDiagnostics.kt       (kapı + IO)
+~ data/auth/AniListSyncStatus.kt                  (YENİ — kalıcı "neden eşitlenmiyor" durumu)
+~ data/notifications/NotificationDiagnostics.kt   (kapı + IO)
+~ KitsugiApplication.kt                          (otomatik yenileme: sil-yaz yerine birleştir + açılışta kuyruk)
+~ core/notifications/AiringNotificationWorker.kt  (Simkl: sil-yaz yerine birleştir)
+~ ui/screens/mylist/MyListViewModel.kt            (syncHealth + "Şimdi dene")
+~ ui/screens/mylist/MyListScreen.kt               (durum şeridi)
 ~ res/values/strings.xml, res/values-en/strings.xml  (kota mesajları + hata açıklamaları)
 ```
+
+---
+
+## 8. İkinci tur — "günlerdir hiçbir şey AniList'e gitmiyor"
+
+Kullanıcı geri bildirimi: *"Listem'de son birkaç gündür eklediğim hiçbir yeni içerik veya
+düzenleme AniList ile eşitlenmemiş."* Bu, 429 sorunundan **ayrı** ve daha ağır bir kök
+neden zinciri ortaya çıkardı. Dördü de "sessiz" çalışıyordu:
+
+### 8.1 24 saatlik otomatik yenileme, yerel kayıtları SİLİYORDU
+
+`KitsugiApplication` açılışta (24 saat geçtiyse) listeleri
+`MediaEntryRepository.replaceSourcePreservingAdultFlags(source, entries)` ile yazıyordu.
+Bu fonksiyon **kaynağın tüm satırlarını siler** (`dao.deleteBySource`) ve uzaktan geleni
+yeniden ekler; ayrıca o kaynağın **bekleyen kuyruk işlerini de temizler**
+(`clearPendingJobsFor(source)`).
+
+Sonuç: AniList'e henüz gönderilememiş **yeni** bir kayıt, uzak listede olmadığı için
+bir sonraki otomatik yenilemede **tamamen siliniyordu**; düzenlemeler ise uzak (eski)
+değerlerle eziliyordu. Kullanıcının "ekliyorum, eşitlenmiyor" gözleminin ana nedeni budur.
+
+**Düzeltme:** otomatik yenileme artık `smartImport(source, entries, allowDelete = false)`
+kullanıyor (birleştirir, silmez) ve **önce bekleyen kuyruğu gönderiyor**
+(`drainPendingQueue(freshBudget = true)`), sonra listeyi çekiyor.
+
+### 8.2 Bekleyen değişikliği olan satır, uzak kopyayla EZİLİYORDU
+
+`smartImport`, eşleşen satırı uzak değerlerle güncelliyordu; satırın henüz gönderilmemiş
+bir değişikliği varsa bu, kullanıcının düzenlemesini geri alıyordu.
+
+**Düzeltme:** kuyrukta işi olan satırlar (`pendingSyncDao` içindeki `entryJson.id`)
+içe aktarımda **korunuyor**; uzak veri onları ezmiyor.
+
+### 8.3 Deneme sayacı "ölüm cezası" gibiydi
+
+`PendingSyncDrainer.drain()` yalnızca `retryCount < 5` işleri deniyordu. Kota (429)
+döneminde her deneme sayacı artırdığı için işler 5'te takılıyor ve **bir daha asla**
+denenmiyordu. Kuyruk da yalnızca (a) ağ değişiminde, (b) bir yazma **başarılı** olduğunda
+boşaltılıyordu; ikisi de günlerce gerçekleşmeyebilir.
+
+**Düzeltme:**
+- Kota hatası artık **deneme sayacını artırmaz** (v2.4.341).
+- Uygulama açılışında kuyruk `freshBudget = true` ile zorla boşaltılır → 5'i aşmış işler
+  dahil herkes bir şans daha alır.
+- Listem ekranındaki **"Şimdi dene"** düğmesi aynı işi elle tetikler.
+
+### 8.4 Kimlik doğrulaması "katalog ulaşılamadı" diye HER ŞEYİ kilitliyordu
+
+`ExternalListSyncManager.crossWriteBlocked()` MAL kataloğunu doğrular. Katalog
+ulaşılamadığında (`Unverifiable`) veya istek istisna attığında sonuç `false` dönüyor ve
+yazma **sessizce atlanıyordu**. MAL API 429/403/timeout verdiğinde bu, AniList dahil
+hiçbir kaynağa hiçbir şey yazılmaması demek — ve tek bir mesaj bile çıkmıyordu.
+
+**Düzeltme:** yalnızca guard'ın açıkça **reddettiği** (başlık/tür/yıl uyuşmazlığı)
+eşleşmeler yazmayı durdurur. Katalog erişilemediğinde, satırın kimliği kendi kaynağından
+geliyorsa (native MAL satırı) yazma devam eder. Reddedilen/kimliksiz durumlar artık
+"kimlik doğrulanamadı" gerekçesiyle **kullanıcıya gösterilir**.
+
+### 8.5 Doğru uyarılar: tek bir "neden" ve kalıcı durum
+
+Yeni `AniListSyncStatus` (yeni dosya) son başarılı yazmanın zamanını ve son hatanın
+**sınıflandırılmış** nedenini kalıcı olarak tutar:
+
+| Neden | Listem şeridi (örnek) |
+|-------|------------------------|
+| Kota | ⏳ AniList istek sınırı doldu — 12 değişiklik 43 sn sonra kendiliğinden gönderilecek |
+| Oturum | 🔑 AniList oturumu geçersiz — 12 değişiklik gönderilemiyor, yeniden giriş yapın |
+| Bağlı değil | 🔌 AniList bağlı değil — 12 değişiklik yalnızca bu cihazda duruyor |
+| Kapalı | ⚙️ AniList eşitlemesi ayarlardan kapalı |
+| İnternet | 📵 İnternet yok — bağlantı gelince gönderilecek |
+| API kapalı | 🛠 AniList API geçici olarak kapalı |
+| Kimlik | 🔎 N değişikliğin AniList karşılığı doğrulanamadı |
+
+- Şerit yalnızca gerçekten bekleyen bir şey varsa görünür; üzerinde **"Şimdi dene"**
+  düğmesi vardır.
+- Tek tek yapılan işlemlerde çıkan mesajlar da aynı sınıflandırmayı kullanır:
+  "📵 Çevrimdışı kaydedildi" tek başına artık gösterilmez; yerine kota/oturum/internet/API
+  ayrımı yapılır. Aynı gerekçe 2 dakikada bir defadan sık gösterilmez.
+- **Başarılı görünen ama AniList'in atlandığı** turlar (bağlı değil / kimlik çözülemedi /
+  kapalı) artık sessiz değil: durum kaydedilir ve şeritte görünür.

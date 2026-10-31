@@ -8,6 +8,7 @@ import com.kitsugi.animelist.data.local.KitsugiDatabase
 import com.kitsugi.animelist.model.EntryAutoRules
 import com.kitsugi.animelist.model.MediaEntry
 import com.kitsugi.animelist.model.WatchStatus
+import com.kitsugi.animelist.data.auth.AniListSyncStatus
 import com.kitsugi.animelist.data.auth.ExternalAuthManager
 import com.kitsugi.animelist.data.remote.BangumiIdNamespace
 import com.kitsugi.animelist.data.remote.BangumiLibraryTitleHydrator
@@ -16,6 +17,7 @@ import com.kitsugi.animelist.model.MediaType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -43,6 +45,51 @@ class MyListViewModel(application: Application) : AndroidViewModel(application) 
                 viewModelScope.launch { _syncMessages.send(msg) }
             }
         )
+    }
+
+    // ─── AniList eşitleme sağlığı (v2.4.341) ────────────────────────────────
+    // Listem ekranı bu bilgiyle "neden eşitlenmiyor?" şeridini çizer: kota mı, oturum mu,
+    // kimlik mi, internet mi? Eskiden bu durumların hiçbiri kullanıcıya gösterilmiyordu.
+    data class SyncHealth(
+        val reason: AniListSyncStatus.Reason = AniListSyncStatus.Reason.NONE,
+        val message: String = "",
+        val pending: Int = 0,
+        val lastSuccessAt: Long = 0L
+    ) {
+        val visible: Boolean get() = message.isNotBlank()
+    }
+
+    private val _syncHealth = MutableStateFlow(SyncHealth())
+    val syncHealth: StateFlow<SyncHealth> = _syncHealth
+
+    /** Kuyruk/bağlantı durumunu yeniden okur (ekran açılışında ve periyodik olarak). */
+    fun refreshSyncHealth() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val snapshot = AniListSyncStatus.snapshot(context)
+            val pending = runCatching { repository.pendingSyncCount() }.getOrDefault(0)
+            val message = AniListSyncStatus.describe(context, snapshot, pending)
+            _syncHealth.value = SyncHealth(
+                reason = snapshot.reason,
+                message = message,
+                pending = pending,
+                lastSuccessAt = snapshot.lastSuccessAt
+            )
+        }
+    }
+
+    /** "Şimdi dene": deneme sayaçlarını tazeler ve kuyruğu zorla boşaltır. */
+    fun retryAniListSyncNow() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val sent = runCatching { repository.retryPendingSyncNow() }.getOrDefault(0)
+            refreshSyncHealth()
+            if (sent > 0) {
+                runCatching {
+                    _syncMessages.send(
+                        context.getString(com.kitsugi.animelist.R.string.anilist_sync_retried_n, sent)
+                    )
+                }
+            }
+        }
     }
 
     val entriesFlow: StateFlow<List<MediaEntry>> = repository.entriesFlow.stateIn(
@@ -91,6 +138,7 @@ class MyListViewModel(application: Application) : AndroidViewModel(application) 
         // taramayı kaçırır. Bu yüzden aktarım sonrası AuthViewModel ve başlık dili
         // değişiminde ekran da aynı taramayı tetikler (bkz. refreshBangumiTitles).
         refreshBangumiTitles()
+        refreshSyncHealth()
     }
 
     /**

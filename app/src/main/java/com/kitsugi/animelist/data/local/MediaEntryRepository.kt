@@ -2,6 +2,7 @@ package com.kitsugi.animelist.data.local
 
 import com.kitsugi.animelist.R
 import com.kitsugi.animelist.data.auth.AniListGate
+import com.kitsugi.animelist.data.auth.AniListSyncStatus
 import com.kitsugi.animelist.data.auth.runSyncCatching
 import android.content.Context
 import com.kitsugi.animelist.data.auth.ExternalListSyncManager
@@ -13,6 +14,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOn
+import org.json.JSONObject
 
 class MediaEntryRepository(
     private val dao: MediaEntryDao,
@@ -31,6 +33,12 @@ class MediaEntryRepository(
     )
 
     private val pendingExternalSyncs = java.util.concurrent.ConcurrentHashMap<Int, PendingExternalSync>()
+
+    /**
+     * "Neden eşitlenmiyor?" bildirimlerinin son gösterilme zamanı. Aynı gerekçe her
+     * dokunuşta tekrarlanmaz (2 dk), böylece kullanıcı bildirim yağmuruna tutulmaz.
+     */
+    private val syncNoticeAt = java.util.concurrent.ConcurrentHashMap<String, Long>()
 
     private fun pendingKey(entryId: Int): String = "entry-$entryId"
 
@@ -61,6 +69,45 @@ class MediaEntryRepository(
         val queueDao = pendingSyncDao ?: return
         val waitMs = (AniListGate.cooldownRemainingMs() + 2_000L).coerceAtLeast(2_000L)
         PendingSyncDrainer.scheduleResume(appContext, queueDao, waitMs)
+    }
+
+    /**
+     * Kuyrukta bekleyen (henüz gönderilememiş) değişikliği olan **yerel satır id'leri**.
+     * Liste içe aktarımı bu satırları uzak veriyle ezmez (v2.4.341).
+     */
+    private suspend fun pendingEntryIds(): Set<Int> {
+        val queue = pendingSyncDao ?: return emptySet()
+        return try {
+            queue.getAll().mapNotNull { job ->
+                runCatching { JSONObject(job.entryJson).optInt("id", 0) }.getOrDefault(0)
+            }.filter { it > 0 }.toSet()
+        } catch (e: Exception) {
+            emptySet()
+        }
+    }
+
+    /** Bekleyen (gönderilememiş) değişiklik sayısı — liste ekranındaki durum şeridi için. */
+    suspend fun pendingSyncCount(): Int {
+        val queue = pendingSyncDao ?: return 0
+        return try {
+            queue.getAll().size
+        } catch (e: Exception) {
+            0
+        }
+    }
+
+    /**
+     * Kullanıcı "Şimdi dene"ye bastığında: deneme sayaçları tazelenir (5 denemeyi aşmış,
+     * "asla denenmeyecek" duruma düşmüş işler dahil) ve kuyruk zorla boşaltılır.
+     * @return gönderilen işlem sayısı
+     */
+    suspend fun retryPendingSyncNow(): Int {
+        val sent = drainPendingQueue(freshBudget = true)
+        val appContext = context
+        if (appContext != null && sent > 0) {
+            AniListSyncStatus.reportSuccess(appContext)
+        }
+        return sent
     }
     /**
      * PERF (2026-10-20): [withCrossSourceAdultFlags] tüm tabloyu entity→domain'e çevirip
@@ -145,6 +192,11 @@ class MediaEntryRepository(
         }
 
         val existing = dao.getAll().filter { it.source.equals(source, ignoreCase = true) }
+        // v2.4.341: Henüz uzak tarafa GÖNDERİLEMEMİŞ yerel değişikliği olan satır, içe
+        // aktarılan (uzak) kopyayla ezilmez. Aksi halde "düzenledim ama AniList'e gitmedi"
+        // durumunda her liste yenilemesi / 24 saatlik arka plan senkronu kullanıcının
+        // değişikliğini sessizce geri alıyordu — "hiçbir şey eşitlenmiyor" hissinin kaynağı.
+        val protectedEntryIds = pendingEntryIds()
         val updates = linkedMapOf<Int, MediaEntryEntity>()
         val inserts = mutableListOf<MediaEntry>()
         val matchedIds = mutableSetOf<Int>()
@@ -178,6 +230,7 @@ class MediaEntryRepository(
             }
             if (match != null) {
                 matchedIds.add(match.id)
+                if (match.id in protectedEntryIds) continue
                 // +18 işareti GERİ ALINMAZ: örneğin Simkl liste API'si yetişkin bayrağını
                 // taşımıyor; güncel kayıt `isAdult = false` getirse bile AniList/MAL gibi
                 // birinci elden bilgilendirilmiş satırın işaretini silmek bulanıklığı
@@ -427,6 +480,57 @@ class MediaEntryRepository(
     // Private Sync Helpers
     // ────────────────────────────────────────────────
 
+    /**
+     * Kullanıcıya gösterilecek, **nedeni açıkça söyleyen** mesaj (v2.4.341).
+     * Eski sürüm hatayı yalnızca "📵 Çevrimdışı kaydedildi" olarak özetliyordu.
+     */
+    private fun syncFailureMessage(context: Context, reason: AniListSyncStatus.Reason): String = when (reason) {
+        AniListSyncStatus.Reason.QUOTA -> context.getString(
+            R.string.account_sync_anilist_quota_wait,
+            (AniListGate.cooldownRemainingMs() / 1_000L).coerceAtLeast(1L)
+        )
+        AniListSyncStatus.Reason.AUTH -> context.getString(R.string.anilist_sync_snack_auth)
+        AniListSyncStatus.Reason.OFFLINE -> context.getString(R.string.anilist_sync_snack_offline)
+        AniListSyncStatus.Reason.SERVICE_DOWN -> context.getString(R.string.anilist_sync_snack_service)
+        AniListSyncStatus.Reason.IDENTITY -> context.getString(R.string.anilist_sync_snack_identity)
+        AniListSyncStatus.Reason.NOT_CONNECTED -> context.getString(R.string.anilist_sync_snack_not_connected)
+        AniListSyncStatus.Reason.DISABLED -> context.getString(R.string.anilist_sync_snack_disabled)
+        else -> context.getString(R.string.anilist_sync_snack_generic)
+    }
+
+    /** Aynı gerekçeyi 2 dakikada birden fazla göstermemek için. */
+    private fun shouldNotify(reason: AniListSyncStatus.Reason): Boolean {
+        val now = System.currentTimeMillis()
+        val previous = syncNoticeAt[reason.name] ?: 0L
+        if (now - previous < 120_000L) return false
+        syncNoticeAt[reason.name] = now
+        return true
+    }
+
+    /**
+     * "Başarılı" görünen bir turda AniList **atlanmışsa** (bağlı değil / kimlik çözülemedi /
+     * ayarlardan kapalı) bunu sessizce yutmak yerine kalıcı duruma ve kullanıcıya taşır.
+     *
+     * Eski davranışta bu durumlar `errors` boş olduğu için "başarı" sayılıyor, tek bir mesaj
+     * bile üretilmiyordu: kullanıcı günlerce hiçbir şeyin eşitlenmediğini fark etmiyordu.
+     */
+    private fun reportAniListOutcome(
+        context: Context,
+        syncResult: ExternalListSyncManager.SyncResult?
+    ) {
+        val outcome = syncResult?.outcomes?.get("AniList") ?: return
+        when (val reason = AniListSyncStatus.classifyOutcome(outcome)) {
+            AniListSyncStatus.Reason.OK -> AniListSyncStatus.reportSuccess(context)
+            AniListSyncStatus.Reason.NONE -> Unit
+            else -> {
+                AniListSyncStatus.reportFailure(context, reason, syncResult.skipped.firstOrNull())
+                if (shouldNotify(reason)) {
+                    notifySyncResult(listOf(syncFailureMessage(context, reason)))
+                }
+            }
+        }
+    }
+
     private suspend fun syncEntryIfPossible(
         entry: MediaEntry,
         advancedScores: List<Double>? = null,
@@ -463,6 +567,7 @@ class MediaEntryRepository(
             val messages = syncResult?.messages.orEmpty()
             if (messages.isNotEmpty()) removeFromQueueIfPresent(entry, "UPDATE")
             notifySyncResult(messages)
+            reportAniListOutcome(appContext, syncResult)
 
             // Dual-write: AniList'ten dönen list entry ID'yi yerel DB'ye kaydet
             val newAniListEntryId = syncResult?.aniListEntryId
@@ -475,22 +580,15 @@ class MediaEntryRepository(
         } else {
             enqueuePending("UPDATE", entry)
             val allErrors = syncResult?.errors.orEmpty().joinToString(" | ")
-            val isAuthError = allErrors.contains("401") || allErrors.contains("token geçersiz") || allErrors.contains("Unauthorized")
-            // Kota (429) ayrı ele alınır: çevrimdışı değil, "kısa süre sonra kendiliğinden
-            // denenecek" demektir. Eski davranış her 429'u "çevrimdışı" diye gösterip
-            // kullanıcıyı internetini kontrol etmeye yönlendiriyordu.
-            val isQuotaError = AniListGate.isQuotaMessage(allErrors) || AniListGate.isCoolingDown()
-            val displayMessage = when {
-                isAuthError -> "🔑 Oturum süresi doldu, lütfen ayarlardan tekrar bağlanın"
-                isQuotaError -> context?.getString(
-                    R.string.account_sync_anilist_quota_wait,
-                    (AniListGate.cooldownRemainingMs() / 1_000L).coerceAtLeast(1L)
-                ) ?: "⏳ AniList istek sınırı doldu — kısa süre sonra kendiliğinden denenecek"
-                else -> "📵 Çevrimdışı kaydedildi, bağlantı gelince gönderilecek"
-            }
-            if (isQuotaError) scheduleQuotaResume()
+            // v2.4.341: mesaj artık gerçek nedeni söyler (kota / oturum / internet / API kapalı
+            // / kimlik). Eskiden her hata "📵 Çevrimdışı kaydedildi" diyordu: kullanıcı
+            // internetini kontrol ediyor, sorun değişmiyordu. Gerekçe ayrıca kalıcı olarak
+            // [AniListSyncStatus]'a yazılır → liste ekranındaki durum şeridi gösterir.
+            val reason = AniListSyncStatus.classify(allErrors, AniListGate.isCoolingDown())
+            AniListSyncStatus.reportFailure(appContext, reason, allErrors)
+            if (reason == AniListSyncStatus.Reason.QUOTA) scheduleQuotaResume()
             notifySyncResult(
-                syncResult?.messages.orEmpty() + listOf(displayMessage) +
+                syncResult?.messages.orEmpty() + listOf(syncFailureMessage(appContext, reason)) +
                     listOfNotNull(syncOutcomeNote(syncResult?.outcomes))
             )
         }
@@ -520,26 +618,20 @@ class MediaEntryRepository(
             val messages = syncResult?.messages.orEmpty()
             if (messages.isNotEmpty()) removeFromQueueIfPresent(entry, "DELETE")
             notifySyncResult(messages)
+            reportAniListOutcome(appContext, syncResult)
             if (messages.isNotEmpty()) drainPendingQueue()
         } else {
             enqueuePending("DELETE", entry)
             val allErrors = syncResult?.errors.orEmpty().joinToString(" | ")
-            val isAuthError = allErrors.contains("401") || allErrors.contains("token geçersiz") || allErrors.contains("Unauthorized")
-            // Kota (429) ayrı ele alınır: çevrimdışı değil, "kısa süre sonra kendiliğinden
-            // denenecek" demektir. Eski davranış her 429'u "çevrimdışı" diye gösterip
-            // kullanıcıyı internetini kontrol etmeye yönlendiriyordu.
-            val isQuotaError = AniListGate.isQuotaMessage(allErrors) || AniListGate.isCoolingDown()
-            val displayMessage = when {
-                isAuthError -> "🔑 Oturum süresi doldu, lütfen ayarlardan tekrar bağlanın"
-                isQuotaError -> context?.getString(
-                    R.string.account_sync_anilist_quota_wait,
-                    (AniListGate.cooldownRemainingMs() / 1_000L).coerceAtLeast(1L)
-                ) ?: "⏳ AniList istek sınırı doldu — kısa süre sonra kendiliğinden denenecek"
-                else -> "📵 Çevrimdışı kaydedildi, bağlantı gelince gönderilecek"
-            }
-            if (isQuotaError) scheduleQuotaResume()
+            // v2.4.341: mesaj artık gerçek nedeni söyler (kota / oturum / internet / API kapalı
+            // / kimlik). Eskiden her hata "📵 Çevrimdışı kaydedildi" diyordu: kullanıcı
+            // internetini kontrol ediyor, sorun değişmiyordu. Gerekçe ayrıca kalıcı olarak
+            // [AniListSyncStatus]'a yazılır → liste ekranındaki durum şeridi gösterir.
+            val reason = AniListSyncStatus.classify(allErrors, AniListGate.isCoolingDown())
+            AniListSyncStatus.reportFailure(appContext, reason, allErrors)
+            if (reason == AniListSyncStatus.Reason.QUOTA) scheduleQuotaResume()
             notifySyncResult(
-                syncResult?.messages.orEmpty() + listOf(displayMessage) +
+                syncResult?.messages.orEmpty() + listOf(syncFailureMessage(appContext, reason)) +
                     listOfNotNull(syncOutcomeNote(syncResult?.outcomes))
             )
         }

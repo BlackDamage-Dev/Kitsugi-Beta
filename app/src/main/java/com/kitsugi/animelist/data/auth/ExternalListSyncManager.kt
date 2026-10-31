@@ -143,7 +143,7 @@ object ExternalListSyncManager {
             suspend fun crossWriteBlocked(target: String): Boolean {
                 if (target == rowSource || realMalId == null) return false
                 sourceIdentityVerified?.let { return it }
-                val verified = try {
+                val verdict = try {
                     CrossSyncIdentityGuard.verifyMalId(
                         malId = realMalId,
                         // Movie/TvShow MAL'de anime-namespace'inde yaşar ("movie"/"tv");
@@ -151,11 +151,27 @@ object ExternalListSyncManager {
                         mediaType = if (entry.type == MediaType.Manga) MediaType.Manga else MediaType.Anime,
                         localTitles = CrossSyncIdentityGuard.aliasesOf(entry),
                         localYear = entry.year
-                    ) is CrossSyncIdentityGuard.Verdict.Verified
+                    )
                 } catch (_: Exception) {
-                    false
+                    null
                 }
+                // v2.4.341 — SESSİZ KİLİTLENME DÜZELTMESİ: "katalog ulaşılamadı" (Unverifiable)
+                // veya ağ istisnası, satırın KENDİ MAL kimliğini şüpheli yapmaz. Bu durumda
+                // da yazma engelleniyordu; MAL API birkaç gün 429/403 döndürdüğünde
+                // AniList dahil HİÇBİR kaynağa hiçbir şey yazılmıyor, kullanıcı da hiçbir
+                // mesaj görmüyordu ("günlerdir hiçbir şey eşitlenmiyor"). Yalnızca guard'ın
+                // AÇIKÇA REDDETTİĞİ (Rejected) eşleşmeler yazmayı durdurur; native MAL
+                // satırlarında kimlik zaten kaynağın kendisinden gelir.
+                val catalogUnreachable = verdict !is CrossSyncIdentityGuard.Verdict.Rejected
+                val verified = verdict is CrossSyncIdentityGuard.Verdict.Verified ||
+                    (catalogUnreachable && rowSource in CrossSyncIdentityGuard.NATIVE_MAL_SOURCES)
                 sourceIdentityVerified = verified
+                if (!verified && catalogUnreachable) {
+                    android.util.Log.w(
+                        "ExternalListSync",
+                        "Kimlik kataloğu doğrulanamadı (malId=$realMalId, ${rowSource}) — yazma atlanıyor"
+                    )
+                }
                 return !verified
             }
 

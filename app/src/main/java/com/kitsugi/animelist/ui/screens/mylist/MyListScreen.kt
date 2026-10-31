@@ -501,6 +501,26 @@ fun MyListScreen(
             )
         }
 
+        // ── AniList eşitleme durum şeridi (v2.4.341) ────────────────────────────
+        // Kullanıcı geri bildirimi: "günlerdir hiçbir şey AniList ile eşitlenmemiş ama
+        // nedenini anlamıyorum". Artık neden (kota / oturum / internet / kimlik / kapalı)
+        // ve bekleyen değişiklik sayısı burada açıkça yazıyor; "Şimdi dene" kuyruğu zorlar.
+        val syncHealth by viewModel.syncHealth.collectAsState()
+        LaunchedEffect(Unit) {
+            while (true) {
+                viewModel.refreshSyncHealth()
+                kotlinx.coroutines.delay(5_000L)
+            }
+        }
+        if (syncHealth.visible) {
+            AniListSyncStatusBanner(
+                message = syncHealth.message,
+                pending = syncHealth.pending,
+                onRetry = { viewModel.retryAniListSyncNow() },
+                modifier = Modifier.padding(horizontal = horizontalPadding)
+            )
+        }
+
         // ── HorizontalPager: her sekme kendi scroll alanı ──────────────────────
         // tabScrollStates declared at composable top level
 
@@ -1062,5 +1082,46 @@ fun MyListScreen(
                 }
             }
         )
+    }
+}
+
+/**
+ * AniList eşitlemesinin **neden** durduğunu söyleyen ince şerit (v2.4.341).
+ * Yalnızca gerçekten bir şeyler bekliyorsa gösterilir; mesaj nedeni içerir.
+ */
+@androidx.compose.runtime.Composable
+private fun AniListSyncStatusBanner(
+    message: String,
+    pending: Int,
+    onRetry: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    androidx.compose.material3.Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(top = 4.dp, bottom = 2.dp),
+        color = MaterialTheme.colorScheme.errorContainer,
+        shape = RoundedCornerShape(12.dp),
+        tonalElevation = 2.dp
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            androidx.compose.material3.Text(
+                text = message,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onErrorContainer,
+                modifier = Modifier.weight(1f)
+            )
+            if (pending > 0) {
+                androidx.compose.material3.TextButton(onClick = onRetry) {
+                    androidx.compose.material3.Text(
+                        text = stringResource(R.string.anilist_sync_retry_now),
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                }
+            }
+        }
     }
 }
