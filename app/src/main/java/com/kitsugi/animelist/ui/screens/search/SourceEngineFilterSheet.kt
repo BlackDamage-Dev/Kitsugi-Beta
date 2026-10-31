@@ -1528,8 +1528,10 @@ private fun BangumiFullFiltersContent(uiState: SearchUiState, viewModel: SearchV
                             .padding(horizontal = 10.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            "${tag.toLocalizedTagLabel()}  ✕",
+                        KitsugiEmojiLabel(
+                            label = tag.toLocalizedTagLabel(),
+                            icon = Icons.X,
+                            iconSize = 10.dp,
                             style = MaterialTheme.typography.labelSmall.copy(color = accentColor)
                         )
                     }

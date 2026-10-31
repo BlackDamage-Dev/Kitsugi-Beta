@@ -1,5 +1,7 @@
 package com.kitsugi.animelist.ui.screens.search
 
+import com.kitsugi.animelist.ui.components.KitsugiEmojiLabel
+import com.kitsugi.animelist.ui.icons.KitsugiEmojiIcons
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import com.kitsugi.animelist.ui.theme.gradient.Text
 import com.kitsugi.animelist.ui.theme.gradient.background
@@ -605,8 +607,8 @@ private fun PluginListItem(
     onClick: () -> Unit
 ) {
     val langFlag = try {
-        SubtitleHelper.getFlagFromIso(api.lang) ?: "🌐"
-    } catch (_: Exception) { "🌐" }
+        SubtitleHelper.getFlagFromIso(api.lang)
+    } catch (_: Exception) { null }
 
     Row(
         modifier = Modifier
@@ -624,7 +626,16 @@ private fun PluginListItem(
                 .background(accentColor.copy(alpha = 0.12f)),
             contentAlignment = Alignment.Center
         ) {
-            Text(text = langFlag, fontSize = 18.sp)
+            if (langFlag != null) {
+                Text(text = langFlag, fontSize = 18.sp)
+            } else {
+                Icon(
+                    imageVector = Icons.Globe,
+                    contentDescription = null,
+                    tint = accentColor,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
         }
 
         Column(modifier = Modifier.weight(1f)) {
@@ -745,10 +756,12 @@ private fun PluginTypeChip(
             .padding(horizontal = 14.dp, vertical = 8.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = "$emoji $label",
+        KitsugiEmojiLabel(
+            label = label,
+            icon = KitsugiEmojiIcons.forEmoji(emoji),
+            iconSize = 13.dp,
             color = textColor,
-            fontSize = 13.sp,
+            style = MaterialTheme.typography.bodyMedium,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
         )
     }

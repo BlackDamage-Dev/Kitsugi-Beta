@@ -1628,20 +1628,6 @@ private fun GalleryDetailsSheet(
 // ─────────────────────────────────────────────────────────────────────────────
 // Detail row helper for the right panel
 // ─────────────────────────────────────────────────────────────────────────────
-/** Galeri kategorisi → HD ikon (tek kaynak; önceden üç yerde kopyalanmıştı). */
-private fun galleryCategoryIcon(category: GalleryCategory): ImageVector = when (category) {
-    GalleryCategory.POSTER    -> Icons.GalleryVertical
-    GalleryCategory.BACKDROP  -> Icons.Image
-    GalleryCategory.LOGO      -> Icons.Palette
-    GalleryCategory.CLEARART  -> Icons.Sparkles
-    GalleryCategory.CHARACTER -> Icons.Theater
-    GalleryCategory.PERSON    -> Icons.User
-    GalleryCategory.THUMBNAIL -> Icons.Globe
-    GalleryCategory.BANNER    -> Icons.Ticket
-    GalleryCategory.SQUARE    -> Icons.Square
-    GalleryCategory.OTHER     -> Icons.Folder
-}
-
 @Composable
 private fun DetailRow(
     label: String,
