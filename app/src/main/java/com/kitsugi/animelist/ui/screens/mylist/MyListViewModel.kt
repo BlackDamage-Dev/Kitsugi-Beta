@@ -137,8 +137,10 @@ class MyListViewModel(application: Application) : AndroidViewModel(application) 
     internal var cachedSearchResult: MyListSearchUiCache? = null
 
     init {
-        // Bozuk Simkl subtitle'larını ve kaynak etiketlerini tek seferlik onar
-        viewModelScope.launch {
+        // Listem açılış bakımı: yalnızca dedup değil, TMDB/Kitsu/Simkl/+18/addedAt
+        // onarımları da ana thread'de çalışmaz. Room suspend sorguları kendi IO executor'ına
+        // geçer; fakat planlama/filtreleme CPU işi coroutine'in başladığı dispatcher'da kalır.
+        viewModelScope.launch(Dispatchers.IO) {
             val dao = KitsugiDatabase.getDatabase(context).mediaEntryDao()
             // Önce eski TMDB katalog satırlarını gerçek Simkl üyeliğine taşı; bu işlem
             // yalnızca yerel DB'de çalışır ve uzak listeden hiçbir kayıt silmez.
@@ -150,7 +152,13 @@ class MyListViewModel(application: Application) : AndroidViewModel(application) 
             KitsuIdentityMigration.runIfNeeded(context, dao)
             // Aynı sağlayıcı altında birikmiş yinelenen satırları (örn. TMDB + Simkl Movie/Anime
             // çift kaydı) veri kaybetmeden tek satırda birleştir.
-            runCatching { repository.deduplicateSameSourceDuplicates() }
+            try {
+                repository.deduplicateSameSourceDuplicates()
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                // Maintenance is best-effort; the next Listem open retries it.
+            }
             // +18 blur'unun TÜM kaynaklarda uygulanması için eksik yetişkin işaretlerini
             // kimlik üzerinden tamamla: Simkl/Shikimori/Bangumi liste API'leri `adult`
             // alanını taşımadığından satırlar isAdult=false yazılıyordu → Listem (Simkl)
@@ -245,7 +253,13 @@ class MyListViewModel(application: Application) : AndroidViewModel(application) 
     private suspend fun repairMissingAddedAt(
         dao: com.kitsugi.animelist.data.local.MediaEntryDao
     ) {
-        val rows = runCatching { dao.getAll() }.getOrNull() ?: return
+        val rows = try {
+            dao.getAll()
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            return
+        }
         if (rows.isEmpty()) return
         val repaired = rows.mapNotNull { row ->
             if (row.addedAt > 0L) return@mapNotNull null
@@ -255,8 +269,13 @@ class MyListViewModel(application: Application) : AndroidViewModel(application) 
             if (fallback <= 0L) null else row.copy(addedAt = fallback)
         }
         if (repaired.isEmpty()) return
-        runCatching { dao.updateAll(repaired) }
-            .onFailure { android.util.Log.w("MyListViewModel", "addedAt onarımı atlandı: ${it.message}") }
+        try {
+            dao.updateAll(repaired)
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            android.util.Log.w("MyListViewModel", "addedAt onarımı atlandı: ${error.message}")
+        }
     }
 
     private suspend fun repairMisclassifiedSources(

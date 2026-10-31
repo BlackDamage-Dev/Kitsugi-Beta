@@ -63,7 +63,7 @@ object KitsugiSessionSupervisor {
     private const val BREADCRUMB_WRITE_INTERVAL_MS = 1_500L
     private const val MAX_LOGCAT_LINES    = 9_000
     private const val LOGCAT_RELEVANT_LIMIT = 220
-    private const val ANR_TRACE_LINES = 120
+    private const val ANR_TRACE_LINES = 2_000
 
     private val ioExecutor = Executors.newSingleThreadExecutor { r ->
         Thread(r, "KitsugiSessionIO").apply { isDaemon = true }
@@ -630,7 +630,7 @@ object KitsugiSessionSupervisor {
     @RequiresApi(Build.VERSION_CODES.R)
     private fun readTraceHead(info: ApplicationExitInfo): String? = try {
         info.traceInputStream?.bufferedReader()?.use { reader ->
-            reader.lineSequence().take(ANR_TRACE_LINES).joinToString("\n")
+            AnrTraceSelector.select(reader.lineSequence().take(ANR_TRACE_LINES).toList())
         }
     } catch (_: Throwable) {
         null

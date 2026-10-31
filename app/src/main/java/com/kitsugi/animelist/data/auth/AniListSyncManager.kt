@@ -566,11 +566,8 @@ object AniListSyncManager {
         expectedType: String,
         entry: MediaEntry,
         expectedTitles: Collection<String>,
-<<<<<<< HEAD
         context: Context,
         knownMalId: Int? = null
-=======
-        context: Context
     ): Boolean {
         val cacheKey = verificationCacheKey(mediaId, expectedType, entry, expectedTitles)
         synchronized(verificationCache) {
@@ -587,7 +584,8 @@ object AniListSyncManager {
                 expectedType = expectedType,
                 entry = entry,
                 expectedTitles = expectedTitles,
-                context = context
+                context = context,
+                knownMalId = knownMalId
             )
         }.getOrDefault(false)
 
@@ -607,8 +605,8 @@ object AniListSyncManager {
         expectedType: String,
         entry: MediaEntry,
         expectedTitles: Collection<String>,
-        context: Context
->>>>>>> arena/df3b9268-kitsugi-beta
+        context: Context,
+        knownMalId: Int? = null
     ): Boolean = runSyncCatching {
         val query = """
             query (${'$'}id: Int) {
@@ -1150,7 +1148,6 @@ object AniListSyncManager {
                                 isSuccessful = response.isSuccessful
                             )
                         }
-                }
                 }
             } catch (quota: AniListGate.QuotaExhaustedException) {
                 // Kota doldu: kuyruk/UX katmanı bu işareti görüp işi erteler.

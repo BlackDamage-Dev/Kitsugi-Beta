@@ -367,9 +367,10 @@ object KitsugiCrashLogger {
                 uncleanTime > 0 && uncleanTime >= primaryTime -> unclean.readText()
                 primaryTime > 0 -> primary.readText()
                 stageBlock.isNotBlank() ->
-                    "▶ UYGULAMA ANA EKRAN AÇILMADAN KAPANDI\n" +
-                        "(Bu sürüm için kayıtlı Java çökme raporu yok — sessiz/native ölüm.\n" +
-                        " Aşağıdaki başlatma aşaması izi son çalışan init adımını gösterir.)"
+                    "▶ ÖNCEKİ OTURUM ANA EKRANA ULAŞMADAN SONLANDI\n" +
+                        "(Bu sürüm için kayıtlı Java çökme raporu yok. Bu tek başına çökme kanıtı değildir;\n" +
+                        " kullanıcı kapatması, sistem sonlandırması veya native ölüm olabilir.\n" +
+                        " Aşağıdaki başlatma aşaması izi yalnızca son çalışan init adımını gösterir.)"
                 else -> {
                     val nativeTrace = NativeCrashBridge.readRecentNativeCrash(
                         context = context,

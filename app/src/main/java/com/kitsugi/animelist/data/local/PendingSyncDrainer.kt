@@ -236,7 +236,7 @@ object PendingSyncDrainer {
         context: Context,
         dao: PendingSyncDao,
         freshBudget: Boolean = false
-    ): Int = drain(dao, freshBudget) { operation, entry, fields, tmdbFields, expectedTmdbAccountId ->
+    ): Int = drain(context, dao, freshBudget) { operation, entry, fields, tmdbFields, expectedTmdbAccountId ->
         when (operation) {
             "UPDATE" -> ExternalListSyncManager.syncEntry(
                 context = context,
@@ -266,9 +266,21 @@ object PendingSyncDrainer {
             entry: MediaEntry,
             fields: Set<SyncField>
         ) -> ExternalListSyncManager.SyncResult?
-    ): Int = drain(dao, freshBudget) { operation, entry, fields, _, _ ->
+    ): Int = drain(null, dao, freshBudget) { operation, entry, fields, _, _ ->
         execute(operation, entry, fields)
     }
+
+    internal suspend fun drain(
+        dao: PendingSyncDao,
+        freshBudget: Boolean = false,
+        execute: suspend (
+            operation: String,
+            entry: MediaEntry,
+            fields: Set<SyncField>,
+            tmdbFields: com.kitsugi.animelist.data.auth.TmdbWriteFields,
+            expectedTmdbAccountId: Int?
+        ) -> ExternalListSyncManager.SyncResult?
+    ): Int = drain(null, dao, freshBudget, execute)
 
     /**
      * Boşaltma döngüsünün çalıştırıcıdan ayrılmış çekirdeği (T02): `Context` ve ağ
@@ -280,6 +292,7 @@ object PendingSyncDrainer {
      * boşaltma bütçe yakmadan yarıda kalır (kilit `finally` ile bırakılır).
      */
     internal suspend fun drain(
+        context: Context? = null,
         dao: PendingSyncDao,
         freshBudget: Boolean = false,
         execute: suspend (
@@ -309,11 +322,11 @@ object PendingSyncDrainer {
         }
 
         var successCount = 0
-
+        for (item in pending) {
             // Kota cezası sürüyorsa kalan işleri denemek cezayı uzatmaktan başka işe yaramaz.
             val cooldown = AniListGate.cooldownRemainingMs()
             if (cooldown > 3_000L) {
-                scheduleResume(context, dao, cooldown + 2_000L)
+                context?.let { scheduleResume(it, dao, cooldown + 2_000L) }
                 break
             }
 
@@ -364,12 +377,11 @@ object PendingSyncDrainer {
                     if (!isQuota) {
                         dao.incrementRetry(item.id)
                     } else {
-                        scheduleResume(context, dao, AniListGate.cooldownRemainingMs() + 2_000L)
+                        context?.let { scheduleResume(it, dao, AniListGate.cooldownRemainingMs() + 2_000L) }
                         break
                     }
                 }
                 PendingSyncPolicy.RetryDecision.KEEP_WITHOUT_INCREMENT -> Unit
-            }
             }
         }
 

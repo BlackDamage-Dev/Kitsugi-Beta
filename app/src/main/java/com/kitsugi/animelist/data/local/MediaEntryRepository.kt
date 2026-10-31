@@ -10,6 +10,9 @@ import com.kitsugi.animelist.data.auth.RemoteListPresence
 import com.kitsugi.animelist.model.MediaEntry
 import com.kitsugi.animelist.model.MediaType
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.withContext
 import com.kitsugi.animelist.utils.PreferenceHelpers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.conflate
@@ -579,41 +582,20 @@ class MediaEntryRepository(
      * @return Temizlenen (silinen) kopya satır sayısı
      */
     suspend fun deduplicateSameSourceDuplicates(): Int = writeMutex.withLock {
-        val allEntities = dao.getAll()
-        if (allEntities.size <= 1) return@withLock 0
-
-        val byCanonicalSource = allEntities.groupBy {
-            com.kitsugi.animelist.model.MediaIdentity.canonicalSource(it.source)
-        }
-        val toUpdate = mutableListOf<MediaEntryEntity>()
-        val toDeleteIds = mutableListOf<Int>()
-
-        for ((_, sourceEntities) in byCanonicalSource) {
-            if (sourceEntities.size <= 1) continue
-            val clusters = mutableListOf<MutableList<MediaEntry>>()
-            for (entity in sourceEntities) {
-                val domain = entity.toDomain()
-                val matchingCluster = clusters.firstOrNull { cluster ->
-                    cluster.none { member ->
-                        com.kitsugi.animelist.model.MediaIdentity
-                            .authoritativeConflictingIdentityKeys(member, domain)
-                            .isNotEmpty()
-                    } && cluster.any { member ->
-                        com.kitsugi.animelist.model.MediaIdentity.librarySameMedia(member, domain)
-                    }
-                }
-                if (matchingCluster != null) {
-                    matchingCluster += domain
-                } else {
-                    clusters += mutableListOf(domain)
-                }
-            }
-
-            for (cluster in clusters) {
-                if (cluster.size <= 1) continue
+        // suspend alone does NOT change dispatchers. MyListViewModel launches on Main.immediate;
+        // the old CPU-heavy plan therefore ran on the UI thread and caused the reported ANR.
+        // Keep the snapshot, planning and commit under the process-wide write lock, but do all
+        // CPU work on Default. Room still executes its suspend queries on its own IO executor.
+        withContext(Dispatchers.Default) {
+            val allEntities = dao.getAll()
+            if (allEntities.size <= 1) return@withContext 0
+            val plan = SameSourceDuplicatePlanner.plan(allEntities.map { it.toDomain() })
+            val toUpdate = mutableListOf<MediaEntryEntity>()
+            val toDeleteIds = mutableListOf<Int>()
+            for (cluster in plan.clusters) {
+                currentCoroutineContext().ensureActive()
                 val sorted = cluster.sortedWith(
                     compareByDescending<MediaEntry> {
-                        // Anime + Movie çakışmasında gerçek MAL kimliği olan Anime satırı önceliklidir
                         com.kitsugi.animelist.model.MediaIdentity.realMalId(it) != null
                     }
                         .thenByDescending { it.type == MediaType.Anime }
@@ -631,19 +613,33 @@ class MediaEntryRepository(
                         incoming = dup,
                         preferIncomingUserFields = dup.updatedAt > merged.updatedAt
                     ).copy(id = survivorId)
-                    if (dup.id > 0 && dup.id != survivorId) {
-                        toDeleteIds += dup.id
-                    }
+                    if (dup.id > 0 && dup.id != survivorId) toDeleteIds += dup.id
                 }
                 toUpdate += merged.toEntity()
             }
+            if (toDeleteIds.isEmpty()) return@withContext 0
+            currentCoroutineContext().ensureActive()
+            val pendingJobIds = pendingSyncJobIdsFor(toDeleteIds)
+            // One DB transaction: a process death must not leave merged rows with stale
+            // duplicate jobs, nor delete jobs before the merged survivor is committed.
+            dao.deduplicateTransaction(toUpdate, toDeleteIds, pendingJobIds)
+            toDeleteIds.size
         }
+    }
 
-        if (toDeleteIds.isNotEmpty()) {
-            clearPendingJobsFor(entryIds = toDeleteIds)
-            dao.smartImportTransaction(emptyList(), toUpdate, toDeleteIds)
-        }
-        toDeleteIds.size
+    /** Reads only the jobs belonging to rows being removed; commit is atomic with the merge. */
+    private suspend fun pendingSyncJobIdsFor(entryIds: Collection<Int>): List<Int> {
+        val queueDao = pendingSyncDao ?: return emptyList()
+        if (entryIds.isEmpty()) return emptyList()
+        val ids = entryIds.toHashSet()
+        return runSyncCatching {
+            queueDao.getAll().mapNotNull { job ->
+                val matches = runSyncCatching {
+                    org.json.JSONObject(job.entryJson).optInt("id", -1) in ids
+                }.getOrDefault(false)
+                if (matches) job.id else null
+            }
+        }.getOrDefault(emptyList())
     }
 
     /** Bir kaynağın yereldeki satır sayısı (yenileme kararları için hafif sorgu). */
@@ -801,6 +797,46 @@ class MediaEntryRepository(
         val ctx = context ?: return 0
         val queueDao = pendingSyncDao ?: return 0
         return PendingSyncDrainer.drain(ctx, queueDao, freshBudget = freshBudget)
+    }
+
+    /**
+     * Her kaynak için bekleyen (henüz hedefe gitmemiş) işlem sayısını döner.
+     * `entryJson` içindeki `source` alanı okunur. (Kaynak bilgisi olmayan işler sayılmaz.)
+     */
+    suspend fun pendingSyncBySource(): Map<com.kitsugi.animelist.data.auth.SourceSyncStatus.Source, Int> {
+        val queue = pendingSyncDao ?: return emptyMap()
+        val counts = mutableMapOf<com.kitsugi.animelist.data.auth.SourceSyncStatus.Source, Int>()
+        try {
+            for (job in queue.getAll()) {
+                val source = runCatching {
+                    com.kitsugi.animelist.data.auth.SourceSyncStatus.Source.fromEntrySource(org.json.JSONObject(job.entryJson).optString("source"))
+                }.getOrNull() ?: continue
+                counts[source] = (counts[source] ?: 0) + 1
+            }
+        } catch (e: Exception) {
+            return emptyMap()
+        }
+        return counts
+    }
+
+    /**
+     * Kullanıcı arayüzünden (Ör. "Şimdi Yeniden Dene" düğmesi) çağrılan zorlamalı kuyruk boşaltma.
+     * Sayaçları sıfırlar (taze bütçe verir) ve işler başarıyla biterse kaynak durumunu günceller.
+     * @return gönderilen işlem sayısı
+     */
+    suspend fun retryPendingSyncNow(): Int {
+        val sent = drainPendingQueue(freshBudget = true)
+        val appContext = context
+        if (appContext != null && sent > 0) {
+            val remaining = pendingSyncBySource()
+            com.kitsugi.animelist.data.auth.SourceSyncStatus.Source.entries.forEach { source ->
+                if ((remaining[source] ?: 0) == 0) {
+                    val snapshot = com.kitsugi.animelist.data.auth.SourceSyncStatus.snapshot(appContext, source)
+                    if (!snapshot.isHealthy) com.kitsugi.animelist.data.auth.SourceSyncStatus.reportSuccess(appContext, source)
+                }
+            }
+        }
+        return sent
     }
 
     /** A remote snapshot must not delete a row while any local intent is still queued. */

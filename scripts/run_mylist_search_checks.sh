@@ -27,7 +27,7 @@ options = (options[options.index('internal data class StatusFilter'):options.ind
            + options[options.index('internal val statusFilters'):options.index('internal val favoriteFilters')])
 write('FilterOptions.kt', 'package com.kitsugi.animelist.ui.screens.mylist\n'
       'import com.kitsugi.animelist.model.*\nimport com.kitsugi.animelist.R\n' + options)
-resource_sources = options + (root / 'model/MediaEntry.kt').read_text() + (root / 'ui/screens/mylist/MyListFilterHelpers.kt').read_text()
+resource_sources = options + (root / 'model/MediaEntry.kt').read_text() + (root / 'ui/screens/mylist/MyListFilterHelpers.kt').read_text() + (root / 'ui/screens/mylist/MyListSections.kt').read_text()
 names = sorted(set(re.findall(r'R\.string\.(\w+)', resource_sources)))
 write('Resources.kt', 'package com.kitsugi.animelist\nobject R { object string {\n' +
       '\n'.join(f'const val {name} = {i}' for i, name in enumerate(names, 1)) + '\n} }\n' +
@@ -53,8 +53,36 @@ write('Dp.kt', '''package androidx.compose.ui.unit
 data class Dp(val value: Float)
 val Int.dp get() = Dp(toFloat())
 ''')
-write('ContentPrefs.kt', '''package com.kitsugi.animelist.data.settings
-object KitsugiContentPrefs { val fuzzySearchEnabled = true }
+# Pure grouping IDs and bounded edit distance are copied verbatim from production.
+sections = (root / 'ui/screens/mylist/MyListSections.kt').read_text()
+group_ids = sections[sections.index('object MyListGroupingIds'):sections.index('/** Eklenme tarihi kovaları')]
+write('GroupingIds.kt', 'package com.kitsugi.animelist.ui.screens.mylist\nimport java.util.Locale\n' + group_ids)
+prefs = (root / 'data/settings/KitsugiContentPrefs.kt').read_text()
+lev = prefs[prefs.index('    internal fun levenshteinBounded'):prefs.rfind('\n}')]
+write('ContentPrefs.kt', 'package com.kitsugi.animelist.data.settings\nobject KitsugiContentPrefs {\nval fuzzySearchEnabled = true\n' + lev + '\n}\n')
+write('TitleHelpers.kt', '''package com.kitsugi.animelist.utils
+import com.kitsugi.animelist.model.MediaEntry
+object PreferenceHelpers {
+    fun isLatinText(text: String?): Boolean = text?.any { it in 'A'..'Z' || it in 'a'..'z' } == true
+    fun hasCjkCharacters(text: String?): Boolean = text?.any { it.code in 0x3040..0x9fff || it.code in 0xac00..0xd7af } == true
+    fun MediaEntry.getDisplayTitle(titleLanguage: String): String = when (titleLanguage) {
+        "ENGLISH" -> titleEnglish ?: title
+        "NATIVE", "JAPANESE_STAFF" -> titleJapanese ?: title
+        else -> title
+    }
+}
+''')
+write('BangumiShims.kt', '''package com.kitsugi.animelist.data.remote
+object BangumiIdNamespace {
+    fun rawIdOrNull(id: Int?): Int? = id?.takeIf { it in 500_000_001..599_999_999 }?.minus(500_000_000) ?: id?.takeIf { it in 1..499_999_999 }
+}
+object BangumiTitleCache {
+    data class LatinTitles(val romaji: String? = null, val english: String? = null, val native: String? = null)
+}
+''')
+write('TmdbContract.kt', '''package com.kitsugi.animelist.data.auth
+const val TMDB_ACCOUNT_SOURCE: String = "tmdb_account"
+fun isTmdbAccountSource(source: String): Boolean = source.trim().lowercase(java.util.Locale.ROOT) == TMDB_ACCOUNT_SOURCE
 ''')
 write('CacheHolder.kt', '''package com.kitsugi.animelist.ui.screens.mylist
 class MyListViewModel {

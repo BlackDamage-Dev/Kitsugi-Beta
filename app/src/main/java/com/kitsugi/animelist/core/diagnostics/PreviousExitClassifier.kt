@@ -167,4 +167,14 @@ internal object PreviousExitClassifier {
         REASON_PACKAGE_UPDATED -> "PACKAGE_UPDATED"
         else -> "REASON_$reason"
     }
+
+    /** Combines the authoritative system exit reason with weaker post-mortem logcat evidence. */
+    fun combinedHeadline(verdict: Verdict, logcatHeadline: String): String = when {
+        verdict.kind == Kind.ANR && logcatHeadline.startsWith("SEBEP BULUNAMADI") ->
+            "ANR (SİSTEM KAYDI) — uygulama yanıt vermedi; logcat arabelleğinde ek iz yok\n" +
+                "    ${verdict.headline.substringAfter(" — ", verdict.headline)}"
+        verdict.kind == Kind.LOW_MEMORY && logcatHeadline.startsWith("SEBEP BULUNAMADI") ->
+            "DÜŞÜK BELLEK (SİSTEM KAYDI) — LMKD; logcat arabelleğinde ek iz yok"
+        else -> logcatHeadline
+    }
 }

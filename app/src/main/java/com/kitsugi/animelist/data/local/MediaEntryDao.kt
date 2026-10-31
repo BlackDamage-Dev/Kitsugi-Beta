@@ -89,4 +89,19 @@ interface MediaEntryDao {
         if (toUpdate.isNotEmpty()) updateAll(toUpdate)
         if (toDeleteIds.isNotEmpty()) deleteByIds(toDeleteIds)
     }
+
+    @Query("DELETE FROM pending_syncs WHERE id IN (:ids)")
+    suspend fun deletePendingSyncJobs(ids: List<Int>)
+
+    /** Legacy duplicate cleanup is atomic across the library and its stale queued jobs. */
+    @Transaction
+    suspend fun deduplicateTransaction(
+        toUpdate: List<MediaEntryEntity>,
+        toDeleteIds: List<Int>,
+        pendingJobIds: List<Int>
+    ) {
+        if (toUpdate.isNotEmpty()) updateAll(toUpdate)
+        if (toDeleteIds.isNotEmpty()) deleteByIds(toDeleteIds)
+        if (pendingJobIds.isNotEmpty()) deletePendingSyncJobs(pendingJobIds)
+    }
 }

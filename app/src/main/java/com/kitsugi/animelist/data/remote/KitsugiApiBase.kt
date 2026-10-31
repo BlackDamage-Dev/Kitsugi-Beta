@@ -4,6 +4,8 @@ import com.kitsugi.animelist.KitsugiApplication
 import com.kitsugi.animelist.data.auth.AniListGate
 import com.kitsugi.animelist.data.auth.ExternalAuthManager
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -520,6 +522,94 @@ object KitsugiApiBase {
             }
         }
     }
+
+    private data class CachedResponse(val body: String, val storedAtMs: Long)
+
+    private val aniListCache = java.util.concurrent.ConcurrentHashMap<String, CachedResponse>()
+    private val aniListKeyLocks = java.util.concurrent.ConcurrentHashMap<String, Mutex>()
+
+    private const val ANILIST_CACHE_MAX_ENTRIES = 250
+
+    /**
+     * [executeAniListQuery] + bellek önbelleği + tek-uçuş.
+     *
+     * @param ttlMs taze kabul edilen süre
+     * @param allowStaleMs kota/429 nedeniyle istek gönderilemezse bu yaşa kadar
+     *   bayat veri döndürülür (kullanıcı boş ekran yerine eski veriyi görür).
+     */
+    suspend fun executeAniListQueryCached(
+        cacheKey: String,
+        ttlMs: Long,
+        query: String,
+        variables: JSONObject,
+        accessToken: String? = null,
+        priority: AniListQuotaGate.Priority = AniListQuotaGate.Priority.INTERACTIVE,
+        allowStaleMs: Long = 0L
+    ): String? {
+        val cached = aniListCache[cacheKey]
+        if (cached != null && System.currentTimeMillis() - cached.storedAtMs <= ttlMs) {
+            return cached.body
+        }
+
+        val mutex = aniListKeyLocks.computeIfAbsent(cacheKey) { Mutex() }
+        return mutex.withLock {
+            val fresh = aniListCache[cacheKey]
+            if (fresh != null && System.currentTimeMillis() - fresh.storedAtMs <= ttlMs) {
+                return@withLock fresh.body
+            }
+            val body = executeAniListQuery(
+                query = query,
+                variables = variables,
+                accessToken = accessToken
+            )
+            if (body != null) {
+                if (aniListCache.size >= ANILIST_CACHE_MAX_ENTRIES) aniListCache.clear()
+                aniListCache[cacheKey] = CachedResponse(body, System.currentTimeMillis())
+                body
+            } else if (allowStaleMs > 0L && fresh != null &&
+                System.currentTimeMillis() - fresh.storedAtMs <= allowStaleMs
+            ) {
+                android.util.Log.w("KitsugiApiBase", "AniList kotası/kesintisi: bayat önbellek kullanıldı ($cacheKey)")
+                fresh.body
+            } else {
+                null
+            }
+        }
+    }
+
+    /** Kota dolduğunda bile gösterilebilecek son veri var mı? */
+    fun peekAniListCache(cacheKey: String): String? = aniListCache[cacheKey]?.body
+
+    /** Mutasyon sonrası ilgili önbellek anahtarlarını düşürür. */
+    fun invalidateAniListCache(prefix: String? = null) {
+        if (prefix == null) {
+            aniListCache.clear()
+            return
+        }
+        aniListCache.keys.filter { it.startsWith(prefix) }.forEach { aniListCache.remove(it) }
+    }
+
+    // ─── Kapı köprüleri ─────────────────────────────────────────────────────
+    // graphql.anilist.co'ya DOĞRUDAN POST atan eski yollar (AniListSyncManager,
+    // AniListImportManager, profil ViewModel'leri, NotificationDiagnostics) bu
+    // köprülerden geçmezse kotaları görünmez şekilde tüketir.
+
+    /**
+     * Bloklayan çağrı yerleri için. `maxWaitMs` bilinçli olarak KISA: bu yollar
+     * ana thread'den çağrılabiliyor; uzun beklemek ANR üretir. Kota yoksa istek
+     * hemen reddedilir ve çağıran işi sonraki tura bırakır.
+     */
+    fun aniListGateBlocking(
+        priority: AniListQuotaGate.Priority,
+        maxWaitMs: Long = 15_000L
+    ): Boolean = AniListQuotaGate.acquireBlocking(priority, maxWaitMs) is
+        AniListQuotaGate.Decision.Granted
+
+    suspend fun aniListGate(priority: AniListQuotaGate.Priority): Boolean =
+        AniListQuotaGate.acquire(priority) is AniListQuotaGate.Decision.Granted
+
+    /** Teşhis paneli için kota durumu. */
+    fun aniListQuotaSnapshot(): AniListQuotaGate.Snapshot = AniListQuotaGate.snapshot()
 
     private sealed class AniListResult {
         data class Success(val body: String) : AniListResult()

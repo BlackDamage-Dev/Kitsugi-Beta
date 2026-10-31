@@ -149,6 +149,8 @@ object KitsugiBangumiDetailClient {
     // ── Önbellekler ──────────────────────────────────────────────────────────
 
     private val subjectCache = BoundedCache<Int, BangumiSubject>("bangumi.subject", 80)
+    /** Definitive 404s only; timeouts/5xx/cancellation are never cached as "missing". */
+    private val subjectMissCache = BoundedCache<String, Long>("bangumi.subject.miss", 256)
     private val crossCache = BoundedCache<Int, CrossIds>("bangumi.cross", 1000)
     private val crossMissAt = BoundedCache<Int, Long>("bangumi.crossMiss", 1000)
 
@@ -220,18 +222,30 @@ object KitsugiBangumiDetailClient {
     /** `GET /v0/subjects/{id}` (önbellekli). */
     suspend fun loadSubject(rawId: Int): BangumiSubject? {
         subjectCache[rawId]?.let { return it }
-        suspend fun fetch(token: String?): BangumiSubject? = try {
-            BangumiApiClient.getSubject(rawId, token)
+        val token = tokenOrNull()
+        val missKey = BangumiSubjectLookupPolicy.missKey(rawId, token)
+        val now = System.currentTimeMillis()
+        if (BangumiSubjectLookupPolicy.isFreshMiss(subjectMissCache[missKey], now)) return null
+        var definitiveNotFound = false
+        suspend fun fetch(fetchToken: String?): BangumiSubject? = try {
+            BangumiApiClient.getSubject(rawId, fetchToken)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Log.w(TAG, "Bangumi条目 $rawId alınamadı (${if (token == null) "anonim" else "oturumlu"}): ${e.message}")
+            if (e is BangumiApiClient.BangumiApiException && e.isNotFound) definitiveNotFound = true
+            Log.w(TAG, "Bangumi条目 $rawId alınamadı (${if (fetchToken == null) "anonim" else "oturumlu"}): ${e.message}")
             null
         }
-        val subject = fetch(null) ?: tokenOrNull()?.let { fetch(it) } ?: return null
-        if (subjectCache.size > 64) subjectCache.clear()
-        subjectCache[rawId] = subject
-        return subject
+        val subject = fetch(null) ?: tokenOrNull()?.let { fetch(it) }
+        if (subject != null) {
+            if (subjectCache.size > 64) subjectCache.clear()
+            subjectCache[rawId] = subject
+            return subject
+        }
+        if (definitiveNotFound) {
+            subjectMissCache[missKey] = now
+        }
+        return null
     }
 
     // ── JSON yardımcıları ────────────────────────────────────────────────────

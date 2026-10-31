@@ -216,6 +216,48 @@ object AnimeDownloadManager {
         return _downloads.value.firstOrNull { it.status == AnimeDownload.Status.QUEUE }
     }
 
+    /**
+     * Kuyrukta bekleyen bir indirmeyi **kuyruk içinde** bir üst/alt sıraya taşır.
+     *
+     * Neden gerekli? [getNextDownload] sıradaki işi listenin başındaki `QUEUE`
+     * kaydından seçer. Dolayısıyla listenin dizilişi = indirme önceliğidir.
+     * Burada yalnızca iki `QUEUE` kaydının yerleri değiştirilir; araya giren
+     * tamamlanmış/duraklatılmış kayıtların konumu korunur (yarım kalan işler
+     * kuyruk sırasını bozmaz).
+     *
+     * @param direction `-1` yukarı (daha önce indir), `+1` aşağı (daha sonra indir).
+     * @return taşıma yapıldıysa `true`; kayıt kuyrukta değilse ya da sınırdaya `false`.
+     */
+    fun moveQueuedDownload(animeId: String, episode: Int, direction: Int): Boolean {
+        if (direction == 0) return false
+        val current = _downloads.value.toMutableList()
+        val fromIndex = current.indexOfFirst { it.animeId == animeId && it.episode == episode }
+        if (fromIndex < 0) return false
+        if (current[fromIndex].status != AnimeDownload.Status.QUEUE) return false
+
+        // Hedef: aynı yöndeki ilk QUEUE kaydı.
+        var targetIndex = -1
+        var i = fromIndex + direction
+        while (i in current.indices) {
+            if (current[i].status == AnimeDownload.Status.QUEUE) {
+                targetIndex = i
+                break
+            }
+            i += direction
+        }
+        if (targetIndex < 0) return false
+
+        // Yer değiştirme (swap): diğer kayıtların dizilişi bozulmaz, indeks kayması olmaz.
+        val moved = current[fromIndex]
+        current[fromIndex] = current[targetIndex]
+        current[targetIndex] = moved
+        saveAndEmit(current)
+        return true
+    }
+
+    /** Kuyrukta birden fazla bekleyen iş var mı? (Sıralama düğmelerini göstermek için.) */
+    fun queuedCount(): Int = _downloads.value.count { it.status == AnimeDownload.Status.QUEUE }
+
     fun startService(context: Context) {
         val serviceIntent = Intent(context, com.kitsugi.animelist.core.download.AnimeDownloadService::class.java)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

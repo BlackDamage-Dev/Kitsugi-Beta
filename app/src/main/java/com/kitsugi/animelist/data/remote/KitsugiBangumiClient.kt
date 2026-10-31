@@ -7,6 +7,7 @@ import com.kitsugi.animelist.data.auth.BangumiApiClient.BangumiSubject
 import com.kitsugi.animelist.data.auth.BangumiAuthStore
 import com.kitsugi.animelist.model.MediaType
 import com.kitsugi.animelist.utils.PreferenceHelpers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.Calendar
@@ -46,9 +47,13 @@ object KitsugiBangumiClient {
      */
     private suspend fun tokenOrNull(context: Context?): String? {
         if (context == null) return null
-        return runCatching {
+        return try {
             if (BangumiAuthStore.isConnected(context)) BangumiAuthStore.getValidToken(context) else null
-        }.getOrNull()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            null
+        }
     }
 
     // ── Arama (Arama sekmesi) ────────────────────────────────────────────────
@@ -848,6 +853,7 @@ object KitsugiBangumiClient {
     }
 
     private fun logAndEmpty(label: String, error: Throwable): List<JikanSearchResult> {
+        if (error is CancellationException) throw error
         Log.e(TAG, "Bangumi $label failed: ${error.message}", error)
         return emptyList()
     }

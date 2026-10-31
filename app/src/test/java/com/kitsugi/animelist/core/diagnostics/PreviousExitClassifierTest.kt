@@ -123,4 +123,13 @@ class PreviousExitClassifierTest {
         assertEquals("kayıt yok", PreviousExitClassifier.reasonName(null))
         assertEquals("REASON_99", PreviousExitClassifier.reasonName(99))
     }
+
+    @Test
+    fun `system ANR is not downgraded to unknown when logcat is empty`() {
+        val verdict = classify(foreground = true, reason = PreviousExitClassifier.REASON_ANR, description = "Input dispatching timed out")
+        val headline = PreviousExitClassifier.combinedHeadline(verdict, "SEBEP BULUNAMADI (sessiz SIGKILL olabilir)")
+        assertTrue(headline.startsWith("ANR (SİSTEM KAYDI)"))
+        assertFalse(headline.startsWith("SEBEP BULUNAMADI"))
+    }
+
 }

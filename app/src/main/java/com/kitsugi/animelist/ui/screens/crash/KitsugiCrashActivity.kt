@@ -382,7 +382,7 @@ class KitsugiCrashActivity : ComponentActivity() {
                                                 appendLine("Android  : ${android.os.Build.VERSION.RELEASE} (API ${android.os.Build.VERSION.SDK_INT})")
                                                 appendLine("ABI      : ${android.os.Build.SUPPORTED_ABIS.joinToString()}")
                                                 appendLine("Üretici  : ${android.os.Build.MANUFACTURER}")
-                                                appendLine("Bellek   : ${Runtime.getRuntime().let { "${(it.totalMemory() - it.freeMemory()) / 1024 / 1024}MB / ${it.maxMemory() / 1024 / 1024}MB" }}")
+                                                appendLine("Uygulama JVM belleği : ${Runtime.getRuntime().let { "${(it.totalMemory() - it.freeMemory()) / 1024 / 1024}MB / ${it.maxMemory() / 1024 / 1024}MB" }}")
                                                 appendLine("Saat     : ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())}")
                                             })
                                             addFileIfExists(infoFile)
