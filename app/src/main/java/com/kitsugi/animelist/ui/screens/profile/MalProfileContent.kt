@@ -20,8 +20,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.*
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -191,7 +190,7 @@ fun MalProfileContent(
                             com.kitsugi.animelist.utils.ShareUtils.shareText(context, state.name, url)
                         }) {
                             Icon(
-                                imageVector = Icons.Rounded.Share,
+                                imageVector = Icons.Share,
                                 contentDescription = stringResource(R.string.profili_paylas),
                                 tint = KitsugiColors.TextPrimary,
                                 modifier = Modifier.size(18.dp)
@@ -262,11 +261,11 @@ fun MalProfileContent(
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     val tabs = listOf(
-                        Icons.Rounded.Info to stringResource(R.string.character_tab_about),
-                        Icons.Rounded.ChatBubble to stringResource(R.string.profile_tab_activity),
-                        Icons.Rounded.BarChart to stringResource(R.string.profile_tab_statistics),
-                        Icons.Rounded.Star to stringResource(R.string.profile_tab_favorites),
-                        Icons.Rounded.People to stringResource(R.string.profile_tab_social)
+                        Icons.Info to stringResource(R.string.character_tab_about),
+                        Icons.ChatBubble to stringResource(R.string.profile_tab_activity),
+                        Icons.BarChart to stringResource(R.string.profile_tab_statistics),
+                        Icons.Star to stringResource(R.string.profile_tab_favorites),
+                        Icons.People to stringResource(R.string.profile_tab_social)
                     )
                     ProfileHeaderIconTabs(
                         tabs = tabs,
@@ -578,7 +577,7 @@ fun MalProfileContent(
                                                                 )
                                                             } else {
                                                                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                                                    Icon(imageVector = Icons.Rounded.Favorite, contentDescription = null, tint = accentColor)
+                                                                    Icon(imageVector = Icons.Favorite, contentDescription = null, tint = accentColor)
                                                                 }
                                                             }
                                                         }

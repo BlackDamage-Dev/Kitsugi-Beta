@@ -1,5 +1,7 @@
 package com.kitsugi.animelist.ui.screens.search.components
 
+import com.kitsugi.animelist.ui.components.KitsugiEmojiLabel
+import com.kitsugi.animelist.ui.icons.KitsugiEmojiIcons
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import com.kitsugi.animelist.ui.utils.uniqueItems
 import com.kitsugi.animelist.ui.theme.gradient.Text
@@ -21,11 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Extension
-import androidx.compose.material.icons.filled.Search
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -212,13 +210,13 @@ fun PluginPickerBottomSheet(
             ) {
                 IconButton(onClick = onDismissRequest) {
                     Icon(
-                        imageVector = Icons.Default.ArrowBack,
+                        imageVector = Icons.ArrowBack,
                         contentDescription = stringResource(R.string.geri),
                         tint = KitsugiColors.TextPrimary
                     )
                 }
                 Icon(
-                    imageVector = Icons.Default.Extension,
+                    imageVector = Icons.Extension,
                     contentDescription = null,
                     tint = accentColor,
                     modifier = Modifier.size(22.dp)
@@ -252,7 +250,7 @@ fun PluginPickerBottomSheet(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Search,
+                        imageVector = Icons.Search,
                         contentDescription = null,
                         tint = KitsugiColors.TextMuted,
                         modifier = Modifier.size(20.dp)
@@ -292,7 +290,7 @@ fun PluginPickerBottomSheet(
                             modifier = Modifier.size(20.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Close,
+                                imageVector = Icons.Close,
                                 contentDescription = stringResource(R.string.temizle),
                                 tint = KitsugiColors.TextMuted,
                                 modifier = Modifier.size(16.dp)
@@ -460,8 +458,17 @@ fun PluginPickerBottomSheet(
                                             verticalAlignment = Alignment.CenterVertically,
                                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                                         ) {
-                                            val langFlag = SubtitleHelperCompat.getFlagFromIso(api.lang) ?: "🌐"
-                                            Text(text = langFlag, fontSize = 16.sp)
+                                            val langFlag = SubtitleHelperCompat.getFlagFromIso(api.lang)
+                                            if (langFlag != null) {
+                                                Text(text = langFlag, fontSize = 16.sp)
+                                            } else {
+                                                Icon(
+                                                    imageVector = Icons.Globe,
+                                                    contentDescription = null,
+                                                    tint = KitsugiColors.TextMuted,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            }
                                             Text(
                                                 text = api.name,
                                                 color = KitsugiColors.TextPrimary,
@@ -548,10 +555,12 @@ private fun PluginTypeChip(
             .padding(horizontal = 14.dp, vertical = 8.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = "$emoji $label",
+        KitsugiEmojiLabel(
+            label = label,
+            icon = KitsugiEmojiIcons.forEmoji(emoji),
+            iconSize = 13.dp,
             color = textColor,
-            fontSize = 13.sp,
+            style = MaterialTheme.typography.bodyMedium,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
         )
     }
@@ -564,8 +573,8 @@ private fun PluginListItem(
     onClick: () -> Unit
 ) {
     val langFlag = try {
-        SubtitleHelperCompat.getFlagFromIso(api.lang) ?: "🌐"
-    } catch (_: Exception) { "🌐" }
+        SubtitleHelperCompat.getFlagFromIso(api.lang)
+    } catch (_: Exception) { null }
 
     Row(
         modifier = Modifier
@@ -583,7 +592,16 @@ private fun PluginListItem(
                 .background(accentColor.copy(alpha = 0.12f)),
             contentAlignment = Alignment.Center
         ) {
-            Text(text = langFlag, fontSize = 18.sp)
+            if (langFlag != null) {
+                Text(text = langFlag, fontSize = 18.sp)
+            } else {
+                Icon(
+                    imageVector = Icons.Globe,
+                    contentDescription = null,
+                    tint = accentColor,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
         }
 
         Column(modifier = Modifier.weight(1f)) {
@@ -637,7 +655,12 @@ private fun AllPluginsListItem(
                 .background(accentColor.copy(alpha = 0.12f)),
             contentAlignment = Alignment.Center
         ) {
-            Text(text = "🌐", fontSize = 18.sp)
+            Icon(
+                    imageVector = Icons.Globe,
+                    contentDescription = null,
+                    tint = KitsugiColors.TextMuted,
+                    modifier = Modifier.size(18.dp)
+                )
         }
 
         Column(modifier = Modifier.weight(1f)) {
@@ -722,7 +745,7 @@ private fun PortalResultItemCard(
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Extension,
+                            imageVector = Icons.Extension,
                             contentDescription = null,
                             tint = KitsugiColors.TextMuted,
                             modifier = Modifier.size(36.dp)

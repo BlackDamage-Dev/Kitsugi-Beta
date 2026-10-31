@@ -7,8 +7,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.WarningAmber
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.MaterialTheme
 import com.kitsugi.animelist.ui.theme.gradient.Text
@@ -42,7 +41,7 @@ fun CrossSyncDisclaimerText(
         verticalAlignment = Alignment.Top
     ) {
         Icon(
-            imageVector = Icons.Rounded.WarningAmber,
+            imageVector = Icons.WarningAmber,
             contentDescription = null,
             tint = KitsugiColors.AccentOrange,
             modifier = Modifier

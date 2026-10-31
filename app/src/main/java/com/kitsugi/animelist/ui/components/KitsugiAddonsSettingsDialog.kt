@@ -13,11 +13,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.AutoStories
-import androidx.compose.material.icons.rounded.Bolt
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.PlayCircle
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -191,7 +187,7 @@ fun KitsugiAddonsSettingsDialog(
                             )
                         }
                         IconButton(onClick = onDismiss) {
-                            Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.kapat), tint = KitsugiColors.TextSecondary)
+                            Icon(Icons.Close, contentDescription = stringResource(R.string.kapat), tint = KitsugiColors.TextSecondary)
                         }
                     }
                 }
@@ -199,15 +195,15 @@ fun KitsugiAddonsSettingsDialog(
                     tabs = listOf(
                         KitsugiSettingsTabOption(
                             stringResource(R.string.inline_torrent_streaming_89e2cac),
-                            Icons.Rounded.Bolt
+                            Icons.Bolt
                         ),
                         KitsugiSettingsTabOption(
                             stringResource(R.string.inline_video_providers_1e04646),
-                            Icons.Rounded.PlayCircle
+                            Icons.PlayCircle
                         ),
                         KitsugiSettingsTabOption(
                             stringResource(R.string.inline_manga_sources_03288ff),
-                            Icons.Rounded.AutoStories
+                            Icons.AutoStories
                         )
                     ),
                     selectedIndex = pagerState.currentPage,
@@ -261,7 +257,7 @@ fun KitsugiAddonsSettingsDialog(
                                 modifier = Modifier.size(20.dp)
                             ) {
                                 Icon(
-                                    Icons.Rounded.Close,
+                                    Icons.Close,
                                     contentDescription = stringResource(R.string.kapat),
                                     tint = textColor,
                                     modifier = Modifier.size(14.dp)

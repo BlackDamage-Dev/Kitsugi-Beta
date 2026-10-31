@@ -12,8 +12,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Refresh
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -175,7 +174,7 @@ fun DelayCard(
                             contentColor = com.kitsugi.animelist.ui.theme.onAccentColor(KitsugiColors.Accent)
                         )
                     ) {
-                        Icon(Icons.Default.Refresh, null, tint = com.kitsugi.animelist.ui.theme.onAccentColor(KitsugiColors.Accent))
+                        Icon(Icons.Refresh, null, tint = com.kitsugi.animelist.ui.theme.onAccentColor(KitsugiColors.Accent))
                     }
                 }
             }

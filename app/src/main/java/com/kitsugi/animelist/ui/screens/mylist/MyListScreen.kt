@@ -24,9 +24,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.FormatListBulleted
-import androidx.compose.material.icons.rounded.KeyboardArrowUp
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.MaterialTheme
 import com.kitsugi.animelist.ui.theme.gradient.Text
@@ -186,8 +184,8 @@ fun MyListScreen(
     onScrollReset: () -> Unit = {},
     isNotificationsVisible: Boolean = false,
     onOpenNotifications: () -> Unit = {},
-    onOpenWatchHistory: () -> Unit = {},
-    onOpenDownloads: () -> Unit = {}
+    onOpenWatchHistory: (() -> Unit)? = null,
+    onOpenDownloads: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -842,7 +840,7 @@ fun MyListScreen(
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
-                            imageVector = Icons.Rounded.FormatListBulleted,
+                            imageVector = Icons.FormatListBulleted,
                             contentDescription = "Kategori",
                             tint = KitsugiColors.background,
                             modifier = Modifier.size(20.dp)
@@ -886,7 +884,7 @@ fun MyListScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.KeyboardArrowUp,
+                        imageVector = Icons.KeyboardArrowUp,
                         contentDescription = stringResource(R.string.yukari_git),
                         tint = KitsugiColors.background,
                         modifier = Modifier.size(24.dp)

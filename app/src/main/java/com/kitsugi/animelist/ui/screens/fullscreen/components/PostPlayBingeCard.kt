@@ -21,8 +21,7 @@ import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.kitsugi.animelist.ui.theme.LocalKitsugiAccent
 import com.kitsugi.animelist.ui.theme.KitsugiColors
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Tv
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.ui.res.stringResource
 import com.kitsugi.animelist.R
 
@@ -111,7 +110,7 @@ fun PostPlayBingeCard(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
-                                    imageVector = Icons.Rounded.Tv,
+                                    imageVector = Icons.Tv,
                                     contentDescription = null,
                                     tint = Color.White.copy(alpha = 0.2f),
                                     modifier = Modifier.size(22.dp)

@@ -24,13 +24,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.AcUnit
-import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.FilterList
-import androidx.compose.material.icons.rounded.Forest
-import androidx.compose.material.icons.rounded.LocalFlorist
-import androidx.compose.material.icons.rounded.WbSunny
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import com.kitsugi.animelist.ui.theme.gradient.Icon
@@ -63,10 +57,10 @@ import androidx.compose.ui.res.stringResource
 import com.kitsugi.animelist.R
 
 enum class KitsugiSeason(val apiValue: String, val turkishName: String, val icon: ImageVector) {
-    WINTER("WINTER", "Kış", Icons.Rounded.AcUnit),
-    SPRING("SPRING", "İlkbahar", Icons.Rounded.LocalFlorist),
-    SUMMER("SUMMER", "Yaz", Icons.Rounded.WbSunny),
-    FALL("FALL", "Sonbahar", Icons.Rounded.Forest);
+    WINTER("WINTER", "Kış", Icons.AcUnit),
+    SPRING("SPRING", "İlkbahar", Icons.LocalFlorist),
+    SUMMER("SUMMER", "Yaz", Icons.WbSunny),
+    FALL("FALL", "Sonbahar", Icons.Forest);
 
     companion object {
         fun fromApiValue(value: String): KitsugiSeason {
@@ -221,7 +215,7 @@ fun KitsugiSeasonalFilterBottomSheet(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         if (isCurrentActive) {
                             Icon(
-                                imageVector = Icons.Rounded.Check,
+                                imageVector = Icons.Check,
                                 contentDescription = null,
                                 tint = accentColor,
                                 modifier = Modifier.size(16.dp)
@@ -349,7 +343,7 @@ fun KitsugiSeasonalFilterBottomSheet(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.FilterList,
+                        imageVector = Icons.FilterList,
                         contentDescription = stringResource(R.string.siralama),
                         tint = KitsugiColors.TextMuted,
                         modifier = Modifier.size(18.dp)
@@ -362,10 +356,10 @@ fun KitsugiSeasonalFilterBottomSheet(
                         fontWeight = FontWeight.Bold
                     )
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "▾",
-                        color = KitsugiColors.TextMuted,
-                        style = MaterialTheme.typography.bodyMedium
+                    KitsugiChevronIcon(
+                        expanded = sortMenuExpanded,
+                        tint = KitsugiColors.TextMuted,
+                        size = 16.dp
                     )
                 }
 

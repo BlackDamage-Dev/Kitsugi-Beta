@@ -1,6 +1,8 @@
 package com.kitsugi.animelist.ui.screens.detail.wiki
 
+import com.kitsugi.animelist.ui.components.KitsugiChevronIcon
 import com.kitsugi.animelist.ui.components.KitsugiDetailReveal
+import com.kitsugi.animelist.ui.components.KitsugiEmojiLabel
 import com.kitsugi.animelist.ui.components.animateDetailContentSize
 
 import android.content.Context
@@ -24,13 +26,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.ContentCopy
-import androidx.compose.material.icons.rounded.ExpandLess
-import androidx.compose.material.icons.rounded.ExpandMore
-import androidx.compose.material.icons.rounded.OpenInNew
-import androidx.compose.material.icons.automirrored.rounded.MenuBook
-import androidx.compose.material.icons.rounded.Warning
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.CircularProgressIndicator
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -674,7 +670,7 @@ private fun WikiFieldRow(
                             .size(22.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.ContentCopy,
+                            imageVector = Icons.ContentCopy,
                             contentDescription = stringResource(R.string.fandom_copy_value),
                             tint = KitsugiColors.TextMuted,
                             modifier = Modifier.size(13.dp)
@@ -691,7 +687,7 @@ private fun WikiFieldRow(
 internal fun CopyIconButton(contentDescription: String, onClick: () -> Unit) {
     IconButton(onClick = onClick, modifier = Modifier.size(36.dp)) {
         Icon(
-            imageVector = Icons.Rounded.ContentCopy,
+            imageVector = Icons.ContentCopy,
             contentDescription = contentDescription,
             tint = KitsugiColors.TextSecondary,
             modifier = Modifier.size(18.dp)
@@ -810,8 +806,8 @@ private fun WikiSectionRow(
                 .padding(start = (4 + depth * 14).dp, end = 4.dp, top = 10.dp, bottom = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                imageVector = if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+            KitsugiChevronIcon(
+                expanded = expanded,
                 contentDescription = null,
                 tint = accentColor,
                 modifier = Modifier.size(22.dp)
@@ -1170,7 +1166,7 @@ private fun SpoilerGate(accentColor: Color, onReveal: () -> Unit) {
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
-                imageVector = Icons.Rounded.Warning,
+                imageVector = Icons.Warning,
                 contentDescription = null,
                 tint = KitsugiColors.AccentOrange,
                 modifier = Modifier.size(18.dp)
@@ -1244,11 +1240,13 @@ private fun WikiSourceChips(
                     .padding(horizontal = 12.dp, vertical = 6.dp)
                     .tvClickable(enabled = !selected, shape = RoundedCornerShape(8.dp)) { onSwitchSource(index) }
             ) {
-                Text(
-                    text = (if (isWikipedia) "📖 " else "🌐 ") + label,
+                KitsugiEmojiLabel(
+                    label = label,
                     color = if (selected) accentColor else KitsugiColors.TextSecondary,
                     style = MaterialTheme.typography.labelMedium,
-                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
+                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                    iconSize = 13.dp,
+                    icon = if (isWikipedia) Icons.BookOpen else Icons.Globe
                 )
             }
         }
@@ -1284,7 +1282,7 @@ private fun WikiFooter(
             if (onOpenWikiPage != null) {
                 TextButton(onClick = { onOpenWikiPage(page.pageTitle) }) {
                     Icon(
-                        imageVector = Icons.AutoMirrored.Rounded.MenuBook,
+                        imageVector = Icons.MenuBook,
                         contentDescription = null,
                         tint = accentColor,
                         modifier = Modifier.size(16.dp)
@@ -1303,7 +1301,7 @@ private fun WikiFooter(
             } else {
                 TextButton(onClick = { openExternal(context, page.pageUrl) }) {
                     Icon(
-                        imageVector = Icons.Rounded.OpenInNew,
+                        imageVector = Icons.OpenInNew,
                         contentDescription = null,
                         tint = accentColor,
                         modifier = Modifier.size(16.dp)

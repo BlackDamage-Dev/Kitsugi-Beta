@@ -1,5 +1,6 @@
 package com.kitsugi.animelist.ui.tv.qrlogin
 
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.R
 import androidx.compose.ui.res.stringResource
 import android.graphics.Bitmap
@@ -44,6 +45,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.tv.material3.Button
 import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
+import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.OutlinedButton
 import com.kitsugi.animelist.ui.theme.gradient.Text
@@ -373,9 +375,11 @@ fun TvQrLoginScreen(
 
             if (selectedService == null) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = "📱",
-                        style = MaterialTheme.typography.displayMedium
+                    Icon(
+                        imageVector = Icons.Smartphone,
+                        contentDescription = null,
+                        tint = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.4f),
+                        modifier = androidx.compose.ui.Modifier.size(48.dp)
                     )
                     Spacer(modifier = Modifier.height(KitsugiTvTokens.Spacing.contentPadding))
                     Text(

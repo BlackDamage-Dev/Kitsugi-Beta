@@ -5,21 +5,12 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.ArrowDropDown
-import androidx.compose.material.icons.rounded.FormatSize
-import androidx.compose.material.icons.rounded.Info
-import androidx.compose.material.icons.rounded.Language
-import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material.icons.rounded.Security
-import androidx.compose.material.icons.rounded.Translate
-import androidx.compose.material.icons.rounded.Tune
-import androidx.compose.material.icons.rounded.Visibility
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -321,7 +312,7 @@ private fun WikiPageToolsDialog(
                 // ayar grupları gibi başlıklı, yuvarlak yüzeylere ayrıldı.
                 WikiToolGroup(title = stringResource(R.string.wiki_tools_section_content)) {
                     WikiToolSwitchRow(
-                        icon = Icons.Rounded.Translate,
+                        icon = Icons.Translate,
                         title = stringResource(R.string.wiki_tools_translate_title),
                         detail = translateDetail,
                         checked = translateOn,
@@ -342,7 +333,7 @@ private fun WikiPageToolsDialog(
                         onClick = onOpenTargetPicker
                     )
                     WikiToolSwitchRow(
-                        icon = Icons.Rounded.Security,
+                        icon = Icons.Security,
                         title = stringResource(R.string.wiki_tools_ad_block_title),
                         detail = adsDetail,
                         checked = adsOn,
@@ -354,26 +345,26 @@ private fun WikiPageToolsDialog(
                 Spacer(Modifier.height(10.dp))
                 WikiToolGroup(title = stringResource(R.string.wiki_tools_section_view)) {
                     WikiToolActionRow(
-                        icon = Icons.Rounded.Tune,
+                        icon = Icons.Tune,
                         title = stringResource(R.string.wiki_reading_appearance),
                         detail = zoomLabel,
                         enabled = canOpenAppearance,
                         onClick = onOpenAppearance
                     )
                     WikiToolActionRow(
-                        icon = Icons.Rounded.FormatSize,
+                        icon = Icons.FormatSize,
                         title = stringResource(R.string.wiki_text_smaller),
                         enabled = canZoom && zoom > 80,
                         onClick = { onSaveAppearance(theme, (zoom - 10).coerceAtLeast(80)) }
                     )
                     WikiToolActionRow(
-                        icon = Icons.Rounded.FormatSize,
+                        icon = Icons.FormatSize,
                         title = stringResource(R.string.wiki_text_larger),
                         enabled = canZoom && zoom < 180,
                         onClick = { onSaveAppearance(theme, (zoom + 10).coerceAtMost(180)) }
                     )
                     WikiToolSwitchRow(
-                        icon = Icons.Rounded.Visibility,
+                        icon = Icons.Visibility,
                         title = stringResource(R.string.wiki_keep_screen_on),
                         detail = stringResource(R.string.wiki_keep_screen_on_desc),
                         checked = keepScreenOn,
@@ -385,13 +376,13 @@ private fun WikiPageToolsDialog(
                 Spacer(Modifier.height(10.dp))
                 WikiToolGroup(title = stringResource(R.string.wiki_tools_section_page)) {
                     WikiToolActionRow(
-                        icon = Icons.Rounded.Search,
+                        icon = Icons.Search,
                         title = stringResource(R.string.wiki_find_in_page),
                         enabled = canFind,
                         onClick = onOpenFind
                     )
                     WikiToolActionRow(
-                        icon = Icons.Rounded.Info,
+                        icon = Icons.Info,
                         title = stringResource(R.string.wiki_tools_info),
                         enabled = true,
                         onClick = onOpenInfo
@@ -557,7 +548,7 @@ private fun WikiToolLanguageRow(
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         Icon(
-            imageVector = Icons.Rounded.Language,
+            imageVector = Icons.Language,
             contentDescription = null,
             tint = if (enabled) KitsugiColors.TextSecondary else KitsugiColors.TextMuted.copy(alpha = 0.5f),
             modifier = Modifier.size(16.dp)
@@ -578,7 +569,7 @@ private fun WikiToolLanguageRow(
             )
         }
         Icon(
-            imageVector = Icons.Rounded.ArrowDropDown,
+            imageVector = Icons.ArrowDropDown,
             contentDescription = null,
             tint = if (enabled) KitsugiColors.TextSecondary else KitsugiColors.TextMuted.copy(alpha = 0.5f),
             modifier = Modifier.size(20.dp)
@@ -637,7 +628,7 @@ private fun WikiLanguagePickerDialog(
                     ),
                     label = { Text(stringResource(R.string.wiki_translate_language_search)) },
                     leadingIcon = {
-                        Icon(Icons.Rounded.Search, contentDescription = null, tint = KitsugiColors.TextSecondary)
+                        Icon(Icons.Search, contentDescription = null, tint = KitsugiColors.TextSecondary)
                     },
                     singleLine = true
                 )

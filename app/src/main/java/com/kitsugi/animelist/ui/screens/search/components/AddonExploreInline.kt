@@ -7,11 +7,7 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Extension
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.rounded.SearchOff
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -263,7 +259,7 @@ fun LazyListScope.addonExploreInlineSections(
                 com.kitsugi.animelist.ui.components.KitsugiEmptyState(
                     title = stringResource(R.string.kesfet_icerigi_yuklenemedi),
                     subtitle = stringResource(R.string.inline_explore_content_couldn_t_be_61c6694),
-                    icon = androidx.compose.material.icons.Icons.Rounded.SearchOff
+                    icon = Icons.SearchOff
                 )
             }
         }

@@ -10,8 +10,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.*
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -184,7 +183,7 @@ internal fun PlayerGeneralTab(
                         title = stringResource(R.string.player_preferred),
                         description = stringResource(R.string.player_preferred_desc),
                         value = currentPlayerName,
-                        icon = Icons.Rounded.PlayArrow,
+                        icon = Icons.PlayArrow,
                         iconColor = accentColor,
                         onClick = { playerDropdownExpanded = true }
                     )
@@ -215,7 +214,7 @@ internal fun PlayerGeneralTab(
                             title = stringResource(R.string.player_preferred_external),
                             description = stringResource(R.string.player_preferred_external_desc),
                             value = currentExternalPlayerName,
-                            icon = Icons.Rounded.Launch,
+                            icon = Icons.Launch,
                             iconColor = accentColor,
                             onClick = { externalPlayerDropdownExpanded = true }
                         )
@@ -253,7 +252,7 @@ internal fun PlayerGeneralTab(
                 KitsugiSettingsSwitchItem(
                     title = stringResource(R.string.player_auto_next),
                     description = stringResource(R.string.player_auto_next_desc),
-                    icon = Icons.Rounded.SkipNext,
+                    icon = Icons.SkipNext,
                     iconColor = accentColor,
                     checked = isAutoplayEnabled,
                     onCheckedChange = onAutoplayEnabledChanged
@@ -267,7 +266,7 @@ internal fun PlayerGeneralTab(
                         title = stringResource(R.string.player_intro_skip),
                         description = stringResource(R.string.player_intro_skip_desc),
                         value = currentIntroName,
-                        icon = Icons.Rounded.Forward10,
+                        icon = Icons.Forward10,
                         iconColor = accentColor,
                         onClick = { introDropdownExpanded = true }
                     )
@@ -300,7 +299,7 @@ internal fun PlayerGeneralTab(
                     title = stringResource(R.string.player_quality_profile),
                     description = stringResource(R.string.player_quality_desc),
                     value = preferenceName,
-                    icon = Icons.Rounded.Hd,
+                    icon = Icons.Hd,
                     iconColor = accentColor,
                     onClick = { showQualityProfileDialog = true }
                 )
@@ -319,7 +318,7 @@ internal fun PlayerGeneralTab(
                         title = stringResource(R.string.player_dv_mode),
                         description = stringResource(R.string.player_dv_mode_desc),
                         value = currentDvName,
-                        icon = Icons.Rounded.Settings,
+                        icon = Icons.Settings,
                         iconColor = accentColor,
                         onClick = { dvDropdownExpanded = true }
                     )
@@ -343,7 +342,7 @@ internal fun PlayerGeneralTab(
                 KitsugiSettingsSwitchItem(
                     title = stringResource(R.string.player_hdr10_sei),
                     description = stringResource(R.string.player_hdr10_sei_desc),
-                    icon = Icons.Rounded.FilterCenterFocus,
+                    icon = Icons.FilterCenterFocus,
                     iconColor = accentColor,
                     checked = stripHdr10PlusSei,
                     onCheckedChange = onStripHdr10PlusSeiChanged
@@ -367,7 +366,7 @@ internal fun PlayerGeneralTab(
                         title = stringResource(R.string.player_aspect),
                         description = stringResource(R.string.player_aspect_desc),
                         value = currentAspectName,
-                        icon = Icons.Rounded.AspectRatio,
+                        icon = Icons.AspectRatio,
                         iconColor = accentColor,
                         onClick = { aspectDropdownExpanded = true }
                     )
@@ -399,7 +398,7 @@ internal fun PlayerGeneralTab(
                         title = stringResource(R.string.player_afr),
                         description = stringResource(R.string.player_afr_desc),
                         value = currentAfrName,
-                        icon = Icons.Rounded.Sync,
+                        icon = Icons.Sync,
                         iconColor = accentColor,
                         onClick = { afrDropdownExpanded = true }
                     )
@@ -423,7 +422,7 @@ internal fun PlayerGeneralTab(
                 KitsugiSettingsSwitchItem(
                     title = stringResource(R.string.player_res_match),
                     description = stringResource(R.string.player_res_match_desc),
-                    icon = Icons.Rounded.SettingsOverscan,
+                    icon = Icons.SettingsOverscan,
                     iconColor = accentColor,
                     checked = resolutionMatchingEnabled,
                     onCheckedChange = onResolutionMatchingEnabledChanged
@@ -441,7 +440,7 @@ internal fun PlayerGeneralTab(
                 KitsugiSettingsSwitchItem(
                     title = stringResource(R.string.player_live_assistant),
                     description = stringResource(R.string.player_live_assistant_desc),
-                    icon = Icons.Rounded.Help,
+                    icon = Icons.Help,
                     iconColor = accentColor,
                     checked = liveHelperEnabled,
                     onCheckedChange = onLiveHelperEnabledChanged
@@ -453,7 +452,7 @@ internal fun PlayerGeneralTab(
                 KitsugiSettingsSwitchItem(
                     title = stringResource(R.string.player_ass_extractor),
                     description = stringResource(R.string.player_ass_extractor_desc),
-                    icon = Icons.Rounded.Subtitles,
+                    icon = Icons.Subtitles,
                     iconColor = accentColor,
                     checked = enableAssExtractor,
                     onCheckedChange = onEnableAssExtractorChanged
@@ -465,7 +464,7 @@ internal fun PlayerGeneralTab(
                 KitsugiSettingsSwitchItem(
                     title = stringResource(R.string.player_show_title),
                     description = stringResource(R.string.player_show_title_desc),
-                    icon = Icons.Rounded.Title,
+                    icon = Icons.Title,
                     iconColor = accentColor,
                     checked = showPlayerTitle,
                     onCheckedChange = onShowPlayerTitleChanged
@@ -477,7 +476,7 @@ internal fun PlayerGeneralTab(
                 KitsugiSettingsSwitchItem(
                     title = stringResource(R.string.player_show_resolution),
                     description = stringResource(R.string.player_show_resolution_desc),
-                    icon = Icons.Rounded.SettingsOverscan,
+                    icon = Icons.SettingsOverscan,
                     iconColor = accentColor,
                     checked = showPlayerResolution,
                     onCheckedChange = onShowPlayerResolutionChanged
@@ -489,7 +488,7 @@ internal fun PlayerGeneralTab(
                 KitsugiSettingsSwitchItem(
                     title = stringResource(R.string.player_show_media_info),
                     description = stringResource(R.string.player_show_media_info_desc),
-                    icon = Icons.Rounded.Info,
+                    icon = Icons.Info,
                     iconColor = accentColor,
                     checked = showMediaInfo,
                     onCheckedChange = onShowMediaInfoChanged
@@ -501,7 +500,7 @@ internal fun PlayerGeneralTab(
                 KitsugiSettingsSwitchItem(
                     title = stringResource(R.string.player_preview_seekbar),
                     description = stringResource(R.string.player_preview_seekbar_desc),
-                    icon = Icons.Rounded.Preview,
+                    icon = Icons.Preview,
                     iconColor = accentColor,
                     checked = previewSeekbarEnabled,
                     onCheckedChange = onPreviewSeekbarEnabledChanged
@@ -519,7 +518,7 @@ internal fun PlayerGeneralTab(
                 KitsugiSettingsSwitchItem(
                     title = stringResource(R.string.player_are_you_watching),
                     description = stringResource(R.string.player_are_you_watching_desc),
-                    icon = Icons.Rounded.Tv,
+                    icon = Icons.Tv,
                     iconColor = accentColor,
                     checked = stillWatchingEnabled,
                     onCheckedChange = onStillWatchingEnabledChanged
@@ -535,7 +534,7 @@ internal fun PlayerGeneralTab(
                             title = stringResource(R.string.player_inactivity_threshold),
                             description = stringResource(R.string.player_inactivity_threshold_desc),
                             value = currentThresholdName,
-                            icon = Icons.Rounded.HourglassEmpty,
+                            icon = Icons.HourglassEmpty,
                             iconColor = accentColor,
                             onClick = { thresholdDropdownExpanded = true }
                         )
@@ -568,7 +567,7 @@ internal fun PlayerGeneralTab(
                         title = stringResource(R.string.player_post_play_mode),
                         description = stringResource(R.string.player_post_play_mode_desc),
                         value = currentPostPlayName,
-                        icon = Icons.Rounded.Forward,
+                        icon = Icons.Forward,
                         iconColor = accentColor,
                         onClick = { postPlayDropdownExpanded = true }
                     )
@@ -596,7 +595,7 @@ internal fun PlayerGeneralTab(
                         title = stringResource(R.string.player_session_limit),
                         description = stringResource(R.string.player_session_limit_desc),
                         value = currentLimitName,
-                        icon = Icons.Rounded.SlowMotionVideo,
+                        icon = Icons.SlowMotionVideo,
                         iconColor = accentColor,
                         onClick = { sessionLimitDropdownExpanded = true }
                     )
@@ -635,7 +634,7 @@ internal fun PlayerGeneralTab(
                         title = stringResource(R.string.player_decoder_priority),
                         description = stringResource(R.string.player_decoder_priority_desc),
                         value = currentDecoderName,
-                        icon = Icons.Rounded.Memory,
+                        icon = Icons.Memory,
                         iconColor = accentColor,
                         onClick = { decoderDropdownExpanded = true }
                     )
@@ -722,7 +721,7 @@ internal fun PlayerGeneralTab(
                 KitsugiSettingsSwitchItem(
                     title = stringResource(R.string.player_gesture_volume),
                     description = stringResource(R.string.player_gesture_volume_desc),
-                    icon = Icons.Rounded.VolumeUp,
+                    icon = Icons.VolumeUp,
                     iconColor = accentColor,
                     checked = gestureVolumeEnabled,
                     onCheckedChange = onGestureVolumeEnabledChanged
@@ -734,7 +733,7 @@ internal fun PlayerGeneralTab(
                 KitsugiSettingsSwitchItem(
                     title = stringResource(R.string.player_gesture_brightness),
                     description = stringResource(R.string.player_gesture_brightness_desc),
-                    icon = Icons.Rounded.BrightnessMedium,
+                    icon = Icons.BrightnessMedium,
                     iconColor = accentColor,
                     checked = gestureBrightnessEnabled,
                     onCheckedChange = onGestureBrightnessEnabledChanged
@@ -746,7 +745,7 @@ internal fun PlayerGeneralTab(
                 KitsugiSettingsSwitchItem(
                     title = stringResource(R.string.player_gesture_zoom),
                     description = stringResource(R.string.player_gesture_zoom_desc),
-                    icon = Icons.Rounded.ZoomIn,
+                    icon = Icons.ZoomIn,
                     iconColor = accentColor,
                     checked = gestureZoomEnabled,
                     onCheckedChange = onGestureZoomEnabledChanged
@@ -762,7 +761,7 @@ internal fun PlayerGeneralTab(
                         title = stringResource(R.string.player_double_tap_seek),
                         description = stringResource(R.string.player_double_tap_seek_desc),
                         value = currentSeekName,
-                        icon = Icons.Rounded.Forward10,
+                        icon = Icons.Forward10,
                         iconColor = accentColor,
                         onClick = { seekDropdownExpanded = true }
                     )
@@ -790,7 +789,7 @@ internal fun PlayerGeneralTab(
                         title = stringResource(R.string.player_hold_speed),
                         description = stringResource(R.string.player_hold_speed_desc),
                         value = currentHoldName,
-                        icon = Icons.Rounded.Speed,
+                        icon = Icons.Speed,
                         iconColor = accentColor,
                         onClick = { holdDropdownExpanded = true }
                     )
@@ -852,7 +851,7 @@ internal fun PlayerGeneralTab(
                         title = stringResource(R.string.player_mpv_gpu_renderer),
                         description = stringResource(R.string.player_mpv_gpu_renderer_desc),
                         value = currentGpuName,
-                        icon = Icons.Rounded.Memory,
+                        icon = Icons.Memory,
                         iconColor = accentColor,
                         onClick = { mpvGpuDropdownExpanded = true }
                     )
@@ -881,7 +880,7 @@ internal fun PlayerGeneralTab(
                         title = stringResource(R.string.player_mpv_hwdec),
                         description = stringResource(R.string.player_mpv_hwdec_desc),
                         value = currentHwdecName,
-                        icon = Icons.Rounded.DeveloperBoard,
+                        icon = Icons.DeveloperBoard,
                         iconColor = accentColor,
                         onClick = { mpvHwdecDropdownExpanded = true }
                     )
@@ -906,7 +905,7 @@ internal fun PlayerGeneralTab(
                         title = stringResource(R.string.player_mpv_deband),
                         description = stringResource(R.string.player_mpv_deband_desc),
                         value = currentDebandName,
-                        icon = Icons.Rounded.Gradient,
+                        icon = Icons.Gradient,
                         iconColor = accentColor,
                         onClick = { mpvDebandDropdownExpanded = true }
                     )
@@ -927,7 +926,7 @@ internal fun PlayerGeneralTab(
                 KitsugiSettingsSwitchItem(
                     title = stringResource(R.string.player_mpv_yuv),
                     description = stringResource(R.string.player_mpv_yuv_desc),
-                    icon = Icons.Rounded.VideoSettings,
+                    icon = Icons.VideoSettings,
                     iconColor = accentColor,
                     checked = mpvForceYuv420p,
                     onCheckedChange = onMpvForceYuv420pChanged
@@ -997,7 +996,7 @@ internal fun PlayerGeneralTab(
                 KitsugiSettingsSwitchItem(
                     title = stringResource(R.string.player_gesture_swap_sides),
                     description = stringResource(R.string.player_gesture_swap_sides_desc),
-                    icon = Icons.Rounded.SwapHoriz,
+                    icon = Icons.SwapHoriz,
                     iconColor = accentColor,
                     checked = !swipeVolumeBrightnessSides,
                     onCheckedChange = { onSwipeVolumeBrightnessSidesChanged(!it) }
@@ -1009,7 +1008,7 @@ internal fun PlayerGeneralTab(
                 KitsugiSettingsSwitchItem(
                     title = stringResource(R.string.player_gesture_horizontal_seek),
                     description = stringResource(R.string.player_gesture_horizontal_seek_desc),
-                    icon = Icons.Rounded.SwipeRight,
+                    icon = Icons.SwipeRight,
                     iconColor = accentColor,
                     checked = horizontalSeekGestureEnabled,
                     onCheckedChange = onHorizontalSeekGestureEnabledChanged
@@ -1021,7 +1020,7 @@ internal fun PlayerGeneralTab(
                 KitsugiSettingsSwitchItem(
                     title = stringResource(R.string.player_precise_seek),
                     description = stringResource(R.string.player_precise_seek_desc),
-                    icon = Icons.Rounded.ControlCamera,
+                    icon = Icons.ControlCamera,
                     iconColor = accentColor,
                     checked = preciseSeeking,
                     onCheckedChange = onPreciseSeekingChanged

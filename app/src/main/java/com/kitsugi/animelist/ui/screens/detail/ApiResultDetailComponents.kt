@@ -1,5 +1,7 @@
 package com.kitsugi.animelist.ui.screens.detail
 
+import androidx.compose.ui.graphics.vector.ImageVector
+import com.kitsugi.animelist.ui.components.KitsugiChevronIcon
 import com.kitsugi.animelist.ui.components.animateDetailContentSize
 import com.kitsugi.animelist.ui.theme.gradient.background
 import com.kitsugi.animelist.ui.utils.tvClickable
@@ -18,15 +20,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.ContentCopy
-import androidx.compose.material.icons.rounded.KeyboardArrowDown
-import androidx.compose.material.icons.rounded.KeyboardArrowUp
-import androidx.compose.material.icons.rounded.Translate
-import androidx.compose.material.icons.rounded.Settings
-import androidx.compose.material.icons.rounded.Visibility
-import androidx.compose.material.icons.rounded.VisibilityOff
-import androidx.compose.material.icons.rounded.WarningAmber
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.HorizontalDivider
@@ -418,7 +412,7 @@ internal fun ApiSynopsisCard(
             if (onCopyClick != null && !synopsis.isNullOrBlank()) {
                 IconButton(onClick = onCopyClick) {
                     Icon(
-                        imageVector = Icons.Rounded.ContentCopy,
+                        imageVector = Icons.ContentCopy,
                         contentDescription = stringResource(R.string.action_copy),
                         tint = KitsugiColors.TextSecondary
                     )
@@ -480,7 +474,7 @@ internal fun ApiSynopsisCard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
-                        imageVector = if (isExpanded) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
+                        imageVector = if (isExpanded) Icons.VisibilityOff else Icons.Visibility,
                         contentDescription = null,
                         tint = LocalKitsugiAccent.current,
                         modifier = Modifier.size(16.dp)
@@ -544,10 +538,11 @@ internal fun ApiTrailerCard(
                     .background(accentColor.copy(alpha = 0.15f))
                     .padding(10.dp)
             ) {
-                Text(
-                    text = "▶",
-                    color = accentColor,
-                    style = MaterialTheme.typography.titleMedium
+                Icon(
+                    imageVector = Icons.Play,
+                    contentDescription = null,
+                    tint = accentColor,
+                    modifier = Modifier.size(18.dp)
                 )
             }
         }
@@ -639,8 +634,8 @@ internal fun ApiThemesList(
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Bold
                         )
-                        com.kitsugi.animelist.ui.theme.gradient.Icon(
-                            imageVector = if (openingsExpanded) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.KeyboardArrowDown,
+                        KitsugiChevronIcon(
+                            expanded = openingsExpanded,
                             contentDescription = null,
                             tint = accentColor,
                             modifier = Modifier.size(16.dp)
@@ -665,10 +660,11 @@ internal fun ApiThemesList(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(
-                        text = if (!theme.videoUrl.isNullOrBlank()) "▶" else "🔍",
-                        color = accentColor,
-                        style = MaterialTheme.typography.labelSmall
+                    Icon(
+                        imageVector = if (!theme.videoUrl.isNullOrBlank()) Icons.Play else Icons.Search,
+                        contentDescription = null,
+                        tint = accentColor,
+                        modifier = Modifier.size(14.dp)
                     )
                     Text(
                         text = theme.label,
@@ -713,8 +709,8 @@ internal fun ApiThemesList(
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Bold
                         )
-                        com.kitsugi.animelist.ui.theme.gradient.Icon(
-                            imageVector = if (endingsExpanded) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.KeyboardArrowDown,
+                        KitsugiChevronIcon(
+                            expanded = endingsExpanded,
                             contentDescription = null,
                             tint = accentColor,
                             modifier = Modifier.size(16.dp)
@@ -739,10 +735,11 @@ internal fun ApiThemesList(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(
-                        text = if (!theme.videoUrl.isNullOrBlank()) "▶" else "🔍",
-                        color = accentColor.copy(alpha = 0.8f),
-                        style = MaterialTheme.typography.labelSmall
+                    Icon(
+                        imageVector = if (!theme.videoUrl.isNullOrBlank()) Icons.Play else Icons.Search,
+                        contentDescription = null,
+                        tint = accentColor.copy(alpha = 0.8f),
+                        modifier = Modifier.size(14.dp)
                     )
                     Text(
                         text = theme.label,
@@ -853,7 +850,8 @@ internal fun ApiDetailPill(
  * Letterboxd, TMDB, Trakt).
  */
 internal data class MdbRatingItem(
-    val emoji: String,
+    /** Marka ikonu (HD vektör) — emoji yerine. */
+    val icon: ImageVector,
     val label: String,
     val value: String,
     val accent: Color,
@@ -911,7 +909,7 @@ private fun buildMdbRatingItems(
         if (showImdb && imdbScore != null && imdbScore > 0.0) {
             add(
                 MdbRatingItem(
-                    emoji = "⭐",
+                    icon = Icons.StarSolid,
                     label = "IMDb",
                     value = String.format("%.1f", imdbScore),
                     accent = MdbImdbAccent,
@@ -928,7 +926,7 @@ private fun buildMdbRatingItems(
         if (showTomatoes && tomatoScore != null && tomatoScore > 0) {
             add(
                 MdbRatingItem(
-                    emoji = "🍅",
+                    icon = Icons.CircleCheck,
                     label = "Tomatometer",
                     value = "$tomatoScore%",
                     accent = MdbTomatoAccent,
@@ -941,7 +939,7 @@ private fun buildMdbRatingItems(
         if (showAudience && audienceScore != null && audienceScore > 0) {
             add(
                 MdbRatingItem(
-                    emoji = "🍿",
+                    icon = Icons.Popcorn,
                     label = "Audience",
                     value = "$audienceScore%",
                     accent = MdbAudienceAccent,
@@ -954,7 +952,7 @@ private fun buildMdbRatingItems(
         if (showMetacritic && metacriticScore != null && metacriticScore > 0) {
             add(
                 MdbRatingItem(
-                    emoji = "🎖️",
+                    icon = Icons.Award,
                     label = "Metacritic",
                     value = "$metacriticScore",
                     accent = mdbMetacriticAccent(metacriticScore),
@@ -967,7 +965,7 @@ private fun buildMdbRatingItems(
         if (showLetterboxd && letterboxdScore != null && letterboxdScore > 0.0) {
             add(
                 MdbRatingItem(
-                    emoji = "📽️",
+                    icon = Icons.Clapperboard,
                     label = "Letterboxd",
                     value = String.format("%.1f", letterboxdScore),
                     accent = MdbLetterboxdAccent,
@@ -984,7 +982,7 @@ private fun buildMdbRatingItems(
         if (showTmdb && tmdbScore != null && tmdbScore > 0.0) {
             add(
                 MdbRatingItem(
-                    emoji = "🎬",
+                    icon = Icons.Film,
                     label = "TMDB",
                     value = String.format("%.1f", tmdbScore),
                     accent = MdbTmdbAccent,
@@ -997,7 +995,7 @@ private fun buildMdbRatingItems(
         if (showTrakt && traktScore != null && traktScore > 0.0) {
             add(
                 MdbRatingItem(
-                    emoji = "📺",
+                    icon = Icons.Tv,
                     label = "Trakt",
                     value = String.format("%.0f%%", traktScore),
                     accent = MdbTraktAccent,
@@ -1125,7 +1123,7 @@ internal fun ApiMdbListRatingCard(
                         modifier = Modifier.size(26.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.Settings,
+                            imageVector = Icons.Settings,
                             contentDescription = stringResource(R.string.ayarlar),
                             tint = KitsugiColors.TextSecondary,
                             modifier = Modifier.size(16.dp)
@@ -1344,10 +1342,11 @@ private fun MdbRatingBadge(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(3.dp)
         ) {
-            Text(
-                text = item.emoji,
-                fontSize = 10.sp,
-                lineHeight = 12.sp
+            Icon(
+                imageVector = item.icon,
+                contentDescription = null,
+                tint = accent,
+                modifier = Modifier.size(11.dp)
             )
             Text(
                 text = item.label,

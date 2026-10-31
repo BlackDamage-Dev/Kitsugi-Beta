@@ -1,5 +1,6 @@
 package com.kitsugi.animelist.ui.screens.explore
 
+import com.kitsugi.animelist.ui.components.KitsugiChevronIcon
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -18,10 +19,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.GridView
-import androidx.compose.material.icons.rounded.KeyboardArrowDown
-import androidx.compose.material.icons.rounded.KeyboardArrowUp
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -74,7 +72,7 @@ fun ExploreCategoriesSection(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
-                    imageVector = Icons.Rounded.GridView,
+                    imageVector = Icons.GridView,
                     contentDescription = null,
                     tint = accentColor,
                     modifier = Modifier.size(20.dp)
@@ -87,10 +85,11 @@ fun ExploreCategoriesSection(
                     color = KitsugiColors.TextPrimary
                 )
             }
-            Icon(
-                imageVector = if (isExpanded) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.KeyboardArrowDown,
+            KitsugiChevronIcon(
+                expanded = isExpanded,
                 contentDescription = stringResource(R.string.genislet_daralt),
-                tint = KitsugiColors.TextSecondary
+                tint = KitsugiColors.TextSecondary,
+                modifier = Modifier
             )
         }
 

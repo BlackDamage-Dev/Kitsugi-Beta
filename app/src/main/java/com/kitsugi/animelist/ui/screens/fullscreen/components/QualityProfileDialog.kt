@@ -18,8 +18,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.*
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -95,7 +94,7 @@ fun QualityProfileDialog(
                     .size(32.dp)
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.Close,
+                    imageVector = Icons.Close,
                     contentDescription = stringResource(R.string.kapat),
                     tint = KitsugiColors.TextSecondary,
                     modifier = Modifier.size(18.dp)
@@ -112,7 +111,7 @@ fun QualityProfileDialog(
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.HighQuality,
+                        imageVector = Icons.HighQuality,
                         contentDescription = null,
                         tint = accentColor,
                         modifier = Modifier.size(24.dp)
@@ -275,11 +274,11 @@ private fun QualityOptionRow(
     val borderColor    = if (isSelected) accentColor else KitsugiColors.Border
 
     val qualityIcon = when (preference) {
-        QualityPreference.AUTO       -> Icons.Rounded.AutoAwesome
-        QualityPreference.P1080      -> Icons.Rounded.Hd
-        QualityPreference.P720       -> Icons.Rounded.HighQuality
-        QualityPreference.P480       -> Icons.Rounded.SdCard
-        QualityPreference.DATA_SAVER -> Icons.Rounded.SignalCellularAlt
+        QualityPreference.AUTO       -> Icons.AutoAwesome
+        QualityPreference.P1080      -> Icons.Hd
+        QualityPreference.P720       -> Icons.HighQuality
+        QualityPreference.P480       -> Icons.SdCard
+        QualityPreference.DATA_SAVER -> Icons.SignalCellularAlt
     }
 
     val descriptionText = when (preference) {
@@ -322,7 +321,7 @@ private fun QualityOptionRow(
         }
         if (isSelected) {
             Icon(
-                imageVector = Icons.Rounded.CheckCircle,
+                imageVector = Icons.CheckCircle,
                 contentDescription = stringResource(R.string.secili),
                 tint = accentColor,
                 modifier = Modifier.size(20.dp)

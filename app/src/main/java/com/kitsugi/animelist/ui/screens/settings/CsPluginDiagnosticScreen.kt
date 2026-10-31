@@ -1,5 +1,6 @@
 package com.kitsugi.animelist.ui.screens.settings
 
+import androidx.compose.ui.graphics.vector.ImageVector
 import com.kitsugi.animelist.R
 import com.kitsugi.animelist.ui.utils.uniqueItems
 import com.kitsugi.animelist.ui.components.KitsugiButton
@@ -7,6 +8,7 @@ import com.kitsugi.animelist.ui.components.KitsugiButton
 import android.content.Intent
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
+import com.kitsugi.animelist.ui.components.KitsugiEmojiLabel
 import com.kitsugi.animelist.ui.theme.gradient.background
 import com.kitsugi.animelist.ui.theme.gradient.border
 import androidx.compose.foundation.layout.*
@@ -14,8 +16,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.*
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -87,7 +88,7 @@ fun CsPluginDiagnosticScreen(
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Icon(
-                        Icons.Rounded.BugReport,
+                        Icons.BugReport,
                         contentDescription = null,
                         tint = accent,
                         modifier = Modifier.size(24.dp)
@@ -112,7 +113,7 @@ fun CsPluginDiagnosticScreen(
                     }
                     if (!isRunning) {
                         IconButton(onClick = onDismiss) {
-                            Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.action_close), tint = KitsugiColors.TextSecondary)
+                            Icon(Icons.Close, contentDescription = stringResource(R.string.action_close), tint = KitsugiColors.TextSecondary)
                         }
                     }
                 }
@@ -216,7 +217,7 @@ fun CsPluginDiagnosticScreen(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(12.dp)
                         ) {
-                            Icon(Icons.Rounded.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Icon(Icons.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(6.dp))
                             Text(stringResource(if (results.isEmpty()) R.string.cs_diag_start else R.string.cs_diag_restart), fontWeight = FontWeight.Bold)
                         }
@@ -227,7 +228,7 @@ fun CsPluginDiagnosticScreen(
                             shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = KitsugiColors.AccentRed)
                         ) {
-                            Icon(Icons.Rounded.Stop, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Icon(Icons.Stop, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(6.dp))
                             Text(stringResource(R.string.cs_diag_stop), fontWeight = FontWeight.Bold)
                         }
@@ -253,7 +254,7 @@ fun CsPluginDiagnosticScreen(
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = accent)
                     ) {
-                        Icon(Icons.Rounded.Share, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Share, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(6.dp))
                         Text(stringResource(R.string.inline_share_live_monitoring_report_md_ff2cf01), fontWeight = FontWeight.Bold)
                     }
@@ -264,7 +265,7 @@ fun CsPluginDiagnosticScreen(
                             shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = accent),
                         ) {
-                            Icon(Icons.Rounded.Info, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Icon(Icons.Info, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(6.dp))
                             Text(stringResource(R.string.platform_error_catalog_open), fontWeight = FontWeight.Bold)
                         }
@@ -297,7 +298,7 @@ fun CsPluginDiagnosticScreen(
                             shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = accent)
                         ) {
-                            Icon(Icons.Rounded.Share, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Icon(Icons.Share, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(6.dp))
                             Text(stringResource(R.string.inline_share_report_md_79b230f), fontWeight = FontWeight.Bold)
                         }
@@ -378,12 +379,12 @@ private fun ProgressCard(
 
         if (progress != null) {
             // Plugin adı
-            Text(
-                "▶ ${progress.currentPlugin} — ${progress.phase}",
+            KitsugiEmojiLabel(
+                label = "${progress.currentPlugin} — ${progress.phase}",
+                icon = Icons.Play,
+                iconSize = 11.dp,
                 color = KitsugiColors.TextSecondary,
-                fontSize = 12.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                style = MaterialTheme.typography.bodySmall
             )
 
             // Progress bar
@@ -424,11 +425,13 @@ private fun HostAbiWarning(missing: List<String>) {
             .padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Text(
-            "⚠️ Uygulama tarafı eksik (Host ABI)",
+        KitsugiEmojiLabel(
+            label = "Uygulama tarafı eksik (Host ABI)",
+            icon = Icons.TriangleAlert,
+            iconSize = 13.dp,
             color = KitsugiColors.AccentRed,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Bold
         )
         Text(
             "Şu sınıflar uygulamada bulunamadı: ${missing.joinToString(", ")}. " +
@@ -446,17 +449,17 @@ private fun SummaryCards(summary: CsPluginDiagnosticRunner.DiagnosticSummary) {
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            SummaryChip("✅", summary.working.toString(), stringResource(R.string.cs_diag_summary_working), KitsugiColors.AccentGreen, Modifier.weight(1f))
-            SummaryChip("⚠️", summary.noStreams.toString(), stringResource(R.string.cs_diag_summary_no_streams), KitsugiColors.AccentOrange, Modifier.weight(1f))
-            SummaryChip("🔐", summary.cfBlocked.toString(), stringResource(R.string.cs_diag_summary_cf_blocked), KitsugiColors.AccentBlue, Modifier.weight(1f))
+            SummaryChip(Icons.CircleCheck, summary.working.toString(), stringResource(R.string.cs_diag_summary_working), KitsugiColors.AccentGreen, Modifier.weight(1f))
+            SummaryChip(Icons.TriangleAlert, summary.noStreams.toString(), stringResource(R.string.cs_diag_summary_no_streams), KitsugiColors.AccentOrange, Modifier.weight(1f))
+            SummaryChip(Icons.Lock, summary.cfBlocked.toString(), stringResource(R.string.cs_diag_summary_cf_blocked), KitsugiColors.AccentBlue, Modifier.weight(1f))
         }
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            SummaryChip("🔎", summary.searchEmpty.toString(), stringResource(R.string.cs_diag_summary_search_empty), KitsugiColors.TextMuted, Modifier.weight(1f))
-            SummaryChip("⚠️", summary.loadFailed.toString(), stringResource(R.string.cs_diag_summary_load_failed), KitsugiColors.AccentOrange, Modifier.weight(1f))
-            SummaryChip("❌", summary.dead.toString(), stringResource(R.string.cs_diag_summary_broken), KitsugiColors.AccentRed, Modifier.weight(1f))
+            SummaryChip(Icons.Search, summary.searchEmpty.toString(), stringResource(R.string.cs_diag_summary_search_empty), KitsugiColors.TextMuted, Modifier.weight(1f))
+            SummaryChip(Icons.TriangleAlert, summary.loadFailed.toString(), stringResource(R.string.cs_diag_summary_load_failed), KitsugiColors.AccentOrange, Modifier.weight(1f))
+            SummaryChip(Icons.CircleX, summary.dead.toString(), stringResource(R.string.cs_diag_summary_broken), KitsugiColors.AccentRed, Modifier.weight(1f))
         }
         if (summary.runtimeIncompatible > 0 || summary.authRequired > 0) {
             Row(
@@ -464,14 +467,14 @@ private fun SummaryCards(summary: CsPluginDiagnosticRunner.DiagnosticSummary) {
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 SummaryChip(
-                    "🧩",
+                    Icons.Puzzle,
                     summary.runtimeIncompatible.toString(),
                     stringResource(R.string.cs_diag_summary_runtime_incompatible),
                     KitsugiColors.AccentRed,
                     Modifier.weight(1f),
                 )
                 SummaryChip(
-                    "🔑",
+                    Icons.Key,
                     summary.authRequired.toString(),
                     stringResource(R.string.cs_diag_summary_auth_required),
                     KitsugiColors.AccentBlue,
@@ -517,7 +520,7 @@ private fun SummaryCards(summary: CsPluginDiagnosticRunner.DiagnosticSummary) {
 
 @Composable
 private fun SummaryChip(
-    emoji: String,
+    icon: ImageVector,
     count: String,
     label: String,
     color: Color,
@@ -531,7 +534,12 @@ private fun SummaryChip(
             .padding(horizontal = 10.dp, vertical = 10.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(emoji, fontSize = 18.sp)
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = color,
+            modifier = Modifier.size(18.dp)
+        )
         Text(count, color = color, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp)
         Text(label, color = KitsugiColors.TextMuted, fontSize = 9.sp)
     }
@@ -575,14 +583,14 @@ private fun ResultRow(
     accent: Color
 ) {
     val (statusIcon, statusColor) = when (result.status) {
-        CsPluginDiagnosticRunner.ResultStatus.WORKING      -> "✅" to KitsugiColors.AccentGreen
-        CsPluginDiagnosticRunner.ResultStatus.NO_STREAMS   -> "⚠️" to KitsugiColors.AccentOrange
-        CsPluginDiagnosticRunner.ResultStatus.SEARCH_EMPTY -> "🔎" to KitsugiColors.TextMuted
-        CsPluginDiagnosticRunner.ResultStatus.CF_BLOCKED   -> "🔐" to KitsugiColors.AccentBlue
-        CsPluginDiagnosticRunner.ResultStatus.LOAD_FAILED  -> "⚠️" to KitsugiColors.AccentOrange
-        CsPluginDiagnosticRunner.ResultStatus.DEAD         -> "❌" to KitsugiColors.AccentRed
-        CsPluginDiagnosticRunner.ResultStatus.RUNTIME_INCOMPATIBLE -> "🧩" to KitsugiColors.AccentRed
-        CsPluginDiagnosticRunner.ResultStatus.AUTH_REQUIRED -> "🔑" to KitsugiColors.AccentBlue
+        CsPluginDiagnosticRunner.ResultStatus.WORKING      -> Icons.CircleCheck to KitsugiColors.AccentGreen
+        CsPluginDiagnosticRunner.ResultStatus.NO_STREAMS   -> Icons.TriangleAlert to KitsugiColors.AccentOrange
+        CsPluginDiagnosticRunner.ResultStatus.SEARCH_EMPTY -> Icons.Search to KitsugiColors.TextMuted
+        CsPluginDiagnosticRunner.ResultStatus.CF_BLOCKED   -> Icons.Lock to KitsugiColors.AccentBlue
+        CsPluginDiagnosticRunner.ResultStatus.LOAD_FAILED  -> Icons.TriangleAlert to KitsugiColors.AccentOrange
+        CsPluginDiagnosticRunner.ResultStatus.DEAD         -> Icons.CircleX to KitsugiColors.AccentRed
+        CsPluginDiagnosticRunner.ResultStatus.RUNTIME_INCOMPATIBLE -> Icons.Puzzle to KitsugiColors.AccentRed
+        CsPluginDiagnosticRunner.ResultStatus.AUTH_REQUIRED -> Icons.Key to KitsugiColors.AccentBlue
     }
 
     Row(
@@ -594,7 +602,12 @@ private fun ResultRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Text(statusIcon, fontSize = 16.sp)
+        Icon(
+            imageVector = statusIcon,
+            contentDescription = null,
+            tint = statusColor,
+            modifier = Modifier.size(16.dp)
+        )
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 result.displayName,
@@ -637,16 +650,20 @@ private fun ResultRow(
                     overflow = TextOverflow.Ellipsis
                 )
             }
-            Text(
-                "🔍${result.searchCount}",
+            KitsugiEmojiLabel(
+                label = "${result.searchCount}",
+                icon = Icons.Search,
+                iconSize = 9.dp,
                 color = KitsugiColors.TextMuted,
-                fontSize = 10.sp
+                style = MaterialTheme.typography.labelSmall
             )
             if (result.flowTested) {
-                Text(
-                    if (result.flowOk) "🔁${result.flowStreams}" else "🔁❌",
+                KitsugiEmojiLabel(
+                    label = if (result.flowOk) "${result.flowStreams}" else "",
+                    icon = if (result.flowOk) Icons.RefreshCw else Icons.CircleX,
+                    iconSize = 9.dp,
                     color = KitsugiColors.TextMuted,
-                    fontSize = 10.sp
+                    style = MaterialTheme.typography.labelSmall
                 )
             }
         }

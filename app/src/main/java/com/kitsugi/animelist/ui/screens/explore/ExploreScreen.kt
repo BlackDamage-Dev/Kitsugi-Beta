@@ -24,13 +24,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowUpward
-import androidx.compose.material.icons.rounded.Notifications
-import androidx.compose.material.icons.rounded.History
-import androidx.compose.material.icons.rounded.Download
-import androidx.compose.material.icons.rounded.Key
-import androidx.compose.material.icons.rounded.Login
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import com.kitsugi.animelist.ui.components.KitsugiPullToRefreshIndicator
@@ -58,6 +52,8 @@ import com.kitsugi.animelist.ui.components.KitsugiErrorState
 import com.kitsugi.animelist.ui.components.KitsugiEmptyState
 import com.kitsugi.animelist.ui.components.KitsugiShimmerProvider
 import com.kitsugi.animelist.ui.components.kitsugiCardFrame
+import com.kitsugi.animelist.ui.components.KitsugiTopAction
+import com.kitsugi.animelist.ui.components.KitsugiTopActionRow
 import com.kitsugi.animelist.ui.theme.KitsugiColors
 import com.kitsugi.animelist.ui.theme.LocalIsTvDevice
 import com.kitsugi.animelist.ui.theme.LocalKitsugiAccent
@@ -73,6 +69,7 @@ fun ExploreScreen(
     onAddSelectionToList: (ApiSearchSelection) -> Unit,
     onSeeAllSection: (title: String, categoryType: ExploreCategoryType, results: List<JikanSearchResult>, platform: ExplorePlatform) -> Unit,
     onNavigateToWatchHistory: () -> Unit = {},
+    onNavigateToDownloads: (() -> Unit)? = null,
     onOpenApiDetail: (JikanSearchResult) -> Unit,
     onEditEntry: (MediaEntry) -> Unit,
     onOpenMangaReader: () -> Unit = {},
@@ -438,100 +435,43 @@ fun ExploreScreen(
                                                     modifier = Modifier.weight(1f)
                                                 )
 
-                                                // 🎲 Rastgele keşfet butonu (bildirim açıkken de görünür)
-                                                Box(
-                                                    modifier = Modifier
-                                                        .size(38.dp)
-                                                        .clip(RoundedCornerShape(12.dp))
-                                                        .background(KitsugiColors.SurfaceElevated)
-                                                        .border(1.dp, KitsugiColors.SurfaceElevated.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
-                                                        .tvClickable(shape = RoundedCornerShape(12.dp)) {
-                                                            val randomPool = mutableListOf<JikanSearchResult>()
-                                                            if (viewModel.selectedPlatform == ExplorePlatform.ALL) {
-                                                                randomPool.addAll(
-                                                                    allSectionsList
-                                                                        .flatMap { it.results }
-                                                                        .distinctBy { it.exploreIdentity() }
-                                                                )
-                                                            } else {
-                                                                randomPool.addAll(
-                                                                    visibleSelectedSourceSections
-                                                                        .flatMap { it.results }
-                                                                        .distinctBy { it.exploreIdentity() }
-                                                                )
+                                                // 🎲 Rastgele + 🔔 Bildirim → ortak üst çubuk aksiyon satırı.
+                                                // Sıra ve görünüm uygulamanın her yerinde aynıdır; bildirim
+                                                // her zaman en sağdaki buton olarak kalır.
+                                                KitsugiTopActionRow(
+                                                    actions = buildList {
+                                                        add(KitsugiTopAction.HISTORY)
+                                                        if (onNavigateToDownloads != null) add(KitsugiTopAction.DOWNLOADS)
+                                                        add(KitsugiTopAction.RANDOM)
+                                                        if (isNotificationsVisible) add(KitsugiTopAction.NOTIFICATIONS)
+                                                    },
+                                                    onActionClick = { action ->
+                                                        when (action) {
+                                                            KitsugiTopAction.RANDOM -> {
+                                                                val randomPool = mutableListOf<JikanSearchResult>()
+                                                                if (viewModel.selectedPlatform == ExplorePlatform.ALL) {
+                                                                    randomPool.addAll(
+                                                                        allSectionsList
+                                                                            .flatMap { it.results }
+                                                                            .distinctBy { it.exploreIdentity() }
+                                                                    )
+                                                                } else {
+                                                                    randomPool.addAll(
+                                                                        visibleSelectedSourceSections
+                                                                            .flatMap { it.results }
+                                                                            .distinctBy { it.exploreIdentity() }
+                                                                    )
+                                                                }
+                                                                randomPool.filter { showAdultContent || !it.isAdult }
+                                                                    .randomOrNull()?.let(onOpenApiDetail)
                                                             }
-                                                            randomPool.filter { showAdultContent || !it.isAdult }
-                                                                .randomOrNull()?.let(onOpenApiDetail)
-                                                        },
-                                                    contentAlignment = Alignment.Center
-                                                ) {
-                                                    Text(
-                                                        text = "🎲",
-                                                        style = MaterialTheme.typography.bodyMedium
-                                                    )
-                                                }
-
-                                                if (isNotificationsVisible) {
-                                                    // 🔔 Bildirim butonu
-                                                    Box(
-                                                        modifier = Modifier
-                                                            .size(38.dp)
-                                                            .clip(RoundedCornerShape(12.dp))
-                                                            .background(KitsugiColors.SurfaceElevated)
-                                                            .border(1.dp, KitsugiColors.SurfaceElevated.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
-                                                            .tvClickable(shape = RoundedCornerShape(12.dp)) {
-                                                                onOpenNotifications()
-                                                            },
-                                                        contentAlignment = Alignment.Center
-                                                    ) {
-                                                        Icon(
-                                                            imageVector = Icons.Rounded.Notifications,
-                                                            contentDescription = stringResource(R.string.notif_title),
-                                                            tint = KitsugiColors.TextPrimary,
-                                                            modifier = Modifier.size(20.dp)
-                                                        )
+                                                            KitsugiTopAction.HISTORY -> onNavigateToWatchHistory()
+                                                            KitsugiTopAction.DOWNLOADS -> (onNavigateToDownloads ?: onOpenDownloads).invoke()
+                                                            KitsugiTopAction.NOTIFICATIONS -> onOpenNotifications()
+                                                            else -> Unit
+                                                        }
                                                     }
-                                                }
-
-                                                // 🕐 İzleme Geçmişi butonu
-                                                Box(
-                                                    modifier = Modifier
-                                                        .size(38.dp)
-                                                        .clip(RoundedCornerShape(12.dp))
-                                                        .background(KitsugiColors.SurfaceElevated)
-                                                        .border(1.dp, KitsugiColors.SurfaceElevated.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
-                                                        .tvClickable(shape = RoundedCornerShape(12.dp)) {
-                                                            onNavigateToWatchHistory()
-                                                        },
-                                                    contentAlignment = Alignment.Center
-                                                ) {
-                                                    Icon(
-                                                        imageVector = Icons.Rounded.History,
-                                                        contentDescription = stringResource(R.string.settings_watch_history),
-                                                        tint = KitsugiColors.TextPrimary,
-                                                        modifier = Modifier.size(20.dp)
-                                                    )
-                                                }
-
-                                                // ⬇️ İndirilenler butonu
-                                                Box(
-                                                    modifier = Modifier
-                                                        .size(38.dp)
-                                                        .clip(RoundedCornerShape(12.dp))
-                                                        .background(KitsugiColors.SurfaceElevated)
-                                                        .border(1.dp, KitsugiColors.SurfaceElevated.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
-                                                        .tvClickable(shape = RoundedCornerShape(12.dp)) {
-                                                            onOpenDownloads()
-                                                        },
-                                                    contentAlignment = Alignment.Center
-                                                ) {
-                                                    Icon(
-                                                        imageVector = Icons.Rounded.Download,
-                                                        contentDescription = stringResource(R.string.settings_downloads),
-                                                        tint = KitsugiColors.TextPrimary,
-                                                        modifier = Modifier.size(20.dp)
-                                                    )
-                                                }
+                                                )
                                             }
                                         }
                                     }
@@ -554,9 +494,11 @@ fun ExploreScreen(
                                             verticalAlignment = Alignment.CenterVertically,
                                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                                         ) {
-                                            Text(
-                                                text = "📡",
-                                                style = MaterialTheme.typography.bodyLarge
+                                            com.kitsugi.animelist.ui.theme.gradient.Icon(
+                                                imageVector = Icons.Satellite,
+                                                contentDescription = null,
+                                                tint = accentColor,
+                                                modifier = Modifier.size(20.dp)
                                             )
                                             Column {
                                                 Text(
@@ -598,7 +540,7 @@ fun ExploreScreen(
                                                         border = ButtonDefaults.outlinedButtonBorder
                                                     ) {
                                                         Icon(
-                                                            imageVector = Icons.Rounded.Key,
+                                                            imageVector = Icons.Key,
                                                             contentDescription = null,
                                                             modifier = Modifier.size(16.dp)
                                                         )
@@ -618,7 +560,7 @@ fun ExploreScreen(
                                                         border = ButtonDefaults.outlinedButtonBorder
                                                     ) {
                                                         Icon(
-                                                            imageVector = Icons.Rounded.Login,
+                                                            imageVector = Icons.Login,
                                                             contentDescription = null,
                                                             modifier = Modifier.size(16.dp)
                                                         )

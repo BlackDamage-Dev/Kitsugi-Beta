@@ -1,5 +1,9 @@
 package com.kitsugi.animelist.ui.screens.offline
 
+import com.kitsugi.animelist.ui.components.KitsugiChevronIcon
+import com.kitsugi.animelist.ui.components.KitsugiTopAction
+import com.kitsugi.animelist.ui.components.KitsugiTopActionButton
+import com.kitsugi.animelist.ui.components.KitsugiTopActionTokens
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import com.kitsugi.animelist.ui.theme.gradient.LinearProgressIndicator
 import com.kitsugi.animelist.ui.theme.gradient.Text
@@ -29,9 +33,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.*
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.mutableStateListOf
@@ -703,7 +705,7 @@ fun DownloadsScreen(
         ) {
             IconButton(onClick = onBack) {
                 Icon(
-                    imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                    imageVector = Icons.ArrowBack,
                     contentDescription = stringResource(R.string.geri),
                     tint = KitsugiColors.TextPrimary
                 )
@@ -719,25 +721,25 @@ fun DownloadsScreen(
             )
 
             // Arama: tüm sekmelerde geçerli tek arama alanı
-            IconButton(
+            KitsugiTopActionButton(
+                action = KitsugiTopAction.SEARCH,
+                selected = searchOpen,
+                contentDescription = if (searchOpen) {
+                    stringResource(R.string.downloads_search_close)
+                } else {
+                    stringResource(R.string.downloads_search_open)
+                },
                 onClick = {
                     searchOpen = !searchOpen
                     if (!searchOpen) searchQuery = ""
                 }
-            ) {
-                Icon(
-                    imageVector = if (searchOpen) Icons.Rounded.SearchOff else Icons.Rounded.Search,
-                    contentDescription = if (searchOpen) {
-                        stringResource(R.string.downloads_search_close)
-                    } else {
-                        stringResource(R.string.downloads_search_open)
-                    },
-                    tint = if (searchOpen) accentColor else KitsugiColors.TextSecondary
-                )
-            }
+            )
+
+            Spacer(modifier = Modifier.width(KitsugiTopActionTokens.Spacing))
 
             // Seçili sekmenin kök klasörünü dosya yöneticisinde aç
-            IconButton(
+            KitsugiTopActionButton(
+                action = KitsugiTopAction.FOLDER,
                 onClick = {
                     val rootDir = when (pagerState.currentPage) {
                         1 -> File(
@@ -754,14 +756,10 @@ fun DownloadsScreen(
                         ).also { it.mkdirs() }
                     }
                     openFolderInFileManager(context, rootDir)
-                }
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.FolderOpen,
-                    contentDescription = stringResource(R.string.indirme_klasorunu_ac),
-                    tint = accentColor
-                )
-            }
+                },
+                size = KitsugiTopActionTokens.CompactButtonSize,
+                cornerRadius = KitsugiTopActionTokens.CompactCornerRadius
+            )
         }
 
         // ── Arama alanı ──────────────────────────────────────────────────────
@@ -796,15 +794,15 @@ fun DownloadsScreen(
             tabs = listOf(
                 KitsugiSettingsTabOption(
                     title = stringResource(R.string.downloads_videos_count, downloads.size),
-                    icon = Icons.Rounded.VideoLibrary
+                    icon = Icons.VideoLibrary
                 ),
                 KitsugiSettingsTabOption(
                     title = stringResource(R.string.inline_subtitles_1_s_b81ee5c, allSubtitles.size),
-                    icon = Icons.Rounded.Subtitles
+                    icon = Icons.Subtitles
                 ),
                 KitsugiSettingsTabOption(
                     title = stringResource(R.string.downloads_images_count, allImages.size),
-                    icon = Icons.Rounded.Image
+                    icon = Icons.Image
                 )
             ),
             selectedIndex = pagerState.currentPage,
@@ -826,7 +824,7 @@ fun DownloadsScreen(
                     Column(modifier = Modifier.fillMaxSize()) {
                         if (downloads.isEmpty()) {
                             DownloadsEmptyState(
-                                icon = Icons.Rounded.DownloadForOffline,
+                                icon = Icons.DownloadForOffline,
                                 title = stringResource(R.string.inline_no_videos_have_been_downloaded_89e49a0),
                                 subtitle = null
                             )
@@ -885,7 +883,7 @@ fun DownloadsScreen(
 
                             if (videoEntries.isEmpty()) {
                                 DownloadsEmptyState(
-                                    icon = Icons.Rounded.SearchOff,
+                                    icon = Icons.SearchOff,
                                     title = stringResource(R.string.downloads_no_results),
                                     subtitle = stringResource(R.string.downloads_no_results_hint)
                                 )
@@ -1013,6 +1011,7 @@ fun DownloadsScreen(
                                     }
                                 }
                             }
+
                         }
                     }
                 }
@@ -1022,7 +1021,7 @@ fun DownloadsScreen(
                     Column(modifier = Modifier.fillMaxSize()) {
                         if (allSubtitles.isEmpty()) {
                             DownloadsEmptyState(
-                                icon = Icons.Rounded.Subtitles,
+                                icon = Icons.Subtitles,
                                 title = stringResource(R.string.inline_no_downloaded_subtitles_found_yet_160c9c9),
                                 subtitle = stringResource(R.string.inline_subtitles_downloaded_from_the_play_3fcd255)
                             )
@@ -1066,7 +1065,7 @@ fun DownloadsScreen(
                                             label = subtitleSortLabel(option),
                                             selected = subtitleSort == option,
                                             accentColor = accentColor,
-                                            leadingIcon = Icons.Rounded.Sort,
+                                            leadingIcon = Icons.Sort,
                                             onClick = { subtitleSort = option }
                                         )
                                     }
@@ -1074,7 +1073,7 @@ fun DownloadsScreen(
                                         label = stringResource(R.string.downloads_select_subtitles),
                                         selected = false,
                                         accentColor = accentColor,
-                                        leadingIcon = Icons.Rounded.CheckCircle,
+                                        leadingIcon = Icons.CheckCircle,
                                         onClick = {
                                             subtitleSelectionMode = true
                                             selectedSubtitlePaths = emptySet()
@@ -1084,7 +1083,7 @@ fun DownloadsScreen(
                                         label = stringResource(R.string.downloads_refresh),
                                         selected = false,
                                         accentColor = accentColor,
-                                        leadingIcon = Icons.Rounded.Refresh,
+                                        leadingIcon = Icons.Refresh,
                                         onClick = { refreshSubsTrigger++ }
                                     )
                                 }
@@ -1092,7 +1091,7 @@ fun DownloadsScreen(
 
                             if (filteredSubtitles.isEmpty()) {
                                 DownloadsEmptyState(
-                                    icon = Icons.Rounded.SearchOff,
+                                    icon = Icons.SearchOff,
                                     title = stringResource(R.string.downloads_no_results),
                                     subtitle = stringResource(R.string.downloads_no_results_hint)
                                 )
@@ -1431,7 +1430,7 @@ internal fun DownloadsSearchField(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
-            imageVector = Icons.Rounded.Search,
+            imageVector = Icons.Search,
             contentDescription = null,
             tint = KitsugiColors.TextMuted,
             modifier = Modifier.size(17.dp)
@@ -1459,7 +1458,7 @@ internal fun DownloadsSearchField(
         }
         IconButton(onClick = onClose, modifier = Modifier.size(30.dp)) {
             Icon(
-                imageVector = Icons.Rounded.Close,
+                imageVector = Icons.Close,
                 contentDescription = stringResource(R.string.downloads_search_close),
                 tint = KitsugiColors.TextMuted,
                 modifier = Modifier.size(16.dp)
@@ -1520,7 +1519,7 @@ private fun DownloadsVideoFilterRow(
             label = stringResource(R.string.downloads_refresh),
             selected = false,
             accentColor = accentColor,
-            leadingIcon = Icons.Rounded.Refresh,
+            leadingIcon = Icons.Refresh,
             onClick = onRefresh
         )
         // Depolama yönetimi: tamamlanmış bölümleri tek seferde sil (onaylı).
@@ -1532,7 +1531,7 @@ private fun DownloadsVideoFilterRow(
                 label = stringResource(R.string.downloads_delete_completed, completed.size),
                 selected = false,
                 accentColor = accentColor,
-                leadingIcon = Icons.Rounded.DeleteSweep,
+                leadingIcon = Icons.DeleteSweep,
                 onClick = { onDeleteCompleted(completed) }
             )
         }
@@ -1588,7 +1587,7 @@ private fun DownloadsVideoControlsRow(
                 label = videoSortLabel(sort),
                 selected = sort != DownloadsVideoSort.QUEUE_ORDER,
                 accentColor = accentColor,
-                leadingIcon = Icons.Rounded.Sort,
+                leadingIcon = Icons.Sort,
                 onClick = { sortMenuOpen = true }
             )
             DropdownMenu(
@@ -1621,14 +1620,14 @@ private fun DownloadsVideoControlsRow(
             },
             selected = !grouped,
             accentColor = accentColor,
-            leadingIcon = Icons.Rounded.Layers,
+            leadingIcon = Icons.Layers,
             onClick = onToggleGroup
         )
         DownloadsFilterChip(
             label = stringResource(R.string.downloads_select_videos),
             selected = false,
             accentColor = accentColor,
-            leadingIcon = Icons.Rounded.CheckCircle,
+            leadingIcon = Icons.CheckCircle,
             onClick = onStartSelection
         )
     }
@@ -1655,7 +1654,7 @@ internal fun DownloadsSelectionBar(
     ) {
         IconButton(onClick = onClose, modifier = Modifier.size(34.dp)) {
             Icon(
-                imageVector = Icons.Rounded.Close,
+                imageVector = Icons.Close,
                 contentDescription = stringResource(R.string.downloads_clear_selection),
                 tint = KitsugiColors.TextPrimary,
                 modifier = Modifier.size(19.dp)
@@ -1670,7 +1669,7 @@ internal fun DownloadsSelectionBar(
         Spacer(modifier = Modifier.weight(1f))
         IconButton(onClick = onSelectAll, modifier = Modifier.size(34.dp)) {
             Icon(
-                imageVector = Icons.Rounded.SelectAll,
+                imageVector = Icons.SelectAll,
                 contentDescription = stringResource(R.string.downloads_select_all),
                 tint = accentColor,
                 modifier = Modifier.size(19.dp)
@@ -1682,7 +1681,7 @@ internal fun DownloadsSelectionBar(
             enabled = count > 0
         ) {
             Icon(
-                imageVector = Icons.Rounded.Delete,
+                imageVector = Icons.Delete,
                 contentDescription = stringResource(R.string.action_delete),
                 tint = if (count == 0) KitsugiColors.TextMuted else KitsugiColors.AccentRed,
                 modifier = Modifier.size(19.dp)
@@ -1729,7 +1728,7 @@ private fun VideoGroupHeaderRow(
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = Icons.Rounded.VideoLibrary,
+                imageVector = Icons.VideoLibrary,
                 contentDescription = null,
                 tint = accentColor,
                 modifier = Modifier.size(14.dp)
@@ -1773,7 +1772,7 @@ private fun VideoGroupHeaderRow(
             ) {
                 if (allSelected) {
                     Icon(
-                        imageVector = Icons.Rounded.Check,
+                        imageVector = Icons.Check,
                         contentDescription = null,
                         tint = KitsugiColors.OnAccent,
                         modifier = Modifier.size(15.dp)
@@ -1783,9 +1782,9 @@ private fun VideoGroupHeaderRow(
         } else {
             Icon(
                 imageVector = if (collapsed) {
-                    Icons.Rounded.KeyboardArrowDown
+                    Icons.KeyboardArrowDown
                 } else {
-                    Icons.Rounded.KeyboardArrowUp
+                    Icons.KeyboardArrowUp
                 },
                 contentDescription = null,
                 tint = KitsugiColors.TextMuted,
@@ -1868,7 +1867,7 @@ private fun DownloadsOverviewCard(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.Storage,
+                    imageVector = Icons.Storage,
                     contentDescription = null,
                     tint = accentColor,
                     modifier = Modifier.size(16.dp)
@@ -1914,12 +1913,12 @@ private fun DownloadsOverviewCard(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            OverviewStatPill(Icons.Rounded.VideoLibrary, downloads.size, videoBytes, KitsugiColors.AccentBlue)
+            OverviewStatPill(Icons.VideoLibrary, downloads.size, videoBytes, KitsugiColors.AccentBlue)
             if (subtitleCount > 0) {
-                OverviewStatPill(Icons.Rounded.Subtitles, subtitleCount, subtitleBytes, KitsugiColors.AccentOrange)
+                OverviewStatPill(Icons.Subtitles, subtitleCount, subtitleBytes, KitsugiColors.AccentOrange)
             }
             if (imageCount > 0) {
-                OverviewStatPill(Icons.Rounded.Image, imageCount, imageBytes, KitsugiColors.AccentPurple)
+                OverviewStatPill(Icons.Image, imageCount, imageBytes, KitsugiColors.AccentPurple)
             }
             if (freeSpaceBytes > 0L) {
                 OverviewFreeSpacePill(freeSpaceBytes)
@@ -1988,7 +1987,7 @@ private fun DownloadsOverviewCard(
                         label = stringResource(R.string.downloads_pause_all),
                         selected = false,
                         accentColor = accentColor,
-                        leadingIcon = Icons.Rounded.PauseCircle,
+                        leadingIcon = Icons.PauseCircle,
                         onClick = onPauseAll
                     )
                 }
@@ -1997,7 +1996,7 @@ private fun DownloadsOverviewCard(
                         label = stringResource(R.string.downloads_resume_all),
                         selected = false,
                         accentColor = accentColor,
-                        leadingIcon = Icons.Rounded.PlayCircle,
+                        leadingIcon = Icons.PlayCircle,
                         onClick = onResumeAll
                     )
                 }
@@ -2018,7 +2017,7 @@ private fun OverviewFreeSpacePill(freeBytes: Long) {
         horizontalArrangement = Arrangement.spacedBy(5.dp)
     ) {
         Icon(
-            imageVector = Icons.Rounded.Storage,
+            imageVector = Icons.Storage,
             contentDescription = null,
             tint = KitsugiColors.AccentGreen,
             modifier = Modifier.size(13.dp)
@@ -2325,7 +2324,7 @@ fun DownloadItemRow(
                     ) {
                         if (selected) {
                             Icon(
-                                imageVector = Icons.Rounded.Check,
+                                imageVector = Icons.Check,
                                 contentDescription = null,
                                 tint = KitsugiColors.OnAccent,
                                 modifier = Modifier.size(16.dp)
@@ -2523,7 +2522,7 @@ fun DownloadItemRow(
                     modifier = Modifier.size(36.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.FolderOpen,
+                        imageVector = Icons.FolderOpen,
                         contentDescription = stringResource(R.string.klasoru_ac),
                         tint = KitsugiColors.AccentBlue,
                         modifier = Modifier.size(20.dp)
@@ -2533,34 +2532,19 @@ fun DownloadItemRow(
                 when (download.status) {
                     AnimeDownload.Status.DOWNLOADING -> {
                         IconButton(onClick = onPause, modifier = Modifier.size(36.dp)) {
-                            Icon(
-                                Icons.Rounded.Pause,
-                                contentDescription = stringResource(R.string.downloads_pause_action),
-                                tint = KitsugiColors.TextPrimary,
-                                modifier = Modifier.size(20.dp)
-                            )
+Icon(Icons.Pause, contentDescription = stringResource(R.string.downloads_pause_action), tint = KitsugiColors.TextPrimary, modifier = Modifier.size(20.dp))
                         }
                     }
 
                     AnimeDownload.Status.PAUSED, AnimeDownload.Status.ERROR, AnimeDownload.Status.QUEUE -> {
                         IconButton(onClick = onResume, modifier = Modifier.size(36.dp)) {
-                            Icon(
-                                Icons.Rounded.PlayArrow,
-                                contentDescription = stringResource(R.string.tv_start),
-                                tint = accentColor,
-                                modifier = Modifier.size(20.dp)
-                            )
+Icon(Icons.PlayArrow, contentDescription = stringResource(R.string.tv_start), tint = accentColor, modifier = Modifier.size(20.dp))
                         }
                     }
 
                     AnimeDownload.Status.COMPLETED -> {
                         IconButton(onClick = onPlay, modifier = Modifier.size(36.dp)) {
-                            Icon(
-                                Icons.Rounded.PlayArrow,
-                                contentDescription = stringResource(R.string.oynat),
-                                tint = KitsugiColors.AccentGreen,
-                                modifier = Modifier.size(22.dp)
-                            )
+Icon(Icons.PlayArrow, contentDescription = stringResource(R.string.oynat), tint = KitsugiColors.AccentGreen, modifier = Modifier.size(22.dp))
                         }
                     }
                 }
@@ -2590,7 +2574,7 @@ fun DownloadItemRow(
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.Subtitles,
+                        imageVector = Icons.Subtitles,
                         contentDescription = null,
                         tint = KitsugiColors.TextSecondary,
                         modifier = Modifier.size(15.dp)
@@ -2602,8 +2586,8 @@ fun DownloadItemRow(
                         fontWeight = FontWeight.Bold
                     )
                 }
-                Icon(
-                    imageVector = if (isExpanded) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.KeyboardArrowDown,
+                KitsugiChevronIcon(
+                    expanded = isExpanded,
                     contentDescription = null,
                     tint = KitsugiColors.TextMuted,
                     modifier = Modifier.size(18.dp)
@@ -2622,7 +2606,7 @@ fun DownloadItemRow(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.CheckCircle,
+                            imageVector = Icons.CheckCircle,
                             contentDescription = null,
                             tint = KitsugiColors.AccentGreen,
                             modifier = Modifier.size(15.dp)
@@ -2654,7 +2638,7 @@ fun DownloadItemRow(
                             modifier = Modifier.size(28.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Rounded.FolderOpen,
+                                imageVector = Icons.FolderOpen,
                                 contentDescription = stringResource(R.string.altyazi_klasorunu_ac),
                                 tint = KitsugiColors.AccentOrange,
                                 modifier = Modifier.size(17.dp)
@@ -2684,14 +2668,14 @@ private fun QueueOrderButtons(
         horizontalArrangement = Arrangement.spacedBy(2.dp)
     ) {
         QueueOrderButton(
-            icon = Icons.Rounded.KeyboardArrowUp,
+            icon = Icons.KeyboardArrowUp,
             contentDescription = stringResource(R.string.downloads_move_up),
             enabled = onMoveUp != null,
             accentColor = accentColor,
             onClick = { onMoveUp?.invoke() }
         )
         QueueOrderButton(
-            icon = Icons.Rounded.KeyboardArrowDown,
+            icon = Icons.KeyboardArrowDown,
             contentDescription = stringResource(R.string.downloads_move_down),
             enabled = onMoveDown != null,
             accentColor = accentColor,
@@ -2777,7 +2761,7 @@ fun SubtitleCardItem(
                     .background(KitsugiColors.AccentOrange.copy(alpha = 0.15f)),
                 contentAlignment = Alignment.Center
             ) {
-                if (selectionMode) {
+if (selectionMode) {
                     Box(
                         modifier = Modifier
                             .size(24.dp)
@@ -2792,7 +2776,7 @@ fun SubtitleCardItem(
                     ) {
                         if (selected) {
                             Icon(
-                                imageVector = Icons.Rounded.Check,
+                                imageVector = Icons.Check,
                                 contentDescription = null,
                                 tint = KitsugiColors.OnAccent,
                                 modifier = Modifier.size(15.dp)
@@ -2801,7 +2785,7 @@ fun SubtitleCardItem(
                     }
                 } else {
                     Icon(
-                        imageVector = Icons.Rounded.Subtitles,
+                        imageVector = Icons.Subtitles,
                         contentDescription = null,
                         tint = KitsugiColors.AccentOrange,
                         modifier = Modifier.size(22.dp)
@@ -2892,7 +2876,7 @@ fun SubtitleCardItem(
                     modifier = Modifier.size(36.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.FolderOpen,
+                        imageVector = Icons.FolderOpen,
                         contentDescription = stringResource(R.string.klasoru_ac),
                         tint = KitsugiColors.AccentBlue,
                         modifier = Modifier.size(20.dp)

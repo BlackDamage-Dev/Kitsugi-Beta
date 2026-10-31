@@ -10,11 +10,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.Delete
-import androidx.compose.material.icons.rounded.Edit
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -65,7 +61,7 @@ fun CustomListEditorDialog(
                     fontWeight = FontWeight.Bold
                 )
                 IconButton(onClick = onDismiss) {
-                    Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.kapat))
+                    Icon(Icons.Close, contentDescription = stringResource(R.string.kapat))
                 }
             }
 
@@ -101,7 +97,7 @@ fun CustomListEditorDialog(
                         }
                     }
                 ) {
-                    Icon(Icons.Rounded.Add, contentDescription = stringResource(R.string.ekle))
+                    Icon(Icons.Add, contentDescription = stringResource(R.string.ekle))
                 }
             }
 
@@ -188,10 +184,10 @@ private fun CustomListRow(
                     keyboardActions = KeyboardActions(onDone = { onSaveEdit() })
                 )
                 IconButton(onClick = onSaveEdit) {
-                    Icon(Icons.Rounded.Add, contentDescription = stringResource(R.string.kaydet))
+                    Icon(Icons.Add, contentDescription = stringResource(R.string.kaydet))
                 }
                 IconButton(onClick = onCancelEdit) {
-                    Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.iptal))
+                    Icon(Icons.Close, contentDescription = stringResource(R.string.iptal))
                 }
             } else {
                 Text(
@@ -201,14 +197,14 @@ private fun CustomListRow(
                 )
                 IconButton(onClick = onEditClick) {
                     Icon(
-                        Icons.Rounded.Edit,
+                        Icons.Edit,
                         contentDescription = stringResource(R.string.duzenle),
                         modifier = Modifier.size(18.dp)
                     )
                 }
                 IconButton(onClick = onDeleteClick) {
                     Icon(
-                        Icons.Rounded.Delete,
+                        Icons.Delete,
                         contentDescription = stringResource(R.string.action_delete),
                         tint = MaterialTheme.colorScheme.error,
                         modifier = Modifier.size(18.dp)

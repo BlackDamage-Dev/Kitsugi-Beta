@@ -12,8 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.MaterialTheme
 import com.kitsugi.animelist.ui.theme.gradient.Text
@@ -67,7 +66,7 @@ fun AddTrackRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(imageVector = Icons.Default.Add, contentDescription = null, modifier = Modifier.size(32.dp))
+            Icon(imageVector = Icons.Add, contentDescription = null, modifier = Modifier.size(32.dp))
             Text(text = title)
         }
         actions()

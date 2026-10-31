@@ -15,13 +15,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.Bookmarks
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.MenuBook
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Settings
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.app.MangaViewModel
 import com.kitsugi.animelist.data.manga.stableSourceKey
 import com.kitsugi.animelist.ui.tv.manga.TvMangaBrowseScreen
@@ -115,12 +109,12 @@ import androidx.compose.ui.res.stringResource
 import com.kitsugi.animelist.R
 
 private val navItems = listOf(
-    TvNavItem(TvDestination.HOME,     Icons.Filled.Home,          "Ana Sayfa"),
-    TvNavItem(TvDestination.SEARCH,   Icons.Filled.Search,        "Ara"),
-    TvNavItem(TvDestination.LIBRARY,  Icons.Filled.Bookmarks,     "Kütüphane"),
-    TvNavItem(TvDestination.MANGA,    Icons.Filled.MenuBook,      "Manga"),
-    TvNavItem(TvDestination.SETTINGS, Icons.Filled.Settings,      "Ayarlar"),
-    TvNavItem(TvDestination.ACCOUNT,  Icons.Filled.AccountCircle, "Hesap / QR"),
+    TvNavItem(TvDestination.HOME,     Icons.Home,          "Ana Sayfa"),
+    TvNavItem(TvDestination.SEARCH,   Icons.Search,        "Ara"),
+    TvNavItem(TvDestination.LIBRARY,  Icons.Bookmarks,     "Kütüphane"),
+    TvNavItem(TvDestination.MANGA,    Icons.MenuBook,      "Manga"),
+    TvNavItem(TvDestination.SETTINGS, Icons.Settings,      "Ayarlar"),
+    TvNavItem(TvDestination.ACCOUNT,  Icons.AccountCircle, "Hesap / QR"),
 )
 
 @OptIn(ExperimentalTvMaterial3Api::class)

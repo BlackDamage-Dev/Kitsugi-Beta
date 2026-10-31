@@ -7,8 +7,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.PlayCircle
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -23,8 +22,6 @@ import com.kitsugi.animelist.R
 import com.kitsugi.animelist.ui.theme.gradient.border
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.draw.clip
-import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.ContentCopy
 import com.kitsugi.animelist.ui.utils.tvClickable
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
@@ -118,7 +115,7 @@ fun PlayerErrorView(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Icon(
-                Icons.Rounded.PlayCircle,
+                Icons.PlayCircle,
                 null,
                 tint = MaterialTheme.colorScheme.error.copy(alpha = 0.8f),
                 modifier = Modifier.size(64.dp)
@@ -157,7 +154,7 @@ fun PlayerErrorView(
                         clipboard.setText(AnnotatedString(message))
                         Toast.makeText(ctx, "Hata detayi kopyalandi", Toast.LENGTH_SHORT).show()
                     }) {
-                        Icon(Icons.Rounded.ContentCopy, contentDescription = "Kopyala", tint = Color.White.copy(alpha = 0.7f), modifier = Modifier.size(18.dp))
+                        Icon(Icons.ContentCopy, contentDescription = "Kopyala", tint = Color.White.copy(alpha = 0.7f), modifier = Modifier.size(18.dp))
                     }
                 }
                 Text(

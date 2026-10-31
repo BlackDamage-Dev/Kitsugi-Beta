@@ -1,4 +1,5 @@
 package com.kitsugi.animelist.ui.screens.detail
+import androidx.compose.ui.graphics.vector.ImageVector
 import com.kitsugi.animelist.ui.components.KitsugiButton
 import com.kitsugi.animelist.ui.components.PlatformErrorCodeChip
 import com.kitsugi.animelist.ui.components.PlatformErrorExplanationBlock
@@ -28,8 +29,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Schedule
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -43,8 +43,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.material3.IconButton
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.SearchOff
 import com.kitsugi.animelist.data.settings.SettingsDataStore
 import com.kitsugi.animelist.data.settings.AppSettings
 import com.kitsugi.animelist.ui.components.KitsugiIntegrationsSettingsDialog
@@ -60,7 +58,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import com.kitsugi.animelist.ui.utils.tvClickable
-import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.ui.platform.LocalContext
 import com.kitsugi.animelist.utils.copyToClipboard
 import androidx.compose.ui.res.stringResource
@@ -75,7 +72,8 @@ import com.kitsugi.animelist.R
 internal fun DetailPill(
     text: String,
     color: Color,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    icon: ImageVector? = null
 ) {
     Box(
         modifier = modifier
@@ -84,12 +82,25 @@ internal fun DetailPill(
             .padding(horizontal = 12.dp, vertical = 6.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = text,
-            color = color,
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.Black
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = color,
+                    modifier = Modifier.size(12.dp)
+                )
+            }
+            Text(
+                text = text,
+                color = color,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Black
+            )
+        }
     }
 }
 
@@ -198,7 +209,7 @@ internal fun KitsugiMiniCopyButton(
         contentAlignment = Alignment.Center
     ) {
         Icon(
-            imageVector = Icons.Rounded.ContentCopy,
+            imageVector = Icons.ContentCopy,
             contentDescription = stringResource(R.string.action_copy),
             tint = accentColor.copy(alpha = 0.85f),
             modifier = Modifier.size(13.dp)
@@ -308,7 +319,7 @@ internal fun AiringCountdownCard(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.Schedule,
+                    imageVector = Icons.Schedule,
                     contentDescription = null,
                     tint = KitsugiColors.Accent,
                     modifier = Modifier.size(20.dp)
@@ -357,7 +368,7 @@ internal fun DataUnavailableScreen(
                 .statusBarsPadding()
         ) {
             Icon(
-                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                imageVector = Icons.ArrowBack,
                 contentDescription = stringResource(R.string.geri),
                 tint = KitsugiColors.TextPrimary
             )
@@ -378,7 +389,7 @@ internal fun DataUnavailableScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.SearchOff,
+                    imageVector = Icons.SearchOff,
                     contentDescription = null,
                     tint = KitsugiColors.AccentRed,
                     modifier = Modifier.size(40.dp)

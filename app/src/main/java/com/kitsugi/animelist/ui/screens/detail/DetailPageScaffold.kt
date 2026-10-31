@@ -26,8 +26,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import com.kitsugi.animelist.ui.components.KitsugiPullToRefreshIndicator
@@ -298,7 +297,7 @@ fun DetailPageScaffold(
                                             ) {
                                                 IconButton(onClick = onBackClick) {
                                                     Icon(
-                                                        imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                                                        imageVector = Icons.ArrowBack,
                                                         contentDescription = stringResource(R.string.geri),
                                                         tint = KitsugiColors.TextPrimary
                                                     )

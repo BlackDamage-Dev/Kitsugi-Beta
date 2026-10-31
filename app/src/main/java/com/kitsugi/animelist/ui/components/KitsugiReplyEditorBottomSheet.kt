@@ -12,8 +12,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.*
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -35,18 +34,18 @@ import com.kitsugi.animelist.R
 import com.kitsugi.animelist.utils.KitsugiStrings
 
 enum class MarkdownTag(val syntax: String, val offset: Int, val label: String, val icon: ImageVector) {
-    BOLD("**text**", 2, "Kalın", Icons.Rounded.FormatBold),
-    ITALIC("*text*", 1, "Eğik", Icons.Rounded.FormatItalic),
-    STRIKETHROUGH("~~text~~", 2, "Üstü Çizili", Icons.Rounded.FormatStrikethrough),
-    SPOILER("~!text!~", 2, "Spoiler", Icons.Rounded.VisibilityOff),
-    CENTER("~~~text~~~", 3, "Ortala", Icons.Rounded.FormatAlignCenter),
-    LINK("[text](url)", 1, "Bağlantı", Icons.Rounded.Link),
-    IMAGE("img(url)", 1, "Görsel", Icons.Rounded.Image),
-    YOUTUBE("youtube(url)", 1, "YouTube", Icons.Rounded.PlayCircle),
-    ORDERED_LIST("\n1. text", 0, "Numaralı Liste", Icons.Rounded.FormatListNumbered),
-    UNORDERED_LIST("\n- text", 0, "Madde Listesi", Icons.Rounded.FormatListBulleted),
-    QUOTE("\n> text", 0, "Alıntı", Icons.Rounded.FormatQuote),
-    CODE("`text`", 1, "Kod", Icons.Rounded.Code)
+    BOLD("**text**", 2, "Kalın", Icons.FormatBold),
+    ITALIC("*text*", 1, "Eğik", Icons.FormatItalic),
+    STRIKETHROUGH("~~text~~", 2, "Üstü Çizili", Icons.FormatStrikethrough),
+    SPOILER("~!text!~", 2, "Spoiler", Icons.VisibilityOff),
+    CENTER("~~~text~~~", 3, "Ortala", Icons.FormatAlignCenter),
+    LINK("[text](url)", 1, "Bağlantı", Icons.Link),
+    IMAGE("img(url)", 1, "Görsel", Icons.Image),
+    YOUTUBE("youtube(url)", 1, "YouTube", Icons.PlayCircle),
+    ORDERED_LIST("\n1. text", 0, "Numaralı Liste", Icons.FormatListNumbered),
+    UNORDERED_LIST("\n- text", 0, "Madde Listesi", Icons.FormatListBulleted),
+    QUOTE("\n> text", 0, "Alıntı", Icons.FormatQuote),
+    CODE("`text`", 1, "Kod", Icons.Code)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -88,7 +87,7 @@ fun KitsugiReplyEditorBottomSheet(
                     )
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.Close,
+                        imageVector = Icons.Close,
                         contentDescription = stringResource(R.string.kapat),
                         tint = KitsugiColors.TextPrimary
                     )

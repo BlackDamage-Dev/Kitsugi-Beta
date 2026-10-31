@@ -10,11 +10,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Remove
-import androidx.compose.material.icons.rounded.Search
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -99,7 +95,7 @@ fun GenresTagsSheet(
                 )
                 IconButton(onClick = onDismiss) {
                     Icon(
-                        imageVector = Icons.Default.Close,
+                        imageVector = Icons.Close,
                         contentDescription = stringResource(R.string.kapat),
                         tint = KitsugiColors.TextMuted
                     )
@@ -125,7 +121,7 @@ fun GenresTagsSheet(
                 placeholder = { Text(stringResource(R.string.inline_search_genres_or_tags_772cd17), color = KitsugiColors.TextMuted) },
                 leadingIcon = {
                     Icon(
-                        imageVector = Icons.Rounded.Search,
+                        imageVector = Icons.Search,
                         contentDescription = null,
                         tint = KitsugiColors.TextMuted
                     )
@@ -315,13 +311,13 @@ private fun GenreTagChip(
     ) {
         when {
             isIncluded -> Icon(
-                imageVector = Icons.Default.Check,
+                imageVector = Icons.Check,
                 contentDescription = null,
                 tint = includeColor,
                 modifier = Modifier.size(14.dp)
             )
             isExcluded -> Icon(
-                imageVector = Icons.Default.Remove,
+                imageVector = Icons.Remove,
                 contentDescription = null,
                 tint = excludeColor,
                 modifier = Modifier.size(14.dp)
@@ -363,7 +359,7 @@ private fun SimpleTagChip(
     ) {
         if (isSelected) {
             Icon(
-                imageVector = Icons.Default.Check,
+                imageVector = Icons.Check,
                 contentDescription = null,
                 tint = accentColor,
                 modifier = Modifier.size(14.dp)

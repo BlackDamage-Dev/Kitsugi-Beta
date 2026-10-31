@@ -4,8 +4,7 @@ import android.util.Log
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.BrokenImage
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -56,7 +55,7 @@ internal fun FandomWikiImage(
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         if (failed || current == null) {
             Icon(
-                imageVector = Icons.Rounded.BrokenImage,
+                imageVector = Icons.BrokenImage,
                 contentDescription = contentDescription,
                 tint = KitsugiColors.TextMuted,
                 modifier = Modifier.size(iconSize)

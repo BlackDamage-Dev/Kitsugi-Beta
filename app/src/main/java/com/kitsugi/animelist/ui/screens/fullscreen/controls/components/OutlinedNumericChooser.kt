@@ -4,9 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AddCircle
-import androidx.compose.material.icons.filled.RemoveCircle
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -46,7 +44,7 @@ fun OutlinedNumericChooser(
     ) {
         RepeatingIconButton(onClick = { onChange(value - step) }) {
             Icon(
-                imageVector = Icons.Filled.RemoveCircle,
+                imageVector = Icons.RemoveCircle,
                 contentDescription = null,
                 modifier = Modifier.size(32.dp),
                 tint = Color.White
@@ -94,7 +92,7 @@ fun OutlinedNumericChooser(
         )
         RepeatingIconButton(onClick = { onChange(value + step) }) {
             Icon(
-                imageVector = Icons.Filled.AddCircle,
+                imageVector = Icons.AddCircle,
                 contentDescription = null,
                 modifier = Modifier.size(32.dp),
                 tint = Color.White
@@ -122,7 +120,7 @@ fun OutlinedNumericChooser(
     ) {
         RepeatingIconButton(onClick = { onChange(value - step) }) {
             Icon(
-                imageVector = Icons.Filled.RemoveCircle,
+                imageVector = Icons.RemoveCircle,
                 contentDescription = null,
                 modifier = Modifier.size(32.dp),
                 tint = Color.White
@@ -172,7 +170,7 @@ fun OutlinedNumericChooser(
         )
         RepeatingIconButton(onClick = { onChange(value + step) }) {
             Icon(
-                imageVector = Icons.Filled.AddCircle,
+                imageVector = Icons.AddCircle,
                 contentDescription = null,
                 modifier = Modifier.size(32.dp),
                 tint = Color.White

@@ -3,10 +3,7 @@ import com.kitsugi.animelist.ui.components.KitsugiButton
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Extension
-import androidx.compose.material.icons.rounded.SearchOff
-import androidx.compose.material.icons.rounded.Settings
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -55,7 +52,7 @@ fun NoAddonsState(onOpenSettings: (() -> Unit)? = null) {
         KitsugiEmptyState(
             title = stringResource(R.string.uyumlu_eklenti_bulunamadi),
             subtitle = stringResource(R.string.ayarlar_eklentiler_bolumunden_torrentio_dizilla_veya_baska_bir_e),
-            icon = Icons.Rounded.Extension,
+            icon = Icons.Extension,
             modifier = Modifier.padding(top = 30.dp)
         )
         if (onOpenSettings != null) {
@@ -64,7 +61,7 @@ fun NoAddonsState(onOpenSettings: (() -> Unit)? = null) {
                 onClick = onOpenSettings,
                 shape = RoundedCornerShape(12.dp)
             ) {
-                Icon(Icons.Rounded.Settings, contentDescription = null, modifier = Modifier.size(18.dp))
+                Icon(Icons.Settings, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
                 Text(stringResource(R.string.inline_manage_extensions_settings_3530be1), fontWeight = FontWeight.Bold)
             }
@@ -82,7 +79,7 @@ fun EmptyStreamsState(onOpenSettings: (() -> Unit)? = null) {
         KitsugiEmptyState(
             title = stringResource(R.string.inline_no_streams_found_d834d54),
             subtitle = stringResource(R.string.tum_eklentiler_denendi_farkli_bir_bolum_veya_daha_fazla_eklenti),
-            icon = Icons.Rounded.SearchOff,
+            icon = Icons.SearchOff,
             modifier = Modifier.padding(top = 30.dp)
         )
         if (onOpenSettings != null) {
@@ -91,7 +88,7 @@ fun EmptyStreamsState(onOpenSettings: (() -> Unit)? = null) {
                 onClick = onOpenSettings,
                 shape = RoundedCornerShape(12.dp)
             ) {
-                Icon(Icons.Rounded.Extension, contentDescription = null, modifier = Modifier.size(18.dp))
+                Icon(Icons.Extension, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
                 Text(stringResource(R.string.daha_fazla_eklenti_ekle), fontWeight = FontWeight.Bold)
             }

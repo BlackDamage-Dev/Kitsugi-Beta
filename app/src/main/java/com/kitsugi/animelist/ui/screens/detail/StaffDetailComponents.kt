@@ -64,14 +64,7 @@ import androidx.compose.ui.res.stringResource
 import com.kitsugi.animelist.R
 
 // Icon extension imports
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.Share
-import androidx.compose.material.icons.rounded.Favorite
-import androidx.compose.material.icons.rounded.FavoriteBorder
-import androidx.compose.material.icons.rounded.Image
-import androidx.compose.material.icons.rounded.Translate
-import androidx.compose.material.icons.rounded.ContentCopy
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 
 @Composable
 internal fun StaffCharacterRoleCard(
@@ -298,7 +291,7 @@ internal fun StaffDetailLeftPanel(
                 ) {
                     IconButton(onClick = onBackClick) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                            imageVector = Icons.ArrowBack,
                             contentDescription = stringResource(R.string.action_back),
                             tint = KitsugiColors.TextPrimary
                         )
@@ -335,7 +328,7 @@ internal fun StaffDetailLeftPanel(
                             com.kitsugi.animelist.utils.ShareUtils.shareText(context, detail.name, url)
                         }) {
                             Icon(
-                                imageVector = Icons.Rounded.Share,
+                                imageVector = Icons.Share,
                                 contentDescription = stringResource(R.string.action_share),
                                 tint = KitsugiColors.TextPrimary
                             )
@@ -352,7 +345,7 @@ internal fun StaffDetailLeftPanel(
                         ) {
                             IconButton(onClick = onToggleFavourite) {
                                 Icon(
-                                    imageVector = if (isFavourite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                                    imageVector = if (isFavourite) Icons.Favorite else Icons.FavoriteBorder,
                                     contentDescription = if (isFavourite) stringResource(R.string.action_favourite_remove) else stringResource(R.string.action_favourite_add),
                                     tint = if (isFavourite) accentColor else KitsugiColors.TextPrimary
                                 )
@@ -486,7 +479,7 @@ internal fun StaffAboutTabContent(
                             modifier = Modifier.size(36.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Rounded.ContentCopy,
+                                imageVector = Icons.ContentCopy,
                                 contentDescription = stringResource(R.string.action_copy),
                                 tint = KitsugiColors.TextSecondary
                             )
@@ -653,7 +646,7 @@ internal fun StaffPortraitHeroSection(
             ) {
                 IconButton(onClick = onBackClick) {
                     Icon(
-                        imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                        imageVector = Icons.ArrowBack,
                         contentDescription = stringResource(R.string.action_back),
                         tint = KitsugiColors.TextPrimary
                     )
@@ -691,7 +684,7 @@ internal fun StaffPortraitHeroSection(
                         com.kitsugi.animelist.utils.ShareUtils.shareText(context, detail.name, url)
                     }) {
                         Icon(
-                            imageVector = Icons.Rounded.Share,
+                            imageVector = Icons.Share,
                             contentDescription = stringResource(R.string.action_share),
                             tint = KitsugiColors.TextPrimary
                         )
@@ -708,7 +701,7 @@ internal fun StaffPortraitHeroSection(
                     ) {
                         IconButton(onClick = onToggleFavourite) {
                             Icon(
-                                imageVector = if (isFavourite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                                imageVector = if (isFavourite) Icons.Favorite else Icons.FavoriteBorder,
                                 contentDescription = if (isFavourite) stringResource(R.string.action_favourite_remove) else stringResource(R.string.action_favourite_add),
                                 tint = if (isFavourite) accentColor else KitsugiColors.TextPrimary
                             )
@@ -790,7 +783,7 @@ internal fun StaffDetailStickyHeader(
             ) {
                 IconButton(onClick = onBackClick) {
                     Icon(
-                        imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                        imageVector = Icons.ArrowBack,
                         contentDescription = stringResource(R.string.action_back),
                         tint = KitsugiColors.TextPrimary
                     )
@@ -815,7 +808,7 @@ internal fun StaffDetailStickyHeader(
                     com.kitsugi.animelist.utils.ShareUtils.shareText(context, detail.name, url)
                 }) {
                     Icon(
-                        imageVector = Icons.Rounded.Share,
+                        imageVector = Icons.Share,
                         contentDescription = stringResource(R.string.action_share),
                         tint = KitsugiColors.TextSecondary
                     )
@@ -823,7 +816,7 @@ internal fun StaffDetailStickyHeader(
                 if (showFavouriteButton) {
                     IconButton(onClick = onToggleFavourite) {
                         Icon(
-                            imageVector = if (isFavourite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                            imageVector = if (isFavourite) Icons.Favorite else Icons.FavoriteBorder,
                             contentDescription = if (isFavourite) stringResource(R.string.action_favourite_remove) else stringResource(R.string.action_favourite_add),
                             tint = if (isFavourite) accentColor else KitsugiColors.TextSecondary
                         )

@@ -7,12 +7,15 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.filled.Extension
-import androidx.compose.material.icons.rounded.SearchOff
-import androidx.compose.material.icons.rounded.Search
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.layout.ContentScale
+import coil3.network.NetworkHeaders
+import coil3.network.httpHeaders
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -154,6 +157,7 @@ fun AddonSearchDialog(
             modifier = Modifier.fillMaxSize(),
             color = KitsugiColors.Background
         ) {
+
             // Shimmer provider — ana aramadakiyle aynı tek kaynaklı animasyon
             KitsugiShimmerProvider(active = isLoading) {
                 val lazyListState = com.kitsugi.animelist.ui.utils.rememberRetainedLazyListState(
@@ -174,6 +178,7 @@ fun AddonSearchDialog(
                             .padding(horizontal = 20.dp),
                         verticalArrangement = Arrangement.spacedBy(0.dp)
                     ) {
+
                         // ── Başlık — Ana Arama'daki headlineLarge ile birebir aynı
                         item(key = "header") {
                             Spacer(modifier = Modifier.height(28.dp))
@@ -184,7 +189,7 @@ fun AddonSearchDialog(
                             ) {
                                 IconButton(onClick = onDismissRequest) {
                                     Icon(
-                                        imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                                        imageVector = Icons.ArrowBack,
                                         contentDescription = stringResource(R.string.geri),
                                         tint = KitsugiColors.TextPrimary
                                     )
@@ -226,7 +231,7 @@ fun AddonSearchDialog(
                                     },
                                     icon = {
                                         Icon(
-                                            imageVector = androidx.compose.material.icons.Icons.Rounded.Search,
+                                            imageVector = Icons.Search,
                                             contentDescription = stringResource(R.string.ara),
                                             tint = KitsugiColors.TextMuted,
                                             modifier = Modifier.size(20.dp)
@@ -283,7 +288,7 @@ fun AddonSearchDialog(
                                                     contentAlignment = Alignment.Center
                                                 ) {
                                                     Icon(
-                                                        imageVector = Icons.Filled.Extension,
+                                                        imageVector = Icons.Extension,
                                                         contentDescription = null,
                                                         tint = accentColor,
                                                         modifier = Modifier.size(14.dp)
@@ -339,7 +344,7 @@ fun AddonSearchDialog(
                                         KitsugiEmptyState(
                                             title = stringResource(R.string.sonuc_bulunamadi),
                                             subtitle = stringResource(R.string.inline_no_results_found_03b621d),
-                                            icon = Icons.Rounded.SearchOff
+                                            icon = Icons.SearchOff
                                         )
                                     }
                                 }
@@ -365,7 +370,7 @@ fun AddonSearchDialog(
                                             KitsugiEmptyState(
                                                 title = stringResource(R.string.henuz_icerik_yok),
                                                 subtitle = stringResource(R.string.inline_no_installed_extensions_found_bd1713b),
-                                                icon = Icons.Filled.Extension
+                                                icon = Icons.Extension
                                             )
                                         }
                                     }
@@ -392,7 +397,7 @@ fun AddonSearchDialog(
                                                 verticalAlignment = Alignment.CenterVertically,
                                                 horizontalArrangement = Arrangement.spacedBy(12.dp)
                                             ) {
-                                                Box(
+Box(
                                                     modifier = Modifier
                                                         .size(40.dp)
                                                         .clip(RoundedCornerShape(10.dp))
@@ -400,7 +405,7 @@ fun AddonSearchDialog(
                                                     contentAlignment = Alignment.Center
                                                 ) {
                                                     Icon(
-                                                        imageVector = Icons.Filled.Extension,
+                                                        imageVector = Icons.Extension,
                                                         contentDescription = null,
                                                         tint = accentColor,
                                                         modifier = Modifier.size(22.dp)
@@ -475,5 +480,128 @@ fun AddonSearchDialog(
             url = response.url,
             onDismissRequest = { activeDetailItem = null }
         )
+    }
+}
+
+@Composable
+fun ResultItemCard(
+    title: String,
+    imageUrl: String?,
+    apiName: String,
+    quality: String?,
+    onClick: () -> Unit,
+    /** +18 UYUMU (2026-10-14): öğe yetişkinse görsel blurAdultMedia ile bulanıklaştırılır. */
+    isAdult: Boolean = false
+) {
+    Box(
+        modifier = Modifier
+            .width(130.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(KitsugiColors.Surface)
+            .clickable(onClick = onClick)
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(180.dp)
+                    .clip(RoundedCornerShape(16.dp))
+            ) {
+                if (!imageUrl.isNullOrBlank()) {
+                    val context = LocalContext.current
+                    // Bazı Türk siteleri (DiziBox, SezonlukDizi vb.) görselleri
+                    // Referer header olmadan engeller. Referer olarak sitenin kendi
+                    // mainUrl'ini gönderiyoruz — hotlink korumasını aşmak için.
+                    // +18 UYUMU (2026-10-14): istek KitsugiNsfwImage'e verilir; bitmap-blur
+                    // yolu başlıkları koruyarak dönüşümü ekler (ham görsel asla sızmaz).
+                    val imageRequest = remember(imageUrl) {
+                        val headers = NetworkHeaders.Builder()
+                            .set(
+                                "Referer",
+                                try {
+                                    val uri = android.net.Uri.parse(imageUrl)
+                                    "${uri.scheme}://${uri.host}/"
+                                } catch (_: Exception) { imageUrl }
+                            )
+                            .set(
+                                "User-Agent",
+                                "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36"
+                            )
+                            .build()
+                        coil3.request.ImageRequest.Builder(context)
+                            .data(imageUrl)
+                            .httpHeaders(headers)
+                            .build()
+                    }
+                    com.kitsugi.animelist.ui.components.KitsugiNsfwImage(
+                        model = imageRequest,
+                        contentDescription = title,
+                        isAdult = isAdult,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.Gray.copy(alpha = 0.2f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Extension,
+                            contentDescription = null,
+                            tint = KitsugiColors.TextMuted,
+                            modifier = Modifier.size(36.dp)
+                        )
+                    }
+                }
+
+                // Quality Badge in top-right overlay
+                if (!quality.isNullOrBlank()) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(8.dp)
+                            .background(Color.Black.copy(alpha = 0.7f), RoundedCornerShape(4.dp))
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = quality,
+                            color = Color.White,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+            ) {
+                Text(
+                    text = title,
+                    color = KitsugiColors.TextPrimary,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                Spacer(modifier = Modifier.height(2.dp))
+
+                Text(
+                    text = apiName,
+                    color = KitsugiColors.TextMuted,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Normal,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
     }
 }

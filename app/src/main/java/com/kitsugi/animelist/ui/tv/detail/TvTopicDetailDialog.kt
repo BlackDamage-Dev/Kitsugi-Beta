@@ -15,8 +15,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.*
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -281,7 +280,7 @@ fun TvTopicDetailDialog(
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Icon(
-                                    imageVector = if (isTopicLikedState) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                                    imageVector = if (isTopicLikedState) Icons.Favorite else Icons.FavoriteBorder,
                                     contentDescription = stringResource(R.string.begen),
                                     tint = if (isTopicLikedState) accentColor else KitsugiColors.TextSecondary,
                                     modifier = Modifier.size(16.dp)
@@ -329,7 +328,7 @@ fun TvTopicDetailDialog(
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Icon(
-                                    imageVector = if (isSubscribed) Icons.Rounded.NotificationsActive else Icons.Rounded.Notifications,
+                                    imageVector = if (isSubscribed) Icons.NotificationsActive else Icons.Notifications,
                                     contentDescription = "Abone Ol",
                                     tint = if (isSubscribed) accentColor else KitsugiColors.TextSecondary,
                                     modifier = Modifier.size(16.dp)
@@ -646,7 +645,7 @@ private fun TvForumCommentCard(
                     .padding(horizontal = 6.dp, vertical = 4.dp)
             ) {
                 Icon(
-                    imageVector = if (likedState) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                    imageVector = if (likedState) Icons.Favorite else Icons.FavoriteBorder,
                     contentDescription = stringResource(R.string.begen),
                     tint = if (likedState) accentColor else KitsugiColors.TextMuted,
                     modifier = Modifier.size(14.dp)

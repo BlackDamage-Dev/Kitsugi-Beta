@@ -13,9 +13,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.ArrowDownward
-import androidx.compose.material.icons.rounded.ArrowUpward
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -163,7 +161,7 @@ fun KitsugiMyListSortMenu(
                     )
                     if (isSelected) {
                         Icon(
-                            imageVector = if (isAscActive) Icons.Rounded.ArrowUpward else Icons.Rounded.ArrowDownward,
+                            imageVector = if (isAscActive) Icons.ArrowUpward else Icons.ArrowDownward,
                             contentDescription = if (isAscActive) "Artan" else "Azalan",
                             tint = accentColor,
                             modifier = Modifier.size(20.dp)

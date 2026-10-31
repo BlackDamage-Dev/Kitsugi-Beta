@@ -1181,7 +1181,7 @@ class Media3PlayerEngine(
      * uygulamaz ve sessizce eski parça çalmaya devam eder; sebep arayüzde görünmüyordu.
      */
     private fun trackLabelWithSupport(baseLabel: String, supported: Boolean): String =
-        if (supported) baseLabel else "$baseLabel ⚠️ (cihaz desteklemiyor)"
+        if (supported) baseLabel else "$baseLabel (cihaz desteklemiyor)"
 
     override val videoQualityTracks: List<TrackOption>
         get() = exoPlayer?.currentTracks?.groups?.flatMapIndexed { groupIndex, group ->

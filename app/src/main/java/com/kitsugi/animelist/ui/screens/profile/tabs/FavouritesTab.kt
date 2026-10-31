@@ -11,9 +11,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.Favorite
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -79,7 +77,7 @@ fun FavouritesScreen(
                     modifier = Modifier.align(Alignment.CenterStart)
                 ) {
                     Icon(
-                        imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                        imageVector = Icons.ArrowBack,
                         contentDescription = stringResource(R.string.geri),
                         tint = KitsugiColors.textPrimary
                     )
@@ -159,7 +157,7 @@ fun FavouritesScreen(
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Icon(
-                                imageVector = Icons.Rounded.Favorite,
+                                imageVector = Icons.Favorite,
                                 contentDescription = null,
                                 tint = accentColor.copy(alpha = 0.4f),
                                 modifier = Modifier.size(64.dp)

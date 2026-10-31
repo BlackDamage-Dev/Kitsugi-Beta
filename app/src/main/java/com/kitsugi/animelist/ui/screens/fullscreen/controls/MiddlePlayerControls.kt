@@ -18,11 +18,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.SkipNext
-import androidx.compose.material.icons.filled.SkipPrevious
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.CircularProgressIndicator
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.MaterialTheme
@@ -88,7 +84,7 @@ fun MiddlePlayerControls(
         ) {
             if (gestureSeekAmount == null) {
                 ControlsButton(
-                    icon = Icons.Filled.SkipPrevious,
+                    icon = Icons.SkipPrevious,
                     onClick = onSkipPrevious,
                     iconSize = 48.dp,
                     enabled = hasPrevious,
@@ -148,7 +144,7 @@ fun MiddlePlayerControls(
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = if (paused) Icons.Filled.PlayArrow else Icons.Filled.Pause,
+                                imageVector = if (paused) Icons.PlayArrow else Icons.Pause,
                                 contentDescription = null,
                                 modifier = Modifier.size(64.dp),
                                 tint = Color.White
@@ -169,7 +165,7 @@ fun MiddlePlayerControls(
         ) {
             if (gestureSeekAmount == null) {
                 ControlsButton(
-                    icon = Icons.Filled.SkipNext,
+                    icon = Icons.SkipNext,
                     onClick = onSkipNext,
                     iconSize = 48.dp,
                     enabled = hasNext,

@@ -1,5 +1,6 @@
 package com.kitsugi.animelist.ui.screens.mylist
 
+import com.kitsugi.animelist.ui.components.KitsugiEmojiLabel
 import com.kitsugi.animelist.ui.theme.gradient.background
 import com.kitsugi.animelist.ui.utils.tvClickable
 import androidx.compose.foundation.horizontalScroll
@@ -14,10 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.ArrowDownward
-import androidx.compose.material.icons.rounded.ArrowUpward
-import androidx.compose.material.icons.rounded.FilterList
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.MaterialTheme
 import com.kitsugi.animelist.ui.theme.gradient.Text
@@ -477,8 +475,10 @@ internal fun MyListContentTypeRow(
                     })
                     .padding(horizontal = 14.dp, vertical = 9.dp)
             ) {
-                Text(
-                    text = if (isSelected) "✓ $label" else label,
+                KitsugiEmojiLabel(
+                    label = label,
+                    icon = if (isSelected) Icons.Check else null,
+                    iconSize = 13.dp,
                     color = if (isSelected) accentColor else KitsugiColors.TextPrimary,
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold
@@ -613,7 +613,7 @@ internal fun RichMyListFilterPanel(
                             )
                             if (isSelected) {
                                 Icon(
-                                    imageVector = if (isAscActive) Icons.Rounded.ArrowUpward else Icons.Rounded.ArrowDownward,
+                                    imageVector = if (isAscActive) Icons.ArrowUpward else Icons.ArrowDownward,
                                     contentDescription = null,
                                     tint = KitsugiColors.Background,
                                     modifier = Modifier.size(12.dp)
@@ -750,6 +750,6 @@ internal fun EmptyListResultCard(
         } else {
             stringResource(R.string.mylist_empty_search_query, searchQuery)
         },
-        icon = Icons.Rounded.FilterList
+        icon = Icons.FilterList
     )
 }

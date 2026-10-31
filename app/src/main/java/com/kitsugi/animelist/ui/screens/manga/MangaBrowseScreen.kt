@@ -18,9 +18,7 @@ import androidx.compose.foundation.lazy.grid.*
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.*
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -177,12 +175,12 @@ fun MangaBrowseScreen(
                     colors  = IconButtonDefaults.iconButtonColors(containerColor = KitsugiColors.SurfaceStrong.copy(0.5f)),
                     modifier = Modifier.size(36.dp)
                 ) {
-                    Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Geri", tint = KitsugiColors.TextPrimary, modifier = Modifier.size(18.dp))
+                    Icon(Icons.ArrowBack, "Geri", tint = KitsugiColors.TextPrimary, modifier = Modifier.size(18.dp))
                 }
                 Spacer(Modifier.width(12.dp))
                 Text(stringResource(R.string.inline_discover_manga_eb24f62), color = KitsugiColors.TextPrimary, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.weight(1f))
-                Icon(Icons.Rounded.TravelExplore, null, tint = accentColor, modifier = Modifier.padding(end = 8.dp).size(22.dp))
+                Icon(Icons.TravelExplore, null, tint = accentColor, modifier = Modifier.padding(end = 8.dp).size(22.dp))
             }
 
             // ── Info card (CS3 portrait style) ──
@@ -208,7 +206,7 @@ fun MangaBrowseScreen(
                         )
                     } else {
                         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Icon(Icons.Rounded.Book, null, tint = KitsugiColors.TextMuted, modifier = Modifier.size(24.dp))
+                            Icon(Icons.Book, null, tint = KitsugiColors.TextMuted, modifier = Modifier.size(24.dp))
                         }
                     }
                 }
@@ -241,7 +239,7 @@ fun MangaBrowseScreen(
                 value = query,
                 onValueChange = { vm.search(it) },
                 placeholder   = { Text(stringResource(R.string.manga_ara), color = KitsugiColors.TextMuted) },
-                leadingIcon   = { Icon(Icons.Rounded.Search, null, tint = KitsugiColors.TextMuted) },
+                leadingIcon   = { Icon(Icons.Search, null, tint = KitsugiColors.TextMuted) },
                 singleLine    = true,
                 shape         = RoundedCornerShape(12.dp),
                 colors = OutlinedTextFieldDefaults.colors(
@@ -344,7 +342,7 @@ fun MangaBrowseScreen(
                                     horizontalAlignment = Alignment.CenterHorizontally,
                                     modifier = Modifier.padding(horizontal = 24.dp)
                                 ) {
-                                    Icon(Icons.Rounded.SearchOff, null, tint = KitsugiColors.TextMuted, modifier = Modifier.size(48.dp))
+                                    Icon(Icons.SearchOff, null, tint = KitsugiColors.TextMuted, modifier = Modifier.size(48.dp))
                                     Spacer(Modifier.height(8.dp))
                                     Text(stringResource(R.string.sonuc_bulunamadi), color = KitsugiColors.TextSecondary)
                                 }
@@ -506,7 +504,7 @@ fun MangaChip(
     ) {
         when {
             isLoading -> CircularProgressIndicator(Modifier.size(10.dp), color = accent, strokeWidth = 1.5.dp)
-            isAll     -> Icon(Icons.Rounded.Extension, null, tint = if (isSelected) accent else KitsugiColors.TextSecondary, modifier = Modifier.size(13.dp))
+            isAll     -> Icon(Icons.Extension, null, tint = if (isSelected) accent else KitsugiColors.TextSecondary, modifier = Modifier.size(13.dp))
             count > 0 -> Box(Modifier.size(7.dp).clip(CircleShape).background(accent))
             error != null -> Box(Modifier.size(7.dp).clip(CircleShape).background(Color.Red.copy(0.7f)))
             else      -> Box(Modifier.size(7.dp).clip(CircleShape).background(KitsugiColors.TextMuted.copy(0.5f)))
@@ -594,7 +592,7 @@ private fun MangaCard(manga: MangaDetails, accent: Color, onClick: () -> Unit) {
 private fun EmptySourcesHint(onOpenSettings: () -> Unit) {
     Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Icon(Icons.Rounded.Extension, null, tint = KitsugiColors.TextMuted, modifier = Modifier.size(56.dp))
+            Icon(Icons.Extension, null, tint = KitsugiColors.TextMuted, modifier = Modifier.size(56.dp))
             Text(stringResource(R.string.inline_no_manga_extensions_have_been_e92d6be), color = KitsugiColors.TextSecondary, fontWeight = FontWeight.Medium)
             KitsugiButton(
                 onClick = onOpenSettings,

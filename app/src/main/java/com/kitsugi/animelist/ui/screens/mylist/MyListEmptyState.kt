@@ -2,8 +2,7 @@ package com.kitsugi.animelist.ui.screens.mylist
 
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.FormatListBulleted
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -51,7 +50,7 @@ internal fun MyListSyncPromptState() {
     KitsugiEmptyState(
         title = stringResource(R.string.listeniz_bos),
         subtitle = stringResource(R.string.hesabinizdaki_verileri_cekmek_icin_senkronize_et_butonunu_kullan),
-        icon = Icons.Rounded.FormatListBulleted
+        icon = Icons.FormatListBulleted
     )
     Spacer(modifier = Modifier.height(90.dp))
 }

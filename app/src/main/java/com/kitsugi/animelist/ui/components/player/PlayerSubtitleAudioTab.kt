@@ -12,11 +12,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.ArrowDropDown
-import androidx.compose.material.icons.rounded.Subtitles
-import androidx.compose.material.icons.rounded.VolumeUp
-import androidx.compose.material.icons.rounded.SettingsInputHdmi
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -138,7 +134,7 @@ internal fun PlayerSubtitleAudioTab(
                         title = stringResource(R.string.sub_default_size),
                         description = stringResource(R.string.sub_default_size_desc),
                         value = currentSizeName,
-                        icon = Icons.Rounded.Subtitles,
+                        icon = Icons.Subtitles,
                         iconColor = accentColor,
                         onClick = { sizeDropdownExpanded = true }
                     )
@@ -164,7 +160,7 @@ internal fun PlayerSubtitleAudioTab(
                         title = stringResource(R.string.sub_default_color),
                         description = stringResource(R.string.sub_default_color_desc),
                         value = currentColorName,
-                        icon = Icons.Rounded.Subtitles,
+                        icon = Icons.Subtitles,
                         iconColor = accentColor,
                         onClick = { colorDropdownExpanded = true }
                     )
@@ -188,7 +184,7 @@ internal fun PlayerSubtitleAudioTab(
                 KitsugiSettingsSwitchItem(
                     title = stringResource(R.string.sub_bold),
                     description = stringResource(R.string.sub_bold_desc),
-                    icon = Icons.Rounded.Subtitles,
+                    icon = Icons.Subtitles,
                     iconColor = accentColor,
                     checked = subtitleBold,
                     onCheckedChange = onSubtitleBoldChanged
@@ -200,7 +196,7 @@ internal fun PlayerSubtitleAudioTab(
                 KitsugiSettingsSwitchItem(
                     title = stringResource(R.string.sub_outline),
                     description = stringResource(R.string.sub_outline_desc),
-                    icon = Icons.Rounded.Subtitles,
+                    icon = Icons.Subtitles,
                     iconColor = accentColor,
                     checked = subtitleOutlineEnabled,
                     onCheckedChange = onSubtitleOutlineEnabledChanged
@@ -220,7 +216,7 @@ internal fun PlayerSubtitleAudioTab(
                         title = stringResource(R.string.sub_audio_boost),
                         description = stringResource(R.string.sub_audio_boost_desc),
                         value = currentBoostName,
-                        icon = Icons.Rounded.VolumeUp,
+                        icon = Icons.VolumeUp,
                         iconColor = accentColor,
                         onClick = { boostDropdownExpanded = true }
                     )
@@ -246,7 +242,7 @@ internal fun PlayerSubtitleAudioTab(
                         title = stringResource(R.string.sub_audio_delay),
                         description = stringResource(R.string.sub_audio_delay_desc),
                         value = currentDelayName,
-                        icon = Icons.Rounded.VolumeUp,
+                        icon = Icons.VolumeUp,
                         iconColor = accentColor,
                         onClick = { delayDropdownExpanded = true }
                     )
@@ -291,7 +287,7 @@ internal fun PlayerSubtitleAudioTab(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.Subtitles,
+                            imageVector = Icons.Subtitles,
                             contentDescription = null,
                             tint = accentColor,
                             modifier = Modifier.size(22.dp)
@@ -353,7 +349,7 @@ internal fun PlayerSubtitleAudioTab(
                         title = stringResource(R.string.sub_load_mode),
                         description = stringResource(R.string.sub_load_mode_desc),
                         value = currentStartupModeName,
-                        icon = Icons.Rounded.Subtitles,
+                        icon = Icons.Subtitles,
                         iconColor = accentColor,
                         onClick = { startupModeDropdownExpanded = true }
                     )
@@ -408,7 +404,7 @@ internal fun PlayerSubtitleAudioTab(
                         title = stringResource(R.string.sub_delay_speaker),
                         description = stringResource(R.string.sub_delay_speaker_desc),
                         value = routeDelayOptions.find { it.first == speakerDelayMs }?.second ?: "${speakerDelayMs} ms",
-                        icon = Icons.Rounded.VolumeUp,
+                        icon = Icons.VolumeUp,
                         iconColor = if (isSpeakerActive) accentColor else KitsugiColors.TextSecondary,
                         onClick = { routeSpeakerExpanded = true }
                     )
@@ -436,7 +432,7 @@ internal fun PlayerSubtitleAudioTab(
                         title = stringResource(R.string.sub_delay_bt),
                         description = stringResource(R.string.sub_delay_bt_desc),
                         value = routeDelayOptions.find { it.first == bluetoothDelayMs }?.second ?: "${bluetoothDelayMs} ms",
-                        icon = Icons.Rounded.VolumeUp,
+                        icon = Icons.VolumeUp,
                         iconColor = if (isBtActive) accentColor else KitsugiColors.TextSecondary,
                         onClick = { routeBtExpanded = true }
                     )
@@ -464,7 +460,7 @@ internal fun PlayerSubtitleAudioTab(
                         title = stringResource(R.string.sub_delay_wired),
                         description = stringResource(R.string.sub_delay_wired_desc),
                         value = routeDelayOptions.find { it.first == wiredDelayMs }?.second ?: "${wiredDelayMs} ms",
-                        icon = Icons.Rounded.VolumeUp,
+                        icon = Icons.VolumeUp,
                         iconColor = if (isWiredActive) accentColor else KitsugiColors.TextSecondary,
                         onClick = { routeWiredExpanded = true }
                     )
@@ -492,7 +488,7 @@ internal fun PlayerSubtitleAudioTab(
                         title = stringResource(R.string.sub_delay_hdmi),
                         description = stringResource(R.string.sub_delay_hdmi_desc),
                         value = routeDelayOptions.find { it.first == hdmiDelayMs }?.second ?: "${hdmiDelayMs} ms",
-                        icon = Icons.Rounded.SettingsInputHdmi,
+                        icon = Icons.SettingsInputHdmi,
                         iconColor = if (isHdmiActive) accentColor else KitsugiColors.TextSecondary,
                         onClick = { routeHdmiExpanded = true }
                     )

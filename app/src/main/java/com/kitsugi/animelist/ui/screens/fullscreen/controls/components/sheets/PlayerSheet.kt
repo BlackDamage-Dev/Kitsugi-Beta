@@ -12,8 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Close
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
@@ -101,7 +100,7 @@ fun PlayerSheet(
                             .size(32.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.Close,
+                            imageVector = Icons.Close,
                             contentDescription = stringResource(R.string.kapat),
                             tint = Color.White.copy(alpha = 0.75f),
                             modifier = Modifier.size(18.dp)

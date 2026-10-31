@@ -18,8 +18,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.*
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -166,7 +165,7 @@ fun KitsuProfileContent(
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.Share,
+                            imageVector = Icons.Share,
                             contentDescription = stringResource(R.string.paylas),
                             tint = KitsugiColors.TextPrimary,
                             modifier = Modifier.size(18.dp)
@@ -244,9 +243,9 @@ fun KitsuProfileContent(
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     val tabs = listOf(
-                        Icons.Rounded.Info to stringResource(R.string.character_tab_about),
-                        Icons.Rounded.BarChart to stringResource(R.string.profile_tab_statistics),
-                        Icons.Rounded.Bookmarks to stringResource(R.string.profile_library)
+                        Icons.Info to stringResource(R.string.character_tab_about),
+                        Icons.BarChart to stringResource(R.string.profile_tab_statistics),
+                        Icons.Bookmarks to stringResource(R.string.profile_library)
                     )
                     ProfileHeaderIconTabs(
                         tabs = tabs,
@@ -375,7 +374,7 @@ private fun KitsuAboutTab(
                                 },
                                 modifier = Modifier.size(32.dp)
                             ) {
-                                Icon(Icons.Rounded.ContentCopy, contentDescription = stringResource(R.string.action_copy), tint = KitsugiColors.TextMuted, modifier = Modifier.size(16.dp))
+                                Icon(Icons.ContentCopy, contentDescription = stringResource(R.string.action_copy), tint = KitsugiColors.TextMuted, modifier = Modifier.size(16.dp))
                             }
                             KitsugiTranslateIconButton(
                                 onClick = { context.openTranslator(state.about) },
@@ -406,21 +405,21 @@ private fun KitsuAboutTab(
             KitsuStatCard(
                 title = "Anime",
                 value = state.totalAnime.toString(),
-                icon = Icons.Rounded.Tv,
+                icon = Icons.Tv,
                 modifier = Modifier.weight(1f),
                 accentColor = accentColor
             )
             KitsuStatCard(
                 title = "Manga",
                 value = state.totalManga.toString(),
-                icon = Icons.Rounded.Book,
+                icon = Icons.Book,
                 modifier = Modifier.weight(1f),
                 accentColor = Color(0xFFFD755C)
             )
             KitsuStatCard(
                 title = stringResource(R.string.detail_stat_score),
                 value = if (state.avgScore > 0) String.format("%.1f", state.avgScore) else "-",
-                icon = Icons.Rounded.Star,
+                icon = Icons.Star,
                 modifier = Modifier.weight(1f),
                 accentColor = KitsugiColors.AccentYellow
             )
@@ -443,7 +442,7 @@ private fun KitsuAboutTab(
                     if (!state.timeSpentDaysHours.isNullOrBlank()) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Icon(
-                                imageVector = Icons.Rounded.Schedule,
+                                imageVector = Icons.Schedule,
                                 contentDescription = null,
                                 tint = Color(0xFFFD755C),
                                 modifier = Modifier.size(22.dp)
@@ -473,7 +472,7 @@ private fun KitsuAboutTab(
                         }
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Icon(
-                                imageVector = Icons.Rounded.PlayCircle,
+                                imageVector = Icons.PlayCircle,
                                 contentDescription = null,
                                 tint = accentColor,
                                 modifier = Modifier.size(22.dp)
@@ -532,23 +531,23 @@ private fun KitsuAboutTab(
                 )
 
                 if (!state.waifuOrHusbando.isNullOrBlank()) {
-                    AttributeRow(icon = Icons.Rounded.Favorite, label = stringResource(R.string.profile_label_favorite_character), value = state.waifuOrHusbando)
+                    AttributeRow(icon = Icons.Favorite, label = stringResource(R.string.profile_label_favorite_character), value = state.waifuOrHusbando)
                 }
                 if (!state.location.isNullOrBlank()) {
-                    AttributeRow(icon = Icons.Rounded.LocationOn, label = stringResource(R.string.profile_label_location), value = state.location)
+                    AttributeRow(icon = Icons.LocationOn, label = stringResource(R.string.profile_label_location), value = state.location)
                 }
                 if (!state.gender.isNullOrBlank()) {
-                    AttributeRow(icon = Icons.Rounded.Person, label = stringResource(R.string.profile_label_gender), value = state.gender)
+                    AttributeRow(icon = Icons.Person, label = stringResource(R.string.profile_label_gender), value = state.gender)
                 }
                 if (!state.birthday.isNullOrBlank()) {
-                    AttributeRow(icon = Icons.Rounded.Cake, label = stringResource(R.string.info_label_birthday), value = state.birthday)
+                    AttributeRow(icon = Icons.Cake, label = stringResource(R.string.info_label_birthday), value = state.birthday)
                 }
                 if (!state.joinedAt.isNullOrBlank()) {
                     val formattedDate = state.joinedAt.take(10)
-                    AttributeRow(icon = Icons.Rounded.CalendarToday, label = stringResource(R.string.katilim_tarihi), value = formattedDate)
+                    AttributeRow(icon = Icons.CalendarToday, label = stringResource(R.string.katilim_tarihi), value = formattedDate)
                 }
-                AttributeRow(icon = Icons.Rounded.People, label = stringResource(R.string.takipci_takip), value = "${state.followersCount} / ${state.followingCount}")
-                AttributeRow(icon = Icons.Rounded.Comment, label = stringResource(R.string.profile_comments), value = state.commentsCount.toString())
+                AttributeRow(icon = Icons.People, label = stringResource(R.string.takipci_takip), value = "${state.followersCount} / ${state.followingCount}")
+                AttributeRow(icon = Icons.Comment, label = stringResource(R.string.profile_comments), value = state.commentsCount.toString())
             }
         }
     }
@@ -575,7 +574,7 @@ private fun KitsuStatsTab(
         KitsugiStatsCard {
             KitsugiStatsCardHeader(
                 title = stringResource(R.string.profile_stats_general),
-                icon = Icons.Rounded.BarChart,
+                icon = Icons.BarChart,
                 subtitle = "Kitsu",
                 accentColor = accentColor
             )
@@ -605,7 +604,7 @@ private fun KitsuStatsTab(
             KitsugiStatsCard {
                 KitsugiStatsCardHeader(
                     title = stringResource(R.string.inline_library_status_6c45df9),
-                    icon = Icons.Rounded.DonutLarge,
+                    icon = Icons.DonutLarge,
                     accentColor = accentColor
                 )
                 Spacer(Modifier.height(12.dp))
@@ -701,7 +700,7 @@ private fun KitsuLibraryTab(
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(
-                    imageVector = Icons.Rounded.Bookmarks,
+                    imageVector = Icons.Bookmarks,
                     contentDescription = null,
                     tint = KitsugiColors.TextMuted,
                     modifier = Modifier.size(48.dp)
@@ -748,7 +747,7 @@ private fun KitsuLibraryTab(
                                 .background(KitsugiColors.SurfaceStrong),
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(Icons.Rounded.Movie, contentDescription = null, tint = KitsugiColors.TextMuted)
+                            Icon(Icons.Movie, contentDescription = null, tint = KitsugiColors.TextMuted)
                         }
                     }
                     Spacer(modifier = Modifier.width(12.dp))

@@ -2,6 +2,9 @@ package com.kitsugi.animelist.ui.screens.detail
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.ui.graphics.vector.ImageVector
+import com.kitsugi.animelist.ui.components.KitsugiEmojiLabel
+import com.kitsugi.animelist.ui.components.galleryCategoryIcon
 import com.kitsugi.animelist.ui.theme.gradient.background
 import com.kitsugi.animelist.ui.theme.gradient.border
 import androidx.compose.foundation.layout.Arrangement
@@ -25,8 +28,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.PhotoLibrary
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.components.KitsugiPlatformLogo
 import com.kitsugi.animelist.ui.components.LocalKitsugiGalleryLoading
 import androidx.compose.ui.draw.alpha
@@ -290,8 +292,8 @@ private class GallerySourceRowModel(
 
 private class GalleryCategorySectionModel(
     val category: GalleryCategory,
-    val emoji: String,
-    val sourceRows: List<GallerySourceRowModel>
+    val sourceRows: List<GallerySourceRowModel>,
+    val emoji: String = ""
 )
 
 private class GalleryPrecomputedModel(
@@ -370,7 +372,6 @@ private fun precomputeGalleryModel(items: List<GalleryItem>): GalleryPrecomputed
             sections.add(
                 GalleryCategorySectionModel(
                     category = category,
-                    emoji = galleryCategoryEmoji(category),
                     sourceRows = rows
                 )
             )
@@ -458,7 +459,7 @@ internal fun DetailGalleryCard(
                 enabled = !galleryLoading
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.PhotoLibrary,
+                    imageVector = Icons.PhotoLibrary,
                     contentDescription = stringResource(R.string.cd_open_gallery),
                     tint = accentColor,
                     modifier = Modifier.size(22.dp)
@@ -506,7 +507,7 @@ internal fun DetailGalleryCard(
                         modifier = Modifier.padding(start = 4.dp, bottom = 6.dp)
                     )
                     GalleryPickerRow(
-                        emoji = "📂",
+                        icon = Icons.FolderOpen,
                         label = stringResource(R.string.action_all_count, items.size),
                         selected = false,
                         onClick = {
@@ -517,7 +518,7 @@ internal fun DetailGalleryCard(
                     precomputed.availableCategories.forEach { category ->
                         val count = precomputed.categoryCounts[category] ?: 0
                         GalleryPickerRow(
-                            emoji = galleryCategoryEmoji(category),
+                            icon = galleryCategoryIcon(category),
                             label = "${category.localizedLabel()} ($count)",
                             selected = false,
                             onClick = {
@@ -537,7 +538,7 @@ internal fun DetailGalleryCard(
                         )
                         precomputed.availableSources.forEach { (source, count) ->
                             GalleryPickerRow(
-                                emoji = null,
+                                icon = null,
                                 label = "$source ($count)",
                                 source = source,
                                 selected = false,
@@ -588,8 +589,11 @@ private fun GalleryCategorySectionBlock(
     ) {
         val localizedCategoryLabel = section.category.localizedLabel()
 
-        Text(
-            text = "${section.emoji} $localizedCategoryLabel",
+        val catIcon = galleryCategoryIcon(section.category)
+        KitsugiEmojiLabel(
+            label = localizedCategoryLabel,
+            icon = catIcon,
+            iconSize = 14.dp,
             color = KitsugiColors.TextPrimary,
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Bold,
@@ -874,7 +878,7 @@ internal fun EntryDetailEpisodesTab(
 
 @Composable
 private fun GalleryPickerRow(
-    emoji: String?,
+    icon: ImageVector?,
     label: String,
     selected: Boolean,
     source: String? = null,
@@ -895,8 +899,13 @@ private fun GalleryPickerRow(
             val logoRes = KitsugiPlatformLogos.resFor(source)
             if (logoRes != null) KitsugiPlatformLogo(platformId = source, size = 22.dp, cornerRadius = 5.dp)
             else Text(text = source.take(1).uppercase(), color = accent, fontWeight = FontWeight.Bold)
-        } else if (emoji != null) {
-            Text(text = emoji, style = MaterialTheme.typography.bodyMedium)
+        } else if (icon != null) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = if (selected) accent else KitsugiColors.TextSecondary,
+                modifier = Modifier.size(16.dp)
+            )
         }
         Text(
             text = label,
@@ -907,15 +916,4 @@ private fun GalleryPickerRow(
     }
 }
 
-private fun galleryCategoryEmoji(category: GalleryCategory): String = when (category) {
-    GalleryCategory.POSTER -> "📋"
-    GalleryCategory.BACKDROP -> "🖼"
-    GalleryCategory.LOGO -> "🎨"
-    GalleryCategory.CLEARART -> "✨"
-    GalleryCategory.CHARACTER -> "🎭"
-    GalleryCategory.PERSON -> "👤"
-    GalleryCategory.THUMBNAIL -> "🌐"
-    GalleryCategory.BANNER -> "🎫"
-    GalleryCategory.SQUARE -> "🟩"
-    GalleryCategory.OTHER -> "📁"
-}
+

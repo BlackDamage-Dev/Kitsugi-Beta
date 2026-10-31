@@ -1,4 +1,5 @@
 package com.kitsugi.animelist.ui.screens.detail
+import com.kitsugi.animelist.ui.components.KitsugiChevronIcon
 import com.kitsugi.animelist.ui.components.KitsugiButton
 
 import android.util.Log
@@ -23,13 +24,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.KeyboardArrowDown
-import androidx.compose.material.icons.rounded.KeyboardArrowUp
-import androidx.compose.material.icons.rounded.Movie
-import androidx.compose.material.icons.rounded.MusicNote
-import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.Share
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.ButtonDefaults
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.MaterialTheme
@@ -150,7 +145,7 @@ fun KitsugiTrailerCard(trailerUrl: String, mediaTitle: String = "") {
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = if (isPlayerOpen) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.PlayArrow,
+                    imageVector = if (isPlayerOpen) Icons.KeyboardArrowUp else Icons.PlayArrow,
                     contentDescription = if (isPlayerOpen) stringResource(R.string.settings_close) else "Oynat",
                     tint = com.kitsugi.animelist.ui.theme.onAccentColor(accentColor),
                     modifier = Modifier.size(24.dp)
@@ -199,7 +194,7 @@ fun KitsugiTrailerCard(trailerUrl: String, mediaTitle: String = "") {
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.KeyboardArrowUp,
+                        imageVector = Icons.KeyboardArrowUp,
                         contentDescription = null,
                         tint = KitsugiColors.TextSecondary,
                         modifier = Modifier.size(16.dp)
@@ -816,7 +811,7 @@ fun KitsugiMediaVideosTab(
             if (trailerItems.isNotEmpty()) {
                 DetailVideoGroup(
                     title = stringResource(R.string.inline_preview_c9d9dd2),
-                    icon = Icons.Rounded.Movie,
+                    icon = Icons.Movie,
                     items = trailerItems,
                     activeVideoKey = activeVideoKey,
                     accentColor = accentColor,
@@ -830,7 +825,7 @@ fun KitsugiMediaVideosTab(
             if (openingItems.isNotEmpty()) {
                 DetailVideoGroup(
                     title = stringResource(R.string.detail_openings),
-                    icon = Icons.Rounded.MusicNote,
+                    icon = Icons.MusicNote,
                     items = openingItems,
                     activeVideoKey = activeVideoKey,
                     accentColor = accentColor,
@@ -844,7 +839,7 @@ fun KitsugiMediaVideosTab(
             if (endingItems.isNotEmpty()) {
                 DetailVideoGroup(
                     title = stringResource(R.string.detail_endings),
-                    icon = Icons.Rounded.MusicNote,
+                    icon = Icons.MusicNote,
                     items = endingItems,
                     activeVideoKey = activeVideoKey,
                     accentColor = accentColor,
@@ -1071,7 +1066,7 @@ private fun DetailVideoGroup(
                             horizontalArrangement = Arrangement.spacedBy(2.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Rounded.KeyboardArrowUp,
+                                imageVector = Icons.KeyboardArrowUp,
                                 contentDescription = null,
                                 tint = KitsugiColors.TextMuted,
                                 modifier = Modifier.size(14.dp)
@@ -1133,8 +1128,8 @@ private fun DetailVideoGroup(
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold
                     )
-                    Icon(
-                        imageVector = if (expanded) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.KeyboardArrowDown,
+                    KitsugiChevronIcon(
+                        expanded = expanded,
                         contentDescription = null,
                         tint = accentColor,
                         modifier = Modifier.size(15.dp)
@@ -1182,7 +1177,7 @@ private fun DetailVideoRow(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = if (isSelected) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.PlayArrow,
+                    imageVector = if (isSelected) Icons.KeyboardArrowUp else Icons.PlayArrow,
                     contentDescription = null,
                     tint = if (isSelected) com.kitsugi.animelist.ui.theme.onAccentColor(accentColor) else accentColor,
                     modifier = Modifier.size(15.dp)
@@ -1239,7 +1234,7 @@ private fun DetailVideoRow(
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = Icons.Rounded.Share,
+                imageVector = Icons.Share,
                 contentDescription = stringResource(R.string.action_share),
                 tint = KitsugiColors.TextMuted,
                 modifier = Modifier.size(16.dp)
@@ -1368,8 +1363,8 @@ private fun ThemeVideoSection(
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold
                     )
-                    Icon(
-                        imageVector = if (expanded) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.KeyboardArrowDown,
+                    KitsugiChevronIcon(
+                        expanded = expanded,
                         contentDescription = null,
                         tint = accentColor,
                         modifier = Modifier.size(16.dp)
@@ -1407,7 +1402,7 @@ private fun ThemeVideoSection(
                             horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Rounded.KeyboardArrowUp,
+                                imageVector = Icons.KeyboardArrowUp,
                                 contentDescription = null,
                                 tint = KitsugiColors.TextSecondary,
                                 modifier = Modifier.size(16.dp)
@@ -1471,7 +1466,7 @@ private fun ThemeRow(
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = if (isActive) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.PlayArrow,
+                imageVector = if (isActive) Icons.KeyboardArrowUp else Icons.PlayArrow,
                 contentDescription = null,
                 tint = if (isActive) KitsugiColors.Background else accentColor,
                 modifier = Modifier.size(18.dp)

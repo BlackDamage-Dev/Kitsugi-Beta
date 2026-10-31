@@ -8,9 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material.icons.filled.Close
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.components.KitsugiDropdownMenu
 import com.kitsugi.animelist.ui.components.KitsugiMenuItem
 import com.kitsugi.animelist.ui.theme.gradient.Icon
@@ -183,7 +181,7 @@ private fun SubtitleDelayTitle(
                 style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.padding(start = 4.dp)
             )
-            Icon(Icons.Default.ArrowDropDown, null, tint = Color.White)
+            Icon(Icons.ArrowDropDown, null, tint = Color.White)
             KitsugiDropdownMenu(expanded = showDropDown, onDismissRequest = { showDropDown = false }) {
                 SubtitleDelayType.entries.forEach {
                     KitsugiMenuItem(
@@ -196,7 +194,7 @@ private fun SubtitleDelayTitle(
         }
         Spacer(Modifier.weight(1f))
         IconButton(onClose) {
-            Icon(Icons.Default.Close, null, modifier = Modifier.size(32.dp), tint = Color.White)
+            Icon(Icons.Close, null, modifier = Modifier.size(32.dp), tint = Color.White)
         }
     }
 }

@@ -11,13 +11,15 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.filled.Extension
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.rounded.SearchOff
-import androidx.compose.material.icons.filled.Refresh as FilledRefresh
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.input.ImeAction
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
@@ -236,7 +238,7 @@ fun AddonExplorePage(
                         ) {
                             IconButton(onClick = onBackClick, modifier = Modifier.size(40.dp)) {
                                 Icon(
-                                    imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                                    imageVector = Icons.ArrowBack,
                                     contentDescription = stringResource(R.string.geri),
                                     tint = KitsugiColors.TextPrimary
                                 )
@@ -247,7 +249,7 @@ fun AddonExplorePage(
                                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Filled.Extension,
+                                        imageVector = Icons.Extension,
                                         contentDescription = null,
                                         tint = accentColor,
                                         modifier = Modifier.size(18.dp)
@@ -299,7 +301,7 @@ fun AddonExplorePage(
                                 onClick = { loadHomeFeed(true) },
                                 icon = {
                                     Icon(
-                                        imageVector = Icons.Filled.Refresh,
+                                        imageVector = Icons.Refresh,
                                         contentDescription = stringResource(R.string.yenile),
                                         tint = KitsugiColors.TextMuted,
                                         modifier = Modifier.size(20.dp)
@@ -358,7 +360,7 @@ fun AddonExplorePage(
                                             KitsugiEmptyState(
                                                 title = stringResource(R.string.sonuc_bulunamadi),
                                                 subtitle = stringResource(R.string.inline_no_results_found_for_1_3ed9f56, searchQuery),
-                                                icon = Icons.Rounded.SearchOff
+                                                icon = Icons.SearchOff
                                             )
                                         }
                                     }
@@ -452,7 +454,7 @@ fun AddonExplorePage(
                                         KitsugiEmptyState(
                                             title = stringResource(R.string.kesfet_icerigi_yuklenemedi),
                                             subtitle = stringResource(R.string.inline_no_results_found_03b621d),
-                                            icon = Icons.Rounded.SearchOff
+                                            icon = Icons.SearchOff
                                         )
                                     }
                                 }
@@ -540,7 +542,100 @@ fun AddonExploreDialog(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Status Warning Pill — aynı renk sözleşmesi, aynı köşe yarıçapı
+// Floating Search Bar — üstte sabit, transparan arka plan
+// ─────────────────────────────────────────────────────────────────────────────
+
+@Composable
+private fun AddonFloatingSearchBar(
+    apiName: String,
+    searchQuery: String,
+    hasSearched: Boolean,
+    onQueryChange: (String) -> Unit,
+    onSearch: () -> Unit,
+    onClear: () -> Unit,
+    onBack: () -> Unit,
+    onRefresh: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val accentColor = LocalKitsugiAccent.current
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .statusBarsPadding()
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        // Geri / Temizle butonu
+        Box(
+            modifier = Modifier
+                .size(42.dp)
+                .clip(CircleShape)
+                .background(Color.Black.copy(0.45f))
+                .clickable { if (hasSearched) onClear() else onBack() },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(Icons.ArrowBack, "Geri", tint = Color.White, modifier = Modifier.size(20.dp))
+        }
+
+        // Arama alanı
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .height(46.dp)
+                .clip(RoundedCornerShape(23.dp))
+                .background(Color.Black.copy(0.55f))
+                .padding(horizontal = 14.dp),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(Icons.Search, null, tint = Color.White.copy(0.65f), modifier = Modifier.size(18.dp))
+                BasicTextField(
+                    value = searchQuery,
+                    onValueChange = onQueryChange,
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    cursorBrush = SolidColor(accentColor),
+                    textStyle = MaterialTheme.typography.bodyMedium.copy(color = Color.White),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    keyboardActions = KeyboardActions(onSearch = { onSearch() }),
+                    decorationBox = { inner ->
+                        if (searchQuery.isEmpty()) Text(stringResource(R.string.ara), color = Color.White.copy(0.45f), style = MaterialTheme.typography.bodyMedium)
+                        inner()
+                    }
+                )
+                if (searchQuery.isNotEmpty()) {
+                    Box(
+                        Modifier.size(26.dp).clip(CircleShape).background(Color.White.copy(0.2f)).clickable { onClear() },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Close, null, tint = Color.White, modifier = Modifier.size(14.dp))
+                    }
+                }
+            }
+        }
+
+        // Yenile butonu
+        Box(
+            modifier = Modifier
+                .size(42.dp)
+                .clip(CircleShape)
+                .background(Color.Black.copy(0.45f))
+                .clickable { onRefresh() },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(Icons.Refresh, "Yenile", tint = Color.White, modifier = Modifier.size(20.dp))
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Status Warning Pill — küçük uyarı satırı
 // ─────────────────────────────────────────────────────────────────────────────
 
 @Composable

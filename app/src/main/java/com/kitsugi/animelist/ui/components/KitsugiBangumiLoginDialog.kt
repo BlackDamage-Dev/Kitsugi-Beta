@@ -26,16 +26,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Bolt
-import androidx.compose.material.icons.rounded.ContentPaste
-import androidx.compose.material.icons.rounded.ErrorOutline
-import androidx.compose.material.icons.rounded.ExpandLess
-import androidx.compose.material.icons.rounded.ExpandMore
-import androidx.compose.material.icons.rounded.Key
-import androidx.compose.material.icons.rounded.OpenInNew
-import androidx.compose.material.icons.rounded.Tune
-import androidx.compose.material.icons.rounded.VpnKey
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.ButtonDefaults
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.MaterialTheme
@@ -245,7 +236,7 @@ fun KitsugiBangumiLoginDialog(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(
-                                    Icons.Rounded.ErrorOutline,
+                                    Icons.ErrorOutline,
                                     contentDescription = null,
                                     tint = KitsugiColors.AccentRed,
                                     modifier = Modifier.size(18.dp)
@@ -277,7 +268,7 @@ fun KitsugiBangumiLoginDialog(
                         Column(modifier = Modifier.padding(14.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(
-                                    Icons.Rounded.VpnKey,
+                                    Icons.VpnKey,
                                     contentDescription = null,
                                     tint = bangumiBrandColor,
                                     modifier = Modifier.size(18.dp)
@@ -320,7 +311,7 @@ fun KitsugiBangumiLoginDialog(
                                         shape = RoundedCornerShape(8.dp),
                                         modifier = Modifier.padding(end = 6.dp)
                                     ) {
-                                        Icon(Icons.Rounded.ContentPaste, contentDescription = null, modifier = Modifier.size(14.dp))
+                                        Icon(Icons.ContentPaste, contentDescription = null, modifier = Modifier.size(14.dp))
                                         Spacer(modifier = Modifier.width(4.dp))
                                         Text(stringResource(R.string.yapistir), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                                     }
@@ -347,7 +338,7 @@ fun KitsugiBangumiLoginDialog(
                                         )
                                     }
                                 }) {
-                                    Icon(Icons.Rounded.OpenInNew, contentDescription = null, modifier = Modifier.size(14.dp))
+                                    Icon(Icons.OpenInNew, contentDescription = null, modifier = Modifier.size(14.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
                                     Text(KitsugiStrings.get(R.string.bangumi_pat_olustur_linki), fontSize = 11.sp)
                                 }
@@ -436,7 +427,7 @@ fun KitsugiBangumiLoginDialog(
                         Column(modifier = Modifier.padding(14.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(
-                                    Icons.Rounded.Key,
+                                    Icons.Key,
                                     contentDescription = null,
                                     tint = bangumiBrandColor,
                                     modifier = Modifier.size(18.dp)
@@ -477,7 +468,7 @@ fun KitsugiBangumiLoginDialog(
                                         )
                                     }
                                 }) {
-                                    Icon(Icons.Rounded.OpenInNew, contentDescription = null, modifier = Modifier.size(14.dp))
+                                    Icon(Icons.OpenInNew, contentDescription = null, modifier = Modifier.size(14.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
                                     Text(KitsugiStrings.get(R.string.inline_bgm_tv_dev_app_app_2a4f7d4), fontSize = 11.sp)
                                 }
@@ -503,7 +494,7 @@ fun KitsugiBangumiLoginDialog(
                         Column(modifier = Modifier.padding(14.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(
-                                    Icons.Rounded.VpnKey,
+                                    Icons.VpnKey,
                                     contentDescription = null,
                                     tint = bangumiBrandColor,
                                     modifier = Modifier.size(18.dp)
@@ -535,7 +526,7 @@ fun KitsugiBangumiLoginDialog(
                                 shape = RoundedCornerShape(10.dp),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Icon(Icons.Rounded.Bolt, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Icon(Icons.Bolt, contentDescription = null, modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
                                     text = stringResource(R.string.s1_tik_otomatik_giris_onerilen),
@@ -556,7 +547,7 @@ fun KitsugiBangumiLoginDialog(
                                     contentColor = bangumiBrandColor
                                 )
                             ) {
-                                Icon(Icons.Rounded.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Icon(Icons.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
                                     text = KitsugiStrings.get(R.string.inline_alternative_scheme_aniyomi_889ac71),
@@ -589,7 +580,7 @@ fun KitsugiBangumiLoginDialog(
                         Column(modifier = Modifier.padding(14.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(
-                                    Icons.Rounded.ContentPaste,
+                                    Icons.ContentPaste,
                                     contentDescription = null,
                                     tint = KitsugiColors.TextPrimary,
                                     modifier = Modifier.size(18.dp)
@@ -635,7 +626,7 @@ fun KitsugiBangumiLoginDialog(
                                         shape = RoundedCornerShape(8.dp),
                                         modifier = Modifier.padding(end = 6.dp)
                                     ) {
-                                        Icon(Icons.Rounded.ContentPaste, contentDescription = null, modifier = Modifier.size(14.dp))
+                                        Icon(Icons.ContentPaste, contentDescription = null, modifier = Modifier.size(14.dp))
                                         Spacer(modifier = Modifier.width(4.dp))
                                         Text(stringResource(R.string.yapistir), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                                     }
@@ -661,7 +652,7 @@ fun KitsugiBangumiLoginDialog(
                         Column(modifier = Modifier.padding(14.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(
-                                    Icons.Rounded.Tune,
+                                    Icons.Tune,
                                     contentDescription = null,
                                     tint = KitsugiColors.TextPrimary,
                                     modifier = Modifier.size(18.dp)
@@ -750,7 +741,7 @@ fun KitsugiBangumiLoginDialog(
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(
-                                    Icons.Rounded.Tune,
+                                    Icons.Tune,
                                     contentDescription = null,
                                     tint = KitsugiColors.TextSecondary,
                                     modifier = Modifier.size(16.dp)
@@ -764,8 +755,8 @@ fun KitsugiBangumiLoginDialog(
                                     )
                                 )
                             }
-                            Icon(
-                                if (showAdvanced) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                            KitsugiChevronIcon(
+                                expanded = showAdvanced,
                                 contentDescription = null,
                                 tint = KitsugiColors.TextSecondary,
                                 modifier = Modifier.size(20.dp)

@@ -8,8 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Extension
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.MaterialTheme
 import com.kitsugi.animelist.ui.theme.gradient.Text
@@ -54,7 +53,7 @@ fun KitsugiSourceBadge(
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = Icons.Default.Extension,
+                imageVector = Icons.Extension,
                 contentDescription = source,
                 tint = LocalKitsugiAccent.current,
                 modifier = Modifier.size(size * 0.62f)
@@ -103,7 +102,7 @@ fun KitsugiSourceNamePill(
             KitsugiPlatformLogo(platformId = normalized, size = logoSize)
         } else {
             Icon(
-                imageVector = Icons.Default.Extension,
+                imageVector = Icons.Extension,
                 contentDescription = null,
                 tint = LocalKitsugiAccent.current,
                 modifier = Modifier.size(logoSize * 0.8f)

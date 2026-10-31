@@ -2,6 +2,7 @@
 
 package com.kitsugi.animelist.ui.screens.fullscreen
 
+import com.kitsugi.animelist.ui.components.KitsugiEmojiLabel
 import com.kitsugi.animelist.ui.utils.rememberKitsugiGridColumns
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
@@ -34,13 +35,7 @@ import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.automirrored.rounded.ListAlt
-import androidx.compose.material.icons.rounded.FilterList
-import androidx.compose.material.icons.rounded.GridView
-import androidx.compose.material.icons.rounded.PlaylistAdd
-import androidx.compose.material.icons.rounded.SearchOff
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.CircularProgressIndicator
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.IconButton
@@ -92,7 +87,6 @@ import com.kitsugi.animelist.ui.theme.LocalIsTv
 import com.kitsugi.animelist.ui.theme.LocalKitsugiAccent
 import com.kitsugi.animelist.ui.utils.kitsugiLazyKey
 import com.kitsugi.animelist.ui.utils.tvClickable
-import androidx.compose.material.icons.rounded.KeyboardArrowUp
 import kotlinx.coroutines.launch
 import java.util.Calendar
 import androidx.compose.ui.res.stringResource
@@ -899,7 +893,7 @@ fun FullScreenMediaGridPage(
                                         .background(KitsugiColors.Surface)
                                 ) {
                                     Icon(
-                                        Icons.Rounded.PlaylistAdd,
+                                        Icons.PlaylistAdd,
                                         contentDescription = stringResource(R.string.tumunu_listeye_ekle),
                                         tint = accentColor
                                     )
@@ -920,7 +914,7 @@ fun FullScreenMediaGridPage(
                                     .background(if (hasActiveFilter) accentColor.copy(alpha = 0.25f) else KitsugiColors.Surface)
                             ) {
                                 Icon(
-                                    Icons.Rounded.FilterList,
+                                    Icons.FilterList,
                                     contentDescription = stringResource(R.string.filtre_ve_siralama),
                                     tint = if (hasActiveFilter) accentColor else KitsugiColors.TextPrimary
                                 )
@@ -940,7 +934,7 @@ fun FullScreenMediaGridPage(
                                 },
                                 modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(KitsugiColors.Surface)
                             ) {
-                                Icon(Icons.AutoMirrored.Rounded.ListAlt, contentDescription = KitsugiStrings.get(R.string.settings_list_layout), tint = accentColor)
+                                Icon(Icons.ListAlt, contentDescription = KitsugiStrings.get(R.string.settings_list_layout), tint = accentColor)
                             }
                         }
 
@@ -964,9 +958,9 @@ fun FullScreenMediaGridPage(
                         val activeFilterDesc = buildString {
                             activeGenreLabel?.let { append(" • $it") }
                             activeSortLabel?.let { append(" • $it") }
-                            // ☁️ = kaynak API'sinde uygulandı, 📱 = kaynak desteklemediği için cihazda.
-                            if (serverFilterActive) append(" ☁️")
-                            else if (localGenreFilter || localSort) append(" 📱")
+                            // Sunucu/cihaz ayrımı emoji ile değil, ayrı ikon rozetleriyle gösterilir.
+                            if (serverFilterActive) append(" • ${stringResource(R.string.filter_scope_server)}")
+                            else if (localGenreFilter || localSort) append(" • ${stringResource(R.string.filter_scope_device)}")
                         }
 
                         Row(
@@ -1005,7 +999,7 @@ fun FullScreenMediaGridPage(
                         KitsugiEmptyState(
                             title = stringResource(R.string.henuz_icerik_yok),
                             subtitle = stringResource(R.string.bu_kategoride_gosterilecek_icerik_bulunamadi),
-                            icon = Icons.Rounded.SearchOff
+                            icon = Icons.SearchOff
                         )
                     }
                 } else {
@@ -1103,7 +1097,7 @@ fun FullScreenMediaGridPage(
                                         .background(KitsugiColors.Surface)
                                 ) {
                                     Icon(
-                                        Icons.Rounded.PlaylistAdd,
+                                        Icons.PlaylistAdd,
                                         contentDescription = stringResource(R.string.tumunu_listeye_ekle),
                                         tint = accentColor
                                     )
@@ -1124,7 +1118,7 @@ fun FullScreenMediaGridPage(
                                     .background(if (hasActiveFilter) accentColor.copy(alpha = 0.25f) else KitsugiColors.Surface)
                             ) {
                                 Icon(
-                                    Icons.Rounded.FilterList,
+                                    Icons.FilterList,
                                     contentDescription = stringResource(R.string.filtre_ve_siralama),
                                     tint = if (hasActiveFilter) accentColor else KitsugiColors.TextPrimary
                                 )
@@ -1144,7 +1138,7 @@ fun FullScreenMediaGridPage(
                                 },
                                 modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(KitsugiColors.Surface)
                             ) {
-                                Icon(Icons.Rounded.GridView, contentDescription = KitsugiStrings.get(R.string.cd_grid_view), tint = accentColor)
+                                Icon(Icons.GridView, contentDescription = KitsugiStrings.get(R.string.cd_grid_view), tint = accentColor)
                             }
                         }
 
@@ -1172,9 +1166,9 @@ fun FullScreenMediaGridPage(
                     val activeFilterDesc = buildString {
                         activeGenreLabel?.let { append(" • $it") }
                         activeSortLabel?.let { append(" • $it") }
-                        // ☁️ = kaynak API'sinde uygulandı, 📱 = kaynak desteklemediği için cihazda.
-                        if (serverFilterActive) append(" ☁️")
-                        else if (localGenreFilter || localSort) append(" 📱")
+                        // Sunucu/cihaz ayrımı emoji ile değil, metin etiketiyle gösterilir.
+                        if (serverFilterActive) append(" • ${stringResource(R.string.filter_scope_server)}")
+                        else if (localGenreFilter || localSort) append(" • ${stringResource(R.string.filter_scope_device)}")
                     }
 
                     Column {
@@ -1214,7 +1208,7 @@ fun FullScreenMediaGridPage(
                         KitsugiEmptyState(
                             title = stringResource(R.string.henuz_icerik_yok),
                             subtitle = stringResource(R.string.bu_kategoride_gosterilecek_icerik_bulunamadi),
-                            icon = Icons.Rounded.SearchOff
+                            icon = Icons.SearchOff
                         )
                     }
                 } else {
@@ -1296,7 +1290,7 @@ fun FullScreenMediaGridPage(
                     .padding(horizontal = 8.dp)
             ) {
                 IconButton(onClick = onBackClick) {
-                    Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.geri), tint = KitsugiColors.TextPrimary)
+                    Icon(Icons.ArrowBack, contentDescription = stringResource(R.string.geri), tint = KitsugiColors.TextPrimary)
                 }
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
@@ -1318,7 +1312,7 @@ fun FullScreenMediaGridPage(
                             .background(Color.Transparent)
                     ) {
                         Icon(
-                            Icons.Rounded.PlaylistAdd,
+                            Icons.PlaylistAdd,
                             contentDescription = stringResource(R.string.tumunu_listeye_ekle),
                             tint = accentColor
                         )
@@ -1340,7 +1334,7 @@ fun FullScreenMediaGridPage(
                         .background(if (hasActiveFilterFloating) accentColor.copy(alpha = 0.25f) else Color.Transparent)
                 ) {
                     Icon(
-                        Icons.Rounded.FilterList,
+                        Icons.FilterList,
                         contentDescription = stringResource(R.string.filtre_ve_siralama),
                         tint = if (hasActiveFilterFloating) accentColor else KitsugiColors.TextPrimary
                     )
@@ -1367,7 +1361,7 @@ fun FullScreenMediaGridPage(
                     }
                 }) {
                     Icon(
-                        imageVector = if (isGridView) Icons.AutoMirrored.Rounded.ListAlt else Icons.Rounded.GridView,
+                        imageVector = if (isGridView) Icons.ListAlt else Icons.GridView,
                         contentDescription = if (isGridView) KitsugiStrings.get(R.string.liste) else "Grid",
                         tint = accentColor
                     )
@@ -1400,7 +1394,7 @@ fun FullScreenMediaGridPage(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.KeyboardArrowUp,
+                    imageVector = Icons.KeyboardArrowUp,
                     contentDescription = stringResource(R.string.yukari_git),
                     tint = KitsugiColors.Background,
                     modifier = Modifier.size(28.dp)
@@ -1468,11 +1462,13 @@ private fun GridGenreChipRow(
                     .padding(horizontal = 13.dp, vertical = 7.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = genre.displayLabel(),
+                KitsugiEmojiLabel(
+                    label = genre.displayLabel(),
                     color = if (isSelected) accentColor else KitsugiColors.TextPrimary,
                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                    style = MaterialTheme.typography.labelMedium
+                    style = MaterialTheme.typography.labelMedium,
+                    iconSize = 13.dp,
+                    icon = genre.icon
                 )
             }
         }

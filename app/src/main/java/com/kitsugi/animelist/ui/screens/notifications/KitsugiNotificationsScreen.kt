@@ -1,5 +1,8 @@
 package com.kitsugi.animelist.ui.screens.notifications
 
+import com.kitsugi.animelist.ui.components.KitsugiTopAction
+import com.kitsugi.animelist.ui.components.KitsugiTopActionRow
+import com.kitsugi.animelist.ui.components.KitsugiTopActionTokens
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import com.kitsugi.animelist.ui.utils.uniqueItems
 import com.kitsugi.animelist.ui.theme.gradient.Text
@@ -23,15 +26,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.ArrowDropDown
-import androidx.compose.material.icons.rounded.BugReport
-import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.Info
-import androidx.compose.material.icons.rounded.Notifications
-import androidx.compose.material.icons.rounded.NotificationsNone
-import androidx.compose.material.icons.rounded.Refresh
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
@@ -380,7 +375,7 @@ fun KitsugiNotificationsScreen(
         ) {
             IconButton(onClick = onBack) {
                 Icon(
-                    imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                    imageVector = Icons.ArrowBack,
                     contentDescription = stringResource(R.string.notif_action_back),
                     tint = KitsugiColors.TextPrimary
                 )
@@ -394,23 +389,22 @@ fun KitsugiNotificationsScreen(
                     .weight(1f)
                     .padding(start = 4.dp)
             )
-            IconButton(onClick = {
-                showDiagnostics = true
-                viewModel.runDiagnostics(mediaEntries)
-            }) {
-                Icon(
-                    imageVector = Icons.Rounded.BugReport,
-                    contentDescription = stringResource(R.string.notif_diag_action),
-                    tint = KitsugiColors.TextPrimary
-                )
-            }
-            IconButton(onClick = { refreshCurrentPage() }) {
-                Icon(
-                    imageVector = Icons.Rounded.Refresh,
-                    contentDescription = stringResource(R.string.notif_action_refresh),
-                    tint = NotifPlatform.entries.getOrElse(pagerState.currentPage) { NotifPlatform.ANILIST }.brandColor
-                )
-            }
+            // Yenile + tanılama → ortak üst çubuk aksiyon satırı (kanonik sıra)
+            KitsugiTopActionRow(
+                actions = listOf(KitsugiTopAction.REFRESH, KitsugiTopAction.DIAGNOSTICS),
+                onActionClick = { action ->
+                    when (action) {
+                        KitsugiTopAction.REFRESH -> refreshCurrentPage()
+                        KitsugiTopAction.DIAGNOSTICS -> {
+                            showDiagnostics = true
+                            viewModel.runDiagnostics(mediaEntries)
+                        }
+                        else -> Unit
+                    }
+                },
+                size = KitsugiTopActionTokens.CompactButtonSize,
+                cornerRadius = KitsugiTopActionTokens.CompactCornerRadius
+            )
         }
 
         val currentPlatform = NotifPlatform.entries.getOrElse(pagerState.currentPage) { NotifPlatform.ANILIST }
@@ -897,7 +891,7 @@ private fun NotifStatusState(
                 KitsugiPlatformLogo(platformId = platform.logoId, size = 56.dp)
             } else {
                 Icon(
-                    imageVector = Icons.Rounded.Info,
+                    imageVector = Icons.Info,
                     contentDescription = null,
                     tint = if (isError) KitsugiColors.AccentRed else KitsugiColors.TextMuted,
                     modifier = Modifier.size(56.dp)
@@ -1115,7 +1109,7 @@ private fun MalWebSessionActionCard(
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Icon(
-                imageVector = Icons.Rounded.NotificationsNone,
+                imageVector = Icons.NotificationsNone,
                 contentDescription = null,
                 tint = accentColor,
                 modifier = Modifier.size(22.dp)
@@ -1162,7 +1156,7 @@ private fun SourceNoticeBanner(text: String, platform: NotifPlatform? = null) {
             KitsugiPlatformLogo(platformId = platform.logoId, size = 16.dp)
         } else {
             Icon(
-                imageVector = Icons.Rounded.Info,
+                imageVector = Icons.Info,
                 contentDescription = null,
                 tint = KitsugiColors.TextMuted,
                 modifier = Modifier.size(16.dp)
@@ -1582,7 +1576,7 @@ private fun NotifItemRow(
                 )
             } else {
                 Icon(
-                    imageVector = Icons.Rounded.NotificationsNone,
+                    imageVector = Icons.NotificationsNone,
                     contentDescription = null,
                     tint = KitsugiColors.TextMuted,
                     modifier = Modifier.size(24.dp)
@@ -1683,6 +1677,27 @@ private fun LoadingState(accentColor: Color) {
     }
 }
 
+@Composable
+private fun CenteredEmptyState(message: String) {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(
+                imageVector = Icons.Notifications,
+                contentDescription = null,
+                tint = KitsugiColors.TextMuted,
+                modifier = Modifier.size(56.dp)
+            )
+            Spacer(Modifier.height(16.dp))
+            Text(
+                text = message,
+                color = KitsugiColors.TextMuted,
+                fontSize = 14.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 32.dp)
+            )
+        }
+    }
+}
 // ─── Bildirim Kaynak Seçici Hap Buton ─────────────────────────────────────────
 
 @Composable
@@ -1743,7 +1758,7 @@ private fun NotificationSourceSelectorPill(
             )
         }
         Icon(
-            imageVector = Icons.Rounded.ArrowDropDown,
+            imageVector = Icons.ArrowDropDown,
             contentDescription = stringResource(R.string.bildirim_kaynagi_sec),
             tint = brandColor,
             modifier = Modifier.size(18.dp)
@@ -1952,7 +1967,7 @@ private fun NotificationSourcePickerSheet(
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = Icons.Rounded.Check,
+                                imageVector = Icons.Check,
                                 contentDescription = stringResource(R.string.secili),
                                 tint = Color.White,
                                 modifier = Modifier.size(16.dp)

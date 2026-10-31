@@ -26,10 +26,7 @@ import androidx.compose.ui.unit.dp
 import com.kitsugi.animelist.data.repository.StreamSource
 import com.kitsugi.animelist.ui.theme.KitsugiColors
 import com.kitsugi.animelist.ui.components.errors.PlatformErrorExplanationBlock
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.ChevronRight
-import androidx.compose.material.icons.rounded.Extension
-import androidx.compose.material.icons.rounded.Refresh
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.res.stringResource
@@ -210,7 +207,7 @@ private fun StreamErrorCard(
                         contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.Extension,
+                            imageVector = Icons.Extension,
                             contentDescription = null,
                             modifier = Modifier.size(14.dp)
                         )
@@ -233,7 +230,7 @@ private fun StreamErrorCard(
                         contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.Refresh,
+                            imageVector = Icons.Refresh,
                             contentDescription = null,
                             modifier = Modifier.size(14.dp)
                         )
@@ -333,7 +330,7 @@ fun SettingsShortcutCard(
                 )
             }
             Icon(
-                imageVector = Icons.Rounded.ChevronRight,
+                imageVector = Icons.ChevronRight,
                 contentDescription = null,
                 tint = accentColor,
                 modifier = Modifier.size(24.dp)

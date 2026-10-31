@@ -15,9 +15,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.*
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -127,7 +125,7 @@ fun MangaSourceHealthScreen(
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 IconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.geri), tint = KitsugiColors.TextPrimary)
+                    Icon(Icons.ArrowBack, contentDescription = stringResource(R.string.geri), tint = KitsugiColors.TextPrimary)
                 }
                 Column(modifier = Modifier.weight(1f)) {
                     Text(stringResource(R.string.inline_manage_sources_5833fb6), color = KitsugiColors.TextPrimary, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
@@ -273,15 +271,18 @@ private fun ReposTab(
                             .background(accent.copy(0.15f)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Rounded.Extension, null, tint = accent, modifier = Modifier.size(24.dp))
+                        Icon(Icons.Extension, null, tint = accent, modifier = Modifier.size(24.dp))
                     }
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("⚡ Keiyoushi Resmi Reposu", color = KitsugiColors.TextPrimary,
+                        Text("Keiyoushi Resmi Reposu", color = KitsugiColors.TextPrimary,
                             fontWeight = FontWeight.Bold, fontSize = 14.sp)
                         Text(stringResource(R.string.inline_1_s_mihon_extensions_including_dd28005, if (keiyoushiTotal > 0) keiyoushiTotal else "5000"),
                             color = KitsugiColors.TextSecondary, fontSize = 11.sp)
                     }
-                    Text("✓ Eklendi", color = Color(0xFF4CAF50), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Icon(Icons.Check, null, tint = Color(0xFF4CAF50), modifier = Modifier.size(12.dp))
+                        Text("Eklendi", color = Color(0xFF4CAF50), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
         }
@@ -305,10 +306,10 @@ private fun ReposTab(
                             .background(Color(0xFF7B61FF).copy(0.15f)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Rounded.AutoAwesome, null, tint = Color(0xFF7B61FF), modifier = Modifier.size(24.dp))
+                        Icon(Icons.AutoAwesome, null, tint = Color(0xFF7B61FF), modifier = Modifier.size(24.dp))
                     }
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("🤖 Kotatsu-Redo (Futon)", color = KitsugiColors.TextPrimary,
+                        Text("Kotatsu-Redo (Futon)", color = KitsugiColors.TextPrimary,
                             fontWeight = FontWeight.Bold, fontSize = 14.sp)
                         Text(
                             buildString {
@@ -320,7 +321,10 @@ private fun ReposTab(
                         )
                     }
                     if (kotatsuSourceCount > 0)
-                        Text("✓ Aktif", color = Color(0xFF4CAF50), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Icon(Icons.Check, null, tint = Color(0xFF4CAF50), modifier = Modifier.size(12.dp))
+                            Text("Aktif", color = Color(0xFF4CAF50), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
                     else
                         Text("Otomatik", color = KitsugiColors.TextMuted, fontSize = 11.sp)
                 }
@@ -337,7 +341,7 @@ private fun ReposTab(
                 trailingIcon = {
                     if (customRepoUrl.isNotBlank())
                         IconButton(onClick = { onAddCustomRepo(customRepoUrl); customRepoUrl = "" }) {
-                            Icon(Icons.Rounded.Add, null, tint = accent)
+                            Icon(Icons.Add, null, tint = accent)
                         }
                 },
                 modifier = Modifier.fillMaxWidth(),
@@ -352,7 +356,7 @@ private fun ReposTab(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp)
             ) {
-                Icon(Icons.Rounded.FolderOpen, null, modifier = Modifier.size(16.dp))
+                Icon(Icons.FolderOpen, null, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(8.dp))
                 Text(stringResource(R.string.inline_install_from_file_mex_apk_5276a9d))
             }
@@ -380,7 +384,7 @@ private fun ReposTab(
                                 .padding(horizontal = 10.dp, vertical = 6.dp)
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Icon(Icons.Rounded.Download, null, tint = accent, modifier = Modifier.size(14.dp))
+                                Icon(Icons.Download, null, tint = accent, modifier = Modifier.size(14.dp))
                                 Text(stringResource(R.string.inline_download_all_1_s_e46ccb3, trExts.size), color = accent,
                                     fontSize = 11.sp, fontWeight = FontWeight.Bold)
                             }
@@ -388,7 +392,7 @@ private fun ReposTab(
                     }
                     Spacer(Modifier.width(8.dp))
                     IconButton(onClick = onRefreshRepo, modifier = Modifier.size(30.dp)) {
-                        Icon(Icons.Rounded.Refresh, null, tint = KitsugiColors.TextMuted, modifier = Modifier.size(16.dp))
+                        Icon(Icons.Refresh, null, tint = KitsugiColors.TextMuted, modifier = Modifier.size(16.dp))
                     }
                 }
             }
@@ -410,7 +414,7 @@ private fun ReposTab(
                                 .background(KitsugiColors.SurfaceStrong),
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(Icons.Rounded.List, null, tint = KitsugiColors.TextSecondary, modifier = Modifier.size(18.dp))
+                            Icon(Icons.List, null, tint = KitsugiColors.TextSecondary, modifier = Modifier.size(18.dp))
                         }
                         Column(modifier = Modifier.weight(1f)) {
                             Text("Keiyoushi", color = KitsugiColors.TextPrimary,
@@ -419,8 +423,8 @@ private fun ReposTab(
                                 color = KitsugiColors.TextMuted, fontSize = 11.sp)
                         }
                         Text("🇹🇷", fontSize = 16.sp)
-                        Icon(Icons.Rounded.Download, null, tint = KitsugiColors.TextSecondary, modifier = Modifier.size(18.dp))
-                        Icon(Icons.Rounded.ExpandMore, null, tint = KitsugiColors.TextMuted, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Download, null, tint = KitsugiColors.TextSecondary, modifier = Modifier.size(18.dp))
+                        Icon(Icons.ExpandMore, null, tint = KitsugiColors.TextMuted, modifier = Modifier.size(18.dp))
                     }
                 }
             }
@@ -455,7 +459,7 @@ private fun ReposTab(
                             onClick = { onInstallExtension(ext) },
                             modifier = Modifier.size(32.dp)
                         ) {
-                            Icon(Icons.Rounded.Download, null, tint = KitsugiColors.TextSecondary,
+                            Icon(Icons.Download, null, tint = KitsugiColors.TextSecondary,
                                 modifier = Modifier.size(16.dp))
                         }
                     }

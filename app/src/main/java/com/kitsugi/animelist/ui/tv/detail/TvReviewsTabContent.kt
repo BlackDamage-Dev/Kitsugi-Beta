@@ -1,5 +1,6 @@
 package com.kitsugi.animelist.ui.tv.detail
 
+import com.kitsugi.animelist.ui.components.KitsugiEmojiLabel
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import com.kitsugi.animelist.ui.theme.gradient.Text
 
@@ -12,8 +13,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.*
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -402,7 +402,7 @@ private fun TvTopicCard(
                         .tvClickable(shape = RoundedCornerShape(6.dp), onClick = onLikeClick)
                 ) {
                     Icon(
-                        imageVector = if (topic.isLiked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                        imageVector = if (topic.isLiked) Icons.Favorite else Icons.FavoriteBorder,
                         contentDescription = null,
                         tint = if (topic.isLiked) accentColor else KitsugiColors.TextMuted,
                         modifier = Modifier.size(12.dp)
@@ -420,7 +420,7 @@ private fun TvTopicCard(
                 horizontalArrangement = Arrangement.spacedBy(3.dp)
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.ChatBubbleOutline,
+                    imageVector = Icons.ChatBubbleOutline,
                     contentDescription = null,
                     tint = KitsugiColors.TextMuted,
                     modifier = Modifier.size(12.dp)
@@ -561,7 +561,7 @@ private fun TvActivityCard(
                     .tvClickable(shape = RoundedCornerShape(6.dp), onClick = onLikeClick)
             ) {
                 Icon(
-                    imageVector = if (activity.isLiked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                    imageVector = if (activity.isLiked) Icons.Favorite else Icons.FavoriteBorder,
                     contentDescription = null,
                     tint = if (activity.isLiked) accentColor else KitsugiColors.TextMuted,
                     modifier = Modifier.size(12.dp)
@@ -683,8 +683,10 @@ private fun TvReviewCard(
                 )
             }
             if (review.helpfulCount != null && review.helpfulCount > 0) {
-                Text(
-                    text = "👍 ${review.helpfulCount}",
+                KitsugiEmojiLabel(
+                    label = "${review.helpfulCount}",
+                    icon = Icons.ThumbsUp,
+                    iconSize = 10.dp,
                     color = KitsugiColors.TextMuted,
                     style = MaterialTheme.typography.labelSmall
                 )

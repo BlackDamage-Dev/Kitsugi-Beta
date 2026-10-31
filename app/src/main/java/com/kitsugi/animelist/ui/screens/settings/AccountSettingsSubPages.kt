@@ -14,8 +14,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.*
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -56,11 +55,11 @@ internal fun AccountConnectionsHubContent(
             tabs = listOf(
                 KitsugiSettingsTabOption(
                     title = stringResource(R.string.settings_section_platforms),
-                    icon = Icons.Rounded.Link
+                    icon = Icons.Link
                 ),
                 KitsugiSettingsTabOption(
                     title = stringResource(R.string.settings_section_sync),
-                    icon = Icons.Rounded.CloudSync
+                    icon = Icons.CloudSync
                 )
             ),
             selectedIndex = pagerState.currentPage,
@@ -231,7 +230,7 @@ private fun CrossSyncConnectionsPage(
             AccountHubItem(
                 title = stringResource(R.string.settings_cross_sync),
                 subtitle = if (connectedCount >= 2) stringResource(R.string.deneysel_x_hesap_arasinda_karsilikli_senkronizasyon, connectedCount) else stringResource(R.string.deneysel_en_az_2_hesap_baglandiginda_etkinlesir),
-                icon = Icons.Rounded.CloudSync,
+                icon = Icons.CloudSync,
                 iconColor = KitsugiColors.AccentOrange,
                 isConnected = connectedCount >= 2,
                 onClick = { onNavigate(SettingsRoute.CrossSyncSettings) }
@@ -270,7 +269,7 @@ internal fun AniListSettingsContent(profile: ProfileSettings) {
                 KitsugiSettingsItem(
                     title = stringResource(R.string.kutuphaneyi_ice_aktar),
                     description = if (profile.isAniListImportRunning) "Senkronize ediliyor..." else stringResource(R.string.listenizi_anilist_ten_ice_aktarin),
-                    icon = Icons.Rounded.Sync,
+                    icon = Icons.Sync,
                     iconColor = KitsugiColors.AccentGreen,
                     onClick = { if (!profile.isAniListImportRunning) profile.onAniListImportClick() }
                 )
@@ -278,7 +277,7 @@ internal fun AniListSettingsContent(profile: ProfileSettings) {
                 KitsugiSettingsSwitchItem(
                     title = stringResource(R.string.otomatik_esitleme),
                     description = stringResource(R.string.kitsugi_deki_degisiklikleri_anilist_e_aninda_yansit),
-                    icon = Icons.Rounded.CloudSync,
+                    icon = Icons.CloudSync,
                     iconColor = KitsugiColors.AccentBlue,
                     checked = profile.syncEnabledAnilist,
                     onCheckedChange = profile.onSyncEnabledAnilistChanged
@@ -287,7 +286,7 @@ internal fun AniListSettingsContent(profile: ProfileSettings) {
                 KitsugiSettingsItem(
                     title = stringResource(R.string.anilist_baglantisini_kes),
                     description = stringResource(R.string.hesabinizi_uygulamadan_kaldirir),
-                    icon = Icons.Rounded.LinkOff,
+                    icon = Icons.LinkOff,
                     iconColor = KitsugiColors.AccentRed,
                     onClick = profile.onAniListAuthClick
                 )
@@ -295,7 +294,7 @@ internal fun AniListSettingsContent(profile: ProfileSettings) {
                 KitsugiSettingsItem(
                     title = stringResource(R.string.anilist_hesabini_bagla),
                     description = if (isTv) stringResource(R.string.tv_de_qr_kod_ile_giris_yap) else stringResource(R.string.oauth_ile_guvenli_giris_yapin_ve_listenizi_esitleyin),
-                    icon = Icons.Rounded.Link,
+                    icon = Icons.Link,
                     iconColor = KitsugiColors.AccentBlue,
                     onClick = {
                         if (isTv) showTvQrDialog = true
@@ -330,7 +329,7 @@ private fun MalUnifiedSessionCard(
     val state = status.state
     val isLinked = state == com.kitsugi.animelist.data.auth.MalSessionCoordinator.State.LINKED
     val color = if (isLinked) KitsugiColors.AccentGreen else KitsugiColors.AccentOrange
-    val icon = if (isLinked) Icons.Rounded.CheckCircle else Icons.Rounded.WarningAmber
+    val icon = if (isLinked) Icons.CheckCircle else Icons.WarningAmber
 
     val apiLine = if (status.hasApiToken) {
         stringResource(R.string.mal_unified_status_api_connected, status.oauthUsername ?: "—")
@@ -452,7 +451,7 @@ internal fun MalSettingsContent(profile: ProfileSettings) {
                 KitsugiSettingsItem(
                     title = stringResource(R.string.kutuphaneyi_ice_aktar),
                     description = if (profile.isMalImportRunning) "Senkronize ediliyor..." else stringResource(R.string.listenizi_myanimelist_ten_ice_aktarin),
-                    icon = Icons.Rounded.Sync,
+                    icon = Icons.Sync,
                     iconColor = KitsugiColors.AccentGreen,
                     onClick = { if (!profile.isMalImportRunning) profile.onMalImportClick() }
                 )
@@ -460,7 +459,7 @@ internal fun MalSettingsContent(profile: ProfileSettings) {
                 KitsugiSettingsSwitchItem(
                     title = stringResource(R.string.otomatik_esitleme),
                     description = stringResource(R.string.kitsugi_deki_degisiklikleri_myanimelist_e_aninda_yansit),
-                    icon = Icons.Rounded.CloudSync,
+                    icon = Icons.CloudSync,
                     iconColor = KitsugiColors.AccentBlue,
                     checked = profile.syncEnabledMal,
                     onCheckedChange = profile.onSyncEnabledMalChanged
@@ -469,7 +468,7 @@ internal fun MalSettingsContent(profile: ProfileSettings) {
                 KitsugiSettingsItem(
                     title = stringResource(R.string.profile_mal_reconnect_title),
                     description = stringResource(R.string.profile_mal_reconnect_description),
-                    icon = Icons.Rounded.Refresh,
+                    icon = Icons.Refresh,
                     iconColor = KitsugiColors.AccentBlue,
                     onClick = profile.onMalReconnectClick
                 )
@@ -477,7 +476,7 @@ internal fun MalSettingsContent(profile: ProfileSettings) {
                 KitsugiSettingsItem(
                     title = stringResource(R.string.myanimelist_baglantisini_kes),
                     description = stringResource(R.string.hesabinizi_uygulamadan_kaldirir),
-                    icon = Icons.Rounded.LinkOff,
+                    icon = Icons.LinkOff,
                     iconColor = KitsugiColors.AccentRed,
                     onClick = profile.onMalAuthClick
                 )
@@ -485,7 +484,7 @@ internal fun MalSettingsContent(profile: ProfileSettings) {
                 KitsugiSettingsItem(
                     title = stringResource(R.string.myanimelist_hesabini_bagla),
                     description = if (isTv) stringResource(R.string.tv_de_qr_kod_ile_giris_yap) else stringResource(R.string.oauth_ile_giris_yapip_listenizi_esitleyin),
-                    icon = Icons.Rounded.Link,
+                    icon = Icons.Link,
                     iconColor = KitsugiColors.AccentBlue,
                     onClick = {
                         if (isTv) showTvQrDialog = true
@@ -531,7 +530,7 @@ internal fun SimklSettingsContent(profile: ProfileSettings) {
                 KitsugiSettingsItem(
                     title = stringResource(R.string.kutuphaneyi_ice_aktar),
                     description = if (profile.isSimklImportRunning) "Senkronize ediliyor..." else stringResource(R.string.listenizi_simkl_dan_ice_aktarin),
-                    icon = Icons.Rounded.Sync,
+                    icon = Icons.Sync,
                     iconColor = KitsugiColors.AccentGreen,
                     onClick = { if (!profile.isSimklImportRunning) profile.onSimklImportClick() }
                 )
@@ -539,7 +538,7 @@ internal fun SimklSettingsContent(profile: ProfileSettings) {
                 KitsugiSettingsSwitchItem(
                     title = stringResource(R.string.otomatik_esitleme),
                     description = stringResource(R.string.kitsugi_deki_degisiklikleri_simkl_e_aninda_yansit),
-                    icon = Icons.Rounded.CloudSync,
+                    icon = Icons.CloudSync,
                     iconColor = KitsugiColors.AccentBlue,
                     checked = profile.syncEnabledSimkl,
                     onCheckedChange = profile.onSyncEnabledSimklChanged
@@ -548,7 +547,7 @@ internal fun SimklSettingsContent(profile: ProfileSettings) {
                 KitsugiSettingsItem(
                     title = stringResource(R.string.simkl_baglantisini_kes),
                     description = stringResource(R.string.hesabinizi_uygulamadan_kaldirir),
-                    icon = Icons.Rounded.LinkOff,
+                    icon = Icons.LinkOff,
                     iconColor = KitsugiColors.AccentRed,
                     onClick = profile.onSimklAuthClick
                 )
@@ -556,7 +555,7 @@ internal fun SimklSettingsContent(profile: ProfileSettings) {
                 KitsugiSettingsItem(
                     title = stringResource(R.string.simkl_baglantisini_yenile_suresi_doldu),
                     description = stringResource(R.string.oturum_suresi_doldu_tekrar_giris_yapin),
-                    icon = Icons.Rounded.Warning,
+                    icon = Icons.Warning,
                     iconColor = KitsugiColors.AccentRed,
                     onClick = {
                         if (isTv) showTvQrDialog = true
@@ -567,7 +566,7 @@ internal fun SimklSettingsContent(profile: ProfileSettings) {
                 KitsugiSettingsItem(
                     title = stringResource(R.string.simkl_hesabini_bagla),
                     description = if (isTv) stringResource(R.string.tv_de_qr_kod_ile_giris_yap) else stringResource(R.string.giris_yap_film_dizi_ve_animelerinizi_esitleyin),
-                    icon = Icons.Rounded.Link,
+                    icon = Icons.Link,
                     iconColor = KitsugiColors.AccentBlue,
                     onClick = {
                         if (isTv) showTvQrDialog = true
@@ -613,7 +612,7 @@ internal fun KitsuSettingsContent(profile: ProfileSettings) {
                 KitsugiSettingsItem(
                     title = stringResource(R.string.kutuphaneyi_ice_aktar),
                     description = if (profile.isKitsuImportRunning) "Senkronize ediliyor..." else stringResource(R.string.listenizi_kitsu_dan_ice_aktarin),
-                    icon = Icons.Rounded.Sync,
+                    icon = Icons.Sync,
                     iconColor = KitsugiColors.AccentGreen,
                     onClick = { if (!profile.isKitsuImportRunning) profile.onKitsuImportClick() }
                 )
@@ -621,7 +620,7 @@ internal fun KitsuSettingsContent(profile: ProfileSettings) {
                 KitsugiSettingsSwitchItem(
                     title = stringResource(R.string.otomatik_esitleme),
                     description = stringResource(R.string.kitsugi_deki_degisiklikleri_kitsu_ya_aninda_yansit),
-                    icon = Icons.Rounded.CloudSync,
+                    icon = Icons.CloudSync,
                     iconColor = kitsuColor,
                     checked = profile.syncEnabledKitsu,
                     onCheckedChange = profile.onSyncEnabledKitsuChanged
@@ -630,7 +629,7 @@ internal fun KitsuSettingsContent(profile: ProfileSettings) {
                 KitsugiSettingsItem(
                     title = stringResource(R.string.kitsu_baglantisini_kes),
                     description = stringResource(R.string.hesabinizi_uygulamadan_kaldirir),
-                    icon = Icons.Rounded.LinkOff,
+                    icon = Icons.LinkOff,
                     iconColor = KitsugiColors.AccentRed,
                     onClick = profile.onKitsuAuthClick
                 )
@@ -638,7 +637,7 @@ internal fun KitsuSettingsContent(profile: ProfileSettings) {
                 KitsugiSettingsItem(
                     title = stringResource(R.string.kitsu_hesabini_bagla),
                     description = stringResource(R.string.kullanici_adi_ve_sifrenizle_giris_yapip_kutuphanenizi_senkronize),
-                    icon = Icons.Rounded.Link,
+                    icon = Icons.Link,
                     iconColor = kitsuColor,
                     onClick = { showKitsuLoginDialog = true }
                 )
@@ -717,7 +716,7 @@ internal fun ShikimoriSettingsContent(profile: ProfileSettings) {
                 KitsugiSettingsItem(
                     title = stringResource(R.string.kutuphaneyi_ice_aktar),
                     description = if (profile.isShikimoriImportRunning) "Senkronize ediliyor..." else stringResource(R.string.listenizi_shikimori_den_ice_aktarin),
-                    icon = Icons.Rounded.Sync,
+                    icon = Icons.Sync,
                     iconColor = KitsugiColors.AccentGreen,
                     onClick = { if (!profile.isShikimoriImportRunning) profile.onShikimoriImportClick() }
                 )
@@ -725,7 +724,7 @@ internal fun ShikimoriSettingsContent(profile: ProfileSettings) {
                 KitsugiSettingsSwitchItem(
                     title = stringResource(R.string.otomatik_esitleme),
                     description = stringResource(R.string.kitsugi_deki_degisiklikleri_shikimori_ye_aninda_yansit),
-                    icon = Icons.Rounded.CloudSync,
+                    icon = Icons.CloudSync,
                     iconColor = shikimoriColor,
                     checked = profile.syncEnabledShikimori,
                     onCheckedChange = profile.onSyncEnabledShikimoriChanged
@@ -734,7 +733,7 @@ internal fun ShikimoriSettingsContent(profile: ProfileSettings) {
                 KitsugiSettingsItem(
                     title = stringResource(R.string.shikimori_baglantisini_kes),
                     description = stringResource(R.string.hesabinizi_uygulamadan_kaldirir),
-                    icon = Icons.Rounded.LinkOff,
+                    icon = Icons.LinkOff,
                     iconColor = KitsugiColors.AccentRed,
                     onClick = profile.onShikimoriAuthClick
                 )
@@ -742,7 +741,7 @@ internal fun ShikimoriSettingsContent(profile: ProfileSettings) {
                 KitsugiSettingsItem(
                     title = stringResource(R.string.shikimori_hesabini_bagla),
                     description = stringResource(R.string.client_kimlik_bilgileri_veya_yetki_kodu_ile_giris_yapin),
-                    icon = Icons.Rounded.Link,
+                    icon = Icons.Link,
                     iconColor = shikimoriColor,
                     onClick = { showShikimoriLoginDialog = true }
                 )
@@ -836,7 +835,7 @@ internal fun BangumiSettingsContent(profile: ProfileSettings) {
                 KitsugiSettingsItem(
                     title = stringResource(R.string.kutuphaneyi_ice_aktar),
                     description = if (profile.isBangumiImportRunning) "Senkronize ediliyor..." else stringResource(R.string.bangumi_koleksiyon_listenizi_ice_aktarin),
-                    icon = Icons.Rounded.Sync,
+                    icon = Icons.Sync,
                     iconColor = KitsugiColors.AccentGreen,
                     onClick = { if (!profile.isBangumiImportRunning) profile.onBangumiImportClick() }
                 )
@@ -844,7 +843,7 @@ internal fun BangumiSettingsContent(profile: ProfileSettings) {
                 KitsugiSettingsSwitchItem(
                     title = stringResource(R.string.otomatik_esitleme),
                     description = stringResource(R.string.kitsugi_deki_degisiklikleri_bangumi_ye_aninda_yansit),
-                    icon = Icons.Rounded.CloudSync,
+                    icon = Icons.CloudSync,
                     iconColor = bangumiColor,
                     checked = profile.syncEnabledBangumi,
                     onCheckedChange = profile.onSyncEnabledBangumiChanged
@@ -853,7 +852,7 @@ internal fun BangumiSettingsContent(profile: ProfileSettings) {
                 KitsugiSettingsItem(
                     title = stringResource(R.string.bangumi_baglantisini_kes),
                     description = stringResource(R.string.hesabinizi_uygulamadan_kaldirir_app_id_secret_saklanir),
-                    icon = Icons.Rounded.LinkOff,
+                    icon = Icons.LinkOff,
                     iconColor = KitsugiColors.AccentRed,
                     onClick = profile.onBangumiAuthClick
                 )
@@ -861,7 +860,7 @@ internal fun BangumiSettingsContent(profile: ProfileSettings) {
                 KitsugiSettingsItem(
                     title = stringResource(R.string.bangumi_hesabini_bagla),
                     description = stringResource(R.string.bgm_tv_app_id_app_secret_ve_yetki_kodu_ile_giris_yapin),
-                    icon = Icons.Rounded.Link,
+                    icon = Icons.Link,
                     iconColor = bangumiColor,
                     onClick = { showBangumiLoginDialog = true }
                 )
@@ -1042,7 +1041,7 @@ internal fun CrossSyncSettingsContent(profile: ProfileSettings) {
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.CloudSync,
+                            imageVector = Icons.CloudSync,
                             contentDescription = null,
                             tint = KitsugiColors.AccentOrange,
                             modifier = Modifier.size(20.dp)
@@ -1092,7 +1091,7 @@ internal fun CrossSyncSettingsContent(profile: ProfileSettings) {
                         else -> stringResource(R.string.cross_sync_sync_all)
                     },
                     description = syncDesc,
-                    icon = Icons.Rounded.Cached,
+                    icon = Icons.Cached,
                     iconColor = KitsugiColors.AccentOrange,
                     onClick = {
                         showCrossSyncDialog = true
@@ -1138,7 +1137,7 @@ internal fun CrossSyncSettingsContent(profile: ProfileSettings) {
                     KitsugiSettingsSwitchItem(
                         title = stringResource(R.string.account_auto_sync_title, "AniList"),
                         description = stringResource(R.string.degisiklikleri_anilist_e_aninda_aktar),
-                        icon = Icons.Rounded.CloudSync,
+                        icon = Icons.CloudSync,
                         iconColor = KitsugiColors.AccentBlue,
                         checked = profile.syncEnabledAnilist,
                         onCheckedChange = profile.onSyncEnabledAnilistChanged,
@@ -1150,7 +1149,7 @@ internal fun CrossSyncSettingsContent(profile: ProfileSettings) {
                     KitsugiSettingsSwitchItem(
                         title = stringResource(R.string.account_auto_sync_title, "MyAnimeList"),
                         description = stringResource(R.string.degisiklikleri_myanimelist_e_aninda_aktar),
-                        icon = Icons.Rounded.CloudSync,
+                        icon = Icons.CloudSync,
                         iconColor = KitsugiColors.AccentBlue,
                         checked = profile.syncEnabledMal,
                         onCheckedChange = profile.onSyncEnabledMalChanged,
@@ -1162,7 +1161,7 @@ internal fun CrossSyncSettingsContent(profile: ProfileSettings) {
                     KitsugiSettingsSwitchItem(
                         title = stringResource(R.string.account_auto_sync_title, "Simkl"),
                         description = stringResource(R.string.degisiklikleri_simkl_e_aninda_aktar),
-                        icon = Icons.Rounded.CloudSync,
+                        icon = Icons.CloudSync,
                         iconColor = KitsugiColors.AccentBlue,
                         checked = profile.syncEnabledSimkl,
                         onCheckedChange = profile.onSyncEnabledSimklChanged,
@@ -1174,7 +1173,7 @@ internal fun CrossSyncSettingsContent(profile: ProfileSettings) {
                     KitsugiSettingsSwitchItem(
                         title = stringResource(R.string.account_auto_sync_title, "Kitsu"),
                         description = stringResource(R.string.degisiklikleri_kitsu_ya_aninda_aktar),
-                        icon = Icons.Rounded.CloudSync,
+                        icon = Icons.CloudSync,
                         iconColor = Color(0xFFFD755C),
                         checked = profile.syncEnabledKitsu,
                         onCheckedChange = profile.onSyncEnabledKitsuChanged,
@@ -1186,7 +1185,7 @@ internal fun CrossSyncSettingsContent(profile: ProfileSettings) {
                     KitsugiSettingsSwitchItem(
                         title = stringResource(R.string.account_auto_sync_title, "Shikimori"),
                         description = stringResource(R.string.degisiklikleri_shikimori_ye_aninda_aktar),
-                        icon = Icons.Rounded.CloudSync,
+                        icon = Icons.CloudSync,
                         iconColor = Color(0xFF8E44AD),
                         checked = profile.syncEnabledShikimori,
                         onCheckedChange = profile.onSyncEnabledShikimoriChanged,
@@ -1198,7 +1197,7 @@ internal fun CrossSyncSettingsContent(profile: ProfileSettings) {
                     KitsugiSettingsSwitchItem(
                         title = stringResource(R.string.account_auto_sync_title, "Bangumi"),
                         description = stringResource(R.string.degisiklikleri_bangumi_ye_aninda_aktar),
-                        icon = Icons.Rounded.CloudSync,
+                        icon = Icons.CloudSync,
                         iconColor = Color(0xFFF09199),
                         checked = profile.syncEnabledBangumi,
                         onCheckedChange = profile.onSyncEnabledBangumiChanged,
@@ -1214,7 +1213,7 @@ internal fun CrossSyncSettingsContent(profile: ProfileSettings) {
             KitsugiSettingsItem(
                 title = stringResource(R.string.pf_err_ref_open),
                 description = stringResource(R.string.pf_err_ref_open_desc),
-                icon = Icons.Rounded.BugReport,
+                icon = Icons.BugReport,
                 iconColor = KitsugiColors.AccentBlue,
                 onClick = { showErrorCodeReference = true }
             )
@@ -1316,7 +1315,7 @@ private fun AccountHubItem(
         }
 
         Icon(
-            imageVector = Icons.Rounded.ChevronRight,
+            imageVector = Icons.ChevronRight,
             contentDescription = null,
             tint = KitsugiColors.TextMuted,
             modifier = Modifier.size(20.dp)

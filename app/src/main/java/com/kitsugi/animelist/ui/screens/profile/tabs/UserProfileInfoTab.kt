@@ -8,9 +8,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.ContentCopy
-import androidx.compose.material.icons.rounded.Translate
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.HorizontalDivider
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.IconButton
@@ -85,7 +83,7 @@ fun UserProfileInfoTab(
                         modifier = Modifier.size(28.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.ContentCopy,
+                            imageVector = Icons.ContentCopy,
                             contentDescription = stringResource(R.string.action_copy),
                             tint = KitsugiColors.TextSecondary,
                             modifier = Modifier.size(16.dp)

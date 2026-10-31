@@ -5,6 +5,8 @@
 
 package com.kitsugi.animelist.ui.screens.mylist
 
+import com.kitsugi.animelist.ui.components.KitsugiChevronIcon
+import com.kitsugi.animelist.ui.components.KitsugiEmojiLabel
 import com.kitsugi.animelist.ui.components.KitsugiPlatformLogo
 import com.kitsugi.animelist.ui.components.KitsugiStickyHeaderReveal
 import androidx.compose.animation.AnimatedVisibility
@@ -30,22 +32,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.ArrowDropDown
-import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.DensityMedium
-import androidx.compose.material.icons.rounded.FilterList
-import androidx.compose.material.icons.rounded.FormatListBulleted
-import androidx.compose.material.icons.rounded.GridView
-import androidx.compose.material.icons.rounded.Notifications
-import androidx.compose.material.icons.rounded.History
-import androidx.compose.material.icons.rounded.Download
-import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material.icons.rounded.ViewStream
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.HorizontalDivider
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import com.kitsugi.animelist.ui.theme.gradient.Text
@@ -74,6 +65,8 @@ import androidx.compose.ui.unit.sp
 import com.kitsugi.animelist.model.MediaEntry
 import com.kitsugi.animelist.model.WatchStatus
 import com.kitsugi.animelist.ui.components.KitsugiSearchField
+import com.kitsugi.animelist.ui.components.KitsugiTopAction
+import com.kitsugi.animelist.ui.components.KitsugiTopActionRow
 import com.kitsugi.animelist.ui.screens.mylist.components.KitsugiMyListFilterSheet
 import com.kitsugi.animelist.ui.screens.mylist.components.KitsugiMyListSortMenu
 import com.kitsugi.animelist.ui.theme.LocalKitsugiColors
@@ -159,7 +152,7 @@ fun MyListHeaderSection(
                         if (onBackClick != null) {
                             IconButton(onClick = onBackClick) {
                                 Icon(
-                                    imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                                    imageVector = Icons.ArrowBack,
                                     contentDescription = stringResource(R.string.geri),
                                     tint = KitsugiColors.textPrimary
                                 )
@@ -205,11 +198,11 @@ fun MyListHeaderSection(
                             }
                         ) {
                             val layoutIcon = when (selectedListLayoutId) {
-                                "compact" -> Icons.Rounded.DensityMedium
-                                "comfortable" -> Icons.Rounded.FormatListBulleted
-                                "large" -> Icons.Rounded.ViewStream
-                                "grid_2col" -> Icons.Rounded.GridView
-                                else -> Icons.Rounded.FormatListBulleted
+                                "compact" -> Icons.DensityMedium
+                                "comfortable" -> Icons.FormatListBulleted
+                                "large" -> Icons.ViewStream
+                                "grid_2col" -> Icons.GridView
+                                else -> Icons.FormatListBulleted
                             }
                             Icon(
                                 imageVector = layoutIcon,
@@ -220,7 +213,7 @@ fun MyListHeaderSection(
 
                         IconButton(onClick = onSearchFieldToggle) {
                             Icon(
-                                imageVector = Icons.Rounded.Search,
+                                imageVector = Icons.Search,
                                 contentDescription = stringResource(R.string.arama),
                                 tint = if (showSearchField || searchQuery.isNotBlank()) accentColor else KitsugiColors.textSecondary
                             )
@@ -229,7 +222,7 @@ fun MyListHeaderSection(
                         Box {
                             IconButton(onClick = onFilterPanelToggle) {
                                 Icon(
-                                    imageVector = Icons.Rounded.FilterList,
+                                    imageVector = Icons.FilterList,
                                     contentDescription = "Filtrele ve Sırala",
                                     tint = if (showFilterPanel || hasActiveFilters) accentColor else KitsugiColors.textSecondary
                                 )
@@ -310,8 +303,10 @@ fun MyListHeaderSection(
                                 }
                                 .padding(horizontal = 12.dp, vertical = 7.dp)
                         ) {
-                            Text(
-                                text = if (isSelected) "✓ $label" else label,
+                            KitsugiEmojiLabel(
+                                label = label,
+                                icon = if (isSelected) Icons.Check else null,
+                                iconSize = 11.dp,
                                 color = if (isSelected) KitsugiColors.background else KitsugiColors.textPrimary,
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold
@@ -330,12 +325,28 @@ fun MyListHeaderSection(
                                 }
                                 .padding(horizontal = 12.dp, vertical = 7.dp)
                         ) {
-                            Text(
-                                text = "≡ $activeSortTitle ▾",
-                                color = accentColor,
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.ListOrdered,
+                                    contentDescription = null,
+                                    tint = accentColor,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                                Text(
+                                    text = activeSortTitle,
+                                    color = accentColor,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                KitsugiChevronIcon(
+                                    expanded = showSortMenu,
+                                    tint = accentColor,
+                                    size = 12.dp
+                                )
+                            }
                         }
 
                         KitsugiMyListSortMenu(
@@ -464,7 +475,12 @@ fun MyListSingleSourceBar(
                 },
             contentAlignment = Alignment.Center
         ) {
-            Text(text = "🎲", fontSize = 16.sp)
+            Icon(
+                imageVector = Icons.Dices,
+                contentDescription = null,
+                tint = LocalContentColor.current,
+                modifier = Modifier.size(18.dp)
+            )
         }
     }
 }
@@ -498,8 +514,8 @@ fun MyListTabBar(
     horizontalPadding: Dp,
     isNotificationsVisible: Boolean = false,
     onOpenNotifications: () -> Unit = {},
-    onOpenWatchHistory: () -> Unit = {},
-    onOpenDownloads: () -> Unit = {}
+    onOpenWatchHistory: (() -> Unit)? = null,
+    onOpenDownloads: (() -> Unit)? = null
 ) {
     val KitsugiColors = LocalKitsugiColors.current
     var showSourcePickerSheet by rememberSaveable { mutableStateOf(false) }
@@ -656,7 +672,7 @@ fun MyListTabBar(
                 )
             )
             Icon(
-                imageVector = Icons.Rounded.ArrowDropDown,
+                imageVector = Icons.ArrowDropDown,
                 contentDescription = "Kaynak Seç",
                 tint = currentPlatform.brandColor,
                 modifier = Modifier.size(18.dp)
@@ -666,98 +682,33 @@ fun MyListTabBar(
         // Kaynak değişimi zaten soldaki açılır seçicide var; yinelenen sekme çubuğu kaldırıldı.
         Spacer(modifier = Modifier.weight(1f))
 
-        // Bildirim butonu (Keşfet ile aynı görünüm); yalnızca bir hesap bağlıyken gösterilir
-        if (isNotificationsVisible) {
-            Box(
-                modifier = Modifier
-                    .size(38.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(KitsugiColors.surface)
-                    .border(
-                        width = 1.dp,
-                        color = KitsugiColors.border.copy(alpha = 0.2f),
-                        shape = RoundedCornerShape(14.dp)
-                    )
-                    .tvClickable(shape = RoundedCornerShape(14.dp), onClick = onOpenNotifications),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.Notifications,
-                    contentDescription = "Bildirimler",
-                    tint = KitsugiColors.textPrimary,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-        }
-
-        // 🕐 İzleme Geçmişi butonu
-        Box(
-            modifier = Modifier
-                .size(38.dp)
-                .clip(RoundedCornerShape(14.dp))
-                .background(KitsugiColors.surface)
-                .border(
-                    width = 1.dp,
-                    color = KitsugiColors.border.copy(alpha = 0.2f),
-                    shape = RoundedCornerShape(14.dp)
-                )
-                .tvClickable(shape = RoundedCornerShape(14.dp), onClick = onOpenWatchHistory),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.History,
-                contentDescription = "İzleme Geçmişi",
-                tint = KitsugiColors.textPrimary,
-                modifier = Modifier.size(20.dp)
-            )
-        }
-
-        // ⬇️ İndirilenler butonu
-        Box(
-            modifier = Modifier
-                .size(38.dp)
-                .clip(RoundedCornerShape(14.dp))
-                .background(KitsugiColors.surface)
-                .border(
-                    width = 1.dp,
-                    color = KitsugiColors.border.copy(alpha = 0.2f),
-                    shape = RoundedCornerShape(14.dp)
-                )
-                .tvClickable(shape = RoundedCornerShape(14.dp), onClick = onOpenDownloads),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.Download,
-                contentDescription = "İndirilenler",
-                tint = KitsugiColors.textPrimary,
-                modifier = Modifier.size(20.dp)
-            )
-        }
-
-        // Rastgele öğe butonu
-        Box(
-            modifier = Modifier
-                .size(38.dp)
-                .clip(RoundedCornerShape(14.dp))
-                .background(KitsugiColors.surface)
-                .border(
-                    width = 1.dp,
-                    color = KitsugiColors.border.copy(alpha = 0.2f),
-                    shape = RoundedCornerShape(14.dp)
-                )
-                .tvClickable(shape = RoundedCornerShape(14.dp)) {
-                    if (onPickRandomClick != null) {
-                        onPickRandomClick()
-                    } else if (visibleEntries.isNotEmpty()) {
-                        onEntryClick(visibleEntries.random())
-                    } else {
-                        onExternalSyncMessage("Gösterilecek bir öğe yok")
+        // 🎲 Rastgele + 🔔 Bildirim → Keşfet ile birebir aynı ortak aksiyon satırı.
+        // Sıra kanoniktir: rastgele solda, bildirim her zaman en sağda.
+        KitsugiTopActionRow(
+            actions = buildList {
+                if (onOpenWatchHistory != null) add(KitsugiTopAction.HISTORY)
+                if (onOpenDownloads != null) add(KitsugiTopAction.DOWNLOADS)
+                add(KitsugiTopAction.RANDOM)
+                if (isNotificationsVisible) add(KitsugiTopAction.NOTIFICATIONS)
+            },
+            onActionClick = { action ->
+                when (action) {
+                    KitsugiTopAction.RANDOM -> {
+                        if (onPickRandomClick != null) {
+                            onPickRandomClick()
+                        } else if (visibleEntries.isNotEmpty()) {
+                            onEntryClick(visibleEntries.random())
+                        } else {
+                            onExternalSyncMessage("Gösterilecek bir öğe yok")
+                        }
                     }
-                },
-            contentAlignment = Alignment.Center
-        ) {
-            Text(text = "🎲", fontSize = 16.sp)
-        }
+                    KitsugiTopAction.HISTORY -> onOpenWatchHistory?.invoke()
+                    KitsugiTopAction.DOWNLOADS -> onOpenDownloads?.invoke()
+                    KitsugiTopAction.NOTIFICATIONS -> onOpenNotifications()
+                    else -> Unit
+                }
+            }
+        )
     }
 
     if (showSourcePickerSheet) {
@@ -896,7 +847,7 @@ fun MyListTabBar(
                         if (isSelected) {
                             Spacer(modifier = Modifier.width(8.dp))
                             Icon(
-                                imageVector = Icons.Rounded.Check,
+                                imageVector = Icons.Check,
                                 contentDescription = stringResource(R.string.secili),
                                 tint = platform.brandColor,
                                 modifier = Modifier.size(20.dp)

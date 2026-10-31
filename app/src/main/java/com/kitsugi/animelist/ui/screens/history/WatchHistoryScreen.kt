@@ -1,5 +1,8 @@
 package com.kitsugi.animelist.ui.screens.history
 
+import com.kitsugi.animelist.ui.components.KitsugiTopAction
+import com.kitsugi.animelist.ui.components.KitsugiTopActionButton
+import com.kitsugi.animelist.ui.components.KitsugiTopActionTokens
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import com.kitsugi.animelist.ui.utils.uniqueItems
 import com.kitsugi.animelist.ui.theme.gradient.Text
@@ -12,9 +15,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.*
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -65,7 +66,7 @@ fun WatchHistoryScreen(
         ) {
             IconButton(onClick = onBack) {
                 Icon(
-                    imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                    imageVector = Icons.ArrowBack,
                     contentDescription = stringResource(R.string.geri),
                     tint = KitsugiColors.TextPrimary
                 )
@@ -80,13 +81,13 @@ fun WatchHistoryScreen(
                     .padding(start = 4.dp)
             )
             AnimatedVisibility(visible = history.isNotEmpty(), enter = fadeIn(), exit = fadeOut()) {
-                IconButton(onClick = { showClearDialog = true }) {
-                    Icon(
-                        imageVector = Icons.Rounded.DeleteSweep,
-                        contentDescription = stringResource(R.string.tumunu_temizle),
-                        tint = KitsugiColors.TextMuted
-                    )
-                }
+                // Tümünü temizle → ortak üst çubuk aksiyon butonu (diğer ekranlarla aynı görünüm)
+                KitsugiTopActionButton(
+                    action = KitsugiTopAction.CLEAR,
+                    onClick = { showClearDialog = true },
+                    size = KitsugiTopActionTokens.CompactButtonSize,
+                    cornerRadius = KitsugiTopActionTokens.CompactCornerRadius
+                )
             }
         }
 
@@ -97,7 +98,7 @@ fun WatchHistoryScreen(
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     Icon(
-                        imageVector = Icons.Rounded.History,
+                        imageVector = Icons.History,
                         contentDescription = null,
                         tint = KitsugiColors.TextMuted,
                         modifier = Modifier.size(72.dp)
@@ -285,7 +286,7 @@ private fun WatchHistoryItem(
                 )
             } else {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Rounded.Movie, null, tint = KitsugiColors.TextMuted, modifier = Modifier.size(24.dp))
+                    Icon(Icons.Movie, null, tint = KitsugiColors.TextMuted, modifier = Modifier.size(24.dp))
                 }
             }
         }
@@ -391,7 +392,7 @@ private fun WatchHistoryItem(
             }
 
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                Icon(Icons.Rounded.AccessTime, null, tint = KitsugiColors.TextMuted, modifier = Modifier.size(11.dp))
+                Icon(Icons.AccessTime, null, tint = KitsugiColors.TextMuted, modifier = Modifier.size(11.dp))
                 Text(text = dateStr, color = KitsugiColors.TextMuted, fontSize = 11.sp)
             }
         }
@@ -399,7 +400,7 @@ private fun WatchHistoryItem(
         // Sil butonu
         IconButton(onClick = onDelete, modifier = Modifier.size(36.dp)) {
             Icon(
-                imageVector = Icons.Rounded.Delete,
+                imageVector = Icons.Delete,
                 contentDescription = stringResource(R.string.action_delete),
                 tint = KitsugiColors.TextMuted,
                 modifier = Modifier.size(18.dp)

@@ -14,8 +14,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.*
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -283,7 +282,7 @@ fun SharedTrailerOverlay(
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.ErrorOutline,
+                        imageVector = Icons.ErrorOutline,
                         contentDescription = null,
                         tint = Color.White.copy(alpha = 0.7f),
                         modifier = Modifier.size(48.dp)
@@ -340,7 +339,7 @@ fun SharedTrailerOverlay(
                     }
                     IconButton(onClick = onDismiss) {
                         Icon(
-                            imageVector = Icons.Rounded.Close,
+                            imageVector = Icons.Close,
                             contentDescription = stringResource(R.string.kapat),
                             tint = Color.White
                         )
@@ -363,7 +362,7 @@ fun SharedTrailerOverlay(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = if (isPaused) Icons.Rounded.PlayArrow else Icons.Rounded.Pause,
+                        imageVector = if (isPaused) Icons.PlayArrow else Icons.Pause,
                         contentDescription = null,
                         tint = Color.White,
                         modifier = Modifier.size(36.dp)
@@ -391,7 +390,7 @@ fun SharedTrailerOverlay(
                     ) {
                         Icon(
                             imageVector = if (seekFeedback?.startsWith("+") == true)
-                                Icons.Rounded.FastForward else Icons.Rounded.FastRewind,
+                                Icons.FastForward else Icons.FastRewind,
                             contentDescription = null,
                             tint = Color.White,
                             modifier = Modifier.size(20.dp)

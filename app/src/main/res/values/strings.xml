@@ -4951,8 +4951,10 @@ Eklentiler ekranından eklenti etkinleştirin.</string>
 	<string name="secili">Seçili</string>
 	<string name="filtre_ve_siralama">Filtre ve Sıralama</string>
 	<!-- Keşfet "Tümünü Gör" sayfası: filtrelerin kaynak API'sinde mi cihazda mı uygulandığı -->
-	<string name="filtre_kaynak_sunucu_bilgi">☁️ Tür ve sıralama %1$s API\'sinde uygulanır</string>
-	<string name="filtre_kaynak_yerel_bilgi">📱 Cihazda uygulanan: %1$s</string>
+	<string name="filtre_kaynak_sunucu_bilgi">Tür ve sıralama %1$s API\'sinde uygulanır</string>
+	<string name="filtre_kaynak_yerel_bilgi">Cihazda uygulanan: %1$s</string>
+	<string name="filter_scope_server">sunucuda uygulandı</string>
+	<string name="filter_scope_device">cihazda uygulandı</string>
 	<string name="sonraki_bolum">Sonraki Bölüm</string>
 	<string name="vazgec">Vazgeç</string>
 	<string name="kisisel_dusuncelerinizi_yazin">Kişisel düşüncelerinizi yazın...</string>
@@ -18003,6 +18005,7 @@ Eklentiler ekranından eklenti etkinleştirin.</string>
     <string name="inline_video_unsupported_title">Bu video uygulama içinde oynatılamadı</string>
     <string name="inline_video_unsupported_body">Bu biçim bu cihazda çözülemiyor olabilir. Tam ekran oynatıcı bu dosyayı yazılım çözücüyle açabilir.</string>
     <string name="inline_open_fullscreen">Tam ekranda aç</string>
+
     <string name="inline_try_other_engine">Diğer motorla dene</string>
 
     <!-- Kitsu ve ortak detay bilgi alanı etiketleri -->
@@ -18236,4 +18239,9 @@ Eklentiler ekranından eklenti etkinleştirin.</string>
     <string name="downloads_delete_selected_videos_message">Seçilen %1$d bölüm, videoları ve yanındaki altyazı dosyalarıyla birlikte cihazdan silinecek. Bu işlem geri alınamaz.</string>
     <string name="downloads_delete_selected_subtitles_title">Seçilen altyazılar silinsin mi?</string>
     <string name="downloads_delete_selected_subtitles_message">Seçilen %1$d altyazı dosyası kalıcı olarak silinecek.</string>
+    <!-- Ortak üst çubuk aksiyonları (bkz. ui/components/KitsugiTopActionBar.kt) -->
+    <string name="top_action_random">Rastgele</string>
+    <string name="favori_label">Favori</string>
+    <string name="eklendi">Eklendi</string>
+
 </resources>

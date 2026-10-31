@@ -15,8 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Check
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.MaterialTheme
 import com.kitsugi.animelist.ui.theme.gradient.Text
@@ -27,6 +26,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.kitsugi.animelist.ui.components.KitsugiEmojiLabel
 import com.kitsugi.animelist.ui.components.KitsugiPlatformLogo
 import com.kitsugi.animelist.ui.theme.KitsugiColors
 import com.kitsugi.animelist.ui.theme.LocalKitsugiAccent
@@ -569,12 +569,11 @@ private fun QuickFilterToggleChip(
             .padding(horizontal = 10.dp, vertical = 6.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = localizedSourceSearchLabel(label),
-            style = MaterialTheme.typography.labelSmall.copy(
-                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                color = if (selected) accentColor else KitsugiColors.TextSecondary
-            )
+        KitsugiEmojiLabel(
+            label = localizedSourceSearchLabel(label),
+            color = if (selected) accentColor else KitsugiColors.TextSecondary,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
         )
     }
 }
@@ -806,17 +805,16 @@ fun SortOptionsContent(
                     .padding(horizontal = 14.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = localizedSourceSearchLabel(label),
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                        color = if (isSelected) accentColor else KitsugiColors.TextPrimary
-                    ),
+                KitsugiEmojiLabel(
+                    label = localizedSourceSearchLabel(label),
+                    color = if (isSelected) accentColor else KitsugiColors.TextPrimary,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                     modifier = Modifier.weight(1f)
                 )
                 if (isSelected) {
                     Icon(
-                        imageVector = Icons.Rounded.Check,
+                        imageVector = Icons.Check,
                         contentDescription = stringResource(R.string.secili),
                         tint = accentColor,
                         modifier = Modifier.size(18.dp)

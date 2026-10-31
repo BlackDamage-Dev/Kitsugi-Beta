@@ -23,8 +23,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.Send
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.CircularProgressIndicator
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.MaterialTheme
@@ -202,7 +201,7 @@ fun KitsugiFlySendButton(
                     }
                 ) {
                     Icon(
-                        imageVector = Icons.AutoMirrored.Rounded.Send,
+                        imageVector = Icons.Send,
                         contentDescription = text,
                         tint = contentColor,
                         modifier = Modifier.size(19.dp)
@@ -296,7 +295,7 @@ fun KitsugiFlySendIconButton(
         contentAlignment = Alignment.Center
     ) {
         Icon(
-            imageVector = Icons.AutoMirrored.Rounded.Send,
+            imageVector = Icons.Send,
             contentDescription = contentDescription,
             tint = contentColor,
             modifier = Modifier

@@ -12,12 +12,7 @@ import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.MenuBook
-import androidx.compose.material.icons.automirrored.filled.NavigateBefore
-import androidx.compose.material.icons.automirrored.filled.NavigateNext
-import androidx.compose.material.icons.rounded.ErrorOutline
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -244,7 +239,7 @@ fun TvMangaReaderScreen(
                     modifier = Modifier.padding(horizontal = 32.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.ErrorOutline,
+                        imageVector = Icons.ErrorOutline,
                         contentDescription = null,
                         tint = Color.White.copy(0.5f),
                         modifier = Modifier.size(48.dp)
@@ -379,7 +374,7 @@ fun TvMangaReaderScreen(
                         )
                     ) {
                         Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
+                            Icons.ArrowBack,
                             contentDescription = stringResource(R.string.geri),
                             tint = Color.White
                         )
@@ -414,7 +409,7 @@ fun TvMangaReaderScreen(
                         )
                     ) {
                         Icon(
-                            Icons.AutoMirrored.Filled.MenuBook,
+                            Icons.MenuBook,
                             contentDescription = stringResource(R.string.okuyucu_ayarlari),
                             tint = Color.White
                         )
@@ -457,7 +452,7 @@ fun TvMangaReaderScreen(
                             )
                         ) {
                             Icon(
-                                Icons.AutoMirrored.Filled.NavigateBefore,
+                                Icons.NavigateBefore,
                                 contentDescription = stringResource(R.string.onceki_bolum),
                                 tint = if (viewModel.hasPreviousChapter) Color.White else Color.White.copy(0.3f)
                             )
@@ -495,7 +490,7 @@ fun TvMangaReaderScreen(
                             )
                         ) {
                             Icon(
-                                Icons.AutoMirrored.Filled.NavigateNext,
+                                Icons.NavigateNext,
                                 contentDescription = stringResource(R.string.sonraki_bolum),
                                 tint = if (viewModel.hasNextChapter) Color.White else Color.White.copy(0.3f)
                             )

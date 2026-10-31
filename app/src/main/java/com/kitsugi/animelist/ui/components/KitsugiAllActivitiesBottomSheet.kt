@@ -14,8 +14,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.*
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -159,7 +158,7 @@ fun KitsugiAllActivitiesBottomSheet(
                     )
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.Close,
+                        imageVector = Icons.Close,
                         contentDescription = stringResource(R.string.kapat),
                         tint = KitsugiColors.TextPrimary
                     )
@@ -359,7 +358,7 @@ fun KitsugiAllActivitiesBottomSheet(
                                         modifier = Modifier.size(28.dp)
                                     ) {
                                         Icon(
-                                            imageVector = Icons.Rounded.ContentCopy,
+                                            imageVector = Icons.ContentCopy,
                                             contentDescription = KitsugiStrings.get(R.string.action_copy),
                                             tint = KitsugiColors.TextSecondary,
                                             modifier = Modifier.size(14.dp)
@@ -390,7 +389,7 @@ fun KitsugiAllActivitiesBottomSheet(
                                     }
                                 ) {
                                     Icon(
-                                        imageVector = if (act.isLiked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                                        imageVector = if (act.isLiked) Icons.Favorite else Icons.FavoriteBorder,
                                         contentDescription = stringResource(R.string.begeni),
                                         tint = if (act.isLiked) accentColor else KitsugiColors.TextSecondary,
                                         modifier = Modifier.size(14.dp)

@@ -8,18 +8,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.AccessTime
-import androidx.compose.material.icons.rounded.BarChart
-import androidx.compose.material.icons.rounded.CalendarToday
-import androidx.compose.material.icons.rounded.DonutLarge
-import androidx.compose.material.icons.rounded.EventAvailable
-import androidx.compose.material.icons.rounded.MenuBook
-import androidx.compose.material.icons.rounded.Movie
-import androidx.compose.material.icons.rounded.PlayCircle
-import androidx.compose.material.icons.rounded.Public
-import androidx.compose.material.icons.rounded.Schedule
-import androidx.compose.material.icons.rounded.Star
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.MaterialTheme
 import com.kitsugi.animelist.ui.theme.gradient.Text
 import androidx.compose.runtime.Composable
@@ -77,7 +66,7 @@ fun DetailedProfileStatsOverview(
         if (overview.scoreList.isNotEmpty()) {
             AnalyticsChartCard(
                 title = stringResource(R.string.detail_stat_score),
-                icon = Icons.Rounded.BarChart,
+                icon = Icons.BarChart,
                 subtitle = stringResource(
                     R.string.detail_stats_score_subtitle,
                     overview.scoreList.sumOf { it.count }.toString(),
@@ -111,7 +100,7 @@ fun DetailedProfileStatsOverview(
         if (overview.lengthList.isNotEmpty()) {
             AnalyticsChartCard(
                 title = if (isAnime) stringResource(R.string.ui_stats_episode_count) else stringResource(R.string.ui_stats_volume_episode_count),
-                icon = Icons.Rounded.Movie,
+                icon = Icons.Movie,
                 accentColor = accentColor
             ) {
                 ModeFilterRow(
@@ -142,7 +131,7 @@ fun DetailedProfileStatsOverview(
         if (overview.statusList.isNotEmpty()) {
             AnalyticsChartCard(
                 title = stringResource(R.string.durum_dagilimi),
-                icon = Icons.Rounded.DonutLarge,
+                icon = Icons.DonutLarge,
                 subtitle = stringResource(R.string.detail_stats_status_subtitle, overview.statusList.sumOf { it.count }),
                 accentColor = accentColor
             ) {
@@ -155,7 +144,7 @@ fun DetailedProfileStatsOverview(
         if (overview.formatList.isNotEmpty()) {
             AnalyticsChartCard(
                 title = stringResource(R.string.tur_dagilimi),
-                icon = Icons.Rounded.Movie,
+                icon = Icons.Movie,
                 accentColor = accentColor
             ) {
                 KitsugiStatsDistributionBar(
@@ -173,7 +162,7 @@ fun DetailedProfileStatsOverview(
         if (overview.countryList.isNotEmpty()) {
             AnalyticsChartCard(
                 title = stringResource(R.string.ulke_dagilimi),
-                icon = Icons.Rounded.Public,
+                icon = Icons.Public,
                 accentColor = accentColor
             ) {
                 KitsugiStatsDistributionBar(
@@ -191,7 +180,7 @@ fun DetailedProfileStatsOverview(
         if (overview.releaseYearList.isNotEmpty()) {
             AnalyticsChartCard(
                 title = stringResource(R.string.yayin_yili),
-                icon = Icons.Rounded.CalendarToday,
+                icon = Icons.CalendarToday,
                 accentColor = accentColor
             ) {
                 YearMetricFilter(selected = releaseYearDistType, onSelected = onReleaseYearDistTypeChange, accentColor = accentColor, isAnime = isAnime)
@@ -210,7 +199,7 @@ fun DetailedProfileStatsOverview(
         if (overview.startYearList.isNotEmpty()) {
             AnalyticsChartCard(
                 title = if (isAnime) stringResource(R.string.ui_stats_watch_year) else stringResource(R.string.ui_stats_read_year),
-                icon = Icons.Rounded.EventAvailable,
+                icon = Icons.EventAvailable,
                 accentColor = accentColor
             ) {
                 YearMetricFilter(selected = startYearDistType, onSelected = onStartYearDistTypeChange, accentColor = accentColor, isAnime = isAnime)
@@ -253,7 +242,7 @@ private fun OverviewMetricsCard(
     KitsugiStatsCard {
         KitsugiStatsCardHeader(
             title = stringResource(R.string.profile_stats_general),
-            icon = Icons.Rounded.BarChart,
+            icon = Icons.BarChart,
             subtitle = if (isAnime) stringResource(R.string.media_type_anime) else stringResource(R.string.profile_manga_list),
             accentColor = accentColor
         )
@@ -265,21 +254,21 @@ private fun OverviewMetricsCard(
             KitsugiStatsMetricTile(
                 label = stringResource(R.string.profile_stat_total_entries),
                 value = overview.count.toString(),
-                icon = Icons.Rounded.Movie,
+                icon = Icons.Movie,
                 modifier = Modifier.weight(1f),
                 accentColor = accentColor
             )
             KitsugiStatsMetricTile(
                 label = progressLabel,
                 value = overview.episodesWatched.toString(),
-                icon = if (isAnime) Icons.Rounded.PlayCircle else Icons.Rounded.MenuBook,
+                icon = if (isAnime) Icons.PlayCircle else Icons.MenuBook,
                 modifier = Modifier.weight(1f),
                 accentColor = accentColor
             )
             KitsugiStatsMetricTile(
                 label = timeLabel,
                 value = formatProfileNumber(overview.daysWatched, 1),
-                icon = Icons.Rounded.AccessTime,
+                icon = Icons.AccessTime,
                 modifier = Modifier.weight(1f),
                 accentColor = accentColor
             )
@@ -292,21 +281,21 @@ private fun OverviewMetricsCard(
             KitsugiStatsMetricTile(
                 label = plannedLabel,
                 value = formatProfileNumber(overview.plannedDaysOrCount, 1),
-                icon = Icons.Rounded.Schedule,
+                icon = Icons.Schedule,
                 modifier = Modifier.weight(1f),
                 accentColor = accentColor
             )
             KitsugiStatsMetricTile(
                 label = stringResource(R.string.profile_stat_average_score),
                 value = formatProfileNumber(overview.meanScore, 2),
-                icon = Icons.Rounded.Star,
+                icon = Icons.Star,
                 modifier = Modifier.weight(1f),
                 accentColor = accentColor
             )
             KitsugiStatsMetricTile(
                 label = stringResource(R.string.profile_stat_standard_deviation),
                 value = formatProfileNumber(overview.standardDeviation, 1),
-                icon = Icons.Rounded.BarChart,
+                icon = Icons.BarChart,
                 modifier = Modifier.weight(1f),
                 accentColor = accentColor
             )

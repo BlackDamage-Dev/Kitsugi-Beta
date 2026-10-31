@@ -7,7 +7,7 @@ package com.kitsugi.animelist.ui.screens.detail
 
 import com.kitsugi.animelist.ui.components.LocalKitsugiGalleryLoading
 import com.kitsugi.animelist.ui.components.LocalKitsugiTranslationLoading
-import com.kitsugi.animelist.ui.components.KitsugiGalleryIconButton
+import com.kitsugi.animelist.ui.components.KitsugiDetailHeaderActions
 import android.content.Intent
 import android.net.Uri
 import com.kitsugi.animelist.ui.theme.gradient.background
@@ -27,11 +27,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Share
-import androidx.compose.material.icons.rounded.Image
-import androidx.compose.material.icons.rounded.Favorite
-import androidx.compose.material.icons.rounded.FavoriteBorder
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.MaterialTheme
 import com.kitsugi.animelist.ui.theme.gradient.Text
@@ -64,7 +60,6 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.material3.IconButton
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import com.kitsugi.animelist.utils.rememberScrollVisibilityState
 import com.kitsugi.animelist.utils.rememberScrollConnection
 import androidx.compose.ui.graphics.Brush
@@ -435,8 +430,19 @@ fun MediaEntryDetailPage(
                 )
             },
             floatingHeaderActions = {
-                if (galleryItems.isNotEmpty() || !displayEntry.imageUrl.isNullOrBlank()) {
-                    KitsugiGalleryIconButton(onClick = {
+                // Paylaş · Favori · Galeri → ortak üst çubuk aksiyon satırı
+                KitsugiDetailHeaderActions(
+                    accentColor = accentColor,
+                    onShareClick = {
+                        val url = com.kitsugi.animelist.utils.ShareUtils.buildMediaUrl(displayEntry)
+                        com.kitsugi.animelist.utils.ShareUtils.shareText(context, displayEntry.title, url)
+                    },
+                    showFavourite = showFavouriteButton,
+                    isFavourite = displayEntry.isFavorite,
+                    onFavouriteClick = onToggleFavoriteClick,
+                    showGallery = galleryItems.isNotEmpty() || !displayEntry.imageUrl.isNullOrBlank(),
+                    galleryLoading = galleryLoading,
+                    onGalleryClick = {
                         val clickedUrl = displayEntry.imageUrl
                         val index = if (!clickedUrl.isNullOrBlank()) {
                             galleryItems.indexOfFirst { item ->
@@ -463,27 +469,8 @@ fun MediaEntryDetailPage(
                             if (!galleryLoading) activeGalleryItems = galleryItems
                             activeGalleryIndex = posterIndex
                         }
-                    }, accentColor = accentColor)
-                }
-                IconButton(onClick = {
-                    val url = com.kitsugi.animelist.utils.ShareUtils.buildMediaUrl(displayEntry)
-                    com.kitsugi.animelist.utils.ShareUtils.shareText(context, displayEntry.title, url)
-                }) {
-                    Icon(
-                        imageVector = Icons.Rounded.Share,
-                        contentDescription = stringResource(R.string.paylas),
-                        tint = KitsugiColors.TextSecondary
-                    )
-                }
-                if (showFavouriteButton) {
-                    IconButton(onClick = onToggleFavoriteClick) {
-                        Icon(
-                            imageVector = if (displayEntry.isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
-                            contentDescription = if (displayEntry.isFavorite) stringResource(R.string.action_favourite_remove) else "Favori Yap",
-                            tint = if (displayEntry.isFavorite) accentColor else KitsugiColors.TextSecondary
-                        )
                     }
-                }
+                )
             },
             portraitTopItems = { _, lpFocus, tbFocus ->
                 item(key = "hero") {

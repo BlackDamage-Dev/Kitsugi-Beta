@@ -59,14 +59,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.material3.TextButton
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.ContentCopy
-import androidx.compose.material.icons.rounded.Image
-import androidx.compose.material.icons.rounded.Translate
-import androidx.compose.material.icons.rounded.Refresh
-import androidx.compose.material.icons.rounded.Share
-import androidx.compose.material.icons.rounded.Favorite
-import androidx.compose.material.icons.rounded.FavoriteBorder
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.ui.platform.LocalContext
@@ -82,7 +75,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.runtime.rememberCoroutineScope
 import com.kitsugi.animelist.data.remote.JikanApiClient
 import com.kitsugi.animelist.data.remote.GalleryItem
@@ -193,7 +185,7 @@ fun StaffDetailPage(
                             .padding(start = 12.dp, top = 24.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                            imageVector = Icons.ArrowBack,
                             contentDescription = stringResource(R.string.action_back),
                             tint = KitsugiColors.TextPrimary
                         )

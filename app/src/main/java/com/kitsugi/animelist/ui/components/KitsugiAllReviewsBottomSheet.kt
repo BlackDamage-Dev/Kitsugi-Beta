@@ -17,8 +17,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.*
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -212,7 +211,7 @@ fun KitsugiAllReviewsBottomSheet(
                     )
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.Close,
+                        imageVector = Icons.Close,
                         contentDescription = stringResource(R.string.kapat),
                         tint = KitsugiColors.TextPrimary
                     )
@@ -419,11 +418,13 @@ fun KitsugiAllReviewsBottomSheet(
                                 }
 
                                 if (rev.score != null) {
-                                    Text(
-                                        text = "★ ${rev.score}",
+                                    KitsugiEmojiLabel(
+                                        label = "${rev.score}",
                                         color = accentColor,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Black
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Black,
+                                        iconSize = 11.dp,
+                                        icon = Icons.StarSolid
                                     )
                                 }
                             }
@@ -468,7 +469,7 @@ fun KitsugiAllReviewsBottomSheet(
                                             modifier = Modifier.size(28.dp)
                                         ) {
                                             Icon(
-                                                imageVector = Icons.Rounded.ContentCopy,
+                                                imageVector = Icons.ContentCopy,
                                                 contentDescription = KitsugiStrings.get(R.string.action_copy),
                                                 tint = KitsugiColors.TextSecondary,
                                                 modifier = Modifier.size(14.dp)
@@ -508,7 +509,7 @@ fun KitsugiAllReviewsBottomSheet(
                                         }
                                     ) {
                                         Icon(
-                                            imageVector = Icons.Rounded.ThumbUp,
+                                            imageVector = Icons.ThumbUp,
                                             contentDescription = stringResource(R.string.faydali),
                                             tint = if (rev.userRating == "UP_VOTE") accentColor else KitsugiColors.TextSecondary,
                                             modifier = Modifier.size(12.dp)

@@ -17,8 +17,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.OpenInNew
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import com.kitsugi.animelist.ui.theme.gradient.CircularProgressIndicator
@@ -269,7 +268,7 @@ fun MalAboutExtras(state: MalProfileState, accentColor: Color) {
                         ) {
                             Text(link.name, color = accentColor, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
                             Spacer(Modifier.width(6.dp))
-                            Icon(Icons.Rounded.OpenInNew, contentDescription = null, tint = KitsugiColors.TextMuted, modifier = Modifier.size(14.dp))
+                            Icon(Icons.OpenInNew, contentDescription = null, tint = KitsugiColors.TextMuted, modifier = Modifier.size(14.dp))
                         }
                     }
                 }
@@ -741,7 +740,7 @@ private fun MalReviewCard(
                         onClick = { openMalUrl(context, review.url) },
                         modifier = Modifier.size(30.dp)
                     ) {
-                        Icon(Icons.Rounded.OpenInNew, contentDescription = stringResource(R.string.cd_open_gallery), tint = KitsugiColors.TextMuted, modifier = Modifier.size(16.dp))
+                        Icon(Icons.OpenInNew, contentDescription = stringResource(R.string.cd_open_gallery), tint = KitsugiColors.TextMuted, modifier = Modifier.size(16.dp))
                     }
                 }
                 Text(
@@ -827,7 +826,7 @@ private fun MalRecommendationCard(
                         onClick = { openMalUrl(context, recommendation.url) },
                         modifier = Modifier.size(30.dp)
                     ) {
-                        Icon(Icons.Rounded.OpenInNew, contentDescription = stringResource(R.string.cd_open_gallery), tint = KitsugiColors.TextMuted, modifier = Modifier.size(16.dp))
+                        Icon(Icons.OpenInNew, contentDescription = stringResource(R.string.cd_open_gallery), tint = KitsugiColors.TextMuted, modifier = Modifier.size(16.dp))
                     }
                 }
                 if (recommendation.recommendationText.isNotBlank()) {
@@ -896,7 +895,7 @@ private fun MalClubCard(club: MalClub) {
                 }
             }
             Spacer(Modifier.width(8.dp))
-            Icon(Icons.Rounded.OpenInNew, contentDescription = stringResource(R.string.cd_open_gallery), tint = KitsugiColors.TextMuted, modifier = Modifier.size(18.dp))
+            Icon(Icons.OpenInNew, contentDescription = stringResource(R.string.cd_open_gallery), tint = KitsugiColors.TextMuted, modifier = Modifier.size(18.dp))
         }
     }
 }

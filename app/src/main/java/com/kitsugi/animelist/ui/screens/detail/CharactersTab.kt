@@ -31,8 +31,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import com.kitsugi.animelist.ui.theme.gradient.Icon
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.RecordVoiceOver
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.components.KitsugiSheetOrDialog
 import androidx.compose.runtime.LaunchedEffect
 import com.kitsugi.animelist.ui.theme.gradient.CircularProgressIndicator
@@ -420,7 +419,7 @@ fun CharacterVoiceActorCard(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.RecordVoiceOver,
+                        imageVector = Icons.RecordVoiceOver,
                         contentDescription = stringResource(R.string.detail_voice_actors),
                         tint = KitsugiColors.TextPrimary,
                         modifier = Modifier.size(20.dp)

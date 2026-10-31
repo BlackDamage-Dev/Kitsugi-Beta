@@ -22,21 +22,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.automirrored.filled.MenuBook
-import androidx.compose.material.icons.automirrored.filled.NavigateBefore
-import androidx.compose.material.icons.automirrored.filled.NavigateNext
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.ui.draw.clip
-import androidx.compose.material.icons.filled.SwapHoriz
-import androidx.compose.material.icons.filled.ViewStream
-import androidx.compose.material.icons.filled.BrightnessLow
-import androidx.compose.material.icons.filled.BrightnessHigh
-import androidx.compose.material.icons.filled.ScreenRotation
-import androidx.compose.material.icons.filled.CropFree
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import com.kitsugi.animelist.ui.theme.gradient.FilterChip
@@ -51,7 +38,6 @@ import com.kitsugi.animelist.ui.components.KitsugiSheetOrDialog
 import com.kitsugi.animelist.ui.theme.gradient.Button
 import androidx.compose.material3.ButtonDefaults
 import com.kitsugi.animelist.ui.theme.gradient.CircularProgressIndicator
-import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -172,7 +158,7 @@ fun MangaReaderScreen(
                     modifier = Modifier.padding(horizontal = 32.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.ErrorOutline,
+                        imageVector = Icons.ErrorOutline,
                         contentDescription = null,
                         tint = Color.White.copy(0.5f),
                         modifier = Modifier.size(48.dp)
@@ -299,7 +285,7 @@ fun MangaReaderScreen(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onBack) {
                         Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
+                            Icons.ArrowBack,
                             contentDescription = stringResource(R.string.geri),
                             tint = Color.White
                         )
@@ -323,7 +309,7 @@ fun MangaReaderScreen(
                     }
                     IconButton(onClick = { showSettings = true }) {
                         Icon(
-                            Icons.AutoMirrored.Filled.MenuBook,
+                            Icons.MenuBook,
                             contentDescription = stringResource(R.string.okuyucu_ayarlari),
                             tint = Color.White
                         )
@@ -359,7 +345,7 @@ fun MangaReaderScreen(
                         enabled = viewModel.hasPreviousChapter
                     ) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            imageVector = Icons.ArrowBack,
                             contentDescription = stringResource(R.string.onceki_bolum),
                             tint = if (viewModel.hasPreviousChapter) Color.White else Color.White.copy(0.3f)
                         )
@@ -423,7 +409,7 @@ fun MangaReaderScreen(
                         enabled = viewModel.hasNextChapter
                     ) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                            imageVector = Icons.ArrowForward,
                             contentDescription = stringResource(R.string.sonraki_bolum),
                             tint = if (viewModel.hasNextChapter) Color.White else Color.White.copy(0.3f)
                         )
@@ -438,10 +424,10 @@ fun MangaReaderScreen(
                 ) {
                     // Quick Reading Mode cycle
                     val readingModeIcon = when (readingMode) {
-                        ReadingMode.RightToLeft -> Icons.AutoMirrored.Filled.MenuBook
-                        ReadingMode.LeftToRight -> Icons.Default.SwapHoriz
-                        ReadingMode.Vertical    -> Icons.Default.ViewStream
-                        ReadingMode.Webtoon     -> Icons.Default.ViewStream
+                        ReadingMode.RightToLeft -> Icons.MenuBook
+                        ReadingMode.LeftToRight -> Icons.SwapHoriz
+                        ReadingMode.Vertical    -> Icons.ViewStream
+                        ReadingMode.Webtoon     -> Icons.ViewStream
                     }
                     IconButton(onClick = {
                         val nextMode = when (readingMode) {
@@ -472,7 +458,7 @@ fun MangaReaderScreen(
                         }
                     }) {
                         Icon(
-                            imageVector = Icons.Default.ScreenRotation,
+                            imageVector = Icons.ScreenRotation,
                             contentDescription = stringResource(R.string.ekran_dondurme),
                             tint = Color.White
                         )
@@ -488,7 +474,7 @@ fun MangaReaderScreen(
                         viewModel.setFitMode(nextFit)
                     }) {
                         Icon(
-                            imageVector = Icons.Default.CropFree,
+                            imageVector = Icons.CropFree,
                             contentDescription = stringResource(R.string.sigdirma_modu),
                             tint = Color.White
                         )
@@ -497,7 +483,7 @@ fun MangaReaderScreen(
                     // Settings Dialog Trigger
                     IconButton(onClick = { showSettings = true }) {
                         Icon(
-                            imageVector = Icons.Default.Settings,
+                            imageVector = Icons.Settings,
                             contentDescription = stringResource(R.string.ayarlar),
                             tint = Color.White
                         )
@@ -639,7 +625,7 @@ fun MangaReaderScreen(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.BrightnessLow,
+                        imageVector = Icons.BrightnessLow,
                         contentDescription = null,
                         tint = Color.White.copy(alpha = 0.6f),
                         modifier = Modifier.size(18.dp)
@@ -660,14 +646,14 @@ fun MangaReaderScreen(
                         modifier = Modifier.size(40.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.RestartAlt,
+                            imageVector = Icons.RestartAlt,
                             contentDescription = stringResource(R.string.slider_reset_to_default),
                             tint = Color.White.copy(alpha = 0.8f),
                             modifier = Modifier.size(18.dp)
                         )
                     }
                     Icon(
-                        imageVector = Icons.Default.BrightnessHigh,
+                        imageVector = Icons.BrightnessHigh,
                         contentDescription = null,
                         tint = Color.White.copy(alpha = 0.6f),
                         modifier = Modifier.size(18.dp)

@@ -16,10 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.ListAlt
-import androidx.compose.material.icons.rounded.PersonAdd
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.CircularProgressIndicator
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.MaterialTheme
@@ -136,7 +133,7 @@ fun UserProfileActionButtons(
                     strokeWidth = 2.dp)
             } else {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(imageVector = if (state.isFollowing) Icons.Rounded.Check else Icons.Rounded.PersonAdd,
+                    Icon(imageVector = if (state.isFollowing) Icons.Check else Icons.PersonAdd,
                         contentDescription = null,
                         tint = if (state.isFollowing) KitsugiColors.TextPrimary else KitsugiColors.Background,
                         modifier = Modifier.size(16.dp))
@@ -159,7 +156,7 @@ fun UserProfileActionButtons(
                 .padding(vertical = 10.dp, horizontal = 8.dp),
                 contentAlignment = Alignment.Center) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Rounded.ListAlt, contentDescription = null, tint = tint, modifier = Modifier.size(16.dp))
+                    Icon(Icons.ListAlt, contentDescription = null, tint = tint, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(text = label, color = KitsugiColors.TextPrimary, fontWeight = FontWeight.SemiBold,
                         style = MaterialTheme.typography.labelSmall)

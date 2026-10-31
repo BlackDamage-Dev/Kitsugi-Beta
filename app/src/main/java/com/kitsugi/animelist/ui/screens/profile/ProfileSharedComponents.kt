@@ -26,8 +26,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.*
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -158,7 +157,7 @@ private fun ProfileServiceErrorCard(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.ErrorOutline,
+                        imageVector = Icons.ErrorOutline,
                         contentDescription = stringResource(R.string.profile_error_icon_description),
                         tint = KitsugiColors.AccentRed,
                         modifier = Modifier.size(22.dp)
@@ -219,7 +218,7 @@ private fun ProfileServiceErrorCard(
                     colors = ButtonDefaults.buttonColors(containerColor = accentColor),
                     modifier = Modifier.align(Alignment.CenterHorizontally)
                 ) {
-                    Icon(Icons.Rounded.Refresh, contentDescription = null)
+                    Icon(Icons.Refresh, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
                     Text(stringResource(R.string.action_retry), color = KitsugiColors.Background)
                 }
@@ -362,7 +361,7 @@ fun FilterChipItem(
     ) {
         if (selected) {
             Icon(
-                imageVector = Icons.Rounded.Check,
+                imageVector = Icons.Check,
                 contentDescription = null,
                 tint = accentColor,
                 modifier = Modifier.size(14.dp)
@@ -390,7 +389,7 @@ fun RowScope.StatCard(
     KitsugiStatsMetricTile(
         label = label,
         value = value,
-        icon = Icons.Rounded.BarChart,
+        icon = Icons.BarChart,
         modifier = Modifier.weight(1f).padding(4.dp)
     )
 }

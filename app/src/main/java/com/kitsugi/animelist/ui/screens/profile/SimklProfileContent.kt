@@ -18,8 +18,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.*
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -146,7 +145,7 @@ fun SimklProfileContent(
                             com.kitsugi.animelist.utils.ShareUtils.shareText(context, state.name, url)
                         }) {
                             Icon(
-                                imageVector = Icons.Rounded.Share,
+                                imageVector = Icons.Share,
                                 contentDescription = stringResource(R.string.profili_paylas),
                                 tint = KitsugiColors.TextPrimary,
                                 modifier = Modifier.size(18.dp)
@@ -210,9 +209,9 @@ fun SimklProfileContent(
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     val tabs = listOf(
-                        Icons.Rounded.Info to stringResource(R.string.character_tab_about),
-                        Icons.Rounded.ChatBubble to stringResource(R.string.profile_tab_activity),
-                        Icons.Rounded.BarChart to stringResource(R.string.profile_tab_statistics)
+                        Icons.Info to stringResource(R.string.character_tab_about),
+                        Icons.ChatBubble to stringResource(R.string.profile_tab_activity),
+                        Icons.BarChart to stringResource(R.string.profile_tab_statistics)
                     )
                     ProfileHeaderIconTabs(
                         tabs = tabs,
@@ -332,7 +331,7 @@ fun SimklProfileContent(
                                                     modifier = Modifier.size(28.dp)
                                                 ) {
                                                     Icon(
-                                                        imageVector = Icons.Rounded.ContentCopy,
+                                                        imageVector = Icons.ContentCopy,
                                                         contentDescription = stringResource(R.string.action_copy),
                                                         tint = KitsugiColors.TextSecondary,
                                                         modifier = Modifier.size(16.dp)
@@ -408,7 +407,7 @@ fun SimklProfileContent(
                                     KitsugiStatsCard {
                                         KitsugiStatsCardHeader(
                                             title = stringResource(R.string.istatistikler),
-                                            icon = Icons.Rounded.BarChart,
+                                            icon = Icons.BarChart,
                                             subtitle = "Simkl",
                                             accentColor = accentColor
                                         )

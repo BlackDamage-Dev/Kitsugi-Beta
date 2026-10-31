@@ -20,9 +20,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.*
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
@@ -130,7 +128,7 @@ fun KitsugiUserProfileScreen(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onBackClick) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.geri), tint = KitsugiColors.TextPrimary)
+                        Icon(Icons.ArrowBack, contentDescription = stringResource(R.string.geri), tint = KitsugiColors.TextPrimary)
                     }
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
@@ -146,7 +144,7 @@ fun KitsugiUserProfileScreen(
                     IconButton(onClick = {
                         ShareUtils.shareText(context, state.name, ShareUtils.buildProfileUrl("anilist", state.name))
                     }) {
-                        Icon(Icons.Rounded.Share, contentDescription = stringResource(R.string.profili_paylas), tint = KitsugiColors.TextPrimary)
+                        Icon(Icons.Share, contentDescription = stringResource(R.string.profili_paylas), tint = KitsugiColors.TextPrimary)
                     }
                 }
             }
@@ -242,11 +240,11 @@ fun KitsugiUserProfileScreen(
                         Surface(modifier = Modifier.fillMaxWidth(), color = KitsugiColors.Background) {
                             Column(modifier = Modifier.padding(vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                                 val tabs = listOf(
-                                    Icons.Rounded.Info to stringResource(R.string.character_tab_about),
-                                    Icons.Rounded.ChatBubble to stringResource(R.string.profile_tab_activity),
-                                    Icons.Rounded.BarChart to stringResource(R.string.profile_tab_statistics),
-                                    Icons.Rounded.Star to stringResource(R.string.profile_tab_favorites),
-                                    Icons.Rounded.People to stringResource(R.string.profile_tab_social)
+                                    Icons.Info to stringResource(R.string.character_tab_about),
+                                    Icons.ChatBubble to stringResource(R.string.profile_tab_activity),
+                                    Icons.BarChart to stringResource(R.string.profile_tab_statistics),
+                                    Icons.Star to stringResource(R.string.profile_tab_favorites),
+                                    Icons.People to stringResource(R.string.profile_tab_social)
                                 )
                                 ProfileHeaderIconTabs(
                                     tabs = tabs,

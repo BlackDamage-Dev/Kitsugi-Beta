@@ -17,10 +17,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Download
-import androidx.compose.material.icons.rounded.Movie
-import androidx.compose.material.icons.rounded.PlayArrow
+import com.kitsugi.animelist.ui.components.KitsugiEmojiLabel
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -223,9 +221,9 @@ fun StreamCard(
                     }
                     if (source.isTorrent) {
                         val cacheLabel = when (cacheState) {
-                            DebridCacheState.CACHED -> "⚡ " + stringResource(R.string.stream_cached)
-                            DebridCacheState.NOT_CACHED -> "⚡ Debrid"
-                            DebridCacheState.P2P -> "🔗 P2P"
+                            DebridCacheState.CACHED -> stringResource(R.string.stream_cached)
+                            DebridCacheState.NOT_CACHED -> "Debrid"
+                            DebridCacheState.P2P -> "P2P"
                         }
                         MetaChip(
                             text = cacheLabel,
@@ -249,7 +247,7 @@ fun StreamCard(
                     )
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.PlayArrow,
+                        imageVector = Icons.PlayArrow,
                         contentDescription = stringResource(R.string.oynat),
                         modifier = Modifier.size(26.dp)
                     )
@@ -264,7 +262,7 @@ fun StreamCard(
                     )
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.Download,
+                        imageVector = Icons.Download,
                         contentDescription = stringResource(R.string.indir),
                         modifier = Modifier.size(19.dp)
                     )
@@ -309,7 +307,7 @@ private fun StreamThumbnail(
             )
         } else {
             Icon(
-                imageVector = Icons.Rounded.Movie,
+                imageVector = Icons.Movie,
                 contentDescription = null,
                 tint = accentColor.copy(alpha = 0.8f),
                 modifier = Modifier.align(Alignment.Center).size(24.dp)
@@ -359,14 +357,22 @@ fun MetaChip(
             .background(bg)
             .padding(horizontal = 6.dp, vertical = 2.dp)
     ) {
-        Text(
-            text = if (isVerified) "$text ✓" else text,
-            color = color,
-            fontSize = 10.sp,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            softWrap = false
-        )
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+            KitsugiEmojiLabel(
+                label = text,
+                color = color,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.SemiBold,
+                iconSize = 9.dp
+            )
+            if (isVerified) {
+                Icon(
+                    imageVector = Icons.Check,
+                    contentDescription = null,
+                    tint = color,
+                    modifier = Modifier.size(9.dp)
+                )
+            }
+        }
     }
 }

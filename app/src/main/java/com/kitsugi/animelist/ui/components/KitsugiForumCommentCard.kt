@@ -7,9 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.Reply
-import androidx.compose.material.icons.rounded.*
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.IconButton
 import com.kitsugi.animelist.ui.theme.gradient.Text
@@ -170,7 +168,7 @@ internal fun KitsugiForumCommentCard(
                     modifier = Modifier.size(28.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.ContentCopy,
+                        imageVector = Icons.ContentCopy,
                         contentDescription = stringResource(R.string.action_copy),
                         tint = KitsugiColors.TextSecondary,
                         modifier = Modifier.size(15.dp)
@@ -192,7 +190,7 @@ internal fun KitsugiForumCommentCard(
                             .padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
                         Icon(
-                            imageVector = if (isRepliesExpanded) Icons.Rounded.ChatBubble else Icons.Rounded.ChatBubbleOutline,
+                            imageVector = if (isRepliesExpanded) Icons.ChatBubble else Icons.ChatBubbleOutline,
                             contentDescription = stringResource(R.string.yanitlar),
                             tint = accentColor,
                             modifier = Modifier.size(16.dp)
@@ -226,7 +224,7 @@ internal fun KitsugiForumCommentCard(
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
                     Icon(
-                        imageVector = if (isLikedState) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                        imageVector = if (isLikedState) Icons.Favorite else Icons.FavoriteBorder,
                         contentDescription = stringResource(R.string.begen),
                         tint = if (isLikedState) accentColor else KitsugiColors.TextSecondary,
                         modifier = Modifier.size(16.dp)
@@ -246,7 +244,7 @@ internal fun KitsugiForumCommentCard(
                         modifier = Modifier.size(28.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Rounded.Reply,
+                            imageVector = Icons.Reply,
                             contentDescription = stringResource(R.string.yanitla),
                             tint = KitsugiColors.TextSecondary,
                             modifier = Modifier.size(18.dp)
@@ -428,7 +426,7 @@ private fun KitsugiForumChildCommentRow(
                         modifier = Modifier.size(24.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.ContentCopy,
+                            imageVector = Icons.ContentCopy,
                             contentDescription = stringResource(R.string.action_copy),
                             tint = KitsugiColors.TextSecondary,
                             modifier = Modifier.size(14.dp)
@@ -449,7 +447,7 @@ private fun KitsugiForumChildCommentRow(
                                 .padding(horizontal = 6.dp, vertical = 2.dp)
                         ) {
                           Icon(
-                              imageVector = if (isRepliesExpanded) Icons.Rounded.ChatBubble else Icons.Rounded.ChatBubbleOutline,
+                              imageVector = if (isRepliesExpanded) Icons.ChatBubble else Icons.ChatBubbleOutline,
                               contentDescription = stringResource(R.string.yanitlar),
                               tint = accentColor,
                               modifier = Modifier.size(14.dp)
@@ -482,7 +480,7 @@ private fun KitsugiForumChildCommentRow(
                             .padding(horizontal = 6.dp, vertical = 2.dp)
                     ) {
                         Icon(
-                            imageVector = if (isLikedState) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                            imageVector = if (isLikedState) Icons.Favorite else Icons.FavoriteBorder,
                             contentDescription = stringResource(R.string.begen),
                             tint = if (isLikedState) accentColor else KitsugiColors.TextSecondary,
                             modifier = Modifier.size(14.dp)
@@ -501,7 +499,7 @@ private fun KitsugiForumChildCommentRow(
                             modifier = Modifier.size(24.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.AutoMirrored.Rounded.Reply,
+                                imageVector = Icons.Reply,
                                 contentDescription = stringResource(R.string.yanitla),
                                 tint = KitsugiColors.TextSecondary,
                                 modifier = Modifier.size(14.dp)

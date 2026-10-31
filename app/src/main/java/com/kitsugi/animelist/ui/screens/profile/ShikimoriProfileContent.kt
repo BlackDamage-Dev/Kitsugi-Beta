@@ -19,8 +19,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.*
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -156,7 +155,7 @@ fun ShikimoriProfileContent(
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.Share,
+                            imageVector = Icons.Share,
                             contentDescription = stringResource(R.string.paylas),
                             tint = KitsugiColors.TextPrimary,
                             modifier = Modifier.size(18.dp)
@@ -233,9 +232,9 @@ fun ShikimoriProfileContent(
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     val tabs = listOf(
-                        Icons.Rounded.Info to stringResource(R.string.character_tab_about),
-                        Icons.Rounded.BarChart to stringResource(R.string.profile_tab_statistics),
-                        Icons.Rounded.Bookmarks to stringResource(R.string.profile_records)
+                        Icons.Info to stringResource(R.string.character_tab_about),
+                        Icons.BarChart to stringResource(R.string.profile_tab_statistics),
+                        Icons.Bookmarks to stringResource(R.string.profile_records)
                     )
                     ProfileHeaderIconTabs(
                         tabs = tabs,
@@ -370,7 +369,7 @@ private fun ShikimoriAboutTab(
                                 },
                                 modifier = Modifier.size(32.dp)
                             ) {
-                                Icon(Icons.Rounded.ContentCopy, contentDescription = stringResource(R.string.action_copy), tint = KitsugiColors.TextMuted, modifier = Modifier.size(16.dp))
+                                Icon(Icons.ContentCopy, contentDescription = stringResource(R.string.action_copy), tint = KitsugiColors.TextMuted, modifier = Modifier.size(16.dp))
                             }
                             KitsugiTranslateIconButton(
                                 onClick = { context.openTranslator(state.bio) },
@@ -404,21 +403,21 @@ private fun ShikimoriAboutTab(
             ShikimoriStatCard(
                 title = "Anime",
                 value = totalAnime.toString(),
-                icon = Icons.Rounded.Tv,
+                icon = Icons.Tv,
                 modifier = Modifier.weight(1f),
                 accentColor = accentColor
             )
             ShikimoriStatCard(
                 title = "Manga",
                 value = totalManga.toString(),
-                icon = Icons.Rounded.Book,
+                icon = Icons.Book,
                 modifier = Modifier.weight(1f),
                 accentColor = Color(0xFF2E7D32)
             )
             ShikimoriStatCard(
                 title = stringResource(R.string.detail_stat_score),
                 value = if (state.avgScore > 0) String.format("%.1f", state.avgScore) else "-",
-                icon = Icons.Rounded.Star,
+                icon = Icons.Star,
                 modifier = Modifier.weight(1f),
                 accentColor = KitsugiColors.AccentYellow
             )
@@ -460,10 +459,10 @@ private fun ShikimoriAboutTab(
                 )
 
                 if (!state.location.isNullOrBlank()) {
-                    ShikiAttributeRow(icon = Icons.Rounded.LocationOn, label = stringResource(R.string.profile_label_location), value = state.location)
+                    ShikiAttributeRow(icon = Icons.LocationOn, label = stringResource(R.string.profile_label_location), value = state.location)
                 }
                 if (!state.website.isNullOrBlank()) {
-                    ShikiAttributeRow(icon = Icons.Rounded.Language, label = stringResource(R.string.profile_label_website), value = state.website)
+                    ShikiAttributeRow(icon = Icons.Language, label = stringResource(R.string.profile_label_website), value = state.website)
                 }
                 if (!state.sex.isNullOrBlank() || state.fullYears != null) {
                     val sexStr = when (state.sex?.lowercase()) {
@@ -473,13 +472,13 @@ private fun ShikimoriAboutTab(
                     }
                     val ageStr = state.fullYears?.let { stringResource(R.string.profile_age_years, it) }.orEmpty()
                     val combo = listOf(sexStr, ageStr).filter { it.isNotBlank() }.joinToString(" • ")
-                    ShikiAttributeRow(icon = Icons.Rounded.Person, label = stringResource(R.string.cinsiyet_yas), value = combo)
+                    ShikiAttributeRow(icon = Icons.Person, label = stringResource(R.string.cinsiyet_yas), value = combo)
                 }
                 if (!state.lastOnline.isNullOrBlank()) {
-                    ShikiAttributeRow(icon = Icons.Rounded.Schedule, label = stringResource(R.string.son_giris), value = state.lastOnline.take(16).replace("T", " "))
+                    ShikiAttributeRow(icon = Icons.Schedule, label = stringResource(R.string.son_giris), value = state.lastOnline.take(16).replace("T", " "))
                 }
-                ShikiAttributeRow(icon = Icons.Rounded.CheckCircle, label = stringResource(R.string.profile_completed_anime), value = state.completedAnime.toString())
-                ShikiAttributeRow(icon = Icons.Rounded.CheckCircle, label = stringResource(R.string.profile_completed_manga), value = state.completedManga.toString())
+                ShikiAttributeRow(icon = Icons.CheckCircle, label = stringResource(R.string.profile_completed_anime), value = state.completedAnime.toString())
+                ShikiAttributeRow(icon = Icons.CheckCircle, label = stringResource(R.string.profile_completed_manga), value = state.completedManga.toString())
             }
         }
     }
@@ -507,7 +506,7 @@ private fun ShikimoriStatsTab(
         KitsugiStatsCard {
             KitsugiStatsCardHeader(
                 title = stringResource(R.string.profile_stats_general),
-                icon = Icons.Rounded.BarChart,
+                icon = Icons.BarChart,
                 subtitle = "Shikimori",
                 accentColor = accentColor
             )
@@ -557,7 +556,7 @@ private fun ShikimoriStatsTab(
                 KitsugiStatsCard {
                     KitsugiStatsCardHeader(
                         title = if (isAnime) stringResource(R.string.anime_durum_dagilimi) else stringResource(R.string.manga_durum_dagilimi),
-                        icon = Icons.Rounded.DonutLarge,
+                        icon = Icons.DonutLarge,
                         subtitle = stringResource(R.string.detail_stats_status_subtitle, statusItems.sumOf { it.second }),
                         accentColor = accentColor
                     )
@@ -567,7 +566,7 @@ private fun ShikimoriStatsTab(
                         Spacer(Modifier.height(16.dp))
                         KitsugiStatsCardHeader(
                             title = stringResource(R.string.puan_dagilimi),
-                            icon = Icons.Rounded.BarChart,
+                            icon = Icons.BarChart,
                             accentColor = accentColor
                         )
                         Spacer(Modifier.height(8.dp))
@@ -690,7 +689,7 @@ private fun ShikimoriRatesTab(
                                         .background(KitsugiColors.SurfaceStrong),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Icon(Icons.Rounded.History, contentDescription = null, tint = KitsugiColors.TextMuted)
+                                    Icon(Icons.History, contentDescription = null, tint = KitsugiColors.TextMuted)
                                 }
                             }
                             Spacer(modifier = Modifier.width(12.dp))
@@ -721,7 +720,7 @@ private fun ShikimoriRatesTab(
                                 }
                             }
                             Icon(
-                                imageVector = Icons.Rounded.ChevronRight,
+                                imageVector = Icons.ChevronRight,
                                 contentDescription = null,
                                 tint = KitsugiColors.TextMuted,
                                 modifier = Modifier.size(18.dp)
@@ -765,7 +764,7 @@ private fun ShikimoriRatesTab(
                                     .background(KitsugiColors.SurfaceStrong),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Icon(Icons.Rounded.Movie, contentDescription = null, tint = KitsugiColors.TextMuted)
+                                Icon(Icons.Movie, contentDescription = null, tint = KitsugiColors.TextMuted)
                             }
                         }
                         Spacer(modifier = Modifier.width(12.dp))
@@ -790,7 +789,7 @@ private fun ShikimoriRatesTab(
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(
-                        imageVector = Icons.Rounded.Bookmarks,
+                        imageVector = Icons.Bookmarks,
                         contentDescription = null,
                         tint = KitsugiColors.TextMuted,
                         modifier = Modifier.size(48.dp)

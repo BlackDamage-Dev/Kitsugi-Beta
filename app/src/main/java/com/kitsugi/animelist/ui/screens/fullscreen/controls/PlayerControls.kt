@@ -22,10 +22,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.SkipNext
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import com.kitsugi.animelist.ui.theme.gradient.CircularProgressIndicator
@@ -393,7 +390,7 @@ fun PlayerControls(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector        = Icons.Default.Lock,
+                        imageVector        = Icons.Lock,
                         contentDescription = KitsugiStrings.get(R.string.kilidi_ac),
                         tint               = Color.White,
                         modifier           = Modifier.size(36.dp)
@@ -689,7 +686,7 @@ fun PlayerControls(
                             modifier = Modifier.size(24.dp)
                         ) {
                             Icon(
-                                imageVector        = Icons.Default.Close,
+                                imageVector        = Icons.Close,
                                 contentDescription = stringResource(R.string.iptal),
                                 modifier           = Modifier.size(16.dp)
                             )
@@ -719,7 +716,7 @@ fun PlayerControls(
                             )
                         }) {
                             Icon(
-                                imageVector        = Icons.Default.SkipNext,
+                                imageVector        = Icons.SkipNext,
                                 contentDescription = null,
                                 modifier           = Modifier.size(16.dp)
                             )

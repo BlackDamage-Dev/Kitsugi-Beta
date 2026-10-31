@@ -8,14 +8,12 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.MoreTime
-import androidx.compose.material.icons.filled.Palette
-import androidx.compose.material.icons.outlined.Info
-import androidx.compose.material.icons.rounded.Download
+import com.kitsugi.animelist.ui.components.KitsugiEmojiLabel
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.Checkbox
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import com.kitsugi.animelist.ui.theme.gradient.Text
 import androidx.compose.material3.TextButton
@@ -73,7 +71,7 @@ fun SubtitleTracksSheet(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(4.dp),
                         ) {
-                            Icon(imageVector = Icons.Default.Palette, contentDescription = null)
+                            Icon(imageVector = Icons.Palette, contentDescription = null)
                             Text("Stil")
                         }
                     }
@@ -82,7 +80,7 @@ fun SubtitleTracksSheet(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(4.dp),
                         ) {
-                            Icon(imageVector = Icons.Default.MoreTime, contentDescription = null)
+                            Icon(imageVector = Icons.MoreTime, contentDescription = null)
                             Text("Gecikme")
                         }
                     }
@@ -127,8 +125,14 @@ fun SubtitleTracksSheet(
             if (supportsSecondary) {
                 TextButton(onClick = { onSelectSecondary(track.id) },
                     enabled = track.id == -99 || track.id !in selectedIndices) {
-                    Text(if (track.id == selectedSecondaryIndex) "İkinci altyazı: seçili ✓"
-                        else if (track.id == -99) "İkinci altyazıyı kapat" else "İkinci altyazı olarak seç")
+                    KitsugiEmojiLabel(
+                        label = if (track.id == selectedSecondaryIndex) "İkinci altyazı: seçili"
+                            else if (track.id == -99) "İkinci altyazıyı kapat" else "İkinci altyazı olarak seç",
+                        icon = if (track.id == selectedSecondaryIndex) Icons.Check else null,
+                        color = LocalContentColor.current,
+                        style = MaterialTheme.typography.labelLarge,
+                        iconSize = 12.dp
+                    )
                 }
             }
             SubtitleTrackRow(
@@ -145,7 +149,7 @@ fun SubtitleTracksSheet(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 horizontalAlignment = Alignment.Start,
             ) {
-                Icon(Icons.Outlined.Info, null)
+                Icon(Icons.Info, null)
                 Text(
                     stringResource(R.string.inline_only_ass_ssa_format_is_8635db9),
                     style = MaterialTheme.typography.bodySmall,
@@ -196,7 +200,7 @@ fun SubtitleTrackRow(
                 modifier = Modifier.size(36.dp),
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.Download,
+                    imageVector = Icons.Download,
                     contentDescription = stringResource(R.string.altyaziyi_indir),
                     modifier = Modifier.size(20.dp),
                 )

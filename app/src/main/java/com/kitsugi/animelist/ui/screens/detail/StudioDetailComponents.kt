@@ -1,5 +1,6 @@
 package com.kitsugi.animelist.ui.screens.detail
 
+import com.kitsugi.animelist.ui.components.KitsugiEmojiLabel
 import com.kitsugi.animelist.ui.components.KitsugiGalleryIconButton
 import com.kitsugi.animelist.ui.theme.gradient.background
 import com.kitsugi.animelist.ui.utils.tvClickable
@@ -46,18 +47,10 @@ import com.kitsugi.animelist.ui.components.KitsugiSheetOrDialog
 import com.kitsugi.animelist.ui.components.KitsugiButton
 import com.kitsugi.animelist.ui.theme.gradient.border
 import androidx.compose.foundation.clickable
-import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.FilterAlt
-import androidx.compose.material.icons.rounded.Sort
 import androidx.compose.ui.unit.sp
 
 // Icons
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.Favorite
-import androidx.compose.material.icons.rounded.FavoriteBorder
-import androidx.compose.material.icons.rounded.Image
-import androidx.compose.material.icons.rounded.Share
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 
 /**
  * Stüdyo kuruluş tarihini "1 Ekim 1998" biçiminde gösterir — ham ISO
@@ -153,7 +146,7 @@ internal fun StudioHeroHeader(
             ) {
                 IconButton(onClick = onBackClick) {
                     Icon(
-                        imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                        imageVector = Icons.ArrowBack,
                         contentDescription = stringResource(R.string.action_back),
                         tint = KitsugiColors.TextPrimary
                     )
@@ -187,7 +180,7 @@ internal fun StudioHeroHeader(
                         com.kitsugi.animelist.utils.ShareUtils.shareText(context, detail.name.toLocalizedOrgName(), url)
                     }) {
                         Icon(
-                            imageVector = Icons.Rounded.Share,
+                            imageVector = Icons.Share,
                             contentDescription = stringResource(R.string.action_share),
                             tint = KitsugiColors.TextPrimary
                         )
@@ -204,7 +197,7 @@ internal fun StudioHeroHeader(
                     ) {
                         IconButton(onClick = onToggleFavourite) {
                             Icon(
-                                imageVector = if (isFavourite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                                imageVector = if (isFavourite) Icons.Favorite else Icons.FavoriteBorder,
                                 contentDescription = if (isFavourite) stringResource(R.string.action_favourite_remove) else stringResource(R.string.action_favourite_add),
                                 tint = if (isFavourite) accentColor else KitsugiColors.TextPrimary
                             )
@@ -424,7 +417,7 @@ internal fun StudioDetailLeftPanel(
                 ) {
                     IconButton(onClick = onBackClick) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                            imageVector = Icons.ArrowBack,
                             contentDescription = stringResource(R.string.action_back),
                             tint = KitsugiColors.TextPrimary
                         )
@@ -460,7 +453,7 @@ internal fun StudioDetailLeftPanel(
                             com.kitsugi.animelist.utils.ShareUtils.shareText(context, detail.name.toLocalizedOrgName(), url)
                         }) {
                             Icon(
-                                imageVector = Icons.Rounded.Share,
+                                imageVector = Icons.Share,
                                 contentDescription = stringResource(R.string.action_share),
                                 tint = KitsugiColors.TextPrimary
                             )
@@ -477,7 +470,7 @@ internal fun StudioDetailLeftPanel(
                         ) {
                             IconButton(onClick = onToggleFavourite) {
                                 Icon(
-                                    imageVector = if (isFavourite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                                    imageVector = if (isFavourite) Icons.Favorite else Icons.FavoriteBorder,
                                     contentDescription = if (isFavourite) stringResource(R.string.action_favourite_remove) else stringResource(R.string.action_favourite_add),
                                     tint = if (isFavourite) accentColor else KitsugiColors.TextPrimary
                                 )
@@ -536,8 +529,8 @@ internal val STUDIO_TYPE_FILTERS = listOf(
 
 internal enum class StudioSortOption(val emoji: String, @StringRes val titleRes: Int) {
     DEFAULT("🏆", R.string.studio_sort_default),
-    TITLE_ASC("🔤", R.string.studio_sort_title_asc),
-    TITLE_DESC("🔠", R.string.studio_sort_title_desc);
+    TITLE_ASC("A→Z", R.string.studio_sort_title_asc),
+    TITLE_DESC("Z→A", R.string.studio_sort_title_desc);
 
     @Composable
     @ReadOnlyComposable
@@ -651,7 +644,7 @@ internal fun KitsugiStudioFilterBottomSheet(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
-                        imageVector = Icons.Rounded.Sort,
+                        imageVector = Icons.Sort,
                         contentDescription = null,
                         tint = accentColor,
                         modifier = Modifier.size(18.dp)
@@ -691,16 +684,17 @@ internal fun KitsugiStudioFilterBottomSheet(
                             contentAlignment = Alignment.Center
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = sort.displayLabel(),
+                                KitsugiEmojiLabel(
+                                    label = sort.displayLabel(),
                                     color = if (isSelected) accentColor else KitsugiColors.TextPrimary,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                    fontSize = 13.sp
+                                    style = MaterialTheme.typography.bodySmall,
+                                    iconSize = 13.dp
                                 )
                                 if (isSelected) {
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Icon(
-                                        imageVector = Icons.Rounded.Check,
+                                        imageVector = Icons.Check,
                                         contentDescription = null,
                                         tint = accentColor,
                                         modifier = Modifier.size(14.dp)
@@ -715,7 +709,7 @@ internal fun KitsugiStudioFilterBottomSheet(
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
-                        imageVector = Icons.Rounded.FilterAlt,
+                        imageVector = Icons.FilterAlt,
                         contentDescription = null,
                         tint = accentColor,
                         modifier = Modifier.size(18.dp)
@@ -764,7 +758,7 @@ internal fun KitsugiStudioFilterBottomSheet(
                                 if (isSelected) {
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Icon(
-                                        imageVector = Icons.Rounded.Check,
+                                        imageVector = Icons.Check,
                                         contentDescription = null,
                                         tint = accentColor,
                                         modifier = Modifier.size(14.dp)

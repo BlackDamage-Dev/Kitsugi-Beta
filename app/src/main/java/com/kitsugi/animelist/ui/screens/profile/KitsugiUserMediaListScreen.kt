@@ -32,9 +32,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.FormatListBulleted
-import androidx.compose.material.icons.rounded.KeyboardArrowUp
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -531,7 +529,7 @@ fun KitsugiUserMediaListScreen(
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
-                            imageVector = Icons.Rounded.FormatListBulleted,
+                            imageVector = Icons.FormatListBulleted,
                             contentDescription = stringResource(R.string.search_filter_category),
                             tint = colors.background,
                             modifier = Modifier.size(20.dp)
@@ -567,7 +565,7 @@ fun KitsugiUserMediaListScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.KeyboardArrowUp,
+                        imageVector = Icons.KeyboardArrowUp,
                         contentDescription = stringResource(R.string.yukari_git),
                         tint = colors.background,
                         modifier = Modifier.size(24.dp)

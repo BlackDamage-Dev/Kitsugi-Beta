@@ -29,16 +29,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowUpward
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Extension
-import androidx.compose.material.icons.filled.FilterList
-import androidx.compose.material.icons.rounded.Notifications
-import androidx.compose.material.icons.rounded.History
-import androidx.compose.material.icons.rounded.Download
-import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material.icons.rounded.SearchOff
+import com.kitsugi.animelist.ui.icons.KitsugiEmojiIcons
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -60,6 +52,8 @@ import com.kitsugi.animelist.model.MediaEntry
 import com.kitsugi.animelist.model.MediaType
 import com.kitsugi.animelist.ui.components.KitsugiEmptyState
 import com.kitsugi.animelist.ui.components.KitsugiPlatformLogo
+import com.kitsugi.animelist.ui.components.KitsugiTopAction
+import com.kitsugi.animelist.ui.components.KitsugiTopActionRow
 import com.kitsugi.animelist.ui.components.KitsugiShimmerProvider
 import com.kitsugi.animelist.ui.components.KitsugiShimmerSearchResultList
 import com.kitsugi.animelist.ui.components.KitsugiShimmerResponsiveMediaRow
@@ -135,6 +129,7 @@ fun SearchScreen(
     onOpenSourceSearch: (SearchSourceEngine, SearchScope, List<JikanSearchResult>) -> Unit = { _, _, _ -> },
     // Alt sayfa olarak kullanıldığında büyük başlığı gizlemek için null verilebilir
     pageTitle: String? = "Arama",
+
     onOpenWatchHistory: (() -> Unit)? = null,
     onOpenDownloads: (() -> Unit)? = null
 ) {
@@ -295,9 +290,6 @@ fun SearchScreen(
             // Title & Search Input Section
             item(key = "search_title_and_bar") {
                 // ── Başlık + sağ üst aksiyonlar (tek satır) ──────────────────
-                // Filtre, bildirim, izleme geçmişi ve eklenti portalı butonları
-                // artık arama çubuğunun içinde değil; başlıkla aynı hizada,
-                // sağ üstte toplanmış tek bir küme olarak durur.
                 Spacer(modifier = Modifier.height(if (pageTitle != null) 24.dp else 10.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -318,13 +310,24 @@ fun SearchScreen(
                         Spacer(modifier = Modifier.weight(1f))
                     }
 
-                    SearchTopActionBar(
-                        isFilterActive = uiState.hasFiltersApplied,
-                        onFilterClick = { showSourceEngineFilterSheet = true },
-                        showNotifications = isNotificationsVisible,
-                        onOpenNotifications = onOpenNotifications,
-                        onOpenWatchHistory = onOpenWatchHistory,
-                        onOpenPluginPicker = { onOpenPluginPicker() }
+                    KitsugiTopActionRow(
+                        actions = buildList {
+                            add(KitsugiTopAction.FILTER)
+                            if (onOpenWatchHistory != null) add(KitsugiTopAction.HISTORY)
+                            if (onOpenDownloads != null) add(KitsugiTopAction.DOWNLOADS)
+                            add(KitsugiTopAction.EXTENSIONS)
+                            if (isNotificationsVisible) add(KitsugiTopAction.NOTIFICATIONS)
+                        },
+                        onActionClick = { action ->
+                            when (action) {
+                                KitsugiTopAction.FILTER -> showSourceEngineFilterSheet = true
+                                KitsugiTopAction.HISTORY -> onOpenWatchHistory?.invoke()
+                                KitsugiTopAction.DOWNLOADS -> onOpenDownloads?.invoke()
+                                KitsugiTopAction.EXTENSIONS -> onOpenPluginPicker()
+                                KitsugiTopAction.NOTIFICATIONS -> onOpenNotifications()
+                                else -> Unit
+                            }
+                        }
                     )
                 }
                 Spacer(modifier = Modifier.height(14.dp))
@@ -339,14 +342,11 @@ fun SearchScreen(
                     )
                 }
 
-                // Arama çubuğu artık tam genişlikte: yanındaki butonlar üst
-                // satıra taşındığı için çubuğa daha fazla yazma alanı kalır.
+                // Arama çubuğu artık tam genişlikte
                 KitsugiCosmicSearchBar(
                     query = uiState.query,
                     onQueryChange = viewModel::setQuery,
                     onSearch = {
-                        // Arama yalnızca burada tetiklenir (buton veya klavyedeki
-                        // "Ara" onay tuşu) — yazarken kendiliğinden arama yok.
                         viewModel.onSearchAction()
                         keyboardController?.hide()
                     },
@@ -359,7 +359,6 @@ fun SearchScreen(
                         SourceEngineSelectorPill(
                             selectedEngine = uiState.selectedEngine,
                             onClick = { showEnginePickerSheet = true },
-                            // Yazarken motor adı gizlenir → arama butonuna yer açılır.
                             compact = uiState.query.isNotBlank()
                         )
                     },
@@ -482,7 +481,7 @@ fun SearchScreen(
                     KitsugiEmptyState(
                         title = stringResource(R.string.sonuc_bulunamadi),
                         subtitle = uiState.errorMessage,
-                        icon = Icons.Rounded.SearchOff
+                        icon = Icons.SearchOff
                     )
                     uiState.platformErrorCode?.let { code ->
                         Spacer(modifier = Modifier.height(12.dp))
@@ -934,7 +933,7 @@ private fun SearchOptionsSummaryRow(
 
     val parts = buildList {
         if (scopeChanged) add(uiState.selectedScope.localizedDisplayLabel())
-        if (sortChanged) add(localizedSourceSearchLabel(getSortDisplayLabel(uiState)))
+        if (sortChanged) add(KitsugiEmojiIcons.stripLeadingEmoji(localizedSourceSearchLabel(getSortDisplayLabel(uiState))))
         if (activeFilterCount > 0) add(activeFilterCountLabel)
     }
 
@@ -1078,7 +1077,7 @@ fun ActiveFilterChip(
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = Icons.Default.Close,
+                imageVector = Icons.Close,
                 contentDescription = stringResource(R.string.temizle),
                 tint = KitsugiColors.TextMuted,
                 modifier = Modifier.size(14.dp)

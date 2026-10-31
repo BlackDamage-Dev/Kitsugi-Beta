@@ -13,11 +13,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Extension
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.rounded.Star
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -155,7 +151,7 @@ fun KitsugiAddonDetailDialog(
                         .padding(16.dp)
                         .background(Color.Black.copy(alpha = 0.5f), CircleShape)
                 ) {
-                    Icon(Icons.Default.Close, contentDescription = stringResource(R.string.kapat), tint = Color.White)
+                    Icon(Icons.Close, contentDescription = stringResource(R.string.kapat), tint = Color.White)
                 }
             }
         }
@@ -301,7 +297,7 @@ private fun DetailContent(
                                     .padding(horizontal = 6.dp, vertical = 2.dp)
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    Icon(Icons.Default.Extension, contentDescription = null, tint = accentColor, modifier = Modifier.size(12.dp))
+                                    Icon(Icons.Extension, contentDescription = null, tint = accentColor, modifier = Modifier.size(12.dp))
                                     Text(api.name, color = accentColor, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
                                 }
                             }
@@ -334,7 +330,7 @@ private fun DetailContent(
                                     horizontalArrangement = Arrangement.spacedBy(2.dp)
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Rounded.Star,
+                                        imageVector = Icons.Star,
                                         contentDescription = null,
                                         tint = Color(0xFFFFC107),
                                         modifier = Modifier.size(14.dp)
@@ -499,7 +495,7 @@ private fun DetailContent(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.White)
+                                Icon(Icons.PlayArrow, contentDescription = null, tint = Color.White)
                                 Text(stringResource(R.string.oynat), color = Color.White, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
                             }
                         }
@@ -576,7 +572,7 @@ private fun DetailContent(
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Icon(
-                                            imageVector = Icons.Default.PlayArrow,
+                                            imageVector = Icons.PlayArrow,
                                             contentDescription = null,
                                             tint = accentColor,
                                             modifier = Modifier.size(18.dp)
@@ -602,7 +598,7 @@ private fun DetailContent(
                                         }
                                     }
                                     Icon(
-                                        imageVector = Icons.Default.PlayArrow,
+                                        imageVector = Icons.PlayArrow,
                                         contentDescription = stringResource(R.string.oynat),
                                         tint = accentColor,
                                         modifier = Modifier.size(24.dp)

@@ -1,8 +1,7 @@
 package com.kitsugi.animelist.ui.components
 
 import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Delete
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
@@ -35,7 +34,7 @@ fun KitsugiAnimatedDeleteButton(
         modifier = modifier.size(size)
     ) {
         Icon(
-            imageVector = Icons.Rounded.Delete,
+            imageVector = Icons.Delete,
             contentDescription = contentDescription ?: stringResource(R.string.action_delete),
             tint = KitsugiColors.AccentRed,
             modifier = Modifier.size((size.value * 0.52f).dp)

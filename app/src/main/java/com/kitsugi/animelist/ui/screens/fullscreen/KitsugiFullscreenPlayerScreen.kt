@@ -1,5 +1,6 @@
 package com.kitsugi.animelist.ui.screens.fullscreen
 
+import com.kitsugi.animelist.ui.components.KitsugiEmojiLabel
 import com.kitsugi.animelist.ui.theme.gradient.CircularProgressIndicator
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import com.kitsugi.animelist.ui.theme.gradient.Text
@@ -20,8 +21,7 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.*
 import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.*
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -518,7 +518,13 @@ fun KitsugiFullscreenPlayerScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     CircularProgressIndicator(color = Color.White)
-                    Text("⚡ Yedek kaynak deneniyor...", color = Color.White.copy(alpha = 0.85f))
+                    KitsugiEmojiLabel(
+                        label = "Yedek kaynak deneniyor...",
+                        color = Color.White.copy(alpha = 0.85f),
+                        style = MaterialTheme.typography.bodyMedium,
+                        iconSize = 14.dp,
+                        icon = Icons.Zap
+                    )
                     Text(
                         text = "Kaynak: ${currentAddonName.orEmpty()} → sonraki",
                         color = Color.White.copy(alpha = 0.5f),
@@ -1617,7 +1623,7 @@ fun KitsugiFullscreenPlayerScreen(
                     // Double Tap Seek feedback
                     FeedbackBubble(
                         text = seekFeedback,
-                        icon = if (seekFeedback?.startsWith("+") == true) Icons.Rounded.FastForward else Icons.Rounded.FastRewind,
+                        icon = if (seekFeedback?.startsWith("+") == true) Icons.FastForward else Icons.FastRewind,
                         modifier = Modifier
                             .align(
                                 if (seekFeedbackOnRightSide) Alignment.TopStart
@@ -1641,7 +1647,7 @@ fun KitsugiFullscreenPlayerScreen(
                     // Aspect ratio feedback overlay
                     FeedbackBubble(
                         text = aspectFeedback,
-                        icon = Icons.Rounded.AspectRatio,
+                        icon = Icons.AspectRatio,
                         modifier = Modifier
                             .align(Alignment.TopCenter)
                             .padding(top = 80.dp)
@@ -2067,7 +2073,7 @@ fun PlaybackEndedOverlay(
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.Replay,
+                        imageVector = Icons.Replay,
                         contentDescription = stringResource(R.string.yeniden_oynat),
                         modifier = Modifier.size(20.dp)
                     )
@@ -2086,7 +2092,7 @@ fun PlaybackEndedOverlay(
                         shape = RoundedCornerShape(8.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.SkipNext,
+                            imageVector = Icons.SkipNext,
                             contentDescription = stringResource(R.string.sonraki_bolum),
                             modifier = Modifier.size(20.dp)
                         )

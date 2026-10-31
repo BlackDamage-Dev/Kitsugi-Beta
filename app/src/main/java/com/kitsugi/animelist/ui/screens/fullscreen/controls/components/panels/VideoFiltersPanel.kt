@@ -9,9 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.outlined.Info
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.Card
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.MaterialTheme
@@ -68,7 +66,7 @@ fun VideoFiltersPanel(
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     TextButton(onClick = onResetAll) { Text(stringResource(R.string.sifirla)) }
-                    ControlsButton(icon = Icons.Default.Close, onClick = onDismissRequest)
+                    ControlsButton(icon = Icons.Close, onClick = onDismissRequest)
                 }
             }
 
@@ -101,7 +99,7 @@ fun VideoFiltersPanel(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                         horizontalAlignment = Alignment.Start,
                     ) {
-                        Icon(Icons.Outlined.Info, null)
+                        Icon(Icons.Info, null)
                         Text(
                             stringResource(R.string.inline_color_filters_work_accurately_when_085d36c),
                             style = MaterialTheme.typography.bodySmall,

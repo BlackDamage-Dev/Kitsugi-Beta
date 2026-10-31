@@ -15,8 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.PlayArrow
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import com.kitsugi.animelist.ui.theme.gradient.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -77,7 +76,7 @@ fun ContinueWatchingProgressLabel(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Default.PlayArrow,
+                        imageVector = Icons.PlayArrow,
                         contentDescription = null,
                         tint = com.kitsugi.animelist.ui.theme.onAccentColor(accentColor),
                         modifier = Modifier.size(10.dp)

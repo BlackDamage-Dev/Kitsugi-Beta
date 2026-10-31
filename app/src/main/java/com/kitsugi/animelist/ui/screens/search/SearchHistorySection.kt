@@ -13,6 +13,9 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import com.kitsugi.animelist.ui.components.KitsugiChevronIcon
+import com.kitsugi.animelist.ui.theme.gradient.background
+import com.kitsugi.animelist.ui.utils.tvClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,6 +29,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
@@ -36,25 +40,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.ArrowUpward
-import androidx.compose.material.icons.rounded.Bookmark
-import androidx.compose.material.icons.rounded.BookmarkBorder
-import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.ContentCopy
-import androidx.compose.material.icons.rounded.DeleteOutline
-import androidx.compose.material.icons.rounded.ExpandLess
-import androidx.compose.material.icons.rounded.ExpandMore
-import androidx.compose.material.icons.rounded.GridView
-import androidx.compose.material.icons.rounded.History
-import androidx.compose.material.icons.rounded.ManageSearch
-import androidx.compose.material.icons.rounded.Restore
-import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material.icons.rounded.SearchOff
-import androidx.compose.material.icons.rounded.ViewList
-import androidx.compose.material.icons.rounded.Visibility
-import androidx.compose.material.icons.rounded.VisibilityOff
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -79,6 +65,7 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import com.kitsugi.animelist.model.MediaType
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -261,6 +248,7 @@ fun SearchHistorySection(
                         )
                     )
             ) {
+
                 // ── İnce Tarayıcı Başlık Çubuğu ──────────────────────────────
                 Row(
                     modifier = Modifier
@@ -275,7 +263,7 @@ fun SearchHistorySection(
                         modifier = Modifier.weight(1f)
                     ) {
                         Icon(
-                            imageVector = if (isFilteringByInput) Icons.Rounded.ManageSearch else Icons.Rounded.History,
+                            imageVector = if (isFilteringByInput) Icons.ManageSearch else Icons.History,
                             contentDescription = null,
                             tint = accentColor,
                             modifier = Modifier.size(15.dp)
@@ -326,7 +314,7 @@ fun SearchHistorySection(
                                 contentDescription = stringResource(R.string.search_history_all_title)
                             ) {
                                 Icon(
-                                    imageVector = Icons.Rounded.ManageSearch,
+                                    imageVector = Icons.ManageSearch,
                                     contentDescription = stringResource(R.string.search_history_all_title),
                                     tint = KitsugiColors.TextMuted,
                                     modifier = Modifier.size(16.dp)
@@ -345,7 +333,7 @@ fun SearchHistorySection(
                                 contentDescription = stringResource(R.string.search_history_view_mode_toggle)
                             ) {
                                 Icon(
-                                    imageVector = if (isBrowserListMode) Icons.Rounded.GridView else Icons.Rounded.ViewList,
+                                    imageVector = if (isBrowserListMode) Icons.GridView else Icons.ViewList,
                                     contentDescription = stringResource(R.string.search_history_view_mode_toggle),
                                     tint = KitsugiColors.TextMuted,
                                     modifier = Modifier.size(14.dp)
@@ -360,7 +348,7 @@ fun SearchHistorySection(
                             contentDescription = stringResource(R.string.search_history_incognito_toggle)
                         ) {
                             Icon(
-                                imageVector = if (searchHistoryEnabled) Icons.Rounded.Visibility else Icons.Rounded.VisibilityOff,
+                                imageVector = if (searchHistoryEnabled) Icons.Visibility else Icons.VisibilityOff,
                                 contentDescription = stringResource(R.string.search_history_incognito_toggle),
                                 tint = if (!searchHistoryEnabled) accentColor else KitsugiColors.TextMuted,
                                 modifier = Modifier.size(14.dp)
@@ -374,7 +362,7 @@ fun SearchHistorySection(
                                 contentDescription = stringResource(R.string.tumunu_temizle)
                             ) {
                                 Icon(
-                                    imageVector = Icons.Rounded.DeleteOutline,
+                                    imageVector = Icons.DeleteOutline,
                                     contentDescription = stringResource(R.string.tumunu_temizle),
                                     tint = KitsugiColors.TextMuted,
                                     modifier = Modifier.size(15.dp)
@@ -405,7 +393,7 @@ fun SearchHistorySection(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Rounded.Restore,
+                                imageVector = Icons.Restore,
                                 contentDescription = null,
                                 tint = accentColor,
                                 modifier = Modifier.size(14.dp)
@@ -436,7 +424,7 @@ fun SearchHistorySection(
                                 modifier = Modifier.size(22.dp)
                             ) {
                                 Icon(
-                                    imageVector = Icons.Rounded.Close,
+                                    imageVector = Icons.Close,
                                     contentDescription = stringResource(R.string.temizle),
                                     tint = KitsugiColors.TextMuted,
                                     modifier = Modifier.size(12.dp)
@@ -535,7 +523,7 @@ fun SearchHistorySection(
                                     horizontalArrangement = Arrangement.spacedBy(3.dp)
                                 ) {
                                     Icon(
-                                        imageVector = if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                                        imageVector = if (expanded) Icons.ExpandLess else Icons.ExpandMore,
                                         contentDescription = null,
                                         tint = accentColor,
                                         modifier = Modifier.size(15.dp)
@@ -619,7 +607,7 @@ fun SearchHistorySection(
                                         fontWeight = FontWeight.SemiBold
                                     )
                                     Icon(
-                                        imageVector = if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                                        imageVector = if (expanded) Icons.ExpandLess else Icons.ExpandMore,
                                         contentDescription = null,
                                         tint = accentColor,
                                         modifier = Modifier.size(13.dp)
@@ -697,7 +685,7 @@ private fun IncognitoStatusStrip(
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Icon(
-            imageVector = Icons.Rounded.VisibilityOff,
+            imageVector = Icons.VisibilityOff,
             contentDescription = null,
             tint = accentColor,
             modifier = Modifier.size(15.dp)
@@ -816,14 +804,14 @@ private fun BrowserHistoryCompactRow(
             ) {
                 if (item.isPinned) {
                     Icon(
-                        imageVector = Icons.Rounded.Bookmark,
+                        imageVector = Icons.Bookmark,
                         contentDescription = null,
                         tint = accentColor,
                         modifier = Modifier.size(15.dp)
                     )
                 } else {
                     Icon(
-                        imageVector = Icons.Rounded.History,
+                        imageVector = Icons.History,
                         contentDescription = null,
                         tint = if (highlightQuery.isNotBlank()) accentColor.copy(alpha = 0.85f) else KitsugiColors.TextMuted,
                         modifier = Modifier.size(15.dp)
@@ -860,6 +848,7 @@ private fun BrowserHistoryCompactRow(
                 )
             }
 
+
             // Göreceli zaman bilgisi (5dk, 2sa, Dün, 18 Eki)
             if (relativeTime != null) {
                 Text(
@@ -879,7 +868,7 @@ private fun BrowserHistoryCompactRow(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.ArrowUpward,
+                    imageVector = Icons.ArrowUpward,
                     contentDescription = stringResource(R.string.search_history_fill_query),
                     tint = KitsugiColors.TextMuted,
                     modifier = Modifier
@@ -897,7 +886,7 @@ private fun BrowserHistoryCompactRow(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.Close,
+                    imageVector = Icons.Close,
                     contentDescription = stringResource(R.string.kaldir),
                     tint = KitsugiColors.TextMuted.copy(alpha = 0.78f),
                     modifier = Modifier.size(13.dp)
@@ -922,7 +911,7 @@ private fun BrowserHistoryCompactRow(
                 QuickActionPill(
                     icon = {
                         Icon(
-                            imageVector = if (item.isPinned) Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder,
+                            imageVector = if (item.isPinned) Icons.Bookmark else Icons.BookmarkBorder,
                             contentDescription = null,
                             tint = accentColor,
                             modifier = Modifier.size(13.dp)
@@ -940,7 +929,7 @@ private fun BrowserHistoryCompactRow(
                 QuickActionPill(
                     icon = {
                         Icon(
-                            imageVector = Icons.Rounded.ArrowUpward,
+                            imageVector = Icons.ArrowUpward,
                             contentDescription = null,
                             tint = KitsugiColors.TextSecondary,
                             modifier = Modifier
@@ -970,7 +959,7 @@ private fun BrowserHistoryCompactRow(
                 QuickActionPill(
                     icon = {
                         Icon(
-                            imageVector = Icons.Rounded.ContentCopy,
+                            imageVector = Icons.ContentCopy,
                             contentDescription = null,
                             tint = KitsugiColors.TextSecondary,
                             modifier = Modifier.size(12.dp)
@@ -983,7 +972,7 @@ private fun BrowserHistoryCompactRow(
                 QuickActionPill(
                     icon = {
                         Icon(
-                            imageVector = Icons.Rounded.DeleteOutline,
+                            imageVector = Icons.DeleteOutline,
                             contentDescription = null,
                             tint = KitsugiColors.AccentRed,
                             modifier = Modifier.size(13.dp)
@@ -1112,7 +1101,7 @@ private fun CompactHistoryChip(
     ) {
         if (item.isPinned) {
             Icon(
-                imageVector = Icons.Rounded.Bookmark,
+                imageVector = Icons.Bookmark,
                 contentDescription = null,
                 tint = accentColor,
                 modifier = Modifier.size(11.dp)
@@ -1135,7 +1124,7 @@ private fun CompactHistoryChip(
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = Icons.Rounded.Close,
+                imageVector = Icons.Close,
                 contentDescription = stringResource(R.string.kaldir),
                 tint = KitsugiColors.TextMuted,
                 modifier = Modifier.size(11.dp)
@@ -1230,7 +1219,7 @@ private fun SearchHistoryBrowserSheet(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.History,
+                        imageVector = Icons.History,
                         contentDescription = null,
                         tint = accentColor,
                         modifier = Modifier.size(20.dp)
@@ -1262,7 +1251,7 @@ private fun SearchHistoryBrowserSheet(
                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.DeleteOutline,
+                            imageVector = Icons.DeleteOutline,
                             contentDescription = null,
                             tint = KitsugiColors.AccentRed,
                             modifier = Modifier.size(16.dp)
@@ -1294,7 +1283,7 @@ private fun SearchHistoryBrowserSheet(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.Search,
+                    imageVector = Icons.Search,
                     contentDescription = null,
                     tint = if (filterQuery.isNotBlank()) accentColor else KitsugiColors.TextMuted,
                     modifier = Modifier.size(17.dp)
@@ -1332,13 +1321,14 @@ private fun SearchHistoryBrowserSheet(
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.Close,
+                            imageVector = Icons.Close,
                             contentDescription = stringResource(R.string.temizle),
                             tint = KitsugiColors.TextMuted,
                             modifier = Modifier.size(14.dp)
                         )
                     }
                 }
+
             }
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -1424,7 +1414,7 @@ private fun SearchHistoryBrowserSheet(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.Restore,
+                        imageVector = Icons.Restore,
                         contentDescription = null,
                         tint = accentColor,
                         modifier = Modifier.size(14.dp)
@@ -1464,7 +1454,7 @@ private fun SearchHistoryBrowserSheet(
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.SearchOff,
+                            imageVector = Icons.SearchOff,
                             contentDescription = null,
                             tint = KitsugiColors.TextMuted,
                             modifier = Modifier.size(28.dp)
@@ -1657,7 +1647,7 @@ private fun ClearSearchHistoryConfirmDialog(
                     ) {
                         if (keepPinned) {
                             Icon(
-                                imageVector = Icons.Rounded.Check,
+                                imageVector = Icons.Check,
                                 contentDescription = null,
                                 tint = KitsugiColors.OnAccent,
                                 modifier = Modifier.size(13.dp)

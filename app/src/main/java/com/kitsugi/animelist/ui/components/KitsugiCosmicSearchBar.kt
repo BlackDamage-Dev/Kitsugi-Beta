@@ -27,10 +27,7 @@ import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.clearText
 import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import kotlinx.coroutines.flow.collectLatest
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material.icons.rounded.Tune
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -152,7 +149,7 @@ fun KitsugiCosmicSearchBar(
                 leadingContent()
             } else {
                 Icon(
-                    imageVector = Icons.Rounded.Search,
+                    imageVector = Icons.Search,
                     contentDescription = stringResource(R.string.ara),
                     tint = if (isFocused) accentColor else KitsugiColors.TextMuted,
                     modifier = Modifier.size(20.dp)
@@ -209,7 +206,7 @@ fun KitsugiCosmicSearchBar(
                     modifier = Modifier.size(34.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.Search,
+                        imageVector = Icons.Search,
                         contentDescription = stringResource(R.string.ara),
                         tint = accentColor,
                         modifier = Modifier.size(18.dp)
@@ -233,7 +230,7 @@ fun KitsugiCosmicSearchBar(
                     modifier = Modifier.size(34.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Close,
+                        imageVector = Icons.Close,
                         contentDescription = stringResource(R.string.temizle),
                         tint = KitsugiColors.TextMuted,
                         modifier = Modifier.size(18.dp)
@@ -280,7 +277,7 @@ fun SimpleFilterIconButton(
         contentAlignment = Alignment.Center
     ) {
         Icon(
-            imageVector = Icons.Rounded.Tune,
+            imageVector = Icons.Tune,
             contentDescription = stringResource(R.string.filtreler),
             tint = if (isActive) accentColor else KitsugiColors.TextMuted,
             modifier = Modifier.size(18.dp)

@@ -4,6 +4,7 @@ import android.view.KeyEvent
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
+import com.kitsugi.animelist.ui.components.KitsugiEmojiLabel
 import com.kitsugi.animelist.ui.theme.gradient.background
 import com.kitsugi.animelist.ui.theme.gradient.border
 import androidx.compose.foundation.focusGroup
@@ -15,13 +16,11 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Bookmarks
-import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.Movie
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.ui.platform.LocalContext
 import com.kitsugi.animelist.ui.components.KitsugiUiverseGlowButton
 import com.kitsugi.animelist.ui.theme.gradient.Icon
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import com.kitsugi.animelist.ui.theme.gradient.Text
 import androidx.compose.ui.res.stringResource
@@ -431,7 +430,7 @@ fun TvDetailScreen(
                                     BadgeText(text = displayResult.year.toString())
                                 }
                                 if (displayResult.score != null && displayResult.score > 0) {
-                                    BadgeText(text = "⭐ %.1f".format(displayResult.score.toDouble()))
+                                    KitsugiEmojiLabel(label = "%.1f".format(displayResult.score.toDouble()), icon = Icons.StarSolid, iconSize = 11.dp, color = LocalContentColor.current, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
                                 }
                                 if (displayResult.isAdult) {
                                     BadgeText(text = "18+", color = Color(0xFFD32F2F))
@@ -497,7 +496,7 @@ fun TvDetailScreen(
                                     },
                                     focusRequester = playButtonFocusRequester,
                                     text = if (isMovie) stringResource(R.string.tv_detail_play) else stringResource(R.string.tv_detail_select_episode),
-                                    icon = Icons.Rounded.PlayArrow,
+                                    icon = Icons.PlayArrow,
                                     backgroundColor = accentColor,
                                     textColor = Color.White,
                                     modifier = Modifier.focusProperties {
@@ -519,7 +518,7 @@ fun TvDetailScreen(
                                     onClick = onToggleLibrary,
                                     focusRequester = libraryButtonFocusRequester,
                                     text = if (existingEntry != null) stringResource(R.string.tv_detail_remove_library) else stringResource(R.string.tv_detail_add_library),
-                                    icon = Icons.Rounded.Bookmarks,
+                                    icon = Icons.Bookmarks,
                                     backgroundColor = KitsugiColors.SurfaceStrong,
                                     textColor = KitsugiColors.TextPrimary,
                                     modifier = Modifier.focusProperties {
@@ -539,7 +538,7 @@ fun TvDetailScreen(
                                     onClick = { loadAndShowTrailer() },
                                     focusRequester = trailerButtonFocusRequester,
                                     text = stringResource(R.string.tv_detail_trailer),
-                                    icon = Icons.Rounded.Movie,
+                                    icon = Icons.Movie,
                                     backgroundColor = KitsugiColors.SurfaceStrong,
                                     textColor = KitsugiColors.TextPrimary,
                                     modifier = Modifier.focusProperties {
@@ -1258,11 +1257,22 @@ private fun TvEpisodeCard(
                             .background(Color(0xFFFFB300), RoundedCornerShape(4.dp))
                             .padding(horizontal = 6.dp, vertical = 2.dp)
                     ) {
-                        Text(
-                            text = "⭐ %.1f".format(rating),
-                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                            color = Color.Black
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(3.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.StarSolid,
+                                contentDescription = null,
+                                tint = Color.Black,
+                                modifier = Modifier.size(9.dp)
+                            )
+                            Text(
+                                text = "%.1f".format(rating),
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                color = Color.Black
+                            )
+                        }
                     }
                 }
             }
@@ -1548,10 +1558,13 @@ private fun TvStatsSection(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text(
-                            text = "${s.score}★",
+                        KitsugiEmojiLabel(
+                            label = "${s.score}",
+                            icon = Icons.StarSolid,
+                            iconSize = 9.dp,
                             color = KitsugiColors.TextSecondary,
-                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
                             modifier = Modifier.width(30.dp)
                         )
                         Box(
@@ -1729,8 +1742,10 @@ private fun TvReviewCard(review: KitsugiReview) {
                 )
             }
             if (review.helpfulCount != null && review.helpfulCount > 0) {
-                Text(
-                    text = "👍 ${review.helpfulCount}",
+                KitsugiEmojiLabel(
+                    label = "${review.helpfulCount}",
+                    icon = Icons.ThumbsUp,
+                    iconSize = 10.dp,
                     color = KitsugiColors.TextMuted,
                     style = MaterialTheme.typography.labelSmall
                 )
@@ -1779,7 +1794,7 @@ private fun TvThemeCard(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.PlayArrow,
+                    imageVector = Icons.PlayArrow,
                     contentDescription = null,
                     tint = accentColor,
                     modifier = Modifier.size(20.dp)

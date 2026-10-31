@@ -285,6 +285,7 @@ private fun ExploreTabPage(ctx: TabPagesContext) {
         onAddSelectionToList = ctx.onAddApiSelectionToList,
         onSeeAllSection = ctx.onSeeAllSection,
         onNavigateToWatchHistory = ctx.onNavigateToWatchHistory,
+        onNavigateToDownloads = { ctx.navState.navigateToDetail(DetailScreen.Downloads) },
         onOpenApiDetail = ctx.onOpenApiDetail,
         onOpenMangaReader = ctx.onOpenMangaReader,
         onEditEntry = ctx.onEditEntry,
@@ -361,6 +362,8 @@ private fun SearchTabPage(ctx: TabPagesContext) {
         hideScores = ctx.appSettings.hideScores,
         bottomBarScrollState = ctx.bottomBarScrollState,
         onScrollReset = ctx.onScrollReset,
+        onOpenWatchHistory = { ctx.navState.navigateToDetail(DetailScreen.WatchHistory) },
+        onOpenDownloads = { ctx.navState.navigateToDetail(DetailScreen.Downloads) },
         onOpenSourceSearch = { engine, scope, shelfResults ->
             // "Tümünü Gör": kaynağın filtreleri + sonuçları ayrı sayfada açılır
             ctx.navState.navigateToDetail(
@@ -425,9 +428,7 @@ private fun SearchTabPage(ctx: TabPagesContext) {
                     imageUrl = imageUrl
                 )
             )
-        },
-        onOpenWatchHistory = { ctx.navState.navigateToDetail(com.kitsugi.animelist.DetailScreen.WatchHistory) },
-        onOpenDownloads = { ctx.navState.navigateToDetail(com.kitsugi.animelist.DetailScreen.Downloads) }
+        }
     )
 }
 

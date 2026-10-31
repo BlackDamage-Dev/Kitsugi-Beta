@@ -19,9 +19,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.PlayArrow
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -235,7 +233,7 @@ fun KitsugiStreamSelectorBottomSheet(
                             )
                         ) {
                             Icon(
-                                imageVector = Icons.Rounded.Close,
+                                imageVector = Icons.Close,
                                 contentDescription = stringResource(R.string.kapat),
                                 tint = KitsugiColors.TextPrimary
                             )
@@ -433,7 +431,7 @@ fun KitsugiStreamSelectorBottomSheet(
                         )
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.Close,
+                            imageVector = Icons.Close,
                             contentDescription = stringResource(R.string.kapat),
                             tint = KitsugiColors.TextPrimary
                         )
@@ -504,7 +502,7 @@ fun KitsugiStreamSelectorBottomSheet(
                                 contentColor = KitsugiColors.TextPrimary
                             )
                         ) {
-                            Icon(Icons.Rounded.Close, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Icon(Icons.Close, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(Modifier.width(6.dp))
                             Text(stringResource(R.string.iptal), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                         }
@@ -724,7 +722,7 @@ private fun StreamItemRow(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.PlayArrow,
+                    imageVector = Icons.PlayArrow,
                     contentDescription = stringResource(R.string.oynat),
                     tint = accentColor,
                     modifier = Modifier.size(20.dp)

@@ -12,8 +12,7 @@ import android.content.res.Configuration
 import com.kitsugi.animelist.ui.theme.gradient.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.*
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import com.kitsugi.animelist.ui.components.KitsugiPullToRefreshIndicator
@@ -36,6 +35,8 @@ import com.kitsugi.animelist.ui.components.KitsugiImageGalleryDialog
 import com.kitsugi.animelist.ui.components.KitsugiKitsuLoginDialog
 import com.kitsugi.animelist.ui.components.KitsugiShikimoriLoginDialog
 import com.kitsugi.animelist.ui.components.KitsugiBangumiLoginDialog
+import com.kitsugi.animelist.ui.components.KitsugiTopAction
+import com.kitsugi.animelist.ui.components.KitsugiTopActionRow
 import com.kitsugi.animelist.ui.theme.KitsugiColors
 import com.kitsugi.animelist.ui.theme.LocalKitsugiAccent
 import kotlinx.coroutines.launch
@@ -163,69 +164,31 @@ fun KitsugiProfileScreen(
                 ProfileSourceSelectorPill(
                     selectedPlatform = currentPlatform,
                     isConnected = isCurrentConnected,
-                    onClick = { showSourcePickerSheet = true }
+                    onClick = { showSourcePickerSheet = true },
+                    modifier = Modifier.weight(1f, fill = false)
                 )
 
                 Spacer(modifier = Modifier.weight(1f))
 
-                if (isNotificationsVisible && onOpenNotifications != null) {
-                    // 🔔 Bildirim butonu (Keşfet ile aynı kaynak koşulu: bir hesap bağlıysa)
-                    IconButton(
-                        onClick = onOpenNotifications,
-                        colors = IconButtonDefaults.iconButtonColors(containerColor = KitsugiColors.Surface),
-                        modifier = Modifier.size(40.dp).clip(RoundedCornerShape(16.dp))
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Notifications,
-                            contentDescription = stringResource(R.string.notif_title),
-                            tint = accentColor
-                        )
+                // 📊 İstatistik + 🔔 Bildirim → ortak üst çubuk aksiyon satırı.
+                // Kanonik sıra: istatistik solda, bildirim her zaman en sağda.
+                KitsugiTopActionRow(
+                    actions = buildList {
+                        if (onOpenWatchHistory != null) add(KitsugiTopAction.HISTORY)
+                        if (onOpenDownloads != null) add(KitsugiTopAction.DOWNLOADS)
+                        if (onOpenStatsClick != null) add(KitsugiTopAction.STATS)
+                        if (isNotificationsVisible && onOpenNotifications != null) add(KitsugiTopAction.NOTIFICATIONS)
+                    },
+                    onActionClick = { action ->
+                        when (action) {
+                            KitsugiTopAction.HISTORY -> onOpenWatchHistory?.invoke()
+                            KitsugiTopAction.DOWNLOADS -> onOpenDownloads?.invoke()
+                            KitsugiTopAction.STATS -> onOpenStatsClick?.invoke()
+                            KitsugiTopAction.NOTIFICATIONS -> onOpenNotifications?.invoke()
+                            else -> Unit
+                        }
                     }
-                }
-
-                // 🕐 İzleme Geçmişi butonu
-                if (onOpenWatchHistory != null) {
-                    IconButton(
-                        onClick = onOpenWatchHistory,
-                        colors = IconButtonDefaults.iconButtonColors(containerColor = KitsugiColors.Surface),
-                        modifier = Modifier.size(40.dp).clip(RoundedCornerShape(16.dp))
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.History,
-                            contentDescription = stringResource(R.string.settings_watch_history),
-                            tint = accentColor
-                        )
-                    }
-                }
-
-                // ⬇️ İndirilenler butonu
-                if (onOpenDownloads != null) {
-                    IconButton(
-                        onClick = onOpenDownloads,
-                        colors = IconButtonDefaults.iconButtonColors(containerColor = KitsugiColors.Surface),
-                        modifier = Modifier.size(40.dp).clip(RoundedCornerShape(16.dp))
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Download,
-                            contentDescription = stringResource(R.string.settings_downloads),
-                            tint = accentColor
-                        )
-                    }
-                }
-
-                if (onOpenStatsClick != null) {
-                    IconButton(
-                        onClick = onOpenStatsClick,
-                        colors = IconButtonDefaults.iconButtonColors(containerColor = KitsugiColors.Surface),
-                        modifier = Modifier.size(40.dp).clip(RoundedCornerShape(16.dp))
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.BarChart,
-                            contentDescription = stringResource(R.string.kutuphane_istatistikleri),
-                            tint = accentColor
-                        )
-                    }
-                }
+                )
             }
 
             // ── Main content with pull-to-refresh ─────────────────────────

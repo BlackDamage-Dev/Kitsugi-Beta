@@ -34,17 +34,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.CheckCircle
-import androidx.compose.material.icons.rounded.ChevronLeft
-import androidx.compose.material.icons.rounded.ChevronRight
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.Delete
-import androidx.compose.material.icons.rounded.Download
-import androidx.compose.material.icons.rounded.Folder
-import androidx.compose.material.icons.rounded.Image
-import androidx.compose.material.icons.rounded.Info
-import androidx.compose.material.icons.rounded.Share
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -53,6 +43,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
@@ -771,7 +762,7 @@ private fun GalleryLandscapeLayout(
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = Icons.Rounded.ChevronLeft,
+                                imageVector = Icons.ChevronLeft,
                                 contentDescription = stringResource(R.string.onceki),
                                 tint = KitsugiColors.TextPrimary,
                                 modifier = Modifier.size(24.dp)
@@ -795,7 +786,7 @@ private fun GalleryLandscapeLayout(
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = Icons.Rounded.ChevronRight,
+                                imageVector = Icons.ChevronRight,
                                 contentDescription = stringResource(R.string.gallery_next_image),
                                 tint = KitsugiColors.TextPrimary,
                                 modifier = Modifier.size(24.dp)
@@ -874,7 +865,7 @@ private fun GalleryLandscapeLayout(
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = if (isAlreadyDownloaded) Icons.Rounded.CheckCircle else Icons.Rounded.Download,
+                                imageVector = if (isAlreadyDownloaded) Icons.CheckCircle else Icons.Download,
                                 contentDescription = stringResource(if (isAlreadyDownloaded) R.string.gallery_downloaded_status else R.string.gallery_download_action),
                                 tint = downloadBtnColor,
                                 modifier = Modifier.size(18.dp)
@@ -916,7 +907,7 @@ private fun GalleryLandscapeLayout(
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.Close,
+                            imageVector = Icons.Close,
                             contentDescription = stringResource(R.string.kapat),
                             tint = KitsugiColors.TextSecondary,
                             modifier = Modifier.size(18.dp)
@@ -943,7 +934,7 @@ private fun GalleryLandscapeLayout(
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = Icons.Rounded.Image,
+                                imageVector = Icons.Image,
                                 contentDescription = null,
                                 tint = accentColor,
                                 modifier = Modifier.size(14.dp)
@@ -1063,20 +1054,9 @@ private fun GalleryLandscapeLayout(
                             }
 
                             // Category
-                            val catEmoji = when (currentItem.category) {
-                                GalleryCategory.POSTER    -> "📋"
-                                GalleryCategory.BACKDROP  -> "🖼️"
-                                GalleryCategory.LOGO      -> "🎨"
-                                GalleryCategory.CLEARART  -> "✨"
-                                GalleryCategory.CHARACTER -> "🎭"
-                                GalleryCategory.PERSON    -> "👤"
-                                GalleryCategory.THUMBNAIL -> "🌐"
-                                GalleryCategory.BANNER    -> "🎫"
-                                GalleryCategory.SQUARE    -> "🟩"
-                                GalleryCategory.OTHER     -> "📁"
-                            }
+                            val catIcon = galleryCategoryIcon(currentItem.category)
                             item {
-                                DetailRow(label = stringResource(R.string.gallery_field_type), value = "$catEmoji ${currentItem.category.localizedLabel()}")
+                                DetailRow(label = stringResource(R.string.gallery_field_type), value = currentItem.category.localizedLabel(), icon = catIcon)
                             }
 
                             // Language
@@ -1104,7 +1084,7 @@ private fun GalleryLandscapeLayout(
                             val resStr = formatResolution(currentItem.width, currentItem.height)
                             if (resStr != null) {
                                 item {
-                                    DetailRow(label = stringResource(R.string.gallery_field_size), value = "📐 $resStr")
+                                    DetailRow(label = stringResource(R.string.gallery_field_size), value = resStr)
                                 }
                             }
 
@@ -1369,18 +1349,7 @@ private fun GalleryPortraitLayout(
                             }
 
                             // 2. Kategori Rozeti
-                            val catEmoji = when (item.category) {
-                                GalleryCategory.POSTER    -> "📋"
-                                GalleryCategory.BACKDROP  -> "🖼️"
-                                GalleryCategory.LOGO      -> "🎨"
-                                GalleryCategory.CLEARART  -> "✨"
-                                GalleryCategory.CHARACTER -> "🎭"
-                                GalleryCategory.PERSON    -> "👤"
-                                GalleryCategory.THUMBNAIL -> "🌐"
-                                GalleryCategory.BANNER    -> "🎫"
-                                GalleryCategory.SQUARE    -> "🟩"
-                                GalleryCategory.OTHER     -> "📁"
-                            }
+                            val catIcon = galleryCategoryIcon(item.category)
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(6.dp))
@@ -1388,11 +1357,13 @@ private fun GalleryPortraitLayout(
                                     .border(1.dp, KitsugiColors.Border, RoundedCornerShape(6.dp))
                                     .padding(horizontal = 7.dp, vertical = 3.dp)
                             ) {
-                                Text(
-                                    text = "$catEmoji ${item.category.localizedLabel()}",
+                                KitsugiEmojiLabel(
+                                    label = item.category.localizedLabel(),
                                     color = KitsugiColors.TextPrimary,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.SemiBold
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    iconSize = 11.dp,
+                                    icon = catIcon
                                 )
                             }
 
@@ -1459,7 +1430,7 @@ private fun GalleryPortraitLayout(
                                         .padding(horizontal = 7.dp, vertical = 3.dp)
                                 ) {
                                     Text(
-                                        text = "📐 $resStr",
+                                        text = resStr,
                                         color = KitsugiColors.TextSecondary,
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Medium
@@ -1631,18 +1602,7 @@ private fun GalleryDetailsSheet(
         else        -> accentColor
     }
 
-    val catEmoji = when (item.category) {
-        GalleryCategory.POSTER    -> "📋"
-        GalleryCategory.BACKDROP  -> "🖼️"
-        GalleryCategory.LOGO      -> "🎨"
-        GalleryCategory.CLEARART  -> "✨"
-        GalleryCategory.CHARACTER -> "🎭"
-        GalleryCategory.PERSON    -> "👤"
-        GalleryCategory.THUMBNAIL -> "🌐"
-        GalleryCategory.BANNER    -> "🎫"
-        GalleryCategory.SQUARE    -> "🟩"
-        GalleryCategory.OTHER     -> "📁"
-    }
+    val catIcon = galleryCategoryIcon(item.category)
 
     val langInfo = formatLanguage(item.language)
     val resStr = formatResolution(item.width, item.height)
@@ -1714,7 +1674,7 @@ private fun GalleryDetailsSheet(
             })
 
             // Tür
-            DetailRow(label = stringResource(R.string.gallery_field_type), value = "$catEmoji ${item.category.localizedLabel()}")
+            DetailRow(label = stringResource(R.string.gallery_field_type), value = item.category.localizedLabel(), icon = catIcon)
 
             // Sezon
             val seasonLabel = formatGallerySeason(item.season)
@@ -1735,7 +1695,7 @@ private fun GalleryDetailsSheet(
 
             // Boyut (API/kaynak sağladıysa)
             if (resStr != null) {
-                DetailRow(label = stringResource(R.string.gallery_field_size), value = "📐 $resStr")
+                DetailRow(label = stringResource(R.string.gallery_field_size), value = resStr)
             }
 
             // API'ye özgü detay satırları (örn. Fanart.tv: Ad, IMDb ID)
@@ -1794,7 +1754,8 @@ private fun GalleryDetailsSheet(
 private fun DetailRow(
     label: String,
     value: String?,
-    badge: (@Composable () -> Unit)? = null
+    badge: (@Composable () -> Unit)? = null,
+    icon: ImageVector? = null
 ) {
     Column(
         modifier = Modifier
@@ -1812,11 +1773,13 @@ private fun DetailRow(
         if (badge != null) {
             badge()
         } else if (value != null) {
-            Text(
-                text = value,
+            KitsugiEmojiLabel(
+                label = value,
                 color = KitsugiColors.TextPrimary,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.Medium,
+                iconSize = 12.dp,
+                icon = icon
             )
         }
         Spacer(modifier = Modifier.height(4.dp))
@@ -2181,7 +2144,7 @@ private fun KitsugiGalleryHeader(
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.Image,
+                            imageVector = Icons.Image,
                             contentDescription = null,
                             tint = accentColor,
                             modifier = Modifier.size(18.dp)
@@ -2243,7 +2206,7 @@ private fun KitsugiGalleryHeader(
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = Icons.Rounded.Info,
+                                imageVector = Icons.Info,
                                 contentDescription = stringResource(R.string.gallery_details_accessibility),
                                 tint = accentColor,
                                 modifier = Modifier.size(20.dp)
@@ -2272,7 +2235,7 @@ private fun KitsugiGalleryHeader(
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = if (isAlreadyDownloaded) Icons.Rounded.CheckCircle else Icons.Rounded.Download,
+                                imageVector = if (isAlreadyDownloaded) Icons.CheckCircle else Icons.Download,
                                 contentDescription = stringResource(if (isAlreadyDownloaded) R.string.gallery_downloaded_status else R.string.gallery_download_action),
                                 tint = downloadBtnColor,
                                 modifier = Modifier.size(20.dp)
@@ -2317,7 +2280,7 @@ private fun KitsugiGalleryHeader(
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.Close,
+                            imageVector = Icons.Close,
                             contentDescription = stringResource(R.string.kapat),
                             tint = KitsugiColors.TextSecondary,
                             modifier = Modifier.size(20.dp)
@@ -2403,7 +2366,7 @@ internal fun KitsugiGalleryDeleteButton(
         contentAlignment = Alignment.Center
     ) {
         Icon(
-            imageVector = Icons.Rounded.Delete,
+            imageVector = Icons.Delete,
             contentDescription = contentDescription.ifBlank { stringResource(R.string.gallery_delete_downloaded_accessibility) },
             tint = tint,
             modifier = Modifier.size(iconSize)

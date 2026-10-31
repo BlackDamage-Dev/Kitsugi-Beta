@@ -15,21 +15,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.AutoStories
-import androidx.compose.material.icons.rounded.BugReport
-import androidx.compose.material.icons.rounded.CleaningServices
-import androidx.compose.material.icons.rounded.CloudDownload
-import androidx.compose.material.icons.rounded.DeleteSweep
-import androidx.compose.material.icons.rounded.Extension
-import androidx.compose.material.icons.rounded.Image
-import androidx.compose.material.icons.rounded.MenuBook
-import androidx.compose.material.icons.rounded.Movie
-import androidx.compose.material.icons.rounded.PhotoLibrary
-import androidx.compose.material.icons.rounded.Public
-import androidx.compose.material.icons.rounded.Storage
-import androidx.compose.material.icons.rounded.Subtitles
-import androidx.compose.material.icons.rounded.VideoLibrary
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -287,7 +273,7 @@ fun StorageSettingsContent() {
                     contentAlignment = Alignment.Center
                 ) {
                     androidx.compose.material3.Icon(
-                        imageVector = Icons.Rounded.CleaningServices,
+                        imageVector = Icons.CleaningServices,
                         contentDescription = null,
                         tint = accentColor
                     )
@@ -633,7 +619,7 @@ private fun DeleteAllDownloadsRow(
             contentAlignment = Alignment.Center
         ) {
             androidx.compose.material3.Icon(
-                imageVector = Icons.Rounded.DeleteSweep,
+                imageVector = Icons.DeleteSweep,
                 contentDescription = null,
                 tint = accentColor,
                 modifier = Modifier.size(20.dp)
@@ -669,9 +655,9 @@ private fun DeleteAllDownloadsRow(
 }
 
 private fun downloadIconFor(kind: DownloadStorage.Kind): ImageVector = when (kind) {
-    DownloadStorage.Kind.VIDEOS -> Icons.Rounded.VideoLibrary
-    DownloadStorage.Kind.IMAGES -> Icons.Rounded.PhotoLibrary
-    DownloadStorage.Kind.SUBTITLES -> Icons.Rounded.Subtitles
+    DownloadStorage.Kind.VIDEOS -> Icons.VideoLibrary
+    DownloadStorage.Kind.IMAGES -> Icons.PhotoLibrary
+    DownloadStorage.Kind.SUBTITLES -> Icons.Subtitles
 }
 
 private fun downloadConfirmMessageRes(kind: DownloadStorage.Kind): Int = when (kind) {
@@ -681,16 +667,16 @@ private fun downloadConfirmMessageRes(kind: DownloadStorage.Kind): Int = when (k
 }
 
 private fun iconFor(bucket: StorageJanitor.Bucket): ImageVector = when (bucket) {
-    StorageJanitor.Bucket.IMAGE_CACHE -> Icons.Rounded.Image
-    StorageJanitor.Bucket.P2P_CACHE -> Icons.Rounded.CloudDownload
-    StorageJanitor.Bucket.MANGA_CACHE -> Icons.Rounded.MenuBook
-    StorageJanitor.Bucket.PREVIEWS -> Icons.Rounded.Movie
-    StorageJanitor.Bucket.SUBTITLE_CACHE -> Icons.Rounded.Movie
-    StorageJanitor.Bucket.DATABASE -> Icons.Rounded.Storage
-    StorageJanitor.Bucket.WIKI_CACHE -> Icons.Rounded.AutoStories
-    StorageJanitor.Bucket.DIAGNOSTICS -> Icons.Rounded.BugReport
-    StorageJanitor.Bucket.WEBVIEW_DATA -> Icons.Rounded.Public
-    StorageJanitor.Bucket.EXTENSIONS -> Icons.Rounded.Extension
+    StorageJanitor.Bucket.IMAGE_CACHE -> Icons.Image
+    StorageJanitor.Bucket.P2P_CACHE -> Icons.CloudDownload
+    StorageJanitor.Bucket.MANGA_CACHE -> Icons.MenuBook
+    StorageJanitor.Bucket.PREVIEWS -> Icons.Movie
+    StorageJanitor.Bucket.SUBTITLE_CACHE -> Icons.Movie
+    StorageJanitor.Bucket.DATABASE -> Icons.Storage
+    StorageJanitor.Bucket.WIKI_CACHE -> Icons.AutoStories
+    StorageJanitor.Bucket.DIAGNOSTICS -> Icons.BugReport
+    StorageJanitor.Bucket.WEBVIEW_DATA -> Icons.Public
+    StorageJanitor.Bucket.EXTENSIONS -> Icons.Extension
 }
 
 private fun iconColorFor(bucket: StorageJanitor.Bucket): Color = when (bucket) {

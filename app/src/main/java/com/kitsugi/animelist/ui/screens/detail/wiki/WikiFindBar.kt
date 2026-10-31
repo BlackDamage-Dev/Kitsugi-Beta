@@ -5,10 +5,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.KeyboardArrowDown
-import androidx.compose.material.icons.rounded.KeyboardArrowUp
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -86,13 +83,13 @@ internal fun WikiFindBar(session: WikiOriginalSession) {
                 session.findActiveMatch, session.findMatches), modifier = Modifier.weight(1f),
                 style = MaterialTheme.typography.labelSmall, color = KitsugiColors.TextSecondary)
             IconButton(onClick = { session.view?.findNext(false) }, enabled = session.findMatches > 0) {
-                Icon(Icons.Rounded.KeyboardArrowUp, stringResource(R.string.wiki_find_previous), tint = if (session.findMatches > 0) KitsugiColors.TextSecondary else KitsugiColors.TextMuted)
+                Icon(Icons.KeyboardArrowUp, stringResource(R.string.wiki_find_previous), tint = if (session.findMatches > 0) KitsugiColors.TextSecondary else KitsugiColors.TextMuted)
             }
             IconButton(onClick = { session.view?.findNext(true) }, enabled = session.findMatches > 0) {
-                Icon(Icons.Rounded.KeyboardArrowDown, stringResource(R.string.wiki_find_next), tint = if (session.findMatches > 0) KitsugiColors.TextSecondary else KitsugiColors.TextMuted)
+                Icon(Icons.KeyboardArrowDown, stringResource(R.string.wiki_find_next), tint = if (session.findMatches > 0) KitsugiColors.TextSecondary else KitsugiColors.TextMuted)
             }
             IconButton(onClick = { session.closeFind(); keyboard?.hide() }) {
-                Icon(Icons.Rounded.Close, stringResource(R.string.wiki_find_close), tint = KitsugiColors.TextPrimary)
+                Icon(Icons.Close, stringResource(R.string.wiki_find_close), tint = KitsugiColors.TextPrimary)
             }
         }
     }

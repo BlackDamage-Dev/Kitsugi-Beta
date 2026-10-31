@@ -4951,6 +4951,8 @@
 	<!-- Explore "See all" page: whether filters run on the source API or on the device -->
 	<string name="filtre_kaynak_sunucu_bilgi">☁️ Genre and sort are applied on %1$s</string>
 	<string name="filtre_kaynak_yerel_bilgi">📱 Applied on device: %1$s</string>
+	<string name="filter_scope_server">applied on server</string>
+	<string name="filter_scope_device">applied on device</string>
 	<string name="sonraki_bolum">Next Episode</string>
 	<string name="vazgec">Discard</string>
 	<string name="kisisel_dusuncelerinizi_yazin">Write your personal thoughts...</string>
@@ -18230,4 +18232,8 @@
     <string name="downloads_delete_selected_videos_message">%1$d selected episode(s) will be removed from the device together with their video and companion subtitle files. This cannot be undone.</string>
     <string name="downloads_delete_selected_subtitles_title">Delete selected subtitles?</string>
     <string name="downloads_delete_selected_subtitles_message">%1$d selected subtitle file(s) will be permanently deleted.</string>
+    <!-- Common top action bar actions (see ui/components/KitsugiTopActionBar.kt) -->
+    <string name="top_action_random">Random</string>
+    <string name="favori_label">Favorite</string>
+    <string name="eklendi">Added</string>
 </resources>

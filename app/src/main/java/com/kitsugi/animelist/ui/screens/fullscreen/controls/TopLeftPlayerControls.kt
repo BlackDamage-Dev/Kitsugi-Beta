@@ -4,8 +4,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.MaterialTheme
 import com.kitsugi.animelist.ui.theme.gradient.Text
 import androidx.compose.runtime.Composable
@@ -32,7 +31,7 @@ fun TopLeftPlayerControls(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         ControlsButton(
-            icon = Icons.AutoMirrored.Default.ArrowBack,
+            icon = Icons.ArrowBack,
             onClick = onBackClick,
         )
         Column(

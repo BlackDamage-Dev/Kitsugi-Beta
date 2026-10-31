@@ -7,11 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Extension
-import androidx.compose.material.icons.rounded.History
-import androidx.compose.material.icons.rounded.Notifications
-import androidx.compose.material.icons.rounded.Tune
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -52,7 +48,7 @@ fun SearchTopActionBar(
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         SearchTopActionButton(
-            icon = Icons.Rounded.Tune,
+            icon = Icons.Tune,
             contentDescription = stringResource(R.string.filtreler),
             onClick = onFilterClick,
             isActive = isFilterActive,
@@ -60,7 +56,7 @@ fun SearchTopActionBar(
         )
         if (showNotifications) {
             SearchTopActionButton(
-                icon = Icons.Rounded.Notifications,
+                icon = Icons.Notifications,
                 contentDescription = stringResource(R.string.notif_title),
                 onClick = onOpenNotifications,
                 size = buttonSize
@@ -68,14 +64,14 @@ fun SearchTopActionBar(
         }
         if (onOpenWatchHistory != null) {
             SearchTopActionButton(
-                icon = Icons.Rounded.History,
+                icon = Icons.History,
                 contentDescription = stringResource(R.string.stream_action_history),
                 onClick = onOpenWatchHistory,
                 size = buttonSize
             )
         }
         SearchTopActionButton(
-            icon = Icons.Default.Extension,
+            icon = Icons.Extension,
             contentDescription = stringResource(R.string.eklenti_portali),
             onClick = onOpenPluginPicker,
             size = buttonSize

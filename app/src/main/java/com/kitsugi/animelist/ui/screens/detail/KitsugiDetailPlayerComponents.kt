@@ -28,12 +28,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.FastForward
-import androidx.compose.material.icons.rounded.FastRewind
-import androidx.compose.material.icons.rounded.Fullscreen
-import androidx.compose.material.icons.rounded.Pause
-import androidx.compose.material.icons.rounded.PlayArrow
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.components.KitsugiPlasmaLoader
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.ButtonDefaults
@@ -721,8 +716,8 @@ fun KitsugiPlayerGestureWrapper(
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     Icon(
-                        imageVector = if (shortcut?.forward == true) Icons.Rounded.FastForward
-                        else Icons.Rounded.FastRewind,
+                        imageVector = if (shortcut?.forward == true) Icons.FastForward
+                        else Icons.FastRewind,
                         contentDescription = null,
                         tint = Color.White,
                         modifier = Modifier.size(18.dp)
@@ -769,7 +764,7 @@ fun KitsugiPlayerGestureWrapper(
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                            imageVector = if (isPlaying) Icons.Pause else Icons.PlayArrow,
                             contentDescription = stringResource(
                                 if (isPlaying) R.string.inline_player_pause else R.string.inline_player_play
                             ),
@@ -832,7 +827,7 @@ fun KitsugiPlayerGestureWrapper(
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                            imageVector = if (isPlaying) Icons.Pause else Icons.PlayArrow,
                             contentDescription = stringResource(
                                 if (isPlaying) R.string.inline_player_pause else R.string.inline_player_play
                             ),
@@ -863,7 +858,7 @@ fun KitsugiPlayerGestureWrapper(
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = Icons.Rounded.Fullscreen,
+                                imageVector = Icons.Fullscreen,
                                 contentDescription = stringResource(R.string.inline_player_fullscreen),
                                 tint = Color.White,
                                 modifier = Modifier.size(22.dp)

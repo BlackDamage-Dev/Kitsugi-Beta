@@ -11,8 +11,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Star
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import com.kitsugi.animelist.ui.theme.gradient.Icon
@@ -70,7 +69,7 @@ fun ImdbRatingSourceLabel(
         horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         Icon(
-            imageVector = Icons.Default.Star,
+            imageVector = Icons.Star,
             contentDescription = null,
             tint = textColor,
             modifier = Modifier.size(10.dp)

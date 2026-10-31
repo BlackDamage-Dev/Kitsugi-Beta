@@ -17,10 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material.icons.rounded.Tune
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -91,7 +88,7 @@ fun SearchBarSection(
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Icon(
-                imageVector = Icons.Rounded.Search,
+                imageVector = Icons.Search,
                 contentDescription = stringResource(R.string.ara),
                 tint = KitsugiColors.TextMuted,
                 modifier = Modifier.size(20.dp)
@@ -140,7 +137,7 @@ fun SearchBarSection(
                     modifier = Modifier.size(36.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.Close,
+                        imageVector = Icons.Close,
                         contentDescription = stringResource(R.string.temizle),
                         tint = KitsugiColors.TextMuted,
                         modifier = Modifier.size(18.dp)
@@ -165,7 +162,7 @@ fun SearchBarSection(
                         .background(accentColor.copy(alpha = 0.15f))
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.Search,
+                        imageVector = Icons.Search,
                         contentDescription = stringResource(R.string.ara),
                         tint = accentColor,
                         modifier = Modifier.size(18.dp)
@@ -190,7 +187,7 @@ fun SearchBarSection(
                     )
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.Tune,
+                    imageVector = Icons.Tune,
                     contentDescription = stringResource(R.string.search_accessibility_filter),
                     tint = if (hasActiveFilters) accentColor else KitsugiColors.TextMuted,
                     modifier = Modifier.size(18.dp)

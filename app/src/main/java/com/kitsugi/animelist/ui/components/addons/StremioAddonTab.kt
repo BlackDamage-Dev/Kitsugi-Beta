@@ -14,8 +14,7 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.*
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -90,7 +89,7 @@ internal fun StremioTab(
             AddonSectionCard(
                 title = stringResource(R.string.inline_playback_settings_ca13228),
                 subtitle = stringResource(R.string.otomatik_oynatma_ve_oynatici_motoru),
-                icon = Icons.Rounded.PlayCircle,
+                icon = Icons.PlayCircle,
                 accentColor = accentColor,
                 iconTint = accentColor
             ) {
@@ -132,7 +131,7 @@ internal fun StremioTab(
                         horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(text = currentPlayerName, color = KitsugiColors.TextPrimary, fontSize = 14.sp)
-                        Icon(Icons.Rounded.ArrowDropDown, contentDescription = stringResource(R.string.ui_tv_select), tint = KitsugiColors.TextSecondary)
+                        Icon(Icons.ArrowDropDown, contentDescription = stringResource(R.string.ui_tv_select), tint = KitsugiColors.TextSecondary)
                     }
                     KitsugiDropdownMenu(
                         expanded = dropdownExpanded,
@@ -156,7 +155,7 @@ internal fun StremioTab(
             AddonSectionCard(
                 title = stringResource(R.string.hazir_akis_eklentileri),
                 subtitle = stringResource(R.string.tek_tikla_kurabileceginiz_guvenilir_kaynaklar),
-                icon = Icons.Rounded.AutoAwesome,
+                icon = Icons.AutoAwesome,
                 accentColor = accentColor,
                 iconTint = accentColor
             ) {
@@ -168,10 +167,10 @@ internal fun StremioTab(
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                     // Token bu sayfada girilmez (giriş alanı kaldırıldı); kayıtlı bir debrid
                     // hesabı varsa Torrentio adresine otomatik eklenir.
-                    PresetAddonRow("Torrentio (Tavsiye Edilen)", "Ana torrent kaynağı. Kayıtlı debrid hesabınız varsa otomatik bağlanır.", torrentioUrl, addons.any { it.manifestUrl.contains("torrentio") }, accentColor, Icons.Rounded.Download, onAddAddon)
-                    PresetAddonRow("Anime Kitsu Kataloğu", "Kitsu üzerinden anime listelerini ve verileri yükler.", "https://anime-kitsu.strem.fun/manifest.json", addons.any { it.manifestUrl.contains("kitsu") }, accentColor, Icons.Rounded.AutoAwesome, onAddAddon)
-                    PresetAddonRow("Official Cinemeta", "Film ve dizi meta verilerini çeken resmi katalog eklentisi.", "https://v3-cinemeta.strem.io/manifest.json", addons.any { it.manifestUrl.contains("cinemeta") }, accentColor, Icons.Rounded.Movie, onAddAddon)
-                    PresetAddonRow("YouTube Trailers", "Fragmanları ve YouTube videolarını oynatan resmi eklenti.", "https://youtube.strem.io/manifest.json", addons.any { it.manifestUrl.contains("youtube.strem.io") }, accentColor, Icons.Rounded.PlayCircle, onAddAddon)
+                    PresetAddonRow("Torrentio (Tavsiye Edilen)", "Ana torrent kaynağı. Kayıtlı debrid hesabınız varsa otomatik bağlanır.", torrentioUrl, addons.any { it.manifestUrl.contains("torrentio") }, accentColor, Icons.Download, onAddAddon)
+                    PresetAddonRow("Anime Kitsu Kataloğu", "Kitsu üzerinden anime listelerini ve verileri yükler.", "https://anime-kitsu.strem.fun/manifest.json", addons.any { it.manifestUrl.contains("kitsu") }, accentColor, Icons.AutoAwesome, onAddAddon)
+                    PresetAddonRow("Official Cinemeta", "Film ve dizi meta verilerini çeken resmi katalog eklentisi.", "https://v3-cinemeta.strem.io/manifest.json", addons.any { it.manifestUrl.contains("cinemeta") }, accentColor, Icons.Movie, onAddAddon)
+                    PresetAddonRow("YouTube Trailers", "Fragmanları ve YouTube videolarını oynatan resmi eklenti.", "https://youtube.strem.io/manifest.json", addons.any { it.manifestUrl.contains("youtube.strem.io") }, accentColor, Icons.PlayCircle, onAddAddon)
                 }
             }
         }
@@ -181,7 +180,7 @@ internal fun StremioTab(
             AddonSectionCard(
                 title = stringResource(R.string.inline_add_custom_streaming_extension_c10d9ca),
                 subtitle = stringResource(R.string.manifest_adresini_yapistirin),
-                icon = Icons.Rounded.AddLink,
+                icon = Icons.AddLink,
                 accentColor = accentColor,
                 iconTint = accentColor
             ) {
@@ -203,7 +202,7 @@ internal fun StremioTab(
                     KitsugiButton(
                         onClick = { if (newManifestUrl.isNotBlank()) { onAddAddon(newManifestUrl.trim()); newManifestUrl = "" } },
                         shape = RoundedCornerShape(16.dp)
-                    ) { Icon(Icons.Rounded.Add, contentDescription = stringResource(R.string.ekle)) }
+                    ) { Icon(Icons.Add, contentDescription = stringResource(R.string.ekle)) }
                 }
             }
         }
@@ -220,7 +219,7 @@ internal fun StremioTab(
         if (addons.isEmpty()) {
             item {
                 AddonEmptyCard(
-                    icon = Icons.Rounded.ExtensionOff,
+                    icon = Icons.ExtensionOff,
                     text = stringResource(R.string.henuz_akis_eklentisi_yuklenmemis_yukaridaki_hazir_eklentilerden)
                 )
             }
@@ -231,7 +230,7 @@ internal fun StremioTab(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Box(modifier = Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(accentColor.copy(alpha = 0.16f)), contentAlignment = Alignment.Center) {
-                        Icon(Icons.Rounded.Extension, contentDescription = null, tint = accentColor)
+                        Icon(Icons.Extension, contentDescription = null, tint = accentColor)
                     }
                     Spacer(Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
@@ -245,7 +244,7 @@ internal fun StremioTab(
                     )
                     Spacer(Modifier.width(4.dp))
                     IconButton(onClick = { onDeleteAddon(addon) }) {
-                        Icon(Icons.Rounded.Delete, contentDescription = stringResource(R.string.action_delete), tint = KitsugiColors.AccentRed)
+                        Icon(Icons.Delete, contentDescription = stringResource(R.string.action_delete), tint = KitsugiColors.AccentRed)
                     }
                 }
             }
@@ -278,7 +277,7 @@ internal fun AddonInfoBanner(
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Icon(
-            imageVector = Icons.Rounded.Info,
+            imageVector = Icons.Info,
             contentDescription = null,
             tint = accentColor,
             modifier = Modifier.size(16.dp)
@@ -401,7 +400,7 @@ internal fun AddonListHeader(
 @Composable
 internal fun AddonEmptyCard(
     text: String,
-    icon: ImageVector = Icons.Rounded.Extension,
+    icon: ImageVector = Icons.Extension,
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -464,7 +463,7 @@ private fun PresetAddonRow(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                Icon(Icons.Rounded.CheckCircle, contentDescription = null, tint = KitsugiColors.AccentGreen, modifier = Modifier.size(14.dp))
+                Icon(Icons.CheckCircle, contentDescription = null, tint = KitsugiColors.AccentGreen, modifier = Modifier.size(14.dp))
                 Text(
                     text = "Kuruldu",
                     color = KitsugiColors.TextMuted,

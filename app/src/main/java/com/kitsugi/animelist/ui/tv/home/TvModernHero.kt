@@ -4,6 +4,8 @@ import android.net.Uri
 import android.util.Log
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
+import com.kitsugi.animelist.ui.components.KitsugiEmojiLabel
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.background
 import com.kitsugi.animelist.ui.theme.gradient.border
 import androidx.compose.foundation.layout.Arrangement
@@ -236,8 +238,10 @@ fun TvModernHero(
                                 .border(1.dp, Color(0xFFFFD700), RoundedCornerShape(4.dp))
                                 .padding(horizontal = 6.dp, vertical = 2.dp)
                         ) {
-                            Text(
-                                text = "★ $score",
+                            KitsugiEmojiLabel(
+                                label = score,
+                                icon = Icons.StarSolid,
+                                iconSize = 11.dp,
                                 style = MaterialTheme.typography.labelMedium,
                                 color = Color(0xFFFFD700),
                                 fontWeight = FontWeight.Bold

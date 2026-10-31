@@ -5,9 +5,7 @@ package com.kitsugi.animelist.ui.screens.detail
 import com.kitsugi.animelist.ui.theme.gradient.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoStories
-import androidx.compose.material.icons.rounded.PlayArrow
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.Text
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.runtime.Composable
@@ -180,7 +178,7 @@ fun ApiDetailLeftPanel(
             if (displayResult.type == MediaType.Anime || displayResult.type == MediaType.TvShow || displayResult.type == MediaType.Movie) {
                 KitsugiDetailActionButton(
                     text = stringResource(R.string.izle),
-                    icon = Icons.Rounded.PlayArrow,
+                    icon = Icons.PlayArrow,
                     onClick = {
                         val streamIds = displayResult.toStreamMediaIds(
                             resolvedRealMalId = detailState?.realMalId ?: displayResult.realMalId,
@@ -216,7 +214,7 @@ fun ApiDetailLeftPanel(
             if (displayResult.type == MediaType.Manga && onReadMangaClick != null) {
                 KitsugiDetailActionButton(
                     text = stringResource(R.string.oku),
-                    icon = Icons.Default.AutoStories,
+                    icon = Icons.AutoStories,
                     onClick = onReadMangaClick,
                     modifier = Modifier
                         .focusRequester(leftPanelFocusRequester)
