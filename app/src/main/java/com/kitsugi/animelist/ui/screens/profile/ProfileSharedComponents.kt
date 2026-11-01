@@ -5,6 +5,9 @@
 
 package com.kitsugi.animelist.ui.screens.profile
 
+import com.kitsugi.animelist.ui.icons.KitsugiArt
+import com.kitsugi.animelist.ui.icons.KitsugiArtIcon
+
 import com.kitsugi.animelist.ui.theme.gradient.CircularProgressIndicator
 import com.kitsugi.animelist.data.platform.PlatformErrorCode
 import com.kitsugi.animelist.ui.components.PlatformErrorExplanationBlock
@@ -156,12 +159,7 @@ private fun ProfileServiceErrorCard(
                         .background(KitsugiColors.AccentRed.copy(alpha = 0.14f)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = Icons.ErrorOutline,
-                        contentDescription = stringResource(R.string.profile_error_icon_description),
-                        tint = KitsugiColors.AccentRed,
-                        modifier = Modifier.size(22.dp)
-                    )
+                    KitsugiArtIcon(art = KitsugiArt.Warning, contentDescription = stringResource(R.string.profile_error_icon_description), size = 22.dp)
                 }
 
                 Column(modifier = Modifier.weight(1f)) {

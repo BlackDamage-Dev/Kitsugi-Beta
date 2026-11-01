@@ -1,5 +1,8 @@
 package com.kitsugi.animelist.ui.screens.notifications
 
+import com.kitsugi.animelist.ui.icons.KitsugiArt
+import com.kitsugi.animelist.ui.icons.KitsugiArtIcon
+
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -1077,12 +1080,7 @@ private fun MalWebSessionActionCard(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Icon(
-            imageVector = Icons.Rounded.NotificationsNone,
-            contentDescription = null,
-            tint = accentColor,
-            modifier = Modifier.size(22.dp)
-        )
+        KitsugiArtIcon(art = KitsugiArt.Bell, size = 22.dp)
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,

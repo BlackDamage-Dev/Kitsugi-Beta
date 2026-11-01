@@ -1,5 +1,8 @@
 package com.kitsugi.animelist.ui.screens.offline
 
+import com.kitsugi.animelist.ui.icons.KitsugiArt
+import com.kitsugi.animelist.ui.icons.KitsugiArtIcon
+
 import com.kitsugi.animelist.ui.components.KitsugiChevronIcon
 import com.kitsugi.animelist.ui.components.KitsugiTopAction
 import com.kitsugi.animelist.ui.components.KitsugiTopActionButton
@@ -1381,12 +1384,17 @@ internal fun DownloadsEmptyState(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.padding(horizontal = 32.dp)
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = KitsugiColors.TextMuted,
-                modifier = Modifier.size(64.dp)
-            )
+            val art = KitsugiArt.fromVector(icon)
+            if (art != null) {
+                KitsugiArtIcon(art = art, size = 64.dp)
+            } else {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = KitsugiColors.TextMuted,
+                    modifier = Modifier.size(64.dp)
+                )
+            }
             Spacer(modifier = Modifier.height(16.dp))
             Text(
                 text = title,
@@ -2528,12 +2536,7 @@ fun DownloadItemRow(
                     onClick = onOpenFolder,
                     modifier = Modifier.size(36.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.FolderOpen,
-                        contentDescription = stringResource(R.string.klasoru_ac),
-                        tint = KitsugiColors.AccentBlue,
-                        modifier = Modifier.size(20.dp)
-                    )
+                    KitsugiArtIcon(art = KitsugiArt.Folder, contentDescription = stringResource(R.string.klasoru_ac), size = 20.dp)
                 }
 
                 when (download.status) {
@@ -2791,12 +2794,7 @@ if (selectionMode) {
                         }
                     }
                 } else {
-                    Icon(
-                        imageVector = Icons.Subtitles,
-                        contentDescription = null,
-                        tint = KitsugiColors.AccentOrange,
-                        modifier = Modifier.size(22.dp)
-                    )
+                    KitsugiArtIcon(art = KitsugiArt.Subtitles, size = 22.dp)
                 }
             }
 
@@ -2882,12 +2880,7 @@ if (selectionMode) {
                     onClick = onOpenFolder,
                     modifier = Modifier.size(36.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.FolderOpen,
-                        contentDescription = stringResource(R.string.klasoru_ac),
-                        tint = KitsugiColors.AccentBlue,
-                        modifier = Modifier.size(20.dp)
-                    )
+                    KitsugiArtIcon(art = KitsugiArt.Folder, contentDescription = stringResource(R.string.klasoru_ac), size = 20.dp)
                 }
 
                 KitsugiAnimatedDeleteButton(

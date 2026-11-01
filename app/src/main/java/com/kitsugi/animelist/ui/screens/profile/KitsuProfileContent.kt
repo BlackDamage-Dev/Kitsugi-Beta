@@ -5,6 +5,9 @@
 
 package com.kitsugi.animelist.ui.screens.profile
 
+import com.kitsugi.animelist.ui.icons.KitsugiArt
+import com.kitsugi.animelist.ui.icons.KitsugiArtIcon
+
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import com.kitsugi.animelist.ui.theme.gradient.Text
 
@@ -441,12 +444,7 @@ private fun KitsuAboutTab(
                 ) {
                     if (!state.timeSpentDaysHours.isNullOrBlank()) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(
-                                imageVector = Icons.Schedule,
-                                contentDescription = null,
-                                tint = Color(0xFFFD755C),
-                                modifier = Modifier.size(22.dp)
-                            )
+                            KitsugiArtIcon(art = KitsugiArt.Timer, size = 22.dp)
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = state.timeSpentDaysHours,
@@ -471,12 +469,7 @@ private fun KitsuAboutTab(
                             )
                         }
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(
-                                imageVector = Icons.PlayCircle,
-                                contentDescription = null,
-                                tint = accentColor,
-                                modifier = Modifier.size(22.dp)
-                            )
+                            KitsugiArtIcon(art = KitsugiArt.Player, size = 22.dp)
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = stringResource(R.string.state_episodeswatched_bolum, state.episodesWatched),
@@ -699,12 +692,7 @@ private fun KitsuLibraryTab(
             contentAlignment = Alignment.Center
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(
-                    imageVector = Icons.Bookmarks,
-                    contentDescription = null,
-                    tint = KitsugiColors.TextMuted,
-                    modifier = Modifier.size(48.dp)
-                )
+                KitsugiArtIcon(art = KitsugiArt.NavList, size = 48.dp)
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
                     text = stringResource(R.string.inline_no_library_entry_found_8619075),

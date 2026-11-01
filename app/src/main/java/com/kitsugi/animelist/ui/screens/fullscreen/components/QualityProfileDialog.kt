@@ -1,5 +1,8 @@
 package com.kitsugi.animelist.ui.screens.fullscreen.components
 
+import com.kitsugi.animelist.ui.icons.KitsugiArt
+import com.kitsugi.animelist.ui.icons.KitsugiArtIcon
+
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import com.kitsugi.animelist.ui.theme.gradient.Slider
 import com.kitsugi.animelist.ui.theme.gradient.Switch
@@ -110,12 +113,7 @@ fun QualityProfileDialog(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.HighQuality,
-                        contentDescription = null,
-                        tint = accentColor,
-                        modifier = Modifier.size(24.dp)
-                    )
+                    KitsugiArtIcon(art = KitsugiArt.Decoder, size = 24.dp)
                     Column {
                         Text(
                             text = "Kalite Profili",
@@ -320,12 +318,7 @@ private fun QualityOptionRow(
             )
         }
         if (isSelected) {
-            Icon(
-                imageVector = Icons.CheckCircle,
-                contentDescription = stringResource(R.string.secili),
-                tint = accentColor,
-                modifier = Modifier.size(20.dp)
-            )
+            KitsugiArtIcon(art = KitsugiArt.CheckCircle, contentDescription = stringResource(R.string.secili), size = 20.dp)
         }
     }
 }

@@ -5,6 +5,9 @@
 
 package com.kitsugi.animelist.ui.screens.profile
 
+import com.kitsugi.animelist.ui.icons.KitsugiArt
+import com.kitsugi.animelist.ui.icons.KitsugiArtIcon
+
 import android.content.res.Configuration
 import com.kitsugi.animelist.ui.components.PlatformErrorCodeChip
 import androidx.compose.animation.AnimatedVisibility
@@ -528,12 +531,7 @@ fun KitsugiUserMediaListScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.FormatListBulleted,
-                            contentDescription = stringResource(R.string.search_filter_category),
-                            tint = colors.background,
-                            modifier = Modifier.size(20.dp)
-                        )
+                        KitsugiArtIcon(art = KitsugiArt.NavList, contentDescription = stringResource(R.string.search_filter_category), size = 20.dp)
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = activeStatusLabel,

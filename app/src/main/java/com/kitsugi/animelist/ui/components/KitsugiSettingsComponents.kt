@@ -38,6 +38,9 @@ import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
 
 import androidx.compose.foundation.clickable
+import com.kitsugi.animelist.ui.icons.KitsugiArt
+import com.kitsugi.animelist.ui.icons.KitsugiArtIcon
+import com.kitsugi.animelist.ui.icons.KitsugiRowIcon
 import com.kitsugi.animelist.ui.utils.tvClickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
@@ -311,12 +314,17 @@ internal fun KitsugiSettingsSegmentedTabs(
                             modifier = Modifier.alpha(if (selected) 1f else 0.72f)
                         )
                     } else {
-                        Icon(
-                            imageVector = tab.icon,
-                            contentDescription = null,
-                            tint = if (selected) accentColor else KitsugiColors.TextMuted,
-                            modifier = Modifier.size(17.dp)
-                        )
+                        val tabArt = KitsugiArt.fromVector(tab.icon)
+                        if (tabArt != null) {
+                            KitsugiArtIcon(art = tabArt, size = 21.dp, alpha = if (selected) 1f else 0.8f, accentGlow = selected)
+                        } else {
+                            Icon(
+                                imageVector = tab.icon,
+                                contentDescription = null,
+                                tint = if (selected) accentColor else KitsugiColors.TextMuted,
+                                modifier = Modifier.size(17.dp)
+                            )
+                        }
                     }
                     Spacer(Modifier.height(4.dp))
                     Text(
@@ -341,7 +349,9 @@ fun KitsugiSettingsItem(
     icon: ImageVector,
     iconColor: Color,
     modifier: Modifier = Modifier,
-    onClick: () -> Unit = {}
+    onClick: () -> Unit = {},
+    /** Verilirse [icon] adına bakılmadan bu 3B ikon çizilir. */
+    art: KitsugiArt? = null
 ) {
     val isTv = LocalIsTv.current
     val accentColor = LocalKitsugiAccent.current
@@ -369,7 +379,8 @@ fun KitsugiSettingsItem(
     ) {
         SettingsIcon(
             icon = icon,
-            color = iconColor
+            color = iconColor,
+            art = art
         )
 
         Spacer(modifier = Modifier.width(14.dp))
@@ -416,7 +427,9 @@ fun KitsugiSettingsSwitchItem(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     /** Verilirse ikon yerine orijinal platform logosu (AniList, MAL, Simkl, ...) gösterilir. */
-    platformId: String? = null
+    platformId: String? = null,
+    /** Verilirse [icon] adına bakılmadan bu 3B ikon çizilir. */
+    art: KitsugiArt? = null
 ) {
     val isTv = LocalIsTv.current
     val accentColor = LocalKitsugiAccent.current
@@ -454,7 +467,8 @@ fun KitsugiSettingsSwitchItem(
         } else {
             SettingsIcon(
                 icon = icon,
-                color = finalIconColor
+                color = finalIconColor,
+                art = art
             )
         }
 
@@ -508,7 +522,9 @@ fun KitsugiThemeModeSwitchItem(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
-    enabled: Boolean = true
+    enabled: Boolean = true,
+    /** Verilirse [icon] adına bakılmadan bu 3B ikon çizilir. */
+    art: KitsugiArt? = null
 ) {
     Row(
         modifier = modifier
@@ -520,7 +536,8 @@ fun KitsugiThemeModeSwitchItem(
         val finalIconColor = if (enabled) iconColor else KitsugiColors.TextMuted
         SettingsIcon(
             icon = icon,
-            color = finalIconColor
+            color = finalIconColor,
+            art = art
         )
 
         Spacer(modifier = Modifier.width(14.dp))
@@ -564,7 +581,9 @@ fun KitsugiSettingsListItem(
     icon: ImageVector,
     iconColor: Color,
     modifier: Modifier = Modifier,
-    onClick: () -> Unit = {}
+    onClick: () -> Unit = {},
+    /** Verilirse [icon] adına bakılmadan bu 3B ikon çizilir. */
+    art: KitsugiArt? = null
 ) {
     val isTv = LocalIsTv.current
     val accentColor = LocalKitsugiAccent.current
@@ -592,7 +611,8 @@ fun KitsugiSettingsListItem(
     ) {
         SettingsIcon(
             icon = icon,
-            color = iconColor
+            color = iconColor,
+            art = art
         )
 
         Spacer(modifier = Modifier.width(14.dp))
@@ -1040,7 +1060,7 @@ fun KitsugiSettingsDivider() {
         modifier = Modifier
             .fillMaxWidth()
             .height(1.dp)
-            .padding(start = 74.dp)
+            .padding(start = 62.dp)
             .background(KitsugiColors.Border)
     )
 }
@@ -1048,28 +1068,16 @@ fun KitsugiSettingsDivider() {
 @Composable
 private fun SettingsIcon(
     icon: ImageVector,
-    color: Color
+    color: Color,
+    art: KitsugiArt? = null
 ) {
-    // Vurgu rengi kullanılıyorsa düz/gradyan tema fırçası; aksi halde düz renk.
-    // İkon tint'i, zeminin koyuluğuna göre otomatik siyah-beyaz kontrast alır.
-    val accentColor = LocalKitsugiAccent.current
-    val isAccent = color.isSameAccentRgb(accentColor)
-    val bgBrush = if (isAccent) LocalKitsugiAccentBrush.current else androidx.compose.ui.graphics.SolidColor(color)
-    val tint = if (isAccent) LocalKitsugiOnAccent.current else com.kitsugi.animelist.ui.theme.onAccentColor(color)
-    Box(
-        modifier = Modifier
-            .size(42.dp)
-            .background(
-                brush = bgBrush,
-                shape = CircleShape
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = tint,
-            modifier = Modifier.size(20.dp)
-        )
-    }
+    // Arka plan dairesi YOK: 3B görsel (varsa) doğrudan çizilir, saydam zeminlidir.
+    // Eşleşen 3B ikon yoksa satır rengiyle boyanmış tek renkli glif gösterilir.
+    KitsugiRowIcon(
+        icon = icon,
+        tint = color,
+        art = art,
+        artSize = 30.dp,
+        glyphSize = 23.dp
+    )
 }

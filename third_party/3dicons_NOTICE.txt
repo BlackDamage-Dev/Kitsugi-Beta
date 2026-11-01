@@ -1,0 +1,15 @@
+3Dicons — üç boyutlu ikon seti
+Kaynak / home  : https://3dicons.co
+Yaratıcı        : Vijay Verma
+Lisans          : CC0 1.0 Universal (kamu malı) — tam metin: 3dicons_LICENSE.txt
+
+Bu projedeki PNG render'lar, 3dicons setinin "front/gradient" stilinin
+aşağıdaki ayna deposundan indirilmiş kopyalarıdır:
+
+  https://github.com/Vyshnav2255/notion-icons-3d
+  Lisans: Apache License 2.0
+  Copyright (c) Vyshnav2255 (ayna derlemesi)
+
+Değişiklikler: görseller kırpılmış, ölçeklenmiş ve 192x192 saydam tuvale
+normalize edilmiştir (tools/iconpack/normalize.js). Özgün sanat eseri
+değiştirilmemiştir.

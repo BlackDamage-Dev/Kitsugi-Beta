@@ -1,4 +1,8 @@
-﻿package com.kitsugi.animelist.ui.screens.fullscreen.components
+package com.kitsugi.animelist.ui.screens.fullscreen.components
+
+import com.kitsugi.animelist.ui.icons.KitsugiArt
+import com.kitsugi.animelist.ui.icons.KitsugiArtIcon
+
 import com.kitsugi.animelist.ui.components.KitsugiButton
 
 import androidx.compose.animation.*
@@ -109,12 +113,7 @@ fun PostPlayBingeCard(
                                 modifier = Modifier.fillMaxSize(),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Icon(
-                                    imageVector = Icons.Tv,
-                                    contentDescription = null,
-                                    tint = Color.White.copy(alpha = 0.2f),
-                                    modifier = Modifier.size(22.dp)
-                                )
+                                KitsugiArtIcon(art = KitsugiArt.Tv, size = 22.dp)
                             }
                         }
                     }

@@ -5,6 +5,9 @@
 
 package com.kitsugi.animelist.ui.screens.profile
 
+import com.kitsugi.animelist.ui.icons.KitsugiArt
+import com.kitsugi.animelist.ui.icons.KitsugiArtIcon
+
 import com.kitsugi.animelist.ui.theme.gradient.CircularProgressIndicator
 import com.kitsugi.animelist.ui.utils.uniqueItems
 import com.kitsugi.animelist.ui.theme.gradient.Icon
@@ -632,12 +635,7 @@ fun PositionalStatItemCard(
                             .background(KitsugiColors.SurfaceStrong),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            imageVector = Icons.Person,
-                            contentDescription = null,
-                            tint = accentColor.copy(alpha = 0.8f),
-                            modifier = Modifier.size(22.dp)
-                        )
+                        KitsugiArtIcon(art = KitsugiArt.NavProfile, size = 22.dp)
                     }
                     Spacer(modifier = Modifier.width(12.dp))
                 }

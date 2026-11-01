@@ -1,4 +1,7 @@
 package com.kitsugi.animelist.ui.screens.detail.components
+
+import com.kitsugi.animelist.ui.icons.KitsugiArt
+import com.kitsugi.animelist.ui.icons.KitsugiArtIcon
 import com.kitsugi.animelist.ui.theme.gradient.CircularProgressIndicator
 import com.kitsugi.animelist.ui.components.KitsugiButton
 
@@ -281,12 +284,7 @@ fun SharedTrailerOverlay(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.ErrorOutline,
-                        contentDescription = null,
-                        tint = Color.White.copy(alpha = 0.7f),
-                        modifier = Modifier.size(48.dp)
-                    )
+                    KitsugiArtIcon(art = KitsugiArt.Warning, size = 48.dp)
                     Text(
                         text = errorMessage ?: KitsugiStrings.get(R.string.hata),
                         style = MaterialTheme.typography.bodyMedium,

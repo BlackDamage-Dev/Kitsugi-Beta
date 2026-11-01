@@ -1,5 +1,8 @@
 package com.kitsugi.animelist.ui.components.player
 
+import com.kitsugi.animelist.ui.icons.KitsugiArt
+import com.kitsugi.animelist.ui.icons.KitsugiArtIcon
+
 import com.kitsugi.animelist.ui.theme.gradient.Checkbox
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import com.kitsugi.animelist.ui.theme.gradient.Text
@@ -286,12 +289,7 @@ internal fun PlayerSubtitleAudioTab(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = Icons.Subtitles,
-                            contentDescription = null,
-                            tint = accentColor,
-                            modifier = Modifier.size(22.dp)
-                        )
+                        KitsugiArtIcon(art = KitsugiArt.Subtitles, size = 22.dp)
                         Spacer(modifier = Modifier.width(12.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(

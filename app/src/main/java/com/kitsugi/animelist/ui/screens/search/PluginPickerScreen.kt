@@ -1,5 +1,8 @@
 package com.kitsugi.animelist.ui.screens.search
 
+import com.kitsugi.animelist.ui.icons.KitsugiArt
+import com.kitsugi.animelist.ui.icons.KitsugiArtIcon
+
 import com.kitsugi.animelist.ui.components.KitsugiEmojiLabel
 import com.kitsugi.animelist.ui.icons.KitsugiEmojiIcons
 import com.kitsugi.animelist.ui.theme.gradient.Icon
@@ -486,12 +489,7 @@ fun PluginPickerScreen(
                         tint = KitsugiColors.TextPrimary
                     )
                 }
-                Icon(
-                    imageVector = Icons.Extension,
-                    contentDescription = null,
-                    tint = accentColor,
-                    modifier = Modifier.size(24.dp)
-                )
+                KitsugiArtIcon(art = KitsugiArt.Extensions, size = 24.dp)
                 Text(
                     text = stringResource(R.string.eklenti_portali),
                     color = KitsugiColors.TextPrimary,
@@ -536,19 +534,17 @@ fun PluginPickerScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Icon(
-                                imageVector = Icons.Search,
-                                contentDescription = null,
-                                tint = if (hasInputText) accentColor else KitsugiColors.TextMuted,
+                            KitsugiArtIcon(
+                                art = KitsugiArt.NavSearch,
                                 modifier = Modifier
-                                    .size(20.dp)
                                     .clickable(enabled = hasInputText) {
                                         keyboardController?.hide()
                                         executeCrossPluginContentSearch(
                                             pluginQueryState.text.toString(),
                                             force = true
                                         )
-                                    }
+                                    },
+                                size = 20.dp
                             )
 
                             BasicTextField(

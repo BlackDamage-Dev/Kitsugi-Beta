@@ -1,5 +1,8 @@
 package com.kitsugi.animelist.ui.tv.companion
 
+import com.kitsugi.animelist.ui.icons.KitsugiArt
+import com.kitsugi.animelist.ui.icons.KitsugiArtIcon
+
 import com.kitsugi.animelist.R
 import androidx.compose.ui.res.stringResource
 import android.graphics.Bitmap
@@ -153,12 +156,7 @@ fun TvCompanionQrScreen(
             ) {
                 // Title
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.PhoneAndroid,
-                        contentDescription = null,
-                        tint = CompanionAccent,
-                        modifier = Modifier.size(36.dp)
-                    )
+                    KitsugiArtIcon(art = KitsugiArt.Mobile, size = 36.dp)
                     Spacer(Modifier.width(12.dp))
                     Text(
                         text = stringResource(R.string.inline_control_from_phone_1351d86),

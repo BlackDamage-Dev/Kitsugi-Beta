@@ -1,5 +1,8 @@
 package com.kitsugi.animelist.ui.tv.stream
 
+import com.kitsugi.animelist.ui.icons.KitsugiArt
+import com.kitsugi.animelist.ui.icons.KitsugiArtIcon
+
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import com.kitsugi.animelist.ui.theme.gradient.Text
 
@@ -772,12 +775,7 @@ private fun TvStreamRowItem(
         }
 
         // Action Indicator (Play Icon)
-        Icon(
-            imageVector = Icons.PlayArrow,
-            contentDescription = null,
-            tint = if (isFocused) accentColor else KitsugiColors.TextMuted,
-            modifier = Modifier.size(24.dp)
-        )
+        KitsugiArtIcon(art = KitsugiArt.Play, size = 24.dp)
     }
 }
 

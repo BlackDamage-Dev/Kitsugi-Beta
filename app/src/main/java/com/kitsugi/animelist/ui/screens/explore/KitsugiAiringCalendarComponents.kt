@@ -1,5 +1,8 @@
 package com.kitsugi.animelist.ui.screens.explore
 
+import com.kitsugi.animelist.ui.icons.KitsugiArt
+import com.kitsugi.animelist.ui.icons.KitsugiArtIcon
+
 import androidx.compose.foundation.lazy.itemsIndexed
 import com.kitsugi.animelist.ui.components.PlatformErrorExplanationBlock
 import androidx.compose.foundation.lazy.grid.itemsIndexed
@@ -134,12 +137,7 @@ internal fun AiringCalendarHeader(
             )
         }
         Spacer(modifier = Modifier.width(4.dp))
-        Icon(
-            imageVector = Icons.CalendarMonth,
-            contentDescription = null,
-            tint = KitsugiColors.Accent,
-            modifier = Modifier.size(22.dp)
-        )
+        KitsugiArtIcon(art = KitsugiArt.Calendar, size = 22.dp)
         Spacer(modifier = Modifier.width(10.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
@@ -553,15 +551,12 @@ internal fun AiringEntryGridCard(
                             )
                         )
                 )
-                Icon(
-                    imageVector = Icons.CheckCircle,
-                    contentDescription = stringResource(R.string.yayinda),
-                    tint = KitsugiColors.AccentGreen,
-                    modifier = Modifier
-                        .size(24.dp)
+                KitsugiArtIcon(art = KitsugiArt.CheckCircle,
+                modifier = Modifier
                         .align(Alignment.BottomEnd)
-                        .padding(4.dp)
-                )
+                        .padding(4.dp),
+                contentDescription = stringResource(R.string.yayinda),
+                size = 24.dp)
             }
             // İzliyorum ikonu overlay
             if (isInWatchingList) {
@@ -874,12 +869,7 @@ internal fun AiringErrorState(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Icon(
-            imageVector = Icons.CalendarMonth,
-            contentDescription = null,
-            tint = KitsugiColors.TextSecondary,
-            modifier = Modifier.size(48.dp)
-        )
+        KitsugiArtIcon(art = KitsugiArt.Calendar, size = 48.dp)
         Spacer(modifier = Modifier.height(12.dp))
         Text(
             text = stringResource(R.string.explore_calendar_load_failed_title),

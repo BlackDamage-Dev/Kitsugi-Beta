@@ -1,4 +1,7 @@
 package com.kitsugi.animelist.ui.screens.fullscreen.controls
+
+import com.kitsugi.animelist.ui.icons.KitsugiArt
+import com.kitsugi.animelist.ui.icons.KitsugiArtIcon
 import com.kitsugi.animelist.ui.screens.fullscreen.playerSurfaceColor
 import com.kitsugi.animelist.ui.components.KitsugiButton
 
@@ -389,12 +392,7 @@ fun PlayerControls(
                         .padding(16.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector        = Icons.Lock,
-                        contentDescription = KitsugiStrings.get(R.string.kilidi_ac),
-                        tint               = Color.White,
-                        modifier           = Modifier.size(36.dp)
-                    )
+                    KitsugiArtIcon(art = KitsugiArt.Lock, contentDescription = KitsugiStrings.get(R.string.kilidi_ac), size = 36.dp)
                 }
             }
         } else {

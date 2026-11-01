@@ -5,6 +5,9 @@
 
 package com.kitsugi.animelist.ui.screens.profile
 
+import com.kitsugi.animelist.ui.icons.KitsugiArt
+import com.kitsugi.animelist.ui.icons.KitsugiArtIcon
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -474,12 +477,7 @@ fun BoxScope.ProfileFavoritesFloatingControls(
             contentAlignment = Alignment.Center
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.FormatListBulleted,
-                    contentDescription = stringResource(R.string.search_filter_category),
-                    tint = KitsugiColors.Background,
-                    modifier = Modifier.size(20.dp)
-                )
+                KitsugiArtIcon(art = KitsugiArt.NavList, contentDescription = stringResource(R.string.search_filter_category), size = 20.dp)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = resolvedCategoryLabels.getOrElse(selectedCategory) { resolvedCategoryLabels.firstOrNull().orEmpty() },

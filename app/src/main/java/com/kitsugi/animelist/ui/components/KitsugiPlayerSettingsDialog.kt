@@ -1,5 +1,8 @@
 package com.kitsugi.animelist.ui.components
 
+import com.kitsugi.animelist.ui.icons.KitsugiArt
+import com.kitsugi.animelist.ui.icons.KitsugiArtIcon
+
 import com.kitsugi.animelist.ui.theme.gradient.FilterChip
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import com.kitsugi.animelist.ui.theme.gradient.Text
@@ -1195,12 +1198,7 @@ fun KitsugiPlayerSettingsDialog(
 
                                     Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Icon(
-                                                imageVector = Icons.Language,
-                                                contentDescription = null,
-                                                tint = accentColor,
-                                                modifier = Modifier.size(20.dp)
-                                            )
+                                            KitsugiArtIcon(art = KitsugiArt.Integrations, size = 20.dp)
                                             Spacer(modifier = Modifier.width(8.dp))
                                             Column {
                                                 Text(

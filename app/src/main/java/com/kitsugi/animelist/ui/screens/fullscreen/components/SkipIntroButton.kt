@@ -1,5 +1,8 @@
 package com.kitsugi.animelist.ui.screens.fullscreen.components
 
+import com.kitsugi.animelist.ui.icons.KitsugiArt
+import com.kitsugi.animelist.ui.icons.KitsugiArtIcon
+
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import com.kitsugi.animelist.ui.theme.gradient.Text
 
@@ -75,12 +78,7 @@ fun SkipIntroButton(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.SkipNext,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(20.dp)
-                    )
+                    KitsugiArtIcon(art = KitsugiArt.Next, size = 20.dp)
                     Text(
                         text = "$typeLabel Atla",
                         color = Color.White,

@@ -1,5 +1,8 @@
 package com.kitsugi.animelist.ui.screens.fullscreen.controls.components.sheets
 
+import com.kitsugi.animelist.ui.icons.KitsugiArt
+import com.kitsugi.animelist.ui.icons.KitsugiArtIcon
+
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -199,11 +202,7 @@ fun SubtitleTrackRow(
                 onClick = { onDownload(downloadableInput) },
                 modifier = Modifier.size(36.dp),
             ) {
-                Icon(
-                    imageVector = Icons.Download,
-                    contentDescription = stringResource(R.string.altyaziyi_indir),
-                    modifier = Modifier.size(20.dp),
-                )
+                KitsugiArtIcon(art = KitsugiArt.Download, contentDescription = stringResource(R.string.altyaziyi_indir), size = 20.dp)
             }
         }
     }
