@@ -71,6 +71,19 @@ fun GenresTagsSheet(
         }
     }
 
+    val allCatalogGenreNames = remember(catalog) {
+        catalog?.genres.orEmpty().map { it.en }.toSet()
+    }
+    val allCatalogTagNames = remember(catalog) {
+        catalog?.tags.orEmpty().map { it.en }.toSet()
+    }
+    val extraSelectedGenres = remember(selectedGenres, excludedGenres, allCatalogGenreNames) {
+        (selectedGenres + excludedGenres).filterNot { allCatalogGenreNames.contains(it) }.distinct()
+    }
+    val extraSelectedTags = remember(selectedTags, allCatalogTagNames) {
+        selectedTags.filterNot { allCatalogTagNames.contains(it) }.distinct()
+    }
+
     KitsugiSheetOrDialog(
         onDismiss = onDismiss,
         heightFraction = 0.85f,
@@ -161,6 +174,50 @@ fun GenresTagsSheet(
                         Text(stringResource(R.string.search_catalog_load_error), color = KitsugiColors.TextSecondary)
                     }
                 } else {
+                    if (extraSelectedGenres.isNotEmpty() || extraSelectedTags.isNotEmpty()) {
+                        item(key = "extra_selections") {
+                            Text(
+                                text = stringResource(R.string.search_common_extra_selections),
+                                color = accentColor,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            )
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                extraSelectedGenres.forEach { genre ->
+                                    GenreTagChip(
+                                        label = SearchTranslation.displayLabel(genre),
+                                        isIncluded = selectedGenres.contains(genre),
+                                        isExcluded = excludedGenres.contains(genre),
+                                        accentColor = accentColor,
+                                        onToggle = {
+                                            when {
+                                                genre !in selectedGenres && genre !in excludedGenres ->
+                                                    selectedGenres = selectedGenres + genre
+                                                genre in selectedGenres -> {
+                                                    selectedGenres = selectedGenres - genre
+                                                    excludedGenres = excludedGenres + genre
+                                                }
+                                                else -> excludedGenres = excludedGenres - genre
+                                            }
+                                        }
+                                    )
+                                }
+                                extraSelectedTags.forEach { tag ->
+                                    SimpleTagChip(
+                                        label = SearchTranslation.displayLabel(tag),
+                                        isSelected = true,
+                                        accentColor = accentColor,
+                                        onToggle = { selectedTags = selectedTags - tag }
+                                    )
+                                }
+                            }
+                        }
+                    }
                     if (filteredGenres.isNotEmpty()) {
                         item(key = "genres_header") {
                             Text(

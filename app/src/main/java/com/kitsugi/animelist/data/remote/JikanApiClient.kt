@@ -103,6 +103,13 @@ class JikanApiClient(
         sources: List<String>? = null,
         isAdult: Boolean? = null,
         isLicensed: Boolean? = null,
+        // Aşağıdaki üç filtre daha önce facade'da yoktu: AniList sheet'inde
+        // "Minimum etiket güveni" ve "Lisansörler" seçimleri hiçbir isteğe
+        // yazılmıyordu (seçim yapılıyor, sonuç değişmiyordu).
+        minimumTagRank: Int? = null,
+        minVolumes: Int? = null,
+        maxVolumes: Int? = null,
+        licensedBy: List<String>? = null,
         page: Int = 1,
         perPage: Int = 24
     ) = aniListSearchClient.searchAniListPaged(
@@ -131,6 +138,10 @@ class JikanApiClient(
         sources = sources,
         isAdult = isAdult,
         isLicensed = isLicensed,
+        minimumTagRank = minimumTagRank,
+        volumesGreater = minVolumes,
+        volumesLesser = maxVolumes,
+        licensedBy = licensedBy,
         page = page,
         perPage = perPage
     )

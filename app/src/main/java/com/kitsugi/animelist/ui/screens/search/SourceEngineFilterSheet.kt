@@ -28,8 +28,10 @@ import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
+import com.kitsugi.animelist.ui.theme.gradient.RangeSlider
 import com.kitsugi.animelist.ui.theme.gradient.Slider
 import androidx.compose.material3.SliderDefaults
+import kotlin.math.roundToInt
 import com.kitsugi.animelist.ui.theme.gradient.Switch
 import androidx.compose.material3.SwitchDefaults
 import com.kitsugi.animelist.ui.theme.gradient.Text
@@ -63,7 +65,7 @@ fun SourceEngineFilterSheet(
     uiState: SearchUiState,
     viewModel: SearchViewModel,
     onOpenGenresTags: () -> Unit,
-    onOpenOrganizations: () -> Unit,
+    onOpenInstitutions: () -> Unit,
     onDismiss: () -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -262,17 +264,70 @@ fun SourceEngineFilterSheet(
                 }
             }
 
-            // Ortak katalog her kaynak motorunda erişilebilir; kurum kaynak eşlemesi T55–T60'ta.
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = onOpenGenresTags, modifier = Modifier.weight(1f)) {
-                    Text(stringResource(R.string.inline_genres_tags_4731985),
-                        color = KitsugiColors.TextPrimary)
-                }
-                OutlinedButton(onClick = onOpenOrganizations, modifier = Modifier.weight(1f)) {
-                    Text("${stringResource(R.string.search_org_title)} (${uiState.organizations.size})",
-                        color = KitsugiColors.TextPrimary)
+            // ── ORTAK FİLTRE ÇATISI (Türler & Etiketler / Kurumlar) ─────────
+            // Bu iki giriş HER motorda aynı sheet'i açar ve kanonik filtre setini
+            // düzenler. "Tümü" ekranında yapılan seçim, kaynağa özel "Tümünü Gör"
+            // sayfasına taşınır; kaynak sayfasında yapılan seçim de kanonik sete
+            // yazılır, böylece motor değişiminde kaybolmaz.
+            run {
+                val commonFilters = SearchCommonFiltersBridge.harvest(uiState)
+                val institutionCount =
+                    if (uiState.selectedEngine == SearchSourceEngine.ALL) {
+                        uiState.institutions.size
+                    } else {
+                        uiState.institutions.count { it.engine == uiState.selectedEngine }
+                    }
+                val commonShape = RoundedCornerShape(14.dp)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = onOpenGenresTags,
+                        modifier = Modifier.weight(1f),
+                        shape = commonShape,
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                            horizontal = 10.dp,
+                            vertical = 10.dp
+                        )
+                    ) {
+                        Text(
+                            text = stringResource(R.string.inline_genres_tags_4731985) +
+                                if (commonFilters.genreTagCount > 0) " (${commonFilters.genreTagCount})" else "",
+                            color = if (commonFilters.genreTagCount > 0) accentColor else KitsugiColors.TextSecondary,
+                            style = MaterialTheme.typography.labelMedium.copy(
+                                fontWeight = if (commonFilters.genreTagCount > 0) FontWeight.Bold else FontWeight.Medium
+                            ),
+                            maxLines = 1
+                        )
+                    }
+                    OutlinedButton(
+                        onClick = onOpenInstitutions,
+                        modifier = Modifier.weight(1f),
+                        shape = commonShape,
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                            horizontal = 10.dp,
+                            vertical = 10.dp
+                        )
+                    ) {
+                        Text(
+                            text = "🏢 ${stringResource(R.string.search_institutions)}" +
+                                if (institutionCount > 0) " ($institutionCount)" else "",
+                            color = if (institutionCount > 0) accentColor else KitsugiColors.TextSecondary,
+                            style = MaterialTheme.typography.labelMedium.copy(
+                                fontWeight = if (institutionCount > 0) FontWeight.Bold else FontWeight.Medium
+                            ),
+                            maxLines = 1
+                        )
+                    }
                 }
             }
+
+            // ── ORTAK ARALIKLAR (puan & yıl) ────────────────────────────────
+            // Bu iki aralık tüm kaynaklarda aynı anlamı taşır; bu yüzden motor
+            // ayrımı olmadan burada durur. Motor gövdelerindeki yerel ölçekli
+            // "minimum puan" alanları ek olarak kullanılabilir.
+            CommonRangeSliders(uiState, viewModel)
 
             // Motor Gövdesi
             when (uiState.selectedEngine) {
@@ -283,7 +338,7 @@ fun SourceEngineFilterSheet(
                 SearchSourceEngine.KITSU -> KitsuFullFiltersContent(uiState, viewModel)
                 SearchSourceEngine.SIMKL -> SimklFullFiltersContent(uiState, viewModel)
                 SearchSourceEngine.BANGUMI -> BangumiFullFiltersContent(uiState, viewModel)
-                SearchSourceEngine.ALL -> AllFullFiltersContent()
+                SearchSourceEngine.ALL -> Unit
             }
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -626,22 +681,9 @@ private fun MalFullFiltersContent(uiState: SearchUiState, viewModel: SearchViewM
         }
     }
 
-    // 8. Güvenli İçerik / SFW
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column {
-            Text(stringResource(R.string.inline_safe_content_sfw_1486369), style = MaterialTheme.typography.bodyMedium.copy(color = KitsugiColors.TextPrimary))
-            Text(stringResource(R.string.inline_filter_18_adult_titles_54cae0e), style = MaterialTheme.typography.bodySmall.copy(color = KitsugiColors.TextMuted))
-        }
-        Switch(
-            checked = filters.sfw,
-            onCheckedChange = { viewModel.updateMalFilters(filters.copy(sfw = it)) },
-            colors = SwitchDefaults.colors(checkedThumbColor = accentColor, checkedTrackColor = accentColor.copy(alpha = 0.5f))
-        )
-    }
+    // NOT: Buradaki "Güvenli İçerik (SFW)" anahtarı hiçbir isteğe yazılmıyordu —
+    // yetişkin içerik davranışı uygulamanın genel ayarıyla (showAdultContent)
+    // yönetiliyor. Etkisiz bir anahtar göstermemek için kaldırıldı.
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1365,13 +1407,112 @@ private fun SimklFullFiltersContent(uiState: SearchUiState, viewModel: SearchVie
     }
 }
 
+/**
+ * Puan ve yayın yılı aralıkları — TÜM kaynaklar için ortak.
+ *
+ * Kanonik sete yazılır (bkz. [SearchCommonFiltersBridge.applyTo]); alanı
+ * desteklemeyen kaynaklar sonuçlarını filtrelemeden döndürür. Kaydırıcı
+ * sürüklenirken arama tetiklenmez, bırakıldığında tek bir arama yapılır.
+ */
 @Composable
-private fun AllFullFiltersContent() {
-    Text(
-        text = stringResource(R.string.inline_when_searching_in_all_mode_9dd3946),
-        style = MaterialTheme.typography.bodyMedium.copy(color = KitsugiColors.TextSecondary),
-        lineHeight = 20.sp
-    )
+private fun CommonRangeSliders(
+    uiState: SearchUiState,
+    viewModel: SearchViewModel
+) {
+    val common = SearchCommonFiltersBridge.harvest(uiState)
+    val accentColor = LocalKitsugiAccent.current
+    val maxYear = remember { java.time.Year.now().value }
+    val minYear = 1950
+
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(
+            text = "🎚️ ${stringResource(R.string.search_common_ranges_title)}",
+            style = MaterialTheme.typography.titleMedium.copy(
+                fontWeight = FontWeight.Bold,
+                color = KitsugiColors.TextPrimary
+            )
+        )
+
+        // Puan aralığı
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            val scoreText = if (common.minScore == null && common.maxScore == null) {
+                stringResource(R.string.filter_all)
+            } else {
+                "%${common.minScore ?: 0} - %${common.maxScore ?: 100}"
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = stringResource(R.string.search_common_score_range),
+                    style = MaterialTheme.typography.labelMedium.copy(color = KitsugiColors.TextPrimary)
+                )
+                Text(
+                    text = scoreText,
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        color = accentColor,
+                        fontWeight = FontWeight.Bold
+                    )
+                )
+            }
+            RangeSlider(
+                value = (common.minScore ?: 0).toFloat()..(common.maxScore ?: 100).toFloat(),
+                onValueChange = { range ->
+                    val min = range.start.roundToInt().let { if (it <= 0) null else it }
+                    val max = range.endInclusive.roundToInt().let { if (it >= 100) null else it }
+                    viewModel.setCommonScoreRange(min, max)
+                },
+                valueRange = 0f..100f,
+                steps = 9,
+                onValueChangeFinished = { viewModel.search(resetPage = true) },
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+
+        // Yayın yılı aralığı
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            val yearText = if (common.startYear == null && common.endYear == null) {
+                stringResource(R.string.filter_all)
+            } else {
+                "${common.startYear ?: minYear} - ${common.endYear ?: maxYear}"
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = stringResource(R.string.search_common_year_range),
+                    style = MaterialTheme.typography.labelMedium.copy(color = KitsugiColors.TextPrimary)
+                )
+                Text(
+                    text = yearText,
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        color = accentColor,
+                        fontWeight = FontWeight.Bold
+                    )
+                )
+            }
+            RangeSlider(
+                value = (common.startYear ?: minYear).toFloat()..(common.endYear ?: maxYear).toFloat(),
+                onValueChange = { range ->
+                    val from = range.start.roundToInt().let { if (it <= minYear) null else it }
+                    val to = range.endInclusive.roundToInt().let { if (it >= maxYear) null else it }
+                    viewModel.setCommonYearRange(from, to)
+                },
+                valueRange = minYear.toFloat()..maxYear.toFloat(),
+                onValueChangeFinished = { viewModel.search(resetPage = true) },
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+
+        Text(
+            text = stringResource(R.string.search_common_all_sources_hint),
+            style = MaterialTheme.typography.bodySmall.copy(color = KitsugiColors.TextMuted)
+        )
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

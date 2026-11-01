@@ -80,6 +80,11 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
     private var searchJob: Job? = null
     private var undoHistoryDismissJob: Job? = null
 
+    // ── Ortak filtre çatısı: kurum (stüdyo/yapımcı/şirket/kanal) araması ────
+    private val _institutionSearchResults = MutableStateFlow<List<JikanSearchResult>>(emptyList())
+    val institutionSearchResults: StateFlow<List<JikanSearchResult>> = _institutionSearchResults.asStateFlow()
+    private var institutionSearchJob: Job? = null
+
     private val mixedMediaEngines = setOf(
         SearchSourceEngine.ANILIST, SearchSourceEngine.MAL,
         SearchSourceEngine.SHIKIMORI, SearchSourceEngine.KITSU,
@@ -300,7 +305,13 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     /** RafÄ±n sorgusunu, kapsamÄ±nÄ± ve gerÃ§ekten gÃ¶rÃ¼nen kayÄ±tlarÄ±nÄ± tek seferde devral. */
-    fun openSourceSearch(engine: SearchSourceEngine, query: String, scope: SearchScope, shelf: List<JikanSearchResult>) {
+    fun openSourceSearch(
+        engine: SearchSourceEngine,
+        query: String,
+        scope: SearchScope,
+        shelf: List<JikanSearchResult>,
+        carryOver: CommonSearchFilters? = null
+    ) {
         searchGeneration.incrementAndGet()
         searchJob?.cancel()
         val selectedScope = scope.takeIf { it in engine.availableScopes() } ?: engine.availableScopes().first()
@@ -320,8 +331,17 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
             SearchSourceEngine.BANGUMI -> KitsugiSearchTab.Bangumi
             SearchSourceEngine.ALL -> KitsugiSearchTab.All
         }
+        val inherited = carryOver
+            ?: SearchFilterHandoff.consume()
+            ?: SearchCommonFiltersBridge.harvest(_uiState.value)
+        val projected = SearchCommonFiltersBridge.applyTo(
+            state = _uiState.value,
+            target = engine,
+            common = inherited,
+            scope = selectedScope
+        )
         _uiState.update {
-            it.copy(
+            projected.copy(
                 query = query,
                 selectedEngine = engine,
                 selectedScope = selectedScope,
@@ -344,9 +364,217 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                 hasNextPage = false
             )
         }
+        // Taşınan filtreler tek başına da aramayı tetikler: "Tümü" sayfasında
+        // sorgu yazmadan yalnızca tür seçen "Tümünü Gör" sayfası boş açılmasın.
         if (query.isNotBlank() || _uiState.value.hasFiltersApplied) {
             search(seedResults = shelf)
         }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // ORTAK FİLTRE ÇATISI (Common Filter Roof) — genel API
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Kanonik filtre setini mevcut ekrana uygular.
+     * "Tümü" motorunda yedi kaynağın paketi birden güncellenir.
+     */
+    fun applyCommonFilters(common: CommonSearchFilters, triggerSearch: Boolean = true) {
+        _uiState.update { current ->
+            SearchCommonFiltersBridge.applyTo(current, current.selectedEngine, common)
+        }
+        if (triggerSearch) search(resetPage = true)
+    }
+
+    /**
+     * Ortak puan aralığını uygular.
+     * Kanonik set her çağrıda taze okunur ([SearchCommonFiltersBridge.harvest]);
+     * böylece kaydırıcı sürüklenirken başka bir kanonik alan (ör. yıl) yanlışlıkla
+     * eski değerine döndürülmez.
+     */
+    fun setCommonScoreRange(minScore: Int?, maxScore: Int?, triggerSearch: Boolean = false) {
+        val common = SearchCommonFiltersBridge.harvest(_uiState.value).copy(
+            minScore = minScore,
+            maxScore = maxScore
+        )
+        applyCommonFilters(common, triggerSearch)
+    }
+
+    /** Ortak yayın yılı aralığını uygular (puan aralığına aynı tazelik kuralı). */
+    fun setCommonYearRange(startYear: Int?, endYear: Int?, triggerSearch: Boolean = false) {
+        val common = SearchCommonFiltersBridge.harvest(_uiState.value).copy(
+            startYear = startYear,
+            endYear = endYear
+        )
+        applyCommonFilters(common, triggerSearch)
+    }
+
+    /** Kurum seçimi: kaynağın kendi paketine yazılır, kanonik listede korunur. */
+    fun selectInstitution(
+        engine: SearchSourceEngine,
+        kind: CommonInstitutionKind,
+        id: Int,
+        name: String
+    ) {
+        if (id <= 0 || name.isBlank()) return
+        // "Tümü" ekranında kurum türü hangi kaynağa aitse oraya yazılır.
+        val targetEngine = if (engine == SearchSourceEngine.ALL) {
+            SearchCommonFiltersBridge.engineForInstitutionKind(kind)
+        } else {
+            engine
+        }
+        if (!SearchCommonFiltersBridge.supportsInstitutions(targetEngine)) return
+        val entry = CommonInstitution(
+            engine = targetEngine,
+            id = id,
+            name = name.trim(),
+            kind = kind
+        )
+        _uiState.update { current ->
+            val merged = current.institutions
+                .filterNot { it.engine == entry.engine && it.kind == entry.kind } + entry
+            val withList = current.copy(institutions = merged)
+            when (targetEngine) {
+                SearchSourceEngine.MAL -> withList.copy(
+                    malSpecificFilters = withList.malSpecificFilters.copy(
+                        producerId = if (kind == CommonInstitutionKind.PRODUCER) id
+                        else withList.malSpecificFilters.producerId,
+                        magazineId = if (kind == CommonInstitutionKind.MAGAZINE) id
+                        else withList.malSpecificFilters.magazineId
+                    )
+                )
+                SearchSourceEngine.TMDB -> withList.copy(
+                    tmdbSpecificFilters = withList.tmdbSpecificFilters.copy(
+                        companyId = if (kind == CommonInstitutionKind.COMPANY) id
+                        else withList.tmdbSpecificFilters.companyId,
+                        networkId = if (kind == CommonInstitutionKind.NETWORK) id
+                        else withList.tmdbSpecificFilters.networkId
+                    )
+                )
+                else -> withList
+            }
+        }
+        search(resetPage = true)
+    }
+
+    /** Seçili kurumu kaldırır ve ilgili motor paketindeki kimliği temizler. */
+    fun removeInstitution(institution: CommonInstitution) {
+        _uiState.update { current ->
+            val remaining = current.institutions.filterNot { it.key == institution.key }
+            val withList = current.copy(institutions = remaining)
+            when (institution.engine) {
+                SearchSourceEngine.MAL -> withList.copy(
+                    malSpecificFilters = withList.malSpecificFilters.copy(
+                        producerId = if (institution.kind == CommonInstitutionKind.PRODUCER) null
+                        else withList.malSpecificFilters.producerId,
+                        magazineId = if (institution.kind == CommonInstitutionKind.MAGAZINE) null
+                        else withList.malSpecificFilters.magazineId
+                    )
+                )
+                SearchSourceEngine.TMDB -> withList.copy(
+                    tmdbSpecificFilters = withList.tmdbSpecificFilters.copy(
+                        companyId = if (institution.kind == CommonInstitutionKind.COMPANY) null
+                        else withList.tmdbSpecificFilters.companyId,
+                        networkId = if (institution.kind == CommonInstitutionKind.NETWORK) null
+                        else withList.tmdbSpecificFilters.networkId
+                    )
+                )
+                else -> withList
+            }
+        }
+        search(resetPage = true)
+    }
+
+    /** Tüm kurum seçimlerini (tüm kaynaklar için) temizler. */
+    fun clearInstitutions() {
+        _uiState.update { current ->
+            current.copy(
+                institutions = emptyList(),
+                malSpecificFilters = current.malSpecificFilters.copy(
+                    producerId = null,
+                    magazineId = null
+                ),
+                tmdbSpecificFilters = current.tmdbSpecificFilters.copy(
+                    companyId = null,
+                    networkId = null
+                )
+            )
+        }
+        search(resetPage = true)
+    }
+
+    /**
+     * Sıralama seçimi: seçilen anahtar hem motorun paketine hem de kanonik
+     * sıralamaya yazılır. Böylece "Tümü" aramasında 7 kaynak aynı anlamda
+     * sıralanır ve "Tümünü Gör" sayfası aynı sıralamayla açılır.
+     */
+    fun applySortKey(engine: SearchSourceEngine, sortKey: String) {
+        _uiState.update { current ->
+            val withSort = when (engine) {
+                SearchSourceEngine.ANILIST, SearchSourceEngine.ALL -> current.copy(
+                    aniListSpecificFilters = current.aniListSpecificFilters.copy(sort = sortKey)
+                )
+                SearchSourceEngine.MAL -> current.copy(
+                    malSpecificFilters = current.malSpecificFilters.copy(
+                        orderBy = sortKey,
+                        // Alfabetik sıralama tek başına "A-Z" demektir; Jikan'ın
+                        // varsayılan yönü `desc` olduğu için açıkça `asc` yazılır.
+                        sortDirection = if (sortKey == "title") "asc" else "desc"
+                    )
+                )
+                SearchSourceEngine.TMDB -> current.copy(
+                    tmdbSpecificFilters = current.tmdbSpecificFilters.copy(sortBy = sortKey)
+                )
+                SearchSourceEngine.SHIKIMORI -> current.copy(
+                    shikimoriSpecificFilters = current.shikimoriSpecificFilters.copy(order = sortKey)
+                )
+                SearchSourceEngine.KITSU -> current.copy(
+                    kitsuSpecificFilters = current.kitsuSpecificFilters.copy(sort = sortKey)
+                )
+                SearchSourceEngine.SIMKL -> current.copy(
+                    simklSpecificFilters = current.simklSpecificFilters.copy(sort = sortKey)
+                )
+                SearchSourceEngine.BANGUMI -> current.copy(
+                    bangumiSpecificFilters = current.bangumiSpecificFilters.copy(sort = sortKey)
+                )
+            }
+            val canonical = SearchCommonFiltersBridge.canonicalSortKey(engine, sortKey)
+            val common = SearchCommonFiltersBridge.harvest(withSort).copy(sortKey = canonical)
+            // Ortak çatı: aynı sıralamayı tüm kaynaklara yay (çevrilemeyenler kendi
+            // varsayılanında kalır).
+            SearchCommonFiltersBridge.applyTo(withSort, SearchSourceEngine.ALL, common)
+        }
+        search(resetPage = true)
+    }
+
+    // ── Kurum araması (kurum seçim sheet'i) ────────────────────────────────
+
+    fun searchInstitutions(kind: CommonInstitutionKind, query: String) {
+        institutionSearchJob?.cancel()
+        val clean = query.trim()
+        if (clean.isBlank() || !SearchCommonFiltersBridge.canSearchInstitutionKind(kind)) {
+            _institutionSearchResults.value = emptyList()
+            return
+        }
+        institutionSearchJob = viewModelScope.launch {
+            val results = runCatching {
+                when (kind) {
+                    CommonInstitutionKind.PRODUCER ->
+                        apiClient.searchMalProducers(clean, page = 1)
+                    CommonInstitutionKind.COMPANY -> TmdbApiClient().searchCompany(clean, page = 1)
+                    else -> emptyList()
+                }
+            }.getOrElse { error ->
+                if (error is kotlinx.coroutines.CancellationException) throw error
+                emptyList()
+            }
+            _institutionSearchResults.value = results
+        }
+    }
+
+    fun clearInstitutionSearch() {
+        institutionSearchJob?.cancel()
+        _institutionSearchResults.value = emptyList()
     }
 
     fun setTab(tab: KitsugiSearchTab) {
@@ -526,19 +754,25 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     // â”€â”€ Legacy updateFilters (used by GenresTagsSheet & SearchFilterSheet) â”€â”€
+    // ── Legacy updateFilters (used by GenresTagsSheet & SearchFilterSheet) ──
+    //
+    // ORTAK FİLTRE ÇATISI: Tür/etiket seçimi artık tek bir yol üzerinden yürür.
+    // Seçim hem kanonik alanlara (genres / excludedGenres / tags) hem de seçili
+    // motorun kendi paketine yazılır. Önceden yalnızca kanonik alanlar
+    // güncelleniyordu; bu yüzden AniList sayfasındaki "Türler & Etiketler"
+    // satırı seçimden sonra "0 seçili" gösteriyor ve uygulanan filtre kaybolmuş
+    // gibi görünüyordu. "Tümü" motorunda yedi kaynağın paketi birden güncellenir.
+    //
+    // Yıl/puan aralığı buradan DEĞİŞTİRİLMEZ: çağıran sheet yalnızca tür ve
+    // etiketleri düzenler; daha önce bu alanlar sessizce sıfırlanıyordu.
     fun updateFilters(filters: SearchFilters) {
-        _uiState.update {
-            it.copy(
-                genres = filters.genres,
-                excludedGenres = filters.excludedGenres,
-                tags = filters.tags,
-                organizations = filters.organizations,
-                startYear = filters.minYear,
-                endYear = filters.maxYear,
-                season = filters.season?.let { s -> KitsugiMediaSeason.entries.find { e -> e.apiValue == s } },
-                minScore = filters.minScore,
-                maxScore = filters.maxScore
-            )
+        val common = SearchCommonFiltersBridge.harvest(_uiState.value).copy(
+            genres = filters.genres,
+            excludedGenres = filters.excludedGenres,
+            tags = filters.tags
+        )
+        _uiState.update { current ->
+            SearchCommonFiltersBridge.applyTo(current, current.selectedEngine, common)
         }
         search(resetPage = true)
     }
@@ -558,6 +792,7 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                 genres = emptyList(),
                 excludedGenres = emptyList(),
                 tags = emptyList(),
+                institutions = emptyList(),
                 organizations = emptyList(),
                 selectedFormats = emptyList(),
                 selectedStatuses = emptyList(),
@@ -711,8 +946,11 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
             SearchSourceEngine.BANGUMI -> SearchPlatform.Bangumi
         }
 
+        // Ortak filtre çatısı: motor değişse de tür/etiket/yıl/puan/sıralama
+        // seçimleri yeni motorun parametrelerine çevrilerek korunur.
+        val carried = SearchCommonFiltersBridge.harvest(_uiState.value)
         _uiState.update {
-            it.copy(
+            val switched = it.copy(
                 selectedEngine = engine,
                 selectedScope = targetScope,
                 currentTab = mappedTab,
@@ -720,6 +958,7 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                 page = 1,
                 hasNextPage = true
             )
+            SearchCommonFiltersBridge.applyTo(switched, engine, carried, targetScope)
         }
         persistSearchSelection()
         search(resetPage = true)
@@ -997,7 +1236,13 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                 startYear = if (season == null) year else null,
                 endYear = if (season == null) year else null,
                 keyword = tmdbTagId?.toString(),
-                networkId = networkFacetId
+                networkId = networkFacetId,
+                // Yapım şirketi facet'i yalnızca TMDB kaynaklı detay sayfalarında
+                // gerçek bir TMDB şirket kimliğidir; başka kaynakların stüdyo
+                // kimliğini buraya yazmak yanlış sonuç verirdi.
+                companyId = if (request.source.equals("tmdb", ignoreCase = true)) {
+                    request.studioId?.takeIf { it > 0 }
+                } else null
             )
         } else TmdbSpecificFilters()
 
@@ -1051,6 +1296,60 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
             facetTerms.isEmpty() && cleanTag == null && season == null && year == null &&
             producerFacetId == null && networkFacetId == null
         val fallbackQuery = if (degradeMagazineToQuery) magazineFacetName else ""
+        // Detay sayfasından gelen kurum facetleri kanonik kurum listesine de yazılır:
+        // böylece kurum sheet'inde çip olarak görünür, tek tek kaldırılabilir ve bir
+        // önceki aramadan kalan kurum seçimleri bu aramaya sızmaz (liste her seferinde
+        // yeniden kurulur). Yalnızca facet gerçekten o kaynağa aitse eklenir.
+        val institutionSource = request.source.lowercase(java.util.Locale.ROOT)
+        val inheritedInstitutions = buildList {
+            val fallbackName: (Int) -> String = { id ->
+                getApplication<Application>().getString(R.string.search_institution_unknown_name, id)
+            }
+            if (institutionSource == "mal" || institutionSource == "jikan") {
+                producerFacetId?.let { id ->
+                    add(
+                        CommonInstitution(
+                            engine = SearchSourceEngine.MAL,
+                            id = id,
+                            name = request.studioName?.trim()?.takeIf { it.isNotBlank() } ?: fallbackName(id),
+                            kind = CommonInstitutionKind.PRODUCER
+                        )
+                    )
+                }
+                magazineFacetId?.let { id ->
+                    add(
+                        CommonInstitution(
+                            engine = SearchSourceEngine.MAL,
+                            id = id,
+                            name = magazineFacetName ?: fallbackName(id),
+                            kind = CommonInstitutionKind.MAGAZINE
+                        )
+                    )
+                }
+            }
+            if (institutionSource == "tmdb") {
+                networkFacetId?.let { id ->
+                    add(
+                        CommonInstitution(
+                            engine = SearchSourceEngine.TMDB,
+                            id = id,
+                            name = request.networkName?.trim()?.takeIf { it.isNotBlank() } ?: fallbackName(id),
+                            kind = CommonInstitutionKind.NETWORK
+                        )
+                    )
+                }
+                request.studioId?.takeIf { it > 0 }?.let { id ->
+                    add(
+                        CommonInstitution(
+                            engine = SearchSourceEngine.TMDB,
+                            id = id,
+                            name = request.studioName?.trim()?.takeIf { it.isNotBlank() } ?: fallbackName(id),
+                            kind = CommonInstitutionKind.COMPANY
+                        )
+                    )
+                }
+            }
+        }.distinctBy { it.key }
         val storedFilterRequest = if (degradeMagazineToQuery) null else normalizedRequest
         _uiState.update { current ->
             current.copy(
@@ -1063,6 +1362,7 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                 detailSearchFilterRequest = storedFilterRequest,
                 genres = listOfNotNull(cleanGenre ?: cleanTheme ?: cleanDemographic),
                 tags = listOfNotNull(cleanTag),
+                institutions = inheritedInstitutions,
                 excludedGenres = emptyList(),
                 selectedFormats = emptyList(),
                 selectedStatuses = emptyList(),
@@ -1666,6 +1966,7 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                                             maxRuntime = f.maxRuntime,
                                             watchProviderId = f.watchProviderId,
                                             networkId = f.networkId,
+                                            companyId = f.companyId,
                                             keyword = f.keyword,
                                             tvStatus = f.tvStatus,
                                             tvType = f.tvType,
@@ -1715,7 +2016,17 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                                     maxRuntime = f.maxRuntime,
                                     watchProviderId = f.watchProviderId,
                                     networkId = f.networkId,
-                                    keyword = f.keyword,
+                                    companyId = f.companyId,
+                                    // TMDB `with_keywords` yalnızca SAYISAL anahtar kelime
+                                    // kimliği kabul eder. Serbest metin buraya gönderildiğinde
+                                    // TMDB boş liste döndürüyordu; metin sorgusu artık anahtar
+                                    // kelime olarak gönderilmez (sorgu metni diğer kaynaklarda
+                                    // aranmaya devam eder, bu raf filtre kataloğunu gösterir).
+                                    keyword = if (queryText.isNotBlank()) {
+                                        queryText.trim().takeIf { it.all(Char::isDigit) }
+                                    } else {
+                                        f.keyword
+                                    },
                                     tvStatus = f.tvStatus,
                                     tvType = f.tvType,
                                     includeAdult = f.includeAdult
@@ -1794,7 +2105,8 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                                 yearFrom = f.yearFrom,
                                 yearTo = f.yearTo,
                                 minScore = f.minScore,
-                                includeAdult = f.nsfw || showAdult
+                                includeAdult = f.nsfw || showAdult,
+                                comicsOnly = f.comicsOnly
                             )
                             return Pair(res, res.size >= bangumiPageSize)
                         }
@@ -1931,12 +2243,26 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                                 minEpCh = f.minEpCh,
                                 maxEpCh = f.maxEpCh,
                                 minDuration = f.minDuration,
-                                maxDuration = f.maxDuration,
-                                sort = listOf(f.sort),
+                                // Sorgu varken varsayılan popülerlik sıralaması
+                                // gönderilmez: AniList kendi alakalılık sıralamasını
+                                // kullanır. "Tümü" rafı bunu zaten böyle yapıyordu;
+                                // kaynağa özel AniList sayfası yapmadığı için aynı
+                                // sorgu rafta ve sayfada farklı sırada geliyordu.
+                                sort = if (queryText.isNotBlank() && f.sort == "POPULARITY_DESC") {
+                                    emptyList()
+                                } else {
+                                    listOf(f.sort)
+                                },
                                 country = country,
                                 sources = f.sources.ifEmpty { null },
                                 isAdult = f.isAdult,
+                                // AniList "Lisansörler" seçimi `licensedBy_in`, "minimum
+                                // etiket güveni" ise `minimumTagRank` olarak gönderilir.
                                 isLicensed = null,
+                                licensedBy = f.licensedBy.ifEmpty { null },
+                                minimumTagRank = f.minimumTagRank,
+                                minVolumes = f.minVolumes,
+                                maxVolumes = f.maxVolumes,
                                 page = page,
                                 perPage = 24
                             )
@@ -2117,6 +2443,10 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                                 country = aniListCountry ?: f.country,
                                 sources = f.sources.takeIf { it.isNotEmpty() },
                                 isAdult = f.isAdult,
+                                licensedBy = f.licensedBy.takeIf { it.isNotEmpty() },
+                                minimumTagRank = f.minimumTagRank,
+                                minVolumes = f.minVolumes,
+                                maxVolumes = f.maxVolumes,
                                 page = page,
                                 perPage = allShelfFetchLimit
                             ).results
@@ -2139,6 +2469,10 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                                 country = aniListCountry ?: f.country,
                                 sources = f.sources.takeIf { it.isNotEmpty() },
                                 isAdult = f.isAdult,
+                                licensedBy = f.licensedBy.takeIf { it.isNotEmpty() },
+                                minimumTagRank = f.minimumTagRank,
+                                minVolumes = f.minVolumes,
+                                maxVolumes = f.maxVolumes,
                                 page = page,
                                 perPage = allShelfFetchLimit
                             ).results
@@ -2228,6 +2562,7 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                                         maxRuntime = f.maxRuntime,
                                         watchProviderId = f.watchProviderId,
                                         networkId = f.networkId,
+                                        companyId = f.companyId,
                                         keyword = f.keyword,
                                         tvStatus = f.tvStatus,
                                         tvType = f.tvType,
@@ -2269,6 +2604,7 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                                     maxRuntime = f.maxRuntime,
                                     watchProviderId = f.watchProviderId,
                                     networkId = f.networkId,
+                                    companyId = f.companyId,
                                     keyword = f.keyword,
                                     tvStatus = f.tvStatus,
                                     tvType = f.tvType,
@@ -2326,7 +2662,8 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                         yearFrom = f.yearFrom,
                         yearTo = f.yearTo,
                         minScore = f.minScore,
-                        includeAdult = f.nsfw || showAdult
+                        includeAdult = f.nsfw || showAdult,
+                        comicsOnly = f.comicsOnly
                     )
                     val res = fetchMediaShelf(
                         active = plan.bangumi,
@@ -2609,7 +2946,8 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                         yearFrom = f.yearFrom,
                         yearTo = f.yearTo,
                         minScore = f.minScore,
-                        includeAdult = f.nsfw || showAdult
+                        includeAdult = f.nsfw || showAdult,
+                        comicsOnly = f.comicsOnly
                     )
                 }
             }

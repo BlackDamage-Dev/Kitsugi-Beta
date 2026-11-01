@@ -185,7 +185,13 @@ object KitsugiBangumiClient {
         yearTo: Int? = null,
         minScore: Int? = null,
         context: Context? = null,
-        includeAdult: Boolean = false
+        includeAdult: Boolean = false,
+        /**
+         * Manga kapsamında yalnızca `platform == "漫画"` (çizgi roman) olanları döndür.
+         * Arama sheet'indeki "yalnızca çizgi roman" anahtarı daha önce yalnızca
+         * `searchManga`'da uygulanıyordu; gelişmiş aramada hiçbir etkisi yoktu.
+         */
+        comicsOnly: Boolean = true
     ): List<JikanSearchResult> = withContext(Dispatchers.IO) {
         try {
             val types = when (mediaType) {
@@ -235,6 +241,10 @@ object KitsugiBangumiClient {
             subjects
                 .filter { BangumiIdNamespace.supportsSubjectType(it.type) }
                 .filter { includeAdult || !it.nsfw }
+                .filter {
+                    mediaType != MediaType.Manga || !comicsOnly ||
+                        it.platform == null || it.platform == "漫画"
+                }
                 .map { it.toSearchResult(mediaType) }.withLatinBangumiNames(context)
         } catch (error: kotlinx.coroutines.CancellationException) {
             throw error

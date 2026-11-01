@@ -1671,7 +1671,7 @@
     <string name="inline_load_more_dc765e9">Load More</string>
     <string name="inline_all_extensions_b457b7e">All Extensions</string>
     <string name="inline_search_across_all_active_extension_18bf3b9">Search across all active extensions</string>
-    <string name="inline_searching_all_sources_across_6_817f37d">🌐 Searching all sources across 6 platforms (AniList, MAL, TMDB, Shikimori, Kitsu, Simkl) simultaneously.</string>
+    <string name="inline_searching_all_sources_across_6_817f37d">🌐 Searching all sources across 7 platforms (AniList, MAL, TMDB, Shikimori, Kitsu, Simkl, Bangumi) simultaneously.</string>
     <string name="inline_sort_7d09458">📊 Sort:</string>
     <string name="inline_age_rating_b66743f">🔞 Age Rating:</string>
     <string name="inline_filter_18_adult_titles_54cae0e">Filter 18+ adult titles</string>
@@ -2079,7 +2079,7 @@
     <string name="inline_category_genre_73db81d">🏷️ Category / Genre:</string>
     <string name="inline_release_year_c60cec7">🗓️ Release Year:</string>
     <string name="inline_country_of_origin_91a5f10">🌍 Country of Origin:</string>
-    <string name="inline_when_searching_in_all_mode_9dd3946">When searching in All mode, your query is sent simultaneously to the AniList, MyAnimeList, TMDB, Shikimori, Kitsu, and Simkl engines. For detailed filters, select a target engine directly from the search bar.</string>
+    <string name="inline_when_searching_in_all_mode_9dd3946">When searching in All mode, your query is sent simultaneously to the AniList, MyAnimeList, TMDB, Shikimori, Kitsu, Simkl and Bangumi engines. The genres, tags, institutions, year and sorting you pick are translated and applied to every source that supports them.</string>
     <string name="inline_choose_search_source_20e924f">Choose Search Source</string>
     <string name="inline_which_database_would_you_like_679fdaf">Which database would you like to search?</string>
     <string name="inline_search_all_installed_extensions_590b4c9">Search all installed extensions...</string>
@@ -7061,6 +7061,7 @@
     <string name="search_ui_popularity_members">👥 Popularity (member count)</string>
     <string name="search_ui_release_date_new_old">📅 Release date: Newest to oldest</string>
     <string name="search_ui_release_date_newest">📅 Release date: Newest</string>
+    <string name="search_ui_release_date_oldest">📜 Release date: Oldest</string>
     <string name="search_ui_box_office">💰 Box office / revenue</string>
     <string name="search_ui_user_count">👥 User count (popularity)</string>
     <string name="search_ui_overall_ranking">🏆 Overall ranking</string>
@@ -7185,6 +7186,24 @@
     <string name="search_filter_duration_minutes">Duration (min)</string>
     <string name="search_filter_country">Country</string>
     <string name="search_filter_source">Source</string>
+    <!-- Common filter roof: Institutions (2026-10-31) -->
+    <string name="search_institutions">Studios</string>
+    <string name="search_institution_hint">Search institution (studio, producer, company)</string>
+    <string name="search_institution_empty">Type an institution name to search</string>
+    <string name="search_institution_unsupported_title">No server-side institution filter for this source</string>
+    <string name="search_institution_unsupported_desc">This source\'s search endpoint does not accept a studio/company filter. Your selection is preserved and applied on MAL and TMDB pages.</string>
+    <string name="search_institution_selected">Selected institutions</string>
+    <string name="search_institution_clear">Clear institutions</string>
+    <string name="search_institution_kind_producer">Producer / Studio</string>
+    <string name="search_institution_kind_company">Production Company</string>
+    <string name="search_institution_apply_hint">Applied instantly and results refresh. Remove it from the chip.</string>
+    <string name="search_institution_carried">Selections preserved from other sources</string>
+    <string name="search_institution_unknown_name">Institution #%1$d</string>
+    <string name="search_common_ranges_title">Shared ranges (all sources)</string>
+    <string name="search_common_year_range">📅 Release Year Range</string>
+    <string name="search_common_score_range">⭐ Average Score Range</string>
+    <string name="search_common_all_sources_hint">These ranges apply to every source that supports them. Sources without support return their results unfiltered.</string>
+    <string name="search_common_extra_selections">➕ Extra selections (from source)</string>
     <string name="search_filter_category">Category</string>
     <string name="search_filter_release_year">Release year</string>
     <string name="search_filter_career">Career</string>

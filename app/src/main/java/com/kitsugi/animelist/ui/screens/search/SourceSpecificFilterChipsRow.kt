@@ -91,6 +91,7 @@ internal fun localizedSourceSearchLabel(label: String): String {
         "👥 Popülerlik (Üye Sayısı)" -> R.string.search_ui_popularity_members
         "📅 Yayın Tarihi: Yeniden Eskiye" -> R.string.search_ui_release_date_new_old
         "📅 Çıkış Tarihi: En Yeniler" -> R.string.search_ui_release_date_newest
+        "📜 Çıkış Tarihi: En Eskiler" -> R.string.search_ui_release_date_oldest
         "💰 Gişe / Hasılat" -> R.string.search_ui_box_office
         "👥 Kullanıcı Sayısı (Popülerlik)" -> R.string.search_ui_user_count
         "🏆 Genel Sıralama" -> R.string.search_ui_overall_ranking
@@ -601,6 +602,7 @@ fun getSortDisplayLabel(uiState: SearchUiState): String {
                 "TRENDING_DESC" -> "🔥 Trendler"
                 "FAVOURITES_DESC" -> "💖 Favoriler"
                 "START_DATE_DESC" -> "📅 Yeni Çıkanlar"
+                "START_DATE_ASC" -> "📜 En Eskiler (Klasikler)"
                 "TITLE_ROMAJI" -> "🔤 İsim: A-Z"
                 else -> "👥 Popülerlik"
             }
@@ -619,7 +621,8 @@ fun getSortDisplayLabel(uiState: SearchUiState): String {
             when (uiState.tmdbSpecificFilters.sortBy) {
                 "popularity.desc" -> "👥 Popülerlik"
                 "vote_average.desc" -> "⭐ Puan"
-                "primary_release_date.desc" -> "📅 Yeni Çıkanlar"
+                "primary_release_date.desc", "first_air_date.desc" -> "📅 Yeni Çıkanlar"
+                "primary_release_date.asc", "first_air_date.asc" -> "📜 En Eskiler (Klasikler)"
                 "revenue.desc" -> "💰 Hasılat"
                 else -> "👥 Popülerlik"
             }
@@ -639,6 +642,7 @@ fun getSortDisplayLabel(uiState: SearchUiState): String {
                 "-userCount" -> "👥 Popülerlik"
                 "-averageRating" -> "⭐ Puan"
                 "-createdAt" -> "📅 Yeni Eklenenler"
+                "createdAt" -> "📜 En Eskiler (Klasikler)"
                 else -> "🔥 Trendler"
             }
         }
@@ -675,29 +679,12 @@ fun getCurrentSortKey(uiState: SearchUiState): String {
 }
 
 fun applyEngineSort(engine: SearchSourceEngine, sortKey: String, viewModel: SearchViewModel) {
-    when (engine) {
-        SearchSourceEngine.ANILIST, SearchSourceEngine.ALL -> {
-            viewModel.updateAniListFilters(viewModel.uiState.value.aniListSpecificFilters.copy(sort = sortKey))
-        }
-        SearchSourceEngine.MAL -> {
-            viewModel.updateMalFilters(viewModel.uiState.value.malSpecificFilters.copy(orderBy = sortKey, sortDirection = "desc"))
-        }
-        SearchSourceEngine.TMDB -> {
-            viewModel.updateTmdbFilters(viewModel.uiState.value.tmdbSpecificFilters.copy(sortBy = sortKey))
-        }
-        SearchSourceEngine.SHIKIMORI -> {
-            viewModel.updateShikimoriFilters(viewModel.uiState.value.shikimoriSpecificFilters.copy(order = sortKey))
-        }
-        SearchSourceEngine.KITSU -> {
-            viewModel.updateKitsuFilters(viewModel.uiState.value.kitsuSpecificFilters.copy(sort = sortKey))
-        }
-        SearchSourceEngine.SIMKL -> {
-            viewModel.updateSimklFilters(viewModel.uiState.value.simklSpecificFilters.copy(sort = sortKey))
-        }
-        SearchSourceEngine.BANGUMI -> {
-            viewModel.updateBangumiFilters(viewModel.uiState.value.bangumiSpecificFilters.copy(sort = sortKey))
-        }
-    }
+    // Sıralama artık ViewModel üzerinden uygulanır: seçilen anahtar hem motorun
+    // paketine hem de kanonik (ortak) sıralamaya yazılır. Önceden yalnızca
+    // AniList paketi güncelleniyordu; "Tümü" aramasında diğer 6 kaynak kendi
+    // popülerlik sırasında kalıyor ve "Tümünü Gör" sayfası seçilen sıralamayı
+    // devralmıyordu.
+    viewModel.applySortKey(engine, sortKey)
 }
 
 /**
@@ -725,6 +712,7 @@ fun sortOptionsForEngine(engine: SearchSourceEngine): List<Pair<String, String>>
             "popularity.desc" to "👥 Popülerlik",
             "vote_average.desc" to "⭐ Puan: Yüksekten Düşüğe",
             "primary_release_date.desc" to "📅 Çıkış Tarihi: En Yeniler",
+            "primary_release_date.asc" to "📜 Çıkış Tarihi: En Eskiler",
             "revenue.desc" to "💰 Gişe / Hasılat"
         )
         SearchSourceEngine.SHIKIMORI -> listOf(

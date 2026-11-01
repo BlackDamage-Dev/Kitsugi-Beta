@@ -1671,7 +1671,7 @@
     <string name="inline_load_more_dc765e9">Daha Fazla Yükle</string>
     <string name="inline_all_extensions_b457b7e">Tüm Eklentiler</string>
     <string name="inline_search_across_all_active_extension_18bf3b9">Aktif olan tüm eklentilerde ara</string>
-    <string name="inline_searching_all_sources_across_6_817f37d">🌐 6 platformun (AniList, MAL, TMDB, Shikimori, Kitsu, Simkl) tüm kaynakları eşzamanlı taranıyor.</string>
+    <string name="inline_searching_all_sources_across_6_817f37d">🌐 7 platformun (AniList, MAL, TMDB, Shikimori, Kitsu, Simkl, Bangumi) tüm kaynakları eşzamanlı taranıyor.</string>
     <string name="inline_sort_7d09458">📊 Sıralama:</string>
     <string name="inline_age_rating_b66743f">🔞 Yaş Sınırı:</string>
     <string name="inline_filter_18_adult_titles_54cae0e">18+ yetişkin yapımları filtrele</string>
@@ -2079,7 +2079,7 @@
     <string name="inline_category_genre_73db81d">🏷️ Kategori / Tür:</string>
     <string name="inline_release_year_c60cec7">🗓️ Yayın Yılı:</string>
     <string name="inline_country_of_origin_91a5f10">🌍 Menşei Ülke:</string>
-    <string name="inline_when_searching_in_all_mode_9dd3946">🌐 Tümü modunda arama yaparken sorgunuz eşzamanlı olarak AniList, MyAnimeList, TMDB, Shikimori, Kitsu ve Simkl motorlarına iletilir. İnce detaylı filtreler için arama çubuğundan doğrudan hedef motoru seçebilirsiniz.</string>
+    <string name="inline_when_searching_in_all_mode_9dd3946">🌐 Tümü modunda arama yaparken sorgunuz eşzamanlı olarak AniList, MyAnimeList, TMDB, Shikimori, Kitsu, Simkl ve Bangumi motorlarına iletilir. Seçtiğiniz tür, etiket, kurum, yıl ve sıralama filtreleri uygulanabildiği her kaynağa çevrilerek uygulanır.</string>
     <string name="inline_choose_search_source_20e924f">Arama Kaynağı Seç</string>
     <string name="inline_which_database_would_you_like_679fdaf">Hangi veritabanında arama yapmak istiyorsun?</string>
     <string name="inline_search_all_installed_extensions_590b4c9">Tüm yüklü eklentilerde ara...</string>
@@ -7066,6 +7066,7 @@ Eklentiler ekranından eklenti etkinleştirin.</string>
     <string name="search_ui_popularity_members">👥 Popülerlik (Üye Sayısı)</string>
     <string name="search_ui_release_date_new_old">📅 Yayın Tarihi: Yeniden Eskiye</string>
     <string name="search_ui_release_date_newest">📅 Çıkış Tarihi: En Yeniler</string>
+    <string name="search_ui_release_date_oldest">📜 Çıkış Tarihi: En Eskiler</string>
     <string name="search_ui_box_office">💰 Gişe / Hasılat</string>
     <string name="search_ui_user_count">👥 Kullanıcı Sayısı (Popülerlik)</string>
     <string name="search_ui_overall_ranking">🏆 Genel Sıralama</string>
@@ -7190,6 +7191,24 @@ Eklentiler ekranından eklenti etkinleştirin.</string>
     <string name="search_filter_duration_minutes">Süre (dk)</string>
     <string name="search_filter_country">Ülke</string>
     <string name="search_filter_source">Kaynak</string>
+    <!-- Ortak filtre çatısı: Kurumlar (2026-10-31) -->
+    <string name="search_institutions">Kurumlar</string>
+    <string name="search_institution_hint">Kurum ara (stüdyo, yapımcı, şirket)</string>
+    <string name="search_institution_empty">Aramak için bir kurum adı yazın</string>
+    <string name="search_institution_unsupported_title">Bu kaynakta sunucu taraflı kurum filtresi yok</string>
+    <string name="search_institution_unsupported_desc">Bu kaynağın arama ucu stüdyo/şirket filtresi kabul etmiyor. Seçimleriniz korunur; MAL ve TMDB sayfalarında uygulanır.</string>
+    <string name="search_institution_selected">Seçili kurumlar</string>
+    <string name="search_institution_clear">Kurumları temizle</string>
+    <string name="search_institution_kind_producer">Yapımcı / Stüdyo</string>
+    <string name="search_institution_kind_company">Yapım Şirketi</string>
+    <string name="search_institution_apply_hint">Seçim anında uygulanır ve sonuçlar yenilenir. Çipten kaldırabilirsiniz.</string>
+    <string name="search_institution_carried">Diğer kaynaklardan korunan seçimler</string>
+    <string name="search_institution_unknown_name">Kurum #%1$d</string>
+    <string name="search_common_ranges_title">Ortak aralıklar (tüm kaynaklar)</string>
+    <string name="search_common_year_range">📅 Yayın Yılı Aralığı</string>
+    <string name="search_common_score_range">⭐ Ortalama Puan Aralığı</string>
+    <string name="search_common_all_sources_hint">Bu aralıklar, alanı destekleyen tüm kaynaklara uygulanır. Desteklemeyen kaynaklar kendi sonuçlarını filtrelemeden döndürür.</string>
+    <string name="search_common_extra_selections">➕ Ek seçimler (kaynaktan geldi)</string>
     <string name="search_filter_category">Kategori</string>
     <string name="search_filter_release_year">Yayın Yılı</string>
     <string name="search_filter_career">Meslek</string>

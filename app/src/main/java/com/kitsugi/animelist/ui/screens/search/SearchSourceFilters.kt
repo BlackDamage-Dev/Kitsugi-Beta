@@ -263,8 +263,7 @@ data class MalSpecificFilters(
     val endYear: Int? = null,
     val producerId: Int? = null,
     val magazineId: Int? = null,
-    val letter: String? = null,
-    val sfw: Boolean = true
+    val letter: String? = null
 ) {
     val activeCount: Int get() {
         var count = 0
@@ -280,7 +279,6 @@ data class MalSpecificFilters(
         if (producerId != null) count++
         if (magazineId != null) count++
         if (letter != null) count++
-        if (!sfw) count++
         return count
     }
 }
@@ -305,6 +303,8 @@ data class TmdbSpecificFilters(
     val maxRuntime: Int? = null,
     val watchProviderId: Int? = null,
     val networkId: Int? = null,
+    /** Ortak filtre çatısındaki "Kurumlar" seçiminden gelen yapım şirketi kimliği. */
+    val companyId: Int? = null,
     val keyword: String? = null,
     val includeAdult: Boolean = false
 ) {
@@ -321,6 +321,7 @@ data class TmdbSpecificFilters(
         if (minRuntime != null || maxRuntime != null) count++
         if (watchProviderId != null) count++
         if (networkId != null) count++
+        if (companyId != null) count++
         if (keyword != null) count++
         if (includeAdult) count++
         return count
@@ -403,16 +404,17 @@ data class SimklSpecificFilters(
     val genres: List<String> = emptyList(),
     val genre: String? = null, // action, comedy, drama, fantasy...
     val country: String? = null, // jp, kr, cn, us
-    val year: String? = null, // 2026, 2025, 2020s, 1990s
-    val minScore: Int? = null
+    val year: String? = null // 2026, 2025, 2020s, 1990s
 ) {
+    // NOT: Simkl arama ucu puan filtresi (score/rating) kabul etmez. Daha önce
+    // pakette `minScore` alanı vardı ve hiçbir isteğe yazılmıyordu; "filtre var"
+    // görünüp hiçbir şey yapmıyordu. Alan kaldırıldı.
     val activeCount: Int get() {
         var count = 0
         if (subtype != null) count++
         if (genres.isNotEmpty() || genre != null) count += maxOf(genres.size, 1)
         if (country != null) count++
         if (year != null) count++
-        if (minScore != null) count++
         return count
     }
 }

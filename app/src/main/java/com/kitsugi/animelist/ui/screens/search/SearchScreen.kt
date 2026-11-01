@@ -147,6 +147,17 @@ fun SearchScreen(
     var autoLoadBudget by remember { mutableIntStateOf(AUTO_LOAD_BUDGET_PER_SCROLL) }
     var lastAutoLoadLoadedCount by remember { mutableIntStateOf(-1) }
     val isStudioSearch = uiState.selectedScope == SearchScope.STUDIO
+    // "Tümünü Gör" geçişinde ortak filtre setini hedef sayfaya devret.
+    // Hedef sayfa ayrı bir ViewModel örneği kullandığı için seçimler ancak bu
+    // devir (SearchFilterHandoff) ile taşınabilir; aksi hâlde tür/etiket/kurum
+    // seçimleri kayboluyordu.
+    val openSourceSearchWithCarry: (SearchSourceEngine, SearchScope, List<JikanSearchResult>) -> Unit =
+        { targetEngine, targetScope, shelf ->
+            SearchFilterHandoff.publish(
+                SearchCommonFiltersBridge.harvest(viewModel.uiState.value)
+            )
+            onOpenSourceSearch(targetEngine, targetScope, shelf)
+        }
     val onSearchResultClick: (JikanSearchResult) -> Unit = { result ->
         if (isStudioSearch && onOpenStudioDetail != null) {
             onOpenStudioDetail(result.malId, result.source, result.title, result.imageUrl)
@@ -260,6 +271,8 @@ fun SearchScreen(
 
     var showEnginePickerSheet by remember { mutableStateOf(false) }
     var showSourceEngineFilterSheet by remember { mutableStateOf(false) }
+    // Ortak filtre çatısı: kurum (stüdyo/yapımcı/şirket) seçim sheet'i
+    var showInstitutionFilterSheet by remember { mutableStateOf(false) }
     var showOrgFilterSheet by remember { mutableStateOf(false) }
 
     // Keep canonical English values in state/API filters; localize only the visible labels.
@@ -507,7 +520,7 @@ fun SearchScreen(
                         isAlreadyInList = isSearchResultAlreadyInList,
                         getMediaEntry = getSearchResultMediaEntry,
                         onItemClick = onSearchResultClick,
-                        onSeeAllClick = { onOpenSourceSearch(SearchSourceEngine.ANILIST, uiState.selectedScope, uiState.multiResults.aniListResults) },
+                        onSeeAllClick = { openSourceSearchWithCarry(SearchSourceEngine.ANILIST, uiState.selectedScope, uiState.multiResults.aniListResults) },
                         titleLanguage = titleLanguage,
                         scoreFormat = scoreFormat,
                         hideScores = hideScores
@@ -523,7 +536,7 @@ fun SearchScreen(
                         isAlreadyInList = isSearchResultAlreadyInList,
                         getMediaEntry = getSearchResultMediaEntry,
                         onItemClick = onSearchResultClick,
-                        onSeeAllClick = { onOpenSourceSearch(SearchSourceEngine.MAL, uiState.selectedScope, uiState.multiResults.malResults) },
+                        onSeeAllClick = { openSourceSearchWithCarry(SearchSourceEngine.MAL, uiState.selectedScope, uiState.multiResults.malResults) },
                         titleLanguage = titleLanguage,
                         scoreFormat = scoreFormat,
                         hideScores = hideScores
@@ -539,7 +552,7 @@ fun SearchScreen(
                         isAlreadyInList = isSearchResultAlreadyInList,
                         getMediaEntry = getSearchResultMediaEntry,
                         onItemClick = onSearchResultClick,
-                        onSeeAllClick = { onOpenSourceSearch(SearchSourceEngine.TMDB, uiState.selectedScope, uiState.multiResults.tmdbResults) },
+                        onSeeAllClick = { openSourceSearchWithCarry(SearchSourceEngine.TMDB, uiState.selectedScope, uiState.multiResults.tmdbResults) },
                         titleLanguage = titleLanguage,
                         scoreFormat = scoreFormat,
                         hideScores = hideScores
@@ -555,7 +568,7 @@ fun SearchScreen(
                         isAlreadyInList = isSearchResultAlreadyInList,
                         getMediaEntry = getSearchResultMediaEntry,
                         onItemClick = onSearchResultClick,
-                        onSeeAllClick = { onOpenSourceSearch(SearchSourceEngine.SHIKIMORI, uiState.selectedScope, uiState.multiResults.shikimoriResults) },
+                        onSeeAllClick = { openSourceSearchWithCarry(SearchSourceEngine.SHIKIMORI, uiState.selectedScope, uiState.multiResults.shikimoriResults) },
                         titleLanguage = titleLanguage,
                         scoreFormat = scoreFormat,
                         hideScores = hideScores
@@ -571,7 +584,7 @@ fun SearchScreen(
                         isAlreadyInList = isSearchResultAlreadyInList,
                         getMediaEntry = getSearchResultMediaEntry,
                         onItemClick = onSearchResultClick,
-                        onSeeAllClick = { onOpenSourceSearch(SearchSourceEngine.KITSU, uiState.selectedScope, uiState.multiResults.kitsuResults) },
+                        onSeeAllClick = { openSourceSearchWithCarry(SearchSourceEngine.KITSU, uiState.selectedScope, uiState.multiResults.kitsuResults) },
                         titleLanguage = titleLanguage,
                         scoreFormat = scoreFormat,
                         hideScores = hideScores
@@ -587,7 +600,7 @@ fun SearchScreen(
                         isAlreadyInList = isSearchResultAlreadyInList,
                         getMediaEntry = getSearchResultMediaEntry,
                         onItemClick = onSearchResultClick,
-                        onSeeAllClick = { onOpenSourceSearch(SearchSourceEngine.SIMKL, uiState.selectedScope, uiState.multiResults.simklResults) },
+                        onSeeAllClick = { openSourceSearchWithCarry(SearchSourceEngine.SIMKL, uiState.selectedScope, uiState.multiResults.simklResults) },
                         titleLanguage = titleLanguage,
                         scoreFormat = scoreFormat,
                         hideScores = hideScores
@@ -603,7 +616,7 @@ fun SearchScreen(
                         isAlreadyInList = isSearchResultAlreadyInList,
                         getMediaEntry = getSearchResultMediaEntry,
                         onItemClick = onSearchResultClick,
-                        onSeeAllClick = { onOpenSourceSearch(SearchSourceEngine.BANGUMI, uiState.selectedScope, uiState.multiResults.bangumiResults) },
+                        onSeeAllClick = { openSourceSearchWithCarry(SearchSourceEngine.BANGUMI, uiState.selectedScope, uiState.multiResults.bangumiResults) },
                         titleLanguage = titleLanguage,
                         scoreFormat = scoreFormat,
                         hideScores = hideScores
@@ -726,11 +739,21 @@ fun SearchScreen(
                 showSourceEngineFilterSheet = false
                 viewModel.setFilterSheetOpen(true)
             },
-            onOpenOrganizations = {
+            onOpenInstitutions = {
                 showSourceEngineFilterSheet = false
-                showOrgFilterSheet = true
+                viewModel.clearInstitutionSearch()
+                showInstitutionFilterSheet = true
             },
             onDismiss = { showSourceEngineFilterSheet = false }
+        )
+    }
+
+    // Ortak filtre çatısı: kurum seçim sheet'i (motor duyarlı)
+    if (showInstitutionFilterSheet) {
+        InstitutionFilterSheet(
+            uiState = uiState,
+            viewModel = viewModel,
+            onDismiss = { showInstitutionFilterSheet = false }
         )
     }
 
@@ -744,11 +767,14 @@ fun SearchScreen(
 
     // Genres Bottom Sheet Dialog
     if (uiState.isFilterSheetOpen) {
+        // Sheet kanonik setten beslenir: seçili motorun kendi paketinde tür/etiket
+        // varsa (ör. detay sayfasından gelen) [harvest] bunları da birleştirir.
+        val sheetFilters = SearchCommonFiltersBridge.harvest(uiState)
         GenresTagsSheet(
             currentFilters = SearchFilters(
-                genres = uiState.genres,
-                excludedGenres = uiState.excludedGenres,
-                tags = uiState.tags,
+                genres = sheetFilters.genres,
+                excludedGenres = sheetFilters.excludedGenres,
+                tags = sheetFilters.tags,
                 organizations = uiState.organizations
             ),
             onApplyFilters = {

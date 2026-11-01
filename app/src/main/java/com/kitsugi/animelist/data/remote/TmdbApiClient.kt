@@ -517,6 +517,7 @@ class TmdbApiClient(
         maxRuntime: Int? = null,
         watchProviderId: Int? = null,
         networkId: Int? = null,
+        companyId: Int? = null,
         keyword: String? = null,
         tvStatus: String? = null,
         tvType: String? = null,
@@ -546,6 +547,7 @@ class TmdbApiClient(
                         maxRuntime = maxRuntime,
                         watchProviderId = watchProviderId,
                         networkId = networkId,
+                        companyId = companyId,
                         keyword = keyword,
                         tvStatus = tvStatus,
                         tvType = tvType,
@@ -583,6 +585,7 @@ class TmdbApiClient(
         maxRuntime: Int? = null,
         watchProviderId: Int? = null,
         networkId: Int? = null,
+        companyId: Int? = null,
         keyword: String? = null,
         tvStatus: String? = null,
         tvType: String? = null,
@@ -594,7 +597,20 @@ class TmdbApiClient(
         params.add("api_key=$apiKey")
         params.add("language=$language")
         params.add("page=$page")
-        params.add("sort_by=$sortBy")
+        // TMDB `/discover/tv` yalnızca `first_air_date.*` sıralamasını kabul eder;
+        // `primary_release_date.*` dizilerde 400 döndürüyor ve raf sessizce boş
+        // kalıyordu. `revenue.desc` de dizilerde geçersizdir (gişe yok).
+        val effectiveSortBy = if (isMovie) {
+            sortBy
+        } else {
+            when {
+                sortBy.startsWith("primary_release_date") ->
+                    sortBy.replace("primary_release_date", "first_air_date")
+                sortBy == "revenue.desc" -> "popularity.desc"
+                else -> sortBy
+            }
+        }
+        params.add("sort_by=$effectiveSortBy")
         params.add("include_adult=$includeAdult")
 
         if (!genres.isNullOrEmpty()) params.add("with_genres=${genres.joinToString(",")}")
@@ -611,6 +627,10 @@ class TmdbApiClient(
             if (!tvType.isNullOrBlank()) params.add("with_type=$tvType")
             if (networkId != null) params.add("with_networks=$networkId")
         }
+
+        // Ortak filtre çatısı: "Kurumlar" seçiminde yapım şirketi kimliği
+        // TMDB discover'ın `with_companies` parametresiyle uygulanır (film + dizi).
+        if (companyId != null && companyId > 0) params.add("with_companies=$companyId")
 
         if (minScore != null && minScore > 0.0) params.add("vote_average.gte=$minScore")
         if (maxScore != null && maxScore > 0.0) params.add("vote_average.lte=$maxScore")

@@ -219,7 +219,6 @@ internal fun SearchUiState.effectiveMalFilters(): MalSpecificFilters {
         maxScore = commonScoreMax10(this, specific.maxScore),
         startYear = commonYearStart(this, specific.startYear),
         endYear = commonYearEnd(this, specific.endYear),
-        sfw = specific.sfw && isAdultFilter != true,
         orderBy = commonSort(this, specific.orderBy)
     )
 }
@@ -309,7 +308,6 @@ internal fun SearchUiState.effectiveSimklFilters(): SimklSpecificFilters {
         genre = specific.genre ?: genres.firstOrNull(),
         country = specific.country ?: country?.code?.lowercase(Locale.ROOT),
         year = specific.year ?: startYear?.toString(),
-        minScore = stricterMin(specific.minScore, minScore?.div(10)),
         sort = commonSort(this, specific.sort).lowercase(Locale.ROOT)
     )
 }
@@ -325,7 +323,7 @@ internal fun SearchUiState.effectiveBangumiFilters(): BangumiSpecificFilters {
         tags = terms,
         yearFrom = commonYearStart(this, specific.yearFrom),
         yearTo = commonYearEnd(this, specific.yearTo),
-        minScore = commonScoreMin(this, specific.minScore),
+        minScore = stricterMin(specific.minScore, minScore?.div(10)),
         nsfw = specific.nsfw || isAdultFilter == true,
         comicsOnly = specific.comicsOnly && selectedScope !in setOf(SearchScope.MANHWA, SearchScope.MANHUA, SearchScope.LIGHT_NOVEL)
     )
