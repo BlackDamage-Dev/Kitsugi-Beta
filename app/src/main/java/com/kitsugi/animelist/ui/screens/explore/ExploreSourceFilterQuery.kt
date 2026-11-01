@@ -1,5 +1,7 @@
 package com.kitsugi.animelist.ui.screens.explore
 
+import com.kitsugi.animelist.data.auth.BangumiApiClient
+
 import com.kitsugi.animelist.data.remote.JikanApiClient
 import com.kitsugi.animelist.data.remote.JikanSearchResult
 import com.kitsugi.animelist.data.remote.KitsuExploreClient
@@ -50,10 +52,21 @@ object ExploreSourceFilters {
         platform: ExplorePlatform,
         categoryType: ExploreCategoryType,
         genreId: String = "ALL"
-    ): Set<KitsugiGridSortOption> =
-        SORT_SUPPORT[platform].orEmpty().filterTo(mutableSetOf()) {
+    ): Set<KitsugiGridSortOption> {
+        // Bangumi'nin sıralama desteği **tür seçiliyken** açılır (`filter.tag` ile arama
+        // ucu); bu yüzden `SORT_SUPPORT[BANGUMI]` bilinçli olarak boştur. Boş kümeden
+        // filtrelemek yüzünden `serverSorts(BANGUMI, …, genre)` her zaman boş dönüyor,
+        // filtre sayfası da sunucunun gerçekten uygulayabildiği Puan/Popülerlik
+        // sıralamalarını "📱 yerel" diye işaretliyordu.
+        val base = if (platform == ExplorePlatform.BANGUMI) {
+            BANGUMI_SEARCH_SORTS
+        } else {
+            SORT_SUPPORT[platform].orEmpty()
+        }
+        return base.filterTo(mutableSetOf()) {
             supportsSort(platform, categoryType, it, genreId)
         }
+    }
 
     /**
      * Seçilen türün kaynak API'sinde gerçekten bir karşılığı var mı?
@@ -79,7 +92,10 @@ object ExploreSourceFilters {
                 CanonicalFilterBridge.mapMalGenreId(term, spec.mediaType == MediaType.Manga) != null
             ExplorePlatform.SIMKL -> CanonicalFilterBridge.mapSimklGenre(term) != null
             // Bangumi etiket araması yerel sözlükle çalışır; eşlenemeyen çip gönderilmez.
-            ExplorePlatform.BANGUMI -> BANGUMI_TAGS.containsKey(term.lowercase())
+            // 3,18 MB'lık `bangumi/tags.tsv` sözlüğü 19 girişlik eski haritadan çok daha
+            // geniş bir kapsama sahiptir: "Aksiyon", "Bilim Kurgu", "Korku", "Spor" gibi
+            // çipler artık sunucunun anladığı Çince etikete çevrilebiliyor.
+            ExplorePlatform.BANGUMI -> bangumiTagFor(term) != null
             ExplorePlatform.ALL -> true
         }
     }
@@ -100,8 +116,11 @@ object ExploreSourceFilters {
         if (platform == ExplorePlatform.ALL) return true
         if (shelfSpec(platform, categoryType) == null) return false
         if (platform == ExplorePlatform.BANGUMI) {
-            // Bangumi sıralaması yalnız etiketli aramada (tür seçili) sunucuda uygulanır.
-            return genreId != "ALL" && sort in BANGUMI_SEARCH_SORTS
+            // Bangumi'de `score`/`heat` sıralaması **boş sorguda** da çalışır: arama ucu
+            // `sort=score|heat` + `rating_count` süzgecini kabul eder (probe A2/A5/F1/F4).
+            // Eskiden tür seçili değilse sıralama "yerel" sayılıyor ve kullanıcı seçtiği
+            // sıralamanın sunucuda uygulanmadığını görüyordu.
+            return sort in BANGUMI_SEARCH_SORTS
         }
         return SORT_SUPPORT[platform].orEmpty().contains(sort)
     }
@@ -187,7 +206,19 @@ suspend fun fetchFilteredExplorePage(
             ExplorePlatform.KITSU -> kitsuPage(spec, term, effectiveSort, page)
             ExplorePlatform.SHIKIMORI -> shikimoriPage(spec, term, effectiveSort, page, showAdultContent)
             ExplorePlatform.SIMKL -> simklPage(spec, effectiveSort, page, term, clients)
-            ExplorePlatform.BANGUMI -> bangumiPage(spec, term, effectiveSort, page, showAdultContent)
+            // Mevsimsel ızgarada seçilen mevsim **filtreye de** taşınır: tür çipi seçildiğinde
+            // sunucu yoluna geçildiği için mevsim sessizce düşüyor ve "Kış 2025" yerine tüm
+            // zamanların sonuçları geliyordu (R23).
+            ExplorePlatform.BANGUMI -> bangumiPage(
+                spec = spec,
+                categoryType = categoryType,
+                term = term,
+                sort = effectiveSort,
+                page = page,
+                showAdultContent = showAdultContent,
+                seasonalSeason = season.takeIf { isSeasonal },
+                seasonalYear = year.takeIf { isSeasonal }
+            )
             ExplorePlatform.ALL -> emptyList()
         }
     }.getOrElse { error ->
@@ -383,15 +414,48 @@ private suspend fun simklPage(
 
 private suspend fun bangumiPage(
     spec: ExploreShelfSpec,
+    categoryType: ExploreCategoryType,
     term: String?,
     sort: KitsugiGridSortOption,
     page: Int,
-    showAdultContent: Boolean
+    showAdultContent: Boolean,
+    seasonalSeason: String? = null,
+    seasonalYear: Int? = null
 ): List<JikanSearchResult> {
-    // Bangumi etiketleri topluluk sözlüğüdür ve yerel dilde tutulur; çip terimleri eşlenir.
-    val tag = term?.let { BANGUMI_TAGS[it.lowercase()] }
-    // Etiketli (boş sorgulu) istekte "match" sıralaması anlamsızdır → rank/heat/score kullanılır.
-    val effectiveSort = if (tag != null) bangumiSort(sort) else bangumiSort(KitsugiGridSortOption.DEFAULT)
+    val tag = term?.let { bangumiTagFor(it) }
+    // Arama ucu sıralamaları BangumiApiClient.SearchSort sabitleriyle eşleşir;
+    // `score` (oy sayısı tabanlı), `heat` (koleksiyon sayısı) ve `rank` (varsayılan).
+    // Boş sorguda da çalışır (canlı prob A2/A5/F1/F4). Eskiden tür seçili değilse sıralama
+    // zorla `rank`e çevriliyordu (R17).
+    val effectiveSort = when (sort) {
+        KitsugiGridSortOption.SCORE_DESC -> com.kitsugi.animelist.data.auth.BangumiApiClient.SearchSort.SCORE
+        KitsugiGridSortOption.POPULARITY_DESC -> com.kitsugi.animelist.data.auth.BangumiApiClient.SearchSort.HEAT
+        else -> com.kitsugi.animelist.data.auth.BangumiApiClient.SearchSort.RANK
+    }
+    // "Bangumi Dizileri" ve "Bangumi Filmleri" raflarında yalnızca 三次元 (type = 6)
+    // sorulmalı. Aksi hâlde sayfalama `MediaType.TvShow` için tüm `type=6` yerine varsayılan
+    // anime türünü arıyor, sayfalamasında dizi rafının altında anime, film rafının altında
+    // anime filmleri de listeleniyordu (raf başlığı ile içerik uyuşmuyordu).
+    // `MediaType.Movie` normalde "anime filmi + gerçek film" demektir; ama bu ızgara
+    // "Bangumi Filmleri" rafının devamıdır → yalnızca 三次元 (type = 6).
+    val subjectTypes = when (spec.mediaType) {
+        MediaType.TvShow, MediaType.Movie -> listOf(BangumiApiClient.SubjectType.REAL)
+        else -> null
+    }
+    // `type = 6` hem dizileri hem filmleri kapsar; raf başlığı ile içeriğin uyuşması için
+    // 三次元 kayıtları Bangumi'nin kendi `meta_tags` değeriyle ayrılır (probe F1/F2).
+    // `type = 1` (书籍) ise manga + roman + 画集 karışık gelir; "Tümünü Gör" manga ızgarası
+    // roman listeliyordu, `漫画` meta etiketi bunu sunucuda ayırır (probe Q1–Q3).
+    // Roman rafı ayrı ele alınır: `type = 1` kataloğunda roman `meta_tags=小说` ile ayrılır ve
+    // `comicsOnly` (varsayılan `true`) manga meta etiketini ekleyip listeyi **boşaltır**.
+    val isNovels = categoryType == ExploreCategoryType.NOVELS
+    val metaTags = when {
+        isNovels -> listOf("小说")
+        spec.mediaType == MediaType.TvShow -> listOf("电视剧")
+        spec.mediaType == MediaType.Movie -> listOf("电影")
+        spec.mediaType == MediaType.Manga -> listOf("漫画")
+        else -> emptyList()
+    }
     return KitsugiBangumiClient.searchMediaAdvanced(
         mediaType = spec.mediaType,
         query = "",
@@ -399,7 +463,14 @@ private suspend fun bangumiPage(
         limit = BANGUMI_PAGE_SIZE,
         sort = effectiveSort,
         tags = listOfNotNull(tag),
-        includeAdult = showAdultContent
+        includeAdult = showAdultContent,
+        subjectTypes = subjectTypes,
+        comicsOnly = !isNovels,
+        metaTags = metaTags,
+        // Mevsim → `air_date` çeyreği (probe V1–V5). Yıl aralığı yerine çeyrek aralık
+        // gönderilir; sunucu ikisini birlikte alsa da çeyrek daha dar olduğu için kazanır.
+        season = seasonalSeason,
+        seasonYear = seasonalYear
     )
 }
 
@@ -820,27 +891,16 @@ private val BANGUMI_SEARCH_SORTS = setOf(
  * Bangumi etiketleri topluluk tarafından girilir ve ağırlıklı olarak yerel dilde tutulur;
  * eşlenemeyen bir çip sunucuya gönderilmez, cihazda süzülür.
  */
-private val BANGUMI_TAGS: Map<String, String> = mapOf(
-    "drama" to "剧情",
-    "action" to "战斗",
-    "romance" to "恋爱",
-    "comedy" to "搞笑",
-    "fantasy" to "奇幻",
-    "sci-fi" to "科幻",
-    "mystery" to "悬疑",
-    "horror" to "恐怖",
-    "slice of life" to "日常",
-    "adventure" to "冒险",
-    "supernatural" to "超能力",
-    "psychological" to "心理",
-    "sports" to "运动",
-    "thriller" to "惊悚",
-    "mecha" to "机战",
-    "music" to "音乐",
-    "historical" to "历史",
-    "military" to "战争",
-    "school" to "校园"
-)
+/**
+ * Arayüz tür terimini Bangumi'nin **kendi** etiket yazımına çevirir.
+ *
+ * Terim çevirisi tek yerde (`BangumiTagDictionary`) yapılır: sözlük 58 bin etiket
+ * grubunu kapsar ve her grup için sunucuda dolu olan yazımı seçer
+ * (`运动系` değil `运动`). Burada ayrıca 19 girişlik ikinci bir harita tutmak,
+ * iki kaynağın ayrışmasına (örn. `Supernatural` → `超能力` vs `灵异`) yol açıyordu.
+ */
+private fun bangumiTagFor(term: String): String? =
+    com.kitsugi.animelist.utils.BangumiTagDictionary.canonicalTagFor(term)
 
 /**
  * Kaynak API'lerinin gerçekten uygulayabildiği sıralama seçenekleri.

@@ -313,7 +313,11 @@ object CanonicalFilterBridge {
             SearchSourceEngine.SHIKIMORI -> request.mediaType == MediaType.Anime || isManga
             SearchSourceEngine.KITSU -> request.mediaType == MediaType.Anime || isManga
             SearchSourceEngine.SIMKL -> request.mediaType != MediaType.Manga
-            SearchSourceEngine.BANGUMI -> request.mediaType == MediaType.Anime || isManga
+            // Bangumi `filter.air_date` süzgecini 三次元 (type = 6) kataloğunda da uygular
+            // (probe A6/F4); dizi/film detayından yıl çipine basıldığında Bangumi
+            // atlanıyordu, artık üç kapsamda da yıl süzgeci gönderilir.
+            SearchSourceEngine.BANGUMI -> isTv || request.mediaType == MediaType.Anime ||
+                isManga || request.mediaType == MediaType.Movie
             SearchSourceEngine.ALL -> true
         }
     }

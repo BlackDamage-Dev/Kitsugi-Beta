@@ -95,6 +95,16 @@ object BangumiApiClient {
     const val SEARCH_PAGE_SIZE = 20
 
     /**
+     * "En yüksek puanlı" sıralamasına girebilmek için gereken en az oy sayısı.
+     *
+     * Bangumi'de puan sıralaması oy sayısından bağımsızdır; 100 oy tabanı, tek oylu
+     * "10/10" kayıtların listeyi ele geçirmesini engellerken popüler kataloğun
+     * tamamını (anime/manga) içeride tutar. Keşfet'te REAL (dizi/film) kataloğu daha
+     * küçük olduğu için orada 50 kullanılır — bkz. [topScored].
+     */
+    const val MIN_RATING_VOTES = 100
+
+    /**
      * Koleksiyon (收藏) yazma uçlarının sunucu tarafı sınırları.
      * Kaynak: `bangumi/server` → `web/req/collection.go` → `Validate()`.
      */
@@ -174,6 +184,15 @@ object BangumiApiClient {
      */
     private const val THROTTLE_REQUESTS_PER_SECOND = 10.0
     private const val THROTTLE_BURST = 10.0
+
+    /**
+     * Geçici hatalarda toplam deneme sayısı (ilk deneme dahil).
+     *
+     * Bangumi Cloudflare arkasında olduğu için 502/503/504 ve 429 yanıtları tek tek
+     * görülüyor; 3 deneme, kullanıcıya hiç fark ettirmeden bu dalgalanmaları yutar.
+     * Toplam süre tavanı [KitsugiHttpClient.bangumiClient] `callTimeout`'u ile sınırlıdır.
+     */
+    private const val TRANSIENT_MAX_ATTEMPTS = 3
 
     /**
      * Toplu/arka plan Bangumi işleri (kütüphane başlığı tazeleme, içe aktarma) için bağlam
@@ -397,6 +416,12 @@ object BangumiApiClient {
         val eps: Int,
         val totalEpisodes: Int,
         val volumes: Int,
+        /**
+         * Yalnızca书籍条目'larında dolu: `true` → serinin ana kaydı, `false` → cilt.
+         * Cilt kayıtları ("XXX (3)") manga ızgarasını doldurduğu için `series=true`
+         * süzgeciyle istenir; alan bilinmiyorsa `null` kalır.
+         */
+        val series: Boolean? = null,
         val images: BangumiImages?,
         val rating: BangumiRating?,
         val collection: BangumiCollectionCounts?,
@@ -562,19 +587,69 @@ object BangumiApiClient {
     /**
      * İsteği çalıştırır ve gövdeyi döndürür. 2xx dışında [BangumiApiException] fırlatır.
      * 204 (gövdesiz başarı) ve boş gövde `null` olarak döner.
+     *
+     * ## Neden yeniden deneme var?
+     *
+     * Bangumi 2025 sonundan beri Cloudflare arkasında ve **geçici** hatalar (504 Gateway
+     * Timeout, 502/503, 429 ve bağlantı zaman aşımı) günlük kullanımda sık görülüyor
+     * (bkz. `infanf/myanili#139`, `Predidit/Kazumi#2733`, `bangumi/api#279`). Tek denemeli
+     * istemcide bu tek bir zaman aşımı, Keşfet'te koca bir şeridi **boş** bırakıyordu;
+     * kullanıcı tarafında "Bangumi verisi gelmiyor" olarak görünen tablo buydu.
+     *
+     * Yalnızca **yan etkisiz** istekler (GET ve POST arama) yeniden denenir; koleksiyon
+     * yazma uçları ([send] üzerinden `retryable = false`) tek denemede kalır ki çift
+     * kayıt oluşmasın.
+     *
+     * @param retryable geçici hatada yeniden denensin mi (varsayılan: yalnızca GET)
      */
-    private suspend fun execute(request: Request): String? {
-        awaitBangumiThrottle()
-        return withContext(Dispatchers.IO) {
-            httpClient.newCall(request).execute().use { response ->
-                val body = response.body?.string().orEmpty()
-                if (response.isSuccessful) {
-                    if (response.code == 204 || body.isBlank()) return@use null
-                    return@use body
+    private suspend fun execute(request: Request, retryable: Boolean = request.method == "GET"): String? {
+        val maxAttempts = if (retryable) TRANSIENT_MAX_ATTEMPTS else 1
+        var lastError: Throwable? = null
+        for (attempt in 1..maxAttempts) {
+            if (attempt > 1) delay(transientBackoffMs(attempt, lastError))
+            awaitBangumiThrottle()
+            try {
+                return withContext(Dispatchers.IO) {
+                    httpClient.newCall(request).execute().use { response ->
+                        val body = response.body?.string().orEmpty()
+                        if (response.isSuccessful) {
+                            if (response.code == 204 || body.isBlank()) null else body
+                        } else {
+                            throw parseError(response.code, body)
+                        }
+                    }
                 }
-                throw parseError(response.code, body)
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (error: Throwable) {
+                lastError = error
+                if (!isTransientFailure(error) || attempt == maxAttempts) throw error
+                Log.w(
+                    TAG,
+                    "Bangumi geçici hatası (deneme $attempt/$maxAttempts, " +
+                        "${request.url.encodedPath}): ${error.message}"
+                )
             }
         }
+        throw lastError ?: BangumiApiException(0, null, null, "Bangumi isteği başarısız")
+    }
+
+    /** Geçici (tekrar denenebilir) hata mı? Ağ hatası, 429 ve 5xx evet; 4xx hayır. */
+    internal fun isTransientFailure(error: Throwable): Boolean = when (error) {
+        is java.io.IOException -> true
+        is BangumiApiException -> error.code == 0 || error.isRateLimited || error.code in 500..599
+        else -> false
+    }
+
+    /**
+     * Yeniden deneme öncesi bekleme: 500 ms → 1 sn → 2 sn (üst sınır 4 sn) + %25 jitter.
+     * 429'da sunucunun ritmini bozmamak için taban süre 1,5 sn'ye çıkar.
+     */
+    private fun transientBackoffMs(attempt: Int, error: Throwable?): Long {
+        val base = if ((error as? BangumiApiException)?.isRateLimited == true) 1_500L else 500L
+        val exponential = base shl (attempt - 2).coerceIn(0, 3)
+        val jitter = (exponential * 0.25).toLong().coerceAtLeast(1L)
+        return (exponential + kotlin.random.Random.nextLong(0L, jitter + 1L)).coerceAtMost(4_000L)
     }
 
     private fun parseError(code: Int, body: String): BangumiApiException {
@@ -636,7 +711,9 @@ object BangumiApiClient {
         path: String,
         jsonBody: JSONObject?,
         token: String?,
-        query: Map<String, String?> = emptyMap()
+        query: Map<String, String?> = emptyMap(),
+        /** POST arama uçları yan etkisizdir → geçici hatada yeniden denenebilir. */
+        retryable: Boolean = false
     ): String? {
         val body = buildJsonRequestBody(jsonBody)
         val request = Request.Builder()
@@ -888,16 +965,27 @@ object BangumiApiClient {
         rank: List<String> = emptyList(),
         nsfw: Boolean? = null,
         limit: Int = SEARCH_PAGE_SIZE,
-        offset: Int = 0
+        offset: Int = 0,
+        /** `rating_count` filtresi (`>=200` gibi). "En yüksek puanlı" sıralaması için zorunlu. */
+        ratingCount: List<String> = emptyList(),
+        /**
+         * `meta_tags` filtresi — platform/ortam etiketleri (`电视剧`, `电影`, `WEB`, `剧场版`…).
+         * `type=6` (三次元) içinde dizi ile filmi ayırmanın sunucu tarafındaki tek yolu budur;
+         * `cat` süzgeci arama ucunda yoktur.
+         */
+        metaTags: List<String> = emptyList()
     ): BangumiPage<BangumiSubject> = withContext(Dispatchers.IO) {
         val pageLimit = limit.coerceIn(1, SEARCH_PAGE_SIZE)
-        val payload = buildSearchSubjectsPayload(keyword, sort, types, tags, airDate, rating, rank, nsfw)
+        val payload = buildSearchSubjectsPayload(
+            keyword, sort, types, tags, airDate, rating, rank, nsfw, ratingCount, metaTags
+        )
         val body = send(
             method = "POST",
             path = "/v0/search/subjects",
             jsonBody = payload,
             token = token,
-            query = mapOf("limit" to pageLimit.toString(), "offset" to offset.toString())
+            query = mapOf("limit" to pageLimit.toString(), "offset" to offset.toString()),
+            retryable = true
         ) ?: return@withContext BangumiPage(0, pageLimit, offset, emptyList())
         // Arama ucu `Paged_Subject` döndürür: öğeler TAM条目 modelidir (nsfw, rating, tags dahil).
         parseSubjectPage(JSONObject(body), pageLimit, offset)
@@ -915,7 +1003,11 @@ object BangumiApiClient {
         airDate: List<String>,
         rating: List<String>,
         rank: List<String>,
-        nsfw: Boolean?
+        nsfw: Boolean?,
+        /** `rating_count` (`>=200`…). Puan sıralamasında oy sayısı tabanı budur. */
+        ratingCount: List<String> = emptyList(),
+        /** `meta_tags` (`电视剧`, `电影`, `WEB`…). `type=6` içinde dizi/film ayrımı. */
+        metaTags: List<String> = emptyList()
     ): JSONObject = JSONObject().apply {
         put("keyword", keyword)
         put("sort", sort)
@@ -941,6 +1033,14 @@ object BangumiApiClient {
             filter.put("rank", JSONArray(rank))
             hasFilter = true
         }
+        if (ratingCount.isNotEmpty()) {
+            filter.put("rating_count", JSONArray(ratingCount))
+            hasFilter = true
+        }
+        if (metaTags.isNotEmpty()) {
+            filter.put("meta_tags", JSONArray(metaTags))
+            hasFilter = true
+        }
         if (nsfw != null) {
             filter.put("nsfw", nsfw)
             hasFilter = true
@@ -958,6 +1058,70 @@ object BangumiApiClient {
      *
      * @param type [SubjectType] (null = tümü)
      */
+    /**
+     * "En yüksek puanlı" sıralama — **oy sayısı tabanlı** güvenli yol.
+     *
+     * Bangumi'de `POST /v0/search/subjects` ucunda `sort=score` Meilisearch'te yalnızca
+     * ham `score` alanını sıralar ve oy sayısını (`rating.total`) hesaba katmaz. Tek oylu,
+     * kimsenin bilmediği 10/10 yapıtlar klasiklerin önüne geçiyordu (R1).
+     *
+     * Çözüm sırası:
+     * 1. `sort=rank` + `rating_count>=minVotes` (yalnız sıralı ve yeterli oylular)
+     * 2. `sort=rank` + `rank>=1` (küçük kategorilerde sıralı olanlar)
+     * 3. `sort=score` + `rating_count>=minVotes` (sırasız ama oylu kayıtlar)
+     *
+     * Hiçbiri sonuç vermezse boş sayfa döner. Canlı prob (`probe/result.txt`, A1–A4)
+     * bu sıranın CLANNAD, Gintama, Steins;Gate gibi klasikleri en başa getirdiğini kanıtladı.
+     *
+     * @param minVotes sıralamaya girmek için gereken en az oy sayısı (varsayılan: 100)
+     * @param metaTags sunucu tarafı ortam süzgeci (`电视剧`, `电影`, `漫画`, `小说`…).
+     * Roman rafı ayrımı için gereklidir: Bangumi'de manga ve roman aynı `type=1` (书籍)
+     * altında; `漫画` süzgeci olmadan romanlar "En Yüksek Puanlı Mangalar" rafına
+     * düşüyordu (2026-11-01 probu Q4: `meta_tags=["小说"]` 539 roman).
+     */
+    suspend fun topScored(
+        type: Int,
+        token: String? = null,
+        limit: Int = 20,
+        offset: Int = 0,
+        minVotes: Int = MIN_RATING_VOTES,
+        metaTags: List<String> = emptyList()
+    ): BangumiPage<BangumiSubject> {
+        /*
+         * Sıralama varyantları — en doğrudan "en yüksek puanlı" tanımından en gevşeğe:
+         * 1. `sort=rank` + `rank>=1` + `rating_count>=N` — hem resmi rank'i olan hem de
+         *    oy sayısı barajını aşan klasikler.
+         * 2. `sort=rank` + `rating_count>=N` — rank>0 filtresi olmadan (oy sayısı yeterliyse).
+         * 3. `sort=rank` + `rank>=1` — oy sayısı filtresi boş dönerse (küçük kategoriler).
+         * 4. `sort=score` + `rating_count>=N` — rank alanı boşsa son çare.
+         */
+        val attempts: List<suspend () -> BangumiPage<BangumiSubject>> = listOf(
+            { searchSubjects("", token, listOf(type), SearchSort.RANK, limit = limit, offset = offset, nsfw = false, rank = listOf(">=1"), ratingCount = listOf(">=$minVotes"), metaTags = metaTags) },
+            { searchSubjects("", token, listOf(type), SearchSort.RANK, limit = limit, offset = offset, nsfw = false, ratingCount = listOf(">=$minVotes"), metaTags = metaTags) },
+            { searchSubjects("", token, listOf(type), SearchSort.RANK, limit = limit, offset = offset, nsfw = false, rank = listOf(">=1"), metaTags = metaTags) },
+            { searchSubjects("", token, listOf(type), SearchSort.SCORE, limit = limit, offset = offset, nsfw = false, ratingCount = listOf(">=$minVotes"), metaTags = metaTags) }
+        )
+        var lastError: Throwable? = null
+        for ((index, attempt) in attempts.withIndex()) {
+            val page = try {
+                attempt()
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (error: Throwable) {
+                lastError = error
+                null
+            }
+            if (page != null && page.data.isNotEmpty()) {
+                if (index > 0) {
+                    Log.w(TAG, "topScored(type=$type): ilk sıralama varyantı boştu, #${index + 1} kullanıldı")
+                }
+                return page
+            }
+        }
+        lastError?.let { throw it }
+        return BangumiPage(0, limit, offset, emptyList())
+    }
+
     suspend fun searchSubjectsLegacy(
         keyword: String,
         token: String? = null,
@@ -1045,7 +1209,8 @@ object BangumiApiClient {
             path = "/v0/search/characters",
             jsonBody = payload,
             token = token,
-            query = mapOf("limit" to limit.toString(), "offset" to offset.toString())
+            query = mapOf("limit" to limit.toString(), "offset" to offset.toString()),
+            retryable = true
         ) ?: return@withContext BangumiPage(0, limit, offset, emptyList())
         parseEntityPage(JSONObject(body), limit, offset)
     }
@@ -1080,7 +1245,8 @@ object BangumiApiClient {
             path = "/v0/search/persons",
             jsonBody = payload,
             token = token,
-            query = mapOf("limit" to limit.toString(), "offset" to offset.toString())
+            query = mapOf("limit" to limit.toString(), "offset" to offset.toString()),
+            retryable = true
         ) ?: return@withContext BangumiPage(0, limit, offset, emptyList())
         parseEntityPage(JSONObject(body), limit, offset)
     }
@@ -1144,9 +1310,21 @@ object BangumiApiClient {
         type: Int,
         token: String? = null,
         limit: Int = 25,
-        offset: Int = 0
+        offset: Int = 0,
+        /** `type = 1` (书籍) için kategori süzgeci: `1001` manga, `1002` roman. */
+        cat: String? = null,
+        /** Yalnızca书籍条目'ları için: `true` → ciltler değil **seri** ana kaydı. */
+        series: Boolean? = null
     ): BangumiPage<BangumiSubject> =
-        browseSubjects(type = type, token = token, sort = "rank", limit = limit, offset = offset)
+        browseSubjects(
+            type = type,
+            token = token,
+            cat = cat,
+            sort = "rank",
+            series = series,
+            limit = limit,
+            offset = offset
+        )
 
     /**
      * En çok koleksiyona eklenen ("近期注目" benzeri popülerlik) liste.
@@ -1159,7 +1337,9 @@ object BangumiApiClient {
         type: Int,
         token: String? = null,
         limit: Int = 25,
-        offset: Int = 0
+        offset: Int = 0,
+        /** Isı sıralaması boş/hatalı olursa düşülecek göz atma kategorisi (`cat`). */
+        cat: String? = null
     ): BangumiPage<BangumiSubject> {
         val byHeat = runCatching {
             searchSubjects(
@@ -1173,7 +1353,14 @@ object BangumiApiClient {
         }.getOrNull()
         if (byHeat != null && byHeat.data.isNotEmpty()) return byHeat
         Log.w(TAG, "mostCollected(type=$type): heat araması boş/hatalı, tarih sıralamasına düşülüyor")
-        return browseSubjects(type = type, token = token, sort = "date", limit = limit, offset = offset)
+        return browseSubjects(
+            type = type,
+            token = token,
+            cat = cat,
+            sort = "date",
+            limit = limit,
+            offset = offset
+        )
     }
 
     // ── Detay ────────────────────────────────────────────────────────────────
@@ -2170,6 +2357,7 @@ object BangumiApiClient {
             eps = json.optInt("eps", 0),
             totalEpisodes = json.optInt("total_episodes", json.optInt("eps", 0)),
             volumes = json.optInt("volumes", 0),
+            series = if (json.has("series")) json.optBoolean("series", false) else null,
             images = parseImages(json.optJSONObject("images")),
             rating = ratingJson?.let {
                 BangumiRating(

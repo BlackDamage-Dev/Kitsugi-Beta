@@ -62,8 +62,8 @@ fun SourceSearchPage(
     onAddSelectionToList: (ApiSearchSelection) -> Unit,
     onOpenPluginPicker: () -> Unit = {},
     onOpenAddonExplore: (String) -> Unit = {},
-    onOpenCharacterDetail: (Int, String?, String?) -> Unit = { _, _, _ -> },
-    onOpenStaffDetail: (Int, String?, String?) -> Unit = { _, _, _ -> },
+    onOpenCharacterDetail: (Int, String?, String?, String?) -> Unit = { _, _, _, _ -> },
+    onOpenStaffDetail: (Int, String?, String?, String?) -> Unit = { _, _, _, _ -> },
     onOpenStudioDetail: (Int, String, String?, String?) -> Unit = { _, _, _, _ -> },
     retainedOwner: SourceSearchOwner? = null
 ) {

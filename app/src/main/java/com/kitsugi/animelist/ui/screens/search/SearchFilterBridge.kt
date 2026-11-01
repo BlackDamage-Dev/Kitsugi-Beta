@@ -323,6 +323,8 @@ internal fun SearchUiState.effectiveBangumiFilters(): BangumiSpecificFilters {
         tags = terms,
         yearFrom = commonYearStart(this, specific.yearFrom),
         yearTo = commonYearEnd(this, specific.yearTo),
+        season = specific.season ?: season?.apiValue,
+        seasonYear = specific.seasonYear ?: startYear,
         minScore = stricterMin(specific.minScore, minScore?.div(10)),
         nsfw = specific.nsfw || isAdultFilter == true,
         comicsOnly = specific.comicsOnly && selectedScope !in setOf(SearchScope.MANHWA, SearchScope.MANHUA, SearchScope.LIGHT_NOVEL)

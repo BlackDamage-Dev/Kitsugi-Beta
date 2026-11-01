@@ -101,15 +101,114 @@ internal object BangumiTagDictionary {
         map
     }
 
+    /**
+     * Sorgu eşlemesi iki katmanlıdır: (1) [ALIAS_TAGS] elle sabitlenmiş anlam köprüleri,
+     * (2) sözlük grubu → [PREFERRED_TAGS] ya da grubun ilk **yerel** yazımı.
+     *
+     * Not: Bu tablo yalnızca **sorgu** için kullanılır (`filter.tag`); arayüzde etiketlerin
+     * görünen adı `entryFor()` üzerinden çevrilir ve bu değişiklikten etkilenmez.
+     */
+
     /** Tablo eşleşmesi; yıl/ay kalıpları dahil. Bilinmeyen etiket için `null`. */
-    fun entryFor(label: String?): BangumiTagEntry? {
+    fun entryFor(label: String?): BangumiTagEntry? = groupFor(label)?.entry
+
+    /**
+     * **Bangumi'nin kendi yazımı** (grup içindeki ilk etiket — neredeyse her zaman Çince).
+     *
+     * `POST /v0/search/subjects` `filter.tag` alanı sunucuda `tag = "科幻"` biçiminde
+     * Meilisearch süzgecine çevrilir; karşılaştırma **birebir** olduğu için uygulamanın
+     * Türkçe/İngilizce çip adlarını (`Sci-Fi`, `Bilim Kurgu`) doğrudan göndermek her zaman
+     * sıfır sonuç verir. Bu fonksiyon arayüz etiketini sunucunun anladığı yazıma çevirir.
+     *
+     * Eşleşme yoksa `null` döner; çağıran taraf etiketi göndermemeli (sessizce tüm
+     * kataloğu döndürmek, süzgeç uygulanmış gibi görünmesine yol açıyordu).
+     */
+    fun canonicalTagFor(label: String?): String? {
         val raw = label?.trim().orEmpty()
         if (raw.isEmpty()) return null
-        byLabel[normalize(raw)]?.let { return it.entry }
-        patternEntry(raw)?.let { return it }
+        // 1) Arayüzde aynı türün birden çok Bangumi yazımı var; sunucudaki **en geniş**
+        //    yazım kazanmalı (aşağıdaki tablo canlı API ölçümleriyle sabitlendi).
+        ALIAS_TAGS[normalize(raw)]?.let { return it }
+        // 2) Sözlük grubu → grubun tercih edilen Çince yazımı.
+        groupFor(raw)?.let { group ->
+            PREFERRED_TAGS[group.entry.key]?.let { return it }
+            // Gruptaki ilk etiket her zaman Çince olmuyor (`Science-Fiction`,
+            // `Bilim Kurgu`); sunucu birebir karşılaştırdığı için Latin yazım
+            // göndermek boş liste getirir. Önce yerel (CJK) yazımı seç.
+            group.labels.firstOrNull(::looksLikeNativeTag)?.let { return it }
+            group.labels.firstOrNull()?.let { if (looksLikeNativeTag(it)) return it }
+        }
+        // 3) Zaten Bangumi yazımındaysa (Çince/Japonca) olduğu gibi bırak.
+        return raw.takeIf(::looksLikeNativeTag)
+    }
+
+    /**
+     * Grup anahtarı → sunucuda **gerçekten dolu** olan Bangumi yazımı.
+     *
+     * Sözlükteki ilk etiket yazımı (grup dosyasının sırası) sunucudaki yaygın yazım
+     * olmak zorunda değil: `Sports` grubunun ilk yazımı `运动系` (8 kayıt), oysa aynı
+     * gruptaki `运动` 516 kayıt veriyor; `Thriller` grubunun ilk yazımı `悬疑惊悚`
+     * **0** kayıt, `Military` grubunun ilk yazımı `军事` 63 kayıt. Bu tablo, arayüz
+     * çiplerinin boş/kırık ızgara üretmesini engeller.
+     *
+     * Değerler 2026-10-31/11-01 tarihli canlı `POST /v0/search/subjects` probuyla
+     * (`probe/result.txt`, K/L/N/O blokları) doğrulandı: `type=2`, `sort=rank`,
+     * `tag=<yazım>` sorgusunun `total` alanı.
+     */
+    private val PREFERRED_TAGS: Map<String, String> = mapOf(
+        "sports_theme" to "运动",      // 运动系 = 8 → 运动 = 516
+        "thriller" to "惊悚",          // 悬疑惊悚 = 0 → 惊悚 = 114
+        "military" to "战争",          // 军事 = 63 → 战争 = 445
+        "supernatural" to "灵异"       // 超自然 = 7, 灵异 = 65
+    )
+
+    /**
+     * Anlamı sözlükte **ayrı** bir gruba düşen ama Bangumi'de karşılığı başka bir grup
+     * olan arayüz terimleri. Örn. `Bilim Kurgu` sözlükte yalnız Latin etiketli
+     * `science_fiction` grubuna düşüyor; sunucuda karşılığı `科幻` (`sci_fi`).
+     * `Savaş` ise `battle` grubuna (`Battle`, `Savaş`) düşüyor ve Bangumi'de `战争`.
+     */
+    private val ALIAS_TAGS: Map<String, String> = mapOf(
+        normalize("bilim kurgu") to "科幻",
+        normalize("science fiction") to "科幻",
+        normalize("science-fiction") to "科幻",
+        normalize("sci fi") to "科幻",
+        normalize("savaş") to "战争",
+        normalize("savas") to "战争",
+        normalize("war") to "战争",
+        normalize("psikoloji") to "心理",
+        normalize("romantizm") to "恋爱",
+        normalize("romantik") to "恋爱"
+    )
+
+    /** Etiket sunucunun kendi dilinde mi yazılmış (CJK ya da sözlükte bilinen yazım)? */
+    fun looksLikeNativeTag(label: String): Boolean {
+        if (label.isBlank()) return false
+        var cjk = 0
+        var latin = 0
+        for (ch in label) {
+            when {
+                ch.code in 0x3040..0x30FF || ch.code in 0x3400..0x9FFF || ch.code in 0xF900..0xFAFF -> cjk++
+                ch.isLetter() -> latin++
+            }
+        }
+        return cjk > 0 && cjk >= latin
+    }
+
+    private fun groupFor(label: String?): Group? {
+        val raw = label?.trim().orEmpty()
+        if (raw.isEmpty()) return null
+        byLabel[normalize(raw)]?.let { return it }
+        patternGroup(raw)?.let { return it }
         val compact = compact(raw)
-        if (compact.length >= 3) byCompact[compact]?.let { return it.entry }
+        if (compact.length >= 3) byCompact[compact]?.let { return it }
         return null
+    }
+
+    /** Takvim kalıbı eşleşmelerini de bir [Group] olarak döndürür (etiket yazımı = ham metin). */
+    private fun patternGroup(raw: String): Group? {
+        val entry = patternEntry(raw) ?: return null
+        return Group(entry, listOf(raw))
     }
 
     /** Arka plan iş parçacığında (Application.onCreate) tabloları önceden ısıtır. */

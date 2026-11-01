@@ -1282,7 +1282,13 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
             BangumiSpecificFilters(
                 tags = bangumiTags,
                 yearFrom = if (season == null) year else null,
-                yearTo = if (season == null) year else null
+                yearTo = if (season == null) year else null,
+                // Mevsim + yıl Bangumi'de `air_date` çeyreğine çevrilir (`WINTER 2025` →
+                // `>=2025-01-01` … `<2025-04-01`, canlı prob V1–V5). Eskiden burada
+                // `season` tamamen düşüyordu: "Kış 2025" facetli bir aramada Bangumi
+                // hiç tarih süzgeci uygulamıyordu.
+                season = season,
+                seasonYear = if (season != null) year else null
             )
         } else BangumiSpecificFilters()
 
@@ -2074,11 +2080,11 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                         }
                     }
                 }
-                SearchSourceEngine.BANGUMI -> {
+                                SearchSourceEngine.BANGUMI -> {
                     val f = state.effectiveBangumiFilters()
-                    // Bangumi arama uÃ§larÄ± sayfa baÅŸÄ±na EN FAZLA 20 kayÄ±t dÃ¶ndÃ¼rÃ¼r (sunucu limiti
-                    // sessizce 20'ye kÄ±sar). 24 istenirse offset her sayfada 4 kayÄ±t atlar ve
-                    // `size >= 24` kontrolÃ¼ "sonraki sayfa yok" sonucu verir.
+                    // Bangumi arama uçları sayfa başına EN FAZLA 20 kayıt döndürür (sunucu limiti
+                    // sessizce 20'ye kısar). 24 istenirse offset her sayfada 4 kayıt atlar ve
+                    // `size >= 24` kontrolü "sonraki sayfa yok" sonucu verir.
                     val bangumiPageSize = BangumiApiClient.SEARCH_PAGE_SIZE
                     when (scope) {
                         SearchScope.CHARACTER -> {
@@ -2094,7 +2100,36 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                             return Pair(res, res.size >= bangumiPageSize)
                         }
                         else -> {
-                            val mediaType = if (scope in listOf(SearchScope.MANGA, SearchScope.MANHWA, SearchScope.MANHUA, SearchScope.LIGHT_NOVEL)) MediaType.Manga else MediaType.Anime
+                            val mediaType = when (scope) {
+                                SearchScope.MANGA, SearchScope.MANHWA, SearchScope.MANHUA,
+                                SearchScope.LIGHT_NOVEL -> MediaType.Manga
+                                SearchScope.TV -> MediaType.TvShow
+                                SearchScope.MOVIE -> MediaType.Movie
+                                else -> MediaType.Anime
+                            }
+                            // "Diziler"/"Filmler" kapsamı Bangumi'de 三次元 (type = 6) demektir;
+                            // bu verilmezse dizi araması anime (type = 2) sonuçları döndürüyordu.
+                            val subjectTypes = when (scope) {
+                                SearchScope.TV, SearchScope.MOVIE ->
+                                    listOf(BangumiApiClient.SubjectType.REAL)
+                                SearchScope.MANGA, SearchScope.MANHWA, SearchScope.MANHUA,
+                                SearchScope.LIGHT_NOVEL -> listOf(BangumiApiClient.SubjectType.BOOK)
+                                SearchScope.ANIME -> listOf(BangumiApiClient.SubjectType.ANIME)
+                                else -> null
+                            }
+                            val metaTags = when (scope) {
+                                SearchScope.TV -> listOf("电视剧")
+                                SearchScope.MOVIE -> listOf("电影")
+                                SearchScope.MANGA -> listOf("漫画")
+                                SearchScope.LIGHT_NOVEL -> listOf("小说")
+                                else -> emptyList()
+                            }
+                            val excludedBangumiTags = state.excludedGenres
+                                .map { it.trim() }
+                                .filter { it.isNotEmpty() }
+                                .distinct()
+                            val bangumiSeason = f.season ?: state.season?.apiValue
+                            val bangumiSeasonYear = f.seasonYear ?: state.startYear
                             val res = KitsugiBangumiClient.searchMediaAdvanced(
                                 mediaType = mediaType,
                                 query = queryText,
@@ -2106,7 +2141,12 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                                 yearTo = f.yearTo,
                                 minScore = f.minScore,
                                 includeAdult = f.nsfw || showAdult,
-                                comicsOnly = f.comicsOnly
+                                comicsOnly = f.comicsOnly,
+                                subjectTypes = subjectTypes,
+                                metaTags = metaTags,
+                                season = bangumiSeason,
+                                seasonYear = bangumiSeasonYear,
+                                excludedTags = excludedBangumiTags
                             )
                             return Pair(res, res.size >= bangumiPageSize)
                         }
@@ -2650,9 +2690,13 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                     res
                 }
 
-                val bangumiDef = async(Dispatchers.IO) {
+                                val bangumiDef = async(Dispatchers.IO) {
                     val f = state.effectiveBangumiFilters()
-                    suspend fun searchBangumi(type: MediaType) = KitsugiBangumiClient.searchMediaAdvanced(
+                    suspend fun searchBangumi(
+                        type: MediaType,
+                        subjectTypes: List<Int>? = null,
+                        metaTags: List<String> = emptyList()
+                    ) = KitsugiBangumiClient.searchMediaAdvanced(
                         mediaType = type,
                         query = queryText,
                         page = page,
@@ -2663,13 +2707,50 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                         yearTo = f.yearTo,
                         minScore = f.minScore,
                         includeAdult = f.nsfw || showAdult,
-                        comicsOnly = f.comicsOnly
+                        comicsOnly = f.comicsOnly,
+                        subjectTypes = subjectTypes,
+                        metaTags = metaTags,
+                        season = f.season,
+                        seasonYear = f.seasonYear
                     )
-                    val res = fetchMediaShelf(
-                        active = plan.bangumi,
+                    val mediaRes = fetchMediaShelf(
+                        active = plan.bangumi && scope != SearchScope.TV && scope != SearchScope.MOVIE,
                         anime = { searchBangumi(MediaType.Anime) },
-                        manga = { searchBangumi(MediaType.Manga) }
+                        manga = { searchBangumi(MediaType.Manga, metaTags = listOf("漫画")) }
                     )
+                    val realRes = if (plan.bangumi && scope.wantsLiveActionSources) {
+                        withTimeoutOrNull(allSourceTimeoutMs) {
+                            fetchSource {
+                                coroutineScope {
+                                    val tvPart = async(Dispatchers.IO) {
+                                        fetchSource {
+                                            searchBangumi(
+                                                MediaType.TvShow,
+                                                listOf(BangumiApiClient.SubjectType.REAL),
+                                                metaTags = listOf("电视剧")
+                                            )
+                                        }
+                                    }
+                                    val moviePart = async(Dispatchers.IO) {
+                                        fetchSource {
+                                            searchBangumi(
+                                                MediaType.Movie,
+                                                listOf(BangumiApiClient.SubjectType.REAL),
+                                                metaTags = listOf("电影")
+                                            )
+                                        }
+                                    }
+                                    SearchRelevance.interleave(tvPart.await(), moviePart.await())
+                                }
+                            }
+                        } ?: emptyList()
+                    } else {
+                        emptyList()
+                    }
+                    val res = SearchRelevance.refine(
+                        queryText,
+                        SearchRelevance.interleave(mediaRes, realRes)
+                    ).take(allShelfLimit)
                     onPlatformCompleted(res) { it.copy(bangumiResults = appendPage(it.bangumiResults, res), isLoadingBangumi = false) }
                     res
                 }
@@ -2931,11 +3012,35 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                     queryText, page = page, limit = bangumiPageSize, career = f.career
                 )
                 else -> {
-                    val targetType = if (state.selectedScope in listOf(SearchScope.MANGA, SearchScope.MANHWA, SearchScope.MANHUA, SearchScope.LIGHT_NOVEL) || state.selectedMediaType == MediaType.Manga) {
-                        MediaType.Manga
-                    } else {
-                        MediaType.Anime
+                    val mangaScopes = listOf(
+                        SearchScope.MANGA, SearchScope.MANHWA,
+                        SearchScope.MANHUA, SearchScope.LIGHT_NOVEL
+                    )
+                    val targetType = when {
+                        state.selectedScope in mangaScopes || state.selectedMediaType == MediaType.Manga -> MediaType.Manga
+                        state.selectedScope == SearchScope.TV || state.selectedMediaType == MediaType.TvShow -> MediaType.TvShow
+                        state.selectedScope == SearchScope.MOVIE || state.selectedMediaType == MediaType.Movie -> MediaType.Movie
+                        else -> MediaType.Anime
                     }
+                    val subjectTypes = when {
+                        targetType == MediaType.Manga -> null
+                        state.selectedScope == SearchScope.TV || state.selectedScope == SearchScope.K_DRAMA ->
+                            listOf(BangumiApiClient.SubjectType.REAL)
+                        state.selectedScope == SearchScope.MOVIE ->
+                            listOf(BangumiApiClient.SubjectType.REAL)
+                        else -> null
+                    }
+                    val metaTags = when (state.selectedScope) {
+                        SearchScope.TV -> listOf("电视剧")
+                        SearchScope.MOVIE -> listOf("电影")
+                        SearchScope.MANGA -> listOf("漫画")
+                        SearchScope.LIGHT_NOVEL -> listOf("小说")
+                        else -> emptyList()
+                    }
+                    val excludedBangumiTags = state.excludedGenres
+                        .map { it.trim() }
+                        .filter { it.isNotEmpty() }
+                        .distinct()
                     KitsugiBangumiClient.searchMediaAdvanced(
                         mediaType = targetType,
                         query = queryText,
@@ -2947,7 +3052,12 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                         yearTo = f.yearTo,
                         minScore = f.minScore,
                         includeAdult = f.nsfw || showAdult,
-                        comicsOnly = f.comicsOnly
+                        comicsOnly = f.comicsOnly,
+                        subjectTypes = subjectTypes,
+                        metaTags = metaTags,
+                        season = f.season,
+                        seasonYear = f.seasonYear,
+                        excludedTags = excludedBangumiTags
                     )
                 }
             }

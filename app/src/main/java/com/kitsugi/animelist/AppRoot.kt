@@ -1431,11 +1431,25 @@ private fun AppNavigationContent(
                         onAddSelectionToList = onAddApiSelectionToList,
                         onOpenPluginPicker = { navState.navigateToDetail(DetailScreen.PluginPicker) },
                         onOpenAddonExplore = { apiName -> navState.navigateToDetail(DetailScreen.AddonExplore(apiName)) },
-                        onOpenCharacterDetail = { characterId, name, imageUrl ->
-                            navState.navigateToDetail(DetailScreen.CharacterDetail(characterId, "anilist", name, imageUrl))
+                        onOpenCharacterDetail = { characterId, name, imageUrl, source ->
+                            navState.navigateToDetail(
+                                DetailScreen.CharacterDetail(
+                                    characterId,
+                                    source?.takeIf { it.isNotBlank() } ?: "anilist",
+                                    name,
+                                    imageUrl
+                                )
+                            )
                         },
-                        onOpenStaffDetail = { staffId, name, imageUrl ->
-                            navState.navigateToDetail(DetailScreen.StaffDetail(staffId, "anilist", name, imageUrl))
+                        onOpenStaffDetail = { staffId, name, imageUrl, source ->
+                            navState.navigateToDetail(
+                                DetailScreen.StaffDetail(
+                                    staffId,
+                                    source?.takeIf { it.isNotBlank() } ?: "anilist",
+                                    name,
+                                    imageUrl
+                                )
+                            )
                         },
                         onOpenStudioDetail = { studioId, source, name, imageUrl ->
                             navState.navigateToDetail(DetailScreen.StudioDetail(studioId, source, name, imageUrl))

@@ -78,9 +78,11 @@ fun SearchSourceEngine.availableScopes(): List<SearchScope> = when (this) {
     SearchSourceEngine.SIMKL -> listOf(
         SearchScope.ALL_MIXED, SearchScope.ANIME, SearchScope.TV, SearchScope.MOVIE
     )
+    // Bangumi yalnız anime/manga değil 三次元 (type = 6) dizileri ve filmleri de indeksler;
+    // sekmelerde bu kapsamlar yoktu, kullanıcı "Bangumi'de dizi/film araması" yapamıyordu.
     SearchSourceEngine.BANGUMI -> listOf(
         SearchScope.ALL_MIXED, SearchScope.ANIME, SearchScope.MANGA, SearchScope.MANHWA, SearchScope.MANHUA,
-        SearchScope.LIGHT_NOVEL, SearchScope.CHARACTER, SearchScope.STAFF
+        SearchScope.LIGHT_NOVEL, SearchScope.TV, SearchScope.MOVIE, SearchScope.CHARACTER, SearchScope.STAFF
     )
 }
 
@@ -174,7 +176,11 @@ internal fun planAllSources(scope: SearchScope): AllSourcePlan {
         kitsu = mediaDb,
         // Simkl tür süzgeci (anime/tv/movie) desteklediği için anime kapsamında da aktif.
         simkl = scope.wantsLiveActionSources || scope == SearchScope.ANIME,
-        bangumi = mediaDb
+        // Bangumi yalnızca anime/manga değil, **三次元** (type = 6) dizileri ve filmleri de
+        // barındırır (cat 6001/6002). `mediaDb` yalnızca anime/manga kapsamlarında true
+        // olduğu için "Tümü" aramasında Diziler/Filmler rafında Bangumi hiç sorgulanmıyordu;
+        // kullanıcı bunu "Bangumi dizileri/filmleri gelmiyor" olarak görüyordu.
+        bangumi = mediaDb || scope.wantsLiveActionSources
     )
 }
 
@@ -429,6 +435,13 @@ data class BangumiSpecificFilters(
     val tags: List<String> = emptyList(),
     val yearFrom: Int? = null,
     val yearTo: Int? = null,
+    /**
+     * Mevsim + yıl (`WINTER`, `SPRING`, `SUMMER`, `FALL`). Bangumi'de sezon alanı yok;
+     * `air_date` çeyrek aralığına çevrilir (canlı prob V1–V5). Detay sayfasındaki
+     * "Kış 2025" facetinden gelen bilgi burada taşınır, aksi hâlde sunucu tüm yılı süzer.
+     */
+    val season: String? = null,
+    val seasonYear: Int? = null,
     val minScore: Int? = null,
     val nsfw: Boolean = false,
     val comicsOnly: Boolean = true,
@@ -439,6 +452,7 @@ data class BangumiSpecificFilters(
         if (sort != "match") count++
         if (tags.isNotEmpty()) count += tags.size
         if (yearFrom != null || yearTo != null) count++
+        if (season != null && seasonYear != null) count++
         if (minScore != null) count++
         if (nsfw) count++
         if (!comicsOnly) count++

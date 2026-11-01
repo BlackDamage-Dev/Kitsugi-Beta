@@ -9,6 +9,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
@@ -104,20 +105,45 @@ internal object BangumiSubjectTitleResolver {
         else -> MediaType.Anime
     }
 
-    private const val INFOBOX_PASS_LIMIT = 40
-    private const val INFOBOX_PASS_LIMIT_BACKGROUND = 120
+    private const val INFOBOX_PASS_LIMIT = 24
+    private const val INFOBOX_PASS_LIMIT_BACKGROUND = 16
     private const val ANILIST_PASS_LIMIT = 24
-    private const val ANILIST_PASS_LIMIT_BACKGROUND = 96
-    private const val ANILIST_BATCH_SIZE = 6
+    private const val ANILIST_PASS_LIMIT_BACKGROUND = 48
+    private const val ANILIST_BATCH_SIZE = 10
+
+    /**
+     * Liste modu (Keşfet şeritleri, arama ızgarası, kütüphane): yalnızca önbellek + **tek**
+     * AniList geçişi. Infobox/TMDB geçişleri kapatılır.
+     *
+     * Neden: p1 liste uçları infobox döndürmediği için her satır tek tek `/v0/subjects/{id}`
+     * ile çözülüyordu. Keşfet 14 Bangumi şeridini aynı anda açtığında bu, şerit başına 40,
+     * toplamda 500'den fazla istek demekti. Bangumi'nin jeton kovalı sınırlayıcısıyla
+     * birleşince veri dakikalarca gelmiyordu. AniList toplu araması aynı işi 2 istekte
+     * yapar; bulunamayan satırlar özgün (CJK) adıyla gösterilir ve detay sayfası açıldığında
+     * kalıcı önbelleğe yazılır.
+     */
+    private const val LIST_ANILIST_LIMIT = 20
+    private const val LIST_ANILIST_BATCH_TIMEOUT_MS = 5_000L
+    /** Detay sekmesi (ilişkiler/öneriler/yapımlar): daha çok satır, infobox yedeği de açık. */
+    private const val TAB_ANILIST_LIMIT = 64
+    private const val TAB_ANILIST_BATCH_TIMEOUT_MS = 6_000L
+    /**
+     * Detay sekmesi infobox yedeği. İlişki/öneri listeleri 20-40 satıra çıkabildiği için
+     * 12'lik eski tavan listenin yarısını Japonca bırakıyordu. AniList geçişiyle **paralel**
+     * çalıştığı için (bkz. [resolveTabMode]) ek gecikme yaratmaz; tavan yine de sınırlı
+     * tutulur ki 100 satırlık listelerde yüzlerce `/v0/subjects` isteği doğmasın.
+     */
+    private const val TAB_INFOBOX_LIMIT = 32
+    private const val TAB_INFOBOX_BATCH_TIMEOUT_MS = 8_000L
     private const val INFOBOX_LOOKUP_TIMEOUT_MS = 3_500L
-    private const val INFOBOX_BATCH_TIMEOUT_MS = 7_000L
-    private const val INFOBOX_BATCH_TIMEOUT_BACKGROUND_MS = 20_000L
+    private const val INFOBOX_BATCH_TIMEOUT_MS = 5_000L
+    private const val INFOBOX_BATCH_TIMEOUT_BACKGROUND_MS = 6_000L
     private const val ANILIST_BATCH_TIMEOUT_MS = 9_000L
-    private const val ANILIST_BATCH_TIMEOUT_BACKGROUND_MS = 24_000L
+    private const val ANILIST_BATCH_TIMEOUT_BACKGROUND_MS = 8_000L
     private const val TMDB_PASS_LIMIT = 20
-    private const val TMDB_PASS_LIMIT_BACKGROUND = 60
-    private const val TMDB_BATCH_TIMEOUT_MS = 15_000L
-    private const val TMDB_BATCH_TIMEOUT_BACKGROUND_MS = 30_000L
+    private const val TMDB_PASS_LIMIT_BACKGROUND = 20
+    private const val TMDB_BATCH_TIMEOUT_MS = 8_000L
+    private const val TMDB_BATCH_TIMEOUT_BACKGROUND_MS = 10_000L
     private const val NEGATIVE_TTL_MS = 6 * 60 * 60 * 1000L
 
     private val infoboxSemaphore = Semaphore(8)
@@ -140,9 +166,166 @@ internal object BangumiSubjectTitleResolver {
     suspend fun resolve(
         requests: List<Request>,
         background: Boolean = false,
-        cacheOnly: Boolean = false
-    ): Map<Int, BangumiTitleCache.LatinTitles> = withResolutionLocks(requests) {
-        resolveLocked(requests, background, cacheOnly)
+        cacheOnly: Boolean = false,
+        listMode: Boolean = false,
+        tabMode: Boolean = false
+    ): Map<Int, BangumiTitleCache.LatinTitles> {
+        if (tabMode) return resolveTabMode(requests, cacheOnly)
+        if (listMode) return resolveListMode(requests, cacheOnly)
+        return withResolutionLocks(requests) {
+            resolveLocked(requests, background, cacheOnly)
+        }
+    }
+
+    /**
+     * Detay sekmesi modu (Karakterler'in "Yapımlar" listesi, İlişkiler, Öneriler).
+     *
+     * Liste modundan farkı: tek seferde en fazla [TAB_ANILIST_LIMIT] satır AniList toplu
+     * aramasıyla çözülür; ayrıca **paralel** olarak en fazla [TAB_INFOBOX_LIMIT] kayıt için
+     * Bangumi v0 subject infobox'ı okunur. Infobox, AniList'in romaji-only sonucunu gerçek
+     * İngilizce adla değiştirebilen tek kaynaktır. İki geçiş paralel olduğu için süreler
+     * toplanmaz; tavan yine de sınırlıdır (100 satırlık listelerde yüzlerce istek doğmasın).
+     */
+    private suspend fun resolveTabMode(
+        requests: List<Request>,
+        cacheOnly: Boolean
+    ): Map<Int, BangumiTitleCache.LatinTitles> {
+        val result = ConcurrentHashMap<Int, BangumiTitleCache.LatinTitles>()
+        val pending = mutableListOf<Request>()
+        for (req in requests.filter { it.rawId > 0 }.distinctBy { it.rawId }) {
+            val cached = usableLatin(BangumiTitleCache.get(req.rawId))
+            if (cached != null) result[req.rawId] = cached
+            if (!hasReliableEnglish(cached) && !isNegative(req.rawId)) pending += req
+        }
+        if (pending.isEmpty() || cacheOnly) return result
+
+        val anilistPending = pending
+            .filter { shouldTryAniList(it) && PreferenceHelpers.hasCjkCharacters(it.nativeTitle) }
+            .take(TAB_ANILIST_LIMIT)
+        val infoboxPending = pending
+            .filter { !isNegative(it.rawId) }
+            .take(TAB_INFOBOX_LIMIT)
+
+        // İki geçiş PARALEL: AniList toplu araması romaji verir, Bangumi infobox'ı gerçek
+        // İngilizce adı verir. Sırayla çalıştıklarında süreler toplanıyor (6 s + 8 s) ve
+        // sekme zenginleştirme bütçesi dolup liste Japonca kalıyordu.
+        coroutineScope {
+            launch { runAniListPass(anilistPending, TAB_ANILIST_BATCH_TIMEOUT_MS, result) }
+            launch { runInfoboxPass(infoboxPending, TAB_INFOBOX_BATCH_TIMEOUT_MS, result) }
+        }
+
+        // Geçişler birbirinin çözdüğü kayıtları önbellekten görsün: eşzamanlı iki pass'in
+        // sonuçlarını tek haritada birleştir (tamamlanmış olanlar tekrar istenmez).
+        for (req in requests) {
+            if (result.containsKey(req.rawId)) continue
+            usableLatin(BangumiTitleCache.get(req.rawId))?.let { result[req.rawId] = it }
+        }
+        return result
+    }
+
+    /** Ortak AniList geçişi: aliased toplu arama + sonuçları kalıcı önbelleğe yazma. */
+    private suspend fun runAniListPass(
+        requests: List<Request>,
+        timeoutMs: Long,
+        result: MutableMap<Int, BangumiTitleCache.LatinTitles>
+    ) {
+        if (requests.isEmpty()) return
+        withTimeoutOrNull(timeoutMs) {
+            coroutineScope {
+                requests.chunked(ANILIST_BATCH_SIZE).map { chunk ->
+                    async(Dispatchers.IO) {
+                        try {
+                            anilistSemaphore.withPermit { resolveChunkViaAniList(chunk) }
+                        } catch (cancelled: CancellationException) {
+                            throw cancelled
+                        } catch (e: Exception) {
+                            android.util.Log.w(TAG, "AniList toplu araması başarısız: ${e.message}")
+                            null
+                        }
+                    }
+                }.awaitAll().forEach { chunkResult ->
+                    if (chunkResult == null) return@forEach
+                    val appCtx = com.kitsugi.animelist.KitsugiApplication.getInstance()?.applicationContext
+                    for ((rawId, latin) in chunkResult.resolved) {
+                        BangumiTitleCache.put(rawId, latin.romaji, latin.english, latin.native)
+                        result[rawId] = usableLatin(BangumiTitleCache.get(rawId)) ?: latin
+                        val malId = chunkResult.matchedMalIds[rawId]
+                        val req = requests.firstOrNull { it.rawId == rawId }
+                        if (appCtx != null && malId != null && malId > 0 && req != null) {
+                            val resolvedSubjectType = req.subjectType
+                                ?: BangumiIdNamespace.subjectTypeFor(req.mediaType)
+                            runCatching {
+                                BangumiLocalMappingCache.put(appCtx, malId, resolvedSubjectType, rawId)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /** Ortak infobox geçişi: yalnızca hâlâ Latin adı olmayan kayıtlar; sonuç kalıcıdır. */
+    private suspend fun runInfoboxPass(
+        requests: List<Request>,
+        timeoutMs: Long,
+        result: MutableMap<Int, BangumiTitleCache.LatinTitles>
+    ) {
+        if (requests.isEmpty()) return
+        val loadedSubjects = ConcurrentHashMap<Int, BangumiApiClient.BangumiSubject>()
+        withTimeoutOrNull(timeoutMs) {
+            coroutineScope {
+                requests.map { req ->
+                    async(Dispatchers.IO) {
+                        try {
+                            infoboxSemaphore.withPermit {
+                                val localized = loadLocalizedSubject(req, loadedSubjects) ?: return@async
+                                val latin = latinOf(localized.romaji, localized.english, localized.native)
+                                    ?: return@async
+                                BangumiTitleCache.put(req.rawId, latin.romaji, latin.english, latin.native)
+                                result[req.rawId] = usableLatin(BangumiTitleCache.get(req.rawId)) ?: latin
+                            }
+                        } catch (cancelled: CancellationException) {
+                            throw cancelled
+                        } catch (_: Exception) {
+                            null
+                        }
+                    }
+                }.awaitAll()
+            }
+        }
+    }
+
+    /**
+     * Liste ekranları için hafif çözümleme: önbellek + tek AniList geçişi.
+     *
+     * - Per-subject `/v0/subjects` (infobox) ve TMDB geçişleri **yapılmaz**; bunlar
+     *   yüzlerce istek üretiyordu (bkz. [LIST_ANILIST_LIMIT] açıklaması).
+     * - Kilit şeritleri (stripe lock) alınmaz: 14 şerit aynı anda açıldığında birbirini
+     *   sıraya sokup toplam süreyi katlıyordu. Aynı ID'nin iki şeritte çözülmesi nadirdir ve
+     *   [BangumiTitleCache] bunu zaten tekilleştirir.
+     * - Olumsuz önbellek yazılmaz: infobox/TMDB denenmediği için "İngilizce yok" hükmü
+     *   verilemez; detay sayfası sonraki açılışta tam çözümlemeyi yapabilir.
+     */
+    private suspend fun resolveListMode(
+        requests: List<Request>,
+        cacheOnly: Boolean
+    ): Map<Int, BangumiTitleCache.LatinTitles> {
+        val result = ConcurrentHashMap<Int, BangumiTitleCache.LatinTitles>()
+        val pending = mutableListOf<Request>()
+        for (req in requests.filter { it.rawId > 0 }.distinctBy { it.rawId }) {
+            val cached = usableLatin(BangumiTitleCache.get(req.rawId))
+            if (cached != null) result[req.rawId] = cached
+            if (!hasReliableEnglish(cached) && !isNegative(req.rawId)) pending += req
+        }
+        if (pending.isEmpty() || cacheOnly) return result
+
+        // Zaten Latin yazımlı başlıklar için ağ isteği yapılmaz: listede okunabilir bir ad
+        // var; İngilizce olup olmadığı ayrımı yalnızca detay sayfasında (tam çözümleme) gerekir.
+        val anilistPending = pending
+            .filter { shouldTryAniList(it) && PreferenceHelpers.hasCjkCharacters(it.nativeTitle) }
+            .take(LIST_ANILIST_LIMIT)
+        runAniListPass(anilistPending, LIST_ANILIST_BATCH_TIMEOUT_MS, result)
+        return result
     }
 
     private suspend fun resolveLocked(

@@ -125,11 +125,33 @@ fun KitsugiRankingBottomSheet(
                     }
                     ExplorePlatform.BANGUMI -> {
                         val bangumi = com.kitsugi.animelist.data.remote.KitsugiBangumiClient
+                        // Bangumi 三次元 (type = 6) kataloğu dizi ve film olarak ayrı raflara
+                        // sahiptir; sıralama sayfası bu iki medya türünde anime listeliyordu.
                         when (tab) {
-                            "SCORE" -> if (isManga) bangumi.topRatedManga(24) else bangumi.topRatedAnime(24)
-                            "POPULARITY" -> if (isManga) bangumi.trendingManga(24) else bangumi.trendingAnime(24)
-                            "FAVORITE" -> if (isManga) bangumi.topManga(24) else bangumi.topAnime(24)
-                            "UPCOMING" -> bangumi.upcomingAnime(24)
+                            "SCORE" -> when (mediaType) {
+                                MediaType.Manga -> bangumi.topRatedManga(24)
+                                MediaType.TvShow -> bangumi.realTvShows(24)
+                                MediaType.Movie -> bangumi.realMovies(24)
+                                else -> bangumi.topRatedAnime(24)
+                            }
+                            "POPULARITY" -> when (mediaType) {
+                                MediaType.Manga -> bangumi.trendingManga(24)
+                                MediaType.TvShow -> bangumi.realTvShows(24)
+                                MediaType.Movie -> bangumi.realMovies(24)
+                                else -> bangumi.trendingAnime(24)
+                            }
+                            "FAVORITE" -> when (mediaType) {
+                                MediaType.Manga -> bangumi.topManga(24)
+                                MediaType.TvShow -> bangumi.realTvShows(24)
+                                MediaType.Movie -> bangumi.realMovies(24)
+                                else -> bangumi.topAnime(24)
+                            }
+                            "UPCOMING" -> when (mediaType) {
+                                MediaType.Manga -> bangumi.newlyAddedManga(24)
+                                MediaType.TvShow -> bangumi.realTvShows(24)
+                                MediaType.Movie -> bangumi.realMovies(24)
+                                else -> bangumi.upcomingAnime(24)
+                            }
                             else -> initialResults
                         }
                     }
