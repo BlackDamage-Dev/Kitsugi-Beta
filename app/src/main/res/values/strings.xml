@@ -9124,6 +9124,19 @@ Eklentiler ekranından eklenti etkinleştirin.</string>
     <string name="stream_filter_clear">Filtreleri temizle</string>
     <string name="stream_filter_empty_title">Sonuç bulunamadı</string>
     <string name="stream_filter_empty_desc">kriterlerine uygun video akışı yok.</string>
+    <string name="stream_search_placeholder">Kaynak veya video ara…</string>
+    <string name="stream_open_source_panel">Kaynak ve sıralama paneli</string>
+    <string name="stream_panel_title">Kaynaklar ve sıralama</string>
+    <string name="stream_panel_summary">%1$d/%2$d eklenti · %3$d video</string>
+    <string name="stream_panel_sort_title">Sıralama</string>
+    <string name="stream_panel_addons_title">Eklentiler</string>
+    <string name="stream_panel_only_results">Yalnızca sonuç verenler</string>
+    <string name="stream_panel_retry_failed">Hatalıları yenile</string>
+    <string name="stream_panel_addon_settings">Eklenti ayarları</string>
+    <string name="stream_panel_refresh_all">Yeniden ara</string>
+    <string name="stream_sort_source_order">Kaynak sırası</string>
+    <string name="stream_sort_quality_short">Kalite</string>
+    <string name="stream_sort_size_short">Boyut</string>
     <!-- ── MAL Bildirim Filtreleri (myanimelist.net/notification sol menü) ── -->
     <string name="mal_notif_filter_all">Tümü</string>
     <string name="mal_notif_filter_related">Yeni Bağlantılı Anime</string>

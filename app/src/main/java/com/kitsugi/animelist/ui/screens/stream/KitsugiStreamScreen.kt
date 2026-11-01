@@ -535,7 +535,8 @@ fun KitsugiStreamScreen(
         onOpenSettings = { showSettingsDialog = true },
         onOpenHistory = onOpenHistory,
         onOpenDownloads = onOpenDownloads,
-        onManualSearchClick = { showManualSearchDialog = true }
+        onManualSearchClick = { showManualSearchDialog = true },
+        onRefreshAll = { viewModel.refreshAll() }
     )
 
     if (showManualSearchDialog) {

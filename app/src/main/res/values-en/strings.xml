@@ -9119,6 +9119,19 @@
     <string name="stream_filter_clear">Clear filters</string>
     <string name="stream_filter_empty_title">No results</string>
     <string name="stream_filter_empty_desc">criteria returned no video streams.</string>
+    <string name="stream_search_placeholder">Search sources or videos…</string>
+    <string name="stream_open_source_panel">Sources and sorting panel</string>
+    <string name="stream_panel_title">Sources &amp; sorting</string>
+    <string name="stream_panel_summary">%1$d/%2$d add-ons · %3$d videos</string>
+    <string name="stream_panel_sort_title">Sorting</string>
+    <string name="stream_panel_addons_title">Add-ons</string>
+    <string name="stream_panel_only_results">Only with results</string>
+    <string name="stream_panel_retry_failed">Retry failed</string>
+    <string name="stream_panel_addon_settings">Add-on settings</string>
+    <string name="stream_panel_refresh_all">Search again</string>
+    <string name="stream_sort_source_order">Source order</string>
+    <string name="stream_sort_quality_short">Quality</string>
+    <string name="stream_sort_size_short">Size</string>
     <!-- MAL Notification Filters (myanimelist.net/notification sidebar) -->
     <string name="mal_notif_filter_all">All</string>
     <string name="mal_notif_filter_related">New Related Anime</string>
