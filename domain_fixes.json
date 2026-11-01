@@ -1,11 +1,11 @@
 {
   "_comment": "Kitsugi Eklenti Domain Listesi — GitHub Actions + AI tarafından otomatik güncellenir.",
   "_format": "eklentiAdi (küçük harf) → güncel ana URL",
-  "_updated": "2026-10-31 03:30 UTC",
+  "_updated": "2026-11-01 03:37 UTC",
   "_stats": {
-    "total": 79,
+    "total": 78,
     "added": 0,
-    "removed": 0,
+    "removed": 1,
     "changed": 0,
     "ai_assisted": 0,
     "blocked": 155
@@ -58,7 +58,6 @@
     "kanal7": "https://www.kanal7.com",
     "koreanturk": "https://www.koreanturk.com",
     "kultfilmler": "https://kultfilmler.net",
-    "mirrorverse": "https://net77.cc",
     "netflixmirror": "https://netmirror.online",
     "onepacetr": "https://www.onepacetr.net",
     "openanime": "https://openani.me",
