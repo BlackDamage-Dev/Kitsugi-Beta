@@ -25,6 +25,11 @@ enum class SearchSourceEngine(val id: String, val label: String, val emoji: Stri
         SIMKL -> "📺 SMK"
         BANGUMI -> "🎌 BGM"
     }
+
+    companion object {
+        fun fromId(id: String): SearchSourceEngine? =
+            entries.firstOrNull { it.id.equals(id, ignoreCase = true) }
+    }
 }
 
 /**
@@ -45,6 +50,8 @@ enum class SearchScope(val id: String, val label: String, val emoji: String = ""
     STUDIO("studio", "Stüdyolar", "🏢");
 
     val displayLabel: String get() = if (emoji.isNotBlank()) "$emoji $label" else label
+
+    fun supportsEngine(engine: SearchSourceEngine): Boolean = this in engine.availableScopes()
 }
 
 /**
@@ -161,6 +168,53 @@ internal data class AllSourcePlan(
         simkl = simkl,
         bangumi = bangumi
     )
+
+    /** İki planın kesişimi (kapsam planı ∧ filtre/facet planı). */
+    fun intersect(other: AllSourcePlan): AllSourcePlan = copy(
+        aniList = aniList && other.aniList,
+        mal = mal && other.mal,
+        tmdb = tmdb && other.tmdb,
+        shikimori = shikimori && other.shikimori,
+        kitsu = kitsu && other.kitsu,
+        simkl = simkl && other.simkl,
+        bangumi = bangumi && other.bangumi
+    )
+
+    /**
+     * Bu aramada gerçekten sorgulanan kaynakların `ListPlatform.fromLabel` ile
+     * çözülebilen kimlikleri. Arama hata rozetleri yalnızca bu kümeyle sınırlanır;
+     * arkada çalışan senkronizasyon/keşfet isteklerinin hataları arama ekranına sızmaz.
+     */
+    fun activePlatformIds(): Set<String> = buildSet {
+        if (aniList) add(SearchSourceEngine.ANILIST.id)
+        if (mal) add(SearchSourceEngine.MAL.id)
+        if (tmdb) add(SearchSourceEngine.TMDB.id)
+        if (shikimori) add(SearchSourceEngine.SHIKIMORI.id)
+        if (kitsu) add(SearchSourceEngine.KITSU.id)
+        if (simkl) add(SearchSourceEngine.SIMKL.id)
+        if (bangumi) add(SearchSourceEngine.BANGUMI.id)
+    }
+
+    /** Hiçbir kaynak sorgulanmayacak mı? (Filtre hiçbir kaynakta temsil edilemiyor.) */
+    val isEmpty: Boolean
+        get() = !aniList && !mal && !tmdb && !shikimori && !kitsu && !simkl && !bangumi
+
+    val anyActive: Boolean
+        get() = !isEmpty
+
+    /** Kapsamın normalde desteklediği ama mevcut filtreler yüzünden atlanan kaynaklar. */
+    fun skippedEngines(scope: SearchScope): List<SearchSourceEngine> {
+        val base = planAllSources(scope)
+        return buildList {
+            if (base.aniList && !aniList) add(SearchSourceEngine.ANILIST)
+            if (base.mal && !mal) add(SearchSourceEngine.MAL)
+            if (base.tmdb && !tmdb) add(SearchSourceEngine.TMDB)
+            if (base.shikimori && !shikimori) add(SearchSourceEngine.SHIKIMORI)
+            if (base.kitsu && !kitsu) add(SearchSourceEngine.KITSU)
+            if (base.simkl && !simkl) add(SearchSourceEngine.SIMKL)
+            if (base.bangumi && !bangumi) add(SearchSourceEngine.BANGUMI)
+        }
+    }
 }
 
 internal fun planAllSources(scope: SearchScope): AllSourcePlan {
@@ -203,6 +257,7 @@ data class AniListSpecificFilters(
     val genres: List<String> = emptyList(),
     val excludedGenres: List<String> = emptyList(),
     val tags: List<String> = emptyList(),
+    val excludedTags: List<String> = emptyList(),
     val minimumTagRank: Int? = null, // 0..100
     val minScore: Int? = null,
     val maxScore: Int? = null,
@@ -219,6 +274,13 @@ data class AniListSpecificFilters(
     val isBirthday: Boolean? = null, // Karakter/Staff için doğum günü
     val sort: String = "POPULARITY_DESC"
 ) {
+    val isLicensed: Boolean?
+        get() = when (isDoujin) {
+            true -> false
+            false -> true
+            null -> null
+        }
+
     val activeCount: Int get() {
         var count = 0
         if (formats.isNotEmpty()) count += formats.size
@@ -231,6 +293,7 @@ data class AniListSpecificFilters(
         if (genres.isNotEmpty()) count += genres.size
         if (excludedGenres.isNotEmpty()) count += excludedGenres.size
         if (tags.isNotEmpty()) count += tags.size
+        if (excludedTags.isNotEmpty()) count += excludedTags.size
         if (minimumTagRank != null) count++
         if (minScore != null || maxScore != null) count++
         if (minEpCh != null || maxEpCh != null) count++

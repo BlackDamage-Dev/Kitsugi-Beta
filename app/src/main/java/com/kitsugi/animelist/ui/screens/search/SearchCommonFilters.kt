@@ -357,13 +357,20 @@ object SearchCommonFiltersBridge {
         val officialGenres = common.genres.filter { CanonicalFilterBridge.isOfficialAniListGenre(it) }
         // Demografi/tema adları AniList'te "tag" olarak aranır.
         val looseGenres = common.genres.filterNot { CanonicalFilterBridge.isOfficialAniListGenre(it) }
-        val projectedTags = (looseGenres + common.tags).distinct()
+        val projectedTags = (looseGenres + common.tags)
+            .filter(SearchTaxonomy::isKnownAniListTag)
+            .distinct()
         val projectedExcluded = common.excludedGenres
             .filter { CanonicalFilterBridge.isOfficialAniListGenre(it) }
+        val projectedExcludedTags = common.excludedGenres
+            .filterNot { CanonicalFilterBridge.isOfficialAniListGenre(it) }
+            .filter(SearchTaxonomy::isKnownAniListTag)
+            .distinct()
         return filters.copy(
             genres = officialGenres,
             excludedGenres = projectedExcluded,
             tags = projectedTags,
+            excludedTags = projectedExcludedTags,
             startYear = common.startYear,
             endYear = common.endYear,
             minScore = common.minScore,
@@ -498,8 +505,7 @@ object SearchCommonFiltersBridge {
         scope: SearchScope
     ): KitsuSpecificFilters {
         val categories = (common.genres + common.tags)
-            .map { kitsuCategorySlug(it) }
-            .filter { it.isNotBlank() }
+            .mapNotNull(SearchFacetBridge::mapKitsuCategory)
             .distinct()
         return filters.copy(
             categories = categories,
@@ -539,9 +545,11 @@ object SearchCommonFiltersBridge {
         common: CommonSearchFilters,
         scope: SearchScope
     ): BangumiSpecificFilters {
-        // Bangumi etiket sözlüğü yerel (CJK) yazımlarla çalışır; yalnızca kullanıcının
-        // açıkça seçtiği etiketler taşınır. Tür adları çevrilemediği için eklenmez.
-        val projectedTags = common.tags.filter { it.isNotBlank() }.distinct()
+        // Bangumi etiket sözlüğü yerel (CJK) yazımlarla çalışır; tür ve etiketler
+        // SearchFacetBridge ile doğrulanmış Bangumi CJK etiketlerine çevrilir.
+        val projectedTags = (common.genres + common.tags)
+            .mapNotNull(SearchFacetBridge::mapBangumiTag)
+            .distinct()
         return filters.copy(
             tags = projectedTags,
             yearFrom = common.startYear,

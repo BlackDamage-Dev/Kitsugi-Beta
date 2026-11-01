@@ -85,15 +85,10 @@ import com.kitsugi.animelist.ui.utils.kitsugiLazyKey
 import com.kitsugi.animelist.ui.utils.tvClickable
 import com.kitsugi.animelist.ui.utils.dpadVerticalFastScroll
 import com.lagradost.cloudstream3.APIHolder
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import androidx.compose.ui.res.stringResource
 import com.kitsugi.animelist.R
-
-/**
- * Kullanıcı bir kez kaydırdığında otomatik çekilebilecek azami sayfa sayısı.
- * Sonsuz sayfalama döngüsünü (bkz. `shouldLoadMore`) normal kaydırmayı bozmadan kapatır.
- */
-private const val AUTO_LOAD_BUDGET_PER_SCROLL = 3
 
 @Composable
 fun SearchScreen(
@@ -147,9 +142,6 @@ fun SearchScreen(
     val keyboardController = LocalSoftwareKeyboardController.current
     val searchBarFocusRequester = remember { FocusRequester() }
     val context = androidx.compose.ui.platform.LocalContext.current
-    // Otomatik sayfalama emniyeti (bkz. aşağıdaki shouldLoadMore açıklaması).
-    var autoLoadBudget by remember { mutableIntStateOf(AUTO_LOAD_BUDGET_PER_SCROLL) }
-    var lastAutoLoadLoadedCount by remember { mutableIntStateOf(-1) }
     val isStudioSearch = uiState.selectedScope == SearchScope.STUDIO
     // "Tümünü Gör" geçişinde ortak filtre setini hedef sayfaya devret.
     // Hedef sayfa ayrı bir ViewModel örneği kullandığı için seçimler ancak bu
@@ -173,16 +165,12 @@ fun SearchScreen(
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
 
     LaunchedEffect(lazyListState) {
-        snapshotFlow { lazyListState.firstVisibleItemIndex to lazyListState.firstVisibleItemScrollOffset }
-            .collect { (firstIndex, scrollOffset) ->
-                // Kullanıcı kaydırdı: otomatik sayfalama bütçesi yenilenir (normal sonsuz
-                // kaydırma birebir korunur; yalnızca kaydırma olmadan zincirlenen istek
-                // döngüsü engellenir).
-                if (autoLoadBudget != AUTO_LOAD_BUDGET_PER_SCROLL || lastAutoLoadLoadedCount != -1) {
-                    autoLoadBudget = AUTO_LOAD_BUDGET_PER_SCROLL
-                    lastAutoLoadLoadedCount = -1
-                }
-                if (firstIndex == 0 && scrollOffset == 0) {
+        snapshotFlow {
+            lazyListState.firstVisibleItemIndex == 0 && lazyListState.firstVisibleItemScrollOffset == 0
+        }
+            .distinctUntilChanged()
+            .collect { atTop ->
+                if (atTop) {
                     onScrollReset?.invoke()
                 }
             }
@@ -190,27 +178,26 @@ fun SearchScreen(
 
     // AniHyou Infinite Scroll (OnBottomReached)
     //
-    // EMNİYET KEMERİ: İstemcide sayfalama "sona ulaşıldı" koşulu yükleme bayrağını da
-    // içerdiği için, her sayfa yüklemesi bittiğinde koşul yeniden true oluyor ve efekti
-    // tekrar tetikliyordu. Sonuç: kullanıcı kaydırmasa bile art arda sayfa çekilmesi
-    // (filtre nedeniyle görünen liste büyümediğinde hiç bitmeyen döngü → API 429 +
-    // kaydırma kasması). Artık aynı sonuç kümesi için bir kez tetiklenir ve kaydırma
-    // başına bütçe ile sınırlanır; kullanıcı kaydırınca bütçe yenilenir.
+    // "Tümü" sekmesi (isShelfMode) çoklu kaynak raf görünümüdür; sayfalanmış liste
+    // değildir. Bu modda aşağı kaydırmak yalnızca mevcut rafları kaydırır — yeni
+    // sayfa çekip rafları shimmer'a düşürmez. Sayfalama sadece tek-kaynak veya
+    // Karakter/Personel listesinde çalışır; mükerrer istek koruması ViewModel
+    // içindeki `lastRequestedPage` + `loadMoreJob` ile yapılır.
     val shouldLoadMore by remember {
         derivedStateOf {
             val total = lazyListState.layoutInfo.totalItemsCount
             val lastVisible = lazyListState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
-            total > 0 && lastVisible >= total - 3 && !uiState.isLoading && !uiState.isLoadingMore && uiState.hasNextPage
+            !uiState.isShelfMode &&
+                total > 0 &&
+                lastVisible >= total - 3 &&
+                !uiState.isLoading &&
+                !uiState.isLoadingMore &&
+                uiState.hasNextPage
         }
     }
-    LaunchedEffect(shouldLoadMore, autoLoadBudget, uiState.results.size) {
+    LaunchedEffect(shouldLoadMore, uiState.results.size, uiState.page) {
         if (shouldLoadMore) {
-            val loadedCount = uiState.results.size
-            if (autoLoadBudget > 0 && loadedCount != lastAutoLoadLoadedCount) {
-                autoLoadBudget -= 1
-                lastAutoLoadLoadedCount = loadedCount
-                viewModel.loadMore()
-            }
+            viewModel.loadMore()
         }
     }
 
@@ -278,6 +265,14 @@ fun SearchScreen(
     // Ortak filtre çatısı: kurum (stüdyo/yapımcı/şirket) seçim sheet'i
     var showInstitutionFilterSheet by remember { mutableStateOf(false) }
     var showOrgFilterSheet by remember { mutableStateOf(false) }
+    val filterEditorOpen = showSourceEngineFilterSheet ||
+        uiState.isFilterSheetOpen ||
+        openTmdbFormatDialog ||
+        openTmdbGenreDialog ||
+        showInstitutionFilterSheet
+    LaunchedEffect(filterEditorOpen) {
+        viewModel.setFilterEditing(filterEditorOpen)
+    }
 
     // Keep canonical English values in state/API filters; localize only the visible labels.
     val tmdbGenres = listOf(
@@ -390,7 +385,7 @@ fun SearchScreen(
             // çubuğunun sağındaki butonda (SourceEngineFilterSheet) toplandı;
             // ana sayfa dağınık bırakılmaz. Bu satır yalnızca varsayılandan
             // farklı bir ayar aktifse görünür ve aktif durumu özetler.
-            item {
+            item(key = "search_options_summary") {
                 SearchOptionsSummaryRow(
                     uiState = uiState,
                     onClick = { showSourceEngineFilterSheet = true }
@@ -469,14 +464,14 @@ fun SearchScreen(
                 uiState.currentTab != KitsugiSearchTab.All &&
                 uiState.results.isEmpty()
             if (showResultShimmer) {
-                item {
+                item(key = "result_shimmer") {
                     KitsugiShimmerSearchResultList(itemCount = 4)
                 }
             }
 
             // Kaynak hataları: hangi kaynağın bu aramayı etkilediğini kod rozetleriyle göster
             if (!uiState.isLoading && uiState.sourceErrorCodes.isNotEmpty()) {
-                item {
+                item(key = "source_error_codes") {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -492,9 +487,27 @@ fun SearchScreen(
                 }
             }
 
+            // Seçili filtreleri desteklemediği için bilinçli olarak atlanan kaynaklar
+            if (!uiState.isLoading && uiState.hasSearched && uiState.skippedSourceIds.isNotEmpty()) {
+                item(key = "search_skipped_sources") {
+                    val skippedLabels = uiState.skippedSourceIds
+                        .mapNotNull { SearchSourceEngine.fromId(it) }
+                        .map { it.localizedLabel() }
+                        .joinToString(", ")
+                    Text(
+                        text = stringResource(R.string.search_skipped_sources_notice, skippedLabels),
+                        color = KitsugiColors.TextMuted,
+                        fontSize = 11.sp,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 4.dp, vertical = 4.dp)
+                    )
+                }
+            }
+
             // Empty / Error State
             if (!uiState.isLoading && uiState.hasSearched && uiState.errorMessage != null) {
-                item {
+                item(key = "empty_or_error_state") {
                     KitsugiEmptyState(
                         title = stringResource(R.string.sonuc_bulunamadi),
                         subtitle = uiState.errorMessage,
@@ -515,7 +528,7 @@ fun SearchScreen(
             // Search Results List (AniHyou-style filtered by adult and onMyList)
             if (uiState.currentTab == KitsugiSearchTab.All) {
                 // Çoklu Platform Rafları (Seçenek C: All-in-One Multi Platform Search)
-                item {
+                item(key = "shelf_anilist") {
                     MultiSearchSection(
                         title = "AniList",
                         platformId = "anilist",
@@ -531,7 +544,7 @@ fun SearchScreen(
                     )
                 }
 
-                item {
+                item(key = "shelf_mal") {
                     MultiSearchSection(
                         title = "MyAnimeList",
                         platformId = "mal",
@@ -547,7 +560,7 @@ fun SearchScreen(
                     )
                 }
 
-                item {
+                item(key = "shelf_tmdb") {
                     MultiSearchSection(
                         title = stringResource(R.string.search_section_tmdb),
                         platformId = "tmdb",
@@ -563,7 +576,7 @@ fun SearchScreen(
                     )
                 }
 
-                item {
+                item(key = "shelf_shikimori") {
                     MultiSearchSection(
                         title = stringResource(R.string.search_section_shikimori),
                         platformId = "shikimori",
@@ -579,7 +592,7 @@ fun SearchScreen(
                     )
                 }
 
-                item {
+                item(key = "shelf_kitsu") {
                     MultiSearchSection(
                         title = "Kitsu",
                         platformId = "kitsu",
@@ -595,7 +608,7 @@ fun SearchScreen(
                     )
                 }
 
-                item {
+                item(key = "shelf_simkl") {
                     MultiSearchSection(
                         title = "Simkl",
                         platformId = "simkl",
@@ -611,7 +624,7 @@ fun SearchScreen(
                     )
                 }
 
-                item {
+                item(key = "shelf_bangumi") {
                     MultiSearchSection(
                         title = stringResource(R.string.search_section_bangumi),
                         platformId = "bangumi",
@@ -694,7 +707,7 @@ fun SearchScreen(
 
             // Infinite scroll loading spinner
             if (uiState.isLoadingMore) {
-                item {
+                item(key = "load_more_spinner") {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -708,7 +721,7 @@ fun SearchScreen(
                 }
             }
 
-            item { Spacer(modifier = Modifier.height(90.dp)) }
+            item(key = "bottom_spacer") { Spacer(modifier = Modifier.height(90.dp)) }
         }
 
         // Scroll to Top FAB
@@ -784,20 +797,12 @@ fun SearchScreen(
                 organizations = uiState.organizations
             ),
             onApplyFilters = { applied ->
-                // ⚠️ Bu sheet **yalnız** tür/etiket düzenler; `SearchFilters`'ın diğer
-                // alanları varsayılan (null) gelir. Doğrudan `updateFilters(applied)`
-                // çağrıldığında kullanıcının yıl/mevsim/puan süzgeçleri sessizce
-                // siliniyordu (ör. detay sayfasından "2025 · Kış · Korku" ile gelen
-                // kullanıcı bir etiket daha eklediğinde yıl ve mevsim kayboluyordu).
-                // Mevcut durum değerleri korunarak birleştirilir.
-                viewModel.updateFilters(
-                    applied.copy(
-                        minYear = applied.minYear ?: uiState.startYear,
-                        maxYear = applied.maxYear ?: uiState.endYear,
-                        season = applied.season ?: uiState.season?.apiValue,
-                        minScore = applied.minScore ?: uiState.minScore,
-                        maxScore = applied.maxScore ?: uiState.maxScore
-                    )
+                // ⚠️ Bu sheet **yalnız** tür/etiket düzenler; mevcut yıl/sezon/puan
+                // süzgeçleri korunarak yalnızca tür/etiket alanları güncellenir.
+                viewModel.updateGenresTagsFilters(
+                    genres = applied.genres,
+                    excludedGenres = applied.excludedGenres,
+                    tags = applied.tags
                 )
                 viewModel.setFilterSheetOpen(false)
             },
@@ -856,10 +861,11 @@ fun SearchScreen(
             options = tmdbGenres,
             selectedOption = currentGenre,
             onOptionSelected = { g ->
-                val updated = uiState.toLegacyFilters().copy(
-                    genres = if (g == null || g == "All") emptyList() else listOf(g)
+                viewModel.updateGenresTagsFilters(
+                    genres = if (g == null || g == "All") emptyList() else listOf(g),
+                    excludedGenres = uiState.excludedGenres,
+                    tags = uiState.tags
                 )
-                viewModel.updateFilters(updated)
             },
             onDismiss = { openTmdbGenreDialog = false },
             optionLabel = { if (it == "All") tmdbAllGenreLabel else SearchTranslation.displayLabel(it) }

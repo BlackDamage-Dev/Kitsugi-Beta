@@ -78,6 +78,10 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
     private var showAdultContentState = false
     private var searchHistoryEnabledState = true
     private var searchJob: Job? = null
+    private var loadMoreJob: Job? = null
+    private var lastRequestedPage: Int = 0
+    private var filterEditing: Boolean = false
+    private var pendingFilterSearch: Boolean = false
     private var undoHistoryDismissJob: Job? = null
 
     // ── Ortak filtre çatısı: kurum (stüdyo/yapımcı/şirket/kanal) araması ────
@@ -273,14 +277,20 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
             // Yazarken eski sorgunun sonuÃ§larÄ± yeni metnin altÄ±nda gÃ¶rÃ¼nmemeli.
             searchGeneration.incrementAndGet()
             searchJob?.cancel()
+            loadMoreJob?.cancel()
+            lastRequestedPage = 0
             _uiState.update {
                 it.copy(
                     query = value,
                     results = emptyList(),
                     multiResults = MultiPlatformResults(),
                     isLoading = false,
+                    isLoadingMore = false,
                     hasSearched = false,
                     errorMessage = null,
+                    platformErrorCode = null,
+                    sourceErrorCodes = emptyMap(),
+                    skippedSourceIds = emptyList(),
                     hasNextPage = false
                 )
             }
@@ -304,6 +314,34 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
         search(resetPage = true)
     }
 
+    /**
+     * Filtre düzenleme sheet'i açıkken her çip dokunuşunda 7 kaynağa birden ağ isteği
+     * atılmasını engeller. Sheet kapandığında (veya "Sonuçları Göster"e basıldığında)
+     * biriken değişiklikler tek bir arama olarak çalıştırılır.
+     */
+    fun setFilterEditing(editing: Boolean) {
+        val wasEditing = filterEditing
+        filterEditing = editing
+        if (wasEditing && !editing && pendingFilterSearch) {
+            pendingFilterSearch = false
+            search(resetPage = true)
+        }
+    }
+
+    /** Filtre sheet'indeki "Sonuçları Göster" butonu: bekleyen filtreleri hemen uygular. */
+    fun applyFilterEdits() {
+        pendingFilterSearch = false
+        search(resetPage = true)
+    }
+
+    internal fun requestSearch(resetPage: Boolean = true) {
+        if (filterEditing) {
+            pendingFilterSearch = true
+        } else {
+            search(resetPage = resetPage)
+        }
+    }
+
     /** RafÄ±n sorgusunu, kapsamÄ±nÄ± ve gerÃ§ekten gÃ¶rÃ¼nen kayÄ±tlarÄ±nÄ± tek seferde devral. */
     fun openSourceSearch(
         engine: SearchSourceEngine,
@@ -314,6 +352,8 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
     ) {
         searchGeneration.incrementAndGet()
         searchJob?.cancel()
+        loadMoreJob?.cancel()
+        lastRequestedPage = 0
         val selectedScope = scope.takeIf { it in engine.availableScopes() } ?: engine.availableScopes().first()
         val mediaType = when (selectedScope) {
             SearchScope.MANGA, SearchScope.MANHWA, SearchScope.MANHUA, SearchScope.LIGHT_NOVEL -> MediaType.Manga
@@ -381,9 +421,13 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
      */
     fun applyCommonFilters(common: CommonSearchFilters, triggerSearch: Boolean = true) {
         _uiState.update { current ->
-            SearchCommonFiltersBridge.applyTo(current, current.selectedEngine, common)
+            SearchCommonFiltersBridge.applyTo(
+                current.copy(detailSearchFilterRequest = null),
+                current.selectedEngine,
+                common
+            )
         }
-        if (triggerSearch) search(resetPage = true)
+        if (triggerSearch) requestSearch(resetPage = true)
     }
 
     /**
@@ -452,16 +496,16 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                     )
                 )
                 else -> withList
-            }
+            }.copy(detailSearchFilterRequest = null)
         }
-        search(resetPage = true)
+        requestSearch(resetPage = true)
     }
 
     /** Seçili kurumu kaldırır ve ilgili motor paketindeki kimliği temizler. */
     fun removeInstitution(institution: CommonInstitution) {
         _uiState.update { current ->
             val remaining = current.institutions.filterNot { it.key == institution.key }
-            val withList = current.copy(institutions = remaining)
+            val withList = current.copy(institutions = remaining, detailSearchFilterRequest = null)
             when (institution.engine) {
                 SearchSourceEngine.MAL -> withList.copy(
                     malSpecificFilters = withList.malSpecificFilters.copy(
@@ -482,7 +526,7 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                 else -> withList
             }
         }
-        search(resetPage = true)
+        requestSearch(resetPage = true)
     }
 
     /** Tüm kurum seçimlerini (tüm kaynaklar için) temizler. */
@@ -490,6 +534,7 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
         _uiState.update { current ->
             current.copy(
                 institutions = emptyList(),
+                detailSearchFilterRequest = null,
                 malSpecificFilters = current.malSpecificFilters.copy(
                     producerId = null,
                     magazineId = null
@@ -500,7 +545,7 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                 )
             )
         }
-        search(resetPage = true)
+        requestSearch(resetPage = true)
     }
 
     /**
@@ -544,8 +589,11 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
             // varsayılanında kalır).
             SearchCommonFiltersBridge.applyTo(withSort, SearchSourceEngine.ALL, common)
         }
-        search(resetPage = true)
+        requestSearch(resetPage = true)
     }
+
+    /** "Tümü" modunda seçilen sıralamayı yedi kaynağın kendi sıralama anahtarına yayar. */
+    fun applyAllEngineSort(sortKey: String) = applySortKey(SearchSourceEngine.ALL, sortKey)
 
     // ── Kurum araması (kurum seçim sheet'i) ────────────────────────────────
 
@@ -772,9 +820,37 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
             tags = filters.tags
         )
         _uiState.update { current ->
-            SearchCommonFiltersBridge.applyTo(current, current.selectedEngine, common)
+            SearchCommonFiltersBridge.applyTo(
+                current.copy(detailSearchFilterRequest = null),
+                current.selectedEngine,
+                common
+            )
         }
-        search(resetPage = true)
+        requestSearch(resetPage = true)
+    }
+
+    /**
+     * GenresTagsSheet ve TMDB tür diyaloğu yalnızca tür/etiket düzenler; mevcut yıl/sezon/puan
+     * süzgeçlerini silmeden hem kanonik alanları hem de motor paketlerini günceller.
+     */
+    fun updateGenresTagsFilters(
+        genres: List<String>,
+        excludedGenres: List<String>,
+        tags: List<String>
+    ) {
+        val common = SearchCommonFiltersBridge.harvest(_uiState.value).copy(
+            genres = genres,
+            excludedGenres = excludedGenres,
+            tags = tags
+        )
+        _uiState.update { current ->
+            SearchCommonFiltersBridge.applyTo(
+                current.copy(detailSearchFilterRequest = null),
+                current.selectedEngine,
+                common
+            )
+        }
+        requestSearch(resetPage = true)
     }
 
     /** UI-only selection (v2.4.341); do not start an unfiltered provider search. */
@@ -786,133 +862,124 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
             "kurum saÄŸlayÄ±cÄ± eÅŸlemesi henÃ¼z etkin deÄŸil")
     }
 
+    /** Tüm ortak + kaynağa özel filtre katmanlarını sıfırlayan tek yardımcı. */
+    private fun SearchUiState.withoutSearchFilters(): SearchUiState = copy(
+        genres = emptyList(),
+        excludedGenres = emptyList(),
+        tags = emptyList(),
+        institutions = emptyList(),
+        organizations = emptyList(),
+        selectedFormats = emptyList(),
+        selectedStatuses = emptyList(),
+        country = null,
+        selectedSources = emptyList(),
+        startYear = null,
+        endYear = null,
+        season = null,
+        minScore = null,
+        maxScore = null,
+        minEpCh = null,
+        maxEpCh = null,
+        minDuration = null,
+        maxDuration = null,
+        onMyList = null,
+        isDoujin = null,
+        isAdultFilter = null,
+        detailSearchFilterRequest = null,
+        skippedSourceIds = emptyList(),
+        aniListSpecificFilters = AniListSpecificFilters(),
+        malSpecificFilters = MalSpecificFilters(),
+        tmdbSpecificFilters = TmdbSpecificFilters(),
+        shikimoriSpecificFilters = ShikimoriSpecificFilters(),
+        kitsuSpecificFilters = KitsuSpecificFilters(),
+        simklSpecificFilters = SimklSpecificFilters(),
+        bangumiSpecificFilters = BangumiSpecificFilters(),
+        sortSearch = KitsugiMediaSortSearch.SEARCH_MATCH,
+        isSortDescending = true,
+        page = 1,
+        hasNextPage = !isShelfMode
+    )
+
     fun resetFilters() {
-        _uiState.update { current ->
-            val cleared = current.copy(
-                genres = emptyList(),
-                excludedGenres = emptyList(),
-                tags = emptyList(),
-                institutions = emptyList(),
-                organizations = emptyList(),
-                selectedFormats = emptyList(),
-                selectedStatuses = emptyList(),
-                country = null,
-                selectedSources = emptyList(),
-                startYear = null,
-                endYear = null,
-                season = null,
-                minScore = null,
-                maxScore = null,
-                minEpCh = null,
-                maxEpCh = null,
-                minDuration = null,
-                maxDuration = null,
-                onMyList = null,
-                isDoujin = null,
-                isAdultFilter = null,
-                detailSearchFilterRequest = null,
-                sortSearch = KitsugiMediaSortSearch.SEARCH_MATCH,
-                isSortDescending = true,
-                page = 1,
-                hasNextPage = true
-            )
-            when (current.selectedEngine) {
-                SearchSourceEngine.ANILIST -> cleared.copy(aniListSpecificFilters = AniListSpecificFilters())
-                SearchSourceEngine.MAL -> cleared.copy(malSpecificFilters = MalSpecificFilters())
-                SearchSourceEngine.TMDB -> cleared.copy(tmdbSpecificFilters = TmdbSpecificFilters())
-                SearchSourceEngine.SHIKIMORI -> cleared.copy(shikimoriSpecificFilters = ShikimoriSpecificFilters())
-                SearchSourceEngine.KITSU -> cleared.copy(kitsuSpecificFilters = KitsuSpecificFilters())
-                SearchSourceEngine.SIMKL -> cleared.copy(simklSpecificFilters = SimklSpecificFilters())
-                SearchSourceEngine.BANGUMI -> cleared.copy(bangumiSpecificFilters = BangumiSpecificFilters())
-                SearchSourceEngine.ALL -> cleared.copy(
-                    aniListSpecificFilters = AniListSpecificFilters(),
-                    malSpecificFilters = MalSpecificFilters(),
-                    tmdbSpecificFilters = TmdbSpecificFilters(),
-                    shikimoriSpecificFilters = ShikimoriSpecificFilters(),
-                    kitsuSpecificFilters = KitsuSpecificFilters(),
-                    simklSpecificFilters = SimklSpecificFilters(),
-                    bangumiSpecificFilters = BangumiSpecificFilters()
-                )
-            }
-        }
-        search(resetPage = true)
+        _uiState.update { it.withoutSearchFilters() }
+        requestSearch(resetPage = true)
     }
 
     // â”€â”€ AniHyou-style reactive filter events â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     fun setFormats(values: List<KitsugiMediaFormat>) {
-        _uiState.update { it.copy(selectedFormats = values) }
-        search(resetPage = true)
+        _uiState.update { it.copy(selectedFormats = values, detailSearchFilterRequest = null) }
+        requestSearch(resetPage = true)
     }
 
     fun setStatuses(values: List<KitsugiMediaStatus>) {
-        _uiState.update { it.copy(selectedStatuses = values) }
-        search(resetPage = true)
+        _uiState.update { it.copy(selectedStatuses = values, detailSearchFilterRequest = null) }
+        requestSearch(resetPage = true)
     }
 
     fun setCountry(value: KitsugiCountryOfOrigin?) {
-        _uiState.update { it.copy(country = value) }
-        search(resetPage = true)
+        _uiState.update { it.copy(country = value, detailSearchFilterRequest = null) }
+        requestSearch(resetPage = true)
     }
 
     fun setSources(values: List<KitsugiMediaSource>) {
-        _uiState.update { it.copy(selectedSources = values) }
-        search(resetPage = true)
+        _uiState.update { it.copy(selectedSources = values, detailSearchFilterRequest = null) }
+        requestSearch(resetPage = true)
     }
 
     fun setStartYear(value: Int?) {
-        _uiState.update { it.copy(startYear = value) }
-        search(resetPage = true)
+        _uiState.update { it.copy(startYear = value, detailSearchFilterRequest = null) }
+        requestSearch(resetPage = true)
     }
 
     fun setEndYear(value: Int?) {
-        _uiState.update { it.copy(endYear = value) }
-        search(resetPage = true)
+        _uiState.update { it.copy(endYear = value, detailSearchFilterRequest = null) }
+        requestSearch(resetPage = true)
     }
 
     fun setSeason(value: KitsugiMediaSeason?) {
-        _uiState.update { it.copy(season = value) }
-        search(resetPage = true)
+        _uiState.update { it.copy(season = value, detailSearchFilterRequest = null) }
+        requestSearch(resetPage = true)
     }
 
     fun setMinScore(value: Int?) {
-        _uiState.update { it.copy(minScore = value) }
-        search(resetPage = true)
+        _uiState.update { it.copy(minScore = value, detailSearchFilterRequest = null) }
+        requestSearch(resetPage = true)
     }
 
     fun setMaxScore(value: Int?) {
-        _uiState.update { it.copy(maxScore = value) }
-        search(resetPage = true)
+        _uiState.update { it.copy(maxScore = value, detailSearchFilterRequest = null) }
+        requestSearch(resetPage = true)
     }
 
     fun setEpCh(range: IntRange?) {
-        _uiState.update { it.copy(minEpCh = range?.first, maxEpCh = range?.last) }
-        search(resetPage = true)
+        _uiState.update { it.copy(minEpCh = range?.first, maxEpCh = range?.last, detailSearchFilterRequest = null) }
+        requestSearch(resetPage = true)
     }
 
     fun setDuration(range: IntRange?) {
-        _uiState.update { it.copy(minDuration = range?.first, maxDuration = range?.last) }
-        search(resetPage = true)
+        _uiState.update { it.copy(minDuration = range?.first, maxDuration = range?.last, detailSearchFilterRequest = null) }
+        requestSearch(resetPage = true)
     }
 
     fun setSort(sortSearch: KitsugiMediaSortSearch, isDescending: Boolean) {
         _uiState.update { it.copy(sortSearch = sortSearch, isSortDescending = isDescending) }
-        search(resetPage = true)
+        requestSearch(resetPage = true)
     }
 
     fun setOnMyList(value: Boolean?) {
-        _uiState.update { it.copy(onMyList = value) }
-        search(resetPage = true)
+        _uiState.update { it.copy(onMyList = value, detailSearchFilterRequest = null) }
+        requestSearch(resetPage = true)
     }
 
     fun setIsDoujin(value: Boolean?) {
-        _uiState.update { it.copy(isDoujin = value) }
-        search(resetPage = true)
+        _uiState.update { it.copy(isDoujin = value, detailSearchFilterRequest = null) }
+        requestSearch(resetPage = true)
     }
 
     fun setIsAdultFilter(value: Boolean?) {
-        _uiState.update { it.copy(isAdultFilter = value) }
-        search(resetPage = true)
+        _uiState.update { it.copy(isAdultFilter = value, detailSearchFilterRequest = null) }
+        requestSearch(resetPage = true)
     }
 
     fun setShowMoreFilters(show: Boolean) {
@@ -920,7 +987,6 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun setEngine(engine: SearchSourceEngine) {
-        val currentQuery = _uiState.value.query.trim()
         saveCurrentStateToCache()
         val scopes = engine.availableScopes()
         val targetScope = if (_uiState.value.selectedScope in scopes) _uiState.value.selectedScope else scopes.first()
@@ -956,12 +1022,12 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                 currentTab = mappedTab,
                 selectedPlatform = mappedPlatform,
                 page = 1,
-                hasNextPage = true
+                hasNextPage = engine != SearchSourceEngine.ALL
             )
             SearchCommonFiltersBridge.applyTo(switched, engine, carried, targetScope)
         }
         persistSearchSelection()
-        search(resetPage = true)
+        requestSearch(resetPage = true)
     }
 
     fun setScope(scope: SearchScope) {
@@ -986,67 +1052,59 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                 selectedMediaType = mappedMediaType,
                 currentTab = mappedTab,
                 page = 1,
-                hasNextPage = true
+                hasNextPage = !(engine == SearchSourceEngine.ALL && scope != SearchScope.CHARACTER && scope != SearchScope.STAFF)
             )
         }
         persistSearchSelection()
-        search(resetPage = true)
+        requestSearch(resetPage = true)
     }
 
     fun updateAniListFilters(filters: AniListSpecificFilters) {
-        _uiState.update { it.copy(aniListSpecificFilters = filters) }
-        search(resetPage = true)
+        _uiState.update { it.copy(aniListSpecificFilters = filters, detailSearchFilterRequest = null) }
+        requestSearch(resetPage = true)
     }
 
     fun updateMalFilters(filters: MalSpecificFilters) {
-        _uiState.update { it.copy(malSpecificFilters = filters) }
-        search(resetPage = true)
+        _uiState.update { it.copy(malSpecificFilters = filters, detailSearchFilterRequest = null) }
+        requestSearch(resetPage = true)
     }
 
     fun updateTmdbFilters(filters: TmdbSpecificFilters) {
-        _uiState.update { it.copy(tmdbSpecificFilters = filters) }
-        search(resetPage = true)
+        _uiState.update { it.copy(tmdbSpecificFilters = filters, detailSearchFilterRequest = null) }
+        requestSearch(resetPage = true)
     }
 
     fun updateShikimoriFilters(filters: ShikimoriSpecificFilters) {
-        _uiState.update { it.copy(shikimoriSpecificFilters = filters) }
-        search(resetPage = true)
+        _uiState.update { it.copy(shikimoriSpecificFilters = filters, detailSearchFilterRequest = null) }
+        requestSearch(resetPage = true)
     }
 
     fun updateKitsuFilters(filters: KitsuSpecificFilters) {
-        _uiState.update { it.copy(kitsuSpecificFilters = filters) }
-        search(resetPage = true)
+        _uiState.update { it.copy(kitsuSpecificFilters = filters, detailSearchFilterRequest = null) }
+        requestSearch(resetPage = true)
     }
 
     fun updateSimklFilters(filters: SimklSpecificFilters) {
-        _uiState.update { it.copy(simklSpecificFilters = filters) }
-        search(resetPage = true)
+        _uiState.update { it.copy(simklSpecificFilters = filters, detailSearchFilterRequest = null) }
+        requestSearch(resetPage = true)
     }
 
     fun updateBangumiFilters(filters: BangumiSpecificFilters) {
-        _uiState.update { it.copy(bangumiSpecificFilters = filters) }
-        search(resetPage = true)
+        _uiState.update { it.copy(bangumiSpecificFilters = filters, detailSearchFilterRequest = null) }
+        requestSearch(resetPage = true)
     }
 
     fun resetEngineFilters(engine: SearchSourceEngine) {
-        _uiState.update {
+        _uiState.update { current ->
             when (engine) {
-                SearchSourceEngine.ANILIST -> it.copy(aniListSpecificFilters = AniListSpecificFilters())
-                SearchSourceEngine.MAL -> it.copy(malSpecificFilters = MalSpecificFilters())
-                SearchSourceEngine.TMDB -> it.copy(tmdbSpecificFilters = TmdbSpecificFilters())
-                SearchSourceEngine.SHIKIMORI -> it.copy(shikimoriSpecificFilters = ShikimoriSpecificFilters())
-                SearchSourceEngine.KITSU -> it.copy(kitsuSpecificFilters = KitsuSpecificFilters())
-                SearchSourceEngine.SIMKL -> it.copy(simklSpecificFilters = SimklSpecificFilters())
-                SearchSourceEngine.BANGUMI -> it.copy(bangumiSpecificFilters = BangumiSpecificFilters())
-                SearchSourceEngine.ALL -> it.copy(
-                    aniListSpecificFilters = AniListSpecificFilters(),
-                    malSpecificFilters = MalSpecificFilters(),
-                    tmdbSpecificFilters = TmdbSpecificFilters(),
-                    shikimoriSpecificFilters = ShikimoriSpecificFilters(),
-                    kitsuSpecificFilters = KitsuSpecificFilters(),
-                    simklSpecificFilters = SimklSpecificFilters(),
-                    bangumiSpecificFilters = BangumiSpecificFilters()
-                )
+                SearchSourceEngine.ANILIST -> current.copy(aniListSpecificFilters = AniListSpecificFilters())
+                SearchSourceEngine.MAL -> current.copy(malSpecificFilters = MalSpecificFilters())
+                SearchSourceEngine.TMDB -> current.copy(tmdbSpecificFilters = TmdbSpecificFilters())
+                SearchSourceEngine.SHIKIMORI -> current.copy(shikimoriSpecificFilters = ShikimoriSpecificFilters())
+                SearchSourceEngine.KITSU -> current.copy(kitsuSpecificFilters = KitsuSpecificFilters())
+                SearchSourceEngine.SIMKL -> current.copy(simklSpecificFilters = SimklSpecificFilters())
+                SearchSourceEngine.BANGUMI -> current.copy(bangumiSpecificFilters = BangumiSpecificFilters())
+                SearchSourceEngine.ALL -> current.withoutSearchFilters()
             }
         }
         resetFilters()
@@ -1068,16 +1126,8 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
 
     private fun planAllSourcesForState(state: SearchUiState, scope: SearchScope): AllSourcePlan {
         val base = planAllSources(scope)
-        val request = state.detailSearchFilterRequest ?: return base
-        return base.copy(
-            aniList = base.aniList && CanonicalFilterBridge.supportsDetailFilter(SearchSourceEngine.ANILIST, request),
-            mal = base.mal && CanonicalFilterBridge.supportsDetailFilter(SearchSourceEngine.MAL, request),
-            tmdb = base.tmdb && CanonicalFilterBridge.supportsDetailFilter(SearchSourceEngine.TMDB, request),
-            shikimori = base.shikimori && CanonicalFilterBridge.supportsDetailFilter(SearchSourceEngine.SHIKIMORI, request),
-            kitsu = base.kitsu && CanonicalFilterBridge.supportsDetailFilter(SearchSourceEngine.KITSU, request),
-            simkl = base.simkl && CanonicalFilterBridge.supportsDetailFilter(SearchSourceEngine.SIMKL, request),
-            bangumi = base.bangumi && CanonicalFilterBridge.supportsDetailFilter(SearchSourceEngine.BANGUMI, request)
-        )
+        val facets = SearchFacetBridge.fromState(state, scope, state.query.trim())
+        return SearchFacetBridge.restrict(base, facets)
     }
 
     /**
@@ -1088,31 +1138,14 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
         val cleanGenre = translateToEnglishForSearch(genreEnglish)
         val isAniListGenre = isOfficialAniListGenre(cleanGenre)
         _uiState.update {
-            it.copy(
+            it.withoutSearchFilters().copy(
                 query = "",
                 genres = if (isAniListGenre) listOf(cleanGenre) else emptyList(),
-                excludedGenres = emptyList(),
                 tags = if (!isAniListGenre) listOf(cleanGenre) else emptyList(),
-                selectedFormats = emptyList(),
-                selectedStatuses = emptyList(),
-                country = null,
-                selectedSources = emptyList(),
-                startYear = null,
-                endYear = null,
-                season = null,
-                minScore = null,
-                maxScore = null,
-                minEpCh = null,
-                maxEpCh = null,
-                minDuration = null,
-                maxDuration = null,
-                detailSearchFilterRequest = null,
-                sortSearch = KitsugiMediaSortSearch.SEARCH_MATCH,
-                isSortDescending = true,
                 hasSearched = false
             )
         }
-        search()
+        search(resetPage = true)
     }
 
     /**
@@ -1121,31 +1154,13 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
     fun setTagFilter(tag: String) {
         val cleanTag = translateToEnglishForSearch(tag)
         _uiState.update {
-            it.copy(
+            it.withoutSearchFilters().copy(
                 query = "",
-                genres = emptyList(),
-                excludedGenres = emptyList(),
                 tags = listOf(cleanTag),
-                selectedFormats = emptyList(),
-                selectedStatuses = emptyList(),
-                country = null,
-                selectedSources = emptyList(),
-                startYear = null,
-                endYear = null,
-                season = null,
-                minScore = null,
-                maxScore = null,
-                minEpCh = null,
-                maxEpCh = null,
-                minDuration = null,
-                maxDuration = null,
-                detailSearchFilterRequest = null,
-                sortSearch = KitsugiMediaSortSearch.SEARCH_MATCH,
-                isSortDescending = true,
                 hasSearched = false
             )
         }
-        search()
+        search(resetPage = true)
     }
 
     /**
@@ -1177,6 +1192,7 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
             year = year
         )
         val targetScope = CanonicalFilterBridge.autoScopeGuard(SearchSourceEngine.ALL, request.mediaType)
+        val facets = SearchFacetBridge.forDetailRequest(normalizedRequest)
         val facetTerms = listOfNotNull(cleanGenre, cleanTheme, cleanDemographic)
         val anyFacetTerm = (facetTerms + listOfNotNull(cleanTag)).firstOrNull()
         val isManga = request.mediaType == MediaType.Manga
@@ -1185,7 +1201,7 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
             it > 0 && CanonicalFilterBridge.isTmdbTagSource(request.tagSource)
         }
         val supports = { engine: SearchSourceEngine ->
-            CanonicalFilterBridge.supportsDetailFilter(engine, normalizedRequest)
+            SearchFacetBridge.supportsEngine(engine, facets)
         }
         val aniListOfficialGenre = facetTerms.firstOrNull()?.takeIf {
             cleanTag == null && CanonicalFilterBridge.isOfficialAniListGenre(it)
@@ -1193,17 +1209,25 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
         val aniListTagTerms = buildList {
             if (cleanTag != null) add(cleanTag)
             facetTerms.filterNot { it == aniListOfficialGenre }.forEach { add(it) }
-        }.distinct()
-        val bangumiTag = request.tag?.takeIf {
+        }.filter(SearchTaxonomy::isKnownAniListTag).distinct()
+        val bangumiNativeTag = request.tag?.takeIf {
             request.tagSource.equals("bangumi", ignoreCase = true) || request.tagSource.equals("bgm", ignoreCase = true)
-        }?.trim()?.takeIf { it.isNotBlank() } ?: cleanTag
-        val bangumiTags = listOfNotNull(cleanGenre, cleanTheme, cleanDemographic, bangumiTag).distinct()
-        val kitsuCategories = listOfNotNull(cleanGenre, cleanTheme, cleanDemographic, cleanTag).distinct()
+        }?.trim()?.takeIf { it.isNotBlank() }
+        val bangumiTags = buildList {
+            facetTerms.mapNotNull(SearchFacetBridge::mapBangumiTag).forEach { add(it) }
+            when {
+                bangumiNativeTag != null -> add(bangumiNativeTag)
+                cleanTag != null -> SearchFacetBridge.mapBangumiTag(cleanTag)?.let { add(it) }
+            }
+        }.distinct()
+        val kitsuCategories = listOfNotNull(cleanGenre, cleanTheme, cleanDemographic, cleanTag)
+            .mapNotNull(SearchFacetBridge::mapKitsuCategory)
+            .distinct()
 
         val aniListFilters = if (supports(SearchSourceEngine.ANILIST)) {
             AniListSpecificFilters(
                 season = season,
-                seasonYear = year,
+                seasonYear = if (season != null) year else null,
                 startYear = if (season == null) year else null,
                 endYear = if (season == null) year else null,
                 genres = listOfNotNull(aniListOfficialGenre),
@@ -1217,7 +1241,7 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
         val malFilters = if (supports(SearchSourceEngine.MAL)) {
             MalSpecificFilters(
                 season = season?.lowercase(java.util.Locale.ROOT),
-                seasonYear = year,
+                seasonYear = if (season != null) year else null,
                 genres = listOfNotNull(malGenreId),
                 startYear = if (season == null) year else null,
                 endYear = if (season == null) year else null,
@@ -1264,8 +1288,8 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
 
         val kitsuFilters = if (supports(SearchSourceEngine.KITSU)) {
             KitsuSpecificFilters(
-                season = season?.lowercase(java.util.Locale.ROOT),
-                seasonYear = year,
+                season = if (isManga) null else season?.lowercase(java.util.Locale.ROOT),
+                seasonYear = if (isManga || season == null) null else year,
                 categories = kitsuCategories
             )
         } else KitsuSpecificFilters()
@@ -1357,6 +1381,11 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
             }
         }.distinctBy { it.key }
         val storedFilterRequest = if (degradeMagazineToQuery) null else normalizedRequest
+        val skippedIds = if (degradeMagazineToQuery) {
+            emptyList()
+        } else {
+            facets.skippedEngines(planAllSources(targetScope)).map { it.id }
+        }
         _uiState.update { current ->
             current.copy(
                 query = fallbackQuery,
@@ -1366,6 +1395,7 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                 selectedPlatform = SearchPlatform.All,
                 selectedMediaType = request.mediaType,
                 detailSearchFilterRequest = storedFilterRequest,
+                skippedSourceIds = skippedIds,
                 genres = listOfNotNull(cleanGenre ?: cleanTheme ?: cleanDemographic),
                 tags = listOfNotNull(cleanTag),
                 institutions = inheritedInstitutions,
@@ -1396,7 +1426,7 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                 simklSpecificFilters = simklFilters,
                 bangumiSpecificFilters = bangumiFilters,
                 page = 1,
-                hasNextPage = true,
+                hasNextPage = false,
                 hasSearched = false
             )
         }
@@ -1593,39 +1623,41 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
         val failures = PlatformFailureRegistry.failuresSince(sinceMillis)
         if (failures.isEmpty()) return emptyMap()
 
-        val shelfSearch = (state.currentTab == KitsugiSearchTab.All ||
-            state.selectedEngine == SearchSourceEngine.ALL) &&
-            state.selectedScope != SearchScope.CHARACTER &&
-            state.selectedScope != SearchScope.STAFF
+        val activePlatforms = activePlatformsFor(state)
+        val relevant = failures.filterKeys { it in activePlatforms }
+        if (relevant.isEmpty()) return emptyMap()
 
-        if (shelfSearch) {
-            val multi = state.multiResults
-            val plan = planAllSourcesForState(state, state.selectedScope)
-            // PlanlanmÄ±ÅŸ + sonuÃ§ Ã¼retmiÅŸ kaynaklar "baÅŸarÄ±lÄ±" sayÄ±lÄ±r.
-            val healthy = buildSet {
-                if (plan.aniList && multi.aniListResults.isNotEmpty()) add(ListPlatform.ANILIST)
-                if (plan.mal && multi.malResults.isNotEmpty()) add(ListPlatform.MAL)
-                if (plan.tmdb && multi.tmdbResults.isNotEmpty()) add(ListPlatform.TMDB)
-                if (plan.shikimori && multi.shikimoriResults.isNotEmpty()) add(ListPlatform.SHIKIMORI)
-                if (plan.kitsu && multi.kitsuResults.isNotEmpty()) add(ListPlatform.KITSU)
-                if (plan.simkl && multi.simklResults.isNotEmpty()) add(ListPlatform.SIMKL)
-                if (plan.bangumi && multi.bangumiResults.isNotEmpty()) add(ListPlatform.BANGUMI)
+        if (state.isShelfMode) {
+            return relevant.filterKeys { platform ->
+                !state.multiResults.hasResultsFor(platform)
             }
-            return failures.filterKeys { it !in healthy }
         }
 
-        // Tek kaynak sekmesi (AniList, MAL, Kitsuâ€¦): yalnÄ±zca sonuÃ§ yoksa rozet gÃ¶ster.
-        if (state.selectedEngine != SearchSourceEngine.ALL) {
-            if (state.results.isNotEmpty()) return emptyMap()
-            val platform = state.selectedEngine.toListPlatform() ?: return emptyMap()
-            return failures[platform]?.let { mapOf(platform to it) } ?: emptyMap()
-        }
-
-        // Karakter/Personel kapsamlarÄ±: sonuÃ§ varsa rozet gÃ¶sterilmez.
-        return if (state.results.isEmpty()) failures else emptyMap()
+        return if (state.results.isEmpty()) relevant else emptyMap()
     }
 
-    /** Arama motoru â†’ hata kaydÄ±ndaki liste kaynaÄŸÄ± eÅŸlemesi. */
+    /** Bu aramada gerçekten ağa çıkan kaynaklar (plan dışındaki arka plan hataları elenir). */
+    private fun activePlatformsFor(state: SearchUiState): Set<ListPlatform> {
+        if (state.isShelfMode) {
+            val plan = planAllSourcesForState(state, state.selectedScope)
+            return buildSet {
+                if (plan.aniList) add(ListPlatform.ANILIST)
+                if (plan.mal) add(ListPlatform.MAL)
+                if (plan.tmdb) add(ListPlatform.TMDB)
+                if (plan.shikimori) add(ListPlatform.SHIKIMORI)
+                if (plan.kitsu) add(ListPlatform.KITSU)
+                if (plan.simkl) add(ListPlatform.SIMKL)
+                if (plan.bangumi) add(ListPlatform.BANGUMI)
+            }
+        }
+        state.selectedEngine.toListPlatform()?.let { return setOf(it) }
+        return when (state.selectedScope) {
+            SearchScope.CHARACTER, SearchScope.STAFF, SearchScope.STUDIO -> setOf(ListPlatform.ANILIST)
+            else -> emptySet()
+        }
+    }
+
+    /** Arama motoru → hata kaydındaki liste kaynağı eşlemesi. */
     private fun SearchSourceEngine.toListPlatform(): ListPlatform? = when (this) {
         SearchSourceEngine.ANILIST -> ListPlatform.ANILIST
         SearchSourceEngine.MAL -> ListPlatform.MAL
@@ -1661,9 +1693,12 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
         }
 
         searchJob?.cancel()
+        loadMoreJob?.cancel()
+        lastRequestedPage = 1
+        pendingFilterSearch = false
 
-        // Bu Ã§alÄ±ÅŸmanÄ±n nesli. Sonraki aramalar sayacÄ± ilerletir; o anda hÃ¢lÃ¢ Ã§alÄ±ÅŸan
-        // (iptali yutan) eski Ã§alÄ±ÅŸmalar UI durumuna yazamaz.
+        // Bu çalışmanın nesli. Sonraki aramalar sayacı ilerletir; o anda hâlâ çalışan
+        // (iptali yutan) eski çalışmalar UI durumuna yazamaz.
         val generation = searchGeneration.incrementAndGet()
         val searchStartedAt = System.currentTimeMillis()
         // Capture before the loading-state update.  The state object is immutable, so
@@ -1686,21 +1721,34 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
             )
         } else null
 
+        val isShelfSearch = state.isShelfMode
+        val basePlan = planAllSources(state.selectedScope)
+        val facets = SearchFacetBridge.fromState(state, state.selectedScope, state.query.trim())
+        val plan = SearchFacetBridge.restrict(basePlan, facets)
+        val skippedIds = if (isShelfSearch) {
+            facets.skippedEngines(basePlan).map { it.id }
+        } else {
+            emptyList()
+        }
+        val noSourceSupportsFilters = isShelfSearch && state.hasFiltersApplied && !plan.anyActive
+
         _uiState.update {
             it.copy(
                 isLoading = true,
+                isLoadingMore = false,
                 errorMessage = null,
                 platformErrorCode = null,
                 sourceErrorCodes = emptyMap(),
+                skippedSourceIds = skippedIds,
                 page = if (resetPage) 1 else it.page,
-                hasNextPage = true,
+                hasNextPage = !isShelfSearch,
                 results = seedResults,
                 hasSearched = seedResults.isNotEmpty(),
-                // "TÃ¼mÃ¼" aramasÄ±nda yÃ¼kleme bayraklarÄ± hemen (kapsama gÃ¶re) yazÄ±lÄ±r:
-                // aksi halde raflar bir kare boyunca boÅŸ + yÃ¼klenmiyor gÃ¶rÃ¼nÃ¼p
+                // "Tümü" aramasında yükleme bayrakları hemen (kapsama göre) yazılır:
+                // aksi halde raflar bir kare boyunca boş + yüklenmiyor görünüp
                 // kayboluyor, sonra shimmer ile geri geliyordu (titreme).
-                multiResults = if (state.selectedEngine == SearchSourceEngine.ALL) {
-                    planAllSourcesForState(state, state.selectedScope).toLoadingState()
+                multiResults = if (isShelfSearch) {
+                    plan.toLoadingState()
                 } else {
                     it.multiResults
                 }
@@ -1717,8 +1765,8 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                     requestState = state,
                     requestShowAdult = showAdultContentState
                 )
-                // KaynaÄŸÄ±n gevÅŸek eÅŸleÅŸme/popÃ¼lerlik kuyruÄŸunu alta it; sorguyla
-                // gerÃ§ekten Ã¶rtÃ¼ÅŸenleri Ã¶ne al.
+                // Kaynağın gevşek eşleşme/popülerlik kuyruğunu alta it; sorguyla
+                // gerçekten örtüşenleri öne al.
                 val results = SearchRelevance.rank(rawQuery, fetched)
 
                 ensureActive()
@@ -1732,15 +1780,21 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
 
                 _uiState.update {
                     if (searchGeneration.get() != generation) return@update it
-                    // Yenileme baÅŸarÄ±sÄ±z olsa bile kullanÄ±cÄ±yÄ± getiren raf kaydÄ± kaybolmaz.
+                    // Yenileme başarısız olsa bile kullanıcıyı getiren raf kaydı kaybolmaz.
                     val visible = mergeSourceSearchResults(seedResults, results)
+                    val emptyMessage = when {
+                        visible.isNotEmpty() -> null
+                        noSourceSupportsFilters -> KitsugiStrings.get(R.string.search_no_source_supports_filters)
+                        else -> KitsugiStrings.get(R.string.inline_no_results_found_5d2ab77)
+                    }
                     it.copy(
                         results = visible,
                         isLoading = false,
+                        isLoadingMore = false,
                         hasSearched = true,
                         page = 1,
-                        hasNextPage = hasNext,
-                        errorMessage = if (visible.isEmpty()) KitsugiStrings.get(R.string.inline_no_results_found_5d2ab77) else null,
+                        hasNextPage = if (it.isShelfMode) false else hasNext,
+                        errorMessage = emptyMessage,
                         sourceErrorCodes = visibleSourceErrorCodes(it, searchStartedAt),
                         platformErrorCode = null
                     )
@@ -1754,6 +1808,7 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                     if (searchGeneration.get() != generation) return@update it
                     it.copy(
                         isLoading = false,
+                        isLoadingMore = false,
                         errorMessage = if (it.results.isEmpty()) e.message ?: KitsugiStrings.get(R.string.arama_sirasinda_bir_hata_olustu) else null,
                         platformErrorCode = if (it.results.isEmpty()) failureCode else null,
                         sourceErrorCodes = visibleSourceErrorCodes(it, searchStartedAt),
@@ -1767,17 +1822,23 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
 
     fun loadMore() {
         val liveState = _uiState.value
+        // "Tümü" raf görünümü sayfalanmaz; aşağı kaydırmak yeni sayfa çekmemelidir.
+        if (liveState.isShelfMode) return
         if (liveState.isLoading || liveState.isLoadingMore || !liveState.hasNextPage) return
+        if (loadMoreJob?.isActive == true) return
         val generation = searchGeneration.get()
         val request = activeSearchSnapshot?.takeIf { it.generation == generation }
             ?: SearchRequestSnapshot(liveState, showAdultContentState, generation)
         val state = request.state
+        if (state.isShelfMode) return
         if (state.query.isBlank() && !state.hasFiltersApplied) return
 
         val nextPage = liveState.page + 1
+        if (nextPage <= lastRequestedPage) return
+        lastRequestedPage = nextPage
         _uiState.update { it.copy(isLoadingMore = true) }
 
-        viewModelScope.launch {
+        loadMoreJob = viewModelScope.launch {
             try {
                 val (moreResults, hasNext) = executeSearchForPage(
                     state.query.trim(),
@@ -1786,8 +1847,9 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                     requestState = state,
                     requestShowAdult = request.showAdult
                 )
+                ensureActive()
                 _uiState.update { current ->
-                    // Nesil deÄŸiÅŸtiyse (araya yeni bir arama girdiyse) sayfalamayÄ± uygulama.
+                    // Nesil değiştiyse (araya yeni bir arama girdiyse) sayfalamayı uygulama.
                     if (searchGeneration.get() != generation) return@update current
                     val currentIds = current.results.map { SearchRelevance.keyOf(it) }.toSet()
                     val uniqueNew = moreResults.filter { SearchRelevance.keyOf(it) !in currentIds }
@@ -1801,9 +1863,12 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                     )
                 }
             } catch (e: kotlinx.coroutines.CancellationException) {
+                _uiState.update { current ->
+                    if (searchGeneration.get() == generation) current.copy(isLoadingMore = false) else current
+                }
                 throw e
             } catch (e: Exception) {
-                _uiState.update { it.copy(isLoadingMore = false) }
+                _uiState.update { it.copy(isLoadingMore = false, hasNextPage = false) }
             }
         }
     }
@@ -1942,9 +2007,10 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                             // old "text passed as keyword ID => empty results" failure.
                             if (queryText.isNotBlank()) {
                                 val discoveryCountry = if (scope == SearchScope.K_DRAMA) "KR" else f.originCountry
+                                val numericKeyword = f.keyword?.trim()?.takeIf { it.isNotEmpty() && it.all(Char::isDigit) }
                                 val requiresDiscovery = scope == SearchScope.K_DRAMA || discoveryCountry != null || f.minVoteCount != null ||
                                     f.minRuntime != null || f.maxRuntime != null || f.watchProviderId != null ||
-                                    f.networkId != null || f.keyword != null || f.tvStatus != null || f.tvType != null
+                                    f.networkId != null || numericKeyword != null || f.tvStatus != null || f.tvType != null
                                 val baseMediaKinds = if (scope == SearchScope.ALL_MIXED) {
                                     listOf(MediaType.Movie, MediaType.TvShow)
                                 } else {
@@ -1973,7 +2039,7 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                                             watchProviderId = f.watchProviderId,
                                             networkId = f.networkId,
                                             companyId = f.companyId,
-                                            keyword = f.keyword,
+                                            keyword = numericKeyword,
                                             tvStatus = f.tvStatus,
                                             tvType = f.tvType,
                                             includeAdult = f.includeAdult
@@ -2005,6 +2071,7 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                             val mediaKinds = baseMediaKinds.filterByCommonFormats(state)
                             if (mediaKinds.isEmpty()) return Pair(emptyList(), false)
                             val country = if (scope == SearchScope.K_DRAMA) "KR" else f.originCountry
+                            val numericKeyword = f.keyword?.trim()?.takeIf { it.isNotEmpty() && it.all(Char::isDigit) }
                             val res = mediaKinds.flatMap { kind ->
                                 TmdbApiClient().discoverAdvanced(
                                     isMovie = kind == MediaType.Movie,
@@ -2028,11 +2095,7 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                                     // TMDB boş liste döndürüyordu; metin sorgusu artık anahtar
                                     // kelime olarak gönderilmez (sorgu metni diğer kaynaklarda
                                     // aranmaya devam eder, bu raf filtre kataloğunu gösterir).
-                                    keyword = if (queryText.isNotBlank()) {
-                                        queryText.trim().takeIf { it.all(Char::isDigit) }
-                                    } else {
-                                        f.keyword
-                                    },
+                                    keyword = numericKeyword,
                                     tvStatus = f.tvStatus,
                                     tvType = f.tvType,
                                     includeAdult = f.includeAdult
@@ -2125,8 +2188,7 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                                 else -> emptyList()
                             }
                             val excludedBangumiTags = state.excludedGenres
-                                .map { it.trim() }
-                                .filter { it.isNotEmpty() }
+                                .mapNotNull(SearchFacetBridge::mapBangumiTag)
                                 .distinct()
                             val bangumiSeason = f.season ?: state.season?.apiValue
                             val bangumiSeasonYear = f.seasonYear ?: state.startYear
@@ -2166,6 +2228,7 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                                 else if (scope == SearchScope.MANHUA) listOf("manhua")
                                 else if (scope == SearchScope.LIGHT_NOVEL) listOf("novel")
                                 else f.subtypes.ifEmpty { null }
+                            val isManga = mediaType == MediaType.Manga
                             val res = KitsuExploreClient.searchMediaAdvanced(
                                 mediaType = mediaType,
                                 query = queryText,
@@ -2173,8 +2236,8 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                                 sort = f.sort,
                                 subtypes = subtypes,
                                 statuses = f.statuses.ifEmpty { null },
-                                season = f.season,
-                                seasonYear = f.seasonYear,
+                                season = if (isManga) null else f.season,
+                                seasonYear = if (isManga) null else f.seasonYear,
                                 categories = f.categories,
                                 ageRating = f.ageRating,
                                 streamers = f.streamers,
@@ -2276,6 +2339,7 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                                 genres = f.genres.ifEmpty { null },
                                 excludedGenres = f.excludedGenres.ifEmpty { null },
                                 tags = f.tags.ifEmpty { null },
+                                excludedTags = f.excludedTags.ifEmpty { null },
                                 minYear = f.startYear,
                                 maxYear = f.endYear,
                                 minScore = f.minScore,
@@ -2283,6 +2347,7 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                                 minEpCh = f.minEpCh,
                                 maxEpCh = f.maxEpCh,
                                 minDuration = f.minDuration,
+                                maxDuration = f.maxDuration,
                                 // Sorgu varken varsayılan popülerlik sıralaması
                                 // gönderilmez: AniList kendi alakalılık sıralamasını
                                 // kullanır. "Tümü" rafı bunu zaten böyle yapıyordu;
@@ -2298,7 +2363,7 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                                 isAdult = f.isAdult,
                                 // AniList "Lisansörler" seçimi `licensedBy_in`, "minimum
                                 // etiket güveni" ise `minimumTagRank` olarak gönderilir.
-                                isLicensed = null,
+                                isLicensed = f.isLicensed,
                                 licensedBy = f.licensedBy.ifEmpty { null },
                                 minimumTagRank = f.minimumTagRank,
                                 minVolumes = f.minVolumes,
@@ -2314,16 +2379,29 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
             }
         }
 
-        // 0. SeÃ§enek C: "TÃ¼mÃ¼ (All-in-One Ã‡oklu Platform Arama)"
+        // 0. Seçenek C: "Tümü (All-in-One Çoklu Platform Arama)"
         //
-        // Karakter/Personel kapsamlarÄ± bu dala GÄ°RMEZ: "TÃ¼mÃ¼" motoru seÃ§iliyken
-        // karakter aramasÄ± da yedi medya rafÄ±nÄ± tetikliyordu ve Karakter sekmesi bu
-        // medya kayÄ±tlarÄ±nÄ± kiÅŸi satÄ±rÄ± gibi listeliyordu (alakasÄ±z sonuÃ§).
-        val isShelfSearch = (state.currentTab == KitsugiSearchTab.All || engine == SearchSourceEngine.ALL) &&
-            scope != SearchScope.CHARACTER && scope != SearchScope.STAFF
+        // Karakter/Personel kapsamları bu dala GİRMEZ: "Tümü" motoru seçiliyken
+        // karakter araması da yedi medya rafını tetikliyordu ve Karakter sekmesi bu
+        // medya kayıtlarını kişi satırı gibi listeliyordu (alakasız sonuç).
+        val isShelfSearch = state.isShelfMode
         if (isShelfSearch) {
+            // Raf modu her zaman ilk sayfayı çeker: her kaynak sabit sınırlı bir
+            // önizleme rafıdır. `page > 1` çağrıları burada savunmacı olarak reddedilir.
+            if (page > 1) {
+                return Pair(_uiState.value.results, false)
+            }
             val plan = planAllSourcesForState(state, scope)
             _uiState.update { it.copy(multiResults = plan.toLoadingState()) }
+            if (!plan.anyActive) {
+                _uiState.update {
+                    it.copy(
+                        multiResults = MultiPlatformResults(),
+                        results = emptyList()
+                    )
+                }
+                return Pair(emptyList(), false)
+            }
             return supervisorScope {
                 // Kapsam duyarlÄ± Ã§oklu platform aramasÄ±: her kaynak yalnÄ±zca kapsamÄ±n
                 // gerÃ§ekten istediÄŸi iÃ§erik ailesini sorgular.
@@ -2458,7 +2536,14 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                     val globalAniListGenres = state.genres.filter { CanonicalFilterBridge.isOfficialAniListGenre(it) }
                         .map(::translateToEnglishForSearch)
                     val globalAniListTags = (state.tags + state.genres.filterNot { CanonicalFilterBridge.isOfficialAniListGenre(it) })
-                        .map(::translateToEnglishForSearch).distinct()
+                        .map(::translateToEnglishForSearch)
+                        .filter(SearchTaxonomy::isKnownAniListTag)
+                        .distinct()
+                    val globalAniListExcludedTags = state.excludedGenres
+                        .filterNot { CanonicalFilterBridge.isOfficialAniListGenre(it) }
+                        .map(::translateToEnglishForSearch)
+                        .filter(SearchTaxonomy::isKnownAniListTag)
+                        .distinct()
                     val requestedFormats = f.formats.ifEmpty { state.selectedFormats.map { it.apiValue } }
                     val animeFormats = requestedFormats.forMediaType(MediaType.Anime)
                     val mangaFormats = requestedFormats.forMediaType(MediaType.Manga)
@@ -2473,16 +2558,24 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                                 formats = animeFormats.takeIf { it.isNotEmpty() },
                                 statuses = f.statuses.ifEmpty { state.selectedStatuses.map { it.apiValue } }.takeIf { it.isNotEmpty() },
                                 season = f.season ?: state.season?.apiValue,
-                                seasonYear = f.seasonYear ?: state.startYear,
+                                seasonYear = f.seasonYear ?: state.startYear?.takeIf { (f.season ?: state.season?.apiValue) != null },
                                 genres = f.genres.ifEmpty { globalAniListGenres }.takeIf { it.isNotEmpty() },
                                 excludedGenres = f.excludedGenres.ifEmpty { state.excludedGenres.filter { CanonicalFilterBridge.isOfficialAniListGenre(it) }.map(::translateToEnglishForSearch) }.takeIf { it.isNotEmpty() },
                                 tags = f.tags.ifEmpty { globalAniListTags }.takeIf { it.isNotEmpty() },
+                                excludedTags = f.excludedTags.ifEmpty { globalAniListExcludedTags }.takeIf { it.isNotEmpty() },
                                 minYear = f.startYear ?: state.startYear,
                                 maxYear = f.endYear ?: state.endYear,
+                                minScore = f.minScore ?: state.minScore,
+                                maxScore = f.maxScore ?: state.maxScore,
+                                minEpCh = f.minEpCh ?: state.minEpCh,
+                                maxEpCh = f.maxEpCh ?: state.maxEpCh,
+                                minDuration = f.minDuration ?: state.minDuration,
+                                maxDuration = f.maxDuration ?: state.maxDuration,
                                 sort = if (f.sort == "POPULARITY_DESC") aniListShelfSort else listOf(f.sort),
                                 country = aniListCountry ?: f.country,
                                 sources = f.sources.takeIf { it.isNotEmpty() },
                                 isAdult = f.isAdult,
+                                isLicensed = f.isLicensed,
                                 licensedBy = f.licensedBy.takeIf { it.isNotEmpty() },
                                 minimumTagRank = f.minimumTagRank,
                                 minVolumes = f.minVolumes,
@@ -2499,16 +2592,24 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                                 formats = mangaFormats.takeIf { it.isNotEmpty() },
                                 statuses = f.statuses.ifEmpty { state.selectedStatuses.map { it.apiValue } }.takeIf { it.isNotEmpty() },
                                 season = f.season ?: state.season?.apiValue,
-                                seasonYear = f.seasonYear ?: state.startYear,
+                                seasonYear = f.seasonYear ?: state.startYear?.takeIf { (f.season ?: state.season?.apiValue) != null },
                                 genres = f.genres.ifEmpty { globalAniListGenres }.takeIf { it.isNotEmpty() },
                                 excludedGenres = f.excludedGenres.ifEmpty { state.excludedGenres.filter { CanonicalFilterBridge.isOfficialAniListGenre(it) }.map(::translateToEnglishForSearch) }.takeIf { it.isNotEmpty() },
                                 tags = f.tags.ifEmpty { globalAniListTags }.takeIf { it.isNotEmpty() },
+                                excludedTags = f.excludedTags.ifEmpty { globalAniListExcludedTags }.takeIf { it.isNotEmpty() },
                                 minYear = f.startYear ?: state.startYear,
                                 maxYear = f.endYear ?: state.endYear,
+                                minScore = f.minScore ?: state.minScore,
+                                maxScore = f.maxScore ?: state.maxScore,
+                                minEpCh = f.minEpCh ?: state.minEpCh,
+                                maxEpCh = f.maxEpCh ?: state.maxEpCh,
+                                minDuration = f.minDuration ?: state.minDuration,
+                                maxDuration = f.maxDuration ?: state.maxDuration,
                                 sort = if (f.sort == "POPULARITY_DESC") aniListShelfSort else listOf(f.sort),
                                 country = aniListCountry ?: f.country,
                                 sources = f.sources.takeIf { it.isNotEmpty() },
                                 isAdult = f.isAdult,
+                                isLicensed = f.isLicensed,
                                 licensedBy = f.licensedBy.takeIf { it.isNotEmpty() },
                                 minimumTagRank = f.minimumTagRank,
                                 minVolumes = f.minVolumes,
@@ -2572,6 +2673,7 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
 
                 val tmdbDef = async(Dispatchers.IO) {
                     val f = state.effectiveTmdbFilters()
+                    val numericKeyword = f.keyword?.trim()?.takeIf { it.isNotEmpty() && it.all(Char::isDigit) }
                     val res = fetchSingleShelf(active = plan.tmdb) {
                         val client = TmdbApiClient()
                         val allowed = tmdbAllowedTypes
@@ -2579,7 +2681,7 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                             val discoveryCountry = if (scope == SearchScope.K_DRAMA) "KR" else f.originCountry
                             val needsDiscovery = scope == SearchScope.K_DRAMA || discoveryCountry != null || f.minVoteCount != null ||
                                 f.minRuntime != null || f.maxRuntime != null || f.watchProviderId != null ||
-                                f.networkId != null || f.keyword != null || f.tvStatus != null || f.tvType != null
+                                f.networkId != null || numericKeyword != null || f.tvStatus != null || f.tvType != null
                             val baseMediaKinds = allowed?.toList() ?: listOf(MediaType.Movie, MediaType.TvShow)
                             val mediaKinds = baseMediaKinds.filterByCommonFormats(state)
                             if (mediaKinds.isEmpty()) return@fetchSingleShelf emptyList()
@@ -2603,7 +2705,7 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                                         watchProviderId = f.watchProviderId,
                                         networkId = f.networkId,
                                         companyId = f.companyId,
-                                        keyword = f.keyword,
+                                        keyword = numericKeyword,
                                         tvStatus = f.tvStatus,
                                         tvType = f.tvType,
                                         includeAdult = f.includeAdult
@@ -2645,7 +2747,7 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                                     watchProviderId = f.watchProviderId,
                                     networkId = f.networkId,
                                     companyId = f.companyId,
-                                    keyword = f.keyword,
+                                    keyword = numericKeyword,
                                     tvStatus = f.tvStatus,
                                     tvType = f.tvType,
                                     includeAdult = f.includeAdult
@@ -2692,6 +2794,9 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
 
                                 val bangumiDef = async(Dispatchers.IO) {
                     val f = state.effectiveBangumiFilters()
+                    val excludedBangumiTags = state.excludedGenres
+                        .mapNotNull(SearchFacetBridge::mapBangumiTag)
+                        .distinct()
                     suspend fun searchBangumi(
                         type: MediaType,
                         subjectTypes: List<Int>? = null,
@@ -2711,7 +2816,8 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                         subjectTypes = subjectTypes,
                         metaTags = metaTags,
                         season = f.season,
-                        seasonYear = f.seasonYear
+                        seasonYear = f.seasonYear,
+                        excludedTags = excludedBangumiTags
                     )
                     val mediaRes = fetchMediaShelf(
                         active = plan.bangumi && scope != SearchScope.TV && scope != SearchScope.MOVIE,
@@ -2780,6 +2886,9 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                             )
                         },
                         manga = {
+                            // Kitsu JSON:API'de `season` ve `seasonYear` yalnızca `/anime`
+                            // kaynağında tanımlıdır; `/manga` kaynağında bu filtreler 400
+                            // veya boş yanıt üretir.
                             val mangaSubtypes = (kitsuSubtypes ?: requestedKitsuSubtypes).forMediaType(MediaType.Manga)
                             val hasMangaSubtypeFilter = kitsuSubtypes != null || requestedKitsuSubtypes.isNotEmpty()
                             if (hasMangaSubtypeFilter && mangaSubtypes.isEmpty()) emptyList()
@@ -2791,8 +2900,8 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                                 sort = f.sort,
                                 subtypes = mangaSubtypes.takeIf { it.isNotEmpty() },
                                 statuses = f.statuses.takeIf { it.isNotEmpty() },
-                                season = f.season,
-                                seasonYear = f.seasonYear,
+                                season = null,
+                                seasonYear = null,
                                 categories = f.categories.takeIf { it.isNotEmpty() },
                                 ageRating = f.ageRating,
                                 streamers = f.streamers.takeIf { it.isNotEmpty() },
@@ -2905,10 +3014,10 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                     )
                 }
 
-                // Each provider is fetched with the requested page.  An empty aggregate
-                // page is the only reliable stop signal because the seven APIs expose
-                // different pagination metadata.
-                Pair(finalCombined, finalCombined.isNotEmpty())
+                // Raf modunda her kaynak zaten `allShelfLimit` kadar önizleme kartı
+                // döndürür. Dikey kaydırma rafa yeni sayfa eklemez; kullanıcı daha
+                // fazlasını kaynağın kendi sekmesine geçerek sayfalar.
+                Pair(finalCombined, false)
             }
         }
 
@@ -2968,6 +3077,7 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                     } else {
                         MediaType.Anime
                     }
+                    val isManga = targetType == MediaType.Manga
                     KitsuExploreClient.searchMediaAdvanced(
                         mediaType = targetType,
                         query = queryText,
@@ -2976,8 +3086,8 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                         sort = f.sort,
                         subtypes = f.subtypes.takeIf { it.isNotEmpty() },
                         statuses = f.statuses.takeIf { it.isNotEmpty() },
-                        season = f.season,
-                        seasonYear = f.seasonYear,
+                        season = if (isManga) null else f.season,
+                        seasonYear = if (isManga) null else f.seasonYear,
                         categories = f.categories.takeIf { it.isNotEmpty() },
                         ageRating = f.ageRating,
                         streamers = f.streamers.takeIf { it.isNotEmpty() },
@@ -3000,7 +3110,7 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
             return Pair(results, results.size >= 20)
         }
 
-        // 4b. Bangumi (Ã‡in / bgm.tv)
+        // 4b. Bangumi (Çin / bgm.tv)
         if (state.currentTab == KitsugiSearchTab.Bangumi || state.selectedPlatform == SearchPlatform.Bangumi) {
             val f = state.effectiveBangumiFilters()
             val bangumiPageSize = BangumiApiClient.SEARCH_PAGE_SIZE
@@ -3038,8 +3148,7 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                         else -> emptyList()
                     }
                     val excludedBangumiTags = state.excludedGenres
-                        .map { it.trim() }
-                        .filter { it.isNotEmpty() }
+                        .mapNotNull(SearchFacetBridge::mapBangumiTag)
                         .distinct()
                     KitsugiBangumiClient.searchMediaAdvanced(
                         mediaType = targetType,
@@ -3089,7 +3198,7 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
             return Pair(results, results.size >= 20)
         }
 
-        // 5. Anime / Manga Arama (AniHyou StandardÄ±nda AniList GraphQL Motoru)
+        // 5. Anime / Manga Arama (AniHyou Standardında AniList GraphQL Motoru)
         val targetMediaType = if (state.currentTab == KitsugiSearchTab.Manga || state.selectedMediaType == MediaType.Manga) MediaType.Manga else MediaType.Anime
         val formatStrings = state.selectedFormats.map { it.apiValue }
         val statusStrings = state.selectedStatuses.map { it.apiValue }
@@ -3097,9 +3206,15 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
         val aniListCountry = state.country?.code
         val aniListGenres = getAniListGenreNames(state.genres.filter { isOfficialAniListGenre(it) })
         val aniListExcludedGenres = getAniListGenreNames(state.excludedGenres.filter { isOfficialAniListGenre(it) })
-        val aniListTags = state.tags.toMutableList().apply {
-            addAll(state.genres.filter { !isOfficialAniListGenre(it) })
-        }.distinct()
+        val aniListTags = (state.tags + state.genres.filter { !isOfficialAniListGenre(it) })
+            .map(::translateToEnglishForSearch)
+            .filter(SearchTaxonomy::isKnownAniListTag)
+            .distinct()
+        val aniListExcludedTags = state.excludedGenres
+            .filter { !isOfficialAniListGenre(it) }
+            .map(::translateToEnglishForSearch)
+            .filter(SearchTaxonomy::isKnownAniListTag)
+            .distinct()
         val effectiveSort = state.effectiveSortApiValue
         val aniListSort = when {
             effectiveSort == "SEARCH_MATCH" && queryText.isNotBlank() -> emptyList()
@@ -3121,9 +3236,11 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                 formats = formatStrings.takeIf { it.isNotEmpty() },
                 statuses = statusStrings.takeIf { it.isNotEmpty() },
                 season = state.season?.apiValue,
+                seasonYear = state.startYear?.takeIf { state.season != null },
                 genres = aniListGenres.takeIf { it.isNotEmpty() },
                 excludedGenres = aniListExcludedGenres.takeIf { it.isNotEmpty() },
                 tags = aniListTags.takeIf { it.isNotEmpty() },
+                excludedTags = aniListExcludedTags.takeIf { it.isNotEmpty() },
                 minYear = state.startYear,
                 maxYear = state.endYear,
                 minScore = state.minScore,
@@ -3141,7 +3258,7 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                 perPage = 24
             )
 
-            // Ä°lk sayfada sonuÃ§ boÅŸsa fallback sorgularÄ±nÄ± dene
+            // İlk sayfada sonuç boşsa fallback sorgularını dene
             if (paged.results.isEmpty() && page == 1 && queryText.isNotBlank()) {
                 for (fb in fallbacks) {
                     if (fb != queryText) {
@@ -3152,9 +3269,11 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                             formats = formatStrings.takeIf { it.isNotEmpty() },
                             statuses = statusStrings.takeIf { it.isNotEmpty() },
                             season = state.season?.apiValue,
+                            seasonYear = state.startYear?.takeIf { state.season != null },
                             genres = aniListGenres.takeIf { it.isNotEmpty() },
                             excludedGenres = aniListExcludedGenres.takeIf { it.isNotEmpty() },
                             tags = aniListTags.takeIf { it.isNotEmpty() },
+                            excludedTags = aniListExcludedTags.takeIf { it.isNotEmpty() },
                             minYear = state.startYear,
                             maxYear = state.endYear,
                             minScore = state.minScore,
@@ -3335,31 +3454,53 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
     fun clearResults() {
         searchGeneration.incrementAndGet()
         searchJob?.cancel()
+        loadMoreJob?.cancel()
+        loadMoreJob = null
+        lastRequestedPage = 0
+        pendingFilterSearch = false
+        activeSearchSnapshot = null
         _uiState.update { 
             it.copy(
                 results = emptyList(),
                 multiResults = MultiPlatformResults(),
+                isLoading = false,
+                isLoadingMore = false,
+                hasNextPage = false,
                 hasSearched = false,
-                errorMessage = null
+                errorMessage = null,
+                platformErrorCode = null,
+                sourceErrorCodes = emptyMap(),
+                skippedSourceIds = emptyList()
             )
         }
         saveCurrentStateToCache()
     }
 
     /**
-     * Arama Ã§ubuÄŸundaki X butonuna basÄ±ldÄ±ÄŸÄ±nda Ã§aÄŸrÄ±lÄ±r.
-     * Hem sorgu metnini hem arama sonuÃ§larÄ±nÄ± sÄ±fÄ±rlar â†’ geÃ§miÅŸ gÃ¶rÃ¼nÃ¼mÃ¼ne dÃ¶nÃ¼ÅŸ.
+     * Arama çubuğundaki X butonuna basıldığında çağrılır.
+     * Hem sorgu metnini hem arama sonuçlarını sıfırlar → geçmiş görünümüne dönüş.
      */
     fun clearQuery() {
         searchGeneration.incrementAndGet()
         searchJob?.cancel()
+        loadMoreJob?.cancel()
+        loadMoreJob = null
+        lastRequestedPage = 0
+        pendingFilterSearch = false
+        activeSearchSnapshot = null
         _uiState.update {
             it.copy(
                 query = "",
                 results = emptyList(),
                 multiResults = MultiPlatformResults(),
+                isLoading = false,
+                isLoadingMore = false,
+                hasNextPage = false,
                 hasSearched = false,
-                errorMessage = null
+                errorMessage = null,
+                platformErrorCode = null,
+                sourceErrorCodes = emptyMap(),
+                skippedSourceIds = emptyList()
             )
         }
         saveCurrentStateToCache()

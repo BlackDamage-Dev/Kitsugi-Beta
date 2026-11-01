@@ -111,7 +111,8 @@ class JikanApiClient(
         maxVolumes: Int? = null,
         licensedBy: List<String>? = null,
         page: Int = 1,
-        perPage: Int = 24
+        perPage: Int = 24,
+        excludedTags: List<String>? = null
     ) = aniListSearchClient.searchAniListPaged(
         query = query,
         mediaType = mediaType,
@@ -143,7 +144,8 @@ class JikanApiClient(
         volumesLesser = maxVolumes,
         licensedBy = licensedBy,
         page = page,
-        perPage = perPage
+        perPage = perPage,
+        excludedTags = excludedTags
     )
 
     suspend fun searchCharacters(

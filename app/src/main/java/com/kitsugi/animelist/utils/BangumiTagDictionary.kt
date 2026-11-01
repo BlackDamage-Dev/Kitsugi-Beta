@@ -220,6 +220,16 @@ internal object BangumiTagDictionary {
     /** Sözlükteki tüm Çince/Japonca yazımlar (test ve araç kullanımı için). */
     fun knownLabels(): Set<String> = byLabel.keys.toSet()
 
+    /**
+     * Arama API'sine gönderilecek **özgün wiki etiketi**.
+     *
+     * Sözlük `key` alanı çoğu zaman `isekai` / `action` gibi bir ASCII anahtardır;
+     * `POST /v0/search/subjects` → `filter.tag` ise Çince/Japonca etiket bekler.
+     * Bu yüzden çeviri `entry.key` değil, [canonicalTagFor] üzerinden canlı API
+     * ölçümleriyle doğrulanmış CJK yazımıdır.
+     */
+    fun nativeTagFor(label: String?): String? = canonicalTagFor(label)
+
     // ── Yardımcılar ────────────────────────────────────────────────────────────
 
     /**

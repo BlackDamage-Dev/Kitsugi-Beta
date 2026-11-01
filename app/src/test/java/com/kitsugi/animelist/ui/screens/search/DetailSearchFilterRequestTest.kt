@@ -96,9 +96,9 @@ class DetailSearchFilterRequestTest {
             tagSource = "anilist"
         )
 
-        assertTrue(CanonicalFilterBridge.supportsDetailFilter(SearchSourceEngine.ANILIST, request))
-        assertTrue(CanonicalFilterBridge.supportsDetailFilter(SearchSourceEngine.KITSU, request))
-        assertTrue(CanonicalFilterBridge.supportsDetailFilter(SearchSourceEngine.BANGUMI, request))
+        assertFalse(CanonicalFilterBridge.supportsDetailFilter(SearchSourceEngine.ANILIST, request))
+        assertFalse(CanonicalFilterBridge.supportsDetailFilter(SearchSourceEngine.KITSU, request))
+        assertFalse(CanonicalFilterBridge.supportsDetailFilter(SearchSourceEngine.BANGUMI, request))
         assertFalse(CanonicalFilterBridge.supportsDetailFilter(SearchSourceEngine.MAL, request))
         assertFalse(CanonicalFilterBridge.supportsDetailFilter(SearchSourceEngine.TMDB, request))
         assertFalse(CanonicalFilterBridge.supportsDetailFilter(SearchSourceEngine.SHIKIMORI, request))

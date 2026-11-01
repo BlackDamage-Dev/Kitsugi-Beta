@@ -56,6 +56,17 @@ data class MultiPlatformResults(
         isLoadingAniList || isLoadingMal || isLoadingTmdb ||
         isLoadingShikimori || isLoadingKitsu || isLoadingSimkl || isLoadingBangumi
 
+    fun hasResultsFor(platform: com.kitsugi.animelist.data.platform.ListPlatform): Boolean = when (platform) {
+        com.kitsugi.animelist.data.platform.ListPlatform.ANILIST -> aniListResults.isNotEmpty()
+        com.kitsugi.animelist.data.platform.ListPlatform.MAL -> malResults.isNotEmpty()
+        com.kitsugi.animelist.data.platform.ListPlatform.TMDB -> tmdbResults.isNotEmpty()
+        com.kitsugi.animelist.data.platform.ListPlatform.SHIKIMORI -> shikimoriResults.isNotEmpty()
+        com.kitsugi.animelist.data.platform.ListPlatform.KITSU -> kitsuResults.isNotEmpty()
+        com.kitsugi.animelist.data.platform.ListPlatform.SIMKL -> simklResults.isNotEmpty()
+        com.kitsugi.animelist.data.platform.ListPlatform.BANGUMI -> bangumiResults.isNotEmpty()
+        else -> false
+    }
+
     companion object {
         /**
          * Yalnızca gerçekten sorgulanacak kaynaklar "yükleniyor" işaretlenir.
@@ -110,6 +121,8 @@ data class SearchUiState(
     val platformErrorCode: com.kitsugi.animelist.data.platform.PlatformErrorCode? = null,
     /** Bu aramada hata veren kaynaklar (kaynak → platform hata kodu). */
     val sourceErrorCodes: Map<com.kitsugi.animelist.data.platform.ListPlatform, com.kitsugi.animelist.data.platform.PlatformErrorCode> = emptyMap(),
+    /** Seçili filtreleri desteklemediği için bu aramada bilinçli olarak atlanan kaynaklar. */
+    val skippedSourceIds: List<String> = emptyList(),
     val isFilterSheetOpen: Boolean = false,
     val showMoreFilters: Boolean = true,
 
@@ -178,6 +191,16 @@ data class SearchUiState(
     val effectiveSortApiValue: String get() =
         if (isSortDescending) sortSearch.descApiValue else sortSearch.ascApiValue
 
+    /**
+     * "Tümü" modu çoklu kaynak raf görünümüdür; sayfalanmış tek bir sonuç listesi değildir.
+     * Bu modda aşağı kaydırmak yeni sayfa çekmemeli, yalnızca mevcut rafları kaydırmalıdır;
+     * daha fazla sonuç görmek isteyen kullanıcı raf başlığındaki "Tümünü Gör"e basar.
+     */
+    val isShelfMode: Boolean get() =
+        (selectedEngine == SearchSourceEngine.ALL || currentTab == KitsugiSearchTab.All) &&
+            selectedScope != SearchScope.CHARACTER &&
+            selectedScope != SearchScope.STAFF
+
     /** Organization selection is preview-only until the provider capability mapping is shipped. */
     val hasFiltersApplied: Boolean get() = activeFilterCount > organizations.size
 
@@ -188,19 +211,39 @@ data class SearchUiState(
                 if (genres.isNotEmpty()) c += genres.size
                 if (excludedGenres.isNotEmpty()) c += excludedGenres.size
                 if (tags.isNotEmpty()) c += tags.size
+                if (selectedFormats.isNotEmpty()) c += selectedFormats.size
+                if (selectedStatuses.isNotEmpty()) c += selectedStatuses.size
+                if (country != null) c++
+                if (selectedSources.isNotEmpty()) c += selectedSources.size
                 if (startYear != null || endYear != null) c++
                 if (season != null) c++
                 if (minScore != null || maxScore != null) c++
+                if (minEpCh != null || maxEpCh != null) c++
+                if (minDuration != null || maxDuration != null) c++
+                if (onMyList != null) c++
+                if (isDoujin != null) c++
                 if (isAdultFilter != null) c++
                 if (institutions.isNotEmpty()) c += institutions.size
+                if (detailSearchFilterRequest != null && c == 0) {
+                    c += detailSearchFilterRequest.activeFacetCount
+                }
                 // Detay sayfası çip tıklamalarından gelen kimlik facetleri (stüdyo/
                 // yapımcı/dergi/kanal): sayılırlarsa boş sorguyla arama tetiklenir.
                 // Kurum listesinde zaten sayılan kimlikler ikinci kez sayılmaz.
-                if (institutions.isEmpty()) {
+                if (institutions.isEmpty() && detailSearchFilterRequest == null) {
                     if (malSpecificFilters.producerId != null) c++
                     if (malSpecificFilters.magazineId != null) c++
                     if (tmdbSpecificFilters.networkId != null) c++
                     if (tmdbSpecificFilters.companyId != null) c++
+                }
+                if (c == 0) {
+                    c += aniListSpecificFilters.activeCount +
+                        malSpecificFilters.activeCount +
+                        tmdbSpecificFilters.activeCount +
+                        shikimoriSpecificFilters.activeCount +
+                        kitsuSpecificFilters.activeCount +
+                        simklSpecificFilters.activeCount +
+                        bangumiSpecificFilters.activeCount
                 }
                 c
             }

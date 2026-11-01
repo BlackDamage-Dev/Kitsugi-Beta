@@ -18417,4 +18417,6 @@
     <string name="wh_time_under_minute">under 1 min</string>
     <string name="wh_time_minutes">%1$d min</string>
     <string name="wh_time_hours_minutes">%1$d h %2$d min</string>
+    <string name="search_skipped_sources_notice">Sources that do not support these filters were skipped: %1$s</string>
+    <string name="search_no_source_supports_filters">No source supports the selected filter combination.</string>
 </resources>

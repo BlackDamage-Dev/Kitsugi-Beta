@@ -34,7 +34,19 @@ data class DetailSearchFilterRequest(
     val streamerName: String? = null,        // Yayıncı platform (Crunchyroll, Netflix, Disney+, Bilibili vb.)
     val ageRating: String? = null,           // G, PG, PG-13, R, R+, Rx, TV-MA vb.
     val sortBy: String? = null               // Puan Sırası (#Rank) veya Popülerlik Sırası (#Popularity) tıklandığında
-)
+) {
+    /**
+     * Kullanıcının seçtiği MANTIKSAL facet adedi. "Tümü" modunda aynı facet 7 kaynağa
+     * ayrı ayrı çevrildiği için kaynak demetlerini tek tek saymak "9 filtre" gibi yanlış
+     * bir rozet üretiyordu; detay kaynaklı aramalarda rozet bu değeri kullanır.
+     */
+    val activeFacetCount: Int
+        get() = listOfNotNull(
+            format, status, genre, theme, demographic, tag, keywordId, season, year,
+            sourceMaterial, countryCode, languageCode, studioId, studioName, producerId,
+            magazineId, magazineName, networkId, networkName, streamerName, ageRating, sortBy
+        ).size
+}
 
 /** Mevsim bilgisi: arayüz etiketi ve kaynaklara gönderilecek kanonik değer. */
 data class DetailSeasonMetadata(
@@ -248,6 +260,12 @@ object CanonicalFilterBridge {
      */
     fun supportsDetailFilter(engine: SearchSourceEngine, request: DetailSearchFilterRequest): Boolean {
         if (engine == SearchSourceEngine.ALL) return true
+
+        // Kanonik facet doğrulaması: AniList'e tanınmayan tag, Kitsu'ya geçersiz
+        // category slug'ı, Bangumi'ye İngilizce wiki etiketi gönderilmesin. Geçersiz
+        // değerler HTTP 400 → KTS-COM-1016 (API şema hatası) üretiyordu.
+        val facetSnapshot = SearchFacetBridge.forDetailRequest(request)
+        if (!SearchFacetBridge.supportsTerms(engine, facetSnapshot)) return false
 
         // Kimlik (ID) facetleri: stüdyo/yapımcı ve dergi kimlikleri yalnızca Jikan/MAL
         // arama uçlarında (`producers` / `magazines` parametreleri) uygulanabilir;

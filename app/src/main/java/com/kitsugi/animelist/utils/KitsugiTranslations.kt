@@ -251,6 +251,9 @@ fun bangumiTagEnglishOrNull(label: String): String? = BangumiTagDictionary.entry
 /** Bangumi etiketini İngilizce arama terimine çevirir (eşleme yoksa orijinal metin döner). */
 fun String.toEnglishBangumiTag(): String = bangumiTagEnglishOrNull(this) ?: this
 
+/** Türkçe/İngilizce/Çince etiketi Bangumi'nin özgün Çince etiketine çevirir; yoksa null. */
+fun bangumiNativeTagOrNull(label: String?): String? = BangumiTagDictionary.nativeTagFor(label)
+
 /**
  * `taxonomy_tag_<key>` dil dosyası override'ı (tr/en arayüzünde).
  *

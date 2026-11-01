@@ -113,7 +113,9 @@ class AniListSearchClient(
         volumesLesser: Int? = null,
         licensedBy: List<String>? = null,
         page: Int = 1,
-        perPage: Int = 24
+        perPage: Int = 24,
+        /** Hariç tutulacak AniList etiketleri (`tag_not_in`). */
+        excludedTags: List<String>? = null
     ): AniListPagedResult {
         return withContext(Dispatchers.IO) {
             val allFormats = formats ?: format?.let { listOf(it) }
@@ -121,6 +123,7 @@ class AniListSearchClient(
 
             if (query.isBlank() && allStatuses.isNullOrEmpty() && allFormats.isNullOrEmpty() && season == null &&
                 genres.isNullOrEmpty() && excludedGenres.isNullOrEmpty() && tags.isNullOrEmpty() &&
+                excludedTags.isNullOrEmpty() &&
                 minYear == null && maxYear == null && minScore == null && maxScore == null &&
                 country == null && sources.isNullOrEmpty() && minEpCh == null && maxEpCh == null &&
                 minDuration == null && maxDuration == null && isAdult == null && isLicensed == null &&
@@ -140,6 +143,7 @@ class AniListSearchClient(
                 genres = genres,
                 excludedGenres = excludedGenres,
                 tags = tags,
+                excludedTags = excludedTags,
                 minYear = minYear,
                 maxYear = maxYear,
                 minScore = minScore,
@@ -655,7 +659,8 @@ class AniListSearchClient(
         minimumTagRank: Int? = null,
         volumesGreater: Int? = null,
         volumesLesser: Int? = null,
-        licensedBy: List<String>? = null
+        licensedBy: List<String>? = null,
+        excludedTags: List<String>? = null
     ): AniListPagedResult {
         val query = """
             query (
@@ -671,6 +676,7 @@ class AniListSearchClient(
                 ${'$'}genres: [String],
                 ${'$'}excludedGenres: [String],
                 ${'$'}tags: [String],
+                ${'$'}excludedTags: [String],
                 ${'$'}startDateGreater: FuzzyDateInt,
                 ${'$'}startDateLess: FuzzyDateInt,
                 ${'$'}averageScoreGreater: Int,
@@ -707,6 +713,7 @@ class AniListSearchClient(
                         genre_in: ${'$'}genres,
                         genre_not_in: ${'$'}excludedGenres,
                         tag_in: ${'$'}tags,
+                        tag_not_in: ${'$'}excludedTags,
                         startDate_greater: ${'$'}startDateGreater,
                         startDate_lesser: ${'$'}startDateLess,
                         averageScore_greater: ${'$'}averageScoreGreater,
@@ -814,6 +821,10 @@ class AniListSearchClient(
 
         if (!tags.isNullOrEmpty()) {
             variables.put("tags", JSONArray(tags))
+        }
+
+        if (!excludedTags.isNullOrEmpty()) {
+            variables.put("excludedTags", JSONArray(excludedTags))
         }
 
         if (minYear != null && minYear > 0) {

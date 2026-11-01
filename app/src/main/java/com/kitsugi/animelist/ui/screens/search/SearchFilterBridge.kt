@@ -162,9 +162,14 @@ internal fun SearchUiState.effectiveAniListFilters(): AniListSpecificFilters {
         .map { SearchTranslation.translateToEnglishForSearch(it) }
     val commonTags = (tags + genres.filterNot { CanonicalFilterBridge.isOfficialAniListGenre(it) })
         .map { SearchTranslation.translateToEnglishForSearch(it) }
+        .filter(SearchTaxonomy::isKnownAniListTag)
+    val commonExcludedTags = excludedGenres
+        .filterNot { CanonicalFilterBridge.isOfficialAniListGenre(it) }
+        .map { SearchTranslation.translateToEnglishForSearch(it) }
+        .filter(SearchTaxonomy::isKnownAniListTag)
 
     val season = specific.season ?: this.season?.apiValue
-    val seasonYear = specific.seasonYear ?: startYear
+    val seasonYear = specific.seasonYear ?: startYear?.takeIf { season != null }
     return specific.copy(
         formats = distinctValues(specific.formats, commonFormatsForMedia(this)),
         statuses = distinctValues(specific.statuses, normalizedCommonStatuses(this)),
@@ -176,7 +181,8 @@ internal fun SearchUiState.effectiveAniListFilters(): AniListSpecificFilters {
         sources = distinctValues(specific.sources, selectedSources.map { it.apiValue }),
         genres = distinctValues(specific.genres, includedGenres),
         excludedGenres = distinctValues(specific.excludedGenres, excluded),
-        tags = distinctValues(specific.tags, commonTags),
+        tags = distinctValues(specific.tags.filter(SearchTaxonomy::isKnownAniListTag), commonTags),
+        excludedTags = distinctValues(specific.excludedTags.filter(SearchTaxonomy::isKnownAniListTag), commonExcludedTags),
         minScore = commonScoreMin(this, specific.minScore),
         maxScore = commonScoreMax(this, specific.maxScore),
         minEpCh = stricterMin(specific.minEpCh, minEpCh),
@@ -281,8 +287,8 @@ internal fun SearchUiState.effectiveKitsuFilters(): KitsuSpecificFilters {
     // Kitsu's `filter[categories]` is a controlled taxonomy, not a free-text tag
     // endpoint.  Only pass canonical category slugs; unknown common tags must not turn
     // the whole request into an empty-result filter.
-    val categories = normalizedCommonTerms(this).mapNotNull(CanonicalFilterBridge::mapSimklGenre)
-    val canonicalSpecificCategories = specific.categories.mapNotNull(CanonicalFilterBridge::mapSimklGenre)
+    val categories = normalizedCommonTerms(this).mapNotNull(SearchFacetBridge::mapKitsuCategory)
+    val canonicalSpecificCategories = specific.categories.mapNotNull(SearchFacetBridge::mapKitsuCategory)
     val statuses = normalizedCommonStatuses(this).mapNotNull(::mapKitsuStatus)
     val subtypes = commonFormatsForMedia(this).mapNotNull(::kitsuSubtypeFor)
     return specific.copy(
@@ -315,9 +321,8 @@ internal fun SearchUiState.effectiveSimklFilters(): SimklSpecificFilters {
 internal fun SearchUiState.effectiveBangumiFilters(): BangumiSpecificFilters {
     val specific = bangumiSpecificFilters
     val terms = distinctValues(
-        specific.tags,
-        (genres + tags).map { SearchTranslation.translateToEnglishForSearch(it).trim() }
-            .filter { it.isNotBlank() }
+        specific.tags.mapNotNull(SearchFacetBridge::mapBangumiTag),
+        (genres + tags).mapNotNull(SearchFacetBridge::mapBangumiTag)
     )
     return specific.copy(
         tags = terms,

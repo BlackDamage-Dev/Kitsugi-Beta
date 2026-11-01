@@ -18424,4 +18424,6 @@ Eklentiler ekranından eklenti etkinleştirin.</string>
     <string name="wh_time_under_minute">1 dk\'dan az</string>
     <string name="wh_time_minutes">%1$d dk</string>
     <string name="wh_time_hours_minutes">%1$d sa %2$d dk</string>
+    <string name="search_skipped_sources_notice">Bu filtreyi desteklemeyen kaynaklar atlandı: %1$s</string>
+    <string name="search_no_source_supports_filters">Seçilen filtre kombinasyonunu destekleyen kaynak bulunamadı.</string>
 </resources>

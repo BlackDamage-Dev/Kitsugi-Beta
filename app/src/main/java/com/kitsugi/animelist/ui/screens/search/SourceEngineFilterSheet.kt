@@ -338,7 +338,7 @@ fun SourceEngineFilterSheet(
                 SearchSourceEngine.KITSU -> KitsuFullFiltersContent(uiState, viewModel)
                 SearchSourceEngine.SIMKL -> SimklFullFiltersContent(uiState, viewModel)
                 SearchSourceEngine.BANGUMI -> BangumiFullFiltersContent(uiState, viewModel)
-                SearchSourceEngine.ALL -> Unit
+                SearchSourceEngine.ALL -> AllFullFiltersContent(uiState)
             }
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -346,7 +346,7 @@ fun SourceEngineFilterSheet(
             // Uygula Butonu
             KitsugiButton(
                 onClick = {
-                    viewModel.search()
+                    viewModel.applyFilterEdits()
                     onDismiss()
                 },
                 modifier = Modifier
@@ -1466,7 +1466,7 @@ private fun CommonRangeSliders(
                 },
                 valueRange = 0f..100f,
                 steps = 9,
-                onValueChangeFinished = { viewModel.search(resetPage = true) },
+                onValueChangeFinished = { viewModel.requestSearch(resetPage = true) },
                 modifier = Modifier.fillMaxWidth()
             )
         }
@@ -1503,7 +1503,7 @@ private fun CommonRangeSliders(
                     viewModel.setCommonYearRange(from, to)
                 },
                 valueRange = minYear.toFloat()..maxYear.toFloat(),
-                onValueChangeFinished = { viewModel.search(resetPage = true) },
+                onValueChangeFinished = { viewModel.requestSearch(resetPage = true) },
                 modifier = Modifier.fillMaxWidth()
             )
         }
@@ -1511,6 +1511,20 @@ private fun CommonRangeSliders(
         Text(
             text = stringResource(R.string.search_common_all_sources_hint),
             style = MaterialTheme.typography.bodySmall.copy(color = KitsugiColors.TextMuted)
+        )
+    }
+}
+
+@Composable
+private fun AllFullFiltersContent(uiState: SearchUiState) {
+    if (uiState.skippedSourceIds.isNotEmpty()) {
+        val labels = uiState.skippedSourceIds
+            .mapNotNull { SearchSourceEngine.fromId(it) }
+            .map { it.localizedLabel() }
+            .joinToString(", ")
+        Text(
+            text = stringResource(R.string.search_skipped_sources_notice, labels),
+            style = MaterialTheme.typography.labelSmall.copy(color = KitsugiColors.TextMuted)
         )
     }
 }
