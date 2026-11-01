@@ -2346,10 +2346,14 @@ fun DownloadItemRow(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                if (!download.streamName.isNullOrBlank()) {
+                // Eski indirmelerde eklenti metni HTML/CSS artığı içerebiliyor; gösterirken temizle.
+                val cleanStreamName = remember(download.streamName) {
+                    com.kitsugi.animelist.utils.StreamLabelSanitizer.sanitize(download.streamName)
+                }
+                if (cleanStreamName.isNotBlank()) {
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = stringResource(R.string.inline_stream_1_s_038cf7a, download.streamName),
+                        text = stringResource(R.string.inline_stream_1_s_038cf7a, cleanStreamName),
                         color = accentColor,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
@@ -2357,10 +2361,13 @@ fun DownloadItemRow(
                         overflow = TextOverflow.Ellipsis
                     )
                 }
-                if (!download.streamTitle.isNullOrBlank()) {
+                val cleanStreamTitle = remember(download.streamTitle) {
+                    com.kitsugi.animelist.utils.StreamLabelSanitizer.sanitize(download.streamTitle)
+                }
+                if (cleanStreamTitle.isNotBlank()) {
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = download.streamTitle,
+                        text = cleanStreamTitle,
                         color = KitsugiColors.TextMuted,
                         fontSize = 11.sp,
                         maxLines = 1,

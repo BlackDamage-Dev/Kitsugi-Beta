@@ -228,7 +228,10 @@ class AnimeDownloadService : Service() {
                     .setSummaryText(
                         buildString {
                             if (!download.source.isNullOrBlank()) append(download.source)
-                            if (!download.streamTitle.isNullOrBlank()) append(" • ${download.streamTitle}")
+                            // Eski indirmelerde bozuk eklenti metni olabilir; bildirimde temiz göster.
+                            val cleanTitle = com.kitsugi.animelist.utils.StreamLabelSanitizer
+                                .sanitize(download.streamTitle)
+                            if (cleanTitle.isNotBlank()) append(" • $cleanTitle")
                         }.ifBlank { "Video İndiriliyor" }
                     )
             )

@@ -250,8 +250,11 @@ fun KitsugiStreamScreen(
                         tmdbId = tmdbId,
                         streamUrl = resolvedUrl,
                         streamHeaders = source.requestHeaders,
-                        streamTitle = source.title,
-                        streamName = source.name,
+                        // Eklenti metinleri HTML/CSS artığı içerebiliyor ("… .fa-secondary{opacity:.4} DUAL").
+                        // Geçmişe temiz hâli yazılır; aksi hâlde oynatıcı ve izleme geçmişi
+                        // bozuk metin gösteriyordu (2026-11-01).
+                        streamTitle = com.kitsugi.animelist.utils.StreamLabelSanitizer.sanitize(source.title),
+                        streamName = com.kitsugi.animelist.utils.StreamLabelSanitizer.sanitize(source.name),
                         cs3Url = cs3Url,
                         cs3ApiName = cs3ApiName
                     )
@@ -409,8 +412,10 @@ fun KitsugiStreamScreen(
                         aniListId = aniListId,
                         tmdbId = tmdbId,
                         source = source.addonName,
-                        streamTitle = source.title,
-                        streamName = source.name
+                        // İndirilenler ekranı da bu metinleri gösteriyor; geçmişle aynı
+                        // şekilde temizlenmiş hâli kaydedilir.
+                        streamTitle = com.kitsugi.animelist.utils.StreamLabelSanitizer.sanitize(source.title),
+                        streamName = com.kitsugi.animelist.utils.StreamLabelSanitizer.sanitize(source.name)
                     )
                     android.widget.Toast.makeText(context, KitsugiStrings.get(R.string.indirme_kuyruga_eklendi), android.widget.Toast.LENGTH_SHORT).show()
                     context.startActivity(

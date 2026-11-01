@@ -1064,8 +1064,15 @@ fun KitsugiFullscreenPlayerScreen(
                         subtitles = currentSubtitles,
                         startPositionMs = startPos,
                         addonName = currentAddonName,
-                        isCS = activeSource?.isCS == true,
-                        streamTitle = activeSource?.title ?: activeSource?.name,
+                        // Eklenti başlığı HTML/CSS artığı içerebiliyor; ses/altyazı
+                        // parçası adına temizlenmiş metin verilir (2026-11-01).
+                        streamTitle = com.kitsugi.animelist.utils.StreamLabelSanitizer
+                            .sanitize(activeSource?.title)
+                            .ifBlank {
+                                com.kitsugi.animelist.utils.StreamLabelSanitizer
+                                    .sanitize(activeSource?.name)
+                            }
+                            .takeIf { it.isNotBlank() },
                         qualityValue = activeSource?.qualityValue
                     )
                     Log.d("KitsugiPlayer", "prepare() ÇAĞRILDI: url=$safeVideoUrl addon=${currentAddonName} startPos=$startPos")

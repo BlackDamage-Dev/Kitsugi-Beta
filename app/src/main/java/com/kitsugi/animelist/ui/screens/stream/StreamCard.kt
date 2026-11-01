@@ -145,7 +145,15 @@ fun StreamCard(
                 Text(
                     // Bazı eklentiler `name` boş bırakabiliyor; o durumda dosya/bölüm
                     // başlığına düşülür — kart hiçbir zaman başlıksız görünmesin.
-                    text = source.name.ifBlank { source.title }.ifBlank { "—" },
+                    // Ayrıca isim HTML/CSS artığı taşıyabiliyor ("… .fa-secondary{opacity:.4}")
+                    // (2026-11-01): gösterimden önce temizlenir.
+                    text = remember(source.name, source.title) {
+                        com.kitsugi.animelist.utils.StreamLabelSanitizer.sanitize(source.name)
+                            .ifBlank {
+                                com.kitsugi.animelist.utils.StreamLabelSanitizer.sanitize(source.title)
+                            }
+                            .ifBlank { "—" }
+                    },
                     color = KitsugiColors.TextPrimary,
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.SemiBold,
