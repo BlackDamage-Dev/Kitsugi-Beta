@@ -40,13 +40,21 @@ object KitsugiIcons {
             viewportWidth = 24f,
             viewportHeight = 24f
         )
-        val parser = PathParser()
         pathData.forEach { raw ->
             // "FILL:" önekli yollar (nokta/dolu daire) dolgu, diğerleri kontur olarak çizilir.
             val filled = solid || raw.startsWith("FILL:")
             val d = if (raw.startsWith("FILL:")) raw.removePrefix("FILL:") else raw
+            // ⚠️ KRİTİK: `PathParser` kendi dâhilî düğüm listesini yeniden kullanır ve her
+            // `parsePathString` çağrısının başında o listeyi TEMİZLER; `toNodes()` de aynı
+            // listenin referansını döndürür. Tek bir parser paylaşıldığında `addPath` ile
+            // eklenen tüm yollar aynı listeye bakıyordu ve döngü bitince liste yalnızca
+            // SON yolun düğümlerini taşıyordu. Sonuç: çok yollu ikonların (saat, indirme,
+            // grafik, bilgi, sohbet, yıldız…) sadece son parçası çiziliyor, ekranlarda
+            // ikonlar "tek çubuk / tek çentik" gibi görünüyordu. Her yol için taze parser
+            // ve kopyalanmış liste kullanılır.
+            val pathNodes = PathParser().parsePathString(d).toNodes().toList()
             builder.addPath(
-                pathData = parser.parsePathString(d).toNodes(),
+                pathData = pathNodes,
                 fill = if (filled) SolidColor(Color.White) else null,
                 stroke = SolidColor(Color.White),
                 strokeLineWidth = STROKE,

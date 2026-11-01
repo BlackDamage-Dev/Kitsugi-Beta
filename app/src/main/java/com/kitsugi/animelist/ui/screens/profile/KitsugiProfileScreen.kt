@@ -160,15 +160,31 @@ fun KitsugiProfileScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // Selector Pill (Brave / Explore tarzı açılır pencere butonu)
-                ProfileSourceSelectorPill(
-                    selectedPlatform = currentPlatform,
-                    isConnected = isCurrentConnected,
-                    onClick = { showSourcePickerSheet = true },
-                    modifier = Modifier.weight(1f, fill = false)
-                )
-
-                Spacer(modifier = Modifier.weight(1f))
+                // Kaynak seçici hap buton — solda kalır.
+                //
+                // ⚠️ Eski hatalı düzen:
+                //     ProfileSourceSelectorPill(Modifier.weight(1f, fill = false))
+                //     Spacer(Modifier.weight(1f))
+                //     KitsugiTopActionRow(...)
+                //   Ağırlıklı iki çocuk kalan alanı ikiye bölüyordu; pill kendi dilimini
+                //   DOLDURMADIĞI için (fill = false) artan boşluk yeniden dağıtılmıyor,
+                //   satırın SONUNA ekleniyordu. Sonuç: sağ üstteki aksiyon butonları sağ
+                //   köşeye yapışmıyor, ~290dp içeride "havada" kalıyordu (sağda kocaman
+                //   boş bir şerit oluşuyordu).
+                //   Yeni düzen: pill, ağırlığı TAM dolduran bir sarmalayıcı Row içinde;
+                //   aksiyon satırı ise sarmalayıcıdan sonra geldiği için daima en sağda
+                //   (sağ padding'in hemen yanında) biter. Pill dar ekranda taşmaz, metni
+                //   üç nokta ile kısalır.
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    ProfileSourceSelectorPill(
+                        selectedPlatform = currentPlatform,
+                        isConnected = isCurrentConnected,
+                        onClick = { showSourcePickerSheet = true }
+                    )
+                }
 
                 // 📊 İstatistik + 🔔 Bildirim → ortak üst çubuk aksiyon satırı.
                 // Kanonik sıra: istatistik solda, bildirim her zaman en sağda.
