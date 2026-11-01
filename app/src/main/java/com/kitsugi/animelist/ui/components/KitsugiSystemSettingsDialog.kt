@@ -1,5 +1,6 @@
 package com.kitsugi.animelist.ui.components
 
+import com.kitsugi.animelist.ui.icons.KitsugiIcon as Icon
 import androidx.compose.ui.res.stringResource
 
 import com.kitsugi.animelist.R

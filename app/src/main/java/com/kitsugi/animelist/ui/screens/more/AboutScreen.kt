@@ -1,5 +1,6 @@
 package com.kitsugi.animelist.ui.screens.more
 
+import com.kitsugi.animelist.ui.icons.KitsugiIcon as Icon
 import com.kitsugi.animelist.ui.icons.KitsugiArt
 import com.kitsugi.animelist.ui.icons.KitsugiArtIcon
 import com.kitsugi.animelist.ui.components.KitsugiButton

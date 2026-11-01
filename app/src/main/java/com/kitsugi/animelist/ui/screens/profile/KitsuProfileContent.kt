@@ -408,7 +408,7 @@ private fun KitsuAboutTab(
             KitsuStatCard(
                 title = "Anime",
                 value = state.totalAnime.toString(),
-                icon = Icons.Tv,
+                icon = Icons.PlayCircle,
                 modifier = Modifier.weight(1f),
                 accentColor = accentColor
             )

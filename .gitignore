@@ -58,3 +58,10 @@ __pycache__/
 # Isolated PostgreSQL account regression tests
 /scripts/account-tests/node_modules/
 /Kitsugi-Manga-Plugins/
+
+# İkon seti ara çıktıları (kaynak: tools/iconpack/*.py — drawable-nodpi'deki PNG'ler depoda kalır)
+/tools/iconpack/raw/
+/tools/iconpack/raw3d/
+/tools/iconpack/preview/
+/tools/iconpack/node_modules/
+KITSUGI_*.zip

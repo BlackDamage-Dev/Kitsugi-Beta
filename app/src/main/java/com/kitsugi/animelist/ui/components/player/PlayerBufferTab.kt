@@ -113,7 +113,7 @@ internal fun PlayerBufferTab(
                         title = "Minimum Arabellek (Min Buffer)",
                         description = stringResource(R.string.gerekli_minimum_arabellek_suresi),
                         value = currentMinStr,
-                        icon = Icons.NetworkCheck,
+                        icon = Icons.Tune,
                         iconColor = accentColor,
                         onClick = { minExp = true }
                     )
@@ -139,7 +139,7 @@ internal fun PlayerBufferTab(
                         title = "Maksimum Arabellek (Max Buffer)",
                         description = stringResource(R.string.izin_verilen_maksimum_arabellek_suresi),
                         value = currentMaxStr,
-                        icon = Icons.NetworkCheck,
+                        icon = Icons.Tune,
                         iconColor = accentColor,
                         onClick = { maxExp = true }
                     )
@@ -165,7 +165,7 @@ internal fun PlayerBufferTab(
                         title = stringResource(R.string.oynatmayi_baslatma_suresi),
                         description = stringResource(R.string.oynatmayi_baslatmadan_once_gereken_arabellek_suresi),
                         value = currentPlayStr,
-                        icon = Icons.NetworkCheck,
+                        icon = Icons.Tune,
                         iconColor = accentColor,
                         onClick = { playExp = true }
                     )
@@ -191,7 +191,7 @@ internal fun PlayerBufferTab(
                         title = stringResource(R.string.takilma_sonrasi_baslatma_suresi),
                         description = stringResource(R.string.arabellek_bosaldiginda_oynatmanin_devam_etmesi_icin_gereken_sure),
                         value = currentRebStr,
-                        icon = Icons.NetworkCheck,
+                        icon = Icons.Tune,
                         iconColor = accentColor,
                         onClick = { rebExp = true }
                     )
@@ -217,7 +217,7 @@ internal fun PlayerBufferTab(
                         title = stringResource(R.string.geriye_donuk_arabellek_back_buffer),
                         description = stringResource(R.string.geri_sarildiginda_aninda_oynatma_icin_saklanan_arabellek_suresi),
                         value = currentBackStr,
-                        icon = Icons.NetworkCheck,
+                        icon = Icons.Tune,
                         iconColor = accentColor,
                         onClick = { backExp = true }
                     )

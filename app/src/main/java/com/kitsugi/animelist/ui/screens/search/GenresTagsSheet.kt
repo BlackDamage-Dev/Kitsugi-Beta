@@ -1,4 +1,6 @@
 package com.kitsugi.animelist.ui.screens.search
+
+import com.kitsugi.animelist.ui.icons.KitsugiIcon as Icon
 import com.kitsugi.animelist.ui.components.KitsugiButton
 import com.kitsugi.animelist.ui.utils.uniqueItems
 

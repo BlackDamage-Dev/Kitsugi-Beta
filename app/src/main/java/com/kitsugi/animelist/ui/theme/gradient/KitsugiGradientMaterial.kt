@@ -1,5 +1,8 @@
 package com.kitsugi.animelist.ui.theme.gradient
 
+import com.kitsugi.animelist.ui.icons.KitsugiArt
+import com.kitsugi.animelist.ui.icons.KitsugiArtIcon
+
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background as foundationBackground
 import androidx.compose.foundation.border as foundationBorder
@@ -485,6 +488,26 @@ fun Icon(
     tint: Color = LocalContentColor.current
 ) {
     val insideAccent = LocalInsideAccentSurface.current
+
+    // ── 3B ikon seti (tek giriş noktası) ────────────────────────────────
+    // Uygulamadaki tüm ikonlar bu composable'dan geçtiği için 3B varlığa
+    // geçiş burada tek yerden yapılır: eşleşme varsa cam/gradyan 3B görsel
+    // çizilir. Çağıranın `.size(..)` değeri aynen korunur; boyut verilmemişse
+    // 24 dp kullanılır (Material Icon ile aynı varsayılan).
+    // Dolgulu vurgu yüzeylerinde (buton içi) okunabilirlik için mevcut
+    // mono/onAccent davranışı korunur.
+    if (!insideAccent) {
+        val art = remember(imageVector) { KitsugiArt.fromVector(imageVector) }
+        if (art != null) {
+            KitsugiArtIcon(
+                art = art,
+                modifier = modifier,
+                contentDescription = contentDescription,
+                size = 24.dp
+            )
+            return
+        }
+    }
     val bg = LocalKitsugiColors.current.background
     val onAccent = LocalKitsugiOnAccent.current
     val isBgAsOnAccent = tint != Color.Unspecified && tint.alpha >= 0.99f && tint == bg

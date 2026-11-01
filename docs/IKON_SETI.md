@@ -207,25 +207,68 @@ Görsel kanıt: **`docs/ikon-tema-uyumu.png`** (`npm run theme`) — doğal pale
 
 ## Nerede 3B, nerede 2B?
 
-Kural: **3B = "konu" ikonu, 2B = "kontrol" glifi.**
+**Kural (üçüncü turda değişti): 2B yok.** Uygulamadaki bütün ikon çağrıları 3B sete
+bağlı — konu ikonları **ve** kontrol glifleri aynı cam/gradyan ailesinden.
 
-- **3B (30 dp satır / 21 dp sekme / 21–24 dp gezinme):** ayar satırları, bölüm
-  başlıkları, oynatıcı sekmeleri, alt gezinme çubuğu, boş durum ekranları, durum
-  rozetleri, indirme/geçmiş/bildirim kartları, hakkında & güncelleme diyalogları.
-- **2B kalır:** kapat, geri, onay, chevron/ok, artı, filtre, sıralama, taşma (⋮),
-  dışa aç — bunlar 12–18 dp'lik kontrol mikro-ikonlarıdır; 3B'ye çevrilince
-  okunmaz, tıklanabilir alanı kirletir. Ayrıca **20 dp altındaki hiçbir boyutta**
-  3B kullanılmaz (kırpılmış 192 px render 16 dp'de lekeye döner).
+- **Konu ikonları (3dicons `front/gradient`, 50 varlık):** ayar satırları, bölüm
+  başlıkları, oynatıcı sekmeleri, gezinme çubuğu, boş durumlar, rozetler.
+- **Nesne glifleri (9 varlık, aynı dilde üretildi):** eşitleme, ince ayar (kaydırıcı),
+  indirme, yükleme, kronometre, kod, TV, etiket, bulut yedeği. 3dicons'ta bu
+  kavramların görseli yoktu; wifi/bavul/monitör gibi alakasız ikonlar kullanılıyordu.
+- **Kontrol glifleri (46 varlık, aynı dilde üretildi):** kapat, geri, onay, chevron,
+  ok, artı/eksi, filtre, sırala, görünüm modu (ızgara/liste/akış/karusel), taşma,
+  dışa aç, tam ekran, kırpma, döndürme, oran, bulanıklık, hizalama, kenarlık,
+  tümünü seç, sürükle, yoğunluk, klavye, giriş, ana sayfa, yaprak, kar, pasta,
+  kamera, göz/gizle ve metin biçimi harfleri (B I A S # “).
+- **Boyut:** konu 30 dp satır / 21 dp sekme / 21–24 dp gezinme; kontrol glifleri
+  14–30 dp. Glifler 128×128 üretildi ve **12–30 dp aralığında** okunur
+  (`docs/ikon-kontrol-boyut.png`).
 
-## Kapsam (bu değişiklikle)
+## Kapsam denetimi (kaynaktan sayıldı)
 
-| Alan | Durum |
+`node tools/iconpack/coverage_report.js` → **`docs/ikon-kapsam-denetimi.png`**
+
+| Ölçüm | Değer |
 |---|---|
-| Ayar satırları (`KitsugiSettingsItem`) | 3B — tek bileşen, tüm diyaloglar dâhil |
-| Oynatıcı ayarları sekme şeridi | 3B + seçili hâle |
-| Alt gezinme çubuğu | 3B + seçili hâle |
-| Ekranlarda doğrudan çizilen ikonlar | 88 çağrı 3B'ye çevrildi (indirmeler, bildirimler, hakkında, yayın takvimi, bölüm listesi, profil, arama, güncelleme, yayın kartları) |
-| Kalan doğrudan çizimler | 136 tanesi küçük aksiyon glifi (kopyala/paylaş/sil/yıldız/beğen, 10–18 dp) — bilinçli 2B |
+| Kotlin dosyası | 1278 |
+| Toplam ikon çağrısı (`Icons.*`) | **1533** |
+| 3B sete bağlı | **1533 (%100,0)** — 268 farklı ikon adının tamamı |
+| Tek renkli (mono) kalan | **0** — hedef tuttu |
+| Tek giriş noktasından geçen dosya | 229 |
+| **3B yolundan geçmeyen dosya** | **0** |
+| 3B varlık (enum) | **143** — 88 3dicons render'ı + 9 nesne glifi + 46 kontrol glifi |
+| Eşlenen Material adı | 428 satır / 268 benzersiz ad — tek tablo: `NAME_MAP` |
+| Eşlenmemiş ad | **0** |
+
+Giriş noktaları:
+
+| Yol | Kapsam |
+|---|---|
+| `ui/theme/gradient/Icon` (proje sarmalayıcısı) | 200 dosya — çağrı değişmeden 3B |
+| `KitsugiIcon` (Material3 imzasıyla birebir, `… as Icon` alias) | 30 dosya |
+| `KitsugiArtIcon` / `KitsugiRowIcon` | satır, sekme, gezinme, boş durum, kart eylemleri |
+| `KitsugiSettingsItem` | tüm ayar diyalogları |
+
+### Kontrol glifleri neden üretildi?
+
+3dicons paketinde kapat / chevron / artı / filtre / sıralama / görünüm değiştirme
+işaretleri **yok** (122 dosyalık aynada `plus`, `tick`, `back`, `next`, `zoom`,
+`thumb-up`, `thumb-down` dışında kontrol işareti bulunmuyor). Üçüncü turda bu
+boşluk `tools/iconpack/control_glyphs.js` ile kapatıldı: glifler setin ölçülen
+paletiyle (`#E9A57E → #CF6A86 → #B04F9B → #8A35AB → #7043B2`), aynı üst parlama,
+alt gölge ve koyu alt çizgi kurallarıyla çizilip 128 px saydam PNG'ye render
+edildi. Sonuç: 385 mono çağrı 3B'ye geçti, **mono 0**.
+
+Görseller:
+
+- `docs/ikon-kontrol-baglam.png` — glifler gerçek ekran bağlamında (satır oku,
+  arama temizle, filtre/sırala, görünüm segmenti, açılır bölüm, metin araç çubuğu,
+  adet kontrolü, düzenleme şeridi).
+- `docs/ikon-kontrol-boyut.png` — 12/14/16/18/20/24/30 dp okunabilirlik testi.
+- `docs/ikon-kontrol-sayfasi.png` — 46 glifin adlarıyla tam sayfası.
+
+Ayrıntılı eşleme tablosu: **`docs/IKON_KONTROL_GLIFLERI.md`**.
+İşlev haritası görseli: **`docs/ikon-islev-haritasi.png`** (128 varlık + bağlı adlar).
 
 Yeni bir ekranda 3B ikon gerekiyorsa iki yol var:
 

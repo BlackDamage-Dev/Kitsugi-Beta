@@ -8,9 +8,10 @@
     "normalize": "node normalize.js",
     "preview": "node mock_previews.js",
     "sheet": "node sheet.js",
-    "theme": "node theme_matrix.js"
+    "theme": "node theme_matrix.js",
+    "coverage": "node coverage_report.js"
   },
   "dependencies": {
-    "sharp": "^0.33.0"
+    "sharp": "^0.33.5"
   }
 }

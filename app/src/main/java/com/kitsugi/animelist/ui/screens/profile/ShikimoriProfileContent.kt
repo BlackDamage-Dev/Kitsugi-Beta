@@ -406,7 +406,7 @@ private fun ShikimoriAboutTab(
             ShikimoriStatCard(
                 title = "Anime",
                 value = totalAnime.toString(),
-                icon = Icons.Tv,
+                icon = Icons.PlayCircle,
                 modifier = Modifier.weight(1f),
                 accentColor = accentColor
             )
