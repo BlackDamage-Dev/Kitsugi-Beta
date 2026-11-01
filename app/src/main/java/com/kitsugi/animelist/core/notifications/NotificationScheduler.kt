@@ -12,9 +12,14 @@ import com.kitsugi.animelist.data.settings.SettingsDataStore
 import kotlinx.coroutines.flow.first
 import java.util.concurrent.TimeUnit
 
+import com.kitsugi.animelist.data.settings.AppSettings
+
 object NotificationScheduler {
     private const val TAG = "NotificationScheduler"
-    private const val WORK_NAME = "airing_notifications_work"
+    /** Teşhis paneli bu isimle WorkManager durumunu sorgular. */
+    const val WORK_NAME = "airing_notifications_work"
+    private const val GATE_PREFS = "kitsugi_notif_gate"
+    private const val GATE_KEY = "gate"
 
     /**
      * Schedules only when at least one enabled notification source has a linked account.
@@ -97,6 +102,23 @@ object NotificationScheduler {
             ExistingPeriodicWorkPolicy.UPDATE,
             workRequest
         )
+    }
+
+    /**
+     * Yalnızca bildirim izni/cihaz ayarı **değiştiyse** planlı işi uzlaştırır.
+     *
+     * Her `onStart`'ta koşulsuz `reconcile` çağırmak gereksiz; burada son bilinen
+     * durum saklanır ve yalnızca geçiş olduğunda iş kurulur/iptal edilir.
+     * Örnek: kullanıcı sistem ayarlarından bildirimleri kapatıp geri döner.
+     */
+    suspend fun reconcileIfGateChanged(context: Context): Boolean {
+        val appContext = context.applicationContext
+        val gateName = KitsugiNotificationDispatcher.gate(appContext).name
+        val prefs = appContext.getSharedPreferences(GATE_PREFS, Context.MODE_PRIVATE)
+        val previous = prefs.getString(GATE_KEY, null)
+        if (previous == gateName) return false
+        prefs.edit().putString(GATE_KEY, gateName).apply()
+        return reconcile(appContext)
     }
 
     /** Cancels the scheduled work request. */

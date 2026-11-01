@@ -395,6 +395,29 @@
     <string name="notif_filter_forum">Forum</string>
     <string name="notif_filter_follows">Follows</string>
     <string name="notif_filter_media">Media</string>
+    <!-- Shared filter band across every source (client-side filters) -->
+    <string name="notif_filter_unread">Unread</string>
+    <string name="notif_filter_anime">Anime</string>
+    <string name="notif_filter_manga">Manga</string>
+    <string name="notif_filter_aired">Aired</string>
+    <string name="notif_filter_upcoming">Upcoming</string>
+    <string name="notif_filter_news">News</string>
+    <string name="notif_filter_notifications">Notifications</string>
+    <string name="notif_filter_progress">Progress</string>
+    <!-- Notification list time groups (shared by every source) -->
+    <string name="notif_group_upcoming">Upcoming</string>
+    <string name="notif_group_today">Today</string>
+    <string name="notif_group_yesterday">Yesterday</string>
+    <string name="notif_group_this_week">This Week</string>
+    <string name="notif_group_earlier">Earlier</string>
+    <string name="notif_group_undated">Undated</string>
+    <!-- Source header summary: 25 notifications / 47 notifications • 25 new -->
+    <string name="notif_summary_total">%1$d notifications</string>
+    <string name="notif_summary_total_new">%1$d notifications • %2$d new</string>
+    <string name="notif_notice_collapse_hint">Tap to collapse</string>
+    <string name="notif_empty_filter">No notifications in this filter</string>
+    <string name="notif_empty_no_unread">No unread notifications</string>
+    <string name="notif_retry">Try again</string>
 
     <string name="notif_title">Notifications</string>
     <string name="notif_action_back">Back</string>
@@ -509,10 +532,6 @@
     <string name="notif_notice_bangumi_not_connected">No Bangumi account connected; only local entries are shown. Bangumi\'s public API has no notification endpoint.</string>
 
     <!-- Notifications unified view: date groups + unified date format + summary -->
-    <string name="notif_group_upcoming">Upcoming</string>
-    <string name="notif_group_today">Today</string>
-    <string name="notif_group_yesterday">Yesterday</string>
-    <string name="notif_group_this_week">This Week</string>
     <string name="notif_group_older">Older</string>
     <string name="notif_group_other">Other</string>
     <string name="notif_date_today">Today %1$s</string>
@@ -18236,4 +18255,62 @@
     <string name="top_action_random">Random</string>
     <string name="favori_label">Favorite</string>
     <string name="eklendi">Added</string>
+    <string name="notification_channel_anilist">AniList notifications</string>
+    <string name="notification_channel_anilist_desc">Activity, forum, follow and media notifications.</string>
+    <string name="notification_channel_mal">MyAnimeList notifications</string>
+    <string name="notification_channel_mal_desc">New episode airings and MAL account notifications.</string>
+    <string name="notification_channel_simkl">TMDB &amp; Simkl notifications</string>
+    <string name="notification_channel_simkl_desc">New episodes and movie releases for the shows you watch.</string>
+    <string name="notification_channel_kitsu">Kitsu notifications</string>
+    <string name="notification_channel_kitsu_desc">Airing entries on your Kitsu watch list.</string>
+    <string name="notification_channel_shikimori">Shikimori notifications</string>
+    <string name="notification_channel_shikimori_desc">Messages, news and media notifications.</string>
+    <string name="notification_channel_bangumi">Bangumi notifications</string>
+    <string name="notification_channel_bangumi_desc">Airing entries on your Bangumi watch list.</string>
+    <string name="notification_channel_system">Kitsugi system alerts</string>
+    <string name="notification_channel_system_desc">Test notifications and app alerts.</string>
+    <string name="notif_test_title">Test notification</string>
+    <string name="notif_test_body">If you can see this, device notifications are working.</string>
+    <string name="notif_sys_following">%1$s started following you.</string>
+    <string name="notif_sys_message">%1$s sent you a message.</string>
+    <string name="notif_sys_reply">%1$s replied to your activity.</string>
+    <string name="notif_sys_reply_subscribed">%1$s replied to an activity you follow.</string>
+    <string name="notif_sys_mention">%1$s mentioned you.</string>
+    <string name="notif_sys_like">%1$s liked your activity.</string>
+    <string name="notif_sys_reply_like">%1$s liked your reply.</string>
+    <string name="notif_sys_forum_mention">%1$s mentioned you in the forum.</string>
+    <string name="notif_sys_forum_reply">%1$s replied to your forum comment.</string>
+    <string name="notif_sys_forum_subscribed">%1$s commented on a thread you follow.</string>
+    <string name="notif_sys_forum_like">%1$s liked your forum comment.</string>
+    <string name="notif_sys_thread_like">%1$s liked your forum thread.</string>
+    <string name="notif_sys_related_media">New related media was added for %1$s.</string>
+    <string name="notif_sys_media_updated">%1$s was updated (%2$s).</string>
+    <string name="notif_sys_media_merged">%1$s was merged into another entry.</string>
+    <string name="notif_sys_media_deleted">%1$s was deleted from the site.</string>
+    <string name="notif_sys_generic">You have a new notification.</string>
+    <string name="notif_device_title">Device notifications</string>
+    <string name="notif_device_subtitle">Are they really landing in your phone\'s notification shade?</string>
+    <string name="notif_device_permission_ok">Notification permission granted</string>
+    <string name="notif_device_permission_missing">No notification permission: system notifications cannot be posted</string>
+    <string name="notif_device_disabled">Notifications are disabled in device settings</string>
+    <string name="notif_device_grant_action">Grant permission / Open settings</string>
+    <string name="notif_device_last_run">Last run: %1$s</string>
+    <string name="notif_device_never_ran">The background check has not run yet</string>
+    <string name="notif_device_work_scheduled">Background check scheduled: every %1$d min</string>
+    <string name="notif_device_work_missing">Background check is not scheduled; enable a source in Settings</string>
+    <string name="notif_device_source_row">%1$s · %2$d new</string>
+    <string name="notif_device_source_never">%1$s · has not run yet</string>
+    <string name="notif_device_source_error">%1$s · error: %2$s</string>
+    <string name="notif_device_test">Send a test notification</string>
+    <string name="notif_device_test_blocked">Test notification could not be sent: permission or setting missing</string>
+    <string name="notif_device_total">Total posted: %1$d</string>
+    <string name="notif_device_hint">Sources: AniList, MyAnimeList, TMDB &amp; Simkl, Kitsu, Shikimori, Bangumi.</string>
+    <string name="notif_sys_some_user">A user</string>
+    <string name="settings_notif_bangumi">Bangumi notifications</string>
+    <string name="settings_notif_bangumi_on">New episodes of the Bangumi titles you watch are announced.</string>
+    <string name="settings_notif_bangumi_off">No device notifications are sent for Bangumi.</string>
+    <string name="bangumi_bildirimleri_etkinlestirildi">Bangumi notifications enabled.</string>
+    <string name="bangumi_bildirimleri_devre_disi_birakildi">Bangumi notifications disabled.</string>
+    <string name="notif_mark_all_read">Mark all read</string>
+
 </resources>

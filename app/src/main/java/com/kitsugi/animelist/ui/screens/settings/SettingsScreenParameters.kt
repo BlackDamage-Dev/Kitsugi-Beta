@@ -103,6 +103,8 @@ data class GeneralSettings(
     val onShikimoriNotificationsChanged: (Boolean) -> Unit = {},
     val tmdbNotificationsEnabled: Boolean = false,
     val onTmdbNotificationsChanged: (Boolean) -> Unit = {},
+    val bangumiNotificationsEnabled: Boolean = false,
+    val onBangumiNotificationsChanged: (Boolean) -> Unit = {},
     val isAniListConnected: Boolean = false,
     val isMalConnected: Boolean = false,
     val isSimklConnected: Boolean = false,

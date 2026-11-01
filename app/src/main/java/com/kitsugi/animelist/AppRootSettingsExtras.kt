@@ -92,6 +92,8 @@ internal fun SettingsContext.buildSettingsParams() =
             onShikimoriNotificationsChanged = { onShikimoriNotificationsChanged(it) },
             tmdbNotificationsEnabled = appSettings.tmdbNotificationsEnabled,
             onTmdbNotificationsChanged = { onTmdbNotificationsChanged(it) },
+            bangumiNotificationsEnabled = appSettings.bangumiNotificationsEnabled,
+            onBangumiNotificationsChanged = { onBangumiNotificationsChanged(it) },
             isAniListConnected = authViewModel.isAniListConnected,
             isMalConnected = authViewModel.isMalConnected,
             isSimklConnected = authViewModel.isSimklConnected,
@@ -748,6 +750,23 @@ internal fun SettingsContext.onTmdbNotificationsChanged(enabled: Boolean) {
         appViewModel.showSnackbarMessage(
             if (enabled) KitsugiStrings.get(R.string.tmdb_bildirimleri_etkinlestirildi)
             else KitsugiStrings.get(R.string.tmdb_bildirimleri_devre_disi_birakildi)
+        )
+        com.kitsugi.animelist.core.notifications.NotificationScheduler.reconcile(context)
+    }
+}
+
+internal fun SettingsContext.onBangumiNotificationsChanged(enabled: Boolean) {
+    coroutineScope.launch {
+        if (enabled && !authViewModel.isBangumiConnected) {
+            appViewModel.showSnackbarMessage(
+                KitsugiStrings.get(R.string.settings_notifications_connect_account, "Bangumi")
+            )
+            return@launch
+        }
+        settingsDataStore.setBangumiNotificationsEnabled(enabled)
+        appViewModel.showSnackbarMessage(
+            if (enabled) KitsugiStrings.get(R.string.bangumi_bildirimleri_etkinlestirildi)
+            else KitsugiStrings.get(R.string.bangumi_bildirimleri_devre_disi_birakildi)
         )
         com.kitsugi.animelist.core.notifications.NotificationScheduler.reconcile(context)
     }

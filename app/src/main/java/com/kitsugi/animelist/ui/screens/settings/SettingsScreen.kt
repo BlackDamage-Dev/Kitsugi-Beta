@@ -903,7 +903,9 @@ private fun SettingsPreferencesContent(
         general.airingNotificationsEnabled, general.splashAnimationEnabled, general.splashSoundEnabled,
         general.mangaReadingMode, general.mangaColorFilter, general.mangaFitMode, general.mangaBrightness,
         general.aniListNotificationsEnabled, general.malNotificationsEnabled, general.simklNotificationsEnabled,
-        general.kitsuNotificationsEnabled, general.shikimoriNotificationsEnabled, general.tmdbNotificationsEnabled, general.notificationInterval,
+        general.kitsuNotificationsEnabled, general.shikimoriNotificationsEnabled,
+        general.tmdbNotificationsEnabled, general.bangumiNotificationsEnabled,
+        general.notificationInterval,
         general.staffNameLanguage, general.scoreStep, general.separatedListStyle, general.showLowPriority,
         general.priorityColorsJson, general.fuzzySearchEnabled, general.separateNovelsManga,
         general.autoDateOnStatusChange, general.autoProgressOnComplete, general.defaultAddStatus,
@@ -958,6 +960,7 @@ private fun SettingsPreferencesContent(
                 kitsuNotificationsEnabled = general.kitsuNotificationsEnabled,
                 shikimoriNotificationsEnabled = general.shikimoriNotificationsEnabled,
                 tmdbNotificationsEnabled = general.tmdbNotificationsEnabled,
+                bangumiNotificationsEnabled = general.bangumiNotificationsEnabled,
                 notificationInterval = general.notificationInterval
             ),
             downloads = com.kitsugi.animelist.data.settings.DownloadAndMangaSettings(
@@ -1012,6 +1015,7 @@ private fun SettingsPreferencesContent(
         onKitsuNotificationsChanged = general.onKitsuNotificationsChanged,
         onShikimoriNotificationsChanged = general.onShikimoriNotificationsChanged,
         onTmdbNotificationsChanged = general.onTmdbNotificationsChanged,
+        onBangumiNotificationsChanged = general.onBangumiNotificationsChanged,
         isAniListConnected = general.isAniListConnected,
         isMalConnected = general.isMalConnected,
         isSimklConnected = general.isSimklConnected,

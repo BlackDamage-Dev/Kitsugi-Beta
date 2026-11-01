@@ -229,6 +229,7 @@ class SettingsDataStore(
         val KitsuNotificationsEnabled = booleanPreferencesKey("kitsu_notifications_enabled")
         val ShikimoriNotificationsEnabled = booleanPreferencesKey("shikimori_notifications_enabled")
         val TmdbNotificationsEnabled = booleanPreferencesKey("tmdb_notifications_enabled")
+        val BangumiNotificationsEnabled = booleanPreferencesKey("bangumi_notifications_enabled")
         val NotificationInterval = intPreferencesKey("notification_interval")
         val SearchHistoryEnabled = booleanPreferencesKey("search_history_enabled")
         // ─── T1.7 – StillWatching + PostPlayMode + AutoplaySessionRules ──────
@@ -689,6 +690,7 @@ class SettingsDataStore(
                     kitsuNotificationsEnabled = preferences[Keys.KitsuNotificationsEnabled] ?: false,
                     shikimoriNotificationsEnabled = preferences[Keys.ShikimoriNotificationsEnabled] ?: false,
                     tmdbNotificationsEnabled = preferences[Keys.TmdbNotificationsEnabled] ?: false,
+                    bangumiNotificationsEnabled = preferences[Keys.BangumiNotificationsEnabled] ?: false,
                     notificationInterval = preferences[Keys.NotificationInterval] ?: 180
                 ),
                 downloads = DownloadAndMangaSettings(
@@ -1563,6 +1565,11 @@ class SettingsDataStore(
     /** TMDB account polling/dedupe notifications (not a TMDB native notification feed). */
     suspend fun setTmdbNotificationsEnabled(enabled: Boolean) {
         context.settingsDataStore.edit { it[Keys.TmdbNotificationsEnabled] = enabled }
+    }
+
+    /** Bangumi bildirimleri (DOING koleksiyonu + yayın takvimi eşleşmesi). */
+    suspend fun setBangumiNotificationsEnabled(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.BangumiNotificationsEnabled] = enabled }
     }
 
     suspend fun setNotificationInterval(minutes: Int) {
