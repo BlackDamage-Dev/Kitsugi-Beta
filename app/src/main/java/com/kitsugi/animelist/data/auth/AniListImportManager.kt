@@ -4,6 +4,7 @@ import com.kitsugi.animelist.model.MediaEntry
 import com.kitsugi.animelist.model.MediaType
 import com.kitsugi.animelist.model.WatchStatus
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.net.HttpURLConnection
@@ -18,6 +19,42 @@ import com.kitsugi.animelist.utils.KitsugiStrings
 import com.kitsugi.animelist.R
 
 object AniListImportManager {
+
+    // ─── Yeniden deneme politikası (içe aktarım) ───────────────────────────────
+    // Liste içe aktarımı onlarca istektir (1 Viewer + N sayfa × 2 tür). Eski kod
+    // hiç beklemeden hepsini arka arkaya gönderiyor ve TEK bir 429'da tüm işi
+    // çökertiyordu → Listem kalıcı olarak boş kalıyordu. Artık her istek ortak
+    // hız bütçesinden (AniListGovernor) geçer; 429 gelirse soğuma beklenir ve
+    // sayfa yeniden denenir. Hiçbir sayfa alınamadıysa hata fırlatılır; en az bir
+    // sayfa alındıysa KISMİ sonuç döndürülür (boş liste göstermekten iyidir).
+    private const val IMPORT_MAX_ATTEMPTS = 4
+    private const val IMPORT_COOLDOWN_WAIT_MS = 70_000L
+
+    /** AniList istek sınırına takıldık: kullanıcıya süre bildirilir, iş kuyrukta bekler. */
+    class AniListRateLimitException(val retryAfterSeconds: Long) : IllegalStateException(
+        "AniList istek sınırı doldu — $retryAfterSeconds sn sonra otomatik tekrar denenecek"
+    )
+
+    /** AniList sunucu şalteri indi: yeniden denemek 45 sn boyunca anlamsız. */
+    class AniListUnavailableException(message: String) : IllegalStateException(message)
+
+    /** AniList oturumu geçersiz: kullanıcı yeniden giriş yapmalı. */
+    class AniListAuthException(message: String) : IllegalStateException(message)
+
+    /**
+     * İçe aktarım sonucu.
+     *
+     * @param entries   çekilebilen kayıtlar
+     * @param complete  `false` ise aktarım yarıda kaldı (hız sınırı / kesinti) ve
+     *                  liste TAM değil — çağıran mevcut satırları SİLMEMELİDİR.
+     */
+    data class ImportResult(
+        val entries: List<MediaEntry>,
+        val complete: Boolean,
+        val errorMessage: String? = null,
+        val rateLimited: Boolean = false
+    )
+
     suspend fun fetchAnimeList(
         accessToken: String
     ): List<MediaEntry> {
@@ -27,7 +64,7 @@ object AniListImportManager {
                 accessToken = accessToken,
                 userId = viewer.userId,
                 mediaType = "ANIME"
-            )
+            ).entries
         }
     }
 
@@ -40,25 +77,7 @@ object AniListImportManager {
                 accessToken = accessToken,
                 userId = viewer.userId,
                 mediaType = "MANGA"
-            )
-        }
-    }
-
-    suspend fun fetchAllLists(
-        accessToken: String
-    ): List<MediaEntry> {
-        // Soğuma (429 cezası) aktifse hiç başlamayalım: sayfa aralarında dakikalarca bekleyip
-        // yarım liste bırakmak yerine kullanıcıya net bilgi verilir (AuthViewModel bunu
-        // "liste %1$d sn sonra yeniden çekilebilir" olarak gösterir).
-        val cooldown = AniListGate.cooldownRemainingMs()
-        if (cooldown > 5_000L) {
-            throw IllegalStateException(AniListGate.quotaMessage(cooldown))
-        }
-        return withContext(Dispatchers.IO) {
-            val viewer = fetchViewer(accessToken)
-            val anime = fetchMediaEntries(accessToken, viewer.userId, "ANIME")
-            val manga = fetchMediaEntries(accessToken, viewer.userId, "MANGA")
-            anime + manga
+            ).entries
         }
     }
 
@@ -85,36 +104,84 @@ object AniListImportManager {
             val since = sinceEpochSeconds.coerceAtLeast(1L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
             val anime = fetchMediaEntries(accessToken, viewer.userId, "ANIME", since)
             val manga = fetchMediaEntries(accessToken, viewer.userId, "MANGA", since)
-            anime + manga
+            anime.entries + manga.entries
         }
     }
 
-    // ─── Önbellekler (v2.4.341) ──────────────────────────────────────────────
-    // Liste yenileme her seferinde 1 Viewer + 1 profil isteğiyle başlıyordu; ikisi de
-    // neredeyse hiç değişmez. 30 istek/dk bütçesinde bu 2 istek, bir sayfalık liste
-    // çekiminden çalınan kotaydı. Artık bellek içinde önbelleklenir.
-    private const val VIEWER_CACHE_MS = 24L * 60L * 60L * 1_000L
-    private const val PROFILE_CACHE_MS = 15L * 60L * 1_000L
+    suspend fun fetchAllLists(
+        accessToken: String
+    ): List<MediaEntry> = fetchAllListsDetailed(accessToken).entries
 
-    @Volatile private var cachedViewerToken: String? = null
-    @Volatile private var cachedViewer: ViewerInfo? = null
-    @Volatile private var cachedViewerAt: Long = 0L
+    /**
+     * Anime + manga listesini çeker.
+     *
+     * Hız sınırı / kesinti yüzünden aktarım yarıda kalırsa o ana kadar toplanan
+     * kayıtlar [ImportResult.complete = false] ile döndürülür; hiçbir sayfa
+     * alınamadıysa istisna fırlatılır (çağıran kullanıcıya net hata gösterir).
+     */
+    suspend fun fetchAllListsDetailed(
+        accessToken: String
+    ): ImportResult {
+        return withContext(Dispatchers.IO) {
+            val viewer = fetchViewer(accessToken)
+            var complete = true
+            var error: String? = null
+            var rateLimited = false
 
-    @Volatile private var cachedProfileToken: String? = null
-    @Volatile private var cachedProfile: AniListUserProfile? = null
-    @Volatile private var cachedProfileAt: Long = 0L
+            val anime = try {
+                fetchMediaEntries(accessToken, viewer.userId, "ANIME")
+            } catch (e: Exception) {
+                captureImportFailure(e) { message, isRateLimit ->
+                    complete = false
+                    error = message
+                    rateLimited = isRateLimit
+                }
+                PageResult(emptyList(), complete = false)
+            }
 
-    @Synchronized
-    private fun fetchViewer(
+            val manga = try {
+                fetchMediaEntries(accessToken, viewer.userId, "MANGA")
+            } catch (e: Exception) {
+                captureImportFailure(e) { message, isRateLimit ->
+                    complete = false
+                    error = error ?: message
+                    rateLimited = rateLimited || isRateLimit
+                }
+                PageResult(emptyList(), complete = false)
+            }
+
+            if (!anime.complete || !manga.complete) complete = false
+
+            val entries = anime.entries + manga.entries
+            if (entries.isEmpty() && !complete) {
+                // Hiç kayıt alınamadı: sessizce "boş liste" yazdırmaktansa hatayı yükselt.
+                throw error?.let { IllegalStateException(it) } ?: AniListUnavailableException(
+                    "AniList listesi alınamadı"
+                )
+            }
+            ImportResult(
+                entries = entries,
+                complete = complete,
+                errorMessage = error,
+                rateLimited = rateLimited
+            )
+        }
+    }
+
+    private inline fun captureImportFailure(
+        error: Throwable,
+        onFailure: (message: String, rateLimited: Boolean) -> Unit
+    ) {
+        if (error is kotlinx.coroutines.CancellationException) throw error
+        onFailure(
+            error.message ?: error.javaClass.simpleName,
+            error is AniListRateLimitException
+        )
+    }
+
+    private suspend fun fetchViewer(
         accessToken: String
     ): ViewerInfo {
-        val now = System.currentTimeMillis()
-        cachedViewer?.let { viewer ->
-            if (cachedViewerToken == accessToken && now - cachedViewerAt < VIEWER_CACHE_MS) {
-                return viewer
-            }
-        }
-
         val query = """
             query {
                 Viewer {
@@ -134,32 +201,36 @@ object AniListImportManager {
         )
 
         val viewer = JSONObject(response)
-            .getJSONObject("data")
-            .getJSONObject("Viewer")
+            .optJSONObject("data")
+            ?.optJSONObject("Viewer")
+            ?: throw AniListAuthException(
+                "AniList kullanıcı bilgisi alınamadı (oturum geçersiz olabilir)"
+            )
 
-        val info = ViewerInfo(
-            userId = viewer.getInt("id"),
+        return ViewerInfo(
+            userId = viewer.optInt("id", 0).takeIf { it > 0 }
+                ?: throw AniListAuthException("AniList kullanıcı kimliği alınamadı"),
             name = viewer.optNullableString("name") ?: "Bilinmeyen",
             avatarUrl = viewer.optJSONObject("avatar")?.optNullableString("large")
         )
-        cachedViewerToken = accessToken
-        cachedViewer = info
-        cachedViewerAt = now
-        return info
     }
 
-    private fun fetchMediaEntries(
+    /** Tek tür (ANIME/MANGA) için sayfa sayfa çekilen sonuç. */
+    private data class PageResult(
+        val entries: List<MediaEntry>,
+        val complete: Boolean
+    )
+
+    private suspend fun fetchMediaEntries(
         accessToken: String,
         userId: Int,
         mediaType: String,
         updatedSinceSec: Int? = null
-    ): List<MediaEntry> {
+    ): PageResult {
         val allEntries = mutableListOf<MediaEntry>()
         var page = 1
         var hasNextPage = true
 
-        // Delta çekiminde sorguya `updatedAt_greater` süzgeci eklenir; değişken de
-        // yalnızca o durumda gönderilir (tam çekim sorgusu birebir aynı kalır).
         val deltaFilter = if (updatedSinceSec != null) {
             ", updatedAt_greater: ${'$'}updatedSince"
         } else {
@@ -188,9 +259,7 @@ object AniListImportManager {
                         private
                         notes
                         repeat
-                        priority
                         hiddenFromStatusLists
-                        createdAt
                         updatedAt
                         startedAt {
                             year
@@ -232,7 +301,18 @@ object AniListImportManager {
             }
         """.trimIndent()
 
-        while (hasNextPage) {
+        // ── Sonsuz döngü koruması ──────────────────────────────────────────────
+        // AniList zaman zaman SON sayfada `pageInfo.hasNextPage = true` gönderip
+        // BOŞ bir `mediaList` döndürür. Eski kod yalnızca `hasNextPage`'e bakıyordu:
+        // boş sayfaları sonsuza kadar istemeye devam ediyor, her turda kotadan
+        // yiyordu. Sonuç: içe aktarım hiç bitmiyor ve kullanıcı ekranda kalıcı
+        // olarak "AniList istek sınırı doldu" görüyordu.
+        //   • sayfa tavanı (200 × 50 = 10.000 kayıt): gerçek bir liste için yeterli
+        //   • üst üste 2 boş sayfa: akış bitti demektir, dur
+        val MAX_PAGES = 200
+        var emptyPageStreak = 0
+
+        while (hasNextPage && page <= MAX_PAGES) {
             val variables = JSONObject()
                 .put("userId", userId)
                 .put("page", page)
@@ -240,11 +320,24 @@ object AniListImportManager {
                 variables.put("updatedSince", updatedSinceSec)
             }
 
-            val response = postGraphQl(
-                accessToken = accessToken,
-                query = query,
-                variables = variables
-            )
+            val response = try {
+                postGraphQl(
+                    accessToken = accessToken,
+                    query = query,
+                    variables = variables
+                )
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                // En az bir sayfa alındıysa KISMİ sonuç döndür: hiç yoktan iyidir ve
+                // Listem'in kalıcı boş kalmasını engeller. Hiç sayfa alınamadıysa
+                // hata yukarı çıkar, çağıran kullanıcıya net mesaj verir.
+                if (allEntries.isEmpty()) throw e
+                android.util.Log.w(
+                    "AniListImport",
+                    "$mediaType içe aktarımı sayfa $page'da yarıda kaldı (${allEntries.size} kayıt alındı): ${e.message}"
+                )
+                return PageResult(allEntries, complete = false)
+            }
 
             val pageObj = JSONObject(response)
                 .getJSONObject("data")
@@ -256,6 +349,21 @@ object AniListImportManager {
 
             val mediaList = pageObj.getJSONArray("mediaList")
 
+            // Boş sayfa sayacı: AniList "hasNextPage: true" diyorsa ama kayıt
+            // göndermiyorsa akış gerçekte bitmiştir.
+            if (mediaList.length() == 0) {
+                emptyPageStreak++
+                if (emptyPageStreak >= 2) {
+                    android.util.Log.w(
+                        "AniListImport",
+                        "$mediaType: üst üste 2 boş sayfa (sayfa $page) — içe aktarım sonlandırıldı."
+                    )
+                    break
+                }
+            } else {
+                emptyPageStreak = 0
+            }
+
             for (index in 0 until mediaList.length()) {
                 val item = mediaList.getJSONObject(index)
                 val media = item.getJSONObject("media")
@@ -264,21 +372,8 @@ object AniListImportManager {
                 val aniListEntryId = item.optInt("id", 0).takeIf { it > 0 }
 
                 val mediaId = media.optInt("id", 0)
-                val validIdMal = media.optInt("idMal", 0).takeIf { it in 1..99_999_999 }
-                val stableId = validIdMal ?: (100_000_000 + mediaId)
-                val entryMediaType = if (media.optNullableString("type") == "MANGA") MediaType.Manga else MediaType.Anime
-                if (mediaId > 0 && validIdMal != null) {
-                    val appContext = com.kitsugi.animelist.KitsugiApplication.getInstance()?.applicationContext
-                    if (appContext != null) {
-                        CrossProviderIdentityCache.writeBundle(
-                            context = appContext,
-                            type = entryMediaType,
-                            ids = CrossProviderIds(malId = validIdMal, aniListId = mediaId),
-                            complete = false,
-                            primaryKey = "${entryMediaType.name}:mal:$validIdMal"
-                        )
-                    }
-                }
+                val stableId = media.optInt("idMal", 0).takeIf { it > 0 }
+                    ?: (100_000_000 + mediaId)
 
                 val titleObject = media.getJSONObject("title")
                 val romaji = titleObject.optNullableString("romaji")
@@ -344,20 +439,11 @@ object AniListImportManager {
                 val endDate = item.optJSONObject("completedAt").toLocalDateString()
 
                 val isPrivate = item.optBoolean("private", false)
-                // AniList `priority` 0..255 (0 = yok). Sorgulanmadığı için öncelik bilgisi
-                // içe aktarmada tamamen kayboluyordu; alan `SyncField.PRIORITY` ile
-                // yazılabildiği hâlde okunmuyordu.
-                val priority = item.optInt("priority", 0).takeIf { it > 0 }
                 val notes = item.optNullableString("notes")
                 val repeatCount = item.optInt("repeat", 0)
                 val volumeProgress = item.optInt("progressVolumes", 0)
                 val isHiddenFromStatusLists = item.optBoolean("hiddenFromStatusLists", false)
                 val updatedAt = item.optLong("updatedAt", 0L)
-                // "Son eklenen" sıralamasının asıl anahtarı: kaydın AniList listesine
-                // eklendiği an (epoch sn). Yerel DB id'si bu iş için kullanılamaz —
-                // bu sorgu MEDIA_ID sırasıyla sayfaladığı için id sırası ekleme
-                // sırasıyla tamamen alakasızdır.
-                val addedAt = item.optLong("createdAt", 0L)
                 val titleEnglish = english
                 val titleJapanese = native
 
@@ -388,18 +474,11 @@ object AniListImportManager {
                     endDate = endDate,
                     notes = notes,
                     isPrivate = isPrivate,
-                    priority = priority,
                     isHiddenFromStatusLists = isHiddenFromStatusLists,
-                    // `isRepeating` UI'da "Yeniden İzleniyor/Okunuyor" anahtarıdır, "geçmişte
-                    // tekrar yapıldı" anlamına GELMEZ. `repeat` sayısı > 0 olan her kaydı
-                    // tekrar-ediliyor saymak, MAL'a `is_rewatching=1`, Kitsu'ya
-                    // `reconsuming=true` yazılmasına ve kullanıcının bitmiş yapımlarının
-                    // "şu an tekrar izleniyor" görünmesine yol açıyordu.
-                    isRepeating = item.optNullableString("status") == "REPEATING",
+                    isRepeating = repeatCount > 0,
                     repeatCount = repeatCount,
                     volumeProgress = volumeProgress,
                     updatedAt = updatedAt,
-                    addedAt = addedAt,
                     titleEnglish = titleEnglish,
                     titleJapanese = titleJapanese,
                     aniListEntryId = aniListEntryId
@@ -411,23 +490,25 @@ object AniListImportManager {
             page++
         }
 
-        return allEntries
-            .groupBy { "${it.type.name}:${it.malId ?: it.aniListEntryId ?: it.title}" }
-            .values
-            .map { dupes -> dupes.maxByOrNull { it.updatedAt } ?: dupes.first() }
+        return PageResult(allEntries, complete = true)
     }
 
-    private fun postGraphQl(
+    /**
+     * AniList'e GraphQL isteği atar.
+     *
+     * Eski sürüm doğrudan OkHttp çağırıyordu: ne hız sınırlaması (onlarca sayfa
+     * arka arkaya), ne 429 yeniden denemesi, ne de GraphQL katmanındaki
+     * `errors[status=429]` kontrolü vardı. Bu yüzden tek bir hız sınırı yanıtı
+     * tüm içe aktarımı çökertiyor, Listem hiç dolmuyordu.
+     *
+     * Şimdi: ortak bütçe (AniListGovernor) → istek → HTTP + GraphQL sınıflandırma
+     * → 429/5xx için soğumayı bekle ve yeniden dene.
+     */
+    private suspend fun postGraphQl(
         accessToken: String,
         query: String,
         variables: JSONObject
     ): String {
-        if (!com.kitsugi.animelist.data.remote.KitsugiApiBase.aniListGateBlocking(
-                com.kitsugi.animelist.data.remote.AniListQuotaGate.Priority.BACKGROUND
-            )
-        ) {
-            throw IllegalStateException("AniList kotası dolu; içe aktarma sonraki tura ertelendi.")
-        }
         val payload = JSONObject()
             .put("query", query)
             .put("variables", variables)
@@ -441,47 +522,91 @@ object AniListImportManager {
             .header("Authorization", "Bearer $accessToken")
             .build()
 
-        try {
-            // BULK önceliği: kullanıcı ilerlemeyi görüyor, liste çekimi dakikalar sürebilir.
-            // Kota kapısı sayesinde sayfalar 30/dk sınırının altında tempolu gider.
-            // 20 sn'den uzun sıra beklemesi: kullanıcıya dönen bir spinner bırakmak yerine
-            // "kota doldu, N sn sonra tekrar dene" demek daha doğru.
-            return AniListGate.withPermitBlocking(
-                priority = AniListGate.Priority.BULK,
-                maxWaitMs = 40_000L
-            ) {
-                com.kitsugi.animelist.core.network.KitsugiHttpClient.aniListClient.newCall(request).execute().use { response ->
-                    val body = runCatching { response.body?.string().orEmpty() }.getOrDefault("")
-                    AniListGate.onResponse(response.code, response.headers, body)
+        var attempt = 0
+        var lastFailure: Throwable? = null
 
-                    com.kitsugi.animelist.data.remote.KitsugiApiBase
-                        .extractAniListServiceDownMessage(body)
-                        ?.let { downMsg ->
-                            val down = com.kitsugi.animelist.data.remote.KitsugiApiBase
-                                .recordAniListServiceDown(downMsg, response.code)
-                            throw IllegalStateException(down.message, down)
-                        }
+        while (attempt < IMPORT_MAX_ATTEMPTS) {
+            attempt++
 
-                    if (!response.isSuccessful) {
-                        if (response.code == 429) {
-                            val waitMs = AniListGate.cooldownRemainingMs()
-                            throw AniListGate.QuotaExhaustedException(waitMs, AniListGate.quotaMessage(waitMs))
-                        }
-                        throw IllegalStateException("AniList API hatası: ${response.code} $body")
-                    }
-
-                    val errors = JSONObject(body).optJSONArray("errors")
-                    require(errors == null || errors.length() == 0) { "AniList GraphQL liste okuma hatası: $errors" }
-                    body
+            // 1) Ortak hız bütçesinden slot al (gerekirse 429 soğumasını bekle).
+            when (val gate = AniListGovernor.acquire(maxWaitMs = IMPORT_COOLDOWN_WAIT_MS)) {
+                is AniListGovernor.Gate.Proceed -> Unit
+                is AniListGovernor.Gate.Blocked -> when (gate.reason) {
+                    AniListGovernor.BlockedReason.RATE_LIMITED ->
+                        throw AniListRateLimitException((gate.retryAfterMs / 1000L).coerceAtLeast(1L))
+                    AniListGovernor.BlockedReason.SERVICE_DOWN ->
+                        throw AniListUnavailableException(
+                            "AniList geçici olarak devre dışı: ${AniListGovernor.serviceDownMessage()}"
+                        )
+                    AniListGovernor.BlockedReason.GATEWAY_DOWN ->
+                        throw IllegalStateException("AniList şu anda ulaşılamıyor (ağ/geçit hatası)")
                 }
             }
-        } catch (quota: AniListGate.QuotaExhaustedException) {
-            // Kota: liste yenileme iptal edilir, kullanıcıya bekleme süresi söylenir.
-            throw IllegalStateException(quota.message, quota)
-        } catch (e: Exception) {
-            if (e is IllegalStateException) throw e
-            throw IllegalStateException("AniList bağlantı hatası: ${e.message}", e)
+
+            // 2) İsteği gönder (IO dispatcher'ındayız; bloklayan çağrı güvenli).
+            val call = try {
+                com.kitsugi.animelist.core.network.KitsugiHttpClient.aniListClient.newCall(request)
+                    .execute()
+                    .use { response ->
+                        val body = runCatching { response.body?.string() ?: "" }.getOrDefault("")
+                        response to body
+                    }
+            } catch (e: Exception) {
+                if (e is java.io.InterruptedIOException) throw e
+                AniListGovernor.observeTransportFailure(e)
+                lastFailure = e
+                if (attempt >= IMPORT_MAX_ATTEMPTS) break
+                delay(1_500L * attempt)
+                continue
+            }
+
+            val (response, body) = call
+
+            // 3) HTTP katmanı.
+            when (val outcome = AniListGovernor.observeResponse(response, body)) {
+                is AniListGovernor.Outcome.Success -> {
+                    // 4) GraphQL katmanı: HTTP 200 gelse de `errors` içinde 429 olabilir.
+                    val errors = runCatching { JSONObject(body).optJSONArray("errors") }.getOrNull()
+                    when (val classified = AniListGovernor.classifyErrors(errors)) {
+                        is AniListGovernor.Outcome.Success -> return body
+                        is AniListGovernor.Outcome.RateLimited -> {
+                            lastFailure = AniListRateLimitException(classified.retryAfterMs / 1000L)
+                            if (attempt >= IMPORT_MAX_ATTEMPTS) break
+                            continue // acquire() soğumayı bekleyecek
+                        }
+                        is AniListGovernor.Outcome.AuthFailure ->
+                            throw AniListAuthException("AniList oturum süresi dolmuş; lütfen hesabı yeniden bağlayın.")
+                        is AniListGovernor.Outcome.ServiceDown ->
+                            throw AniListUnavailableException("AniList geçici olarak devre dışı: ${classified.message}")
+                        is AniListGovernor.Outcome.Retryable -> {
+                            lastFailure = IllegalStateException("AniList geçici hata (${classified.retryAfterMs}ms)")
+                            if (attempt >= IMPORT_MAX_ATTEMPTS) break
+                            delay(classified.retryAfterMs.coerceIn(1_000L, 5_000L))
+                        }
+                        is AniListGovernor.Outcome.Permanent ->
+                            throw IllegalStateException("AniList GraphQL liste okuma hatası: ${errors ?: body.take(200)}")
+                    }
+                }
+                is AniListGovernor.Outcome.RateLimited -> {
+                    lastFailure = AniListRateLimitException(outcome.retryAfterMs / 1000L)
+                    if (attempt >= IMPORT_MAX_ATTEMPTS) break
+                    continue
+                }
+                is AniListGovernor.Outcome.Retryable -> {
+                    lastFailure = IllegalStateException("AniList geçici sunucu hatası")
+                    if (attempt >= IMPORT_MAX_ATTEMPTS) break
+                    delay(outcome.retryAfterMs.coerceIn(1_000L, 5_000L))
+                }
+                is AniListGovernor.Outcome.AuthFailure ->
+                    throw AniListAuthException("AniList oturum süresi dolmuş; lütfen hesabı yeniden bağlayın.")
+                is AniListGovernor.Outcome.ServiceDown ->
+                    throw AniListUnavailableException("AniList geçici olarak devre dışı: ${outcome.message}")
+                is AniListGovernor.Outcome.Permanent ->
+                    throw IllegalStateException("AniList API hatası: ${response.code} ${body.take(200)}")
+            }
         }
+
+        throw lastFailure ?: IllegalStateException("AniList API hatası: liste alınamadı")
     }
 
     private fun mapAniListStatus(
@@ -493,10 +618,6 @@ object AniListImportManager {
             "DROPPED" -> WatchStatus.Dropped
             "PLANNING" -> WatchStatus.Planned
             "PAUSED" -> WatchStatus.Paused
-            // AniList'in `REPEATING` durumu vardır ve MAL/Kitsu'dan farklı olarak ayrı bir
-            // durumdur. Eşlenmediği için "tekrar izleniyor" kayıtları `Planned` olarak
-            // içe aktarılıyordu (yani kütüphanede "planlandı" görünüyordu).
-            "REPEATING" -> WatchStatus.Repeating
             else -> WatchStatus.Planned
         }
     }
@@ -543,12 +664,6 @@ object AniListImportManager {
     suspend fun fetchUserProfile(
         accessToken: String
     ): AniListUserProfile {
-        val now = System.currentTimeMillis()
-        cachedProfile?.let { profile ->
-            if (cachedProfileToken == accessToken && now - cachedProfileAt < PROFILE_CACHE_MS) {
-                return profile
-            }
-        }
         return withContext(Dispatchers.IO) {
             val query = """
                 query {
@@ -569,18 +684,17 @@ object AniListImportManager {
             )
 
             val viewer = JSONObject(response)
-                .getJSONObject("data")
-                .getJSONObject("Viewer")
+                .optJSONObject("data")
+                ?.optJSONObject("Viewer")
+                ?: throw AniListAuthException(
+                    "AniList profil bilgisi alınamadı (oturum geçersiz olabilir)"
+                )
 
-            val profile = AniListUserProfile(
+            AniListUserProfile(
                 name = viewer.optNullableString("name") ?: KitsugiStrings.get(R.string.ui_profile_anilist_fallback),
                 avatarUrl = viewer.optJSONObject("avatar")?.optNullableString("large"),
                 bannerUrl = viewer.optNullableString("bannerImage")
             )
-            cachedProfileToken = accessToken
-            cachedProfile = profile
-            cachedProfileAt = now
-            profile
         }
     }
 }

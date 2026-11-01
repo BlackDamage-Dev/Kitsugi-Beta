@@ -134,13 +134,9 @@ object NotificationDiagnostics {
 
         return try {
             val payload = JSONObject().put("query", query).toString()
-            // Teşhis isteği de AniList kotasından yer: arka plan önceliğiyle kapıdan geçir.
-            val http = com.kitsugi.animelist.data.auth.AniListGate.withPermit(
-                priority = com.kitsugi.animelist.data.auth.AniListGate.Priority.BACKGROUND,
-                maxWaitMs = 5_000L
-            ) {
-                httpPostJson("https://graphql.anilist.co", payload, token)
-            }
+            // Teşhis de olsa AniList'e giden her istek ortak bütçeden geçmeli.
+            com.kitsugi.animelist.data.auth.AniListGovernor.acquire()
+            val http = httpPostJsonAniList("https://graphql.anilist.co", payload, token)
             val status = http.first
             val body = http.second
             val duration = System.currentTimeMillis() - started
@@ -587,6 +583,32 @@ object NotificationDiagnostics {
                 .build()
             KitsugiHttpClient.client.newCall(request).execute().use { response ->
                 Pair(response.code, response.body?.string().orEmpty())
+            }
+        }
+
+    /**
+     * AniList'e giden teşhis isteği: ortak hız bütçesinden geçer ve yanıtı
+     * yöneticiye BİLDİRİR.
+     *
+     * EKSİK OLAN SON PARÇA: genel [httpPostJson] yalnızca `acquire()` çağırıyor,
+     * `observeResponse` çağırmıyordu. Bu yüzden AniList'in `X-RateLimit-*` başlıkları
+     * burada öğrenilmiyor, HTTP 429 ve GraphQL katmanındaki 429 soğuması kurulmuyordu:
+     * teşhis ekranı kotayı YİYEN ama kota DURUMUNU güncellemeyen bir yoldu.
+     */
+    private suspend fun httpPostJsonAniList(url: String, json: String, token: String): Pair<Int, String> =
+        withContext(Dispatchers.IO) {
+            val request = Request.Builder()
+                .url(url)
+                .header("Accept", "application/json")
+                .header("User-Agent", UA)
+                .header("Content-Type", "application/json")
+                .header("Authorization", "Bearer $token")
+                .post(json.toRequestBody("application/json; charset=utf-8".toMediaType()))
+                .build()
+            KitsugiHttpClient.client.newCall(request).execute().use { response ->
+                val body = response.body?.string().orEmpty()
+                com.kitsugi.animelist.data.auth.AniListGovernor.observeResponse(response, body)
+                Pair(response.code, body)
             }
         }
 

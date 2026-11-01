@@ -3,7 +3,9 @@ package com.kitsugi.animelist.data.remote
 import com.kitsugi.animelist.KitsugiApplication
 import com.kitsugi.animelist.data.auth.AniListGate
 import com.kitsugi.animelist.data.auth.ExternalAuthManager
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
@@ -143,8 +145,12 @@ object KitsugiApiBase {
 
     private var consecutiveAniListGatewayFailures: Int = 0
 
-    /** AniList şu anda kapalı, 429 limitinde ya da gateway kesintisinde mi? */
+    /** AniList şu bedtime/durumda kapalı, 429 limitinde ya da gateway kesintisinde mi? */
     fun isAniListUnavailableNow(): Boolean {
+        if (com.kitsugi.animelist.data.auth.AniListGovernor.isRateLimitedNow() ||
+            com.kitsugi.animelist.data.auth.AniListGovernor.isServiceDownNow()) {
+            return true
+        }
         val now = System.currentTimeMillis()
         return now < anilistServiceDownUntil ||
             now < anilistGatewayDownUntil ||
@@ -156,22 +162,24 @@ object KitsugiApiBase {
      * AniList bu mesajı bazen HTTP 403, bazen HTTP 503/500, bazen de HTTP 200
      * yanıtının `errors` dizisi içinde döndürür.
      */
-    fun extractAniListServiceDownMessage(bodyOrMessage: String?): String? {
-        if (bodyOrMessage.isNullOrBlank()) return null
-        val jsonMsg = runCatching {
-            val errors = Json.parseToJsonElement(bodyOrMessage).jsonObject["errors"]?.jsonArray
-            errors?.firstOrNull()?.jsonObject?.get("message")?.jsonPrimitive?.content
-        }.getOrNull()
-        val candidate = jsonMsg?.takeIf { it.isNotBlank() } ?: bodyOrMessage
-        return if (
-            candidate.contains("temporarily disabled", ignoreCase = true) ||
-            candidate.contains("stability issues", ignoreCase = true)
-        ) {
-            candidate.trim()
-        } else {
-            null
-        }
-    }
+    fun extractAniListServiceDownMessage(bodyOrMessage: String?): String? =
+        com.kitsugi.animelist.data.auth.AniListGovernor.detectServiceDown(bodyOrMessage)
+            ?: run {
+                if (bodyOrMessage.isNullOrBlank()) return@run null
+                val jsonMsg = runCatching {
+                    val errors = Json.parseToJsonElement(bodyOrMessage).jsonObject["errors"]?.jsonArray
+                    errors?.firstOrNull()?.jsonObject?.get("message")?.jsonPrimitive?.content
+                }.getOrNull()
+                val candidate = jsonMsg?.takeIf { it.isNotBlank() } ?: bodyOrMessage
+                if (
+                    candidate.contains("temporarily disabled", ignoreCase = true) ||
+                    candidate.contains("stability issues", ignoreCase = true)
+                ) {
+                    candidate.trim()
+                } else {
+                    null
+                }
+            }
 
     /**
      * AniList servis kesintisini global devre kesiciye ve [com.kitsugi.animelist.data.platform.PlatformFailureRegistry]'ye
@@ -181,6 +189,10 @@ object KitsugiApiBase {
         rawReason: String,
         httpCode: Int? = 403
     ): AniListServiceDownException {
+        com.kitsugi.animelist.data.auth.AniListGovernor.markServiceDown(
+            reason = rawReason,
+            code = httpCode ?: 403
+        )
         val cleanReason = rawReason.trim().ifBlank {
             "The AniList API has been temporarily disabled due to severe stability issues."
         }
@@ -452,9 +464,12 @@ object KitsugiApiBase {
             }
 
             val currentToken = if (tokenFailed) null else token
+            com.kitsugi.animelist.data.auth.AniListGovernor.acquire()
             val result = try {
                 AniListGate.withPermit(priority) {
-                    performAniListRequest(requestBody, currentToken)
+                    withContext(Dispatchers.IO) {
+                        performAniListRequest(requestBody, currentToken)
+                    }
                 }
             } catch (quota: AniListGate.QuotaExhaustedException) {
                 // Kota doldu: ağa çıkmadan bekleme süresiyle dön. Çağıranlar (detay, arama)
@@ -637,14 +652,15 @@ object KitsugiApiBase {
 
         return try {
             com.kitsugi.animelist.core.network.KitsugiHttpClient.aniListClient.newCall(request).execute().use { response ->
-                // Kota durumunu tek merkeze işle (429 / X-RateLimit-Remaining: 0 dâhil).
-                AniListGate.onResponse(response.code, response.headers)
+                val responseBody = runCatching { response.body?.string() ?: "" }.getOrDefault("")
+                // Kota durumunu her iki yöneticiye de işle (429 / X-RateLimit-Remaining: 0 dâhil).
+                AniListGate.onResponse(response.code, response.headers, responseBody)
+                com.kitsugi.animelist.data.auth.AniListGovernor.observeResponse(response, responseBody)
                 if (response.isSuccessful) {
                     synchronized(aniListSlotLock) { consecutiveAniListGatewayFailures = 0 }
-                    val responseBody = response.body?.string() ?: ""
                     AniListResult.Success(responseBody)
                 } else {
-                    val errBody = runCatching { response.body?.string() ?: "" }.getOrDefault("")
+                    val errBody = responseBody
                     // 403, 500, 503 fark etmeksizin sunucu şalteri mesajı varsa anında ServiceDown dön
                     extractAniListServiceDownMessage(errBody)?.let { serviceDownMsg ->
                         android.util.Log.w("KitsugiApiBase", "AniList servis kesintisi tespit edildi (${response.code}): $serviceDownMsg")
@@ -660,7 +676,7 @@ object KitsugiApiBase {
                             else -> null
                         }
                         if (response.code == 429) {
-                            // Soğuma süresi AniListGate.onResponse içinde yazıldı.
+                            // Soğuma süresi AniListGate / AniListGovernor içinde yazıldı.
                             android.util.Log.w(
                                 "KitsugiApiBase",
                                 "AniList 429 — ${AniListGate.cooldownRemainingMs()}ms soğuma uygulandı"
@@ -682,6 +698,7 @@ object KitsugiApiBase {
             }
         } catch (e: Exception) {
             android.util.Log.e("KitsugiApiBase", "AniList performRequest Exception: ${e.message}", e)
+            com.kitsugi.animelist.data.auth.AniListGovernor.observeTransportFailure(e)
             com.kitsugi.animelist.data.platform.PlatformFailureRegistry.report("anilist", error = e)
             synchronized(aniListSlotLock) {
                 consecutiveAniListGatewayFailures++

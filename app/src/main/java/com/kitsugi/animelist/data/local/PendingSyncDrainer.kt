@@ -306,6 +306,15 @@ object PendingSyncDrainer {
         // Exhausted jobs remain inspectable/recoverable; never silently delete user intent.
         if (!drainMutex.tryLock()) return@withContext 0
         try {
+        if (com.kitsugi.animelist.data.auth.AniListGovernor.isRateLimitedNow() ||
+            com.kitsugi.animelist.data.auth.AniListGovernor.isServiceDownNow()
+        ) {
+            android.util.Log.w(
+                "PendingSyncDrainer",
+                "AniList kullanılamıyor, kuyruk boşaltma atlandı (${com.kitsugi.animelist.data.auth.AniListGovernor.debugSnapshot()})"
+            )
+            return@withContext 0
+        }
         if (freshBudget) dao.resetRetries()
         val pending = dao.getAll().filter { PendingSyncPolicy.isEligible(it.retryCount) }
         if (pending.isEmpty()) return@withContext 0
@@ -324,7 +333,10 @@ object PendingSyncDrainer {
         var successCount = 0
         for (item in pending) {
             // Kota cezası sürüyorsa kalan işleri denemek cezayı uzatmaktan başka işe yaramaz.
-            val cooldown = AniListGate.cooldownRemainingMs()
+            val cooldown = maxOf(
+                AniListGate.cooldownRemainingMs(),
+                (com.kitsugi.animelist.data.auth.AniListGovernor.rateLimitedUntilEpochMs() - System.currentTimeMillis()).coerceAtLeast(0L)
+            )
             if (cooldown > 3_000L) {
                 context?.let { scheduleResume(it, dao, cooldown + 2_000L) }
                 break
@@ -373,11 +385,20 @@ object PendingSyncDrainer {
                                 (allErrors.ifBlank { result.exceptionOrNull()?.message }.orEmpty().take(400))
                         )
                     }
-                    val isQuota = AniListGate.isQuotaMessage(allErrors) || AniListGate.isCoolingDown()
+                    val isQuota = AniListGate.isQuotaMessage(allErrors) || AniListGate.isCoolingDown() ||
+                        com.kitsugi.animelist.data.auth.AniListGovernor.isRateLimitedNow() ||
+                        allErrors.contains("429") ||
+                        allErrors.contains("istek sınırı", ignoreCase = true) ||
+                        allErrors.contains("hız sınırı", ignoreCase = true) ||
+                        allErrors.contains("rate limit", ignoreCase = true)
                     if (!isQuota) {
                         dao.incrementRetry(item.id)
                     } else {
-                        context?.let { scheduleResume(it, dao, AniListGate.cooldownRemainingMs() + 2_000L) }
+                        val waitMs = maxOf(
+                            AniListGate.cooldownRemainingMs(),
+                            (com.kitsugi.animelist.data.auth.AniListGovernor.rateLimitedUntilEpochMs() - System.currentTimeMillis()).coerceAtLeast(0L)
+                        )
+                        context?.let { scheduleResume(it, dao, waitMs + 2_000L) }
                         break
                     }
                 }

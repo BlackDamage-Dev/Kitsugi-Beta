@@ -363,6 +363,9 @@ class KitsugiApplication : Application(), SingletonImageLoader.Factory {
                     val repo = com.kitsugi.animelist.data.local.MediaEntryRepository(dao = dao, context = this@KitsugiApplication)
 
                     var syncCount = 0
+                    // Yarım kalan aktarım "tamamlandı" sayılmasın: 24 saatlik yenileme
+                    // penceresi kapanmadan eksik liste kalıcılaşmasın.
+                    var allSourcesComplete = true
 
                     // AniList
                     val aniListToken = com.kitsugi.animelist.data.auth.ExternalAuthManager.getAniListToken(this@KitsugiApplication)
@@ -373,21 +376,34 @@ class KitsugiApplication : Application(), SingletonImageLoader.Factory {
                             // Aksi halde uzak liste, henüz push edilmemiş yerel düzenlemeleri
                             // ezip "hiçbir şey eşitlenmiyor" durumuna yol açıyordu.
                             runCatching { repo.drainPendingQueue(freshBudget = true) }
-                            val entries = com.kitsugi.animelist.data.auth.AniListImportManager.fetchAllLists(aniListToken)
-                            // v2.4.341 — ESKİ DAVRANIŞ (veri kaybı): replaceSourcePreservingAdultFlags
-                            // kaynağın TÜM satırlarını silip yeniden yazıyordu. Uzak listede
-                            // bulunmayan (henüz push edilmemiş) yeni kayıtlar ve bekleyen kuyruk
-                            // işleri her 24 saatte bir yok oluyordu. Artık birleştirme yapılır:
-                            // eşleşen satırlar güncellenir, yerelde kalanlar SİLİNMEZ, bekleyen
-                            // değişikliği olan satırlar uzak veriyle ezilmez.
-                            repo.smartImport("anilist", entries, allowDelete = false)
-                            com.kitsugi.animelist.data.auth.SourceSyncStatus.reportSuccess(
-                                this@KitsugiApplication,
-                                com.kitsugi.animelist.data.auth.SourceSyncStatus.Source.ANILIST
-                            )
-                            syncCount += entries.size
-                            android.util.Log.d("KitsugiAutoSync", "AniList: ${entries.size} kayıt yenilendi.")
+                            val result = com.kitsugi.animelist.data.auth.AniListImportManager
+                                .fetchAllListsDetailed(aniListToken)
+                            if (result.complete && result.entries.isNotEmpty()) {
+                                repo.smartImport("anilist", result.entries, allowDelete = false)
+                                com.kitsugi.animelist.data.auth.SourceSyncStatus.reportSuccess(
+                                    this@KitsugiApplication,
+                                    com.kitsugi.animelist.data.auth.SourceSyncStatus.Source.ANILIST
+                                )
+                            } else if (result.entries.isNotEmpty()) {
+                                allSourcesComplete = false
+                                // KISMİ aktarım (hız sınırı / kesinti): var olan satırları
+                                // SİLME — eldeki kayıtlar birleştirilir.
+                                repo.smartImport("anilist", result.entries, allowDelete = false)
+                                android.util.Log.w(
+                                    "KitsugiAutoSync",
+                                    "AniList aktarımı yarım kaldı: ${result.entries.size} kayıt birleştirildi (${result.errorMessage})"
+                                )
+                                com.kitsugi.animelist.data.auth.SourceSyncStatus.reportSuccess(
+                                    this@KitsugiApplication,
+                                    com.kitsugi.animelist.data.auth.SourceSyncStatus.Source.ANILIST
+                                )
+                            } else {
+                                allSourcesComplete = false
+                            }
+                            syncCount += result.entries.size
+                            android.util.Log.d("KitsugiAutoSync", "AniList: ${result.entries.size} kayıt yenilendi.")
                         } catch (e: Exception) {
+                            allSourcesComplete = false
                             android.util.Log.w("KitsugiAutoSync", "AniList yenileme hatası: ${e.message}")
                             com.kitsugi.animelist.data.auth.SourceSyncStatus.reportFailure(
                                 this@KitsugiApplication,
@@ -417,6 +433,7 @@ class KitsugiApplication : Application(), SingletonImageLoader.Factory {
                             syncCount += entries.size
                             android.util.Log.d("KitsugiAutoSync", "MAL: ${entries.size} kayıt yenilendi.")
                         } catch (e: Exception) {
+                            allSourcesComplete = false
                             android.util.Log.w("KitsugiAutoSync", "MAL yenileme hatası: ${e.message}")
                             com.kitsugi.animelist.data.auth.SourceSyncStatus.reportFailure(
                                 this@KitsugiApplication,
@@ -443,6 +460,7 @@ class KitsugiApplication : Application(), SingletonImageLoader.Factory {
                             syncCount += entries.size
                             android.util.Log.d("KitsugiAutoSync", "Simkl: ${entries.size} kayıt yenilendi.")
                         } catch (e: Exception) {
+                            allSourcesComplete = false
                             android.util.Log.w("KitsugiAutoSync", "Simkl yenileme hatası: ${e.message}")
                             com.kitsugi.animelist.data.auth.SourceSyncStatus.reportFailure(
                                 this@KitsugiApplication,
@@ -453,7 +471,7 @@ class KitsugiApplication : Application(), SingletonImageLoader.Factory {
                         }
                     }
 
-                    if (syncCount > 0) {
+                    if (syncCount > 0 && allSourcesComplete) {
                         prefs.edit().putLong("last_list_sync_ms", now).apply()
                         android.util.Log.i("KitsugiAutoSync", "Otomatik liste yenileme tamamlandı: toplam $syncCount kayıt.")
                     }

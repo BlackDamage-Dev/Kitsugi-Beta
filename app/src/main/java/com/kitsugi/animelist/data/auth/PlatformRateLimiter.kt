@@ -27,8 +27,17 @@ object PlatformRateLimiter {
 
     private val guard = Any()
 
+    /**
+     * AniList kotası artık TEK merkezde: [AniListGovernor].
+     *
+     * Eskiden burada 2100 ms'lik ayrı bir sayaç vardı; Keşfet/detay sorguları
+     * (KitsugiApiBase) ve liste içe aktarımı bambaşka hızlarda çalıştığı için
+     * AniList'in 30 istek/dk sınırı aşılıyordu. Bu platformu yöneticiye devrediyoruz: tek bütçe, tek soğuma.
+     */
+    private val delegatedPlatforms = setOf("anilist")
+
     private val platformIntervals = mapOf(
-        // AniList bilerek YOK: kota penceresi/patlama/soğuma → AniListGate.
+        // AniList bilerek YOK: kota penceresi/patlama/soğuma → AniListGovernor.
         "mal" to 450L,         // ~133 req/dk (Limit ~150/dk)
         "kitsu" to 1100L,      // ~54 req/dk (Limit ~60/dk)
         "shikimori" to 350L,   // ~170 req/dk (Limit 5 req/sn)
@@ -45,6 +54,10 @@ object PlatformRateLimiter {
      */
     suspend fun acquire(platform: String) {
         val key = platform.lowercase()
+        if (key in delegatedPlatforms) {
+            AniListGovernor.acquire()
+            return
+        }
         while (true) {
             val waitMs = synchronized(guard) {
                 val now = System.currentTimeMillis()
@@ -71,6 +84,10 @@ object PlatformRateLimiter {
      */
     suspend fun notifyRateLimited(platform: String, retryAfterSeconds: Long? = null) {
         val key = platform.lowercase()
+        if (key in delegatedPlatforms) {
+            AniListGovernor.markRateLimited(retryAfterSeconds)
+            return
+        }
         val waitMs = if (retryAfterSeconds != null && retryAfterSeconds > 0) {
             (retryAfterSeconds * 1_000L).coerceIn(1_000L, 65_000L)
         } else {

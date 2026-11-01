@@ -1262,12 +1262,16 @@ class KitsugiProfileViewModel(application: Application) : AndroidViewModel(appli
                 .header("Authorization", "Bearer $token")
                 .build()
 
+            // Ortak AniList hız bütçesinden geç (profil sorguları da kotayı harcar).
+            com.kitsugi.animelist.data.auth.AniListGovernor.acquire()
+
             // v2.4.341: AniList kota kapısı — bu yol daha önce hiçbir hız sınırına uymuyordu.
             com.kitsugi.animelist.data.auth.AniListGate.withPermit(
                 com.kitsugi.animelist.data.auth.AniListGate.Priority.INTERACTIVE
             ) {
                 com.kitsugi.animelist.core.network.KitsugiHttpClient.aniListClient.newCall(request).execute().use { response ->
                     val bodyText = runCatching { response.body?.string() ?: "" }.getOrDefault("")
+                    com.kitsugi.animelist.data.auth.AniListGovernor.observeResponse(response, bodyText)
                     com.kitsugi.animelist.data.auth.AniListGate.onResponse(response.code, response.headers, bodyText)
                     com.kitsugi.animelist.data.remote.KitsugiApiBase
                         .extractAniListServiceDownMessage(bodyText)

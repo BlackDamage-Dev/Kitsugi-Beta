@@ -6688,6 +6688,7 @@ Eklentiler ekranından eklenti etkinleştirin.</string>
     <string name="account_sync_import_running">%1$s içe aktarma zaten çalışıyor</string>
     <string name="account_sync_import_fetching">%1$s listesi getiriliyor...</string>
     <string name="account_sync_import_success">%1$d %2$s kaydı başarıyla aktarıldı</string>
+    <string name="account_sync_import_partial">%1$s aktarımı hız sınırı nedeniyle yarım kaldı: %2$d kayıt alındı. Kalanlar sonraki yenilemede otomatik eklenecek.</string>
     <string name="account_sync_import_save_failed">%1$s kaydedilirken sorun oluştu: %2$s</string>
     <string name="account_sync_import_failed">%1$s içe aktarma başarısız</string>
     <string name="account_sync_import_credentials_missing">%1$s token veya kullanıcı kimliği bulunamadı</string>

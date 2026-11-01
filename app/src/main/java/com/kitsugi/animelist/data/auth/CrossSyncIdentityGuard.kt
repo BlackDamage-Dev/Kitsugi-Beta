@@ -416,6 +416,14 @@ object CrossSyncIdentityGuard {
 
         val typeOk = mediaTypesCompatible(mediaType, remote.mediaType)
         val yearOk = yearsCompatible(localYear, remote.year)
+        // Yılın taraflardan birinde bilinmediği durum (yazmayı engellemeyelim).
+        val yearUnknown = (localYear == null || localYear <= 0) || (remote.year == null || remote.year <= 0)
+        // AniList "sezon yılı" ile MAL "başlangıç yılı" zaman zaman 1 yıl kayar
+        // (Aralık/Ocak ayında başlayan yapımlar). Bariz fark (≥2 yıl) gerçekten farklı
+        // içeriktir; 1 yıllık kayma kimlik ayrımı değildir.
+        val yearNear = localYear != null && remote.year != null &&
+            localYear > 0 && remote.year > 0 &&
+            kotlin.math.abs(localYear - remote.year) <= 1
         val matchedLocalTitles = matchingLocalTitleAliases(titles, remote.titles)
         val related = matchedLocalTitles.isNotEmpty()
         // Tam (birebir) başlık eşdeğerliği + aynı MAL türü, yıl bilgisinden BAĞIMSIZ kanıttır:
@@ -438,7 +446,15 @@ object CrossSyncIdentityGuard {
                 remoteYear = remote.year
             )
             identityEquivalent -> Verdict.Verified(remote.primaryTitle, remote.year, matchedLocalTitles)
-            related && yearOk -> Verdict.Verified(remote.primaryTitle, remote.year, matchedLocalTitles)
+            // Başlık eşleşiyorsa yıl BİLİNMİYOR olması yazmayı engellememeli.
+            // ESKİ DAVRANIŞ: `yearOk` iki tarafın da yılı bilmesini ve BİREBİR eşit olmasını
+            // istiyordu; yerel yılı boş olan (Simkl/TMDB/manuel eklenen) veya MAL'ın başlangıç
+            // yılı AniList sezon yılından bir farklı olan kayıtlar "Unverifiable" dönüp
+            // çapraz yazımı (AniList dahil) TAMAMEN atlıyordu → kullanıcı "listeye ekleme/
+            // çıkarma çalışmıyor" görüyordu. Kimliğin asıl kanıtı MAL kimliğidir; başlık
+            // eşleşmesi de doğrulandıysa yıl bilinmiyorsa/yakınsa yazmaya izin verilir.
+            related && (yearOk || yearUnknown || yearNear) ->
+                Verdict.Verified(remote.primaryTitle, remote.year, matchedLocalTitles)
             !related -> Verdict.Rejected(
                 reason = KitsugiStrings.get(
                     R.string.cross_sync_identity_title_mismatch,
@@ -450,8 +466,6 @@ object CrossSyncIdentityGuard {
                 remoteTitle = remote.primaryTitle,
                 remoteYear = remote.year
             )
-            localYear == null || localYear <= 0 || remote.year == null || remote.year <= 0 ->
-                Verdict.Unverifiable(KitsugiStrings.get(R.string.cross_sync_identity_year_unavailable))
             // Yalnızca ZAYIF başlık akrabalığı var ve yıllar çelişiyor → gerçek çelişki.
             else -> Verdict.Rejected(
                 reason = KitsugiStrings.get(

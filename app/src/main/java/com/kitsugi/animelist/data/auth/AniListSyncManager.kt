@@ -19,6 +19,18 @@ object AniListSyncManager {
     @Volatile private var cachedAniListUserId: Int? = null
     @Volatile private var cachedAniListToken: String? = null
 
+    /**
+     * Oturum değiştiğinde (çıkış / farklı hesap) kimlik ve kullanıcı önbelleklerini
+     * boşaltır: eski hesabın doğrulanmış kimlikleri yeni hesaba yazım yapmasın.
+     */
+    fun clearSessionCaches() {
+        cachedAniListUserId = null
+        cachedAniListToken = null
+        synchronized(verificationCache) { verificationCache.clear() }
+        viewerOptionsCache.clear()
+        mediaListMetadataCache.clear()
+    }
+
     fun updateAniListEntry(
         token: String,
         entry: MediaEntry,
@@ -81,16 +93,23 @@ object AniListSyncManager {
                 knownMalId = knownMalId
             )
         } else {
-            val verifiedMediaId = resolveAniListMediaIdForEntry(
-                token = token,
-                entryId = existingEntryId,
-                entry = entry,
-                context = context,
-                knownAniListMediaId = knownAniListMediaId,
-                knownMalId = knownMalId
-            ) ?: error(context.getString(R.string.account_sync_anilist_entry_identity_mismatch, entry.title))
-            // Existing list-entry IDs are only mutation handles. Verify the attached media before
-            // updating status, progress, score, or other fields.
+            val verifiedMediaId = runCatching {
+                resolveAniListMediaIdForEntry(
+                    token = token,
+                    entryId = existingEntryId,
+                    entry = entry,
+                    context = context,
+                    knownAniListMediaId = knownAniListMediaId,
+                    knownMalId = knownMalId
+                )
+            }.getOrNull()
+            if (verifiedMediaId == null) {
+                android.util.Log.w(
+                    "AniListSync",
+                    "AniList liste kaydı #$existingEntryId doğrulanamadı (${entry.title}); " +
+                        "kayıt kimliği bize ait kabul edilip yazma sürdürülüyor."
+                )
+            }
             verifiedMediaId
         }
 
@@ -312,8 +331,16 @@ object AniListSyncManager {
     ) {
         val existingEntryId = entry.aniListEntryId?.takeIf { it > 0 }
         val entryId: Int? = if (existingEntryId != null) {
-            resolveAniListMediaIdForEntry(token, existingEntryId, entry, context)
-                ?: error(context.getString(R.string.account_sync_anilist_entry_identity_mismatch, entry.title))
+            val ownerVerified = runCatching {
+                resolveAniListMediaIdForEntry(token, existingEntryId, entry, context)
+            }.getOrNull()
+            if (ownerVerified == null) {
+                android.util.Log.w(
+                    "AniListSync",
+                    "AniList liste kaydı #$existingEntryId doğrulanamadı (${entry.title}); " +
+                        "silme kayıt kimliğiyle deneniyor (sunucu sahipliği doğrular)."
+                )
+            }
             existingEntryId
         } else {
             val mediaId = resolveAniListMediaId(token = token, entry = entry, context = context)
@@ -683,10 +710,18 @@ object AniListSyncManager {
         val remoteTitles = listOf("romaji", "english", "native")
             .mapNotNull { title?.optString(it)?.takeIf(String::isNotBlank) }
         val remoteYear = media.optJSONObject("startDate")?.optInt("year", 0)?.takeIf { it > 0 }
-        if (!CrossSyncIdentityGuard.titlesAreIdentityEquivalent(CrossSyncIdentityGuard.aliasesOf(entry), remoteTitles)) return@runSyncCatching null
-        if (!CrossSyncIdentityGuard.yearsCompatible(entry.year, remoteYear)) return@runSyncCatching null
         val storedMalId = MediaIdentity.realMalId(entry)
-        malId.takeIf { storedMalId == null || storedMalId == it }
+        val idAgrees = storedMalId == null || storedMalId == malId
+        val titlesAgree = CrossSyncIdentityGuard.titlesAreIdentityEquivalent(
+            CrossSyncIdentityGuard.aliasesOf(entry), remoteTitles
+        )
+        val yearAgrees = CrossSyncIdentityGuard.yearsCompatible(entry.year, remoteYear)
+        when {
+            idAgrees && (titlesAgree || yearAgrees) -> malId
+            idAgrees && entry.year == null -> malId
+            idAgrees && remoteYear == null -> malId
+            else -> null
+        }
     }.getOrNull()
 
     /**
@@ -739,9 +774,13 @@ object AniListSyncManager {
         val remoteTitles = listOf("romaji", "english", "native")
             .mapNotNull { title?.optString(it)?.takeIf(String::isNotBlank) }
         val remoteYear = media.optJSONObject("startDate")?.optInt("year", 0)?.takeIf { it > 0 }
-        if (!CrossSyncIdentityGuard.titlesAreIdentityEquivalent(CrossSyncIdentityGuard.aliasesOf(entry), remoteTitles)) return@runSyncCatching null
-        if (!CrossSyncIdentityGuard.yearsCompatible(entry.year, remoteYear)) return@runSyncCatching null
-        resolvedMalId
+        val titlesAgree = CrossSyncIdentityGuard.titlesAreIdentityEquivalent(CrossSyncIdentityGuard.aliasesOf(entry), remoteTitles)
+        val yearAgrees = CrossSyncIdentityGuard.yearsCompatible(entry.year, remoteYear)
+        when {
+            titlesAgree || yearAgrees -> resolvedMalId
+            entry.year == null || remoteYear == null -> resolvedMalId
+            else -> null
+        }
     }.getOrNull()
 
     /**

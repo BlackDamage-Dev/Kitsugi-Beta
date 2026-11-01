@@ -504,7 +504,10 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
             )
             val settings = SettingsDataStore(context)
             when (serviceName) {
-                "anilist" -> settings.clearAniListProfileInfo()
+                "anilist" -> {
+                    settings.clearAniListProfileInfo()
+                    com.kitsugi.animelist.data.auth.AniListSyncManager.clearSessionCaches()
+                }
                 "mal" -> {
                     settings.clearMalProfileInfo()
                     // Kaydedilen web kimliği de unutulur: bağlı hesap kalmadığı için ekranlarda
