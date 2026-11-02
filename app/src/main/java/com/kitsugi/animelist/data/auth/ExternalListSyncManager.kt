@@ -638,7 +638,8 @@ object ExternalListSyncManager {
                 entry = run.remoteEntry,
                 knownKitsuMediaId = run.identity.kitsuId,
                 fields = fields,
-                fullWrite = plan.fullWrite
+                fullWrite = plan.fullWrite,
+                knownMalId = run.identity.malId
             )
         }.fold(
             onSuccess = { result ->
@@ -961,7 +962,8 @@ object ExternalListSyncManager {
                 // Çapraz kimlik katmanının çözdüğü Kitsu medya kimliği silmeye de taşınır;
                 // eski davranış yalnızca satırın namespace'ine bakıyordu ve bu kimlik
                 // yok sayılıyordu ("Kitsu: hata").
-                knownKitsuMediaId = run.identity.kitsuId
+                knownKitsuMediaId = run.identity.kitsuId,
+                knownMalId = run.identity.malId
             )
         }.fold(
             onSuccess = { result ->

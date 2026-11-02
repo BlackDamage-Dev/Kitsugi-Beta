@@ -578,6 +578,35 @@ object BangumiSyncManager {
             }
         }
 
+        // Film/dizi satırları (TMDB ekseni): başlık aramasına girmeden TMDB → external_ids →
+        // ARM ilişkileri → Wikidata (P12095) üzerinden kesin subject kimliği çözülür ve dönen
+        // subject'in türü (REAL) doğrulanır. Eskiden yalnızca başlık aranıyordu; TMDB
+        // kayıtlarının TR/EN başlıkları Bangumi'nin CJK adlarıyla eşleşmeyince eşleme çoğu
+        // zaman boş kalıyordu ("900 TMDB kaydı, yalnızca 9'u Bangumi'ye yazılabildi").
+        if (entry.type == MediaType.Movie || entry.type == MediaType.TvShow) {
+            val tmdbId = entry.tmdbId?.takeIf { it > 0 }
+            if (tmdbId != null) {
+                val viaTmdb = runCatching {
+                    com.kitsugi.animelist.data.remote.KitsugiIdResolver
+                        .resolveAllTmdbAnimeIds(tmdbId, entry.type).bangumiId
+                }.getOrNull()?.takeIf { it > 0 }
+                if (viaTmdb != null) {
+                    // TvShow olarak eklenen ANİME dizileri Bangumi'de type=2 (anime) olarak yaşar;
+                    // bu yüzden TvShow için REAL'e ek olarak ANIME de kabul edilir. Movie yalnızca
+                    // REAL ister — aksi halde ARM/Wikidata zinciri yanlış tür döndürür.
+                    val acceptableTypes = if (entry.type == MediaType.TvShow) {
+                        setOf(expectedSubjectTypes.firstOrNull() ?: BangumiApiClient.SubjectType.REAL, BangumiApiClient.SubjectType.ANIME)
+                    } else expectedSubjectTypes.toSet()
+                    val typeVerified = runCatching {
+                        val token = BangumiAuthStore.getValidToken(context)
+                        val subject = BangumiApiClient.getSubject(viaTmdb, token)
+                        subject != null && subject.type in acceptableTypes
+                    }.getOrDefault(false)
+                    if (typeVerified) return viaTmdb
+                }
+            }
+        }
+
         val resolverStoredId = if (isLegacyRawBangumiId) {
             null
         } else {

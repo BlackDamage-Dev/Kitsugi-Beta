@@ -58,11 +58,16 @@ object KitsuSyncManager {
         context: Context,
         entry: MediaEntry,
         knownKitsuMediaId: Int?,
-        isAnime: Boolean
+        isAnime: Boolean,
+        knownMalId: Int? = null
     ): ResolvedKitsuMedia? {
         knownKitsuMediaId?.takeIf { it > 0 }?.let { return ResolvedKitsuMedia(it, context.getString(R.string.kitsu_sync_via_known_id)) }
 
-        val realMalId = entry.malId?.takeIf { it in 1..99_999_999 }
+        // Doğrulanmış MAL kimliği (çapraz kimlik katmanı) önce gelir. Yoksa KAYNAK-DUYARLI okuma
+        // gerekir: salt aralık kontrolü Shikimori/Bangumi/Kitsu ham kimliklerini (<100M) de MAL
+        // ID sanıyordu; Kitsu `mappings` tablosu o zaman yanlış yapımın Kitsu kimliğini
+        // döndürüp kullanıcının yanlış anime'sine durum/puan yazıyordu.
+        val realMalId = CrossProviderIds.realMalIdOf(knownMalId) ?: com.kitsugi.animelist.model.MediaIdentity.realMalId(entry)
         realMalId?.let { ExternalAuthManager.getKitsuMediaIdForMal(context, it, isAnime) }
             ?.takeIf { it > 0 }
             ?.let { return ResolvedKitsuMedia(it, context.getString(R.string.kitsu_sync_via_mal_cache)) }
@@ -182,7 +187,8 @@ object KitsuSyncManager {
         /** Yerel satırda DEĞİŞEN alanlar (bkz. [SyncField], [ProviderCapabilitiesCatalog]). */
         fields: Set<SyncField> = SyncField.ALL,
         /** Tam yazım mı? Boş puan/not/tarih bu durumda GÖNDERİLMEZ (uzak değer korunur). */
-        fullWrite: Boolean = fields == SyncField.ALL
+        fullWrite: Boolean = fields == SyncField.ALL,
+        knownMalId: Int? = null
     ): SyncResult = withContext(Dispatchers.IO) {
         if (entry.type != MediaType.Anime && entry.type != MediaType.Manga) {
             return@withContext SyncResult(emptyList(), listOf(context.getString(R.string.account_sync_service_anime_manga_only)))
@@ -197,7 +203,7 @@ object KitsuSyncManager {
         val isAnime = entry.type != MediaType.Manga
 
         // 1. Kitsu Media Numeric ID'sini bul
-        val resolved = resolveKitsuMediaId(context, entry, knownKitsuMediaId, isAnime)
+        val resolved = resolveKitsuMediaId(context, entry, knownKitsuMediaId, isAnime, knownMalId)
         if (resolved == null) {
             return@withContext SyncResult(
                 messages = emptyList(),
@@ -362,7 +368,8 @@ object KitsuSyncManager {
     suspend fun deleteEntryFromKitsu(
         context: Context,
         entry: MediaEntry,
-        knownKitsuMediaId: Int? = null
+        knownKitsuMediaId: Int? = null,
+        knownMalId: Int? = null
     ): SyncResult = withContext(Dispatchers.IO) {
         if (entry.type != MediaType.Anime && entry.type != MediaType.Manga) {
             return@withContext SyncResult(emptyList(), listOf(context.getString(R.string.account_sync_service_anime_manga_only)))
@@ -374,7 +381,7 @@ object KitsuSyncManager {
             return@withContext SyncResult(messages = emptyList(), errors = listOf(context.getString(R.string.account_sync_account_not_connected, "Kitsu")))
         }
 
-        val resolved = resolveKitsuMediaId(context, entry, knownKitsuMediaId, isAnime)
+        val resolved = resolveKitsuMediaId(context, entry, knownKitsuMediaId, isAnime, knownMalId)
         if (resolved == null) {
             return@withContext SyncResult(
                 messages = emptyList(),

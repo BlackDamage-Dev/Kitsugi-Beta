@@ -7455,6 +7455,7 @@
     <string name="cross_sync_log_start_failed">Could not start sync: %1$s</string>
     <string name="cross_sync_log_stopped">Sync stopped; completed entries were added to the report.</string>
     <string name="cross_sync_log_sync_error">Sync error: %1$s</string>
+    <string name="cross_sync_log_item_failed">[%1$s] ! Entry could not be processed, skipped: %2$s (%3$s)</string>
     <string name="cross_sync_log_updated">[%1$s] ~ Updated: %2$s</string>
     <string name="cross_sync_log_updated_bangumi">[Bangumi] ~ Updated: %1$s (%2$s, Episode: %3$d)</string>
     <string name="cross_sync_needs_two_accounts">Connect at least two platforms to use cross-sync (AniList, MyAnimeList, Simkl, Kitsu, Shikimori, or Bangumi).</string>

@@ -2,6 +2,7 @@ package com.kitsugi.animelist.data.auth
 
 import com.kitsugi.animelist.model.MediaEntry
 import com.kitsugi.animelist.model.MediaIdentity
+import com.kitsugi.animelist.model.MediaType
 
 /**
  * Pure, deterministic multi-provider cluster engine for bulk cross-sync (`AuthViewModel.syncPlatforms`).
@@ -133,8 +134,9 @@ object CrossSyncClusterEngine {
         candidates: List<MediaEntry>,
         keysOf: (MediaEntry) -> Set<String>
     ): Int? {
-        candidates.firstNotNullOfOrNull { MediaIdentity.realMalId(it) }?.let { return it }
-        for (candidate in candidates) {
+        val animeOrMangaCandidates = candidates.filter { it.type == MediaType.Anime || it.type == MediaType.Manga }
+        animeOrMangaCandidates.firstNotNullOfOrNull { MediaIdentity.realMalId(it) }?.let { return it }
+        for (candidate in animeOrMangaCandidates) {
             val prefix = "${candidate.type.name}:mal:"
             val fromCrosswalk = keysOf(candidate)
                 .firstNotNullOfOrNull { key ->

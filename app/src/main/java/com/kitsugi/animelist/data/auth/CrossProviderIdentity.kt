@@ -166,8 +166,16 @@ data class CrossProviderIds(
                     BangumiIdNamespace.rawIdFromStable(id)
                         ?: id.takeIf { normalizedSource == "bangumi" && it in REAL_MAL_MIN..REAL_MAL_MAX }
                 }
+                // Eski/alternatif yazım: TMDB kimliği yalnızca `malId` alanında taşınabilir
+                // (kaynak "tmdb"/"simkl", değer <100M) ve `tmdbId` alanı boş kalmış olabilir.
+                // Bu durumda malId alanındaki değer TMDB kimliği olarak okunur — aksi halde
+                // film/dizi satırı TMDB ekseninde kimliksiz kalır ve çapraz eşitleme onu atlar.
+                val tmdbFallback = storedId?.takeIf {
+                    tmdbFromRow == null && normalizedSource in setOf("tmdb", "simkl") &&
+                        it in REAL_MAL_MIN..REAL_MAL_MAX
+                }
                 return CrossProviderIds(
-                    tmdbId = tmdbFromRow,
+                    tmdbId = tmdbFromRow ?: tmdbFallback,
                     simklId = simklFromRow,
                     bangumiSubjectId = bangumiForVideo?.takeIf { it > 0 }
                 )
@@ -610,6 +618,23 @@ object CrossProviderIdentityResolver {
                 if (withArm.aniListId != before.aniListId) withArm.aniListId?.let { withArm = withArm.withVia("anilist", "ARM") }
                 if (withArm.kitsuId != before.kitsuId) withArm.kitsuId?.let { withArm = withArm.withVia("kitsu", "ARM") }
                 ids = withArm
+            }
+        }
+
+        // 2b) Film/dizi (TMDB ekseni): Bangumi subject kimliği başlık aramasına girmeden
+        // TMDB → external_ids → ARM ilişkileri → Wikidata (P12095) zinciriyle kesin çözülür.
+        // Bu adım olmadan film/dizi satırları için Bangumi kimliği yalnızca 4. adımdaki
+        // başlık aramasına kalıyordu; TMDB başlıkları (TR/EN) Bangumi'nin CJK adlarıyla
+        // eşleşmeyince eşleme neredeyse her zaman boş dönüyordu.
+        if (ids.bangumiSubjectId == null && connected.bangumi && CrossSyncPolicy.supportsBangumi(entry.type) &&
+            (entry.type == MediaType.Movie || entry.type == MediaType.TvShow) && ids.tmdbId != null
+        ) {
+            val viaTmdb = runSyncCatching {
+                com.kitsugi.animelist.data.remote.KitsugiIdResolver
+                    .resolveAllTmdbAnimeIds(ids.tmdbId!!, entry.type).bangumiId
+            }.getOrNull()?.takeIf { it > 0 }
+            if (viaTmdb != null) {
+                ids = ids.copy(bangumiSubjectId = viaTmdb).withVia("bangumi", "TMDB/Wikidata")
             }
         }
 

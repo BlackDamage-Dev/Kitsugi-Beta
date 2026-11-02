@@ -152,13 +152,28 @@ object SimklSyncManager {
             // Simkl'e `ids.mal` olarak göndermelidir; [CrossProviderIds.decode] ise kaynak
             // duyarlılığı gereği onu shikimori sayar. Canlı hat, çapraz kimlik kopyalarıyla
             // çalıştığı için [realMalIdOf] (knownMalId + decode) kullanır.
-            val realMalId = entry.malId?.takeIf { entry.type == MediaType.Anime && it > 0 && it < 100_000_000 }
+            // GÜVENLİK (2026-11-02): salt aralık kontrolü eski KITSU satırlarının ham kimliğini
+            // (<100M) de MAL ID sanıp Simkl'e yanlış anime kimliği gönderiyordu. Artık kaynak
+            // duyarlı decode kullanılır: kitsu satırında kitsuId, malId olarak asla çıkmaz.
+            val decodedIds = CrossProviderIds.decode(
+                storedId = entry.malId,
+                source = entry.source,
+                type = entry.type,
+                entrySimklId = entry.simklId,
+                entryTmdbId = entry.tmdbId
+            )
+            val realMalId = decodedIds.malId
+                ?: decodedIds.shikimoriId?.takeIf { entry.type == MediaType.Anime }
             val aniListId = if (entry.source == "anilist" && entry.malId != null && entry.malId >= 100_000_000 && entry.malId < 300_000_000) {
                 entry.malId - 100_000_000
             } else null
             // KitsuImportManager encodes IDs with this offset. After cross-sync resolves
             // a real MAL ID, source may still be "kitsu"; never send that MAL ID as kitsu.
-            val rawKitsuId = entry.malId?.takeIf { it in 300_000_001..399_999_999 }?.minus(300_000_000)
+            val rawKitsuId = when {
+                entry.malId != null && entry.malId in 300_000_001..399_999_999 -> entry.malId - 300_000_000
+                entry.source == "kitsu" && entry.malId != null && entry.malId in 1..99_999_999 -> entry.malId
+                else -> null
+            }
             val simklId = entry.simklId?.takeIf { it > 0 } ?: 0
             val effectiveTitle = entry.titleEnglish?.takeIf { it.isNotBlank() } ?: entry.title
 

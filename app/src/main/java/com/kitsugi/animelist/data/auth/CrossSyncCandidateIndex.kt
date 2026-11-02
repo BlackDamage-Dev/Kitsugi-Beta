@@ -15,12 +15,13 @@ internal class CrossSyncCandidateIndex<Group : Any>(
     private val groupsByPrimaryEnglishTitle = mutableMapOf<String, LinkedHashSet<Group>>()
     private val groupsByAnyTitle = mutableMapOf<String, LinkedHashSet<Group>>()
 
-    fun keysOf(entry: MediaEntry): Set<String> =
-        if (identityExtras.isEmpty()) MediaIdentity.keys(entry)
-        else MediaIdentity.keys(entry, identityExtras[entry.id].orEmpty())
+    fun keysOf(entry: MediaEntry, extraKeys: Set<String> = emptySet()): Set<String> {
+        val extras = if (extraKeys.isNotEmpty()) extraKeys else identityExtras[entry.id].orEmpty()
+        return MediaIdentity.keys(entry, extras)
+    }
 
-    fun add(group: Group, entry: MediaEntry) {
-        keysOf(entry).forEach { key ->
+    fun add(group: Group, entry: MediaEntry, extraKeys: Set<String> = emptySet()) {
+        keysOf(entry, extraKeys).forEach { key ->
             groupsByIdentityKey.getOrPut(key) { linkedSetOf() }.add(group)
         }
         primaryEnglishAliases(entry).forEach { alias ->
@@ -53,8 +54,8 @@ internal class CrossSyncCandidateIndex<Group : Any>(
     }
 
     /** Returns a small superset of groups that may satisfy MediaIdentity.sameMedia(). */
-    fun possibleMatches(entry: MediaEntry): Set<Group> = LinkedHashSet<Group>().apply {
-        keysOf(entry).forEach { key -> addAll(groupsByIdentityKey[key].orEmpty()) }
+    fun possibleMatches(entry: MediaEntry, extraKeys: Set<String> = emptySet()): Set<Group> = LinkedHashSet<Group>().apply {
+        keysOf(entry, extraKeys).forEach { key -> addAll(groupsByIdentityKey[key].orEmpty()) }
         primaryEnglishAliases(entry).forEach { alias -> addAll(groupsByAnyTitle[titleKey(entry, alias)].orEmpty()) }
         japaneseAlias(entry)?.let { alias -> addAll(groupsByAnyTitle[titleKey(entry, alias)].orEmpty()) }
     }

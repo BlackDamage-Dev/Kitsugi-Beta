@@ -61,7 +61,20 @@ object MyListIdentityCrosswalk {
         context: Context,
         entries: List<MediaEntry>,
         allowNetwork: Boolean = false
-    ): Map<Int, Set<String>> {
+    ): Map<Int, Set<String>> =
+        buildByEntry(context, entries, allowNetwork).mapKeys { (entry, _) -> entry.id }
+
+    /**
+     * [build] ile aynı ek anahtarlar, ama kayıt nesnesinin kendisiyle anahtarlanır.
+     * İçe aktarılan kayıtların `id` alanı 0 olabildiği (tüm kaynaklarda aynı değer) için
+     * `Map<Int, Set<String>>` burada ÇAKIŞIR — yanlış kayda yanlış ek anahtar atanır ve bu
+     * yanlış eşleşmeye yol açar. Kayıt nesnesi (data class) ile anahtarlamak güvenlidir.
+     */
+    suspend fun buildByEntry(
+        context: Context,
+        entries: List<MediaEntry>,
+        allowNetwork: Boolean = false
+    ): Map<MediaEntry, Set<String>> {
         if (entries.isEmpty()) return emptyMap()
         return withContext(Dispatchers.IO) {
             val bangumiSubjectToMal = buildMap {
@@ -87,7 +100,7 @@ object MyListIdentityCrosswalk {
 
             val crossTypeCandidates = if (allowNetwork) crossTypeResolutionCandidates(entries) else emptySet()
 
-            val result = LinkedHashMap<Int, Set<String>>(entries.size)
+            val result = LinkedHashMap<MediaEntry, Set<String>>(entries.size)
             entries.forEach { entry ->
                 var ids = lookupIndexedIds(entry, indexedBundles) ?: cachedIds(context, entry)
                 if (ids == null && allowNetwork && entry.id in crossTypeCandidates) {
@@ -112,7 +125,7 @@ object MyListIdentityCrosswalk {
                     bangumiSubjectToMal = bangumiSubjectToMal,
                     kitsuMediaToMal = kitsuMediaToMal
                 )
-                if (extras.isNotEmpty()) result[entry.id] = extras
+                if (extras.isNotEmpty()) result[entry] = extras
             }
             result
         }

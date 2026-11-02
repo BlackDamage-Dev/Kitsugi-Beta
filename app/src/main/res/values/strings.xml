@@ -7460,6 +7460,7 @@ Eklentiler ekranından eklenti etkinleştirin.</string>
     <string name="cross_sync_log_start_failed">Eşitleme başlatılamadı: %1$s</string>
     <string name="cross_sync_log_stopped">Eşitleme durduruldu; tamamlanan kayıtlar rapora eklendi.</string>
     <string name="cross_sync_log_sync_error">Eşitleme hatası: %1$s</string>
+    <string name="cross_sync_log_item_failed">[%1$s] ! Kayıt işlenemedi, atlandı: %2$s (%3$s)</string>
     <string name="cross_sync_log_updated">[%1$s] ~ Güncellendi: %2$s</string>
     <string name="cross_sync_log_updated_bangumi">[Bangumi] ~ Güncellendi: %1$s (%2$s, Bölüm: %3$d)</string>
     <string name="cross_sync_needs_two_accounts">Çapraz eşitlemeyi kullanmak için en az iki platform bağlayın (AniList, MyAnimeList, Simkl, Kitsu, Shikimori veya Bangumi).</string>

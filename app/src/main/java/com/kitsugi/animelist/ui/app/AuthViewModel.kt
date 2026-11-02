@@ -731,11 +731,12 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
 
     @Suppress("UNUSED_PARAMETER")
     private suspend fun resolveRealMalId(entry: MediaEntry, aniListToken: String?): Int? {
-        val existing = entry.malId?.takeIf { it.isRealMalId() }
-        if (existing != null) return existing
-
         val isAnimeOrManga = entry.type == MediaType.Anime || entry.type == MediaType.Manga
         if (!isAnimeOrManga) return null
+        // Kaynak-duyarlı okuma: `malId` alanı film/dizi satırlarında TMDB kimliği, Shikimori
+        // satırlarında ham target_id taşıyabilir — salt aralık kontrolü bunları MAL ID sanar.
+        val existing = com.kitsugi.animelist.model.MediaIdentity.realMalId(entry)
+        if (existing != null) return existing
 
         // Paketlenmiş Bangumi→MAL eşlemesi yalnız adaydır; MAL kataloğunda tür/başlık/yıl
         // doğrulaması geçmeden gerçek kimlik olarak kullanılmaz. Çelişkili çiftler elenmiştir.
@@ -1227,6 +1228,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
 
                 // ── FAZ 3: Eksikleri Tamamlama ve Alan Senkronizasyonu (Asla Silme Yok) ──
                 for ((index, item) in unifiedItems.withIndex()) {
+                  try {
                     kotlinx.coroutines.currentCoroutineContext().ensureActive()
                     val allCandidates = item.candidates
                     val candidates = item.actionableCandidates
@@ -1679,11 +1681,14 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                         } else if (current == null && !additionsAllowed) {
                             recordIdentitySkip("Simkl", mergedEntry.title)
                         } else if (current == null) {
-                            simklEntriesToSync.add(mergedEntry)
+                            // Doğrulanmış MAL kimliği varsa kaynak damgası "mal" yapılır; yoksa ham
+                            // satır olduğu gibi kalır (kitsu/shikimori ham kimlikleri decode ile
+                            // kendi uzayında okunur, asla MAL'e yazılmaz).
+                            simklEntriesToSync.add(if (realMalId != null) mergedEntry.copy(malId = realMalId, source = "mal") else mergedEntry)
                         } else {
                             val dirty = dirtyFor("simkl", current)
                             if (dirty.isNotEmpty()) {
-                                simklEntriesToSync.add(mergedEntry.copy(simklId = current.simklId))
+                                simklEntriesToSync.add((if (realMalId != null) mergedEntry.copy(malId = realMalId, source = "mal") else mergedEntry).copy(simklId = current.simklId))
                             }
                         }
                     }
@@ -1782,7 +1787,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                         } else if (current == null) {
                             // Kitsu'da eksik -> EKLE! (hız sınırı artık KitsuApiClient içinde her istek için uygulanıyor)
                             val outcome = CrossSyncRetry.retrySyncWrite("kitsu", mergedEntry.title, errorTexts = { it.errors }) {
-                                KitsuSyncManager.syncEntryToKitsu(context, mergedEntry, knownKitsuMediaId = null)
+                                KitsuSyncManager.syncEntryToKitsu(context, mergedEntry, knownKitsuMediaId = null, knownMalId = realMalId)
                             }
                             val res = outcome.getOrNull()
                             if (res != null && res.errors.isEmpty()) {
@@ -1810,7 +1815,8 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                                     KitsuSyncManager.syncEntryToKitsu(
                                         context, mergedEntry,
                                         knownKitsuMediaId = knownKitsuId,
-                                        fields = dirty
+                                        fields = dirty,
+                                        knownMalId = realMalId
                                     )
                                 }
                                 val res = outcome.getOrNull()
@@ -1969,6 +1975,19 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                         )
                     }
                     if ((index + 1) % 25 == 0) kotlinx.coroutines.yield()
+                  } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                    throw cancelled
+                  } catch (itemError: Exception) {
+                    // 2026-11-02: tek bir kayıttaki beklenmedik hata (örn. kaynak biçim
+                    // uyuşmazlığı "Format specifier '%3$s'") tüm eşitlemeyi 830/900'de
+                    // durduruyordu. Artık kayıt atlanıp günlüğe yazılıyor ve döngü devam ediyor.
+                    logEvent(
+                        context.getString(R.string.cross_sync_log_category_error),
+                        context.getString(R.string.cross_sync_log_item_failed, context.getString(R.string.cross_sync_log_category_sync), item.primaryTitle, itemError.message ?: itemError.javaClass.simpleName),
+                        isError = true,
+                        details = itemError.crossSyncDiagnostic(context)
+                    )
+                  }
                 }
 
                 kotlinx.coroutines.currentCoroutineContext().ensureActive()

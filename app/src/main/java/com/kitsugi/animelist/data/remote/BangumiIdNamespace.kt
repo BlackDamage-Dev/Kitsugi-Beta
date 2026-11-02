@@ -285,6 +285,30 @@ object BangumiIdNamespace {
         return candidates.singleOrNull()
     }
 
+    /**
+     * Arama sonuçları içinden kabul edilecek TEK adayı seçer (saf fonksiyon, birim testine açık).
+     *
+     * Kabul kuralı: YALNIZCA tek ve net eşleşme — başlık (name/nameCn) normalize edilmiş olarak
+     * birebir tutmalı VE bilinen yıl uyuşmalıdır (adayda yıl yoksa adın tek olması yeterli).
+     * Eski kod, başlık tutmasa bile yalnızca yıl uyuşan TEK adayı kabul ediyordu
+     * (`candidates.size == 1 -> candidates.first()`); bu, aynı yıl çıkan alakasız bir条目'yu
+     * yanlış eşleştiriyordu (kullanıcı raporu: "yanlış eşleşme").
+     */
+    internal fun selectUniqueSubject(
+        data: List<BangumiApiClient.BangumiSubject>,
+        expectedSubjectType: Int,
+        query: String,
+        expectedYear: Int?
+    ): BangumiApiClient.BangumiSubject? {
+        val exact = data.filter { subject ->
+            subject.type == expectedSubjectType &&
+                (matchesTitle(subject.name, query) || matchesTitle(subject.nameCn, query)) &&
+                (expectedYear == null || subject.date?.take(4)?.toIntOrNull() == null ||
+                    subject.date?.take(4)?.toIntOrNull() == expectedYear)
+        }
+        return exact.singleOrNull()
+    }
+
     /** Geriye dönük uyumluluk: tek beklenen subject type alan aşırı yükleme. */
     internal fun selectUniqueSubjectMatch(
         subjects: List<BangumiApiClient.BangumiSubject>,
