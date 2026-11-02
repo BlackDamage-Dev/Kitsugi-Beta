@@ -3007,6 +3007,23 @@ Eklentiler ekranından eklenti etkinleştirin.</string>
     <string name="player_general_auto_play_next_episode_description">Sonraki bölümü otomatik olarak başlatır.</string>
     <string name="player_general_skip_intro_button_duration">İntro Atlama Buton Süresi</string>
     <string name="player_general_skip_intro_button_duration_description">Hızlı geçiş için ekrana gelen introyu atla butonunun süresi</string>
+        <!-- Oyuncu: Kalite ve Kaynak AYRI sheet'ler (v2.4.341) -->
+    <string name="player_quality_sheet_title">Kalite</string>
+    <string name="player_source_sheet_title">Kaynak</string>
+    <string name="player_quality_auto_best">Otomatik (en iyi kalite)</string>
+    <string name="player_quality_auto_best_desc">En yüksek bildirilen çözünürlüğe sahip kaynak oynatılır</string>
+    <string name="player_quality_declared_desc">Kaynağın bildirdiği kalite</string>
+    <string name="player_quality_source_count">%1$d kaynak</string>
+    <string name="player_quality_none_title">Bu video için seçilebilir kalite yok</string>
+    <string name="player_quality_none_desc">Kaynaklar çözünürlük bildirmiyor. Kalite seçenekleri yalnızca kaynağın açıkça bildirdiği çözünürlüklerden oluşur; bu durumda oynatıcı motoru kalite sunmaz. Sunucuyu (kaynağı) değiştirmek için Kaynak listesini aç.</string>
+    <string name="player_quality_open_sources">Kaynak listesi</string>
+    <string name="player_source_sheet_desc">Oynatılacak sunucuyu (eklenti kaynağını) seç</string>
+    <string name="player_source_count">%1$d kaynak</string>
+    <string name="player_source_empty">Kaynak listesi boş. Bu bölüm için eklenti akışı bulunamadı.</string>
+
+    <!-- Eklenti içi arama — ana arama sayfası paritesi (v2.4.341) -->
+    <string name="plugin_search_in_addon">%1$s içinde ara…</string>
+    <string name="plugin_search_results">%1$d sonuç</string>
     <string name="player_quality_prefer_1080p">1080p Tercih Et</string>
     <string name="player_quality_prefer_720p">720p Tercih Et</string>
     <string name="player_quality_prefer_480p">480p Tercih Et</string>

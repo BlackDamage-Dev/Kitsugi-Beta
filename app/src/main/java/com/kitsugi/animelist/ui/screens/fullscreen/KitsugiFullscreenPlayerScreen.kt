@@ -537,11 +537,11 @@ fun KitsugiFullscreenPlayerScreen(
             targetEp = targetEp,
             activity = activity,
             onAlternativeRequired = {
-                viewModel.showSheet(KitsugiSheets.Sources)
+                viewModel.showSheet(KitsugiSheets.SourceTracks)
                 Toast.makeText(context, KitsugiStrings.get(R.string.ayni_kaynak_bulunamadi_diger_kaynaklar_listeleniyor), Toast.LENGTH_LONG).show()
             },
             onResolutionFailed = {
-                viewModel.showSheet(KitsugiSheets.Sources)
+                viewModel.showSheet(KitsugiSheets.SourceTracks)
                 Toast.makeText(context, KitsugiStrings.get(R.string.secilen_kaynak_cozumlenemedi_lutfen_listeden_baska_bir_kaynak_se), Toast.LENGTH_LONG).show()
             }
         )
@@ -551,11 +551,11 @@ fun KitsugiFullscreenPlayerScreen(
         viewModel.playNextEpisode(
             activity = activity,
             onAlternativeRequired = {
-                viewModel.showSheet(KitsugiSheets.Sources)
+                viewModel.showSheet(KitsugiSheets.SourceTracks)
                 Toast.makeText(context, KitsugiStrings.get(R.string.ayni_kaynak_bulunamadi_diger_kaynaklar_listeleniyor), Toast.LENGTH_LONG).show()
             },
             onResolutionFailed = {
-                viewModel.showSheet(KitsugiSheets.Sources)
+                viewModel.showSheet(KitsugiSheets.SourceTracks)
                 Toast.makeText(context, KitsugiStrings.get(R.string.secilen_kaynak_cozumlenemedi_lutfen_listeden_baska_bir_kaynak_se), Toast.LENGTH_LONG).show()
             }
         )
@@ -633,7 +633,7 @@ fun KitsugiFullscreenPlayerScreen(
                     onRetry = { viewModel.retryCurrentSource() },
                     onSwitchSource = {
                         if (currentStreamSources.isNotEmpty()) {
-                            viewModel.showSheet(KitsugiSheets.Sources)
+                            viewModel.showSheet(KitsugiSheets.SourceTracks)
                         } else {
                             KitsugiStreamActivity.start(
                                 context = context,
@@ -1844,6 +1844,7 @@ fun KitsugiFullscreenPlayerScreen(
                         onClickCustomButton = viewModel::executeCustomButton,
                         onLongClickCustomButton = viewModel::executeCustomButtonLongPress,
                         onOpenPanel = { panel -> viewModel.showPanel(panel) },
+                        onShowSheet = { sheet -> viewModel.showSheet(sheet) },
                         currentSpeed = playbackSpeed,
                         onSpeedChange = { speed ->
                             viewModel.setPlaybackSpeed(speed, persist = false)

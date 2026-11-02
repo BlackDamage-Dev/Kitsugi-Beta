@@ -233,65 +233,29 @@ fun PluginPickerBottomSheet(
                 )
             }
 
-            // ── Premium Arama Çubuğu ──────────────────────────────────────
-            Box(
+            // ── Arama Çubuğu — ana arama sayfasıyla BİREBİR AYNI bileşen ─────
+            com.kitsugi.animelist.ui.components.KitsugiCosmicSearchBar(
+                query = queryText,
+                onQueryChange = {
+                    queryText = it
+                    if (it.isBlank()) {
+                        searchResults = emptyList()
+                        hasSearched = false
+                    }
+                },
+                onSearch = {
+                    if (queryText.isNotBlank()) performSearch()
+                },
+                onClearQuery = {
+                    queryText = ""
+                    searchResults = emptyList()
+                    hasSearched = false
+                },
+                placeholder = KitsugiStrings.get(R.string.eklentilerde_ara_x_eklenti, activeApis.size),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 6.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(KitsugiColors.Surface)
-                    .border(1.dp, KitsugiColors.Border, RoundedCornerShape(16.dp))
-                    .padding(horizontal = 14.dp, vertical = 12.dp)
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    KitsugiArtIcon(art = KitsugiArt.NavSearch, size = 20.dp)
-                    
-                    BasicTextField(
-                        value = queryText,
-                        onValueChange = {
-                            queryText = it
-                            if (it.isBlank()) {
-                                searchResults = emptyList()
-                                hasSearched = false
-                            }
-                        },
-                        textStyle = androidx.compose.ui.text.TextStyle(
-                            color = KitsugiColors.TextPrimary,
-                            fontSize = 14.sp
-                        ),
-                        cursorBrush = SolidColor(accentColor),
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                        keyboardActions = KeyboardActions(onSearch = {
-                            if (queryText.isNotBlank()) {
-                                performSearch()
-                            }
-                        }),
-                        modifier = Modifier.weight(1f)
-                    )
-                    
-                    if (queryText.isNotEmpty()) {
-                        IconButton(
-                            onClick = {
-                                queryText = ""
-                                searchResults = emptyList()
-                                hasSearched = false
-                            },
-                            modifier = Modifier.size(20.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Close,
-                                contentDescription = stringResource(R.string.temizle),
-                                tint = KitsugiColors.TextMuted,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
-                    }
-                }
-            }
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
+            )
 
             Spacer(modifier = Modifier.height(8.dp))
 

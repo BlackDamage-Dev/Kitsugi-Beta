@@ -48,7 +48,7 @@ internal fun TvType?.toAddonTypeLabel(): String {
  * - `malId` URL'den türetilen kararlı bir pozitif sayıdır (anahtarlar için).
  */
 /** `year` alanı bazı CS3 derlemelerinde doğrudan açık olmayabilir — yansımalı güvenli okuma. */
-private fun SearchResponse.safeYear(): Int? = runCatching {
+internal fun SearchResponse.safeYear(): Int? = runCatching {
     val field = javaClass.getDeclaredField("year")
     field.isAccessible = true
     (field.get(this) as? Number)?.toInt()

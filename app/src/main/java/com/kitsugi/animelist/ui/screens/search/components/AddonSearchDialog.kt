@@ -310,24 +310,28 @@ fun AddonSearchDialog(
                                                 )
                                             }
                                             Spacer(modifier = Modifier.height(10.dp))
-                                            // Yatay kart listesi — aynı kart, aynı boşluk, aynı snap
-                                            LazyRow(
-                                                contentPadding = PaddingValues(horizontal = 4.dp),
-                                                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                            ) {
-                                                uniqueItems(
-                                                    items = itemsForApi,
-                                                    key = { (_, response) -> "${api.name}_${response.url}" }
-                                                ) { (_, response) ->
-                                                    val result = response.toAddonSearchResult()
-                                                    KitsugiExploreMediaCard(
-                                                        result = result,
-                                                        onClick = { activeDetailItem = api to response },
-                                                        modifier = Modifier.width(cardWidth),
-                                                        forceVertical = false
-                                                    )
-                                                }
+                                        // Ana arama sayfasıyla AYNI sonuç düzeni: poster
+                                        // şeridi yerine tek sütun, kompakt yatay satırlar.
+                                        Column(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            itemsForApi.forEach { (_, response) ->
+                                                AddonResultRow(
+                                                    title = response.name,
+                                                    subtitle = response.type.toAddonTypeLabel(),
+                                                    imageUrl = response.posterUrl,
+                                                    apiName = api.name,
+                                                    qualityLabel = response.quality?.name,
+                                                    year = response.safeYear(),
+                                                    isAdult = isAddonAdultResponse(response),
+                                                    onClick = {
+                                                        activeDetailItem = api to response
+                                                    },
+                                                    modifier = Modifier.padding(horizontal = 8.dp)
+                                                )
                                             }
+                                        }
                                         }
                                     }
                                 }

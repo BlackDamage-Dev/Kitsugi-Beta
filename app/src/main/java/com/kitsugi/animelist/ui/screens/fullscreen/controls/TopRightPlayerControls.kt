@@ -23,6 +23,12 @@ fun TopRightPlayerControls(
     onAudioClick: () -> Unit,
     onAudioLongClick: () -> Unit,
     onQualityClick: () -> Unit,
+    /**
+     * Kalite butonuna UZUN basma → Kaynak (sunucu) listesi.
+     * v2.4.341: kalite ve kaynak ayrı sheet\'ler; kısa dokunma kaliteyi,
+     * uzun dokunma kaynak listesini açar.
+     */
+    onQualityLongClick: () -> Unit = {},
     onSourcesClick: () -> Unit,
     isEpisodeOnline: Boolean?,
     onMoreClick: () -> Unit,
@@ -59,7 +65,7 @@ fun TopRightPlayerControls(
                 icon = Icons.HighQuality,
                 title = stringResource(R.string.player_video_quality),
                 onClick = onQualityClick,
-                onLongClick = onQualityClick,
+                onLongClick = onQualityLongClick,
                 horizontalSpacing = 8.dp,
             )
         }

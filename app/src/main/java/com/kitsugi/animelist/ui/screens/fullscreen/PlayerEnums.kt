@@ -46,7 +46,10 @@ enum class KitsugiSheets {
     PlaybackSpeed,
     SubtitleTracks,
     AudioTracks,
+    /** Yalnızca kalite seçenekleri (Otomatik + bildirilen çözünürlükler). */
     QualityTracks,
+    /** Yalnızca kaynak (sunucu) listesi. */
+    SourceTracks,
     Sources,
     Chapters,
     More,

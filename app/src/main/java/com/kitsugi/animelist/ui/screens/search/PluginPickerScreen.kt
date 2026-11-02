@@ -521,116 +521,25 @@ fun PluginPickerScreen(
                         .padding(horizontal = 16.dp, vertical = 4.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    // Gerçek Eklenti İçi İçerik + Eklenti Adı Arama Çubuğu
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(KitsugiColors.Surface)
-                            .border(1.dp, KitsugiColors.Border, RoundedCornerShape(16.dp))
-                            .padding(horizontal = 14.dp, vertical = 10.dp)
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            KitsugiArtIcon(
-                                art = KitsugiArt.NavSearch,
-                                modifier = Modifier
-                                    .clickable(enabled = hasInputText) {
-                                        keyboardController?.hide()
-                                        executeCrossPluginContentSearch(
-                                            pluginQueryState.text.toString(),
-                                            force = true
-                                        )
-                                    },
-                                size = 20.dp
-                            )
-
-                            BasicTextField(
-                                state = pluginQueryState,
-                                textStyle = androidx.compose.ui.text.TextStyle(
-                                    color = KitsugiColors.TextPrimary,
-                                    fontSize = 15.sp
-                                ),
-                                cursorBrush = SolidColor(accentColor),
-                                lineLimits = TextFieldLineLimits.SingleLine,
-                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                                onKeyboardAction = {
-                                    keyboardController?.hide()
-                                    executeCrossPluginContentSearch(
-                                        pluginQueryState.text.toString(),
-                                        force = true
-                                    )
-                                },
-                                modifier = Modifier.weight(1f),
-                                decorator = { innerTextField ->
-                                    Box(contentAlignment = Alignment.CenterStart) {
-                                        if (!hasInputText) {
-                                            Text(
-                                                text = KitsugiStrings.get(
-                                                    R.string.eklentilerde_ara_x_eklenti,
-                                                    categoryFilteredApis.size
-                                                ),
-                                                color = KitsugiColors.TextMuted,
-                                                fontSize = 14.sp,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-                                        }
-                                        innerTextField()
-                                    }
-                                }
-                            )
-
-                            if (isSearchingContent) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(16.dp),
-                                    strokeWidth = 2.dp,
-                                    color = accentColor
-                                )
-                            } else if (hasInputText && queryText.trim().length >= 2) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(24.dp)
-                                        .clip(CircleShape)
-                                        .clickable {
-                                            keyboardController?.hide()
-                                            executeCrossPluginContentSearch(
-                                                pluginQueryState.text.toString(),
-                                                force = true
-                                            )
-                                        },
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Refresh,
-                                        contentDescription = null,
-                                        tint = KitsugiColors.TextMuted,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                }
-                            }
-
-                            if (hasInputText) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(24.dp)
-                                        .clip(CircleShape)
-                                        .background(KitsugiColors.SurfaceSoft)
-                                        .clickable { clearSearch() },
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Close,
-                                        contentDescription = stringResource(R.string.temizle),
-                                        tint = KitsugiColors.TextMuted,
-                                        modifier = Modifier.size(14.dp)
-                                    )
-                                }
-                            }
-                        }
-                    }
+                    // Eklenti arama çubuğu — ANA ARAMA SAYFASIYLA BİREBİR AYNI bileşen.
+                    // (KitsugiCosmicSearchBar: 56 dp yükseklik, 16 dp köşe, aynı
+                    //  yazı tipi/odak rengi, aynı temizle + ara butonları.)
+                    com.kitsugi.animelist.ui.components.KitsugiCosmicSearchBar(
+                        query = queryText,
+                        onQueryChange = { queryText = it },
+                        onSearch = {
+                            keyboardController?.hide()
+                            executeCrossPluginContentSearch(queryText, force = true)
+                        },
+                        onClearQuery = {
+                            clearSearch()
+                        },
+                        placeholder = KitsugiStrings.get(
+                            R.string.eklentilerde_ara_x_eklenti,
+                            categoryFilteredApis.size
+                        ),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
 
                     // Kategori Çipleri (Tümü, Filmler, Diziler, +18, Animasyon vb.)
                     val availableGroups = remember(activeApis, showAdultContent) {

@@ -3005,6 +3005,23 @@
     <string name="player_general_auto_play_next_episode_description">Automatically starts the next episode.</string>
     <string name="player_general_skip_intro_button_duration">Skip Intro Button Duration</string>
     <string name="player_general_skip_intro_button_duration_description">How long the Skip Intro button stays on screen.</string>
+        <!-- Player: Quality and Source are SEPARATE sheets (v2.4.341) -->
+    <string name="player_quality_sheet_title">Quality</string>
+    <string name="player_source_sheet_title">Source</string>
+    <string name="player_quality_auto_best">Auto (best quality)</string>
+    <string name="player_quality_auto_best_desc">Plays the source that declares the highest resolution</string>
+    <string name="player_quality_declared_desc">Quality declared by the source</string>
+    <string name="player_quality_source_count">%1$d sources</string>
+    <string name="player_quality_none_title">No selectable quality for this video</string>
+    <string name="player_quality_none_desc">The sources do not declare a resolution. Quality options only list resolutions a source explicitly reports, so the player engine offers none here. Open the Source list to switch the server.</string>
+    <string name="player_quality_open_sources">Source list</string>
+    <string name="player_source_sheet_desc">Pick the server (plugin source) to play</string>
+    <string name="player_source_count">%1$d sources</string>
+    <string name="player_source_empty">Source list is empty. No plugin stream was found for this episode.</string>
+
+    <!-- Plugin search — parity with the main search screen (v2.4.341) -->
+    <string name="plugin_search_in_addon">Search in %1$s…</string>
+    <string name="plugin_search_results">%1$d results</string>
     <string name="player_quality_prefer_1080p">Prefer 1080p</string>
     <string name="player_quality_prefer_720p">Prefer 720p</string>
     <string name="player_quality_prefer_480p">Prefer 480p</string>
