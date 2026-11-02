@@ -124,7 +124,7 @@ fun AddonFullScreenGridPage(
     var loadedItems by remember { mutableStateOf(state.cachedItems ?: state.initialItems) }
     var currentPage by remember { mutableIntStateOf(state.cachedPage ?: if (state.initialItems.isEmpty()) 0 else 1) }
     var isLoadingMore by remember { mutableStateOf(false) }
-    var hasMorePages by remember { mutableStateOf(state.cachedHasMore ?: true) }
+    var hasMorePages by remember { mutableStateOf(state.cachedHasMore ?: state.paginate) }
     var loadError by remember { mutableStateOf<String?>(null) }
     androidx.compose.runtime.SideEffect {
         state.cachedItems = loadedItems
@@ -181,6 +181,9 @@ fun AddonFullScreenGridPage(
 
     fun loadNextPage() {
         if (isLoadingMore || !hasMorePages) return
+        // Arama sonucu ızgarası (paginate=false): tüm sonuçlar zaten seed edildi;
+        // boş mainPageData ile getMainPage çağırmak alakasız ana sayfa verisi yüklerdi.
+        if (!state.paginate) { hasMorePages = false; return }
         val api = resolveApi() ?: run {
             loadError = context.getString(R.string.addon_page_not_found, state.apiName)
             return

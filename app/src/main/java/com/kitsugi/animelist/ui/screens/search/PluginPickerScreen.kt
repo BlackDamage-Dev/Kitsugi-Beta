@@ -1,10 +1,5 @@
 package com.kitsugi.animelist.ui.screens.search
 
-import com.kitsugi.animelist.ui.icons.KitsugiArt
-import com.kitsugi.animelist.ui.icons.KitsugiArtIcon
-
-import com.kitsugi.animelist.ui.components.KitsugiEmojiLabel
-import com.kitsugi.animelist.ui.icons.KitsugiEmojiIcons
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import com.kitsugi.animelist.ui.theme.gradient.Text
 import com.kitsugi.animelist.ui.theme.gradient.background
@@ -21,14 +16,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.text.input.TextFieldLineLimits
-import androidx.compose.foundation.text.input.TextFieldState
-import androidx.compose.foundation.text.input.clearText
-import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -38,70 +26,51 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.kitsugi.animelist.R
 import com.kitsugi.animelist.data.cloudstream.CsPluginLoader
 import com.kitsugi.animelist.data.cloudstream.CsPluginStatusTracker
 import com.kitsugi.animelist.data.cloudstream.CsStreamRunner
 import com.kitsugi.animelist.data.local.KitsugiDatabase
 import com.kitsugi.animelist.data.remote.JikanSearchResult
-import com.kitsugi.animelist.data.settings.SettingsDataStore
-import com.kitsugi.animelist.ui.app.AppNavigationState
-import com.kitsugi.animelist.ui.components.KitsugiExploreMediaCard
+import com.kitsugi.animelist.ui.components.KitsugiCosmicSearchBar
+import com.kitsugi.animelist.ui.components.KitsugiEmptyState
 import com.kitsugi.animelist.ui.components.KitsugiPlasmaLoader
+import com.kitsugi.animelist.ui.components.KitsugiShimmerProvider
+import com.kitsugi.animelist.ui.app.AddonFullScreenGridState
+import com.kitsugi.animelist.ui.app.AppNavigationState
 import com.kitsugi.animelist.ui.screens.search.components.KitsugiAddonDetailDialog
-import com.kitsugi.animelist.ui.screens.search.components.isAddonAdultResponse
 import com.kitsugi.animelist.ui.screens.search.components.toAddonSearchResult
 import com.kitsugi.animelist.ui.theme.KitsugiColors
+import com.kitsugi.animelist.ui.theme.LocalBlurAdultMedia
 import com.kitsugi.animelist.ui.theme.LocalKitsugiAccent
 import com.kitsugi.animelist.ui.theme.LocalShowAdultContent
-import com.kitsugi.animelist.utils.KitsugiStrings
-import com.kitsugi.animelist.utils.isTurkish
 import com.lagradost.cloudstream3.APIHolder
 import com.lagradost.cloudstream3.MainAPI
+import com.lagradost.cloudstream3.SearchResponse
 import com.lagradost.cloudstream3.TvType
 import com.lagradost.cloudstream3.utils.SubtitleHelper
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.supervisorScope
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.Semaphore
-import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
+import androidx.compose.ui.res.stringResource
+import com.kitsugi.animelist.R
+import com.kitsugi.animelist.utils.KitsugiStrings
 
 private data class PluginTypeGroup(
     val label: String,
     val emoji: String,
     val types: List<TvType>
-)
-
-private data class PluginContentSearchGroup(
-    val api: MainAPI,
-    val items: List<JikanSearchResult>,
-    val rows: List<List<JikanSearchResult>>
-)
-
-private data class ActiveAddonDetailTarget(
-    val api: MainAPI,
-    val url: String
 )
 
 private val pluginTypeGroups = listOf(
@@ -119,94 +88,91 @@ private var cachedActiveApis: List<MainAPI>? = null
 private var savedPickerScrollIndex: Int = 0
 private var savedPickerScrollOffset: Int = 0
 
-private const val PLUGIN_SEARCH_DEBOUNCE_MS = 420L
-private const val PER_PLUGIN_SEARCH_TIMEOUT_MS = 18_000L
-private const val MAX_CONCURRENT_PLUGIN_SEARCHES = 6
+/**
+ * Eklenti Portalı arama sonuçlarının gezinme önbelleği.
+ *
+ * "Tümünü Gör" ızgarasına veya detay diyaloğuna gidip geri dönüldüğünde
+ * ekran yeniden kurulur; ağ aramasını tekrarlamak yerine tamamlanmış sonuçlar
+ * buradan geri yüklenir (ana arama sayfasının ViewModel korumasıyla aynı ilke).
+ */
+private object PortalSearchCache {
+    var query: String? = null
+    var groupLabel: String? = null
+    var generation: Int = -1
+    var apiNames: List<String> = emptyList()
+    var results: Map<String, List<SearchResponse>> = emptyMap()
+    var completed: Set<String> = emptySet()
+
+    fun clear() {
+        query = null
+        groupLabel = null
+        generation = -1
+        apiNames = emptyList()
+        results = emptyMap()
+        completed = emptySet()
+    }
+}
 
 @Composable
 fun PluginPickerScreen(
     onBackClick: () -> Unit,
     searchViewModel: SearchViewModel,
     navState: AppNavigationState,
-    onOpenApiDetail: (JikanSearchResult) -> Unit = {}
+    onOpenApiDetail: (JikanSearchResult) -> Unit = {},
+    titleLanguage: String = "ROMAJI",
+    scoreFormat: String = "POINT_10",
+    hideScores: Boolean = false,
+    blurAdultMedia: Boolean = LocalBlurAdultMedia.current
 ) {
     val context = LocalContext.current
     val accentColor = LocalKitsugiAccent.current
     val keyboardController = LocalSoftwareKeyboardController.current
     val scope = rememberCoroutineScope()
     val showAdultContent = LocalShowAdultContent.current
-    val isTr = isTurkish()
-
-    val settingsDataStore = remember(context) { SettingsDataStore(context.applicationContext) }
-    val appSettings by settingsDataStore.settingsFlow.collectAsState(
-        initial = com.kitsugi.animelist.data.settings.AppSettings()
-    )
 
     var activeApis by remember { mutableStateOf<List<MainAPI>>(cachedActiveApis ?: emptyList()) }
     var isLoadingActiveApis by remember { mutableStateOf(cachedActiveApis == null) }
     var selectedGroupLabel by rememberSaveable { mutableStateOf<String?>(null) }
     var queryText by rememberSaveable { mutableStateOf("") }
 
-    // Eklenti içi gerçek içerik arama durumları
-    var isSearchingContent by remember { mutableStateOf(false) }
-    var searchedPluginCount by remember { mutableIntStateOf(0) }
-    var totalSearchPluginCount by remember { mutableIntStateOf(0) }
-    var lastExecutedQuery by remember { mutableStateOf("") }
-    var contentSearchGroups by remember { mutableStateOf<List<PluginContentSearchGroup>>(emptyList()) }
-    var selectedResultPluginFilter by rememberSaveable { mutableStateOf<String?>(null) }
-    var activeDetailTarget by remember { mutableStateOf<ActiveAddonDetailTarget?>(null) }
-    var contentSearchJob by remember { mutableStateOf<Job?>(null) }
+    // ── Ana arama sayfasıyla AYNI arama mantığı ─────────────────────────────
+    // Yazarken içerik araması BAŞLAMAZ; yalnızca klavyedeki "Ara" tuşu veya
+    // arama butonu (KitsugiCosmicSearchBar) aramayı tetikler. Yazarken eklenti
+    // listesi ada göre süzülmeye devam eder (mevcut portal davranışı).
+    var submittedQuery by rememberSaveable { mutableStateOf<String?>(null) }
+    var searchGeneration by rememberSaveable { mutableIntStateOf(0) }
 
-    val pluginQueryState = remember {
-        TextFieldState(initialText = queryText)
-    }
-    val hasInputText by remember {
-        derivedStateOf { pluginQueryState.text.isNotEmpty() }
-    }
-
-    LaunchedEffect(queryText) {
-        if (queryText != pluginQueryState.text.toString()) {
-            pluginQueryState.setTextAndPlaceCursorAtEnd(queryText)
-        }
-    }
-    LaunchedEffect(Unit) {
-        snapshotFlow { pluginQueryState.text.toString() }.collect { current ->
-            if (current != queryText) {
-                queryText = current
-            }
-        }
-    }
+    // Eklenti başına ilerlemeli sonuçlar: her eklenti tamamlandıkça kendi rafı
+    // dolar (ana sayfadaki çoklu-platform raflarıyla birebir aynı akış).
+    val searchResults = remember { mutableStateMapOf<String, List<SearchResponse>>() }
+    val completedApis = remember { mutableStateListOf<String>() }
+    var searchedApis by remember { mutableStateOf<List<MainAPI>>(emptyList()) }
+    var scanFinished by remember { mutableStateOf(false) }
+    var activeDetailItem by remember { mutableStateOf<Pair<MainAPI, SearchResponse>?>(null) }
 
     val listState = rememberLazyListState(
         initialFirstVisibleItemIndex = savedPickerScrollIndex,
         initialFirstVisibleItemScrollOffset = savedPickerScrollOffset
     )
+    val resultsListState = rememberLazyListState()
 
+    // Sayfadan çıkıldığında en son scroll pozisyonunu sakla
     DisposableEffect(Unit) {
         onDispose {
-            contentSearchJob?.cancel()
             savedPickerScrollIndex = listState.firstVisibleItemIndex
             savedPickerScrollOffset = listState.firstVisibleItemScrollOffset
         }
     }
 
-    fun clearSearch() {
-        contentSearchJob?.cancel()
-        isSearchingContent = false
-        searchedPluginCount = 0
-        totalSearchPluginCount = 0
-        lastExecutedQuery = ""
-        contentSearchGroups = emptyList()
-        selectedResultPluginFilter = null
-        pluginQueryState.clearText()
-        queryText = ""
-    }
-
+    // Geri tuşu hiyerarşik yönetimi
     BackHandler {
         when {
-            activeDetailTarget != null -> activeDetailTarget = null
-            selectedResultPluginFilter != null -> selectedResultPluginFilter = null
-            queryText.isNotEmpty() -> clearSearch()
+            submittedQuery != null -> {
+                submittedQuery = null
+                queryText = ""
+                PortalSearchCache.clear()
+            }
+            queryText.isNotEmpty() -> queryText = ""
             selectedGroupLabel != null -> selectedGroupLabel = null
             else -> onBackClick()
         }
@@ -225,6 +191,7 @@ fun PluginPickerScreen(
                         Log.e("PluginPickerScreen", "Load failed: ${plugin.name} — ${e.message}")
                     }
                 }
+                // v2.4.240 (KN-D): tek normalize edilmiş eşleştirme (bkz. isApiEnabledFor).
                 val enabledIds = enabledPlugins.map { it.id }
                 val loaded = APIHolder.allProviders.filter { api ->
                     CsStreamRunner.isApiEnabledFor(api, enabledIds)
@@ -244,190 +211,129 @@ fun PluginPickerScreen(
         }
     }
 
-    // Seçili kategoriye uyan eklentiler (hem liste hem içerik araması için baz küme)
-    val categoryFilteredApis = remember(activeApis, selectedGroupLabel, showAdultContent) {
-        var list = activeApis
-        if (selectedGroupLabel != null) {
-            val group = pluginTypeGroups.firstOrNull { it.label == selectedGroupLabel }
-            if (group != null) {
-                list = list.filter { api ->
-                    if (group.label == "+18") {
-                        isNsfwPlugin(api)
-                    } else {
-                        api.supportedTypes.any { group.types.contains(it) }
-                    }
-                }
+    // Kategori süzgeci (arama modunda hangi eklentilerin taranacağını belirler)
+    val categoryApis = remember(activeApis, selectedGroupLabel) {
+        val group = pluginTypeGroups.firstOrNull { it.label == selectedGroupLabel }
+        if (group == null) activeApis
+        else activeApis.filter { api ->
+            if (group.label == "+18") {
+                api.supportedTypes.contains(TvType.NSFW) ||
+                api.name.contains("18", ignoreCase = true) ||
+                api.name.contains("Adult", ignoreCase = true) ||
+                api.name.contains("Porn", ignoreCase = true)
+            } else {
+                api.supportedTypes.any { group.types.contains(it) }
             }
-        } else if (!showAdultContent) {
-            list = list.filterNot { isPureNsfwPlugin(it) }
         }
-        list
     }
 
-    // İsim/URL eşleşen eklentiler (hızlı eklenti geçişi korunur)
-    val matchingNameApis = remember(categoryFilteredApis, queryText) {
-        val q = queryText.trim().lowercase()
-        if (q.isEmpty()) {
-            categoryFilteredApis
-        } else {
-            categoryFilteredApis.filter { api ->
+    // Liste modu: kategori + yazılan metne göre eklenti adı süzgeci (0 ms gecikme)
+    val filteredApis = remember(categoryApis, queryText) {
+        if (queryText.isBlank()) categoryApis
+        else {
+            val q = queryText.trim().lowercase()
+            categoryApis.filter { api ->
                 api.name.lowercase().contains(q) ||
-                    api.mainUrl.lowercase().contains(q) ||
-                    api.lang.lowercase().contains(q)
+                api.mainUrl.lowercase().contains(q) ||
+                api.lang.lowercase().contains(q)
             }
         }
     }
 
-    fun executeCrossPluginContentSearch(rawQuery: String, force: Boolean = false) {
-        val trimmed = rawQuery.trim()
-        if (trimmed.length < 2) {
-            contentSearchJob?.cancel()
-            isSearchingContent = false
-            searchedPluginCount = 0
-            totalSearchPluginCount = 0
-            lastExecutedQuery = ""
-            contentSearchGroups = emptyList()
-            selectedResultPluginFilter = null
-            return
+    // ── Çapraz eklenti araması (ana arama sayfasıyla aynı mantık) ───────────
+    // Onaylanan sorgu tüm aktif eklentilere PARALEL gider; her eklenti
+    // tamamlandıkça kendi rafı shimmer'dan gerçek kartlara döner. Efekt
+    // anahtarları değişince (yeni sorgu / kategori / eklenti listesi) önceki
+    // arama coroutine iptaliyle otomatik durur.
+    LaunchedEffect(submittedQuery, searchGeneration, selectedGroupLabel, activeApis) {
+        val q = submittedQuery
+        scanFinished = false
+        if (q.isNullOrBlank()) {
+            searchResults.clear()
+            completedApis.clear()
+            searchedApis = emptyList()
+            return@LaunchedEffect
+        }
+        val apis = categoryApis
+        if (apis.isEmpty()) {
+            searchedApis = emptyList()
+            // Eklenti listesi hâlâ yükleniyorsa "sonuç yok" YANIP SÖNMESİN;
+            // liste gelince efekt (activeApis anahtarı) aramayı yeniden başlatır.
+            scanFinished = !isLoadingActiveApis
+            return@LaunchedEffect
         }
 
-        val targetApis = categoryFilteredApis
-        if (targetApis.isEmpty()) {
-            contentSearchJob?.cancel()
-            isSearchingContent = false
-            searchedPluginCount = 0
-            totalSearchPluginCount = 0
-            lastExecutedQuery = trimmed
-            contentSearchGroups = emptyList()
-            return
+        // Gezinme dönüşü: aynı sorgu + kategori + tur tamamlanmışsa ağa gitme.
+        // (Kullanıcı "Ara"ya yeniden basarsa searchGeneration artar → taze arama.)
+        val cache = PortalSearchCache
+        if (cache.query == q && cache.groupLabel == selectedGroupLabel &&
+            cache.generation == searchGeneration &&
+            cache.apiNames == apis.map { it.name } &&
+            cache.completed.size == apis.size
+        ) {
+            searchedApis = apis
+            searchResults.clear()
+            searchResults.putAll(cache.results)
+            completedApis.clear()
+            completedApis.addAll(apis.map { it.name })
+            scanFinished = true
+            return@LaunchedEffect
         }
 
-        val searchSignature = "$trimmed|${selectedGroupLabel.orEmpty()}|${targetApis.size}|$showAdultContent"
-        if (!force && searchSignature == lastExecutedQuery && (isSearchingContent || contentSearchGroups.isNotEmpty())) {
-            return
-        }
+        // Yeni tur: oturum bloklarını temizle (v2.4.240 KN-D-2 ile aynı ilke).
+        CsPluginStatusTracker.clear()
+        CsStreamRunner.clearUnsupportedMethodsCache()
+        searchedApis = apis
+        searchResults.clear()
+        completedApis.clear()
+        cache.query = q
+        cache.groupLabel = selectedGroupLabel
+        cache.generation = searchGeneration
+        cache.apiNames = apis.map { it.name }
+        cache.results = emptyMap()
+        cache.completed = emptySet()
+        resultsListState.scrollToItem(0)
 
-        contentSearchJob?.cancel()
-        contentSearchJob = scope.launch {
-            isSearchingContent = true
-            searchedPluginCount = 0
-            totalSearchPluginCount = targetApis.size
-            lastExecutedQuery = searchSignature
-            contentSearchGroups = emptyList()
-            selectedResultPluginFilter = null
-
-            val resultsMutex = Mutex()
-            val accumulated = LinkedHashMap<String, PluginContentSearchGroup>()
-            var finished = 0
-            val semaphore = Semaphore(MAX_CONCURRENT_PLUGIN_SEARCHES)
-
-            try {
-                withContext(Dispatchers.IO) {
-                    CsPluginStatusTracker.clear()
-                    CsStreamRunner.clearUnsupportedMethodsCache()
-
-                    supervisorScope {
-                        for (api in targetApis) {
-                            launch {
-                                val pluginItems: List<JikanSearchResult> = semaphore.withPermit {
-                                    try {
-                                        withTimeoutOrNull(PER_PLUGIN_SEARCH_TIMEOUT_MS) {
-                                            CsStreamRunner.ensurePluginReady(api)
-                                            val rawResponses = CsStreamRunner.searchWithCfRetry(api, trimmed)
-                                            rawResponses
-                                                .asSequence()
-                                                .filter { resp -> showAdultContent || !isAddonAdultResponse(resp) }
-                                                .distinctBy { it.url }
-                                                .map { resp ->
-                                                    val mapped = resp.toAddonSearchResult()
-                                                    if (mapped.source.isBlank()) {
-                                                        mapped.copy(source = api.name, cs3ApiName = api.name)
-                                                    } else {
-                                                        mapped
-                                                    }
-                                                }
-                                                .toList()
-                                        } ?: emptyList()
-                                    } catch (ce: CancellationException) {
-                                        throw ce
-                                    } catch (e: Exception) {
-                                        Log.w("PluginPickerScreen", "[${api.name}] content search error: ${e.message}")
-                                        emptyList()
-                                    }
-                                }
-
-                                val snapshot: Pair<List<PluginContentSearchGroup>, Int> = resultsMutex.withLock {
-                                    finished += 1
-                                    if (pluginItems.isNotEmpty()) {
-                                        accumulated[api.name] = PluginContentSearchGroup(
-                                            api = api,
-                                            items = pluginItems,
-                                            rows = pluginItems.chunked(3)
-                                        )
-                                    }
-                                    accumulated.values.toList() to finished
-                                }
-
-                                withContext(Dispatchers.Main) {
-                                    contentSearchGroups = snapshot.first
-                                    searchedPluginCount = snapshot.second
-                                }
-                            }
+        supervisorScope {
+            apis.forEach { api ->
+                launch {
+                    val res = try {
+                        withContext(Dispatchers.IO) {
+                            CsStreamRunner.searchWithCfRetry(api, q)
                         }
+                    } catch (ce: CancellationException) {
+                        throw ce
+                    } catch (e: Exception) {
+                        Log.e("PluginPickerScreen", "Search failed for ${api.name}: ${e.message}")
+                        emptyList()
                     }
+                    searchResults[api.name] = res
+                    completedApis.add(api.name)
+                    cache.results = searchResults.toMap()
+                    cache.completed = completedApis.toSet()
                 }
-            } finally {
-                isSearchingContent = false
             }
         }
+        scanFinished = true
     }
 
-    // Yazarken otomatik gerçek eklenti araması (debounced); silindiğinde anında sıfırlama
-    LaunchedEffect(queryText, categoryFilteredApis, showAdultContent) {
-        val trimmed = queryText.trim()
-        if (trimmed.isEmpty()) {
-            contentSearchJob?.cancel()
-            isSearchingContent = false
-            searchedPluginCount = 0
-            totalSearchPluginCount = 0
-            lastExecutedQuery = ""
-            contentSearchGroups = emptyList()
-            selectedResultPluginFilter = null
-            return@LaunchedEffect
-        }
-        if (trimmed.length < 2) {
-            contentSearchJob?.cancel()
-            isSearchingContent = false
-            contentSearchGroups = emptyList()
-            return@LaunchedEffect
-        }
-        delay(PLUGIN_SEARCH_DEBOUNCE_MS)
-        executeCrossPluginContentSearch(trimmed, force = false)
-    }
-
-    val totalFoundItemsCount = remember(contentSearchGroups) {
-        contentSearchGroups.sumOf { it.items.size }
-    }
-
-    val visibleContentGroups = remember(contentSearchGroups, selectedResultPluginFilter) {
-        val filterName = selectedResultPluginFilter
-        if (filterName == null) {
-            contentSearchGroups
-        } else {
-            contentSearchGroups.filter { it.api.name == filterName }
+    // Görünür sonuç sayısı (+18 sözleşmesi her yüzeyde aynı)
+    val totalVisibleResults = remember(searchResults.toMap(), showAdultContent) {
+        searchResults.values.sumOf { list ->
+            list.count { showAdultContent || !com.kitsugi.animelist.ui.screens.search.components.isAddonAdultResponse(it) }
         }
     }
+    val isScanning = submittedQuery != null && !scanFinished
 
-    // Alfabetik hızlı indeks haritası (# ve A-Z) — yalnızca arama kutusu boşken aktif
+    // Alfabetik hızlı indeks haritası (# ve A-Z)
     val alphabet = remember { listOf("#") + ('A'..'Z').map { it.toString() } }
-    val letterIndexMap = remember(categoryFilteredApis, selectedGroupLabel) {
+    val letterIndexMap = remember(filteredApis) {
         val map = mutableMapOf<String, Int>()
-        val headerOffset = if (selectedGroupLabel == null) 1 else 0
-        categoryFilteredApis.forEachIndexed { index, api ->
+        filteredApis.forEachIndexed { index, api ->
             val firstChar = api.name.trim().firstOrNull()?.uppercaseChar() ?: '#'
             val key = if (firstChar in 'A'..'Z') firstChar.toString() else "#"
             if (!map.containsKey(key)) {
-                map[key] = index + headerOffset
+                map[key] = index + 1 // +1 Tüm Eklentiler başlığı için
             }
         }
         map
@@ -440,7 +346,9 @@ fun PluginPickerScreen(
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
                 val delta = available.y
-                if (delta < -14f && isHeaderVisible && listState.firstVisibleItemIndex > 0) {
+                if (delta < -14f && isHeaderVisible &&
+                    (listState.firstVisibleItemIndex > 0 || resultsListState.firstVisibleItemIndex > 0)
+                ) {
                     isHeaderVisible = false
                 } else if (delta > 14f && !isHeaderVisible) {
                     isHeaderVisible = true
@@ -450,17 +358,16 @@ fun PluginPickerScreen(
         }
     }
 
-    LaunchedEffect(listState) {
+    LaunchedEffect(listState, resultsListState) {
         snapshotFlow {
-            listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset
-        }.collect { (index, offset) ->
-            if (index == 0 && offset == 0) {
+            (listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset) to
+                (resultsListState.firstVisibleItemIndex to resultsListState.firstVisibleItemScrollOffset)
+        }.collect { (listPos, resultsPos) ->
+            if (listPos.first == 0 && listPos.second == 0 && resultsPos.first == 0 && resultsPos.second == 0) {
                 isHeaderVisible = true
             }
         }
     }
-
-    val isQueryMode = queryText.isNotBlank()
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -472,7 +379,7 @@ fun PluginPickerScreen(
                 .padding(paddingValues)
                 .nestedScroll(nestedScrollConnection)
         ) {
-            // ── Üst Başlık Barı ───────────────────────────────────────────────────────
+            // ── Üst Başlık Barı (Sabit veya Kompakt) ──────────────────────────────────
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -480,16 +387,19 @@ fun PluginPickerScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                IconButton(onClick = {
-                    if (isQueryMode) clearSearch() else onBackClick()
-                }) {
+                IconButton(onClick = onBackClick) {
                     Icon(
                         imageVector = Icons.ArrowBack,
                         contentDescription = stringResource(R.string.geri),
                         tint = KitsugiColors.TextPrimary
                     )
                 }
-                KitsugiArtIcon(art = KitsugiArt.Extensions, size = 24.dp)
+                Icon(
+                    imageVector = Icons.Extension,
+                    contentDescription = null,
+                    tint = accentColor,
+                    modifier = Modifier.size(24.dp)
+                )
                 Text(
                     text = stringResource(R.string.eklenti_portali),
                     color = KitsugiColors.TextPrimary,
@@ -498,18 +408,16 @@ fun PluginPickerScreen(
                 )
                 Spacer(modifier = Modifier.weight(1f))
                 Text(
-                    text = if (isQueryMode && totalFoundItemsCount > 0) {
-                        if (isTr) "$totalFoundItemsCount sonuç" else "$totalFoundItemsCount results"
-                    } else {
-                        "${categoryFilteredApis.size} eklenti"
-                    },
-                    color = if (isQueryMode && totalFoundItemsCount > 0) accentColor else KitsugiColors.TextMuted,
-                    fontWeight = if (isQueryMode && totalFoundItemsCount > 0) FontWeight.Bold else FontWeight.Normal,
+                    text = if (submittedQuery != null)
+                        KitsugiStrings.get(R.string.inline_1_s_results_b4b4d39, totalVisibleResults)
+                    else
+                        "${filteredApis.size} eklenti",
+                    color = KitsugiColors.TextMuted,
                     fontSize = 13.sp
                 )
             }
 
-            // ── Kaydırmaya Duyarlı Arama ve Kategori Barı ─────────────────────────────
+            // ── Kaydırmaya Duyarlı Arama ve Kategori Barı (Aşağı kaydırınca gizlenir) ─
             AnimatedVisibility(
                 visible = isHeaderVisible,
                 enter = expandVertically(animationSpec = tween(220)) + fadeIn(animationSpec = tween(220)),
@@ -521,31 +429,44 @@ fun PluginPickerScreen(
                         .padding(horizontal = 16.dp, vertical = 4.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    // Eklenti arama çubuğu — ANA ARAMA SAYFASIYLA BİREBİR AYNI bileşen.
-                    // (KitsugiCosmicSearchBar: 56 dp yükseklik, 16 dp köşe, aynı
-                    //  yazı tipi/odak rengi, aynı temizle + ara butonları.)
-                    com.kitsugi.animelist.ui.components.KitsugiCosmicSearchBar(
+                    // Ana arama sayfasıyla BİREBİR aynı arama çubuğu bileşeni:
+                    // aynı görünüm, aynı "Ara" onayı, aynı X (temizle) davranışı.
+                    KitsugiCosmicSearchBar(
                         query = queryText,
-                        onQueryChange = { queryText = it },
+                        onQueryChange = {
+                            queryText = it
+                            if (it.isBlank()) {
+                                submittedQuery = null
+                                PortalSearchCache.clear()
+                            }
+                        },
                         onSearch = {
-                            keyboardController?.hide()
-                            executeCrossPluginContentSearch(queryText, force = true)
+                            if (queryText.isNotBlank()) {
+                                submittedQuery = queryText.trim()
+                                searchGeneration++
+                                keyboardController?.hide()
+                            }
                         },
                         onClearQuery = {
-                            clearSearch()
+                            queryText = ""
+                            submittedQuery = null
+                            PortalSearchCache.clear()
+                            keyboardController?.hide()
                         },
-                        placeholder = KitsugiStrings.get(
-                            R.string.eklentilerde_ara_x_eklenti,
-                            categoryFilteredApis.size
-                        ),
-                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = KitsugiStrings.get(R.string.eklentilerde_ara_x_eklenti, activeApis.size),
+                        modifier = Modifier.fillMaxWidth()
                     )
 
                     // Kategori Çipleri (Tümü, Filmler, Diziler, +18, Animasyon vb.)
-                    val availableGroups = remember(activeApis, showAdultContent) {
+                    val availableGroups = remember(activeApis) {
                         pluginTypeGroups.filter { group ->
                             if (group.label == "+18") {
-                                showAdultContent && activeApis.any { isNsfwPlugin(it) }
+                                activeApis.any { api ->
+                                    api.supportedTypes.contains(TvType.NSFW) ||
+                                    api.name.contains("18", ignoreCase = true) ||
+                                    api.name.contains("Adult", ignoreCase = true) ||
+                                    api.name.contains("Porn", ignoreCase = true)
+                                }
                             } else {
                                 activeApis.any { api -> api.supportedTypes.any { group.types.contains(it) } }
                             }
@@ -585,343 +506,238 @@ fun PluginPickerScreen(
             Spacer(modifier = Modifier.height(4.dp))
             HorizontalDivider(color = KitsugiColors.Border.copy(alpha = 0.5f))
 
-            // ── Ana Alan: (A) Arama Modu = Gerçek Eklenti İçi İçerik Sonuçları, (B) Normal Mod = Eklenti Dizini ─
-            when {
-                isLoadingActiveApis && activeApis.isEmpty() -> {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        KitsugiPlasmaLoader(size = 46.dp)
-                    }
-                }
-
-                isQueryMode -> {
-                    val trimmed = queryText.trim()
+            // ── İçerik: ARAMA MODU (ana sayfa paritesi) veya LİSTE MODU ──────────────
+            if (submittedQuery != null) {
+                // ARAMA MODU: eklenti başına yatay raf — ana arama sayfasındaki
+                // MultiSearchSection ile AYNEN aynı bileşen (shimmer, kart,
+                // kaydırma, "Tümünü Gör", TV odağı dahil).
+                KitsugiShimmerProvider(active = isScanning) {
                     LazyColumn(
-                        state = listState,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        // Canlı arama durum bandı
-                        item(key = "plugin_search_status", contentType = "status") {
-                            PluginContentSearchStatusBanner(
-                                query = trimmed,
-                                isSearching = isSearchingContent,
-                                searchedCount = searchedPluginCount,
-                                totalPluginCount = totalSearchPluginCount.coerceAtLeast(categoryFilteredApis.size),
-                                matchedPluginCount = contentSearchGroups.size,
-                                totalItemCount = totalFoundItemsCount,
-                                accentColor = accentColor,
-                                isTr = isTr
-                            )
-                        }
-
-                        // Birden fazla eklentide sonuç varsa eklenti filtresi çipleri
-                        if (contentSearchGroups.size > 1) {
-                            item(key = "plugin_result_filter_row", contentType = "filter_row") {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .horizontalScroll(rememberScrollState()),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    PluginTypeChip(
-                                        label = "${stringResource(R.string.tumu)} ($totalFoundItemsCount)",
-                                        emoji = "🌐",
-                                        selected = selectedResultPluginFilter == null,
-                                        accentColor = accentColor,
-                                        onClick = { selectedResultPluginFilter = null }
-                                    )
-                                    contentSearchGroups.forEach { group ->
-                                        val flag = try {
-                                            SubtitleHelper.getFlagFromIso(group.api.lang) ?: "🔌"
-                                        } catch (_: Exception) {
-                                            "🔌"
-                                        }
-                                        PluginTypeChip(
-                                            label = "${group.api.name} (${group.items.size})",
-                                            emoji = flag,
-                                            selected = selectedResultPluginFilter == group.api.name,
-                                            accentColor = accentColor,
-                                            onClick = {
-                                                selectedResultPluginFilter =
-                                                    if (selectedResultPluginFilter == group.api.name) null else group.api.name
-                                            }
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
-                        // Eklenti adı da aramayla eşleşiyorsa (ör. "dizipal" yazıldıysa) hızlı eklenti kısayolları
-                        if (matchingNameApis.isNotEmpty() && selectedResultPluginFilter == null) {
-                            item(key = "matching_plugins_header", contentType = "section_header") {
-                                Text(
-                                    text = if (isTr) {
-                                        "Eşleşen Eklentiler (${matchingNameApis.size})"
-                                    } else {
-                                        "Matching Addons (${matchingNameApis.size})"
-                                    },
-                                    color = KitsugiColors.TextSecondary,
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
-                                )
-                            }
-                            items(
-                                items = matchingNameApis.take(6),
-                                key = { "match_api_${java.io.File(it.sourcePlugin ?: "").nameWithoutExtension}_${it.name}" },
-                                contentType = { "plugin_row" }
-                            ) { api ->
-                                PluginListItem(
-                                    api = api,
-                                    accentColor = accentColor,
-                                    onClick = {
-                                        searchViewModel.setSelectedPlugin(api.name, keepPlatformCs3 = true)
-                                        navState.navigateToDetail(com.kitsugi.animelist.DetailScreen.AddonExplore(api.name))
-                                    }
-                                )
-                            }
-                        }
-
-                        // Gerçek eklenti içerik sonuçları (eklenti bazlı gruplar + 3 sütun poster grid)
-                        if (trimmed.length < 2) {
-                            item(key = "min_chars_hint", contentType = "empty") {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 36.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = if (isTr) {
-                                            "Eklentilerin içinde içerik aramak için en az 2 karakter yazın."
-                                        } else {
-                                            "Type at least 2 characters to search across addons."
-                                        },
-                                        color = KitsugiColors.TextMuted,
-                                        fontSize = 14.sp,
-                                        textAlign = TextAlign.Center,
-                                        modifier = Modifier.padding(horizontal = 24.dp)
-                                    )
-                                }
-                            }
-                        } else if (visibleContentGroups.isEmpty() && isSearchingContent) {
-                            item(key = "searching_loader", contentType = "loader") {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 48.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Column(
-                                        horizontalAlignment = Alignment.CenterHorizontally,
-                                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                                    ) {
-                                        KitsugiPlasmaLoader(size = 44.dp)
-                                        Text(
-                                            text = if (isTr) {
-                                                "\"$trimmed\" tüm eklentilerde aranıyor..."
-                                            } else {
-                                                "Searching addons for \"$trimmed\"..."
-                                            },
-                                            color = KitsugiColors.TextMuted,
-                                            fontSize = 13.sp
-                                        )
-                                    }
-                                }
-                            }
-                        } else if (visibleContentGroups.isEmpty() && !isSearchingContent && matchingNameApis.isEmpty()) {
-                            item(key = "no_content_found", contentType = "empty") {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 48.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = stringResource(R.string.inline_no_results_found_for_1_3ed9f56, trimmed),
-                                        color = KitsugiColors.TextMuted,
-                                        fontSize = 14.sp,
-                                        textAlign = TextAlign.Center,
-                                        modifier = Modifier.padding(horizontal = 24.dp)
-                                    )
-                                }
-                            }
-                        } else {
-                            visibleContentGroups.forEach { group ->
-                                item(
-                                    key = "group_hdr_${group.api.name}",
-                                    contentType = "plugin_group_header"
-                                ) {
-                                    PluginContentGroupHeader(
-                                        api = group.api,
-                                        count = group.items.size,
-                                        accentColor = accentColor,
-                                        onOpenPluginClick = {
-                                            searchViewModel.setSelectedPlugin(group.api.name, keepPlatformCs3 = true)
-                                            navState.navigateToDetail(
-                                                com.kitsugi.animelist.DetailScreen.AddonExplore(group.api.name)
-                                            )
-                                        }
-                                    )
-                                }
-
-                                items(
-                                    items = group.rows,
-                                    key = { row ->
-                                        "row_${group.api.name}_${row.firstOrNull()?.cs3Url ?: row.hashCode()}"
-                                    },
-                                    contentType = { "addon_poster_row" }
-                                ) { row ->
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                    ) {
-                                        row.forEach { item ->
-                                            Box(modifier = Modifier.weight(1f)) {
-                                                KitsugiExploreMediaCard(
-                                                    result = item,
-                                                    onClick = {
-                                                        val url = item.cs3Url
-                                                        if (!url.isNullOrBlank()) {
-                                                            activeDetailTarget = ActiveAddonDetailTarget(
-                                                                api = group.api,
-                                                                url = url
-                                                            )
-                                                        } else {
-                                                            onOpenApiDetail(item)
-                                                        }
-                                                    },
-                                                    titleLanguage = appSettings.titleLanguage,
-                                                    scoreFormat = appSettings.scoreFormat,
-                                                    hideScores = appSettings.hideScores,
-                                                    blurAdultMedia = appSettings.blurAdultMedia,
-                                                    forceVertical = true
-                                                )
-                                            }
-                                        }
-                                        repeat(3 - row.size) {
-                                            Spacer(modifier = Modifier.weight(1f))
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                categoryFilteredApis.isEmpty() -> {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = if (selectedGroupLabel != null)
-                                "Bu kategoride aktif eklenti yok."
-                            else
-                                "Aktif eklenti bulunamadı.\nAyarlar -> Eklentilerim bölümünden eklenti etkinleştirin.",
-                            color = KitsugiColors.TextMuted,
-                            fontSize = 14.sp,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.padding(horizontal = 32.dp)
-                        )
-                    }
-                }
-
-                else -> {
-                    Box(
+                        state = resultsListState,
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(1f)
+                            .padding(horizontal = 20.dp),
+                        contentPadding = PaddingValues(top = 6.dp, bottom = 24.dp)
                     ) {
-                        LazyColumn(
-                            state = listState,
-                            modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(start = 12.dp, end = 34.dp, top = 6.dp, bottom = 24.dp),
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        // İlerleme satırı: "Eklentiler taranıyor (x/y) • N sonuç"
+                        if (isScanning) {
+                            item(key = "portal_scan_progress") {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 8.dp)
+                                        .clip(RoundedCornerShape(14.dp))
+                                        .background(KitsugiColors.Surface)
+                                        .border(1.dp, KitsugiColors.Border, RoundedCornerShape(14.dp))
+                                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    KitsugiPlasmaLoader(size = 20.dp)
+                                    Text(
+                                        text = KitsugiStrings.get(
+                                            R.string.plugin_portal_scan_progress,
+                                            completedApis.size, searchedApis.size, totalVisibleResults
+                                        ),
+                                        color = KitsugiColors.TextPrimary,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+                            }
+                        }
+
+                        items(searchedApis, key = { "portal_shelf_${it.name}" }) { api ->
+                            val raw = searchResults[api.name].orEmpty()
+                            val isLoading = api.name !in completedApis
+                            val q = submittedQuery.orEmpty()
+
+                            // Ana sayfadaki raf mantığıyla aynı: CS3 → ortak kart
+                            // modeli, +18 süzgeci, alakalılık sırası + tekilleştirme.
+                            val shelfResults = remember(raw, showAdultContent, q) {
+                                val converted = raw.map { it.toAddonSearchResult() }
+                                    .filter { showAdultContent || !it.isAdult }
+                                SearchRelevance.refine(q, converted)
+                            }
+
+                            MultiSearchSection(
+                                title = api.name,
+                                platformId = null,
+                                results = shelfResults,
+                                isLoading = isLoading,
+                                isAlreadyInList = { false },
+                                onItemClick = { result ->
+                                    val response = raw.firstOrNull { it.url == result.cs3Url }
+                                    if (response != null) activeDetailItem = api to response
+                                },
+                                onSeeAllClick = {
+                                    val byUrl = raw.associateBy { it.url }
+                                    val ordered = shelfResults.mapNotNull { r -> r.cs3Url?.let { byUrl[it] } }
+                                    navState.addonFullScreenGridState = AddonFullScreenGridState(
+                                        title = "${api.name} — \"$q\"",
+                                        apiName = api.name,
+                                        initialItems = ordered,
+                                        mainPageData = "",
+                                        horizontalImages = false,
+                                        paginate = false
+                                    )
+                                },
+                                titleLanguage = titleLanguage,
+                                scoreFormat = scoreFormat,
+                                hideScores = hideScores,
+                                blurAdultMedia = blurAdultMedia,
+                                headerIcon = {
+                                    val langFlag = try {
+                                        SubtitleHelper.getFlagFromIso(api.lang) ?: "🌐"
+                                    } catch (_: Exception) { "🌐" }
+                                    Box(
+                                        modifier = Modifier
+                                            .size(24.dp)
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(accentColor.copy(alpha = 0.12f)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(text = langFlag, fontSize = 14.sp)
+                                    }
+                                }
+                            )
+                        }
+
+                        // Tarama bitti ve hiçbir eklenti sonuç bulamadı → ana
+                        // sayfadakiyle aynı boş durum bileşeni.
+                        if (scanFinished && totalVisibleResults == 0) {
+                            item(key = "portal_empty") {
+                                KitsugiEmptyState(
+                                    title = stringResource(R.string.sonuc_bulunamadi),
+                                    subtitle = "\"$submittedQuery\"",
+                                    icon = Icons.SearchOff
+                                )
+                            }
+                        }
+
+                        item { Spacer(modifier = Modifier.height(40.dp)) }
+                    }
+                }
+            } else {
+                // LİSTE MODU: Ana Liste ve Sağ Alfabetik Kaydıraç
+                when {
+                    isLoadingActiveApis && activeApis.isEmpty() -> {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f),
+                            contentAlignment = Alignment.Center
                         ) {
-                            if (selectedGroupLabel == null) {
-                                item(key = "all_plugins_header", contentType = "all_plugins_header") {
-                                    AllPluginsListItem(
+                            KitsugiPlasmaLoader(size = 46.dp)
+                        }
+                    }
+                    filteredApis.isEmpty() -> {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = if (queryText.isNotEmpty())
+                                    KitsugiStrings.get(R.string.ui2_plugin_query_no_match, queryText)
+                                else if (selectedGroupLabel != null)
+                                    "Bu kategoride aktif eklenti yok."
+                                else
+                                    "Aktif eklenti bulunamadı.\nAyarlar -> Eklentilerim bölümünden eklenti etkinleştirin.",
+                                color = KitsugiColors.TextMuted,
+                                fontSize = 14.sp,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                modifier = Modifier.padding(horizontal = 32.dp)
+                            )
+                        }
+                    }
+                    else -> {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f)
+                        ) {
+                            LazyColumn(
+                                state = listState,
+                                modifier = Modifier.fillMaxSize(),
+                                contentPadding = PaddingValues(start = 12.dp, end = 34.dp, top = 6.dp, bottom = 24.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                if (queryText.isBlank() && selectedGroupLabel == null) {
+                                    item(key = "all_plugins_header") {
+                                        AllPluginsListItem(
+                                            accentColor = accentColor,
+                                            onClick = {
+                                                searchViewModel.setSelectedPlugin(null, keepPlatformCs3 = true)
+                                                onBackClick()
+                                            }
+                                        )
+                                    }
+                                }
+
+                                items(
+                                    items = filteredApis,
+                                    key = { "${java.io.File(it.sourcePlugin ?: "").nameWithoutExtension}_${it.name}" }
+                                ) { api ->
+                                    PluginListItem(
+                                        api = api,
                                         accentColor = accentColor,
                                         onClick = {
-                                            searchViewModel.setSelectedPlugin(null, keepPlatformCs3 = true)
-                                            onBackClick()
+                                            searchViewModel.setSelectedPlugin(api.name, keepPlatformCs3 = true)
+                                            navState.navigateToDetail(com.kitsugi.animelist.DetailScreen.AddonExplore(api.name))
                                         }
                                     )
                                 }
                             }
 
-                            items(
-                                items = categoryFilteredApis,
-                                key = { "${java.io.File(it.sourcePlugin ?: "").nameWithoutExtension}_${it.name}" },
-                                contentType = { "plugin_row" }
-                            ) { api ->
-                                PluginListItem(
-                                    api = api,
-                                    accentColor = accentColor,
-                                    onClick = {
-                                        searchViewModel.setSelectedPlugin(api.name, keepPlatformCs3 = true)
-                                        navState.navigateToDetail(com.kitsugi.animelist.DetailScreen.AddonExplore(api.name))
+                            // Sağ Kenar Alfabetik Kaydıraç (# ve A'dan Z'ye)
+                            AlphabetScrollerRail(
+                                alphabet = alphabet,
+                                letterIndexMap = letterIndexMap,
+                                activeLetter = activeScrollerLetter,
+                                accentColor = accentColor,
+                                onLetterSelect = { letter ->
+                                    activeScrollerLetter = letter
+                                    val targetIdx = letterIndexMap[letter]
+                                        ?: if (letter == "#") 0
+                                        else {
+                                            val nextLetter = alphabet.dropWhile { it != letter }.firstOrNull { letterIndexMap.containsKey(it) }
+                                            nextLetter?.let { letterIndexMap[it] }
+                                        }
+                                    if (targetIdx != null) {
+                                        scope.launch {
+                                            listState.scrollToItem(targetIdx)
+                                        }
                                     }
-                                )
-                            }
-                        }
-
-                        // Sağ Kenar Alfabetik Kaydıraç (# ve A'dan Z'ye)
-                        AlphabetScrollerRail(
-                            alphabet = alphabet,
-                            letterIndexMap = letterIndexMap,
-                            activeLetter = activeScrollerLetter,
-                            accentColor = accentColor,
-                            onLetterSelect = { letter ->
-                                activeScrollerLetter = letter
-                                val targetIdx = letterIndexMap[letter]
-                                    ?: if (letter == "#") 0
-                                    else {
-                                        val nextLetter = alphabet.dropWhile { it != letter }
-                                            .firstOrNull { letterIndexMap.containsKey(it) }
-                                        nextLetter?.let { letterIndexMap[it] }
-                                    }
-                                if (targetIdx != null) {
-                                    scope.launch {
-                                        listState.scrollToItem(targetIdx)
-                                    }
-                                }
-                            },
-                            onDragEnd = {
-                                activeScrollerLetter = null
-                            },
-                            modifier = Modifier
-                                .align(Alignment.CenterEnd)
-                                .padding(vertical = 12.dp)
-                        )
-
-                        if (activeScrollerLetter != null) {
-                            Box(
+                                },
+                                onDragEnd = {
+                                    activeScrollerLetter = null
+                                },
                                 modifier = Modifier
-                                    .align(Alignment.Center)
-                                    .size(76.dp)
-                                    .clip(RoundedCornerShape(22.dp))
-                                    .background(KitsugiColors.Surface.copy(alpha = 0.95f))
-                                    .border(2.dp, accentColor, RoundedCornerShape(22.dp)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = activeScrollerLetter ?: "",
-                                    fontSize = 34.sp,
-                                    fontWeight = FontWeight.Black,
-                                    color = accentColor
-                                )
+                                    .align(Alignment.CenterEnd)
+                                    .padding(vertical = 12.dp)
+                            )
+
+                            // Sürükleme Sırasında Ortada Çıkan Büyük Harf Göstergesi
+                            if (activeScrollerLetter != null) {
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.Center)
+                                        .size(76.dp)
+                                        .clip(RoundedCornerShape(22.dp))
+                                        .background(KitsugiColors.Surface.copy(alpha = 0.95f))
+                                        .border(2.dp, accentColor, RoundedCornerShape(22.dp)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = activeScrollerLetter ?: "",
+                                        fontSize = 34.sp,
+                                        fontWeight = FontWeight.Black,
+                                        color = accentColor
+                                    )
+                                }
                             }
                         }
                     }
@@ -930,145 +746,12 @@ fun PluginPickerScreen(
         }
     }
 
-    // Eklenti içerik kartına tıklandığında bölüm/kaynak seçici detay diyaloğu açılır
-    activeDetailTarget?.let { target ->
+    // ── Detay Diyaloğu: ana arama sayfasındaki cs3 sonuçlarıyla aynı dialog ──
+    activeDetailItem?.let { (api, response) ->
         KitsugiAddonDetailDialog(
-            api = target.api,
-            url = target.url,
-            onDismissRequest = { activeDetailTarget = null }
-        )
-    }
-}
-
-private fun isNsfwPlugin(api: MainAPI): Boolean =
-    api.supportedTypes.contains(TvType.NSFW) ||
-        CsStreamRunner.ADULT_PLUGINS_SET.contains(api.name) ||
-        api.name.contains("18", ignoreCase = true) ||
-        api.name.contains("Adult", ignoreCase = true) ||
-        api.name.contains("Porn", ignoreCase = true)
-
-private fun isPureNsfwPlugin(api: MainAPI): Boolean =
-    CsStreamRunner.ADULT_PLUGINS_SET.contains(api.name) ||
-        (api.supportedTypes.isNotEmpty() && api.supportedTypes.all { it == TvType.NSFW })
-
-@Composable
-private fun PluginContentSearchStatusBanner(
-    query: String,
-    isSearching: Boolean,
-    searchedCount: Int,
-    totalPluginCount: Int,
-    matchedPluginCount: Int,
-    totalItemCount: Int,
-    accentColor: Color,
-    isTr: Boolean
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(KitsugiColors.Surface)
-            .border(1.dp, accentColor.copy(alpha = 0.28f), RoundedCornerShape(14.dp))
-            .padding(horizontal = 14.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        if (isSearching) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(16.dp),
-                strokeWidth = 2.dp,
-                color = accentColor
-            )
-        } else {
-            Icon(
-                imageVector = Icons.Extension,
-                contentDescription = null,
-                tint = accentColor,
-                modifier = Modifier.size(18.dp)
-            )
-        }
-
-        val statusText = when {
-            query.length < 2 -> if (isTr) {
-                "Aramaya başlamak için en az 2 karakter girin"
-            } else {
-                "Enter at least 2 characters to search"
-            }
-            isSearching -> if (isTr) {
-                "Eklentiler taranıyor ($searchedCount/$totalPluginCount) • $totalItemCount sonuç"
-            } else {
-                "Scanning addons ($searchedCount/$totalPluginCount) • $totalItemCount results"
-            }
-            else -> if (isTr) {
-                "$totalPluginCount eklenti tarandı • $matchedPluginCount eklentide $totalItemCount sonuç"
-            } else {
-                "Scanned $totalPluginCount addons • $totalItemCount results in $matchedPluginCount addons"
-            }
-        }
-
-        Text(
-            text = statusText,
-            color = KitsugiColors.TextPrimary,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f)
-        )
-    }
-}
-
-@Composable
-private fun PluginContentGroupHeader(
-    api: MainAPI,
-    count: Int,
-    accentColor: Color,
-    onOpenPluginClick: () -> Unit
-) {
-    val langFlag = try {
-        SubtitleHelper.getFlagFromIso(api.lang) ?: "🌐"
-    } catch (_: Exception) {
-        "🌐"
-    }
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(KitsugiColors.Surface.copy(alpha = 0.72f))
-            .clickable(onClick = onOpenPluginClick)
-            .padding(horizontal = 12.dp, vertical = 9.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        Text(text = langFlag, fontSize = 16.sp)
-        Text(
-            text = api.name,
-            color = KitsugiColors.TextPrimary,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Bold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f)
-        )
-        Box(
-            modifier = Modifier
-                .clip(RoundedCornerShape(8.dp))
-                .background(accentColor.copy(alpha = 0.16f))
-                .padding(horizontal = 8.dp, vertical = 3.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = count.toString(),
-                color = accentColor,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Black
-            )
-        }
-        Icon(
-            imageVector = Icons.ChevronRight,
-            contentDescription = null,
-            tint = KitsugiColors.TextMuted,
-            modifier = Modifier.size(18.dp)
+            api = api,
+            url = response.url,
+            onDismissRequest = { activeDetailItem = null }
         )
     }
 }
@@ -1144,8 +827,8 @@ private fun PluginListItem(
     onClick: () -> Unit
 ) {
     val langFlag = try {
-        SubtitleHelper.getFlagFromIso(api.lang)
-    } catch (_: Exception) { null }
+        SubtitleHelper.getFlagFromIso(api.lang) ?: "🌐"
+    } catch (_: Exception) { "🌐" }
 
     Row(
         modifier = Modifier
@@ -1163,16 +846,7 @@ private fun PluginListItem(
                 .background(accentColor.copy(alpha = 0.12f)),
             contentAlignment = Alignment.Center
         ) {
-            if (langFlag != null) {
-                Text(text = langFlag, fontSize = 18.sp)
-            } else {
-                Icon(
-                    imageVector = Icons.Globe,
-                    contentDescription = null,
-                    tint = accentColor,
-                    modifier = Modifier.size(18.dp)
-                )
-            }
+            Text(text = langFlag, fontSize = 18.sp)
         }
 
         Column(modifier = Modifier.weight(1f)) {
@@ -1226,12 +900,7 @@ private fun AllPluginsListItem(
                 .background(accentColor.copy(alpha = 0.12f)),
             contentAlignment = Alignment.Center
         ) {
-            Icon(
-                    imageVector = Icons.Globe,
-                    contentDescription = null,
-                    tint = KitsugiColors.TextMuted,
-                    modifier = Modifier.size(18.dp)
-                )
+            Text(text = "🌐", fontSize = 18.sp)
         }
 
         Column(modifier = Modifier.weight(1f)) {
@@ -1293,12 +962,10 @@ private fun PluginTypeChip(
             .padding(horizontal = 14.dp, vertical = 8.dp),
         contentAlignment = Alignment.Center
     ) {
-        KitsugiEmojiLabel(
-            label = label,
-            icon = KitsugiEmojiIcons.forEmoji(emoji),
-            iconSize = 13.dp,
+        Text(
+            text = "$emoji $label",
             color = textColor,
-            style = MaterialTheme.typography.bodyMedium,
+            fontSize = 13.sp,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
         )
     }

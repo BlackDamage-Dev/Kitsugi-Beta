@@ -1377,7 +1377,11 @@ private fun AppNavigationContent(
                         onBackClick = { navState.popDetailStack() },
                         searchViewModel = searchViewModel,
                         navState = navState,
-                        onOpenApiDetail = onOpenApiDetail
+                        onOpenApiDetail = onOpenApiDetail,
+                        titleLanguage = appSettings.titleLanguage,
+                        scoreFormat = appSettings.scoreFormat,
+                        hideScores = appSettings.hideScores,
+                        blurAdultMedia = appSettings.blurAdultMedia
                     )
                 }
             }

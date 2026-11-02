@@ -18475,4 +18475,5 @@ Eklentiler ekranından eklenti etkinleştirin.</string>
     <string name="detail_video_download_error_generic">İndirme tamamlanamadı.</string>
     <string name="detail_video_download_error_no_stream">Bu video için indirilebilir akış bulunamadı.</string>
 
+    <string name="plugin_portal_scan_progress">Eklentiler taranıyor (%1$d/%2$d) • %3$d sonuç</string>
 </resources>

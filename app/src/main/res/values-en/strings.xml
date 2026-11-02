@@ -18468,4 +18468,5 @@
     <string name="detail_video_download_error_generic">The download could not be completed.</string>
     <string name="detail_video_download_error_no_stream">No downloadable stream was found for this video.</string>
 
+    <string name="plugin_portal_scan_progress">Scanning extensions (%1$d/%2$d) • %3$d results</string>
 </resources>

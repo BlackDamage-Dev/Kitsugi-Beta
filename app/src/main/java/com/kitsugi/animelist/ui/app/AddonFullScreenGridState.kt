@@ -19,7 +19,13 @@ data class AddonFullScreenGridState(
     /** [com.lagradost.cloudstream3.MainPageData.data] — used to paginate via getMainPage() */
     val mainPageData: String,
     /** Whether the category uses horizontal (wide) poster images */
-    val horizontalImages: Boolean = false
+    val horizontalImages: Boolean = false,
+    /**
+     * false → öğeler bir ARAMA sonucudur; getMainPage() ile sayfalama DENENMEZ.
+     * Eklenti Portalı "Tümünü Gör" geçişi tüm arama sonuçlarını baştan verir;
+     * boş mainPageData ile ana sayfa kategorisi yüklemesi yapılmaz.
+     */
+    val paginate: Boolean = true
 ) {
     var savedStateKey: String? = null
     var openingStackDepth: Int = 0
