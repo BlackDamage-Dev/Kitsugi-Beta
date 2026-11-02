@@ -101,6 +101,12 @@ class CsStreamRunnerLogicTest {
     }
 
     @Test
+    fun testIsEmbedUrl_Voe() {
+        assertTrue(CsStreamRunner.isEmbedUrl("https://voe.sx/e/abc"))
+        assertFalse(com.kitsugi.animelist.data.cloudstream.extractors.VoeWrapper.isVoeUrl("https://voe.sx.example/e/abc"))
+    }
+
+    @Test
     fun testIsEmbedUrl_DoodStream() {
         assertTrue(CsStreamRunner.isEmbedUrl("https://doodstream.com/e/abc"))
     }
@@ -134,6 +140,34 @@ class CsStreamRunnerLogicTest {
     @Test
     fun testIsNotEmbedUrl_DirectMp4() {
         assertFalse(CsStreamRunner.isEmbedUrl("https://cdn.example.com/video/episode3.mp4"))
+    }
+
+    @Test
+    fun testIsEmbedUrl_GoogleDrivePreview() {
+        assertTrue(CsStreamRunner.isEmbedUrl("https://drive.google.com/file/d/abcDEF_123456/preview"))
+        assertTrue(CsStreamRunner.isEmbedUrl("https://drive.usercontent.google.com/download?id=abcDEF_123456"))
+    }
+
+    @Test
+    fun testExtensionlessSignedMediaHostsAreDirect() {
+        assertTrue(CsStreamRunner.isKnownExtensionlessMediaUrl("https://rr1---sn.googlevideo.com/videoplayback?expire=1"))
+        assertTrue(CsStreamRunner.isKnownExtensionlessMediaUrl("https://anizmplayer.com/cdn/hls/abc123?md5=1"))
+        assertTrue(CsStreamRunner.isKnownExtensionlessMediaUrl("https://sistenn.uns.bio/v4/abc123?token=1"))
+        assertTrue(CsStreamRunner.isClearlyDirectMediaUrl("https://okcdn.ru/stream/video?sig=1"))
+        assertFalse(CsStreamRunner.isKnownExtensionlessMediaUrl("https://content-workspacevideo-pa.googleapis.com/v1/drive/media/id/playback"))
+    }
+
+    @Test
+    fun testSendVidMp4RouteIsResolvedAsEmbedPage() {
+        val url = "https://sendvid.com/episode123.mp4"
+        assertTrue(CsStreamRunner.isEmbedUrl(url))
+        assertFalse(CsStreamRunner.isClearlyDirectMediaUrl(url))
+    }
+
+    @Test
+    fun testSendVidProviderUnavailableRouteIsNeverPassedAsRawMedia() {
+        assertTrue(CsStreamRunner.isEmbedUrl("https://sendvid.com/embed/episode123"))
+        assertFalse(CsStreamRunner.isClearlyDirectMediaUrl("https://sendvid.com/embed/episode123"))
     }
 
     @Test

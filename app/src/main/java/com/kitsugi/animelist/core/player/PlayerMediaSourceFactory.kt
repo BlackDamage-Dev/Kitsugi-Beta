@@ -427,6 +427,18 @@ class PlayerMediaSourceFactory(
                 return true
             }
 
+            // Sistenn'in `cf/source` uçları bazen `.m3u8` uzantısı olmadan `/v4/`
+            // adresi verir; plugin bunu HLS olarak yayınlar. Bu bilgi link tipine
+            // taşınmadığı için host + yol sözleşmesini burada koru.
+            val isSistennHost = clean.contains("sistenn.uns.bio") ||
+                clean.contains("anizm.rpmvid.com") ||
+                clean.contains("anizm.strp2p.com")
+            if (isSistennHost && (path.contains("/v4/") || path.contains("/hlsmod/")) &&
+                !PROGRESSIVE_PATH_REGEX.containsMatchIn(path)
+            ) {
+                return true
+            }
+
             // 2) v2.4.258 + v2.4.304: Yol bir DOĞRUDAN progressive dosyaya bitiyorsa
             //    (.mp4/.mkv/.webm/.avi/.m4v) HLS DEĞİLDİR. v2.4.304'e kadar '/hls/' gibi
             //    ZAYIF yol belirteçleri bu kontrolden ÖNCE koşuyordu; closeload / rapidrame

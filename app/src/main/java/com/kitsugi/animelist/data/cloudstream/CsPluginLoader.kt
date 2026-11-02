@@ -283,12 +283,20 @@ object CsPluginLoader {
 
                 Log.d(TAG, "Downloaded ${tempFile.length()} bytes to temp file from candidate: $downloadUrl")
 
-                // Verify SHA-256 hash if expected (warning only, ZIP verification ensures file validity)
+                // Verify SHA-256 hash when the repository supplies one before installing the CS3.
                 if (expectedHash != null) {
                     val calculatedHash = tempFile.sha256()
                     val cleanExpected = expectedHash.trim().removePrefix("sha256-").removePrefix("SHA256-")
                     if (!calculatedHash.equals(cleanExpected, ignoreCase = true)) {
-                        Log.w(TAG, "Hash verification mismatch for $scraperId. Expected: $expectedHash, got: $calculatedHash (continuing to ZIP validation)")
+                        // A valid ZIP is not enough: a stale/wrong artefact can still load
+                        // successfully and silently hide the provider fix the manifest points
+                        // to. Reject this candidate and let the mirror chain try the next one.
+                        Log.e(TAG, "Hash verification mismatch for $scraperId. Expected: $expectedHash, got: $calculatedHash — candidate rejected")
+                        if (tempFile.exists()) {
+                            try { tempFile.setWritable(true) } catch (_: Exception) {}
+                            tempFile.delete()
+                        }
+                        continue
                     } else {
                         Log.d(TAG, "Hash verification passed for $scraperId")
                     }
