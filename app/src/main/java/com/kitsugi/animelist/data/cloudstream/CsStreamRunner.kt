@@ -132,6 +132,50 @@ object CsStreamRunner {
      */
     private const val EMBED_RESOLVE_CONCURRENCY = 3
 
+    private data class PendingEmbedLink(
+        val url: String,
+        val name: String,
+        val headers: Map<String, String>,
+        val mediaType: com.kitsugi.animelist.core.player.StreamMediaType?,
+        val quality: Int,
+        val audioUrl: String?
+    )
+
+    private data class PendingEmbedResult(
+        val link: PendingEmbedLink,
+        val streams: List<StreamSource>,
+        val allowFallback: Boolean = true,
+        val inconclusiveDirect: Boolean = false
+    )
+
+    private fun streamMediaType(type: ExtractorLinkType): com.kitsugi.animelist.core.player.StreamMediaType? =
+        when (type) {
+            ExtractorLinkType.M3U8 -> com.kitsugi.animelist.core.player.StreamMediaType.HLS
+            ExtractorLinkType.DASH -> com.kitsugi.animelist.core.player.StreamMediaType.DASH
+            ExtractorLinkType.VIDEO -> com.kitsugi.animelist.core.player.StreamMediaType.PROGRESSIVE
+            else -> null
+        }
+
+    private val streamProbeClient by lazy {
+        CsVideoInterceptorFactory.buildClient(ignoreSSL = true).newBuilder()
+            .callTimeout(6, java.util.concurrent.TimeUnit.SECONDS)
+            .build()
+    }
+    private val directMediaProbe by lazy { CsDirectMediaProbe(streamProbeClient) }
+
+    private fun probeFor(
+        api: MainAPI,
+        name: String,
+        url: String,
+        headers: Map<String, String>,
+        quality: Int?,
+        mediaType: com.kitsugi.animelist.core.player.StreamMediaType?
+    ): CsDirectMediaProbe {
+        val interceptor = CsVideoInterceptorFactory.videoInterceptor(api, name, url, headers, quality, mediaType)
+            ?: return directMediaProbe
+        return CsDirectMediaProbe(streamProbeClient.newBuilder().addInterceptor(interceptor).build())
+    }
+
     /**
      * Aşama 4 (WebView medya yakalayıcı) açık mı?
      *
@@ -3175,7 +3219,7 @@ object CsStreamRunner {
         // Embed'ler artık PARALEL çözülüyor; bu yüzden altyazı listesi eşzamanlı yazıma
         // dayanıklı olmalı (aksi hâlde ConcurrentModificationException → çökme riski).
         val subtitleList = java.util.Collections.synchronizedList(mutableListOf<SubtitleInput>())
-        val pendingEmbedUrls = mutableListOf<Triple<String, String, Map<String, String>>>() // (rawUrl, linkName, headers)
+        val pendingEmbedUrls = mutableListOf<PendingEmbedLink>()
 
         try {
             // Uses LOAD semaphore — completely separate from searchSemaphore, no deadlock risk
@@ -3226,40 +3270,44 @@ object CsStreamRunner {
                                 lowerPath.endsWith(".webp") || lowerPath.endsWith(".svg") ||
                                 lowerPath.contains("/vod/img/")
 
-                            // Sınıflandırma: yalnızca UZANTISI/İŞARETİ ile açıkça doğrudan medya
-                            // olan URL'ler doğrudan eklenir. Diğer HER ŞEY embed boru hattına gider;
-                            // orada loadExtractor → wrapper → derin tarama → WebView sniffer zinciri
-                            // çalışır (Content-Type kontrolü sayesinde uzantısız gerçek akışlar da
-                            // doğru şekilde yakalanır).
                             val clearlyDirectMedia = isClearlyDirectMediaUrl(cleanUrl)
+                            val mediaType = streamMediaType(link.type)
+                            val adaptive = mediaType == com.kitsugi.animelist.core.player.StreamMediaType.HLS ||
+                                mediaType == com.kitsugi.animelist.core.player.StreamMediaType.DASH
+                            // VIDEO is also the library's default for an unknown/embed URL;
+                            // do not trust it without an extension or an HTTP media response.
+                            val directlyPlayable = (clearlyDirectMedia && !isEmbedUrl(link.url)) ||
+                                (adaptive && !CsMediaResponsePolicy.isObviousEmbedPage(cleanUrl))
+                            val providerReferer = try { api.mainUrl } catch (_: Exception) { "" }
+                            val rawHeaders = CsStreamHeaders.extracted(
+                                parent = emptyMap(),
+                                child = link.headers,
+                                extractorReferer = link.referer,
+                                fallbackReferer = if (directlyPlayable)
+                                    originOfUrl(cleanUrl)?.let { "$it/" } ?: providerReferer
+                                else providerReferer,
+                                mediaUrl = cleanUrl,
+                                userAgent = com.lagradost.cloudstream3.network.CloudflareKiller.UNIFIED_USER_AGENT,
+                                // For an embed, only derive Origin after the final extractor
+                                // has had a chance to supply its own Referer.
+                                addOrigin = directlyPlayable
+                            )
                             if (isImageUrl) {
                                 Log.w(TAG, "[${api.name}] Görüntü URL'si atlanıyor (video değil): $cleanUrl")
-                            } else if (isEmbedUrl(link.url) || !clearlyDirectMedia) {
-                                // ⚠️ ESKİ DAVRANIŞ (HATA): KNOWN_DEAD_CDN_HOSTS içindeki URL'ler burada
-                                // SESSİZCE ATILIYORDU. Video CDN'leri adres değiştirir (ya da geçici
-                                // olarak erişilemez olur); statik liste güncel değilse eklentinin TÜM
-                                // kaynakları kayboluyor ve eklenti "boş dönüyor" gibi görünüyordu.
-                                // Örnek: SezonlukDizi'nin embed CDN'i (vmnow.online), Dizilla/AsyaWatch
-                                // (pichive.cc) bu yüzden hiç denenmiyordu.
-                                // YENİ DAVRANIŞ: yine de çözümlemeyi dene. "Ölü CDN" bilgisi yalnızca
-                                // son-çare "ÖLÜ KANAL" fallback'ini engellemek için kullanılır.
-                                val isDeadCdn = KNOWN_DEAD_CDN_HOSTS.any { cleanUrl.contains(it, ignoreCase = true) }
-                                if (isDeadCdn) {
-                                    Log.d(TAG, "[${api.name}] Bilinen ölü CDN — yine de çözümleme deneniyor: $cleanUrl")
-                                }
-                                Log.d(TAG, "[${api.name}] Embed URL tespit edildi — extractor kuyruğuna alınıyor: $cleanUrl")
-                                CsTrace.info(api.name, "embed", "Embed kuyruğa alındı: $cleanUrl")
-                                pendingEmbedUrls.add(Triple(link.url, link.name, link.headers))
-                            } else {
-                                val providerReferer = try { api.mainUrl } catch (_: Exception) { null }
-                                val headers = buildCloudStreamRequestHeaders(
-                                    existingHeaders = link.headers,
-                                    linkReferer = link.referer,
-                                    parentPageUrl = loadResponse.url,
-                                    sourcePageUrl = providerReferer,
-                                    mediaUrl = cleanUrl,
-                                    userAgent = com.lagradost.cloudstream3.network.CloudflareKiller.UNIFIED_USER_AGENT
+                            } else if (!directlyPlayable) {
+                                Log.d(TAG, "[${api.name}] Belirsiz/embed URL çözümleme kuyruğuna alındı: $cleanUrl")
+                                pendingEmbedUrls.add(
+                                    PendingEmbedLink(
+                                        url = link.url,
+                                        name = link.name,
+                                        headers = rawHeaders,
+                                        mediaType = mediaType,
+                                        quality = link.quality,
+                                        audioUrl = link.audioTracks.firstOrNull()?.url?.takeIf { it.isNotBlank() }
+                                    )
                                 )
+                            } else {
+                                val headers = rawHeaders
                                 val newStream = StreamSource(
                                         addonName    = api.name,
                                         name         = "${api.name} • ${link.name}",
@@ -3277,7 +3325,8 @@ object CsStreamRunner {
                                         isAdultContent = ADULT_PLUGINS.contains(api.name),
                                         externalAudioUrl = link.audioTracks.firstOrNull()?.url?.takeIf { it.isNotBlank() },
                                         externalAudioTracks = externalAudioTrackInputs(link),
-                                        videoSizeBytes = extractVideoSize(link)
+                                        videoSizeBytes = extractVideoSize(link),
+                                        mediaType = mediaType
                                 )
                                 streams.add(newStream)
                                 partialSink?.add(newStream)
@@ -3313,29 +3362,106 @@ object CsStreamRunner {
             // çözülür; sonuç sırası korunur (kaynak kalitesi sunum sırasını etkilemesin).
             val embedResults = kotlinx.coroutines.coroutineScope {
                 val gate = Semaphore(EMBED_RESOLVE_CONCURRENCY)
-                pendingEmbedUrls.map { (rawUrl, linkName, rawHeaders) ->
+                pendingEmbedUrls.map { pending ->
                     async {
                         gate.withPermit {
-                            val resolved = resolveEmbedUrl(
-                                providerName     = api.name,
-                                rawUrl           = rawUrl,
-                                rawLinkName      = linkName,
-                                rawHeaders       = rawHeaders,
-                                referer          = referer,
-                                subtitleCallback = { sub -> subtitleList.add(sub) },
-                                thumbnailUrl     = posterUrl
+                            val clean = resolveHrefLi(pending.url)
+                            var mediaUrl = clean
+                            val driveDownload = CsMediaResponsePolicy.isDriveDownloadUrl(clean)
+                            val headers = CsStreamHeaders.complete(
+                                pending.headers, referer, clean,
+                                com.lagradost.cloudstream3.network.CloudflareKiller.UNIFIED_USER_AGENT
                             )
-                            Triple(rawUrl, linkName, resolved)
+                            val probeClient = probeFor(
+                                api, pending.name, clean, headers, getQualityValue(pending.quality), pending.mediaType
+                            )
+                            val typedManifest = pending.mediaType == com.kitsugi.animelist.core.player.StreamMediaType.HLS ||
+                                pending.mediaType == com.kitsugi.animelist.core.player.StreamMediaType.DASH
+                            val inspection = when {
+                                driveDownload -> probeClient.inspectDrive(clean, headers)
+                                !isEmbedUrl(clean) || typedManifest -> CsDirectMediaProbe.Inspection(probeClient.inspect(clean, headers))
+                                else -> CsDirectMediaProbe.Inspection(CsMediaResponseKind.UNKNOWN)
+                            }
+                            var probe = inspection.kind
+                            if (driveDownload && probe == CsMediaResponseKind.HTML) {
+                                val confirmed = inspection.html?.let {
+                                    runCatching { CsDriveConfirmation.resolve(it, clean) }.getOrNull()
+                                }
+                                if (confirmed != null && confirmed != clean) {
+                                    val follow = probeFor(
+                                        api, pending.name, confirmed, headers, getQualityValue(pending.quality), pending.mediaType
+                                    ).inspectDrive(confirmed, headers)
+                                    probe = follow.kind
+                                    if (probe != CsMediaResponseKind.HTML && probe != CsMediaResponseKind.DEAD) {
+                                        mediaUrl = confirmed
+                                    }
+                                }
+                            }
+                            val detectedType = when (probe) {
+                                CsMediaResponseKind.HLS -> com.kitsugi.animelist.core.player.StreamMediaType.HLS
+                                CsMediaResponseKind.DASH -> com.kitsugi.animelist.core.player.StreamMediaType.DASH
+                                CsMediaResponseKind.VIDEO -> com.kitsugi.animelist.core.player.StreamMediaType.PROGRESSIVE
+                                else -> null
+                            }
+                            when {
+                                detectedType != null || (driveDownload && probe == CsMediaResponseKind.UNKNOWN) -> {
+                                    // A Drive confirmation URL is already a resolved endpoint.
+                                    // Preserve every query parameter even if the probe is inconclusive.
+                                    val stream = StreamSource(
+                                        addonName = api.name,
+                                        name = "${api.name} • ${pending.name}",
+                                        title = pending.name,
+                                        url = mediaUrl,
+                                        infoHash = null,
+                                        fileIndex = null,
+                                        requestHeaders = headers,
+                                        isCS = true,
+                                        quality = getQualityString(pending.quality),
+                                        qualityValue = getQualityValue(pending.quality),
+                                        thumbnailUrl = posterUrl,
+                                        isAdultContent = ADULT_PLUGINS.contains(api.name),
+                                        externalAudioUrl = pending.audioUrl,
+                                        mediaType = detectedType ?: pending.mediaType
+                                    )
+                                    PendingEmbedResult(pending, listOf(stream))
+                                }
+                                probe == CsMediaResponseKind.DEAD ||
+                                    (driveDownload && probe == CsMediaResponseKind.HTML) -> {
+                                    Log.w(TAG, "[${api.name}] Medya yerine $probe döndü: ${clean.take(100)}")
+                                    PendingEmbedResult(pending, emptyList(), allowFallback = false)
+                                }
+                                else -> {
+                                    val resolved = resolveEmbedUrl(
+                                        providerName = api.name,
+                                        rawUrl = pending.url,
+                                        rawLinkName = pending.name,
+                                        rawHeaders = pending.headers,
+                                        referer = CsStreamHeaders.value(pending.headers, "Referer") ?: referer,
+                                        subtitleCallback = { sub -> subtitleList.add(sub) },
+                                        thumbnailUrl = posterUrl
+                                    )
+                                    PendingEmbedResult(
+                                        pending, resolved,
+                                        allowFallback = probe != CsMediaResponseKind.HTML,
+                                        inconclusiveDirect = probe == CsMediaResponseKind.UNKNOWN &&
+                                            !isEmbedUrl(clean) && !CsMediaResponsePolicy.isObviousEmbedPage(clean)
+                                    )
+                                }
+                            }
                         }
                     }
                 }.awaitAll()
             }
 
-            for ((rawUrl, linkName, resolved) in embedResults) {
+            for (result in embedResults) {
+                val pending = result.link
+                val rawUrl = pending.url
+                val linkName = pending.name
+                val resolved = result.streams
                 if (resolved.isNotEmpty()) {
                     streams.addAll(resolved)
                     partialSink?.addAll(resolved)
-                } else {
+                } else if (result.allowFallback) {
                     val clean = resolveHrefLi(rawUrl)
                     // Oynatıcıya HTML sayfası göndermek "oynatıcı hata veriyor" şikâyetinin
                     // en büyük kaynağıdır. Bu yüzden yalnızca medya gibi GÖRÜNEN URL'ler
@@ -3346,13 +3472,17 @@ object CsStreamRunner {
                         clean.contains("/player/") ||
                         clean.endsWith(".html") ||
                         clean.contains(".html?")
-                    val looksPlayable = isClearlyDirectMediaUrl(clean) ||
-                        com.kitsugi.animelist.data.cloudstream.embed.EmbedMediaScanner.looksLikeMediaUrl(clean)
+                    // A network error/403 is not proof of a dead video. Retain an
+                    // inconclusive direct-looking URL, but never a confirmed HTML page.
+                    val looksPlayable = isClearlyDirectMediaUrl(clean) || result.inconclusiveDirect ||
+                        pending.mediaType == com.kitsugi.animelist.core.player.StreamMediaType.HLS ||
+                        pending.mediaType == com.kitsugi.animelist.core.player.StreamMediaType.DASH
                     if (!obviouslyHtml && looksPlayable) {
                         Log.w(TAG, "[${api.name}] Extractor çözemedi — medya URL'si olduğu için ekleniyor: $clean")
-                        // CDN'ler embed origin'i doğrular; fallback'te bile Origin eklenmeli
-                        // (closeload/rapidrame/playmix.uno 5004 hatası).
-                        val fallbackOrigin = originOfUrl(referer) ?: originOfUrl(clean) ?: referer
+                        val fallbackHeaders = CsStreamHeaders.complete(
+                            pending.headers, referer, clean,
+                            com.lagradost.cloudstream3.network.CloudflareKiller.UNIFIED_USER_AGENT
+                        )
                         val fallbackStream = StreamSource(
                                 addonName      = api.name,
                                 name           = "${api.name} • $linkName",
@@ -3360,18 +3490,17 @@ object CsStreamRunner {
                                 url            = clean,
                                 infoHash       = null,
                                 fileIndex      = null,
-                                requestHeaders = mapOf(
-                                    "Referer"    to referer,
-                                    "Origin"     to fallbackOrigin,
-                                    "User-Agent" to com.lagradost.cloudstream3.network.CloudflareKiller.UNIFIED_USER_AGENT
-                                ),
+                                requestHeaders = fallbackHeaders,
                                 isCS           = true,
-                                // Extractor çözemedi; kalite bilinmiyor.
-                                quality        = null,
-                                qualityValue   = null,
+                                quality        = getQualityString(pending.quality),
+                                qualityValue   = getQualityValue(pending.quality),
                                 subtitles      = emptyList(),
                                 thumbnailUrl   = posterUrl,
-                                isAdultContent = ADULT_PLUGINS.contains(api.name)
+                                isAdultContent = ADULT_PLUGINS.contains(api.name),
+                                externalAudioUrl = pending.audioUrl,
+                                mediaType      = pending.mediaType.takeUnless {
+                                    result.inconclusiveDirect && it == com.kitsugi.animelist.core.player.StreamMediaType.PROGRESSIVE
+                                }
                         )
                         streams.add(fallbackStream)
                         partialSink?.add(fallbackStream)

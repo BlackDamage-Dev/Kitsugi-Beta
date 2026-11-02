@@ -830,7 +830,8 @@ class Media3PlayerEngine(
         addonName: String?,
         isCS: Boolean,
         streamTitle: String?,
-        qualityValue: Int?
+        qualityValue: Int?,
+        mediaType: com.kitsugi.animelist.core.player.StreamMediaType?
     ) {
         withContext(Dispatchers.Main) {
             initializePlayer()
@@ -1004,8 +1005,9 @@ class Media3PlayerEngine(
 
             // ── MediaItem ────────────────────────────────────────────────────────
             val videoUri = Uri.parse(videoUrl)
-            val isM3u8 = PlayerMediaSourceFactory.isHlsUrl(videoUrl, streamTypeHint)
-            val isDash = PlayerMediaSourceFactory.isDashUrl(videoUrl, streamTypeHint)
+            val format = com.kitsugi.animelist.core.player.StreamFormatPolicy.resolve(videoUrl, mediaType)
+            val isM3u8 = format == com.kitsugi.animelist.core.player.StreamMediaType.HLS || PlayerMediaSourceFactory.isHlsUrl(videoUrl, streamTypeHint)
+            val isDash = format == com.kitsugi.animelist.core.player.StreamMediaType.DASH || PlayerMediaSourceFactory.isDashUrl(videoUrl, streamTypeHint)
             val isSs = videoUrl.contains(".ism", ignoreCase = true)
 
             val mediaItemBuilder = MediaItem.Builder().setUri(videoUri)
@@ -1060,6 +1062,7 @@ class Media3PlayerEngine(
                 qualityValue      = qualityValue,
                 extractorsFactory = effectiveExtractorsFactory,
                 mediaItemOverride = mediaItem,
+                mediaType         = mediaType
             )
         }
 

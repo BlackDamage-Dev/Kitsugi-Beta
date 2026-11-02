@@ -323,7 +323,8 @@ class MpvPlayerEngine(
         addonName: String?,
         isCS: Boolean,
         streamTitle: String?,
-        qualityValue: Int?
+        qualityValue: Int?,
+        mediaType: com.kitsugi.animelist.core.player.StreamMediaType?
     ) {
         this.videoUrl = videoUrl
         this.currentAddonName = addonName

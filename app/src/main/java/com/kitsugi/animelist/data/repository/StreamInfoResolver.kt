@@ -216,6 +216,8 @@ object StreamInfoResolver {
 
     fun isAdaptiveStream(stream: StreamSource): Boolean =
         isAdaptiveUrl(stream.url) ||
+            stream.mediaType == com.kitsugi.animelist.core.player.StreamMediaType.HLS ||
+            stream.mediaType == com.kitsugi.animelist.core.player.StreamMediaType.DASH ||
             stream.streamTypeHint.equals("M3U8", ignoreCase = true) ||
             stream.streamTypeHint.equals("HLS", ignoreCase = true) ||
             stream.streamTypeHint.equals("DASH", ignoreCase = true)
@@ -372,7 +374,8 @@ object StreamInfoResolver {
     fun formatBytes(bytes: Long): String {
         val gb = bytes / 1_000_000_000.0
         if (gb >= 1.0) return String.format(Locale.ROOT, "%.2f GB", gb)
-        val mb = bytes / 1_000_000.0
-        return String.format(Locale.ROOT, "%.0f MB", mb)
+        if (bytes < 1_000L) return "$bytes B"
+        if (bytes < 1_000_000L) return String.format(Locale.ROOT, "%.0f KB", bytes / 1_000.0)
+        return String.format(Locale.ROOT, "%.0f MB", bytes / 1_000_000.0)
     }
 }

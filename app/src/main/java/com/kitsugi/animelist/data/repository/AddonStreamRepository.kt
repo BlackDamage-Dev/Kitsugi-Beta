@@ -274,7 +274,9 @@ data class StreamSource(
     /** Yalnızca kaynak/probe açık bitrate bildirdiyse kbps; çözünürlükten türetilmez. */
     val bitrateKbps: Int? = null,
     /** Kaynağın açıkça bildirdiği dosya boyutu (bytes); bitrate/çözünürlük değildir. */
-    val videoSizeBytes: Long? = null
+    val videoSizeBytes: Long? = null,
+    /** Extractor/HTTP media type, retained even when the URL has no useful extension. */
+    val mediaType: com.kitsugi.animelist.core.player.StreamMediaType? = null
 ) : java.io.Serializable {
     val isTorrent: Boolean
         get() = !infoHash.isNullOrBlank() || url.isMagnetLink() || url.isTorrentSchemeUrl() ||

@@ -260,25 +260,25 @@
     "language": "tr"
   },
   {
-    "iconUrl": "https://www.google.com/s2/favicons?domain=anizm.net&sz=%size%",
+    "iconUrl": "https://www.google.com/s2/favicons?domain=anizm.net&sz=128",
     "apiVersion": 1,
     "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
-    "fileSize": 16586,
+    "fileSize": 124455,
     "status": 1,
     "language": "tr",
     "authors": [
-      "Hexated"
+      "hexated",
+      "byayzen"
     ],
     "tvTypes": [
-      "AnimeMovie",
-      "Anime",
-      "OVA"
+      "Anime"
     ],
-    "version": 1,
+    "version": 21,
     "internalName": "Anizm",
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/Anizm.cs3",
+    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/Anizm.cs3",
     "name": "Anizm",
-    "fileHash": "sha256-1234d5e8035b059edb05d935ea4db58dfc9a2132c348069c415fd70af3390890",
+    "description": "Anizm anime arşivi: isim eşleştirmeli arama, kategoriler, detay ve bölümler; tüm fansub/video kaynaklarıyla oynatıcı çözücü.",
+    "fileHash": "sha256-8c1195b583c1456801c5aec99e8e73f239c699fa60b2367b098e1bbea9f8ebb5",
     "pluginClassName": "com.hexated.AnizmPlugin"
   },
   {

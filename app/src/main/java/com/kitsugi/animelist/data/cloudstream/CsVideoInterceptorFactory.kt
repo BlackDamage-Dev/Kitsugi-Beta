@@ -27,6 +27,36 @@ object CsVideoInterceptorFactory {
 
     private const val TAG = "CsVideoInterceptorFactory"
 
+    /** Construct the same link for provider interception in playback and verification. */
+    @Suppress("DEPRECATION")
+    fun videoInterceptor(
+        provider: com.lagradost.cloudstream3.MainAPI?,
+        name: String,
+        url: String,
+        headers: Map<String, String>,
+        quality: Int?,
+        mediaType: com.kitsugi.animelist.core.player.StreamMediaType?
+    ): Interceptor? = runCatching {
+        provider ?: return null
+        val format = com.kitsugi.animelist.core.player.StreamFormatPolicy.resolve(url, mediaType)
+        val link = com.lagradost.cloudstream3.utils.ExtractorLink(
+            source = provider.name,
+            name = name,
+            url = url,
+            referer = CsStreamHeaders.value(headers, "Referer").orEmpty(),
+            quality = quality ?: 1080,
+            headers = headers,
+            extractorData = null,
+            type = when (format) {
+                com.kitsugi.animelist.core.player.StreamMediaType.HLS -> com.lagradost.cloudstream3.utils.ExtractorLinkType.M3U8
+                com.kitsugi.animelist.core.player.StreamMediaType.DASH -> com.lagradost.cloudstream3.utils.ExtractorLinkType.DASH
+                else -> com.lagradost.cloudstream3.utils.ExtractorLinkType.VIDEO
+            },
+            audioTracks = emptyList()
+        )
+        provider.getVideoInterceptor(link)
+    }.getOrNull()
+
     // Trust-all X509TrustManager: tüm sunucu sertifikalarını geçerli kabul eder.
     // Bu sadece CS kaynaklar için kullanılır, genel HTTP isteklerinde değil.
     private val trustAllCerts = arrayOf<TrustManager>(object : X509TrustManager {
@@ -87,22 +117,22 @@ object CsVideoInterceptorFactory {
             }
 
             // Header interceptor: Referer, User-Agent vb. her isteğe eklenir
-            val finalHeaders = headers.toMutableMap()
-            if (!finalHeaders.keys.any { it.equals("user-agent", ignoreCase = true) }) {
-                finalHeaders["User-Agent"] = com.lagradost.cloudstream3.network.CloudflareKiller.UNIFIED_USER_AGENT
+            val finalHeaders = headers.toMap()
+            addInterceptor { chain ->
+                val original = chain.request()
+                val request = original.newBuilder().apply {
+                    finalHeaders.forEach { (key, value) -> header(key, value) }
+                    // A request-specific User-Agent (for example during a media probe)
+                    // must not be replaced by the default when no override was supplied.
+                    if (finalHeaders.keys.none { it.equals("user-agent", ignoreCase = true) } &&
+                        original.header("User-Agent").isNullOrBlank()
+                    ) {
+                        header("User-Agent", com.lagradost.cloudstream3.network.CloudflareKiller.UNIFIED_USER_AGENT)
+                    }
+                }.build()
+                chain.proceed(request)
             }
-
-            if (finalHeaders.isNotEmpty()) {
-                addInterceptor { chain ->
-                    val request = chain.request().newBuilder().apply {
-                        finalHeaders.forEach { (key, value) ->
-                            header(key, value)
-                        }
-                    }.build()
-                    chain.proceed(request)
-                }
-                Log.d(TAG, "Header interceptor added: ${finalHeaders.keys}")
-            }
+            Log.d(TAG, "Header interceptor added: ${finalHeaders.keys}")
 
             // Eklenti interceptor'ı: token yenileme, Cloudflare bypass vb. için
             if (interceptor != null) {

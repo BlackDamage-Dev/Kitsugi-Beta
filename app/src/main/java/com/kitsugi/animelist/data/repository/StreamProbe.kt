@@ -64,8 +64,23 @@ object StreamProbe {
         runCatching { CsVideoInterceptorFactory.buildClient(headers = emptyMap()) }.getOrNull()
     }
 
-    private fun clientFor(stream: StreamSource): OkHttpClient =
-        if (stream.isCS) csClient ?: KitsugiHttpClient.client else KitsugiHttpClient.client
+    private fun clientFor(stream: StreamSource): OkHttpClient {
+        if (!stream.isCS) return KitsugiHttpClient.client
+        val provider = com.lagradost.cloudstream3.APIHolder.getApiFromNameNull(stream.addonName)
+        val interceptor = CsVideoInterceptorFactory.videoInterceptor(
+            provider = provider,
+            name = stream.title ?: stream.addonName,
+            url = stream.url.orEmpty(),
+            headers = stream.requestHeaders.orEmpty(),
+            quality = stream.qualityValue,
+            mediaType = stream.mediaType
+        )
+        return if (interceptor != null) {
+            CsVideoInterceptorFactory.buildClient(interceptor = interceptor, headers = stream.requestHeaders.orEmpty())
+        } else {
+            csClient ?: KitsugiHttpClient.client
+        }
+    }
 
     /** Kalite sayfası için varyant listesi önbelleği (URL başına). */
     private val variantCache = BoundedCache<String, List<HlsVariant>>("streamVariants", 60)
@@ -439,7 +454,8 @@ object StreamProbe {
         val response = awaitResponse(client.newCall(request))
             ?: return MeasuredStreamInfo(failed = true)
         return response.use { resp ->
-            if (!resp.isSuccessful) {
+            val mime = resp.header("Content-Type").orEmpty().substringBefore(';').trim()
+            if (!resp.isSuccessful || mime.equals("text/html", true) || mime.equals("application/xhtml+xml", true)) {
                 MeasuredStreamInfo(failed = true)
             } else {
                 val length = resp.header("Content-Length")?.toLongOrNull()

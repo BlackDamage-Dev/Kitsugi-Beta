@@ -181,6 +181,9 @@ object CloudstreamUrlHelper {
             normalized.contains("KitsugiPlugins", ignoreCase = true) ||
             normalized.contains("gameras1010-afk", ignoreCase = true) ||
             normalized.contains("f26901964-eng", ignoreCase = true)) {
+            // When raw GitHub is blocked, try the official current build via the API
+            // before a possibly much older prebuilt/mirror (e.g. Anizm v1 vs v20).
+            candidates.add("https://api.github.com/repos/f26901964-eng/Kitsugi-Plugins/contents/$scraperId.cs3?ref=builds")
             candidates.add("https://raw.githubusercontent.com/gameras1010-afk/Kitsugi-Plugins/builds/$scraperId.cs3")
             candidates.add("https://cdn.jsdelivr.net/gh/gameras1010-afk/Kitsugi-Plugins@builds/$scraperId.cs3")
             candidates.add("https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/$scraperId.cs3")
@@ -191,7 +194,6 @@ object CloudstreamUrlHelper {
             // İndirme katmanı bu adresler için `Accept: application/vnd.github.raw` gönderir
             // (aksi halde GitHub base64 JSON döner ve ZIP doğrulaması başarısız olur).
             candidates.add("https://api.github.com/repos/f26901964-eng/Kitsugi-Plugins/contents/prebuilt/$scraperId.cs3?ref=builds")
-            candidates.add("https://api.github.com/repos/f26901964-eng/Kitsugi-Plugins/contents/$scraperId.cs3?ref=builds")
 
             // 2b. Codeberg (eski birincil havuz) SON ÇARE yedeği.
             // Kitsugi-Plugins deposu Codeberg havuzunun yerini aldı; ancak bazı eklentiler

@@ -99,11 +99,13 @@ class PlayerMediaSourceFactory(
     fun buildMediaItem(
         videoUrl: String,
         subtitles: List<SubtitleInput> = emptyList(),
-        streamTypeHint: String? = null
+        streamTypeHint: String? = null,
+        mediaType: StreamMediaType? = null
     ): MediaItem {
         val videoUri = Uri.parse(videoUrl)
-        val isM3u8  = isHlsUrl(videoUrl, streamTypeHint)
-        val isDash  = isDashUrl(videoUrl, streamTypeHint)
+        val format = StreamFormatPolicy.resolve(videoUrl, mediaType)
+        val isM3u8  = format == StreamMediaType.HLS || isHlsUrl(videoUrl, streamTypeHint)
+        val isDash  = format == StreamMediaType.DASH || isDashUrl(videoUrl, streamTypeHint)
         val isSs    = videoUrl.contains(".ism",   ignoreCase = true)
 
         val builder = MediaItem.Builder().setUri(videoUri)
@@ -152,7 +154,8 @@ class PlayerMediaSourceFactory(
         videoUrl: String,
         streamTitle: String?,
         isCS: Boolean,
-        qualityValue: Int?
+        qualityValue: Int?,
+        mediaType: StreamMediaType? = null
     ): androidx.media3.datasource.DataSource.Factory {
         val provider = if (isCS && !addonName.isNullOrBlank()) {
             runCatching {
@@ -160,30 +163,14 @@ class PlayerMediaSourceFactory(
             }.getOrNull()
         } else null
 
-        @Suppress("DEPRECATION")
-        val csLink = if (provider != null) {
-            runCatching {
-                val isM3u8Link = isHlsUrl(videoUrl)
-                com.lagradost.cloudstream3.utils.ExtractorLink(
-                    source    = addonName!!,
-                    name      = streamTitle ?: addonName,
-                    url       = videoUrl,
-                    referer   = headers.entries.firstOrNull { it.key.equals("referer", ignoreCase = true) }?.value ?: "",
-                    quality   = qualityValue ?: 1080,
-                    headers   = headers,
-                    extractorData = null,
-                    type      = if (isM3u8Link)
-                        com.lagradost.cloudstream3.utils.ExtractorLinkType.M3U8
-                    else
-                        com.lagradost.cloudstream3.utils.ExtractorLinkType.VIDEO,
-                    audioTracks = emptyList()
-                )
-            }.getOrNull()
-        } else null
-
-        val videoInterceptor = runCatching {
-            csLink?.let { provider?.getVideoInterceptor(it) }
-        }.getOrNull()
+        val videoInterceptor = CsVideoInterceptorFactory.videoInterceptor(
+            provider = provider,
+            name = streamTitle ?: addonName.orEmpty(),
+            url = videoUrl,
+            headers = headers,
+            quality = qualityValue,
+            mediaType = mediaType
+        )
 
         val effectiveHeaders = headers.toMutableMap()
         val videoHost = runCatching { Uri.parse(videoUrl).host }.getOrNull()
@@ -252,9 +239,10 @@ class PlayerMediaSourceFactory(
         /** Engine tarafında (altyazı kimlikleri / yerel MIME tespiti ile) hazırlanmış MediaItem. */
         mediaItemOverride: MediaItem? = null,
         externalAudioTracks: List<ExternalAudioTrackInput> = emptyList(),
-        streamTypeHint: String? = null
+        streamTypeHint: String? = null,
+        mediaType: StreamMediaType? = null
     ): MediaSource {
-        val mediaItem = mediaItemOverride ?: buildMediaItem(videoUrl, subtitles, streamTypeHint)
+        val mediaItem = mediaItemOverride ?: buildMediaItem(videoUrl, subtitles, streamTypeHint, mediaType)
 
         val activeExtractorsFactory = customExtractorsFactory ?: extractorsFactory
         val isYouTubeSource = YouTubeRequestPolicy.shouldUseYouTubeDataSource(
@@ -283,7 +271,8 @@ class PlayerMediaSourceFactory(
                 videoUrl = videoUrl,
                 streamTitle = streamTitle,
                 isCS = isCS,
-                qualityValue = qualityValue
+                qualityValue = qualityValue,
+                mediaType = mediaType
             )
         }
         val dsFactory = withPerUrlHeaders(rawDataSourceFactory, perUrlHeaders)

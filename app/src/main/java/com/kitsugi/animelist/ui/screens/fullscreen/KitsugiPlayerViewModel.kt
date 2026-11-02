@@ -1550,8 +1550,9 @@ class KitsugiPlayerViewModel(application: Application) : AndroidViewModel(applic
                     null
                 }
                 if (resolvedUrl != null) {
+                    pendingSourceSwitchResumeMs = activeEngine?.currentPosition?.takeIf { it > 0L }
                     _currentVideoUrl.value = resolvedUrl
-                    _currentAudioUrl.value = null
+                    _currentAudioUrl.value = target.externalAudioUrl
                     _currentHeaders.value = target.requestHeaders ?: emptyMap()
                     _currentSubtitles.value = target.subtitles ?: emptyList()
                     _currentSourceIndex.value = nextIndex
@@ -1680,7 +1681,11 @@ class KitsugiPlayerViewModel(application: Application) : AndroidViewModel(applic
                                 headers = _currentHeaders.value,
                                 subtitles = _currentSubtitles.value,
                                 startPositionMs = engine.currentPosition,
-                                addonName = _currentAddonName.value
+                                addonName = _currentAddonName.value,
+                                isCS = currentSource?.isCS == true,
+                                streamTitle = currentSource?.title ?: currentSource?.name,
+                                qualityValue = currentSource?.qualityValue,
+                                mediaType = currentSource?.mediaType
                             )
                         }.onFailure {
                             Log.e("KitsugiPlayerViewModel", "onRetry prepare hatası (deneme $attempt)", it)

@@ -140,4 +140,17 @@ class CsStreamSanitizerTest {
         assertTrue(kept.isEmpty())
         assertEquals(0, dropped)
     }
+
+    @Test
+    fun sanitize_keepsSameUrlWhenPlaybackHeadersOrTypeDiffer() {
+        val base = source("https://cdn.example/video.mp4").copy(requestHeaders = mapOf("Referer" to "https://first.example/"))
+        val otherReferer = base.copy(requestHeaders = mapOf("referer" to "https://second.example/"))
+        val sameHeadersDifferentCase = base.copy(requestHeaders = mapOf("referer" to "https://first.example/"))
+        val otherType = base.copy(mediaType = com.kitsugi.animelist.core.player.StreamMediaType.HLS)
+        val (kept, dropped) = CsStreamSanitizer.sanitize(
+            "Anizm", listOf(base, otherReferer, sameHeadersDifferentCase, otherType)
+        )
+        assertEquals(listOf(base, otherReferer, otherType), kept)
+        assertEquals(1, dropped)
+    }
 }
