@@ -9,6 +9,7 @@ import android.view.View
 import androidx.annotation.OptIn
 import androidx.media3.common.C
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
@@ -132,6 +133,19 @@ class Media3PlayerEngine(
     }
     private var exoPlayer: ExoPlayer? = null
     private var trackSelector: androidx.media3.exoplayer.trackselection.DefaultTrackSelector? = null
+
+    /**
+     * Kullanıcının seçtiği çözünürlük tavanı (piksel yüksekliği). `null` → sınırsız.
+     * DASH gibi tek URL'li adaptif akışlarda "Kalite" seçimi bu değerle uygulanır.
+     */
+    private var maxVideoHeight: Int? = null
+
+    /**
+     * Kullanıcının ayarlardaki **Kalite Profili**'nden gelen çözünürlük/bit hızı tavanı.
+     * Elle kalite seçilmediyse uygulanır; ayar değişirse `prepare()` sırasında tazelenir.
+     */
+    private var profileMaxHeight: Int? = null
+    private var profileMaxBitrateKbps: Int? = null
     private var playerView: PlayerView? = null
     private var assSubtitleView: View? = null
     private val listeners = mutableListOf<PlayerEngine.Listener>()
@@ -787,6 +801,9 @@ class Media3PlayerEngine(
                 )
             }
             playerView?.player = exoPlayer
+            // Kalite tavanı yeni oynatıcıya da uygulanır (motor yeniden kurulursa kaybolmaz).
+            applyProfileJson(settings.qualityProfileJson)
+            applyTrackLimits(localSelector)
         }
     }
 
@@ -817,6 +834,10 @@ class Media3PlayerEngine(
     ) {
         withContext(Dispatchers.Main) {
             initializePlayer()
+            // Ayar ekranında kalite profili değiştirilmiş olabilir: her hazırlıkta tazele.
+            // (Uygulama, aşağıdaki dil parametreleri yazıldıktan SONRA yapılır; aksi hâlde
+            //  sonraki `trackSelectionParameters` yazımı tavanı ezebilir.)
+            refreshProfileLimits()
             val player = exoPlayer
             if (player != null) {
                 // A fixed rendition belongs to the old media, never to the next source/episode.
@@ -842,6 +863,8 @@ class Media3PlayerEngine(
                     .setPreferredTextLanguages(*expandedTextLangs.toTypedArray())
                     .setSelectUndeterminedTextLanguage(false)
                     .build()
+                // En son: kalite profili / elle seçilen çözünürlük tavanı.
+                applyTrackLimits(selector)
             }
         }
         this.videoUrl = videoUrl
@@ -1136,6 +1159,59 @@ class Media3PlayerEngine(
     override fun setSubtitleStyle(style: SubtitleStyleSettings) {
         currentSubtitleStyle = style
         runOnMainThread { applySubtitleStylesToView() }
+    }
+
+    override fun setMaxVideoHeight(height: Int?) {
+        val sanitized = height?.takeIf { it in 144..4320 }
+        if (sanitized == maxVideoHeight) return
+        maxVideoHeight = sanitized
+        runOnMainThread { applyTrackLimits(trackSelector) }
+    }
+
+    /**
+     * Etkin çözünürlük/bit hızı tavanını track selector'a yazar.
+     *
+     * Öncelik: kullanıcının elle seçtiği kalite ([maxVideoHeight]) → kalite profili
+     * ([profileMaxHeight]) → sınırsız. Böylece ayarlardaki "720p tercih et" / "Veri
+     * tasarrufu" gerçekten uygulanır (eskiden yalnızca kaydediliyordu).
+     */
+    private fun applyTrackLimits(selector: androidx.media3.exoplayer.trackselection.DefaultTrackSelector?) {
+        val target = selector ?: trackSelector ?: return
+        val height = maxVideoHeight ?: profileMaxHeight
+        val bitrate = (profileMaxBitrateKbps?.times(1000))?.takeIf { it > 0 }
+        runCatching {
+            target.parameters = target.buildUponParameters()
+                .setMaxVideoSize(Int.MAX_VALUE, height ?: Int.MAX_VALUE)
+                .setMaxVideoBitrate(bitrate ?: Int.MAX_VALUE)
+                .build()
+        }.onFailure { Log.w(TAG, "applyTrackLimits failed: ${it.message}") }
+    }
+
+    /** Verilen JSON'dan kalite profilini uygular (AUTO → tavan yok). */
+    private fun applyProfileJson(json: String?) {
+        val profile = com.kitsugi.animelist.core.player.QualityProfile.deserialize(json)
+        profileMaxHeight = profile.effectiveMaxVideoHeight
+        profileMaxBitrateKbps = profile.effectiveMaxBitrateKbps
+    }
+
+    /**
+     * Ayarlardaki kalite profilini **taze** okur.
+     *
+     * Motor `settings` anlık görüntüsüyle kurulduğu için, kullanıcı oynatıcı açıkken
+     * ayarlardan "720p / Veri tasarrufu" seçerse eski değer kalırdı. Bu yüzden her
+     * `prepare()` çağrısında DataStore'dan kısa bir tavanla okunur; okunamazsa motorun
+     * anlık görüntüsü kullanılır.
+     */
+    private suspend fun refreshProfileLimits() {
+        val fresh = runCatching {
+            kotlinx.coroutines.withTimeoutOrNull(400L) {
+                withContext(Dispatchers.IO) {
+                    val store = com.kitsugi.animelist.data.settings.SettingsDataStore(context)
+                    store.settingsFlow.first()
+                }
+            }?.qualityProfileJson
+        }.getOrNull()
+        applyProfileJson(fresh ?: settings.qualityProfileJson)
     }
 
     override fun setResizeMode(resizeMode: Int) {

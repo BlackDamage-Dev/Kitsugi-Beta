@@ -118,4 +118,28 @@ class QualityProfileTest {
         bitrateKbps = bitrateKbps
     )
 
+
+    // ── Oynatıcıya uygulanan çözünürlük tavanı ───────────────────────────────
+
+    @Test
+    fun `preference maps to a resolution cap for the player`() {
+        assertEquals(null, QualityPreference.AUTO.maxVideoHeight)
+        assertEquals(null, QualityPreference.P1080.maxVideoHeight)
+        assertEquals(720, QualityPreference.P720.maxVideoHeight)
+        assertEquals(480, QualityPreference.P480.maxVideoHeight)
+        assertEquals(360, QualityPreference.DATA_SAVER.maxVideoHeight)
+    }
+
+    @Test
+    fun `profile exposes effective limits only when set`() {
+        assertEquals(null, QualityProfile.DEFAULT.effectiveMaxVideoHeight)
+        assertEquals(null, QualityProfile.DEFAULT.effectiveMaxBitrateKbps)
+
+        val strict = QualityProfile(QualityPreference.P720, 2500)
+        assertEquals(720, strict.effectiveMaxVideoHeight)
+        assertEquals(2500, strict.effectiveMaxBitrateKbps)
+
+        // 0 / negatif bit hızı "sınırsız" sayılır.
+        assertEquals(null, QualityProfile(QualityPreference.P480, 0).effectiveMaxBitrateKbps)
+    }
 }

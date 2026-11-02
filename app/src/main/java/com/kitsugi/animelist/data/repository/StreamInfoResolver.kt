@@ -32,6 +32,14 @@ data class MeasuredStreamInfo(
     val isAdaptive: Boolean = false,
     /** Master playlist içindeki tüm varyant yükseklikleri. */
     val variantHeights: List<Int> = emptyList(),
+    /**
+     * Master playlist'ten çözülen **oynatılabilir** video varyantları (kalite seçimi için).
+     *
+     * rapidrame / closeload gibi kaynaklar tek bir `master.m3u8` verip kaliteyi
+     * bildirmediğinde oynatıcının "Kalite" sayfası bu listeyi gösterir ve seçilen
+     * varyantın URL'si ile oynatmayı sürdürür.
+     */
+    val variants: List<com.kitsugi.animelist.core.player.HlsVariant> = emptyList(),
     /** `#EXT-X-MEDIA:TYPE=AUDIO` ile bildirilen ses dilleri (BCP-47 / ISO kodları). */
     val audioLanguages: List<String> = emptyList(),
     /** `#EXT-X-MEDIA:TYPE=SUBTITLES` ile bildirilen altyazı dilleri. */

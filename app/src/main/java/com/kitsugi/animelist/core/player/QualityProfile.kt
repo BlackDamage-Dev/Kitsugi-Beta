@@ -24,6 +24,21 @@ enum class QualityPreference(val label: String, val minQualityValue: Int, val ma
     P480        ("480p",          480,   719),
     DATA_SAVER  ("Veri Tasarrufu",  0,   479);
 
+    /**
+     * Bu tercihin oynatıcıya uygulanacak **çözünürlük tavanı** (piksel yüksekliği).
+     *
+     * `null` → tavan yok (AUTO = adaptif, P1080 = 1080 ve üzeri serbest).
+     * Oynatıcı motorları (Media3 `maxVideoSize`, MPV `hls-bitrate`) bu değeri kullanır;
+     * aksi hâlde ayarlardaki kalite profili yalnızca bir etiket olarak kalırdı.
+     */
+    val maxVideoHeight: Int?
+        get() = when (this) {
+            AUTO, P1080 -> null
+            P720 -> 720
+            P480 -> 480
+            DATA_SAVER -> 360
+        }
+
     companion object {
         fun fromString(value: String?): QualityPreference =
             entries.firstOrNull { it.name == value } ?: AUTO
@@ -41,6 +56,12 @@ data class QualityProfile(
     val preference: QualityPreference = QualityPreference.AUTO,
     val maxBitrateKbps: Int = -1
 ) {
+    /** Kullanıcı bir kalite seçmediyse oynatıcının uygulayacağı çözünürlük tavanı. */
+    val effectiveMaxVideoHeight: Int? get() = preference.maxVideoHeight
+
+    /** Sıfır/negatif → sınırsız. */
+    val effectiveMaxBitrateKbps: Int? get() = maxBitrateKbps.takeIf { it > 0 }
+
     companion object {
         val DEFAULT = QualityProfile()
         private const val SEPARATOR = "|"

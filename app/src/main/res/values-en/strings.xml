@@ -1134,6 +1134,15 @@
     <string name="player_quality_data_saver">Data Saver</string>
     <string name="player_quality_profile">Quality Profile</string>
     <string name="player_quality_desc">Preferred video quality and resolution limits</string>
+    <!-- Player "Quality" sheet (real HLS variants) -->
+    <string name="quality_sheet_title">Quality</string>
+    <string name="quality_sheet_sources_title">Source</string>
+    <string name="quality_auto">Auto (best quality)</string>
+    <string name="quality_variant_failed_back_to_master">The selected quality could not be opened (the link may have expired). Returned to the source main stream with the same quality cap.</string>
+    <string name="quality_auto_profile_hint">Quality profile: %1$s</string>
+    <string name="quality_declared_by_source">Quality declared by source</string>
+    <string name="quality_cap_not_supported_engine">Pinning a quality on this stream is currently supported only by the Media3 engine. The list is read from the stream manifest; MPV keeps its adaptive selection.</string>
+    <string name="quality_no_variants_message">This video or player engine provides no selectable quality. Quality options are shown only when the open video exposes supported video tracks.</string>
     <string name="player_section_processing">Video Processing &amp; Compatibility</string>
     <string name="player_section_processing_desc">Configure HDR, Dolby Vision and screen compatibility modes.</string>
     <string name="player_dv_mode">Dolby Vision (DV7) Processing Mode</string>

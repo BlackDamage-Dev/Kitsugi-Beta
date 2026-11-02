@@ -1134,6 +1134,15 @@
     <string name="player_quality_data_saver">Veri Tasarrufu</string>
     <string name="player_quality_profile">Kalite Profili</string>
     <string name="player_quality_desc">Tercih edilen video kalitesi ve çözünürlük limitleri</string>
+    <!-- Oynatıcı "Kalite" sayfası (gerçek HLS varyantları) -->
+    <string name="quality_sheet_title">Kalite</string>
+    <string name="quality_sheet_sources_title">Kaynak</string>
+    <string name="quality_auto">Otomatik (en iyi kalite)</string>
+    <string name="quality_variant_failed_back_to_master">Seçilen kalite açılamadı (bağlantı süresi dolmuş olabilir). Aynı kalite tavanıyla kaynağın ana akışına dönüldü.</string>
+    <string name="quality_auto_profile_hint">Kalite profili: %1$s</string>
+    <string name="quality_declared_by_source">Kaynağın bildirdiği kalite</string>
+    <string name="quality_cap_not_supported_engine">Bu akışta kalite sabitleme şu an yalnızca Media3 oynatıcıda uygulanabiliyor. Kalite listesi akışın kendi manifestinden okunur; MPV adaptif seçimine devam eder.</string>
+    <string name="quality_no_variants_message">Bu video veya oynatıcı motoru seçilebilir kalite sunmuyor. Kalite seçenekleri yalnızca açık videonun desteklenen video parçalarından gösterilir.</string>
     <string name="player_section_processing">Video İşleme &amp; Uyum</string>
     <string name="player_section_processing_desc">HDR, Dolby Vision ve ekran uyumluluk modlarını yapılandırın.</string>
     <string name="player_dv_mode">Dolby Vision (DV7) İşleme Modu</string>

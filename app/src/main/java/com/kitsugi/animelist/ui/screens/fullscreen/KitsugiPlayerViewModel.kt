@@ -710,6 +710,19 @@ class KitsugiPlayerViewModel(application: Application) : AndroidViewModel(applic
         } catch (_: Exception) {}
     }
 
+    /**
+     * Oynatma hatası durumunu temizler.
+     *
+     * Kullanım: hata sonrası **otomatik** olarak başka bir akışa geçildiğinde (ör. süresi
+     * dolmuş kalite varyantından kaynağın master akışına dönüş) hata ekranı ekranda
+     * kalmasın diye. Kaynak değişimini kullanıcı elle yaptığında da çağrılabilir.
+     */
+    fun clearPlayerError() {
+        _hasError.value = false
+        _errorDetails.value = null
+        _playerState.value = PlaybackState.Idle
+    }
+
     private data class EnrichedError(val display: String, val details: String)
 
     private fun enrichPlayerError(errorCode: Int, rawMsg: String, url: String?, addon: String?): EnrichedError {

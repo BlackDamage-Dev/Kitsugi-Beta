@@ -144,6 +144,17 @@ interface PlayerEngine {
      */
     fun setVideoFilters(values: Map<String, Int>) {}
     fun setSubtitleStyle(style: SubtitleStyleSettings)
+    /**
+     * Video çözünürlüğü tavanı (piksel yüksekliği). `null` → sınırsız (motorun kendi
+     * adaptif seçimi).
+     *
+     * NEDEN: DASH (`.mpd`) akışlarında kaliteler ayrı URL'ler değil, tek manifest içindeki
+     * `Representation` düğümleridir. Böyle akışlarda kullanıcının "Kalite" seçimi bu tavanla
+     * uygulanır; HLS'te ise seçim doğrudan varyant URL'sine geçilerek yapılır.
+     * Desteklemeyen motorlarda no-op'tur (varsayılan).
+     */
+    fun setMaxVideoHeight(height: Int?) {}
+
     fun setResizeMode(resizeMode: Int) // Matches AspectRatioFrameLayout.RESIZE_MODE_*
     fun setAspectMode(mode: com.kitsugi.animelist.core.player.PlayerAspectMode)
 

@@ -974,6 +974,17 @@ class MpvPlayerEngine(
         option("volume-max", settings.volumeBoostCap.coerceIn(100, 200).toString())
         option("alang", settings.preferredAudioLanguages)
         option("audio-pitch-correction", if (settings.audioPitchCorrection) "yes" else "no")
+        // Kalite profili → HLS bit hızı seçimi. Aksi hâlde ayarlardaki "720p / Veri tasarrufu"
+        // tercihi MPV'de hiçbir şey yapmıyordu.
+        val qualityProfile = com.kitsugi.animelist.core.player.QualityProfile
+            .deserialize(settings.qualityProfileJson)
+        val hlsBitrate = when (qualityProfile.preference) {
+            com.kitsugi.animelist.core.player.QualityPreference.DATA_SAVER,
+            com.kitsugi.animelist.core.player.QualityPreference.P480 -> "min"
+            com.kitsugi.animelist.core.player.QualityPreference.P1080 -> "max"
+            else -> "auto"
+        }
+        option("hls-bitrate", hlsBitrate)
         val channels = settings.audioChannels
         option("audio-channels", if (channels == com.kitsugi.animelist.ui.screens.fullscreen.AudioChannels.ReverseStereo) "stereo" else channels.value)
         option("af", if (channels == com.kitsugi.animelist.ui.screens.fullscreen.AudioChannels.ReverseStereo) channels.value else "")
