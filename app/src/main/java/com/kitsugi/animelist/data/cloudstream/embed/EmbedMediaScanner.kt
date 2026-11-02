@@ -518,7 +518,7 @@ object EmbedMediaScanner {
     )
 
     private val PACKED_JS_REGEX = Regex(
-        """}\s*\(\s*'((?:[^'\\]|\\.)*)'\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*'((?:[^'\\]|\\.)*)'\s*\.split\('\|'\)""",
+        """\}\s*\(\s*'((?:[^'\\]|\\.)*)'\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*'((?:[^'\\]|\\.)*)'\s*\.split\('\|'\)""",
         RegexOption.DOT_MATCHES_ALL
     )
 

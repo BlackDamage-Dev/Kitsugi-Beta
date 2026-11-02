@@ -175,6 +175,8 @@ class KitsugiApplication : Application(), SingletonImageLoader.Factory {
 
         com.kitsugi.animelist.core.diagnostics.StartupStage.mark(this, "KitsugiCrashHandler.install(re)")
         runCatching { com.kitsugi.animelist.core.diagnostics.KitsugiCrashHandler.install(this) }
+        runCatching { com.kitsugi.animelist.core.regex.H9RegexCrashGuard.install() }
+        runCatching { com.kitsugi.animelist.core.regex.RegexSafetyWarmup.warmUp() }
 
         // Ana Looper'ın içine ikinci bir Looper.loop() KESİNLİKLE kurma.
         // Önceki "Cockroach" yaklaşımı ActivityThread'in gerçek mesaj döngüsünü kalıcı

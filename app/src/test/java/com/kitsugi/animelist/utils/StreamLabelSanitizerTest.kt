@@ -77,6 +77,22 @@ class StreamLabelSanitizerTest {
         )
     }
 
+    @Test
+    fun `Android ICU regex uyumlulugu - hicbir desen kacirilmamis cift suslu parantezle bitmez`() {
+        val regexFields = StreamLabelSanitizer::class.java.declaredFields
+            .filter { it.type == Regex::class.java }
+        assertTrue("En az bir Regex alanı bulunmalı", regexFields.isNotEmpty())
+        for (field in regexFields) {
+            field.isAccessible = true
+            val regex = field.get(StreamLabelSanitizer) as Regex
+            val pattern = regex.pattern
+            assertFalse(
+                "${field.name} deseni Android ICU'da PatternSyntaxException fırlatan kaçırılmamış '}}' içeriyor: $pattern",
+                pattern.endsWith("}}") && !pattern.endsWith("\\}")
+            )
+        }
+    }
+
     private fun countOccurrences(text: String, token: String): Int =
         Regex(Regex.escape(token)).findAll(text).count()
 }

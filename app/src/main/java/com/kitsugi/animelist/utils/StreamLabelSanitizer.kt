@@ -29,10 +29,10 @@ import java.util.Locale
 object StreamLabelSanitizer {
 
     /** `.sinif{...}` / `#id{...}` / `eleman{...}` biçimindeki CSS kuralları. */
-    private val CSS_RULE = Regex("""[.#]?[A-Za-z][A-Za-z0-9_\-]{0,60}\s*\{[^{}]{0,400}}""")
+    private val CSS_RULE = Regex("""[.#]?[A-Za-z][A-Za-z0-9_\-]{0,60}\s*\{[^{}]{0,400}\}""")
 
     /** `@media (...) { ... }` gibi @-kurallar (tek seviye süslü parantez). */
-    private val AT_RULE = Regex("""@[A-Za-z\-]+\s*[^{}]{0,120}\{[^{}]{0,400}}""")
+    private val AT_RULE = Regex("""@[A-Za-z\-]+\s*[^{}]{0,120}\{[^{}]{0,400}\}""")
 
     private val STYLE_BLOCK = Regex("""<style[^>]*>.*?</style>""", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
     private val SCRIPT_BLOCK = Regex("""<script[^>]*>.*?</script>""", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
