@@ -128,7 +128,10 @@ fun StreamScreenContent(
     onOpenDownloads: (() -> Unit)? = null,
     onManualSearchClick: (() -> Unit)? = null,
     /** Tüm kaynakları baştan arar (kaynak panelindeki "Yeniden ara"). */
-    onRefreshAll: (() -> Unit)? = null
+    onRefreshAll: (() -> Unit)? = null,
+    /** Non-null → arama yalnızca bu eklentide yapıldı (eklentinin kendi sayfasından gelindi). */
+    scopedSourceName: String? = null,
+    onSearchAllSources: (() -> Unit)? = null
 ) {
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
 
@@ -263,7 +266,9 @@ fun StreamScreenContent(
                     onOpenHistory = onOpenHistory,
                     onOpenDownloads = onOpenDownloads,
                     onManualSearchClick = onManualSearchClick,
-                    onRefreshAll = onRefreshAll
+                    onRefreshAll = onRefreshAll,
+                    scopedSourceName = scopedSourceName,
+                    onSearchAllSources = onSearchAllSources
                 )
             } else {
                 PortraitLayout(
@@ -283,7 +288,9 @@ fun StreamScreenContent(
                     onOpenHistory = onOpenHistory,
                     onOpenDownloads = onOpenDownloads,
                     onManualSearchClick = onManualSearchClick,
-                    onRefreshAll = onRefreshAll
+                    onRefreshAll = onRefreshAll,
+                    scopedSourceName = scopedSourceName,
+                    onSearchAllSources = onSearchAllSources
                 )
             }
 
@@ -583,7 +590,9 @@ private fun PortraitLayout(
     onOpenHistory: (() -> Unit)?,
     onOpenDownloads: (() -> Unit)? = null,
     onManualSearchClick: (() -> Unit)? = null,
-    onRefreshAll: (() -> Unit)? = null
+    onRefreshAll: (() -> Unit)? = null,
+    scopedSourceName: String? = null,
+    onSearchAllSources: (() -> Unit)? = null
 ) {
     val listState = rememberLazyListState()
     val subtitle = mediaSubtitle(isMovie, isDownloadMode, season, episode)
@@ -635,6 +644,16 @@ private fun PortraitLayout(
                     isAnyLoading = isAnyLoading,
                     onOpenSourcePanel = { showSourceSheet = true }
                 )
+            }
+
+            if (scopedSourceName != null) {
+                item(key = "scoped_source_notice") {
+                    ScopedSourceNotice(
+                        pluginName = scopedSourceName,
+                        accentColor = accentColor,
+                        onSearchAllSources = onSearchAllSources
+                    )
+                }
             }
 
             item(key = "results_summary") {
@@ -715,7 +734,9 @@ private fun LandscapeLayout(
     onOpenHistory: (() -> Unit)? = null,
     onOpenDownloads: (() -> Unit)? = null,
     onManualSearchClick: (() -> Unit)? = null,
-    onRefreshAll: (() -> Unit)? = null
+    onRefreshAll: (() -> Unit)? = null,
+    scopedSourceName: String? = null,
+    onSearchAllSources: (() -> Unit)? = null
 ) {
     val listState = rememberLazyListState()
     val subtitle = mediaSubtitle(isMovie, isDownloadMode, season, episode)
@@ -770,6 +791,13 @@ private fun LandscapeLayout(
                     isAnyLoading = isAnyLoading,
                     onOpenSourcePanel = { showSourceSheet = true }
                 )
+                if (scopedSourceName != null) {
+                    ScopedSourceNotice(
+                        pluginName = scopedSourceName,
+                        accentColor = accentColor,
+                        onSearchAllSources = onSearchAllSources
+                    )
+                }
                 ResultsSummaryRow(
                     videoCount = totalFilteredStreamsCount,
                     sourceCount = filteredAddonStates.count { it.streams.isNotEmpty() },
@@ -1153,6 +1181,54 @@ private fun FilteredEmptyState(
                 Icon(Icons.FilterAltOff, contentDescription = null, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(6.dp))
                 Text(stringResource(R.string.stream_filter_clear), fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+/**
+ * Kullanıcı bir eklentinin KENDİ keşfet/arama akışından "İzle" dediğinde gösterilir:
+ * arama yalnızca o eklentide yapıldı, diğer kaynaklar listeye karışmadı. "Tüm
+ * kaynaklarda ara" düğmesi ortak aramayı AÇIK bir kullanıcı tercihiyle başlatır.
+ */
+@Composable
+private fun ScopedSourceNotice(
+    pluginName: String,
+    accentColor: Color,
+    onSearchAllSources: (() -> Unit)?
+) {
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = accentColor.copy(alpha = 0.10f),
+        border = BorderStroke(1.dp, accentColor.copy(alpha = 0.35f)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                Icons.Tune,
+                contentDescription = null,
+                tint = accentColor,
+                modifier = Modifier.size(16.dp)
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = stringResource(R.string.stream_scoped_source_notice, pluginName),
+                color = KitsugiColors.TextSecondary,
+                style = MaterialTheme.typography.labelSmall,
+                modifier = Modifier.weight(1f)
+            )
+            if (onSearchAllSources != null) {
+                Spacer(Modifier.width(8.dp))
+                TextButton(onClick = onSearchAllSources) {
+                    Text(
+                        text = stringResource(R.string.stream_search_all_sources),
+                        color = accentColor,
+                        style = MaterialTheme.typography.labelSmall
+                    )
+                }
             }
         }
     }

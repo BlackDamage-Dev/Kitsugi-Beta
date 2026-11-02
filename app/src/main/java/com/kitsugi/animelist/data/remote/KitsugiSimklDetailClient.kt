@@ -454,8 +454,11 @@ internal object KitsugiSimklDetailClient {
                 endDate = obj.optString("last_aired", "").takeIf { it.isNotBlank() && it != "null" }?.take(10),
                 titleEnglish = resolvedTitleEnglish,
                 titleJapanese = resolvedTitleJapanese,
-                titleRomaji = null,
-                titleNative = simklNative,
+                // 2026-11-02: Burada `null` bırakılıyordu → Simkl kaydından açılan akışta
+                // AniList/MAL kaydına göre DAHA AZ arama varyantı oluşuyordu. Romaji alanı
+                // Simkl'in kendi romaji alanından doldurulur (yoksa boş kalır).
+                titleRomaji = simklRomaji,
+                titleNative = simklNative ?: resolvedTitleJapanese,
                 synonyms = listOfNotNull(simklRomaji, simklTitle.takeIf { it != resolvedTitle })
                     .map { it.trim() }
                     .filter { it.isNotBlank() }

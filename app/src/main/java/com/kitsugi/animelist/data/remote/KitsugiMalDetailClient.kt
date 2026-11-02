@@ -603,6 +603,12 @@ internal object KitsugiMalDetailClient {
                     endDate = airedTo,
                     titleEnglish = titleEnglish,
                     titleJapanese = titleJapanese,
+                    // 2026-11-02: MAL detayında Romaji/Yerel başlık alanları boş kalıyordu.
+                    // Akış ekranı alternatif başlık listesini bu alanlardan kurduğu için
+                    // MAL kaydından açılan aramada AniList kaydına göre DAHA AZ arama
+                    // varyantı oluşuyordu (Türk eklentileri başlığı bulamıyordu).
+                    titleRomaji = jikanTitle,
+                    titleNative = titleJapanese,
                     synonyms = synonyms,
                     openings = openings,
                     endings = endings,
@@ -904,6 +910,10 @@ internal object KitsugiMalDetailClient {
                 endDate = endDate,
                 titleEnglish = titleEnglish,
                 titleJapanese = titleJapanese,
+                // 2026-11-02: Akış ekranının alternatif başlık listesi bu iki alana da
+                // bakıyor; MAL kaydında boş kaldığında arama varyantları azalıyordu.
+                titleRomaji = title,
+                titleNative = titleJapanese,
                 synonyms = synonyms,
                 openings = openings,
                 endings = endings,

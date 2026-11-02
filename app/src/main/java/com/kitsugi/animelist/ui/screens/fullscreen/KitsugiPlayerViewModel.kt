@@ -1170,33 +1170,102 @@ class KitsugiPlayerViewModel(application: Application) : AndroidViewModel(applic
 
         // ── CS3 direkt URL modu: cs3Url varsa tüm eklentileri aramak yerine
         // doğrudan o URL üzerinden ilgili bölümü çözümle. ─────────────────────────
+        //
+        // 2026-11-02: Kullanıcı içeriği belirli bir eklentinin içinden açtıysa sonraki
+        // bölüm de ÖNCE aynı eklentide aranır (doğrudan URL → aynı eklentinin kendi
+        // başlık araması). Diğer eklentiler/Stremio addon'ları ancak bu eklenti bölümü
+        // veremezse devreye girer; aksi hâlde kaynak listesi sessizce karışıyordu.
         val localCs3Url = cs3Url
         val localCs3ApiName = cs3ApiName
-        if (!localCs3Url.isNullOrBlank() && !localCs3ApiName.isNullOrBlank() &&
+        if (!localCs3ApiName.isNullOrBlank() &&
             (preferredAddonName == null || preferredAddonName.equals(localCs3ApiName, ignoreCase = true))) {
+            val pluginMediaType = if (_isMovie.value) com.kitsugi.animelist.model.MediaType.Movie
+                else com.kitsugi.animelist.model.MediaType.Anime
             val db = KitsugiDatabase.getDatabase(context)
             val csPlugin = db.csPluginDao().getEnabledPlugins()
-                .firstOrNull { it.name.equals(localCs3ApiName, ignoreCase = true) }
-            if (csPlugin != null) {
-                CsPluginLoader.loadExtension(context, csPlugin.id)
+                .firstOrNull {
+                    it.id.equals(localCs3ApiName, ignoreCase = true) ||
+                        it.name.equals(localCs3ApiName, ignoreCase = true)
+                }
+            val apis: List<com.lagradost.cloudstream3.MainAPI> = try {
+                if (csPlugin != null) CsPluginLoader.loadExtension(context, csPlugin.id) else emptyList()
+            } catch (e: Exception) {
+                Log.e("KitsugiPlayerViewModel", "fetchStreamsForEpisode: eklenti yüklenemedi (${localCs3ApiName})", e)
+                emptyList()
             }
-            val activeApi = com.lagradost.cloudstream3.APIHolder.allProviders
-                .firstOrNull { it.name.equals(localCs3ApiName, ignoreCase = true) }
-            if (activeApi != null) {
-                val resolved = CsStreamRunner.getStreamsForUrl(
-                    api = activeApi,
-                    url = localCs3Url,
-                    season = seasonNum,
-                    episode = nextEp,
-                    isMovie = _isMovie.value
+            val scopedApis = apis.ifEmpty {
+                com.lagradost.cloudstream3.APIHolder.allProviders
+                    .filter { it.name.equals(localCs3ApiName, ignoreCase = true) }
+            }
+
+            // 1) Doğrudan sağlayıcı URL'si
+            if (!localCs3Url.isNullOrBlank()) {
+                for (api in scopedApis) {
+                    val resolved = CsStreamRunner.getStreamsForUrl(
+                        api = api,
+                        url = localCs3Url,
+                        season = seasonNum,
+                        episode = nextEp,
+                        isMovie = _isMovie.value,
+                        mediaType = pluginMediaType
+                    )
+                    if (resolved.isNotEmpty()) {
+                        Log.d(
+                            "KitsugiPlayerViewModel",
+                            "fetchStreamsForEpisode: CS3 direkt URL modu — ${resolved.size} kaynak (${api.name})"
+                        )
+                        return@withContext StreamSorter.sort(resolved)
+                    }
+                }
+                Log.w(
+                    "KitsugiPlayerViewModel",
+                    "fetchStreamsForEpisode: doğrudan URL 0 kaynak — aynı eklentinin kendi aramasına geçiliyor"
                 )
-                if (resolved.isNotEmpty()) {
-                    Log.d("KitsugiPlayerViewModel", "fetchStreamsForEpisode: CS3 direkt URL modu — ${resolved.size} kaynak")
-                    return@withContext StreamSorter.sort(resolved)
+            }
+
+            // 2) Aynı eklentinin kendi başlık araması (sadece bu eklenti)
+            if (scopedApis.isNotEmpty()) {
+                val scopedTitles = (listOfNotNull(titleEnglish, titleRomaji, titleNative) + synonyms)
+                    .map { it.trim() }
+                    .filter { it.isNotBlank() && it != animeTitle }
+                    .distinctBy { com.kitsugi.animelist.data.cloudstream.CsTitleMatcher.normalizeTitleForMatch(it) }
+                val scopedStreams = mutableListOf<StreamSource>()
+                for (api in scopedApis) {
+                    try {
+                        scopedStreams.addAll(
+                            CsStreamRunner.getStreams(
+                                api = api,
+                                title = animeTitle,
+                                alternativeTitles = scopedTitles,
+                                year = startYear,
+                                season = seasonNum,
+                                episode = nextEp,
+                                malId = malId,
+                                aniListId = aniListId,
+                                tmdbId = tmdbId,
+                                isMovie = _isMovie.value,
+                                mediaType = pluginMediaType
+                            )
+                        )
+                    } catch (cancel: kotlinx.coroutines.CancellationException) {
+                        throw cancel
+                    } catch (e: Exception) {
+                        Log.e("KitsugiPlayerViewModel", "fetchStreamsForEpisode: tek eklenti aramasi hata (${api.name})", e)
+                    }
+                }
+                if (scopedStreams.isNotEmpty()) {
+                    Log.d(
+                        "KitsugiPlayerViewModel",
+                        "fetchStreamsForEpisode: tek eklenti aramasi — ${scopedStreams.size} kaynak (diğer kaynaklar aranmadı)"
+                    )
+                    return@withContext StreamSorter.sort(scopedStreams)
                 }
             }
-            // Eklenti yüklenemedi veya 0 kaynak — devam ederek normal aramaya düş
-            Log.w("KitsugiPlayerViewModel", "fetchStreamsForEpisode: CS3 URL modu 0 kaynak döndürdü, başlık bazlı aramaya düşülüyor")
+            // Bu eklenti bölümü veremedi → oynatma tamamen durmasın diye ortak aramaya düşülür.
+            Log.w(
+                "KitsugiPlayerViewModel",
+                "fetchStreamsForEpisode: ${localCs3ApiName} bölümü veremedi, ortak (tüm kaynaklar) aramaya düşülüyor"
+            )
         }
 
         // 1. Stremio stream sources

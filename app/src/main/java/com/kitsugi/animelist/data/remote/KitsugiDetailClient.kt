@@ -251,7 +251,11 @@ class KitsugiDetailClient {
         realMalId: Int? = null,
         title: String? = null
     ): KitsugiMediaDetail? {
-        return withContext(Dispatchers.IO) {
+        // 2026-11-02: Kaynak başına boş bırakılan başlık alanları (ör. Simkl/TMDB'de
+        // titleRomaji) akış ekranında daha AZ arama varyantı demekti. Tek çıkış
+        // noktasında harmanlanır (bkz. MediaDetailTitleHarmonizer).
+        val harmonizePrimary: (KitsugiMediaDetail?) -> KitsugiMediaDetail? = { it?.let(MediaDetailTitleHarmonizer::harmonize) }
+        return harmonizePrimary(withContext(Dispatchers.IO) {
             // Kitsu kayıtlarında kimlik alanı boş olabilir (eski içe aktarmalar, kimlik onarımı
             // ya da hiç çözülememiş eşleme). Bu durumda detayı KAYIT BAŞLIĞINDAN çözmeye
             // çalışırız; kimlik yok diye sayfayı düşürmeyiz. Diğer kaynaklarda kimlik yoksa
@@ -681,7 +685,7 @@ class KitsugiDetailClient {
             }
 
             finalDetail
-        }
+        })
     }
 
 
@@ -1105,8 +1109,10 @@ class KitsugiDetailClient {
         } else {
             externalId
         }
-        saveToRoomCache(source, mediaType, keyId, mergedDetail)
-        mergedDetail
+        // Aynı harmonizasyon: hangi kaynaktan gelirse gelsin akış ekranı tam başlık kümesini görsün.
+        val harmonized = MediaDetailTitleHarmonizer.harmonize(mergedDetail)
+        saveToRoomCache(source, mediaType, keyId, harmonized)
+        harmonized
     }
 
     /**

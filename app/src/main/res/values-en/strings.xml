@@ -18445,4 +18445,7 @@
     <string name="wh_time_hours_minutes">%1$d h %2$d min</string>
     <string name="search_skipped_sources_notice">Sources that do not support these filters were skipped: %1$s</string>
     <string name="search_no_source_supports_filters">No source supports the selected filter combination.</string>
+    <!-- Single plugin (scoped) search notice — 2026-11-02 -->
+    <string name="stream_scoped_source_notice">Searched only in the %1$s extension; other sources were not mixed in.</string>
+    <string name="stream_search_all_sources">Search all sources</string>
 </resources>

@@ -1476,8 +1476,20 @@ object CsStreamRunner {
         // TMDB istegini paylasir; hata/eksik durumda normal listeyle devam edilir.
         val effectiveAlts: List<String> = runCatching {
             val trTitle = TmdbTitleLocalizer.getTurkishTitle(targetTmdb, mediaType, isMovie == true)
-            if (!trTitle.isNullOrBlank() && alternativeTitles.none { it.equals(trTitle, ignoreCase = true) })
+            val withTurkish = if (!trTitle.isNullOrBlank() && alternativeTitles.none { it.equals(trTitle, ignoreCase = true) })
                 alternativeTitles + trTitle else alternativeTitles
+            // 2026-11-02: KAYNAK-BAĞIMSIZ BAŞLIK EVRENİ. Şikâyet: aynı anime AniList
+            // kaydından açılınca eklentiler akış veriyor, MAL kaydından açılınca vermiyordu.
+            // Sebep: MAL detayı daha dar bir başlık kümesi gönderiyordu. Artık kimliklerden
+            // (MAL ve/veya AniList) AniList + Jikan başlık birleşimi çıkarılıp varyantlara
+            // eklenir; iki yol da aynı başlık evreniyle arar. Oturum-önbellekli: 164 eklenti
+            // tek isteği paylaşır, hata/eksik durumda liste aynen kalır.
+            val canonicalAliases = CanonicalTitleAliases.aliasesFor(targetMal, targetAniList, mediaType)
+            if (canonicalAliases.isEmpty()) {
+                withTurkish
+            } else {
+                (withTurkish + canonicalAliases).distinctBy { CsTitleMatcher.normalizeTitleForMatch(it) }
+            }
         }.getOrDefault(alternativeTitles)
         val isWebViewPlugin = api.usesWebView ||
             api.name in CF_PROTECTED_PLUGINS ||
@@ -1522,7 +1534,11 @@ object CsStreamRunner {
         //  (b) içerik sayfasında hedef sezon yoksa sezon sayfasına gezinme.
         val titleVariants = buildPlainTitleVariants(title, effectiveAlts, isMovie == true)
         Log.d(TAG, "[${api.name}] Arama varyantları (${titleVariants.size}): ${titleVariants.take(6)}")
-        CsTrace.info(api.name, "variants", "${titleVariants.size} varyant: ${titleVariants.take(6)}")
+        CsTrace.info(
+            api.name,
+            "variants",
+            "${titleVariants.size} varyant (mal=$targetMal anilist=$targetAniList tmdb=$targetTmdb): ${titleVariants.take(6)}"
+        )
 
         // Search several strong title/alias queries and merge their results. A single early
         // provider hit can be the wrong sequel, so do not stop until a high-confidence result
