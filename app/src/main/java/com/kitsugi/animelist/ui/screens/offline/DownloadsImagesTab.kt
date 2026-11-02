@@ -22,6 +22,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.LazyGridState
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -60,6 +62,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -151,7 +154,8 @@ fun DownloadedImagesTab(
     accentColor: Color,
     onRefresh: () -> Unit,
     onDeleteImages: (List<File>) -> Unit = {},
-    query: String = ""
+    query: String = "",
+    gridState: LazyGridState = rememberLazyGridState()
 ) {
     val context = LocalContext.current
 
@@ -465,7 +469,8 @@ fun DownloadedImagesTab(
 
                     LazyVerticalGrid(
                         columns = GridCells.Fixed(columns),
-                        modifier = Modifier.fillMaxSize(),
+                        state = gridState,
+                        modifier = Modifier.fillMaxSize().testTag("downloads_image_grid"),
                         contentPadding = PaddingValues(
                             start = ImageGridPadding,
                             end = ImageGridPadding,

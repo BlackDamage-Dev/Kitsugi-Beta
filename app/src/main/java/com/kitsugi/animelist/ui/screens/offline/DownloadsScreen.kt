@@ -30,6 +30,8 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -56,6 +58,8 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -274,6 +278,12 @@ fun DownloadsScreen(
 
     val pagerState = rememberPagerState(initialPage = 0, pageCount = { 3 })
     val scope = rememberCoroutineScope()
+
+    // Keep all three scroll positions across tab changes and configuration changes.
+    // The shared overview observes only the active page, never an off-screen page.
+    val videoListState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
+    val subtitleListState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
+    val imageGridState = rememberSaveable(saver = LazyGridState.Saver) { LazyGridState() }
     var refreshSubsTrigger by remember { mutableIntStateOf(0) }
     var refreshImagesTrigger by remember { mutableIntStateOf(0) }
 
@@ -368,6 +378,19 @@ fun DownloadsScreen(
             loadAllDownloadedImages(context)
         }
     }
+
+    val overviewScrollState = rememberDownloadsOverviewScrollState(
+        activePage = pagerState.currentPage,
+        videoListState = videoListState,
+        subtitleListState = subtitleListState,
+        imageGridState = imageGridState,
+        // A new search/filter/sort is a new browsing context: show storage info
+        // again instead of leaving the user with a hidden header over new data.
+        contentRevision = listOf(
+            downloads.size, allSubtitles.size, allImages.size, searchOpen, searchQuery,
+            videoFilter, subtitleSort, videoSort, videoGrouped
+        )
+    )
 
     // ── SİLME: sistem onayı köprüsü ───────────────────────────────────────────
     // Android 11+ Scoped Storage'da uygulamanın sahibi olmadığı MediaStore kayıtları
@@ -779,17 +802,22 @@ fun DownloadsScreen(
         }
 
         // ── Cihazdaki indirmeler özeti (boyut + canlı ilerleme) ──────────────
-        DownloadsOverviewCard(
-            downloads = downloads,
-            subtitleCount = allSubtitles.size,
-            subtitleBytes = subtitleBytes,
-            imageCount = allImages.size,
-            imageBytes = imageBytes,
-            accentColor = accentColor,
-            onPauseAll = pauseAllActive,
-            onResumeAll = resumeAllPaused,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-        )
+        DownloadsOverviewReveal(
+            visible = overviewScrollState.isVisible,
+            modifier = Modifier.fillMaxWidth().testTag("downloads_overview_reveal")
+        ) {
+            DownloadsOverviewCard(
+                downloads = downloads,
+                subtitleCount = allSubtitles.size,
+                subtitleBytes = subtitleBytes,
+                imageCount = allImages.size,
+                imageBytes = imageBytes,
+                accentColor = accentColor,
+                onPauseAll = pauseAllActive,
+                onResumeAll = resumeAllPaused,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+            )
+        }
 
         // Sekme bandı: Videolar | Altyazılar | Resimler — "Görünüm & Tercihler" bandıyla aynı
         // (ekrana sığmazsa bandın kendi içinde yatay kaydırılır, ekrandan taşmaz)
@@ -820,6 +848,7 @@ fun DownloadsScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f)
+                .nestedScroll(overviewScrollState.nestedScrollConnection)
         ) { page ->
             when (page) {
                 0 -> {
@@ -892,7 +921,8 @@ fun DownloadsScreen(
                                 )
                             } else {
                                 LazyColumn(
-                                    modifier = Modifier.fillMaxSize(),
+                                    state = videoListState,
+                                    modifier = Modifier.fillMaxSize().testTag("downloads_video_list"),
                                     contentPadding = PaddingValues(
                                         start = 16.dp,
                                         end = 16.dp,
@@ -1100,7 +1130,8 @@ fun DownloadsScreen(
                                 )
                             } else {
                                 LazyColumn(
-                                    modifier = Modifier.fillMaxSize(),
+                                    state = subtitleListState,
+                                    modifier = Modifier.fillMaxSize().testTag("downloads_subtitle_list"),
                                     contentPadding = PaddingValues(
                                         start = 16.dp,
                                         end = 16.dp,
@@ -1151,7 +1182,8 @@ fun DownloadsScreen(
                         accentColor = accentColor,
                         onRefresh = { refreshImagesTrigger++ },
                         onDeleteImages = deleteImageFiles,
-                        query = searchQuery
+                        query = searchQuery,
+                        gridState = imageGridState
                     )
                 }
             }
@@ -1846,13 +1878,23 @@ private fun DownloadsOverviewCard(
         active = activeDownloads.isNotEmpty(),
         speed = speed
     )
-    // Boş alan yalnızca indirme sayısı/tamamlanan sayısı değiştiğinde yeniden hesaplanır
-    // (her ilerleme karesinde disk istatistiği okunmasın).
+    // Boş alanı her ilerleme karesinde değil; içerik silinip eklendiğinde ve
+    // indirme sürerken 5 sn'de bir arka planda tazele. Böylece karttaki "boş"
+    // değeri indirme bitmeden veya resim/altyazı silinince bayatlamaz.
     val completedCount = remember(downloads) { downloads.count { it.status == AnimeDownload.Status.COMPLETED } }
-    val freeSpaceBytes = remember(downloads.size, completedCount) {
-        runCatching {
-            android.os.StatFs(Environment.getExternalStorageDirectory().absolutePath).availableBytes
-        }.getOrDefault(0L)
+    val hasActiveDownloads = activeDownloads.isNotEmpty()
+    var freeSpaceBytes by remember { mutableLongStateOf(0L) }
+    LaunchedEffect(downloads.size, completedCount, subtitleCount, imageCount, hasActiveDownloads) {
+        suspend fun readFreeSpace(): Long = withContext(Dispatchers.IO) {
+            runCatching {
+                android.os.StatFs(Environment.getExternalStorageDirectory().absolutePath).availableBytes
+            }.getOrDefault(0L)
+        }
+        freeSpaceBytes = readFreeSpace()
+        while (hasActiveDownloads) {
+            delay(5_000L)
+            freeSpaceBytes = readFreeSpace()
+        }
     }
     val remainingMs = if (speed > 0L && activeTotalBytes > activeBytes) {
         ((activeTotalBytes - activeBytes) * 1000L) / speed

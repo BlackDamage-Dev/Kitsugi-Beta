@@ -111,7 +111,9 @@ jobs:
             --tests 'com.kitsugi.animelist.ui.components.HomeHeroGestureModifiersTest' \
             --tests 'com.kitsugi.animelist.ui.utils.LazyKeyDedupTest' \
             --tests 'com.kitsugi.animelist.data.remote.KitsugiReviewStableKeyTest' \
-            :app:assembleFossDebug :app:assembleFossRelease --stacktrace --console=plain 2>&1 | tee build.log
+            --tests 'com.kitsugi.animelist.ui.screens.offline.*' \
+            --tests 'com.kitsugi.animelist.utils.StreamLabelSanitizerTest' \
+            :app:assembleFossDebug :app:assembleFossRelease :app:compileFossDebugAndroidTestKotlin --stacktrace --console=plain 2>&1 | tee build.log
           python3 scripts/verify_apk_dex_bytecode.py \
             app/build/outputs/apk/foss/debug/*.apk \
             app/build/outputs/apk/foss/release/*.apk 2>&1 | tee -a build.log
