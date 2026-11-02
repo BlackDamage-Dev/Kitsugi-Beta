@@ -744,6 +744,8 @@ fun KitsugiMediaVideosTab(
     val uriHandler = LocalUriHandler.current
     val accentColor = LocalKitsugiAccent.current
     var activeVideoKey by remember { mutableStateOf<String?>(null) }
+    // Videolar sekmesinden tek tek indirme: her satır kendi durumunu taşır.
+    val downloadController = rememberVideoDownloadController(mediaTitle = mediaTitle)
 
     LaunchedEffect(effectiveVideos) {
         val currentKey = activeVideoKey
@@ -818,7 +820,8 @@ fun KitsugiMediaVideosTab(
                     onVideoSelected = selectVideo,
                     onSearch = onSearchVideo,
                     onCollapseHiddenItems = collapseHidden,
-                    onShare = onShareVideo
+                    onShare = onShareVideo,
+                    downloadController = downloadController
                 )
             }
 
@@ -832,7 +835,8 @@ fun KitsugiMediaVideosTab(
                     onVideoSelected = selectVideo,
                     onSearch = onSearchVideo,
                     onCollapseHiddenItems = collapseHidden,
-                    onShare = onShareVideo
+                    onShare = onShareVideo,
+                    downloadController = downloadController
                 )
             }
 
@@ -846,7 +850,8 @@ fun KitsugiMediaVideosTab(
                     onVideoSelected = selectVideo,
                     onSearch = onSearchVideo,
                     onCollapseHiddenItems = collapseHidden,
-                    onShare = onShareVideo
+                    onShare = onShareVideo,
+                    downloadController = downloadController
                 )
             }
 
@@ -860,7 +865,8 @@ fun KitsugiMediaVideosTab(
                     onVideoSelected = selectVideo,
                     onSearch = onSearchVideo,
                     onCollapseHiddenItems = collapseHidden,
-                    onShare = onShareVideo
+                    onShare = onShareVideo,
+                    downloadController = downloadController
                 )
             }
 
@@ -906,7 +912,8 @@ private fun DetailVideoGroup(
     onVideoSelected: (String) -> Unit,
     onSearch: (DetailVideoItem) -> Unit,
     onCollapseHiddenItems: (Set<String>) -> Unit = {},
-    onShare: (DetailVideoItem) -> Unit = {}
+    onShare: (DetailVideoItem) -> Unit = {},
+    downloadController: VideoDownloadController? = null
 ) {
     val initialCount = 3
     val groupSources = remember(items) {
@@ -1036,7 +1043,11 @@ private fun DetailVideoGroup(
                         if (item.videoUrl.isNullOrBlank()) onSearch(item)
                         else onVideoSelected(item.key)
                     },
-                    onShare = { onShare(item) }
+                    onShare = { onShare(item) },
+                    downloadState = downloadController?.stateOf(item.key) ?: VideoDownloadState.Idle,
+                    onDownload = {
+                        downloadController?.onDownloadClick(item.key, item.title, item.videoUrl)
+                    }
                 )
 
                 // Oynatıcı aynı kartın içinde, satırın hemen altında açılır.
@@ -1147,9 +1158,12 @@ private fun DetailVideoRow(
     accentColor: Color,
     showSourceBadges: Boolean = false,
     onClick: () -> Unit,
-    onShare: () -> Unit
+    onShare: () -> Unit,
+    downloadState: VideoDownloadState = VideoDownloadState.Idle,
+    onDownload: () -> Unit = {}
 ) {
     val rowShape = RoundedCornerShape(12.dp)
+    val canDownload = !item.videoUrl.isNullOrBlank()
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -1200,9 +1214,24 @@ private fun DetailVideoRow(
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Text(
-                        text = if (item.videoUrl.isNullOrBlank()) stringResource(R.string.ui_open_youtube_search)
-                        else stringResource(R.string.ui_play_in_app),
-                        color = KitsugiColors.TextMuted,
+                        text = when (downloadState) {
+                            is VideoDownloadState.Running -> {
+                                val percent = downloadState.progress
+                                    ?.let { stringResource(R.string.detail_video_download_progress, (it * 100).toInt()) }
+                                    ?: stringResource(R.string.detail_video_download_preparing)
+                                stringResource(R.string.detail_video_download_running_status, percent)
+                            }
+                            is VideoDownloadState.Done -> stringResource(R.string.detail_video_download_done)
+                            is VideoDownloadState.Failed -> downloadState.message
+                            VideoDownloadState.Idle ->
+                                if (item.videoUrl.isNullOrBlank()) stringResource(R.string.ui_open_youtube_search)
+                                else stringResource(R.string.ui_play_in_app)
+                        },
+                        color = when (downloadState) {
+                            is VideoDownloadState.Failed -> KitsugiColors.AccentRed
+                            is VideoDownloadState.Done -> accentColor
+                            else -> KitsugiColors.TextMuted
+                        },
                         style = MaterialTheme.typography.labelSmall,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -1225,6 +1254,16 @@ private fun DetailVideoRow(
                 }
             }
         }
+        // İndirme düğmesi — paylaş düğmesinin hemen SOLUNDA.
+        // Bağlantısı olmayan satırlarda da görünür (her satırda aynı düzen korunur);
+        // basıldığında denetleyici "indirilebilir akış yok" uyarısı gösterir.
+        VideoDownloadAction(
+            state = downloadState,
+            accentColor = accentColor,
+            enabled = canDownload || downloadState !is VideoDownloadState.Idle,
+            onDownload = onDownload
+        )
+
         // Material IconButton 48 dp'lik dokunma hedefi ekleyip kompakt satırı şişiriyordu.
         Box(
             modifier = Modifier
@@ -1239,6 +1278,68 @@ private fun DetailVideoRow(
                 tint = KitsugiColors.TextMuted,
                 modifier = Modifier.size(16.dp)
             )
+        }
+    }
+}
+
+/**
+ * Satırdaki indirme düğmesi.
+ *
+ * Üç durumu vardır:
+ *  - boşta: indirme ikonu,
+ *  - indiriliyor: dairesel ilerleme + yüzde (dokununca iptal),
+ *  - tamamlandı: onay ikonu (dokununca yeniden indirme seçeneği sunmaz, dosya zaten var).
+ */
+@Composable
+private fun VideoDownloadAction(
+    state: VideoDownloadState,
+    accentColor: Color,
+    enabled: Boolean,
+    onDownload: () -> Unit
+) {
+    val isDone = state is VideoDownloadState.Done
+    Box(
+        modifier = Modifier
+            .size(30.dp)
+            .clip(CircleShape)
+            .tvClickable(shape = CircleShape) {
+                if (!isDone) onDownload()
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        when (state) {
+            is VideoDownloadState.Running -> {
+                CircularProgressIndicator(
+                    progress = { state.progress ?: 0f },
+                    modifier = Modifier.size(18.dp),
+                    color = accentColor,
+                    strokeWidth = 2.dp
+                )
+            }
+            is VideoDownloadState.Done -> {
+                Icon(
+                    imageVector = Icons.CheckCircle,
+                    contentDescription = stringResource(R.string.detail_video_download_done),
+                    tint = accentColor,
+                    modifier = Modifier.size(17.dp)
+                )
+            }
+            is VideoDownloadState.Failed -> {
+                Icon(
+                    imageVector = Icons.Refresh,
+                    contentDescription = stringResource(R.string.action_retry),
+                    tint = KitsugiColors.AccentRed,
+                    modifier = Modifier.size(17.dp)
+                )
+            }
+            VideoDownloadState.Idle -> {
+                Icon(
+                    imageVector = Icons.Download,
+                    contentDescription = stringResource(R.string.detail_video_download),
+                    tint = if (enabled) KitsugiColors.TextMuted else KitsugiColors.TextMuted.copy(alpha = 0.4f),
+                    modifier = Modifier.size(17.dp)
+                )
+            }
         }
     }
 }

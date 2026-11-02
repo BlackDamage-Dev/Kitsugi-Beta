@@ -18456,4 +18456,23 @@ Eklentiler ekranından eklenti etkinleştirin.</string>
     <!-- Tek eklenti (kapsamlı) arama bildirimi — 2026-11-02 -->
     <string name="stream_scoped_source_notice">Yalnızca %1$s eklentisinde arandı; diğer kaynaklar listeye karıştırılmadı.</string>
     <string name="stream_search_all_sources">Tüm kaynaklarda ara</string>
+    <!-- Videolar sekmesi: tek video indirme (fragman / teaser / OP-ED) -->
+    <string name="detail_video_download">Videoyu indir</string>
+    <string name="detail_video_download_short">İndir</string>
+    <string name="detail_video_download_started">İndiriliyor</string>
+    <string name="detail_video_download_running_status">İndiriliyor • %1$s</string>
+    <string name="detail_video_download_preparing">Kaynak hazırlanıyor…</string>
+    <string name="detail_video_download_preparing_streams">Video ve ses akışları hazırlanıyor…</string>
+    <string name="detail_video_download_merging">Video ve ses birleştiriliyor…</string>
+    <string name="detail_video_download_progress">%1$d%%</string>
+    <string name="detail_video_download_done">İndirildi</string>
+    <string name="detail_video_download_done_toast">İndirildi: %1$s</string>
+    <string name="detail_video_downloading_title">📥 %1$s</string>
+    <string name="detail_video_download_done_title">✅ Video indirildi</string>
+    <string name="detail_video_download_failed_title">⚠️ Video indirilemedi</string>
+    <string name="detail_video_download_channel_name">Video indirmeleri</string>
+    <string name="detail_video_download_channel_desc">Videolar sekmesinden indirilen fragman ve tema videoları</string>
+    <string name="detail_video_download_error_generic">İndirme tamamlanamadı.</string>
+    <string name="detail_video_download_error_no_stream">Bu video için indirilebilir akış bulunamadı.</string>
+
 </resources>

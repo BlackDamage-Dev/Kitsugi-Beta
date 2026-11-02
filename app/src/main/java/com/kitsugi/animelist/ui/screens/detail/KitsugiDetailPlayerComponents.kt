@@ -189,6 +189,9 @@ fun KitsugiYouTubePlayer(
     var isLoading by remember(videoId) { mutableStateOf(true) }
     var hasError by remember(videoId) { mutableStateOf(false) }
     var retryCount by remember(videoId) { mutableIntStateOf(0) }
+    // Son çare: YouTube'un kendi web oynatıcısı (IFrame). İmza çıkarımı veya yerel motorlar
+    // başarısız olduğunda devreye girer; kullanıcı "video çalışmıyor" ekranı yerine videoyu izler.
+    var iframeUnplayable by remember(videoId) { mutableStateOf(false) }
     // Motor durumu, hata kartından da erişilebilsin diye üstte tutulur: kullanıcı
     // "Diğer motor" ile aynı videoyu öteki motorla yeniden başlatabilir.
     var activeEngineType by remember(videoId) {
@@ -200,6 +203,7 @@ fun KitsugiYouTubePlayer(
     LaunchedEffect(videoId, retryCount) {
         isLoading = true
         hasError = false
+        iframeUnplayable = false
         playbackSource = null
         try {
             val source = InAppYouTubeExtractor.shared
@@ -237,6 +241,15 @@ fun KitsugiYouTubePlayer(
                 )
             }
         }
+    } else if ((hasError || playbackSource == null) && !iframeUnplayable) {
+        // Dürüst son durak: imza çıkarımı başarısız veya yerel motorlar oynatamadı → YouTube'un kendi oynatıcısı.
+        // Bu yol imza/kodek/HLS katmanlarını tamamen atlar; "hiç oynamayan" videolar burada oynar.
+        KitsugiIframeYouTubePlayer(
+            videoId = videoId,
+            modifier = modifier,
+            autoPlay = true,
+            onUnplayable = { iframeUnplayable = true }
+        )
     } else if (hasError || playbackSource == null) {
         Box(
             modifier = modifier
