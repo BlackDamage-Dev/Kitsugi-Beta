@@ -261,9 +261,10 @@
   },
   {
     "iconUrl": "https://www.google.com/s2/favicons?domain=anizm.net&sz=128",
+    "fileHash": "sha256-625102ba97e5457bc31424f6801f556fe7ec9e928857be3377a71f24c34f5a0a",
     "apiVersion": 1,
     "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
-    "fileSize": 124455,
+    "fileSize": 133008,
     "status": 1,
     "language": "tr",
     "authors": [
@@ -273,12 +274,11 @@
     "tvTypes": [
       "Anime"
     ],
-    "version": 21,
+    "version": 22,
     "internalName": "Anizm",
+    "description": "Anizm (anizm.net / puffytr.com) anime arşivi: isim eşleştirmeli arama, kategoriler, detay ve bölümler; tüm fansub/video kaynaklarıyla oynatıcı çözücü.",
     "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/Anizm.cs3",
     "name": "Anizm",
-    "description": "Anizm (anizm.net / puffytr.com) anime arşivi: isim eşleştirmeli arama, kategoriler, detay ve bölümler; tüm fansub/video kaynaklarıyla oynatıcı çözücü.",
-    "fileHash": "sha256-8c1195b583c1456801c5aec99e8e73f239c699fa60b2367b098e1bbea9f8ebb5",
     "pluginClassName": "com.hexated.AnizmPlugin"
   },
   {
@@ -623,24 +623,27 @@
     "pluginClassName": "com.kerimmkirac.DiziAsyaPlugin"
   },
   {
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/DiziBox.cs3",
+    "iconUrl": "https://t3.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://www.dizibox.de&size=16",
+    "fileHash": "sha256-e8b8db2511c7d8d1793a2d3a230accf28f13b04744281c85bafdf7ea9491cf00",
+    "apiVersion": 1,
+    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+    "fileSize": 47958,
     "status": 1,
-    "version": 23,
-    "name": "DiziBox",
-    "internalName": "DiziBox",
+    "language": "tr",
     "authors": [
+      "kraptor",
+      "kerimmkirac",
+      "ByAyzen",
       "keyiflerolsun"
     ],
-    "description": "Yabancı Dizi izle, Tüm yabancı dizilerin yeni ve eski sezonlarını full hd izleyebileceğiniz elit site.",
-    "fileSize": 21202,
-    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
-    "language": "tr",
     "tvTypes": [
       "TvSeries"
     ],
-    "iconUrl": "https://www.google.com/s2/favicons?domain=www.dizibox.live&sz=%size%",
-    "apiVersion": 1,
-    "fileHash": "sha256-0d568891f9b4cc480dfa257e28ef096d3c6620d920ed1f7fc1c6f4d5da56805e",
+    "version": 28,
+    "internalName": "DiziBox",
+    "description": "Yabancı Dizi izle, Tüm yabancı dizilerin yeni ve eski sezonlarını full hd izleyebileceğiniz elit site.",
+    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/DiziBox.cs3",
+    "name": "DiziBox",
     "pluginClassName": "com.keyiflerolsun.DiziBoxPlugin"
   },
   {
@@ -1333,10 +1336,10 @@
   },
   {
     "iconUrl": "https://t3.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://filmmakinesi.tv&size=128",
-    "fileHash": "sha256-f4ec3fd6db00d131404658d25a38054921aeaba39c1fb04674e88d483550b660",
+    "fileHash": "sha256-9712756f17ccd0ff0588e57253f33b01a99dabb6266c28b6bbf07eeb1d8d2611",
     "apiVersion": 1,
     "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
-    "fileSize": 74128,
+    "fileSize": 137891,
     "status": 1,
     "language": "tr",
     "authors": [
@@ -1349,7 +1352,7 @@
       "Movie",
       "TvSeries"
     ],
-    "version": 71,
+    "version": 72,
     "internalName": "FilmMakinesi",
     "description": "Film Makinesi, en yeni ve en güncel filmleri sitemizde full HD kalite farkı ile izleyebilirsiniz. HD film izle denildiğinde akla gelen en kaliteli film izleme sitesi.",
     "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/FilmMakinesi.cs3",
@@ -1658,10 +1661,10 @@
   },
   {
     "iconUrl": "https://www.google.com/s2/favicons?sz=128&domain=http://hdfilmcehennemi.nl",
-    "fileHash": "sha256-08a7a529e1c5660744f56d427b0400ed1c435759205012658a7ffb8f37b90d38",
+    "fileHash": "sha256-905948cab6959f5216634075ea06f1e0011a3871d296c8aefd876ee90e1b5b1a",
     "apiVersion": 1,
     "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
-    "fileSize": 90967,
+    "fileSize": 145425,
     "status": 1,
     "language": "tr",
     "authors": [
@@ -1673,7 +1676,7 @@
       "Movie",
       "TvSeries"
     ],
-    "version": 62,
+    "version": 63,
     "internalName": "HDFilmCehennemi",
     "description": "HDFilmCehennemi - Türkiye'nin en hızlı hd film izleme sitesi. Tek ve gerçek HDFilmCehennemi sitesi.",
     "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/HDFilmCehennemi.cs3",
@@ -1722,11 +1725,11 @@
     "pluginClassName": "com.byayzen.HDFilmDelisiPlugin"
   },
   {
-    "iconUrl": "https://www.google.com/s2/favicons?domain=hdfilmizle.to&sz=%size%",
-    "fileHash": "sha256-59809ea7291be0d0374976632c17f00ee70d9f243971e6a903b7f0b77bdd1282",
+    "iconUrl": "https://www.google.com/s2/favicons?domain=hdfilmizle.to&sz=128",
+    "fileHash": "sha256-6f132c91864405add115a8bb00ec79d9fe1f4ba2d826cadaf11e77c4f2b7a976",
     "apiVersion": 1,
     "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
-    "fileSize": 28652,
+    "fileSize": 61028,
     "status": 1,
     "language": "tr",
     "authors": [
@@ -1736,11 +1739,11 @@
       "Movie",
       "TvSeries"
     ],
-    "version": 7,
+    "version": 12,
     "internalName": "HDFilmIzle",
-    "description": "HDFilmizle ile Full HD izle, 1080p kalitede Yerli ve Yabancı filmlerle Türkçe dublaj veya Altyazı olarak kesintisiz film izlemenin tadını çıkarın.",
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/HDFilmIzle.cs3",
-    "name": "HDFilmIzle",
+    "description": "Türkçe film ve dizi kataloğu.",
+    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/HDFilmIzle.cs3",
+    "name": "HDFilmİzle",
     "pluginClassName": "com.nikyokki.HDFilmIzlePlugin"
   },
   {

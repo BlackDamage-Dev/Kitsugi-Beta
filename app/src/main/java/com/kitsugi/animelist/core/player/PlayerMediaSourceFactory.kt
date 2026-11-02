@@ -173,6 +173,8 @@ class PlayerMediaSourceFactory(
         )
 
         val effectiveHeaders = headers.toMutableMap()
+        // Range başlığı oynatıcıya gitmez (Media3 kendi Range ve chunk isteklerini yönetir)
+        effectiveHeaders.keys.filter { it.equals("range", ignoreCase = true) }.toList().forEach { effectiveHeaders.remove(it) }
         val videoHost = runCatching { Uri.parse(videoUrl).host }.getOrNull()
         if (!effectiveHeaders.keys.any { it.equals("referer", ignoreCase = true) }) {
             // Önce provider ana URL'i (filmmakinesi.to, hdfilmcehennemi.nl) dene; yoksa video host'una düş.

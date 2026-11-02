@@ -831,6 +831,8 @@ class KitsugiMpvSurfaceView @JvmOverloads constructor(
             return
         }
         val raw = headers.entries
+            // Range başlığı mpv'ye gitmez — mpv kendi range/seek isteklerini yönetir
+            .filter { !it.key.equals("Range", ignoreCase = true) }
             .filter { it.key.isNotBlank() && it.value.isNotBlank() }
             .sortedWith(compareBy({ it.key.lowercase(Locale.ROOT) }, { it.value }))
             .joinToString(separator = ",") { (key, value) ->
