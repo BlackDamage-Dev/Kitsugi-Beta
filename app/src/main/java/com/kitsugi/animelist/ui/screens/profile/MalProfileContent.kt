@@ -412,7 +412,7 @@ fun MalProfileContent(
                                         StatCard(stringResource(R.string.profile_manga_entries), state.mangaStats?.count?.toString() ?: "0")
                                     }
                                 }
-                                MalAboutExtras(state = state, accentColor = accentColor)
+                                MalAboutExtras(state = state, accentColor = accentColor, autoTranslateEnabled = appSettings.autoTranslateEnabled)
                             }
                             1 -> MalActivitySection(
                                 state = state,

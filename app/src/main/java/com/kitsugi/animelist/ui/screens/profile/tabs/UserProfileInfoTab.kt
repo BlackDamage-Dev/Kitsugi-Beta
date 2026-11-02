@@ -30,7 +30,9 @@ import com.kitsugi.animelist.ui.theme.KitsugiColors
 import com.kitsugi.animelist.utils.KitsugiTranslateUtils.openTranslator
 import androidx.compose.ui.res.stringResource
 import com.kitsugi.animelist.R
+import com.kitsugi.animelist.ui.components.KitsugiOriginalToggleChip
 import com.kitsugi.animelist.ui.components.KitsugiTranslateIconButton
+import com.kitsugi.animelist.ui.components.rememberAutoTranslatedHtml
 import com.kitsugi.animelist.utils.KitsugiStrings
 
 @Composable
@@ -38,9 +40,14 @@ fun UserProfileInfoTab(
     state: OtherUserProfileState,
     accentColor: Color,
     username: String,
+    autoTranslateEnabled: Boolean = false,
+    preferredTranslator: String = "DEFAULT",
     onImageClick: (urls: List<String>, idx: Int, title: String) -> Unit
 ) {
     val context = LocalContext.current
+    // Wiki sayfalarındaki otomatik çeviri mantığının aynısı: ayar açıksa biyografi
+    // uygulama içinde çevrilir, "Orijinal" düğmesiyle geri dönülebilir.
+    val bioTranslation = rememberAutoTranslatedHtml(state.about, autoTranslateEnabled)
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -50,6 +57,7 @@ fun UserProfileInfoTab(
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         val displayAbout = state.about
+        val renderedAbout = if (displayAbout.isBlank()) "" else bioTranslation.displayText
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -66,13 +74,21 @@ fun UserProfileInfoTab(
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    if (bioTranslation.hasTranslation) {
+                        KitsugiOriginalToggleChip(
+                            showingOriginal = bioTranslation.showingOriginal,
+                            onClick = bioTranslation.toggleOriginal,
+                            tint = accentColor
+                        )
+                    }
                     KitsugiTranslateIconButton(
-                        onClick = { context.openTranslator(displayAbout) },
+                        onClick = { context.openTranslator(displayAbout, preferredTranslator) },
                         modifier = Modifier.size(28.dp),
                         tint = accentColor,
                         contentDescription = stringResource(R.string.cevir),
                         iconSize = 16.dp,
-                        ringSize = 24.dp
+                        ringSize = 24.dp,
+                        isLoading = bioTranslation.isLoading
                     )
                     IconButton(
                         onClick = {
@@ -94,7 +110,7 @@ fun UserProfileInfoTab(
         }
         if (displayAbout.isNotBlank()) {
             com.kitsugi.animelist.ui.components.KitsugiHtmlWebView(
-                html = displayAbout,
+                html = renderedAbout,
                 modifier = Modifier.fillMaxWidth(),
                 onImageClick = { urls, idx ->
                     onImageClick(urls, idx, KitsugiStrings.get(R.string.profile_bio_title, username))

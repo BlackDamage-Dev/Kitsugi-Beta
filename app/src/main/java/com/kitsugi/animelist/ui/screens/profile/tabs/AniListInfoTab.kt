@@ -24,17 +24,24 @@ import com.kitsugi.animelist.utils.KitsugiTranslateUtils.openTranslator
 import com.kitsugi.animelist.ui.screens.profile.StatCard
 import androidx.compose.ui.res.stringResource
 import com.kitsugi.animelist.R
+import com.kitsugi.animelist.ui.components.KitsugiOriginalToggleChip
 import com.kitsugi.animelist.ui.components.KitsugiTranslateIconButton
+import com.kitsugi.animelist.ui.components.rememberAutoTranslatedHtml
 import com.kitsugi.animelist.utils.KitsugiStrings
 
 @Composable
 fun AniListInfoTab(
     state: AniListProfileState,
     accentColor: Color,
+    autoTranslateEnabled: Boolean = false,
+    preferredTranslator: String = "DEFAULT",
     onImageClick: ((urls: List<String>, initialIndex: Int, title: String) -> Unit)? = null
 ) {
     val context = LocalContext.current
     val displayAbout = state.about
+    // Wiki mantığı: otomatik çeviri açıksa "Hakkında" metni uygulama içinde çevrilir.
+    val aboutTranslation = rememberAutoTranslatedHtml(displayAbout, autoTranslateEnabled)
+    val renderedAbout = if (displayAbout.isBlank()) "" else aboutTranslation.displayText
 
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         if (displayAbout.isNotBlank()) {
@@ -60,13 +67,21 @@ fun AniListInfoTab(
                         horizontalArrangement = Arrangement.spacedBy(4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        if (aboutTranslation.hasTranslation) {
+                            KitsugiOriginalToggleChip(
+                                showingOriginal = aboutTranslation.showingOriginal,
+                                onClick = aboutTranslation.toggleOriginal,
+                                tint = accentColor
+                            )
+                        }
                         KitsugiTranslateIconButton(
-                            onClick = { context.openTranslator(displayAbout) },
+                            onClick = { context.openTranslator(displayAbout, preferredTranslator) },
                             modifier = Modifier.size(28.dp),
                             tint = accentColor,
                             contentDescription = stringResource(R.string.cevir),
                             iconSize = 16.dp,
-                            ringSize = 24.dp
+                            ringSize = 24.dp,
+                            isLoading = aboutTranslation.isLoading
                         )
                         IconButton(
                             onClick = {
@@ -87,7 +102,7 @@ fun AniListInfoTab(
                 }
                 Spacer(modifier = Modifier.height(8.dp))
                 com.kitsugi.animelist.ui.components.KitsugiHtmlWebView(
-                    html = displayAbout,
+                    html = renderedAbout,
                     modifier = Modifier.fillMaxWidth(),
                     onImageClick = { urls, idx ->
                         onImageClick?.invoke(urls, idx, KitsugiStrings.get(R.string.profile_bio_title, state.name))

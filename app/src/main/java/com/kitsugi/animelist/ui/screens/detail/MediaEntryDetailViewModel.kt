@@ -262,6 +262,12 @@ class MediaEntryDetailViewModel(application: Application) : AndroidViewModel(app
     @Volatile private var translationGeneration = 0
     private var lastAutoTranslateSetting: Boolean? = null
     private var lastTargetLangSetting: String? = null
+    /**
+     * `loadEntry` anında tek seferlik okunan otomatik çeviri ayarı.
+     * Çeviri işinin içindeki ayar okuması geçici olarak başarısız olursa bu değere düşülür;
+     * böylece ayar açıkken açıklamanın orijinal dilde kalması önlenir.
+     */
+    @Volatile private var loadTimeAutoTranslateEnabled: Boolean = false
 
     init {
         viewModelScope.launch {
@@ -357,7 +363,11 @@ class MediaEntryDetailViewModel(application: Application) : AndroidViewModel(app
         val generation = ++translationGeneration
         synopsisTranslateJob = viewModelScope.launch {
             try {
-                val autoTranslate = runCatching { settingsDataStore.settingsFlow.first().autoTranslateEnabled }.getOrDefault(false)
+                // Ayar okuması geçici olarak başarısız olursa sırasıyla son bilinen ayara
+                // ve yükleme anında okunan ayara düş; asla sessizce "kapalı" (false) sayma —
+                // yoksa otomatik çeviri açıkken bile açıklama orijinal dilde kalır.
+                val autoTranslate = runCatching { settingsDataStore.settingsFlow.first().autoTranslateEnabled }
+                    .getOrDefault(lastAutoTranslateSetting ?: loadTimeAutoTranslateEnabled)
                 val isRussian = rawText.any { it in '\u0400'..'\u04FF' }
                 if (autoTranslate || isRussian || forceRetranslate) {
                     _translationLoading.value = true
@@ -395,6 +405,13 @@ class MediaEntryDetailViewModel(application: Application) : AndroidViewModel(app
                         _synopsisState.value = SynopsisState.Success(rawText)
                         _translatedSynopsis.value = null
                     }
+                }
+            } catch (ce: kotlinx.coroutines.CancellationException) {
+                throw ce
+            } catch (e: Exception) {
+                Log.e(TAG, "Özet çevirisi başarısız: ${e.message}", e)
+                if (generation == translationGeneration && currentFetchKey == expectedFetchKey) {
+                    _synopsisState.value = SynopsisState.Success(rawText)
                 }
             } finally {
                 // Daha yeni bir çeviri işi başladıysa yüklenme durumunu ona bırak.
@@ -458,6 +475,13 @@ class MediaEntryDetailViewModel(application: Application) : AndroidViewModel(app
         Log.d(TAG, "loadEntry: New key=$newKey (was $currentFetchKey)")
         currentFetchKey = newKey
         lastEntry = entry
+        // Otomatik çeviri ayarını yükleme anında oku ve sakla: çeviri işi
+        // arka planda yeniden okurken bir hata olursa bu değere düşecek.
+        loadTimeAutoTranslateEnabled = lastAutoTranslateSetting ?: loadTimeAutoTranslateEnabled
+        viewModelScope.launch {
+            runCatching { settingsDataStore.settingsFlow.first().autoTranslateEnabled }
+                .onSuccess { loadTimeAutoTranslateEnabled = it }
+        }
         cancelSynopsisTranslation()
         _pageResetTrigger.value += 1 // Signal UI to scroll back to first tab
         // Eski kaydın sekme işleri iptal edilir: bit gecikmeli yanıtları yeni kaydın

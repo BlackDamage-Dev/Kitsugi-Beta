@@ -49,6 +49,8 @@ import com.kitsugi.animelist.ui.app.MalReview
 import com.kitsugi.animelist.ui.app.RankedStatItem
 import com.kitsugi.animelist.ui.app.ScoreStatItem
 import com.kitsugi.animelist.ui.app.StatusStatItem
+import com.kitsugi.animelist.ui.components.rememberAutoTranslatedHtml
+import com.kitsugi.animelist.ui.components.rememberAutoTranslatedText
 import com.kitsugi.animelist.ui.theme.KitsugiColors
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import com.kitsugi.animelist.ui.theme.gradient.Text
@@ -161,7 +163,14 @@ private fun InfoRow(label: String, value: String) {
 
 /** "Hakkında" sekmesine eklenen kart: kişisel bilgiler + hakkında yazısı. */
 @Composable
-fun MalAboutExtras(state: MalProfileState, accentColor: Color) {
+fun MalAboutExtras(
+    state: MalProfileState,
+    accentColor: Color,
+    autoTranslateEnabled: Boolean = false
+) {
+    // Wiki mantığı: otomatik çeviri açıksa "Hakkında" metni uygulama içinde çevrilir.
+    val aboutTranslation = rememberAutoTranslatedText(state.about, autoTranslateEnabled)
+    val aboutHtmlTranslation = rememberAutoTranslatedHtml(state.aboutHtml, autoTranslateEnabled)
     val rows = buildList {
         if (state.gender.isNotBlank()) add(KitsugiStrings.get(R.string.profile_label_gender) to genderLabel(state.gender))
         malDate(state.birthday)?.let { date ->
@@ -219,12 +228,12 @@ fun MalAboutExtras(state: MalProfileState, accentColor: Color) {
             var expanded by rememberSaveable { mutableStateOf(false) }
             if (expanded && state.aboutHtml.isNotBlank()) {
                 com.kitsugi.animelist.ui.components.KitsugiHtmlWebView(
-                    html = state.aboutHtml,
+                    html = aboutHtmlTranslation.displayText,
                     modifier = Modifier.fillMaxWidth().height(240.dp)
                 )
             } else {
                 Text(
-                    text = state.about,
+                    text = aboutTranslation.displayText,
                     color = KitsugiColors.TextSecondary,
                     style = MaterialTheme.typography.bodySmall,
                     maxLines = if (expanded) Int.MAX_VALUE else 8,

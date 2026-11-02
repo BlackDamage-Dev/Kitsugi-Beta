@@ -344,7 +344,13 @@ fun AniListProfileContent(
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
                         when (page) {
-                            0 -> AniListInfoTab(state = state, accentColor = accentColor, onImageClick = onImageClick)
+                            0 -> AniListInfoTab(
+                                state = state,
+                                accentColor = accentColor,
+                                autoTranslateEnabled = appSettings.autoTranslateEnabled,
+                                preferredTranslator = appSettings.preferredTranslator,
+                                onImageClick = onImageClick
+                            )
                             1 -> AniListActivityTab(
                                 state = state, accentColor = accentColor, appSettings = appSettings,
                                 onFavoriteMediaClick = onFavoriteMediaClick,

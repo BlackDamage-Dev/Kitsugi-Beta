@@ -353,7 +353,14 @@ fun KitsugiUserProfileScreen(
                                 verticalArrangement = Arrangement.spacedBy(16.dp)
                             ) {
                                 when (page) {
-                                    0 -> UserProfileInfoTab(state, resolvedAccent, username) { urls, idx, title -> activeGalleryImages = Triple(urls, idx, title) }
+                                    0 -> UserProfileInfoTab(
+                                        state = state,
+                                        accentColor = resolvedAccent,
+                                        username = username,
+                                        autoTranslateEnabled = appSettings.autoTranslateEnabled,
+                                        preferredTranslator = appSettings.preferredTranslator,
+                                        onImageClick = { urls, idx, title -> activeGalleryImages = Triple(urls, idx, title) }
+                                    )
                                     1 -> UserProfileActivityTab(state, resolvedAccent, appSettings, userId, fallbackUsername, fallbackAvatar, viewModel, apiClient, onFavoriteMediaClick) { activeActivityIdForDetail = it }
                                     2 -> UserProfileStatsTab(state, resolvedAccent, viewModel, onGenreClick, onTagClick, onFavoriteStaffClick, onFavoriteStudioClick)
                                     3 -> UserProfileFavoritesTab(state, resolvedAccent, appSettings, viewModel, isLandscape, onFavoriteMediaClick, onFavoriteCharacterClick, onFavoriteStaffClick, onFavoriteStudioClick) { title, items -> activeFavoriteSheet = title to items }

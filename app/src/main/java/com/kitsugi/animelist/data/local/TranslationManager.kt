@@ -200,13 +200,16 @@ class TranslationManager(context: Context) {
 
         val hash = md5("${trimmed}_${resolvedSource}_${resolvedTarget}")
 
-        // 1. Check local Room database cache
+        // 1. Check local Room database cache.
+        //    Önbellek değeri kaynak metnin birebir aynısıysa bu bayat bir kayıttır
+        //    (eski sürümlerde orijinal metin "çeviri" olarak yazılmış olabilir) —
+        //    yok sayıp yeniden çevir; aksi hâlde açıklama sonsuza dek orijinal dilde kalır.
         val cached = runCatching { dao.getTranslation(hash) }.getOrNull()
         if (!cached.isNullOrBlank()) {
-            // PERF: Tam önbellek isabetinde hem onPartial hem dönüş değeri ile iki kez arka arkaya
-            // StateFlow/Map güncellemesi ve Markdown yeniden ayrıştırması tetiklenmez; çağıran
-            // doğrudan dönüş değerini işler.
-            return@withContext cached.cleanShikimoriBbCode()
+            val cleanedCached = cached.cleanShikimoriBbCode()
+            if (cleanedCached.trim() != trimmed && !translationMatchesSource(trimmed, cleanedCached)) {
+                return@withContext cleanedCached
+            }
         }
 
         // 2. If not cached, fetch translation from Google Translate.
@@ -254,7 +257,9 @@ class TranslationManager(context: Context) {
             val target = targetLang.trim().ifBlank { "tr" }
             if (source.equals(target, true) || isTechnicalTranslationValue(original)) return@withContext original
             val hash = md5("webdom-v1_${source}_${target}_$original")
-            memoryGet(hash)?.let { return@withContext it }
+            memoryGet(hash)?.takeIf { it.trim() != original && !translationMatchesSource(original, it) }?.let {
+                return@withContext it
+            }
             val cached = try {
                 dao.getTranslation(hash)
             } catch (e: CancellationException) {
@@ -262,7 +267,9 @@ class TranslationManager(context: Context) {
             } catch (_: Exception) {
                 null
             }
-            if (!cached.isNullOrBlank()) {
+            // Bayat kayıt: önbellekteki değer kaynak metnin aynısıysa (eski sürümlerde
+            // orijinal metin "çeviri" olarak yazılmış olabilir) yok sayıp yeniden çevir.
+            if (!cached.isNullOrBlank() && cached.trim() != original && !translationMatchesSource(original, cached)) {
                 memoryPut(hash, cached)
                 return@withContext cached
             }
@@ -314,7 +321,9 @@ class TranslationManager(context: Context) {
             if (target.equals("tr", true) && isLikelyTurkish(original)) return@withContext original
             if (alreadyTargetLanguage(original, target)) return@withContext original
             val hash = md5("webdom-v1_${source}_${target}_$original")
-            memoryGet(hash)?.let { return@withContext it }
+            memoryGet(hash)?.takeIf { it.trim() != original && !translationMatchesSource(original, it) }?.let {
+                return@withContext it
+            }
             val cached = try {
                 dao.getTranslation(hash)
             } catch (e: CancellationException) {
@@ -322,8 +331,9 @@ class TranslationManager(context: Context) {
             } catch (_: Exception) {
                 null
             }
-            if (!cached.isNullOrBlank()) memoryPut(hash, cached)
-            cached
+            val validCached = cached?.takeIf { it.isNotBlank() && it.trim() != original && !translationMatchesSource(original, it) }
+            if (validCached != null) memoryPut(hash, validCached)
+            validCached
         }
 
     suspend fun storeWebPageTexts(
