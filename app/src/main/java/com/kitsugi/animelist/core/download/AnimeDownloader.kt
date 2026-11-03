@@ -23,6 +23,13 @@ import kotlin.coroutines.coroutineContext
 import com.kitsugi.animelist.utils.KitsugiStrings
 import com.kitsugi.animelist.R
 
+/**
+ * Küçük video indirmeleri için güvenlik tavanı. Bir klip (fragman/kamera arkası) pratikte
+ * birkaç yüz MB'ı geçmez; sunucu yanlış bir akış (ör. koskoca bir canlı yayın arşivi)
+ * döndürürse cihazın depolamasını doldurmasın.
+ */
+private const val MAX_CLIP_BYTES = 2L * 1024L * 1024L * 1024L
+
 class AnimeDownloader(private val context: Context) {
 
     suspend fun download(
@@ -30,6 +37,13 @@ class AnimeDownloader(private val context: Context) {
         onProgress: (Int, Long, Long, Int) -> Unit,
         onStatusChanged: (AnimeDownload.Status, String?) -> Unit
     ) {
+        // Küçük videolar (fragman / kamera arkası / tema) her zaman uygulama içi indirilir:
+        // harici indiricilere YouTube sayfa bağlantısı vermek işe yaramaz.
+        if (download.isClip) {
+            downloadClip(download, onProgress, onStatusChanged)
+            return
+        }
+
         val settings = SettingsDataStore(context).settingsFlow.first()
         val downloaderPref = settings.downloaderPreference
 
@@ -39,6 +53,387 @@ class AnimeDownloader(private val context: Context) {
             downloadExternal(download, downloaderPref, onStatusChanged)
         }
     }
+
+    // ── Küçük video (klip) indirme ────────────────────────────────────────────
+
+    /**
+     * Detay sayfasındaki küçük videoyu indirir.
+     *
+     * Tasarım kuralları:
+     *  - Kaynak **önce çözümlenir**; indirilebilir akış yoksa hiç dosya oluşturulmaz.
+     *  - Yazma her zaman `<ad>.part` dosyasına yapılır; yalnızca başarılı bitişte son ada
+     *    taşınır. Böylece yarıda kalan indirme "indirilmiş video" gibi görünmez.
+     *  - Aynı video ikinci kez istenirse: dosya zaten varsa ağa hiç çıkılmaz (COMPLETED),
+     *    aksi hâlde üzerine yazılır — çift dosya (`_1`, `_11`…) oluşmaz.
+     *  - İptal/hata durumunda `.part` dosyası silinir; kullanıcıya net hata mesajı döner.
+     */
+    private suspend fun downloadClip(
+        download: AnimeDownload,
+        onProgress: (Int, Long, Long, Int) -> Unit,
+        onStatusChanged: (AnimeDownload.Status, String?) -> Unit
+    ) = withContext(Dispatchers.IO) {
+        onStatusChanged(AnimeDownload.Status.DOWNLOADING, null)
+
+        val clipDir = DownloadExportNaming.clipDir(context)
+        val baseName = download.clipBaseName?.takeIf { it.isNotBlank() }
+            ?: DownloadExportNaming.clipBaseName(
+                mediaTitle = download.animeTitle,
+                clipTitle = download.clipTitle ?: "Video",
+                index = 1
+            )
+
+        // Daha önce tamamlanmış (kaydı kaybolmuş olabilecek) bir kopya var mı?
+        findExistingClipFile(clipDir, baseName)?.let { existing ->
+            if (existing.isFile && existing.length() > 0) {
+                MediaScannerConnection.scanFile(context, arrayOf(existing.absolutePath), null, null)
+                onStatusChanged(AnimeDownload.Status.COMPLETED, existing.absolutePath)
+                return@withContext
+            }
+            runCatching { existing.delete() }
+        }
+
+        if (!ClipDownloadSource.hasFreeSpace(clipDir, 0L)) {
+            onStatusChanged(
+                AnimeDownload.Status.ERROR,
+                KitsugiStrings.get(R.string.kitsugi_clip_error_no_space)
+            )
+            return@withContext
+        }
+
+        val resolved = when (val result = ClipDownloadSource.resolve(download.url)) {
+            is ClipDownloadSource.Result.Error -> {
+                onStatusChanged(
+                    AnimeDownload.Status.ERROR,
+                    clipFailureMessage(result)
+                )
+                return@withContext
+            }
+            is ClipDownloadSource.Result.Success -> result.resolved
+        }
+
+        val fileName = DownloadExportNaming.clipFileName(baseName, resolved.extension)
+        val target = File(clipDir, fileName)
+        val partFile = File(clipDir, "$fileName.part")
+
+        try {
+            if (resolved.isHls) {
+                downloadHlsClip(resolved.url, partFile, download.requestHeaders, onProgress)
+            } else {
+                downloadClipFile(resolved.url, partFile, download.requestHeaders, onProgress)
+            }
+
+            if (!partFile.isFile || partFile.length() <= 0L) {
+                runCatching { partFile.delete() }
+                onStatusChanged(
+                    AnimeDownload.Status.ERROR,
+                    KitsugiStrings.get(R.string.kitsugi_clip_error_empty)
+                )
+                return@withContext
+            }
+
+            // Atomik bitiş: önce eski hedefi kaldır, sonra part → son ad.
+            runCatching { if (target.exists()) target.delete() }
+            val moved = runCatching { partFile.renameTo(target) }.getOrDefault(false)
+            if (!moved) {
+                // renameTo aynı birimde başarısız olduysa kopyala-sil yedeği.
+                runCatching {
+                    partFile.inputStream().use { input ->
+                        target.outputStream().use { output -> input.copyTo(output, 64 * 1024) }
+                    }
+                }.onFailure {
+                    runCatching { target.delete() }
+                }
+                runCatching { partFile.delete() }
+                if (!target.isFile || target.length() <= 0L) {
+                    runCatching { target.delete() }
+                    onStatusChanged(
+                        AnimeDownload.Status.ERROR,
+                        KitsugiStrings.get(R.string.kitsugi_clip_error_generic)
+                    )
+                    return@withContext
+                }
+            }
+
+            MediaScannerConnection.scanFile(context, arrayOf(target.absolutePath), null, null)
+            onStatusChanged(AnimeDownload.Status.COMPLETED, target.absolutePath)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            withContext(kotlinx.coroutines.NonCancellable) {
+                runCatching { partFile.delete() }
+            }
+            onStatusChanged(AnimeDownload.Status.PAUSED, null)
+            throw e
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            android.util.Log.e("AnimeDownloader", "Klip indirme hatası (${download.clipKey})", e)
+            runCatching { partFile.delete() }
+            val reason = when {
+                e is java.io.IOException && e !is ClipHttpException -> {
+                    // Yazma sırasında disk dolduysa "ağ hatası" demek yanıltıcı olur.
+                    if (!ClipDownloadSource.hasFreeSpace(clipDir, 0L)) {
+                        KitsugiStrings.get(R.string.kitsugi_clip_error_no_space)
+                    } else {
+                        KitsugiStrings.get(R.string.kitsugi_clip_error_network)
+                    }
+                }
+                else -> e.message?.takeIf { it.isNotBlank() }
+                    ?.let { KitsugiStrings.get(R.string.kitsugi_clip_error_failed, it) }
+                    ?: KitsugiStrings.get(R.string.kitsugi_clip_error_generic)
+            }
+            onStatusChanged(AnimeDownload.Status.ERROR, reason)
+        }
+    }
+
+    /** Aynı taban ada sahip mevcut klip dosyası (uzantı ne olursa olsun). */
+    private fun findExistingClipFile(dir: File, baseName: String): File? {
+        if (!dir.isDirectory) return null
+        val videoExts = setOf("mp4", "webm", "m4v", "mkv", "ts", "mov")
+        return runCatching {
+            dir.listFiles()?.firstOrNull { file ->
+                file.isFile &&
+                    file.name.startsWith("$baseName.", ignoreCase = true) &&
+                    file.extension.lowercase() in videoExts
+            }
+        }.getOrNull()
+    }
+
+    private fun clipFailureMessage(error: ClipDownloadSource.Result.Error): String = when (error.failure) {
+        ClipDownloadSource.Failure.UNSUPPORTED_URL ->
+            KitsugiStrings.get(R.string.kitsugi_clip_error_unsupported)
+        ClipDownloadSource.Failure.NO_STREAM ->
+            KitsugiStrings.get(R.string.kitsugi_clip_error_no_stream)
+        ClipDownloadSource.Failure.SEPARATE_AUDIO ->
+            KitsugiStrings.get(R.string.kitsugi_clip_error_separate_audio)
+        ClipDownloadSource.Failure.NETWORK ->
+            KitsugiStrings.get(R.string.kitsugi_clip_error_network)
+    }
+
+    /** Progressive (tek dosya) klip indirmesi — yarıda kalırsa `.part` ile devam eder. */
+    private suspend fun downloadClipFile(
+        url: String,
+        partFile: File,
+        headers: Map<String, String>,
+        onProgress: (Int, Long, Long, Int) -> Unit
+    ) = withContext(Dispatchers.IO) {
+        var lastError: Exception? = null
+        for (attempt in 1..3) {
+            try {
+                val existingLength = if (partFile.exists()) partFile.length() else 0L
+                val requestBuilder = Request.Builder().url(url)
+                headers.forEach { (key, value) -> requestBuilder.header(key, value) }
+                if (existingLength > 0L) requestBuilder.header("Range", "bytes=$existingLength-")
+
+                KitsugiHttpClient.client.newCall(requestBuilder.build()).execute().use { response ->
+                    if (response.code == 416 && existingLength > 0L) {
+                        // Sunucu devam aralığını kabul etmiyor → baştan indir.
+                        runCatching { partFile.delete() }
+                        throw IllegalStateException("416 Range Not Satisfiable")
+                    }
+                    if (!response.isSuccessful) {
+                        throw ClipHttpException(
+                            response.code,
+                            KitsugiStrings.get(R.string.kitsugi_clip_error_http, response.code)
+                        )
+                    }
+                    val contentType = response.header("Content-Type").orEmpty().lowercase()
+                    if (contentType.startsWith("text/") ||
+                        contentType.contains("json") ||
+                        contentType.contains("html")
+                    ) {
+                        throw IllegalStateException(
+                            KitsugiStrings.get(R.string.kitsugi_clip_error_invalid_content)
+                        )
+                    }
+
+                    val body = response.body ?: throw IllegalStateException(
+                        KitsugiStrings.get(R.string.kitsugi_clip_error_empty)
+                    )
+                    val isRange = response.code == 206
+                    val append = isRange && existingLength > 0L
+                    val contentLength = body.contentLength()
+                    val totalBytes = if (isRange) contentLength + existingLength else contentLength
+
+                    if (totalBytes > MAX_CLIP_BYTES) {
+                        throw IllegalStateException(
+                            KitsugiStrings.get(R.string.kitsugi_clip_error_too_large)
+                        )
+                    }
+
+                    if (!ClipDownloadSource.hasFreeSpace(partFile.parentFile ?: partFile, totalBytes)) {
+                        throw IllegalStateException(
+                            KitsugiStrings.get(R.string.kitsugi_clip_error_no_space)
+                        )
+                    }
+
+                    body.byteStream().use { input ->
+                        java.io.BufferedOutputStream(
+                            java.io.FileOutputStream(partFile, append),
+                            64 * 1024
+                        ).use { output ->
+                            val buffer = ByteArray(64 * 1024)
+                            var bytesDownloaded = if (append) existingLength else 0L
+                            var lastEmit = 0L
+                            var lastProgress = -1
+                            while (true) {
+                                coroutineContext.ensureActive()
+                                val read = input.read(buffer)
+                                if (read == -1) break
+                                output.write(buffer, 0, read)
+                                bytesDownloaded += read
+                                if (bytesDownloaded > MAX_CLIP_BYTES) {
+                                    throw IllegalStateException(
+                                        KitsugiStrings.get(R.string.kitsugi_clip_error_too_large)
+                                    )
+                                }
+                                val progress = if (totalBytes > 0L) {
+                                    (100L * bytesDownloaded / totalBytes).toInt().coerceIn(0, 100)
+                                } else 0
+                                val now = android.os.SystemClock.elapsedRealtime()
+                                if (now - lastEmit >= 250L || progress != lastProgress) {
+                                    lastEmit = now
+                                    lastProgress = progress
+                                    onProgress(progress, bytesDownloaded, totalBytes, 0)
+                                }
+                            }
+                            output.flush()
+                            onProgress(100, bytesDownloaded, totalBytes, 0)
+                        }
+                    }
+                }
+                return@withContext
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                lastError = e
+                android.util.Log.w("AnimeDownloader", "Klip indirme denemesi $attempt başarısız: ${e.message}")
+                // 4xx (429 hariç) tekrar denemekle düzelmez → hemen bildir.
+                val httpCode = (e as? ClipHttpException)?.code ?: 0
+                if (httpCode in 400..499 && httpCode != 408 && httpCode != 429) break
+                if (attempt < 3) delay(1_500L * attempt)
+            }
+        }
+        throw lastError ?: IllegalStateException(
+            KitsugiStrings.get(R.string.kitsugi_clip_error_generic)
+        )
+    }
+
+    /**
+     * HLS klip indirmesi: master → en iyi varyant, segmentler sırayla `.part` dosyasına
+     * yazılır (TS birleştirme). YouTube HLS akışı ses+görüntüyü birlikte taşır.
+     */
+    private suspend fun downloadHlsClip(
+        manifestUrl: String,
+        partFile: File,
+        headers: Map<String, String>,
+        onProgress: (Int, Long, Long, Int) -> Unit
+    ) = withContext(Dispatchers.IO) {
+        suspend fun fetchPlaylist(url: String): String = try {
+            getUrlContent(url, headers)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: java.io.IOException) {
+            throw IllegalStateException(KitsugiStrings.get(R.string.kitsugi_clip_error_network))
+        } catch (e: Exception) {
+            throw IllegalStateException(
+                KitsugiStrings.get(R.string.kitsugi_clip_error_no_stream)
+            )
+        }
+
+        val playlist = fetchPlaylist(manifestUrl)
+        var mediaPlaylistUrl = manifestUrl
+        var mediaPlaylist = playlist
+
+        if (playlist.contains("#EXT-X-STREAM-INF", ignoreCase = true)) {
+            var bestVariant: String? = null
+            var bestBandwidth = -1L
+            val lines = playlist.lines()
+            var index = 0
+            while (index < lines.size) {
+                val line = lines[index].trim()
+                if (line.startsWith("#EXT-X-STREAM-INF", ignoreCase = true)) {
+                    val bandwidth = Regex("""BANDWIDTH=(\d+)""")
+                        .find(line)?.groupValues?.getOrNull(1)?.toLongOrNull() ?: 0L
+                    var next = index + 1
+                    while (next < lines.size && lines[next].trim().startsWith("#")) next++
+                    val candidate = lines.getOrNull(next)?.trim().orEmpty()
+                    if (candidate.isNotEmpty() && bandwidth > bestBandwidth) {
+                        bestBandwidth = bandwidth
+                        bestVariant = candidate
+                    }
+                }
+                index++
+            }
+            if (bestVariant == null) {
+                throw IllegalStateException(KitsugiStrings.get(R.string.kitsugi_clip_error_no_stream))
+            }
+            mediaPlaylistUrl = resolveUrl(manifestUrl, bestVariant)
+            mediaPlaylist = fetchPlaylist(mediaPlaylistUrl)
+        }
+
+        val segments = mutableListOf<String>()
+        var initSegmentUrl: String? = null
+        mediaPlaylist.lines().forEach { rawLine ->
+            val line = rawLine.trim()
+            if (line.isEmpty()) return@forEach
+            if (line.startsWith("#")) {
+                if (line.startsWith("#EXT-X-MAP:", ignoreCase = true)) {
+                    Regex("""URI=["']([^"']+)["']""").find(line)?.groupValues?.getOrNull(1)
+                        ?.let { initSegmentUrl = resolveUrl(mediaPlaylistUrl, it) }
+                }
+                return@forEach
+            }
+            segments += resolveUrl(mediaPlaylistUrl, line)
+        }
+
+        if (segments.isEmpty()) {
+            throw IllegalStateException(KitsugiStrings.get(R.string.kitsugi_clip_error_no_stream))
+        }
+
+        // HLS'te parça sınırı bilinmediği için yarıda kalan dosyaya EKLEME yapılmaz;
+        // aksi hâlde segmentler baştan tekrar yazılıp bozuk (çift) bir akış oluşurdu.
+        runCatching { partFile.delete() }
+        var bytesDownloaded = 0L
+        var lastEmit = 0L
+        var lastProgress = -1
+
+        java.io.BufferedOutputStream(
+            java.io.FileOutputStream(partFile, false),
+            64 * 1024
+        ).use { output ->
+            if (initSegmentUrl != null) {
+                bytesDownloaded += downloadSegmentToStream(initSegmentUrl!!, headers, output)
+            }
+            segments.forEachIndexed { index, segmentUrl ->
+                coroutineContext.ensureActive()
+                bytesDownloaded += downloadSegmentToStream(segmentUrl, headers, output)
+
+                // Güvenlik tavanı ve periyodik boş alan kontrolü: uzun bir akış cihazı doldurmasın.
+                if (bytesDownloaded > MAX_CLIP_BYTES) {
+                    throw IllegalStateException(
+                        KitsugiStrings.get(R.string.kitsugi_clip_error_too_large)
+                    )
+                }
+                if (index % 20 == 0 && !ClipDownloadSource.hasFreeSpace(partFile, 0L)) {
+                    throw IllegalStateException(
+                        KitsugiStrings.get(R.string.kitsugi_clip_error_no_space)
+                    )
+                }
+
+                val progress = (100 * (index + 1) / segments.size).coerceIn(0, 100)
+                val now = android.os.SystemClock.elapsedRealtime()
+                if (index + 1 == segments.size || now - lastEmit >= 250L ||
+                    (progress != lastProgress && now - lastEmit >= 100L)
+                ) {
+                    lastEmit = now
+                    lastProgress = progress
+                    onProgress(progress, bytesDownloaded, 0L, index + 1)
+                }
+            }
+            output.flush()
+        }
+    }
+
+    /** HTTP durum kodunu hata mesajıyla taşıyan küçük istisna (tekrar deneme kararı için). */
+    private class ClipHttpException(val code: Int, message: String) : Exception(message)
 
     private suspend fun downloadInternal(
         download: AnimeDownload,

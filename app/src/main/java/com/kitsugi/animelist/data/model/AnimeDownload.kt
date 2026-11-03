@@ -26,7 +26,29 @@ data class AnimeDownload(
     val tmdbId: Int? = null,
     val source: String? = null,
     val streamTitle: String? = null,
-    val streamName: String? = null
+    val streamName: String? = null,
+
+    // ── Küçük video (fragman / kamera arkası / tema) indirmeleri ──────────────
+    /**
+     * İndirme türü. Varsayılan [Kind.EPISODE] → eski kayıtlar (Gson ile okunan) aynen
+     * bölüm indirmesi olarak davranır; şema geriye dönük uyumludur.
+     */
+    val kind: Kind = Kind.EPISODE,
+    /**
+     * Detay sayfasındaki küçük videonun **tekil kimliği** (`clip|yt:<videoId>` gibi).
+     * Yalnızca videonun kendisinden üretilir; aynı video farklı bağlantı biçimleriyle veya
+     * farklı sekmelerden istendiğinde bu anahtar üzerinden var olan kayıt bulunur.
+     */
+    val clipKey: String? = null,
+    /** Detay sayfasında görünen video adı (ör. "Kamera Arkası - Behind the Scenes"). */
+    val clipTitle: String? = null,
+    /**
+     * Klip dosyasının **uzantısız** taban adı (`<Başlık>_<Video>_1`). Uzantı indirme sırasında
+     * kaynağa göre belirlenir (mp4 / webm / ts); silme ve listeleme bu taban adı kullanır.
+     */
+    val clipBaseName: String? = null,
+    /** Kullanıcıya gösterilen son hata nedeni (yalnızca [Status.ERROR]). */
+    val errorMessage: String? = null
 ) {
     enum class Status {
         QUEUE,
@@ -35,5 +57,15 @@ data class AnimeDownload(
         ERROR,
         PAUSED
     }
+
+    enum class Kind {
+        /** Bölüm indirmesi (mevcut akış). */
+        EPISODE,
+        /** Detay sayfasındaki küçük video (fragman, kamera arkası, tema…). */
+        CLIP
+    }
+
+    /** Bu kayıt bir küçük video mu? UI ve silme akışı bunu kullanır. */
+    val isClip: Boolean get() = kind == Kind.CLIP
 }
 

@@ -4,6 +4,7 @@ import android.content.Context
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.kitsugi.animelist.data.model.AnimeDownload
+import com.kitsugi.animelist.data.model.rehydrated
 
 class AnimeDownloadStore(context: Context) {
     private val preferences = context.getSharedPreferences("active_downloads", Context.MODE_PRIVATE)
@@ -13,7 +14,9 @@ class AnimeDownloadStore(context: Context) {
         val json = preferences.getString("downloads_list", null) ?: return emptyList()
         return try {
             val type = object : TypeToken<List<AnimeDownload>>() {}.type
-            gson.fromJson(json, type) ?: emptyList()
+            // Gson non-null alanları (yeni eklenen `kind` vb.) `null` bırakabilir; kurucu
+            // çağrılmadığı için varsayılanlar uygulanmaz. `rehydrated()` bunu düzeltir.
+            gson.fromJson<List<AnimeDownload>>(json, type).orEmpty().map { it.rehydrated() }
         } catch (e: Exception) {
             emptyList()
         }

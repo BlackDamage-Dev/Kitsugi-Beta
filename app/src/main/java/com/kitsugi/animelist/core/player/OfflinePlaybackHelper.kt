@@ -106,7 +106,11 @@ object OfflinePlaybackHelper {
         val legacyCacheRoot = File(context.cacheDir, DOWNLOADS_DIR)
 
         val primaryEntries = if (primaryRoot.exists()) primaryRoot.listFiles()?.toList().orEmpty() else emptyList()
-        val primaryDirs = primaryEntries.filter { it.isDirectory }
+        // `Klipler` alt klasörü detay sayfasındaki küçük videolara aittir; içindeki tek dosya
+        // "en büyük video" olarak okunup çevrimdışı **bölüm** listesine düşmemeli.
+        val primaryDirs = primaryEntries.filter {
+            it.isDirectory && it.name != com.kitsugi.animelist.core.download.DownloadExportNaming.CLIP_FOLDER
+        }
         val legacyDirs = if (legacyCacheRoot.exists()) legacyCacheRoot.listFiles()?.filter { it.isDirectory }.orEmpty() else emptyList()
 
         val allDirs = (primaryDirs + legacyDirs).distinctBy { it.name }

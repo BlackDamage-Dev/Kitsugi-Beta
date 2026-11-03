@@ -25,6 +25,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
+import android.widget.Toast
+import com.kitsugi.animelist.data.local.AnimeDownloadManager
+import com.kitsugi.animelist.data.model.AnimeDownload
+import com.kitsugi.animelist.utils.KitsugiStrings
 import androidx.compose.material3.ButtonDefaults
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.MaterialTheme
@@ -595,8 +599,52 @@ private data class DetailVideoItem(
     val key: String,
     val title: String,
     val videoUrl: String?,
-    val sources: List<String> = emptyList()
+    val sources: List<String> = emptyList(),
+    /**
+     * İndirilmiş kopyanın yerel adresi (`file://…`). Doluysa satır çevrimdışı oynatılır;
+     * indirme anahtarı her zaman [videoUrl] (kaynak bağlantı) üzerinden hesaplanır.
+     */
+    val localPlaybackUrl: String? = null
+) {
+    /** Oynatıcıya verilecek adres: varsa yerel kopya, yoksa kaynak bağlantı. */
+    val playbackUrl: String? get() = localPlaybackUrl ?: videoUrl
+}
+
+/**
+ * Detay sayfasındaki videonun indirme durumu (UI için sadeleştirilmiş görünüm).
+ * Kayıt yoksa haritada bulunmaz → "indirilebilir".
+ */
+private data class ClipDownloadUiState(
+    val status: AnimeDownload.Status,
+    val progress: Int,
+    val errorMessage: String?
 )
+
+/**
+ * Detay sayfasındaki bir video için **var olan** indirme kaydını bulur (yoksa `null`).
+ * Anahtar [AnimeDownloadManager.clipKeyFor] ile üretilir; böylece aynı video farklı
+ * sekmelerde/oturumlarda aynı kayda düşer.
+ */
+private fun findClipRecord(
+    downloads: List<AnimeDownload>,
+    videoUrl: String?
+): AnimeDownload? {
+    val key = videoUrl?.takeIf { it.isNotBlank() }
+        ?.let { AnimeDownloadManager.clipKeyFor(it) }
+        ?: return null
+    return downloads.firstOrNull { it.isClip && it.clipKey == key }
+}
+
+/**
+ * İndirilmiş klibin yerel oynatma adresi. Dosya gerçekten duruyorsa `file://…` döner;
+ * kayıt "tamamlandı" olsa bile dosya silinmişse `null` döner (uzak kaynak kullanılır).
+ */
+private fun clipLocalPlaybackUrl(record: AnimeDownload?): String? {
+    if (record == null || record.status != AnimeDownload.Status.COMPLETED) return null
+    val path = record.localPath ?: return null
+    val file = java.io.File(path)
+    return if (file.isFile && file.length() > 0L) "file://${file.absolutePath}" else null
+}
 
 /**
  * Video kartı başlığının sağ üst köşesinde ve çok kaynaklı satırlarda gösterilen
@@ -719,32 +767,123 @@ fun KitsugiMediaVideosTab(
         }
     }
 
-    val trailerItems = remember(effectiveVideos) {
+    // ── Küçük video indirmeleri ───────────────────────────────────────────────
+    // Tekilleştirme anahtarı yalnızca videonun kimliğidir; aynı video farklı sekmelerde
+    // (TMDB/Simkl/arama) açılsa da tek kayıt ve tek dosya olur.
+    val downloads by AnimeDownloadManager.downloads.collectAsState()
+    val effectiveMediaTitle = mediaTitle.ifBlank { detail?.title.orEmpty() }.trim()
+
+    val trailerItems = remember(effectiveVideos, downloads) {
         effectiveVideos
             .filter { it.category == MediaVideoCategory.TRAILER }
-            .map { DetailVideoItem(it.key, it.title, it.videoUrl, it.sources) }
+            .map {
+                DetailVideoItem(
+                    key = it.key,
+                    title = it.title,
+                    videoUrl = it.videoUrl,
+                    sources = it.sources,
+                    localPlaybackUrl = clipLocalPlaybackUrl(findClipRecord(downloads, it.videoUrl))
+                )
+            }
     }
-    val openingItems = remember(effectiveVideos) {
+    val openingItems = remember(effectiveVideos, downloads) {
         effectiveVideos
             .filter { it.category == MediaVideoCategory.OPENING }
-            .map { DetailVideoItem(it.key, it.title, it.videoUrl, it.sources) }
+            .map {
+                DetailVideoItem(
+                    key = it.key,
+                    title = it.title,
+                    videoUrl = it.videoUrl,
+                    sources = it.sources,
+                    localPlaybackUrl = clipLocalPlaybackUrl(findClipRecord(downloads, it.videoUrl))
+                )
+            }
     }
-    val endingItems = remember(effectiveVideos) {
+    val endingItems = remember(effectiveVideos, downloads) {
         effectiveVideos
             .filter { it.category == MediaVideoCategory.ENDING }
-            .map { DetailVideoItem(it.key, it.title, it.videoUrl, it.sources) }
+            .map {
+                DetailVideoItem(
+                    key = it.key,
+                    title = it.title,
+                    videoUrl = it.videoUrl,
+                    sources = it.sources,
+                    localPlaybackUrl = clipLocalPlaybackUrl(findClipRecord(downloads, it.videoUrl))
+                )
+            }
     }
-    val extraItems = remember(effectiveVideos) {
+    val extraItems = remember(effectiveVideos, downloads) {
         effectiveVideos
             .filter { it.category == MediaVideoCategory.EXTRA }
-            .map { DetailVideoItem(it.key, it.title, it.videoUrl, it.sources) }
+            .map {
+                DetailVideoItem(
+                    key = it.key,
+                    title = it.title,
+                    videoUrl = it.videoUrl,
+                    sources = it.sources,
+                    localPlaybackUrl = clipLocalPlaybackUrl(findClipRecord(downloads, it.videoUrl))
+                )
+            }
+    }
+
+    val downloadStates = remember(trailerItems, openingItems, endingItems, extraItems, downloads) {
+        val map = HashMap<String, ClipDownloadUiState>()
+        fun putState(key: String, url: String?) {
+            val record = findClipRecord(downloads, url) ?: return
+            map[key] = ClipDownloadUiState(record.status, record.progress, record.errorMessage)
+        }
+        trailerItems.forEach { putState(it.key, it.videoUrl) }
+        openingItems.forEach { putState(it.key, it.videoUrl) }
+        endingItems.forEach { putState(it.key, it.videoUrl) }
+        extraItems.forEach { putState(it.key, it.videoUrl) }
+        map
     }
 
     val uriHandler = LocalUriHandler.current
     val accentColor = LocalKitsugiAccent.current
     var activeVideoKey by remember { mutableStateOf<String?>(null) }
-    // Videolar sekmesinden tek tek indirme: her satır kendi durumunu taşır.
-    val downloadController = rememberVideoDownloadController(mediaTitle = mediaTitle)
+
+    val onSearchVideo: (DetailVideoItem) -> Unit = { item ->
+        val query = java.net.URLEncoder.encode(item.title, "UTF-8")
+        runCatching { uriHandler.openUri("https://www.youtube.com/results?search_query=$query") }
+    }
+    val onDownloadVideo: (DetailVideoItem) -> Unit = { item ->
+        val url = item.videoUrl
+        if (url.isNullOrBlank()) {
+            onSearchVideo(item)
+        } else {
+            val record = runCatching {
+                AnimeDownloadManager.addClipDownload(
+                    context = shareContext,
+                    mediaTitle = effectiveMediaTitle.ifBlank { "Kitsugi" },
+                    posterUrl = detail?.imageUrl,
+                    clipTitle = item.title,
+                    videoPageUrl = url
+                )
+            }.getOrNull()
+            val message = when {
+                record == null -> KitsugiStrings.get(R.string.kitsugi_clip_error_unsupported)
+                record.status == AnimeDownload.Status.COMPLETED ->
+                    KitsugiStrings.get(R.string.kitsugi_clip_already_downloaded)
+                record.status == AnimeDownload.Status.DOWNLOADING ||
+                    record.status == AnimeDownload.Status.QUEUE ->
+                    KitsugiStrings.get(R.string.kitsugi_clip_queued_toast, item.title)
+                else -> KitsugiStrings.get(R.string.kitsugi_clip_started_toast, item.title)
+            }
+            Toast.makeText(shareContext, message, Toast.LENGTH_SHORT).show()
+        }
+    }
+    val onCancelDownload: (DetailVideoItem) -> Unit = { item ->
+        val url = item.videoUrl
+        if (!url.isNullOrBlank()) {
+            AnimeDownloadManager.cancelClipDownload(AnimeDownloadManager.clipKeyFor(url))
+            Toast.makeText(
+                shareContext,
+                KitsugiStrings.get(R.string.kitsugi_clip_cancelled_toast),
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
 
     LaunchedEffect(effectiveVideos) {
         val currentKey = activeVideoKey
@@ -798,10 +937,6 @@ fun KitsugiMediaVideosTab(
                 }
             }
         } else {
-            val onSearchVideo: (DetailVideoItem) -> Unit = { item ->
-                val query = java.net.URLEncoder.encode(item.title, "UTF-8")
-                runCatching { uriHandler.openUri("https://www.youtube.com/results?search_query=$query") }
-            }
             val selectVideo: (String) -> Unit = { key ->
                 activeVideoKey = if (activeVideoKey == key) null else key
             }
@@ -820,7 +955,9 @@ fun KitsugiMediaVideosTab(
                     onSearch = onSearchVideo,
                     onCollapseHiddenItems = collapseHidden,
                     onShare = onShareVideo,
-                    downloadController = downloadController
+                    downloadStates = downloadStates,
+                    onDownloadVideo = onDownloadVideo,
+                    onCancelDownload = onCancelDownload
                 )
             }
 
@@ -835,7 +972,9 @@ fun KitsugiMediaVideosTab(
                     onSearch = onSearchVideo,
                     onCollapseHiddenItems = collapseHidden,
                     onShare = onShareVideo,
-                    downloadController = downloadController
+                    downloadStates = downloadStates,
+                    onDownloadVideo = onDownloadVideo,
+                    onCancelDownload = onCancelDownload
                 )
             }
 
@@ -850,14 +989,16 @@ fun KitsugiMediaVideosTab(
                     onSearch = onSearchVideo,
                     onCollapseHiddenItems = collapseHidden,
                     onShare = onShareVideo,
-                    downloadController = downloadController
+                    downloadStates = downloadStates,
+                    onDownloadVideo = onDownloadVideo,
+                    onCancelDownload = onCancelDownload
                 )
             }
 
             if (extraItems.isNotEmpty()) {
                 DetailVideoGroup(
                     title = stringResource(R.string.detail_video_extras),
-                    icon = Icons.Rounded.PlayCircle,
+                    icon = Icons.PlayCircle,
                     items = extraItems,
                     activeVideoKey = activeVideoKey,
                     accentColor = accentColor,
@@ -865,7 +1006,9 @@ fun KitsugiMediaVideosTab(
                     onSearch = onSearchVideo,
                     onCollapseHiddenItems = collapseHidden,
                     onShare = onShareVideo,
-                    downloadController = downloadController
+                    downloadStates = downloadStates,
+                    onDownloadVideo = onDownloadVideo,
+                    onCancelDownload = onCancelDownload
                 )
             }
 
@@ -912,7 +1055,9 @@ private fun DetailVideoGroup(
     onSearch: (DetailVideoItem) -> Unit,
     onCollapseHiddenItems: (Set<String>) -> Unit = {},
     onShare: (DetailVideoItem) -> Unit = {},
-    downloadController: VideoDownloadController? = null
+    downloadStates: Map<String, ClipDownloadUiState> = emptyMap(),
+    onDownloadVideo: (DetailVideoItem) -> Unit = {},
+    onCancelDownload: (DetailVideoItem) -> Unit = {}
 ) {
     val initialCount = 3
     val groupSources = remember(items) {
@@ -1032,21 +1177,20 @@ private fun DetailVideoGroup(
         fun RenderVideoItem(item: DetailVideoItem) {
             Column(modifier = Modifier.fillMaxWidth()) {
                 Spacer(modifier = Modifier.height(8.dp))
-                val isSelected = activeVideoKey == item.key && !item.videoUrl.isNullOrBlank()
+                val isSelected = activeVideoKey == item.key && !item.playbackUrl.isNullOrBlank()
                 DetailVideoRow(
                     item = item,
                     isSelected = isSelected,
                     accentColor = accentColor,
                     showSourceBadges = showPerRowSources,
+                    downloadState = downloadStates[item.key],
                     onClick = {
-                        if (item.videoUrl.isNullOrBlank()) onSearch(item)
+                        if (item.playbackUrl.isNullOrBlank()) onSearch(item)
                         else onVideoSelected(item.key)
                     },
                     onShare = { onShare(item) },
-                    downloadState = downloadController?.stateOf(item.key) ?: VideoDownloadState.Idle,
-                    onDownload = {
-                        downloadController?.onDownloadClick(item.key, item.title, item.videoUrl)
-                    }
+                    onDownload = { onDownloadVideo(item) },
+                    onCancelDownload = { onCancelDownload(item) }
                 )
 
                 // Oynatıcı aynı kartın içinde, satırın hemen altında açılır.
@@ -1058,7 +1202,7 @@ private fun DetailVideoGroup(
                             .aspectRatio(16f / 9f)
                     ) {
                         ThemePlayerContainer(
-                            url = item.videoUrl!!,
+                            url = item.playbackUrl!!,
                             modifier = Modifier.fillMaxSize()
                         )
                     }
@@ -1156,10 +1300,11 @@ private fun DetailVideoRow(
     isSelected: Boolean,
     accentColor: Color,
     showSourceBadges: Boolean = false,
+    downloadState: ClipDownloadUiState? = null,
     onClick: () -> Unit,
     onShare: () -> Unit,
-    downloadState: VideoDownloadState = VideoDownloadState.Idle,
-    onDownload: () -> Unit = {}
+    onDownload: () -> Unit = {},
+    onCancelDownload: () -> Unit = {}
 ) {
     val rowShape = RoundedCornerShape(12.dp)
     val canDownload = !item.videoUrl.isNullOrBlank()
@@ -1208,27 +1353,31 @@ private fun DetailVideoRow(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
+                // Alt satır: indirme durumu varsa durum, yoksa mevcut oynatma ipucu.
+                val state = downloadState
+                val subtitle = when (state?.status) {
+                    AnimeDownload.Status.DOWNLOADING ->
+                        stringResource(R.string.kitsugi_clip_downloading, downloadState?.progress ?: 0)
+                    AnimeDownload.Status.QUEUE -> stringResource(R.string.kitsugi_clip_queued)
+                    AnimeDownload.Status.COMPLETED -> stringResource(R.string.kitsugi_clip_downloaded)
+                    AnimeDownload.Status.PAUSED -> stringResource(R.string.kitsugi_clip_paused)
+                    AnimeDownload.Status.ERROR ->
+                        downloadState?.errorMessage?.takeIf { it.isNotBlank() }
+                            ?: stringResource(R.string.kitsugi_clip_error)
+                    null -> if (item.videoUrl.isNullOrBlank()) stringResource(R.string.ui_open_youtube_search)
+                    else stringResource(R.string.ui_play_in_app)
+                }
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Text(
-                        text = when (downloadState) {
-                            is VideoDownloadState.Running -> {
-                                val percent = downloadState.progress
-                                    ?.let { stringResource(R.string.detail_video_download_progress, (it * 100).toInt()) }
-                                    ?: stringResource(R.string.detail_video_download_preparing)
-                                stringResource(R.string.detail_video_download_running_status, percent)
-                            }
-                            is VideoDownloadState.Done -> stringResource(R.string.detail_video_download_done)
-                            is VideoDownloadState.Failed -> downloadState.message
-                            VideoDownloadState.Idle ->
-                                if (item.videoUrl.isNullOrBlank()) stringResource(R.string.ui_open_youtube_search)
-                                else stringResource(R.string.ui_play_in_app)
-                        },
-                        color = when (downloadState) {
-                            is VideoDownloadState.Failed -> KitsugiColors.AccentRed
-                            is VideoDownloadState.Done -> accentColor
+                        text = subtitle,
+                        color = when (state?.status) {
+                            AnimeDownload.Status.COMPLETED -> KitsugiColors.AccentGreen
+                            AnimeDownload.Status.ERROR -> KitsugiColors.AccentRed
+                            AnimeDownload.Status.DOWNLOADING,
+                            AnimeDownload.Status.QUEUE -> accentColor
                             else -> KitsugiColors.TextMuted
                         },
                         style = MaterialTheme.typography.labelSmall,
@@ -1253,15 +1402,57 @@ private fun DetailVideoRow(
                 }
             }
         }
-        // İndirme düğmesi — paylaş düğmesinin hemen SOLUNDA.
-        // Bağlantısı olmayan satırlarda da görünür (her satırda aynı düzen korunur);
-        // basıldığında denetleyici "indirilebilir akış yok" uyarısı gösterir.
-        VideoDownloadAction(
-            state = downloadState,
-            accentColor = accentColor,
-            enabled = canDownload || downloadState !is VideoDownloadState.Idle,
-            onDownload = onDownload
-        )
+
+        // ── İndirme düğmesi ──────────────────────────────────────────────────
+        // Durumlar: kayıt yok → indir, indiriliyor/kuyrukta → iptal, tamam → onay,
+        // duraklatıldı/hata → yeniden dene. Düğme yalnızca gerçek bir bağlantı varsa çizilir.
+        if (canDownload) {
+            val status = downloadState?.status
+            val click = when (status) {
+                AnimeDownload.Status.DOWNLOADING, AnimeDownload.Status.QUEUE -> onCancelDownload
+                AnimeDownload.Status.COMPLETED -> ({ /* yerel kopya var; satıra dokununca oynatılır */ })
+                else -> onDownload
+            }
+            Box(
+                modifier = Modifier
+                    .size(30.dp)
+                    .clip(CircleShape)
+                    .tvClickable(shape = CircleShape, onClick = click),
+                contentAlignment = Alignment.Center
+            ) {
+                when (status) {
+                    AnimeDownload.Status.DOWNLOADING, AnimeDownload.Status.QUEUE -> {
+                        CircularProgressIndicator(
+                            progress = {
+                                if (status == AnimeDownload.Status.QUEUE) 0f
+                                else (downloadState?.progress ?: 0) / 100f
+                            },
+                            modifier = Modifier.size(17.dp),
+                            color = accentColor,
+                            strokeWidth = 2.dp
+                        )
+                    }
+                    AnimeDownload.Status.COMPLETED -> Icon(
+                        imageVector = Icons.CheckCircle,
+                        contentDescription = stringResource(R.string.kitsugi_clip_downloaded),
+                        tint = KitsugiColors.AccentGreen,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    AnimeDownload.Status.ERROR, AnimeDownload.Status.PAUSED -> Icon(
+                        imageVector = Icons.Refresh,
+                        contentDescription = stringResource(R.string.kitsugi_clip_retry_action),
+                        tint = KitsugiColors.AccentRed,
+                        modifier = Modifier.size(17.dp)
+                    )
+                    null -> Icon(
+                        imageVector = Icons.Download,
+                        contentDescription = stringResource(R.string.kitsugi_clip_download_action),
+                        tint = accentColor,
+                        modifier = Modifier.size(17.dp)
+                    )
+                }
+            }
+        }
 
         // Material IconButton 48 dp'lik dokunma hedefi ekleyip kompakt satırı şişiriyordu.
         Box(
@@ -1277,68 +1468,6 @@ private fun DetailVideoRow(
                 tint = KitsugiColors.TextMuted,
                 modifier = Modifier.size(16.dp)
             )
-        }
-    }
-}
-
-/**
- * Satırdaki indirme düğmesi.
- *
- * Üç durumu vardır:
- *  - boşta: indirme ikonu,
- *  - indiriliyor: dairesel ilerleme + yüzde (dokununca iptal),
- *  - tamamlandı: onay ikonu (dokununca yeniden indirme seçeneği sunmaz, dosya zaten var).
- */
-@Composable
-private fun VideoDownloadAction(
-    state: VideoDownloadState,
-    accentColor: Color,
-    enabled: Boolean,
-    onDownload: () -> Unit
-) {
-    val isDone = state is VideoDownloadState.Done
-    Box(
-        modifier = Modifier
-            .size(30.dp)
-            .clip(CircleShape)
-            .tvClickable(shape = CircleShape) {
-                if (!isDone) onDownload()
-            },
-        contentAlignment = Alignment.Center
-    ) {
-        when (state) {
-            is VideoDownloadState.Running -> {
-                CircularProgressIndicator(
-                    progress = { state.progress ?: 0f },
-                    modifier = Modifier.size(18.dp),
-                    color = accentColor,
-                    strokeWidth = 2.dp
-                )
-            }
-            is VideoDownloadState.Done -> {
-                Icon(
-                    imageVector = Icons.CheckCircle,
-                    contentDescription = stringResource(R.string.detail_video_download_done),
-                    tint = accentColor,
-                    modifier = Modifier.size(17.dp)
-                )
-            }
-            is VideoDownloadState.Failed -> {
-                Icon(
-                    imageVector = Icons.Refresh,
-                    contentDescription = stringResource(R.string.action_retry),
-                    tint = KitsugiColors.AccentRed,
-                    modifier = Modifier.size(17.dp)
-                )
-            }
-            VideoDownloadState.Idle -> {
-                Icon(
-                    imageVector = Icons.Download,
-                    contentDescription = stringResource(R.string.detail_video_download),
-                    tint = if (enabled) KitsugiColors.TextMuted else KitsugiColors.TextMuted.copy(alpha = 0.4f),
-                    modifier = Modifier.size(17.dp)
-                )
-            }
         }
     }
 }

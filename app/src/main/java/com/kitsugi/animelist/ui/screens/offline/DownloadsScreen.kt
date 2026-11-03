@@ -538,12 +538,51 @@ fun DownloadsScreen(
 
     // ── Silme akışları (onaylı) ─────────────────────────────────────────────
     val deleteVideoNow: (AnimeDownload) -> Unit = { download ->
-        AnimeDownloadManager.deleteDownload(context, download.animeId, download.episode)
-        refreshSubsTrigger++
+        if (download.isClip) {
+            scope.launch {
+                val result = AnimeDownloadManager.deleteClipRecord(context, download)
+                when {
+                    result.deleted -> Toast.makeText(
+                        context,
+                        KitsugiStrings.get(
+                            R.string.kitsugi_clip_deleted_toast,
+                            download.clipTitle ?: download.animeTitle
+                        ),
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    result.consentUris.isNotEmpty() -> {
+                        Toast.makeText(
+                            context,
+                            KitsugiStrings.get(R.string.downloads_delete_confirm_prompt),
+                            Toast.LENGTH_LONG
+                        ).show()
+                        requestSystemDelete(result.consentUris)
+                    }
+                    else -> Toast.makeText(
+                        context,
+                        result.message ?: KitsugiStrings.get(
+                            R.string.kitsugi_clip_delete_failed,
+                            download.clipTitle ?: download.animeTitle
+                        ),
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+                refreshSubsTrigger++
+            }
+        } else {
+            AnimeDownloadManager.deleteDownload(context, download.animeId, download.episode)
+            refreshSubsTrigger++
+        }
     }
     val deleteCompletedNow: (List<AnimeDownload>) -> Unit = { list ->
         list.forEach { download ->
-            AnimeDownloadManager.deleteDownload(context, download.animeId, download.episode)
+            if (download.isClip) {
+                scope.launch {
+                    AnimeDownloadManager.deleteClipRecord(context, download)
+                }
+            } else {
+                AnimeDownloadManager.deleteDownload(context, download.animeId, download.episode)
+            }
         }
         refreshSubsTrigger++
         refreshImagesTrigger++
@@ -606,6 +645,25 @@ fun DownloadsScreen(
     // ── Oynatma: indirilen bölümü çevrimdışı aç ──────────────────────────────
     val playDownloaded: (AnimeDownload) -> Unit = { download ->
         scope.launch {
+            if (download.isClip) {
+                val file = download.localPath?.let { File(it) }
+                if (file != null && file.isFile && file.length() > 0L) {
+                    KitsugiFullscreenPlayerActivity.startWithStreamUrls(
+                        context = context,
+                        videoUrl = "file://${file.absolutePath}",
+                        title = download.clipTitle ?: download.animeTitle,
+                        headers = emptyMap(),
+                        subtitles = emptyList()
+                    )
+                } else {
+                    Toast.makeText(
+                        context,
+                        KitsugiStrings.get(R.string.kitsugi_clip_error_empty),
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+                return@launch
+            }
             val safeAnimeId = resolveSafeAnimeId(download.animeId, download.animeTitle)
             val mediaId = "${safeAnimeId}_ep${download.episode}"
             val params = withContext(Dispatchers.IO) {
@@ -658,15 +716,24 @@ fun DownloadsScreen(
 
     // ── Klasör: indirilen bölümün klasörünü dosya yöneticisinde aç ──────────
     val openDownloadFolder: (AnimeDownload) -> Unit = { download ->
-        val safeAnimeId = resolveSafeAnimeId(download.animeId, download.animeTitle)
-        val mediaId = "${safeAnimeId}_ep${download.episode}"
-        val targetDir = download.localPath?.let { File(it).parentFile }
-            ?: File(
-                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
-                "Kitsugi/Video"
-            ).takeIf { it.exists() }
-            ?: File(OfflinePlaybackHelper.getDownloadsDir(context), mediaId)
-        openFolderInFileManager(context, targetDir)
+        if (download.isClip) {
+            val target = download.localPath?.let { File(it).parentFile }
+                ?: File(
+                    OfflinePlaybackHelper.getDownloadsDir(context),
+                    com.kitsugi.animelist.core.download.DownloadExportNaming.CLIP_FOLDER
+                ).also { it.mkdirs() }
+            openFolderInFileManager(context, target)
+        } else {
+            val safeAnimeId = resolveSafeAnimeId(download.animeId, download.animeTitle)
+            val mediaId = "${safeAnimeId}_ep${download.episode}"
+            val targetDir = download.localPath?.let { File(it).parentFile }
+                ?: File(
+                    Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+                    "Kitsugi/Video"
+                ).takeIf { it.exists() }
+                ?: File(OfflinePlaybackHelper.getDownloadsDir(context), mediaId)
+            openFolderInFileManager(context, targetDir)
+        }
     }
 
     // ── Filtrelenmiş listeler ────────────────────────────────────────────────
@@ -1202,11 +1269,15 @@ fun DownloadsScreen(
             },
             text = {
                 Text(
-                    text = stringResource(
-                        R.string.downloads_delete_video_message,
-                        download.animeTitle,
-                        download.episode
-                    ),
+                    text = if (download.isClip) {
+                        download.clipTitle ?: download.animeTitle
+                    } else {
+                        stringResource(
+                            R.string.downloads_delete_video_message,
+                            download.animeTitle,
+                            download.episode
+                        )
+                    },
                     color = KitsugiColors.TextSecondary,
                     fontSize = 13.sp
                 )
@@ -2267,7 +2338,9 @@ fun DownloadItemRow(
         key2 = download.status,
         key3 = download.localPath
     ) {
-        if (download.status != AnimeDownload.Status.COMPLETED && download.localPath.isNullOrBlank()) {
+        if (download.isClip ||
+            (download.status != AnimeDownload.Status.COMPLETED && download.localPath.isNullOrBlank())
+        ) {
             value = emptyList()
         } else {
             value = withContext(Dispatchers.IO) {
@@ -2381,13 +2454,25 @@ fun DownloadItemRow(
             // Bilgi & ilerleme
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = download.animeTitle,
+                    text = if (download.isClip) {
+                        download.clipTitle ?: download.animeTitle
+                    } else download.animeTitle,
                     color = KitsugiColors.TextPrimary,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Bold,
-                    maxLines = 1,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
+                if (download.isClip) {
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = download.animeTitle,
+                        color = KitsugiColors.TextMuted,
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
                 // Eski indirmelerde eklenti metni HTML/CSS artığı içerebiliyor; gösterirken temizle.
                 val cleanStreamName = remember(download.streamName) {
                     com.kitsugi.animelist.utils.StreamLabelSanitizer.sanitize(download.streamName)
@@ -2422,7 +2507,11 @@ fun DownloadItemRow(
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Text(
-                        text = stringResource(R.string.inline_episode_1_s_2_s_32608a4, download.episode, download.quality),
+                        text = if (download.isClip) {
+                            stringResource(R.string.kitsugi_clip_label)
+                        } else {
+                            stringResource(R.string.inline_episode_1_s_2_s_32608a4, download.episode, download.quality)
+                        },
                         color = KitsugiColors.TextSecondary,
                         fontSize = 13.sp
                     )
@@ -2549,10 +2638,13 @@ fun DownloadItemRow(
 
                     AnimeDownload.Status.ERROR -> {
                         Text(
-                            text = stringResource(R.string.inline_an_error_occurred_2cd4106),
+                            text = download.errorMessage?.takeIf { it.isNotBlank() }
+                                ?: stringResource(R.string.inline_an_error_occurred_2cd4106),
                             color = KitsugiColors.AccentRed,
                             fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }

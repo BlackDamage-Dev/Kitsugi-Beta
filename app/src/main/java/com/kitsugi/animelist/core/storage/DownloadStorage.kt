@@ -316,6 +316,92 @@ object DownloadStorage {
         }
 
     /**
+     * Detay sayfasındaki küçük videolardan (klip) **tek birini** siler.
+     *
+     * Klip dosyaları `Download/Kitsugi/Video/Klipler` altında tek dosyadır; ancak eski
+     * sürümlerden kalan kopyalar (farklı uzantı, `.part` kalıntısı, uygulama özel klasörü)
+     * da olabileceği için tüm video kökleri **özyinelemeli** taranır ve taban ada uyan
+     * (`<taban>.*`) her dosya silinir.
+     *
+     * Silme iki aşamalıdır: doğrudan `File.delete()` başarısız olursa (Scoped Storage'da
+     * MediaStore sahipliği farklıysa sessizce `false` döner) kayıt
+     * [MediaStoreFileDeleter] üzerinden kaldırılır. Hâlâ silinemiyorsa sistem onayı
+     * gereken URI'ler döner; UI bunu `createDeleteRequest` ile kullanıcıya sorar.
+     */
+    suspend fun deleteClip(
+        context: Context,
+        baseName: String?,
+        knownPath: String? = null
+    ): SingleDeleteResult = withContext(Dispatchers.IO) {
+        val appContext = context.applicationContext
+        val base = baseName?.trim().orEmpty()
+
+        val targets = LinkedHashMap<String, File>()
+        videoRoots(appContext).forEach { root ->
+            walkFiles(root).forEach { file ->
+                if (!file.isFile) return@forEach
+                val matchesBase = base.isNotBlank() &&
+                    file.name.startsWith("$base.", ignoreCase = true)
+                val matchesKnown = !knownPath.isNullOrBlank() && file.absolutePath == knownPath
+                if (matchesBase || matchesKnown) targets[file.absolutePath] = file
+            }
+        }
+
+        // Dosya zaten yoksa bu bir hata değildir: liste tazelenip kart kaybolur.
+        if (targets.isEmpty()) return@withContext SingleDeleteResult(deleted = true)
+
+        var removedAny = false
+        var failure: String? = null
+        var consentUris = emptyList<Uri>()
+        val deletedPaths = ArrayList<String>()
+
+        targets.values.forEach { file ->
+            val direct = runCatching { file.delete() && !file.exists() }.getOrDefault(false)
+            if (direct) {
+                removedAny = true
+                deletedPaths += file.absolutePath
+                return@forEach
+            }
+            val outcome = runCatching {
+                MediaStoreFileDeleter.deleteByName(
+                    context = appContext,
+                    fileName = file.name,
+                    mode = MediaStoreFileDeleter.Mode.ANY,
+                    relativePath = MediaStoreFileDeleter.relativePathOf(file)
+                )
+            }.getOrNull()
+            if (outcome != null) {
+                if (outcome.deleted || !file.exists()) {
+                    removedAny = true
+                    deletedPaths += file.absolutePath
+                }
+                if (outcome.foreignUris.isNotEmpty()) {
+                    consentUris = (consentUris + outcome.foreignUris).distinct()
+                }
+                outcome.message?.let { failure = it }
+            }
+        }
+
+        if (deletedPaths.isNotEmpty()) notifyMediaRemoved(appContext, deletedPaths)
+
+        val stillExists = targets.values.any { it.exists() }
+        when {
+            !stillExists -> SingleDeleteResult(deleted = true)
+            consentUris.isNotEmpty() -> SingleDeleteResult(
+                deleted = false,
+                message = failure ?: appContext.getString(R.string.image_file_delete_foreign),
+                consentUris = consentUris
+            )
+            removedAny -> SingleDeleteResult(deleted = true)
+            else -> SingleDeleteResult(
+                deleted = false,
+                message = failure
+                    ?: appContext.getString(R.string.kitsugi_clip_delete_failed, base)
+            )
+        }
+    }
+
+    /**
      * Aynı ada sahip altyazı kopyaları: tüm video/altyazı kökleri + `cacheDir/subtitles`.
      * (`SUB`/`ASS` gibi dosyalar kullanıcı isteğiyle yalnızca o ada sahip kopyalardan silinir.)
      */

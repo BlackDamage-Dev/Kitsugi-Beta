@@ -18479,4 +18479,33 @@ Eklentiler ekranından eklenti etkinleştirin.</string>
     <string name="manga_source_disabled">Devre dışı</string>
     <string name="manga_source_verify_in_browser">Tarayıcıda doğrula</string>
     <string name="manga_source_verify_hint">Bu kaynak üye girişi veya bot koruması istiyor. Aynı oturumda doğrulayıp tekrar deneyin.</string>
+    <!-- ── Küçük video (klip) indirmeleri ───────────────────────────────────── -->
+    <string name="kitsugi_clip_download_action">Videoyu indir</string>
+    <string name="kitsugi_clip_cancel_action">İndirmeyi iptal et</string>
+    <string name="kitsugi_clip_retry_action">İndirmeyi yeniden dene</string>
+    <string name="kitsugi_clip_downloaded">İndirildi</string>
+    <string name="kitsugi_clip_downloading">İndiriliyor: %1$d%%</string>
+    <string name="kitsugi_clip_queued">İndirme sırasında bekliyor…</string>
+    <string name="kitsugi_clip_paused">İndirme duraklatıldı</string>
+    <string name="kitsugi_clip_error">İndirilemedi</string>
+    <string name="kitsugi_clip_label">Klipler</string>
+    <string name="kitsugi_clip_error_no_stream">Bu video için indirilebilir akış bulunamadı.</string>
+    <string name="kitsugi_clip_error_separate_audio">Bu videonun sesi ve görüntüsü ayrı akışlarda sunuluyor; tek dosya olarak indirilemiyor.</string>
+    <string name="kitsugi_clip_error_unsupported">Bu video bağlantısı indirilemiyor.</string>
+    <string name="kitsugi_clip_error_network">Video kaynağına ulaşılamadı. Bağlantını kontrol edip yeniden dene.</string>
+    <string name="kitsugi_clip_error_no_space">Yeterli boş depolama alanı yok.</string>
+    <string name="kitsugi_clip_error_too_large">Bu video beklenenden çok büyük; indirme güvenlik için durduruldu.</string>
+    <string name="kitsugi_clip_error_http">Sunucu hatası (%1$d).</string>
+    <string name="kitsugi_clip_error_invalid_content">Sunucu video yerine bir sayfa döndürdü; indirme iptal edildi.</string>
+    <string name="kitsugi_clip_error_empty">İndirilen dosya boş çıktı.</string>
+    <string name="kitsugi_clip_error_generic">İndirme tamamlanamadı.</string>
+    <string name="kitsugi_clip_error_missing_file">İndirilen dosya bulunamadı; yeniden indirmen gerekiyor.</string>
+    <string name="kitsugi_clip_error_failed">İndirme başarısız: %1$s</string>
+    <string name="kitsugi_clip_already_downloaded">Bu video zaten indirilmiş.</string>
+    <string name="kitsugi_clip_started_toast">İndirme başladı: %1$s</string>
+    <string name="kitsugi_clip_queued_toast">Sıraya alındı: %1$s</string>
+    <string name="kitsugi_clip_cancelled_toast">İndirme iptal edildi.</string>
+    <string name="kitsugi_clip_deleted_toast">Video silindi: %1$s</string>
+    <string name="kitsugi_clip_delete_failed">Video silinemedi: %1$s</string>
+    <string name="kitsugi_clip_section_title">Küçük videolar</string>
 </resources>
