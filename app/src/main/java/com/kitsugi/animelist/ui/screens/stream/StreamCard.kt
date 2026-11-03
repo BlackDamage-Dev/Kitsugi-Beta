@@ -1,8 +1,5 @@
 package com.kitsugi.animelist.ui.screens.stream
 
-import com.kitsugi.animelist.ui.icons.KitsugiArt
-import com.kitsugi.animelist.ui.icons.KitsugiArtIcon
-
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -24,7 +21,7 @@ import com.kitsugi.animelist.ui.components.KitsugiEmojiLabel
 import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import com.kitsugi.animelist.ui.icons.KitsugiIcon as Icon
+import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
@@ -257,7 +254,11 @@ fun StreamCard(
                         contentColor = KitsugiColors.OnAccent
                     )
                 ) {
-                    KitsugiArtIcon(art = KitsugiArt.Play, contentDescription = stringResource(R.string.oynat), size = 26.dp)
+                    Icon(
+                        imageVector = Icons.PlayArrow,
+                        contentDescription = stringResource(R.string.oynat),
+                        modifier = Modifier.size(26.dp)
+                    )
                 }
                 Spacer(Modifier.height(4.dp))
                 IconButton(
@@ -313,7 +314,12 @@ private fun StreamThumbnail(
                 modifier = Modifier.fillMaxSize()
             )
         } else {
-            KitsugiArtIcon(art = KitsugiArt.Player, modifier = Modifier.align(Alignment.Center), size = 24.dp)
+            Icon(
+                imageVector = Icons.Movie,
+                contentDescription = null,
+                tint = accentColor.copy(alpha = 0.8f),
+                modifier = Modifier.align(Alignment.Center).size(24.dp)
+            )
         }
         // Alt kısımda okunabilirlik için hafif karartma + kalite etiketi.
         Box(

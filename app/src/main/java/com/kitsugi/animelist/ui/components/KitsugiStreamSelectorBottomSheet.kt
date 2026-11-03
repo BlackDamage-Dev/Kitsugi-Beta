@@ -1,8 +1,5 @@
 package com.kitsugi.animelist.ui.components
 
-import com.kitsugi.animelist.ui.icons.KitsugiArt
-import com.kitsugi.animelist.ui.icons.KitsugiArtIcon
-
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import com.kitsugi.animelist.ui.theme.gradient.Text
 
@@ -724,7 +721,12 @@ private fun StreamItemRow(
                     .background(accentColor.copy(alpha = 0.1f)),
                 contentAlignment = Alignment.Center
             ) {
-                KitsugiArtIcon(art = KitsugiArt.Play, contentDescription = stringResource(R.string.oynat), size = 20.dp)
+                Icon(
+                    imageVector = Icons.PlayArrow,
+                    contentDescription = stringResource(R.string.oynat),
+                    tint = accentColor,
+                    modifier = Modifier.size(20.dp)
+                )
             }
         }
     }

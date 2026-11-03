@@ -1,6 +1,5 @@
 package com.kitsugi.animelist.ui.screens.detail.wiki
 
-import com.kitsugi.animelist.ui.icons.KitsugiIcon as Icon
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn

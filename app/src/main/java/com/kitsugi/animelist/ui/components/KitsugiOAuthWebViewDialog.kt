@@ -1,6 +1,5 @@
 package com.kitsugi.animelist.ui.components
 
-import com.kitsugi.animelist.ui.icons.KitsugiIcon as Icon
 import com.kitsugi.animelist.ui.theme.gradient.CircularProgressIndicator
 import com.kitsugi.animelist.data.platform.PlatformErrorCode
 import com.kitsugi.animelist.data.platform.PlatformFailureRegistry

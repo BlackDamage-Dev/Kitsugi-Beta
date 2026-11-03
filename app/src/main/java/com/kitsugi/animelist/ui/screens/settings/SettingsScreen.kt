@@ -2,7 +2,6 @@
 
 package com.kitsugi.animelist.ui.screens.settings
 
-import com.kitsugi.animelist.ui.icons.KitsugiArt
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
@@ -669,7 +668,6 @@ private fun SettingsMainPage(
                             description = stringResource(R.string.settings_account_connections_desc),
                             icon = Icons.Person,
                             iconColor = KitsugiColors.AccentBlue,
-                            art = KitsugiArt.Connections,
                             onClick = { onNavigate(SettingsRoute.AccountConnections) }
                         )
                     }

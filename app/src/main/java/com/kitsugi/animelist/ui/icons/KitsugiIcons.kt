@@ -6,7 +6,6 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.PathParser
-import androidx.compose.ui.graphics.vector.VectorPath
 import androidx.compose.ui.unit.dp
 
 /**
@@ -65,41 +64,6 @@ object KitsugiIcons {
         }
         return builder.build()
     }
-    private fun alias(name: String, base: ImageVector): ImageVector {
-        val builder = ImageVector.Builder(
-            name = name,
-            defaultWidth = base.defaultWidth,
-            defaultHeight = base.defaultHeight,
-            viewportWidth = base.viewportWidth,
-            viewportHeight = base.viewportHeight,
-            tintColor = base.tintColor,
-            tintBlendMode = base.tintBlendMode,
-            autoMirror = base.autoMirror
-        )
-        for (i in 0 until base.root.size) {
-            val node = base.root[i]
-            if (node is VectorPath) {
-                builder.addPath(
-                    pathData = node.pathData,
-                    pathFillType = node.pathFillType,
-                    name = node.name,
-                    fill = node.fill,
-                    fillAlpha = node.fillAlpha,
-                    stroke = node.stroke,
-                    strokeAlpha = node.strokeAlpha,
-                    strokeLineWidth = node.strokeLineWidth,
-                    strokeLineCap = node.strokeLineCap,
-                    strokeLineJoin = node.strokeLineJoin,
-                    strokeLineMiter = node.strokeLineMiter,
-                    trimPathStart = node.trimPathStart,
-                    trimPathEnd = node.trimPathEnd,
-                    trimPathOffset = node.trimPathOffset
-                )
-            }
-        }
-        return builder.build()
-    }
-
 
     /** Lucide `a-large-small`. */
     val ALargeSmall: ImageVector by lazy { build("ALargeSmall", listOf("m15 16 2.536-7.328a1.02 1.02 1 0 1 1.928 0L22 16", "M15.697 14h5.606", "m2 16 4.039-9.69a.5.5 0 0 1 .923 0L11 16", "M3.304 13h6.392")) }
@@ -642,266 +606,266 @@ object KitsugiIcons {
     /** Lucide `zoom-in`. */
     val ZoomIn: ImageVector by lazy { build("ZoomIn", listOf("M3.0 11.0a8.0 8.0 0 1 0 16.0 0a8.0 8.0 0 1 0 -16.0 0Z", "M21 21L16.65 16.65", "M11 8L11 14", "M8 11L14 11")) }
 
-    val AlertTriangle: ImageVector by lazy { alias("AlertTriangle", TriangleAlert) }
-    val Smile: ImageVector by lazy { alias("Smile", FaceSlightlySmiling) }
-    val Laugh: ImageVector by lazy { alias("Laugh", FaceGrinning) }
-    val Frown: ImageVector by lazy { alias("Frown", FaceSlightlyFrowning) }
-    val Meh: ImageVector by lazy { alias("Meh", FaceNeutral) }
-    val Angry: ImageVector by lazy { alias("Angry", FaceAngry) }
+    val AlertTriangle: ImageVector get() = TriangleAlert
+    val Smile: ImageVector get() = FaceSlightlySmiling
+    val Laugh: ImageVector get() = FaceGrinning
+    val Frown: ImageVector get() = FaceSlightlyFrowning
+    val Meh: ImageVector get() = FaceNeutral
+    val Angry: ImageVector get() = FaceAngry
     // ── Uyumluluk adları: eski Material ikon adları → aynı HD ikon ────────────
-    val AcUnit: ImageVector by lazy { alias("AcUnit", Snowflake) }
-    val AccessTime: ImageVector by lazy { alias("AccessTime", Clock) }
-    val AccountCircle: ImageVector by lazy { alias("AccountCircle", CircleUserRound) }
-    val Add: ImageVector by lazy { alias("Add", Plus) }
-    val AddCircle: ImageVector by lazy { alias("AddCircle", CirclePlus) }
-    val AddCircleOutline: ImageVector by lazy { alias("AddCircleOutline", CirclePlus) }
-    val AddLink: ImageVector by lazy { alias("AddLink", Link2) }
-    val Apps: ImageVector by lazy { alias("Apps", LayoutGrid) }
-    val ArrowBack: ImageVector by lazy { alias("ArrowBack", ArrowLeft) }
-    val ArrowCircleUp: ImageVector by lazy { alias("ArrowCircleUp", CircleArrowUp) }
-    val ArrowDownward: ImageVector by lazy { alias("ArrowDownward", ArrowDown) }
-    val ArrowDropDown: ImageVector by lazy { alias("ArrowDropDown", ChevronDown) }
-    val ArrowForward: ImageVector by lazy { alias("ArrowForward", ArrowRight) }
-    val ArrowUpward: ImageVector by lazy { alias("ArrowUpward", ArrowUp) }
-    val AspectRatio: ImageVector by lazy { alias("AspectRatio", Ratio) }
-    val Audiotrack: ImageVector by lazy { alias("Audiotrack", AudioLines) }
-    val AutoAwesome: ImageVector by lazy { alias("AutoAwesome", Sparkles) }
-    val AutoStories: ImageVector by lazy { alias("AutoStories", BookOpen) }
-    val AvTimer: ImageVector by lazy { alias("AvTimer", Timer) }
-    val BarChart: ImageVector by lazy { alias("BarChart", ChartColumn) }
-    val BlurOn: ImageVector by lazy { alias("BlurOn", Droplets) }
-    val Bolt: ImageVector by lazy { alias("Bolt", Zap) }
-    val Bookmark: ImageVector by lazy { alias("Bookmark", BookmarkSolid) }
-    val BookmarkBorder: ImageVector by lazy { alias("BookmarkBorder", BookmarkStroke) }
-    val Bookmarks: ImageVector by lazy { alias("Bookmarks", BookmarkStroke) }
-    val BorderColor: ImageVector by lazy { alias("BorderColor", PaintBucket) }
-    val BorderOuter: ImageVector by lazy { alias("BorderOuter", Square) }
-    val Brightness6: ImageVector by lazy { alias("Brightness6", SunMedium) }
-    val BrightnessHigh: ImageVector by lazy { alias("BrightnessHigh", Sun) }
-    val BrightnessLow: ImageVector by lazy { alias("BrightnessLow", SunDim) }
-    val BrightnessMedium: ImageVector by lazy { alias("BrightnessMedium", SunMedium) }
-    val BrokenImage: ImageVector by lazy { alias("BrokenImage", ImageOff) }
-    val BugReport: ImageVector by lazy { alias("BugReport", Bug) }
-    val Cached: ImageVector by lazy { alias("Cached", RefreshCw) }
-    val CalendarMonth: ImageVector by lazy { alias("CalendarMonth", CalendarDays) }
-    val CalendarToday: ImageVector by lazy { alias("CalendarToday", Calendar) }
-    val CenterFocusWeak: ImageVector by lazy { alias("CenterFocusWeak", Focus) }
-    val ChatBubble: ImageVector by lazy { alias("ChatBubble", MessageCircle) }
-    val ChatBubbleOutline: ImageVector by lazy { alias("ChatBubbleOutline", MessageCircle) }
-    val CheckCircle: ImageVector by lazy { alias("CheckCircle", CircleCheck) }
-    val CleaningServices: ImageVector by lazy { alias("CleaningServices", Sparkles) }
-    val Clear: ImageVector by lazy { alias("Clear", X) }
-    val ClearAll: ImageVector by lazy { alias("ClearAll", Eraser) }
-    val Close: ImageVector by lazy { alias("Close", X) }
-    val CloudSync: ImageVector by lazy { alias("CloudSync", RefreshCw) }
-    val ColorLens: ImageVector by lazy { alias("ColorLens", Palette) }
-    val Comment: ImageVector by lazy { alias("Comment", MessageSquare) }
-    val CompareArrows: ImageVector by lazy { alias("CompareArrows", ArrowLeftRight) }
-    val ContentCopy: ImageVector by lazy { alias("ContentCopy", Copy) }
-    val ContentPaste: ImageVector by lazy { alias("ContentPaste", Clipboard) }
-    val ControlCamera: ImageVector by lazy { alias("ControlCamera", Video) }
-    val CropFree: ImageVector by lazy { alias("CropFree", Scan) }
-    val DarkMode: ImageVector by lazy { alias("DarkMode", Moon) }
-    val DateRange: ImageVector by lazy { alias("DateRange", Calendar) }
-    val Delete: ImageVector by lazy { alias("Delete", Trash) }
-    val DeleteForever: ImageVector by lazy { alias("DeleteForever", Trash) }
-    val DeleteOutline: ImageVector by lazy { alias("DeleteOutline", Trash) }
-    val DeleteSweep: ImageVector by lazy { alias("DeleteSweep", Eraser) }
-    val DensityMedium: ImageVector by lazy { alias("DensityMedium", Menu) }
-    val DeveloperBoard: ImageVector by lazy { alias("DeveloperBoard", Cpu) }
-    val Dns: ImageVector by lazy { alias("Dns", Server) }
-    val Done: ImageVector by lazy { alias("Done", Check) }
-    val DoneAll: ImageVector by lazy { alias("DoneAll", CheckCheck) }
-    val DonutLarge: ImageVector by lazy { alias("DonutLarge", ChartPie) }
-    val DoubleArrow: ImageVector by lazy { alias("DoubleArrow", ArrowLeftRight) }
-    val DownloadDone: ImageVector by lazy { alias("DownloadDone", Download) }
-    val DownloadForOffline: ImageVector by lazy { alias("DownloadForOffline", Download) }
-    val Downloading: ImageVector by lazy { alias("Downloading", Download) }
-    val DragHandle: ImageVector by lazy { alias("DragHandle", GripVertical) }
-    val Edit: ImageVector by lazy { alias("Edit", Pencil) }
-    val EditNote: ImageVector by lazy { alias("EditNote", NotebookPen) }
-    val EmojiEvents: ImageVector by lazy { alias("EmojiEvents", Trophy) }
-    val Equalizer: ImageVector by lazy { alias("Equalizer", AudioLines) }
-    val Error: ImageVector by lazy { alias("Error", CircleAlert) }
-    val ErrorOutline: ImageVector by lazy { alias("ErrorOutline", CircleAlert) }
-    val Event: ImageVector by lazy { alias("Event", Calendar) }
-    val EventAvailable: ImageVector by lazy { alias("EventAvailable", CalendarCheck) }
-    val ExpandLess: ImageVector by lazy { alias("ExpandLess", ChevronUp) }
-    val ExpandMore: ImageVector by lazy { alias("ExpandMore", ChevronDown) }
-    val Explore: ImageVector by lazy { alias("Explore", Compass) }
-    val Extension: ImageVector by lazy { alias("Extension", Puzzle) }
-    val ExtensionOff: ImageVector by lazy { alias("ExtensionOff", Puzzle) }
-    val FastRewind: ImageVector by lazy { alias("FastRewind", Rewind) }
-    val Favorite: ImageVector by lazy { alias("Favorite", HeartSolid) }
-    val FavoriteBorder: ImageVector by lazy { alias("FavoriteBorder", Heart) }
-    val Feedback: ImageVector by lazy { alias("Feedback", MessageSquare) }
-    val FilterAlt: ImageVector by lazy { alias("FilterAlt", SlidersHorizontal) }
-    val FilterAltOff: ImageVector by lazy { alias("FilterAltOff", SlidersHorizontal) }
-    val FilterCenterFocus: ImageVector by lazy { alias("FilterCenterFocus", Focus) }
-    val FilterList: ImageVector by lazy { alias("FilterList", SlidersHorizontal) }
-    val FitScreen: ImageVector by lazy { alias("FitScreen", Maximize) }
-    val FolderCopy: ImageVector by lazy { alias("FolderCopy", Copy) }
-    val Forest: ImageVector by lazy { alias("Forest", Trees) }
-    val FormatAlignCenter: ImageVector by lazy { alias("FormatAlignCenter", TextAlignCenter) }
-    val FormatAlignJustify: ImageVector by lazy { alias("FormatAlignJustify", TextAlignJustify) }
-    val FormatAlignLeft: ImageVector by lazy { alias("FormatAlignLeft", TextAlignStart) }
-    val FormatAlignRight: ImageVector by lazy { alias("FormatAlignRight", TextAlignEnd) }
-    val FormatBold: ImageVector by lazy { alias("FormatBold", Type) }
-    val FormatClear: ImageVector by lazy { alias("FormatClear", RemoveFormatting) }
-    val FormatColorFill: ImageVector by lazy { alias("FormatColorFill", PaintBucket) }
-    val FormatColorReset: ImageVector by lazy { alias("FormatColorReset", PaintBucket) }
-    val FormatColorText: ImageVector by lazy { alias("FormatColorText", Baseline) }
-    val FormatItalic: ImageVector by lazy { alias("FormatItalic", Italic) }
-    val FormatListBulleted: ImageVector by lazy { alias("FormatListBulleted", List) }
-    val FormatListNumbered: ImageVector by lazy { alias("FormatListNumbered", ListOrdered) }
-    val FormatPaint: ImageVector by lazy { alias("FormatPaint", PaintRoller) }
-    val FormatQuote: ImageVector by lazy { alias("FormatQuote", Quote) }
-    val FormatSize: ImageVector by lazy { alias("FormatSize", ALargeSmall) }
-    val FormatStrikethrough: ImageVector by lazy { alias("FormatStrikethrough", Strikethrough) }
-    val Forward10: ImageVector by lazy { alias("Forward10", Forward) }
-    val Fullscreen: ImageVector by lazy { alias("Fullscreen", Maximize) }
-    val Gradient: ImageVector by lazy { alias("Gradient", Blend) }
-    val GridView: ImageVector by lazy { alias("GridView", LayoutGrid) }
-    val Group: ImageVector by lazy { alias("Group", Users) }
-    val Groups: ImageVector by lazy { alias("Groups", Users) }
-    val Hd: ImageVector by lazy { alias("Hd", MonitorPlay) }
-    val HealthAndSafety: ImageVector by lazy { alias("HealthAndSafety", ShieldCheck) }
-    val Help: ImageVector by lazy { alias("Help", CircleQuestionMark) }
-    val HighQuality: ImageVector by lazy { alias("HighQuality", MonitorPlay) }
-    val History: ImageVector by lazy { alias("History", ClockArrowUp) }
-    val Home: ImageVector by lazy { alias("Home", House) }
-    val HourglassBottom: ImageVector by lazy { alias("HourglassBottom", Hourglass) }
-    val HourglassEmpty: ImageVector by lazy { alias("HourglassEmpty", Hourglass) }
-    val Hub: ImageVector by lazy { alias("Hub", Network) }
-    val ImageNotSupported: ImageVector by lazy { alias("ImageNotSupported", ImageOff) }
-    val Key: ImageVector by lazy { alias("Key", KeyRound) }
-    val KeyboardAlt: ImageVector by lazy { alias("KeyboardAlt", Keyboard) }
-    val KeyboardArrowDown: ImageVector by lazy { alias("KeyboardArrowDown", ChevronDown) }
-    val KeyboardArrowRight: ImageVector by lazy { alias("KeyboardArrowRight", ChevronRight) }
-    val KeyboardArrowUp: ImageVector by lazy { alias("KeyboardArrowUp", ChevronUp) }
-    val Label: ImageVector by lazy { alias("Label", Tag) }
-    val Language: ImageVector by lazy { alias("Language", Languages) }
-    val Launch: ImageVector by lazy { alias("Launch", ExternalLink) }
-    val LibraryAdd: ImageVector by lazy { alias("LibraryAdd", SquarePlus) }
-    val LightMode: ImageVector by lazy { alias("LightMode", Sun) }
-    val LinkOff: ImageVector by lazy { alias("LinkOff", Unlink) }
-    val ListAlt: ImageVector by lazy { alias("ListAlt", ListChecks) }
-    val Layers: ImageVector by lazy { alias("Layers", Copy) }
-    val LocalFlorist: ImageVector by lazy { alias("LocalFlorist", Flower) }
-    val LocationOn: ImageVector by lazy { alias("LocationOn", MapPin) }
-    val Login: ImageVector by lazy { alias("Login", LogIn) }
-    val ManageSearch: ImageVector by lazy { alias("ManageSearch", Search) }
-    val Memory: ImageVector by lazy { alias("Memory", Cpu) }
-    val MenuBook: ImageVector by lazy { alias("MenuBook", BookOpen) }
-    val ModeNight: ImageVector by lazy { alias("ModeNight", MoonStar) }
-    val MoreTime: ImageVector by lazy { alias("MoreTime", Timer) }
-    val MoreVert: ImageVector by lazy { alias("MoreVert", EllipsisVertical) }
-    val Movie: ImageVector by lazy { alias("Movie", Film) }
-    val MusicNote: ImageVector by lazy { alias("MusicNote", AudioLines) }
-    val NavigateBefore: ImageVector by lazy { alias("NavigateBefore", ChevronLeft) }
-    val NavigateNext: ImageVector by lazy { alias("NavigateNext", ChevronRight) }
-    val NetworkCheck: ImageVector by lazy { alias("NetworkCheck", Wifi) }
-    val NewReleases: ImageVector by lazy { alias("NewReleases", Sparkles) }
-    val Notes: ImageVector by lazy { alias("Notes", NotebookText) }
-    val Notifications: ImageVector by lazy { alias("Notifications", Bell) }
-    val NotificationsActive: ImageVector by lazy { alias("NotificationsActive", BellRing) }
-    val NotificationsNone: ImageVector by lazy { alias("NotificationsNone", Bell) }
-    val Numbers: ImageVector by lazy { alias("Numbers", Hash) }
-    val OpenInBrowser: ImageVector by lazy { alias("OpenInBrowser", Globe) }
-    val OpenInNew: ImageVector by lazy { alias("OpenInNew", ExternalLink) }
-    val PauseCircle: ImageVector by lazy { alias("PauseCircle", CirclePause) }
-    val People: ImageVector by lazy { alias("People", Users) }
-    val Person: ImageVector by lazy { alias("Person", User) }
-    val PersonAdd: ImageVector by lazy { alias("PersonAdd", UserPlus) }
-    val PhoneAndroid: ImageVector by lazy { alias("PhoneAndroid", Smartphone) }
-    val Photo: ImageVector by lazy { alias("Photo", Image) }
-    val PhotoLibrary: ImageVector by lazy { alias("PhotoLibrary", Images) }
-    val PictureInPictureAlt: ImageVector by lazy { alias("PictureInPictureAlt", PictureInPicture) }
-    val PlayArrow: ImageVector by lazy { alias("PlayArrow", Play) }
-    val PlayCircle: ImageVector by lazy { alias("PlayCircle", CirclePlay) }
-    val PlaylistAdd: ImageVector by lazy { alias("PlaylistAdd", ListPlus) }
-    val PlaylistAddCheck: ImageVector by lazy { alias("PlaylistAddCheck", ListChecks) }
-    val PlaylistPlay: ImageVector by lazy { alias("PlaylistPlay", ListVideo) }
-    val Preview: ImageVector by lazy { alias("Preview", Eye) }
-    val PriorityHigh: ImageVector by lazy { alias("PriorityHigh", SignalHigh) }
-    val Public: ImageVector by lazy { alias("Public", Globe) }
-    val QuestionMark: ImageVector by lazy { alias("QuestionMark", CircleQuestionMark) }
-    val QueuePlayNext: ImageVector by lazy { alias("QueuePlayNext", ListVideo) }
-    val RecordVoiceOver: ImageVector by lazy { alias("RecordVoiceOver", Mic) }
-    val Refresh: ImageVector by lazy { alias("Refresh", RefreshCw) }
-    val Remove: ImageVector by lazy { alias("Remove", Minus) }
-    val RemoveCircle: ImageVector by lazy { alias("RemoveCircle", CircleMinus) }
-    val RemoveRedEye: ImageVector by lazy { alias("RemoveRedEye", Eye) }
-    val RepeatOne: ImageVector by lazy { alias("RepeatOne", Repeat1) }
-    val Replay: ImageVector by lazy { alias("Replay", RotateCcw) }
-    val RestartAlt: ImageVector by lazy { alias("RestartAlt", RotateCcw) }
-    val Restore: ImageVector by lazy { alias("Restore", RotateCcw) }
-    val RssFeed: ImageVector by lazy { alias("RssFeed", Rss) }
-    val Schedule: ImageVector by lazy { alias("Schedule", Clock) }
-    val ScreenRotation: ImageVector by lazy { alias("ScreenRotation", RotateCw) }
-    val SdCard: ImageVector by lazy { alias("SdCard", HardDrive) }
-    val SearchOff: ImageVector by lazy { alias("SearchOff", SearchX) }
-    val Security: ImageVector by lazy { alias("Security", Shield) }
-    val SelectAll: ImageVector by lazy { alias("SelectAll", SquareDashed) }
-    val Sell: ImageVector by lazy { alias("Sell", Tag) }
-    val SettingsApplications: ImageVector by lazy { alias("SettingsApplications", Settings) }
-    val SettingsEthernet: ImageVector by lazy { alias("SettingsEthernet", Network) }
-    val SettingsInputComponent: ImageVector by lazy { alias("SettingsInputComponent", Cable) }
-    val SettingsInputHdmi: ImageVector by lazy { alias("SettingsInputHdmi", Cable) }
-    val SettingsOverscan: ImageVector by lazy { alias("SettingsOverscan", Maximize) }
-    val Share: ImageVector by lazy { alias("Share", Share2) }
-    val SignalCellularAlt: ImageVector by lazy { alias("SignalCellularAlt", Signal) }
-    val SkipNext: ImageVector by lazy { alias("SkipNext", SkipForward) }
-    val SkipPrevious: ImageVector by lazy { alias("SkipPrevious", SkipBack) }
-    val Slideshow: ImageVector by lazy { alias("Slideshow", Presentation) }
-    val SlowMotionVideo: ImageVector by lazy { alias("SlowMotionVideo", Timer) }
-    val SmartButton: ImageVector by lazy { alias("SmartButton", Sparkles) }
-    val Sort: ImageVector by lazy { alias("Sort", ArrowUpDown) }
-    val Speed: ImageVector by lazy { alias("Speed", Gauge) }
-    val Star: ImageVector by lazy { alias("Star", StarSolid) }
-    val StarBorder: ImageVector by lazy { alias("StarBorder", StarStroke) }
-    val Stop: ImageVector by lazy { alias("Stop", Square) }
-    val StopCircle: ImageVector by lazy { alias("StopCircle", CircleStop) }
-    val Storage: ImageVector by lazy { alias("Storage", Database) }
-    val Subtitles: ImageVector by lazy { alias("Subtitles", Captions) }
-    val SwapHoriz: ImageVector by lazy { alias("SwapHoriz", ArrowLeftRight) }
-    val Tab: ImageVector by lazy { alias("Tab", Copy) }
-    val Swipe: ImageVector by lazy { alias("Swipe", Hand) }
-    val SwipeRight: ImageVector by lazy { alias("SwipeRight", Hand) }
-    val Sync: ImageVector by lazy { alias("Sync", RefreshCw) }
-    val SystemUpdate: ImageVector by lazy { alias("SystemUpdate", Download) }
-    val SystemUpdateAlt: ImageVector by lazy { alias("SystemUpdateAlt", Download) }
-    val TextFields: ImageVector by lazy { alias("TextFields", Type) }
-    val ThumbDown: ImageVector by lazy { alias("ThumbDown", ThumbsDown) }
-    val ThumbUp: ImageVector by lazy { alias("ThumbUp", ThumbsUp) }
-    val Title: ImageVector by lazy { alias("Title", Heading1) }
-    val TouchApp: ImageVector by lazy { alias("TouchApp", Pointer) }
-    val Translate: ImageVector by lazy { alias("Translate", Languages) }
-    val TravelExplore: ImageVector by lazy { alias("TravelExplore", Compass) }
-    val Tune: ImageVector by lazy { alias("Tune", SlidersHorizontal) }
-    val Verified: ImageVector by lazy { alias("Verified", ShieldCheck) }
-    val VideoLibrary: ImageVector by lazy { alias("VideoLibrary", Library) }
-    val VideoSettings: ImageVector by lazy { alias("VideoSettings", Settings) }
-    val ViewCarousel: ImageVector by lazy { alias("ViewCarousel", GalleryHorizontal) }
-    val ViewList: ImageVector by lazy { alias("ViewList", List) }
-    val ViewQuilt: ImageVector by lazy { alias("ViewQuilt", LayoutGrid) }
-    val ViewStream: ImageVector by lazy { alias("ViewStream", Rows3) }
-    val ViewWeek: ImageVector by lazy { alias("ViewWeek", Columns3) }
-    val Visibility: ImageVector by lazy { alias("Visibility", Eye) }
-    val VisibilityOff: ImageVector by lazy { alias("VisibilityOff", EyeOff) }
-    val VolumeDown: ImageVector by lazy { alias("VolumeDown", Volume1) }
-    val VolumeMute: ImageVector by lazy { alias("VolumeMute", VolumeX) }
-    val VolumeOff: ImageVector by lazy { alias("VolumeOff", VolumeX) }
-    val VolumeUp: ImageVector by lazy { alias("VolumeUp", Volume2) }
-    val VpnKey: ImageVector by lazy { alias("VpnKey", KeyRound) }
-    val Warning: ImageVector by lazy { alias("Warning", TriangleAlert) }
-    val WarningAmber: ImageVector by lazy { alias("WarningAmber", TriangleAlert) }
-    val WbSunny: ImageVector by lazy { alias("WbSunny", Sun) }
-    val Web: ImageVector by lazy { alias("Web", Globe) }
-    val HdrOn: ImageVector by lazy { alias("HdrOn", SunMedium) }
-    val HdrOff: ImageVector by lazy { alias("HdrOff", SunDim) }
-    val ExitToApp: ImageVector by lazy { alias("ExitToApp", LogIn) }
-    val HelpOutline: ImageVector by lazy { alias("HelpOutline", Help) }
+    val AcUnit: ImageVector get() = Snowflake
+    val AccessTime: ImageVector get() = Clock
+    val AccountCircle: ImageVector get() = CircleUserRound
+    val Add: ImageVector get() = Plus
+    val AddCircle: ImageVector get() = CirclePlus
+    val AddCircleOutline: ImageVector get() = CirclePlus
+    val AddLink: ImageVector get() = Link2
+    val Apps: ImageVector get() = LayoutGrid
+    val ArrowBack: ImageVector get() = ArrowLeft
+    val ArrowCircleUp: ImageVector get() = CircleArrowUp
+    val ArrowDownward: ImageVector get() = ArrowDown
+    val ArrowDropDown: ImageVector get() = ChevronDown
+    val ArrowForward: ImageVector get() = ArrowRight
+    val ArrowUpward: ImageVector get() = ArrowUp
+    val AspectRatio: ImageVector get() = Ratio
+    val Audiotrack: ImageVector get() = AudioLines
+    val AutoAwesome: ImageVector get() = Sparkles
+    val AutoStories: ImageVector get() = BookOpen
+    val AvTimer: ImageVector get() = Timer
+    val BarChart: ImageVector get() = ChartColumn
+    val BlurOn: ImageVector get() = Droplets
+    val Bolt: ImageVector get() = Zap
+    val Bookmark: ImageVector get() = BookmarkSolid
+    val BookmarkBorder: ImageVector get() = BookmarkStroke
+    val Bookmarks: ImageVector get() = BookmarkStroke
+    val BorderColor: ImageVector get() = PaintBucket
+    val BorderOuter: ImageVector get() = Square
+    val Brightness6: ImageVector get() = SunMedium
+    val BrightnessHigh: ImageVector get() = Sun
+    val BrightnessLow: ImageVector get() = SunDim
+    val BrightnessMedium: ImageVector get() = SunMedium
+    val BrokenImage: ImageVector get() = ImageOff
+    val BugReport: ImageVector get() = Bug
+    val Cached: ImageVector get() = RefreshCw
+    val CalendarMonth: ImageVector get() = CalendarDays
+    val CalendarToday: ImageVector get() = Calendar
+    val CenterFocusWeak: ImageVector get() = Focus
+    val ChatBubble: ImageVector get() = MessageCircle
+    val ChatBubbleOutline: ImageVector get() = MessageCircle
+    val CheckCircle: ImageVector get() = CircleCheck
+    val CleaningServices: ImageVector get() = Sparkles
+    val Clear: ImageVector get() = X
+    val ClearAll: ImageVector get() = Eraser
+    val Close: ImageVector get() = X
+    val CloudSync: ImageVector get() = RefreshCw
+    val ColorLens: ImageVector get() = Palette
+    val Comment: ImageVector get() = MessageSquare
+    val CompareArrows: ImageVector get() = ArrowLeftRight
+    val ContentCopy: ImageVector get() = Copy
+    val ContentPaste: ImageVector get() = Clipboard
+    val ControlCamera: ImageVector get() = Video
+    val CropFree: ImageVector get() = Scan
+    val DarkMode: ImageVector get() = Moon
+    val DateRange: ImageVector get() = Calendar
+    val Delete: ImageVector get() = Trash
+    val DeleteForever: ImageVector get() = Trash
+    val DeleteOutline: ImageVector get() = Trash
+    val DeleteSweep: ImageVector get() = Eraser
+    val DensityMedium: ImageVector get() = Menu
+    val DeveloperBoard: ImageVector get() = Cpu
+    val Dns: ImageVector get() = Server
+    val Done: ImageVector get() = Check
+    val DoneAll: ImageVector get() = CheckCheck
+    val DonutLarge: ImageVector get() = ChartPie
+    val DoubleArrow: ImageVector get() = ArrowLeftRight
+    val DownloadDone: ImageVector get() = Download
+    val DownloadForOffline: ImageVector get() = Download
+    val Downloading: ImageVector get() = Download
+    val DragHandle: ImageVector get() = GripVertical
+    val Edit: ImageVector get() = Pencil
+    val EditNote: ImageVector get() = NotebookPen
+    val EmojiEvents: ImageVector get() = Trophy
+    val Equalizer: ImageVector get() = AudioLines
+    val Error: ImageVector get() = CircleAlert
+    val ErrorOutline: ImageVector get() = CircleAlert
+    val Event: ImageVector get() = Calendar
+    val EventAvailable: ImageVector get() = CalendarCheck
+    val ExpandLess: ImageVector get() = ChevronUp
+    val ExpandMore: ImageVector get() = ChevronDown
+    val Explore: ImageVector get() = Compass
+    val Extension: ImageVector get() = Puzzle
+    val ExtensionOff: ImageVector get() = Puzzle
+    val FastRewind: ImageVector get() = Rewind
+    val Favorite: ImageVector get() = HeartSolid
+    val FavoriteBorder: ImageVector get() = Heart
+    val Feedback: ImageVector get() = MessageSquare
+    val FilterAlt: ImageVector get() = SlidersHorizontal
+    val FilterAltOff: ImageVector get() = SlidersHorizontal
+    val FilterCenterFocus: ImageVector get() = Focus
+    val FilterList: ImageVector get() = SlidersHorizontal
+    val FitScreen: ImageVector get() = Maximize
+    val FolderCopy: ImageVector get() = Copy
+    val Forest: ImageVector get() = Trees
+    val FormatAlignCenter: ImageVector get() = TextAlignCenter
+    val FormatAlignJustify: ImageVector get() = TextAlignJustify
+    val FormatAlignLeft: ImageVector get() = TextAlignStart
+    val FormatAlignRight: ImageVector get() = TextAlignEnd
+    val FormatBold: ImageVector get() = Type
+    val FormatClear: ImageVector get() = RemoveFormatting
+    val FormatColorFill: ImageVector get() = PaintBucket
+    val FormatColorReset: ImageVector get() = PaintBucket
+    val FormatColorText: ImageVector get() = Baseline
+    val FormatItalic: ImageVector get() = Italic
+    val FormatListBulleted: ImageVector get() = List
+    val FormatListNumbered: ImageVector get() = ListOrdered
+    val FormatPaint: ImageVector get() = PaintRoller
+    val FormatQuote: ImageVector get() = Quote
+    val FormatSize: ImageVector get() = ALargeSmall
+    val FormatStrikethrough: ImageVector get() = Strikethrough
+    val Forward10: ImageVector get() = Forward
+    val Fullscreen: ImageVector get() = Maximize
+    val Gradient: ImageVector get() = Blend
+    val GridView: ImageVector get() = LayoutGrid
+    val Group: ImageVector get() = Users
+    val Groups: ImageVector get() = Users
+    val Hd: ImageVector get() = MonitorPlay
+    val HealthAndSafety: ImageVector get() = ShieldCheck
+    val Help: ImageVector get() = CircleQuestionMark
+    val HighQuality: ImageVector get() = MonitorPlay
+    val History: ImageVector get() = ClockArrowUp
+    val Home: ImageVector get() = House
+    val HourglassBottom: ImageVector get() = Hourglass
+    val HourglassEmpty: ImageVector get() = Hourglass
+    val Hub: ImageVector get() = Network
+    val ImageNotSupported: ImageVector get() = ImageOff
+    val Key: ImageVector get() = KeyRound
+    val KeyboardAlt: ImageVector get() = Keyboard
+    val KeyboardArrowDown: ImageVector get() = ChevronDown
+    val KeyboardArrowRight: ImageVector get() = ChevronRight
+    val KeyboardArrowUp: ImageVector get() = ChevronUp
+    val Label: ImageVector get() = Tag
+    val Language: ImageVector get() = Languages
+    val Launch: ImageVector get() = ExternalLink
+    val LibraryAdd: ImageVector get() = SquarePlus
+    val LightMode: ImageVector get() = Sun
+    val LinkOff: ImageVector get() = Unlink
+    val ListAlt: ImageVector get() = ListChecks
+    val Layers: ImageVector get() = Copy
+    val LocalFlorist: ImageVector get() = Flower
+    val LocationOn: ImageVector get() = MapPin
+    val Login: ImageVector get() = LogIn
+    val ManageSearch: ImageVector get() = Search
+    val Memory: ImageVector get() = Cpu
+    val MenuBook: ImageVector get() = BookOpen
+    val ModeNight: ImageVector get() = MoonStar
+    val MoreTime: ImageVector get() = Timer
+    val MoreVert: ImageVector get() = EllipsisVertical
+    val Movie: ImageVector get() = Film
+    val MusicNote: ImageVector get() = AudioLines
+    val NavigateBefore: ImageVector get() = ChevronLeft
+    val NavigateNext: ImageVector get() = ChevronRight
+    val NetworkCheck: ImageVector get() = Wifi
+    val NewReleases: ImageVector get() = Sparkles
+    val Notes: ImageVector get() = NotebookText
+    val Notifications: ImageVector get() = Bell
+    val NotificationsActive: ImageVector get() = BellRing
+    val NotificationsNone: ImageVector get() = Bell
+    val Numbers: ImageVector get() = Hash
+    val OpenInBrowser: ImageVector get() = Globe
+    val OpenInNew: ImageVector get() = ExternalLink
+    val PauseCircle: ImageVector get() = CirclePause
+    val People: ImageVector get() = Users
+    val Person: ImageVector get() = User
+    val PersonAdd: ImageVector get() = UserPlus
+    val PhoneAndroid: ImageVector get() = Smartphone
+    val Photo: ImageVector get() = Image
+    val PhotoLibrary: ImageVector get() = Images
+    val PictureInPictureAlt: ImageVector get() = PictureInPicture
+    val PlayArrow: ImageVector get() = Play
+    val PlayCircle: ImageVector get() = CirclePlay
+    val PlaylistAdd: ImageVector get() = ListPlus
+    val PlaylistAddCheck: ImageVector get() = ListChecks
+    val PlaylistPlay: ImageVector get() = ListVideo
+    val Preview: ImageVector get() = Eye
+    val PriorityHigh: ImageVector get() = SignalHigh
+    val Public: ImageVector get() = Globe
+    val QuestionMark: ImageVector get() = CircleQuestionMark
+    val QueuePlayNext: ImageVector get() = ListVideo
+    val RecordVoiceOver: ImageVector get() = Mic
+    val Refresh: ImageVector get() = RefreshCw
+    val Remove: ImageVector get() = Minus
+    val RemoveCircle: ImageVector get() = CircleMinus
+    val RemoveRedEye: ImageVector get() = Eye
+    val RepeatOne: ImageVector get() = Repeat1
+    val Replay: ImageVector get() = RotateCcw
+    val RestartAlt: ImageVector get() = RotateCcw
+    val Restore: ImageVector get() = RotateCcw
+    val RssFeed: ImageVector get() = Rss
+    val Schedule: ImageVector get() = Clock
+    val ScreenRotation: ImageVector get() = RotateCw
+    val SdCard: ImageVector get() = HardDrive
+    val SearchOff: ImageVector get() = SearchX
+    val Security: ImageVector get() = Shield
+    val SelectAll: ImageVector get() = SquareDashed
+    val Sell: ImageVector get() = Tag
+    val SettingsApplications: ImageVector get() = Settings
+    val SettingsEthernet: ImageVector get() = Network
+    val SettingsInputComponent: ImageVector get() = Cable
+    val SettingsInputHdmi: ImageVector get() = Cable
+    val SettingsOverscan: ImageVector get() = Maximize
+    val Share: ImageVector get() = Share2
+    val SignalCellularAlt: ImageVector get() = Signal
+    val SkipNext: ImageVector get() = SkipForward
+    val SkipPrevious: ImageVector get() = SkipBack
+    val Slideshow: ImageVector get() = Presentation
+    val SlowMotionVideo: ImageVector get() = Timer
+    val SmartButton: ImageVector get() = Sparkles
+    val Sort: ImageVector get() = ArrowUpDown
+    val Speed: ImageVector get() = Gauge
+    val Star: ImageVector get() = StarSolid
+    val StarBorder: ImageVector get() = StarStroke
+    val Stop: ImageVector get() = Square
+    val StopCircle: ImageVector get() = CircleStop
+    val Storage: ImageVector get() = Database
+    val Subtitles: ImageVector get() = Captions
+    val SwapHoriz: ImageVector get() = ArrowLeftRight
+    val Tab: ImageVector get() = Copy
+    val Swipe: ImageVector get() = Hand
+    val SwipeRight: ImageVector get() = Hand
+    val Sync: ImageVector get() = RefreshCw
+    val SystemUpdate: ImageVector get() = Download
+    val SystemUpdateAlt: ImageVector get() = Download
+    val TextFields: ImageVector get() = Type
+    val ThumbDown: ImageVector get() = ThumbsDown
+    val ThumbUp: ImageVector get() = ThumbsUp
+    val Title: ImageVector get() = Heading1
+    val TouchApp: ImageVector get() = Pointer
+    val Translate: ImageVector get() = Languages
+    val TravelExplore: ImageVector get() = Compass
+    val Tune: ImageVector get() = SlidersHorizontal
+    val Verified: ImageVector get() = ShieldCheck
+    val VideoLibrary: ImageVector get() = Library
+    val VideoSettings: ImageVector get() = Settings
+    val ViewCarousel: ImageVector get() = GalleryHorizontal
+    val ViewList: ImageVector get() = List
+    val ViewQuilt: ImageVector get() = LayoutGrid
+    val ViewStream: ImageVector get() = Rows3
+    val ViewWeek: ImageVector get() = Columns3
+    val Visibility: ImageVector get() = Eye
+    val VisibilityOff: ImageVector get() = EyeOff
+    val VolumeDown: ImageVector get() = Volume1
+    val VolumeMute: ImageVector get() = VolumeX
+    val VolumeOff: ImageVector get() = VolumeX
+    val VolumeUp: ImageVector get() = Volume2
+    val VpnKey: ImageVector get() = KeyRound
+    val Warning: ImageVector get() = TriangleAlert
+    val WarningAmber: ImageVector get() = TriangleAlert
+    val WbSunny: ImageVector get() = Sun
+    val Web: ImageVector get() = Globe
+    val HdrOn: ImageVector get() = SunMedium
+    val HdrOff: ImageVector get() = SunDim
+    val ExitToApp: ImageVector get() = LogIn
+    val HelpOutline: ImageVector get() = Help
 
     val Rounded: KitsugiIcons get() = this
     val Default: KitsugiIcons get() = this

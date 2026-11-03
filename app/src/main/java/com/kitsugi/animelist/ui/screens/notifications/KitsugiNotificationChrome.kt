@@ -1,8 +1,5 @@
 package com.kitsugi.animelist.ui.screens.notifications
 
-import com.kitsugi.animelist.ui.icons.KitsugiArt
-import com.kitsugi.animelist.ui.icons.KitsugiArtIcon
-
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -1190,7 +1187,12 @@ internal fun NotifItemRow(
                         contentScale = ContentScale.Crop
                     )
                 } else {
-                    KitsugiArtIcon(art = KitsugiArt.Bell, size = 24.dp)
+                    Icon(
+                        imageVector = Icons.Rounded.NotificationsNone,
+                        contentDescription = null,
+                        tint = KitsugiColors.TextMuted,
+                        modifier = Modifier.size(24.dp)
+                    )
                 }
                 // Okunmamış göstergesi
                 if (notif.isUnread) {
@@ -1298,8 +1300,12 @@ internal fun NotifCenteredEmptyState(
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            val art = KitsugiArt.fromVector(icon) ?: KitsugiArt.Bell
-            KitsugiArtIcon(art = art, size = 56.dp)
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = KitsugiColors.TextMuted,
+                modifier = Modifier.size(56.dp)
+            )
             Spacer(Modifier.height(16.dp))
             Text(
                 text = message,

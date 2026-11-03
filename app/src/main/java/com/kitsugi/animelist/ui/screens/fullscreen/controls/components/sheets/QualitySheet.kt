@@ -9,8 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.SwapVert
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.TextButton
@@ -88,7 +87,7 @@ fun QualitySheet(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
-                        Icon(imageVector = Icons.Default.SwapVert, contentDescription = null)
+                        Icon(imageVector = Icons.ArrowUpDown, contentDescription = null)
                         Text(stringResource(R.string.player_source_sheet_title))
                     }
                 }
@@ -134,7 +133,7 @@ fun QualitySheet(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(4.dp),
                         ) {
-                            Icon(imageVector = Icons.Default.SwapVert, contentDescription = null)
+                            Icon(imageVector = Icons.ArrowUpDown, contentDescription = null)
                             Text(stringResource(R.string.player_quality_open_sources))
                         }
                     }

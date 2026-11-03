@@ -1,8 +1,5 @@
 package com.kitsugi.animelist.ui.screens.history
 
-import com.kitsugi.animelist.ui.icons.KitsugiArt
-import com.kitsugi.animelist.ui.icons.KitsugiArtIcon
-
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
@@ -32,27 +29,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.AccessTime
-import androidx.compose.material.icons.rounded.ArrowDropDown
-import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.CheckCircle
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.Delete
-import androidx.compose.material.icons.rounded.DeleteSweep
-import androidx.compose.material.icons.rounded.DoneAll
-import androidx.compose.material.icons.rounded.ExpandLess
-import androidx.compose.material.icons.rounded.ExpandMore
-import androidx.compose.material.icons.rounded.History
-import androidx.compose.material.icons.rounded.MoreVert
-import androidx.compose.material.icons.rounded.Movie
-import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.Replay
-import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material.icons.rounded.SelectAll
-import androidx.compose.material.icons.rounded.Sort
-import androidx.compose.material.icons.rounded.Timer
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -1536,7 +1513,12 @@ private fun EmptyHistoryState() {
             verticalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier.padding(24.dp)
         ) {
-            KitsugiArtIcon(art = KitsugiArt.History, size = 64.dp)
+            Icon(
+                imageVector = Icons.Rounded.History,
+                contentDescription = null,
+                tint = KitsugiColors.TextMuted,
+                modifier = Modifier.size(64.dp)
+            )
             Text(
                 text = stringResource(R.string.inline_you_have_no_watch_history_28cb4be),
                 color = KitsugiColors.TextMuted,

@@ -1,6 +1,5 @@
 package com.kitsugi.animelist.ui.screens.settings
 
-import com.kitsugi.animelist.ui.icons.KitsugiIcon as Icon
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.kitsugi.animelist.R
 import com.kitsugi.animelist.ui.utils.uniqueItems

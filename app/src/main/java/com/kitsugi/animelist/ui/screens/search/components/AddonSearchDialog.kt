@@ -1,8 +1,5 @@
 package com.kitsugi.animelist.ui.screens.search.components
 
-import com.kitsugi.animelist.ui.icons.KitsugiArt
-import com.kitsugi.animelist.ui.icons.KitsugiArtIcon
-
 import android.util.Log
 import com.kitsugi.animelist.ui.utils.uniqueItems
 import androidx.compose.animation.*
@@ -233,7 +230,12 @@ fun AddonSearchDialog(
                                         if (query.isNotBlank()) performSearch()
                                     },
                                     icon = {
-                                        KitsugiArtIcon(art = KitsugiArt.NavSearch, contentDescription = stringResource(R.string.ara), size = 20.dp)
+                                        Icon(
+                                            imageVector = Icons.Search,
+                                            contentDescription = stringResource(R.string.ara),
+                                            tint = KitsugiColors.TextMuted,
+                                            modifier = Modifier.size(20.dp)
+                                        )
                                     }
                                 )
                             }
@@ -406,7 +408,12 @@ Box(
                                                         .background(accentColor.copy(alpha = 0.12f)),
                                                     contentAlignment = Alignment.Center
                                                 ) {
-                                                    KitsugiArtIcon(art = KitsugiArt.Extensions, size = 22.dp)
+                                                    Icon(
+                                                        imageVector = Icons.Extension,
+                                                        contentDescription = null,
+                                                        tint = accentColor,
+                                                        modifier = Modifier.size(22.dp)
+                                                    )
                                                 }
                                                 Column(modifier = Modifier.weight(1f)) {
                                                     Text(
@@ -544,7 +551,12 @@ fun ResultItemCard(
                             .background(Color.Gray.copy(alpha = 0.2f)),
                         contentAlignment = Alignment.Center
                     ) {
-                        KitsugiArtIcon(art = KitsugiArt.Extensions, size = 36.dp)
+                        Icon(
+                            imageVector = Icons.Extension,
+                            contentDescription = null,
+                            tint = KitsugiColors.TextMuted,
+                            modifier = Modifier.size(36.dp)
+                        )
                     }
                 }
 

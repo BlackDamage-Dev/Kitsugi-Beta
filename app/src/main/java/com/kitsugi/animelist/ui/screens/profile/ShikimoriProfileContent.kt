@@ -5,9 +5,6 @@
 
 package com.kitsugi.animelist.ui.screens.profile
 
-import com.kitsugi.animelist.ui.icons.KitsugiArt
-import com.kitsugi.animelist.ui.icons.KitsugiArtIcon
-
 import com.kitsugi.animelist.ui.theme.gradient.FilterChip
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import com.kitsugi.animelist.ui.theme.gradient.Text
@@ -422,7 +419,7 @@ private fun ShikimoriAboutTab(
             ShikimoriStatCard(
                 title = "Anime",
                 value = totalAnime.toString(),
-                icon = Icons.PlayCircle,
+                icon = Icons.Tv,
                 modifier = Modifier.weight(1f),
                 accentColor = accentColor
             )
@@ -807,7 +804,12 @@ private fun ShikimoriRatesTab(
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    KitsugiArtIcon(art = KitsugiArt.NavList, size = 48.dp)
+                    Icon(
+                        imageVector = Icons.Bookmarks,
+                        contentDescription = null,
+                        tint = KitsugiColors.TextMuted,
+                        modifier = Modifier.size(48.dp)
+                    )
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
                         text = stringResource(R.string.inline_no_records_or_activity_were_e950767),

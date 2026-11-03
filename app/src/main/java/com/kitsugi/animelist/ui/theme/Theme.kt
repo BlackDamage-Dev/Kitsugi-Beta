@@ -14,8 +14,6 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.TextUnitType
 import androidx.compose.ui.unit.sp
-import com.kitsugi.animelist.ui.icons.LocalKitsugiIconHueShift
-import com.kitsugi.animelist.ui.icons.iconHueShiftFor
 
 /**
  * Global CompositionLocal to detect if the app is running on an Android TV device.
@@ -65,13 +63,6 @@ fun KitsugiAnimeListTheme(
     customAccentColor: Int = 0,
     customAccentColor2: Int = 0,
     customAccentGradientAngle: Int = 135,
-    /**
-     * 3B ikonların tonu seçilen vurgu rengine göre otomatik kaydırılsın mı?
-     * `true` (varsayılan): mint seçilirse ikonlar mint ailesine, turuncu seçilirse
-     * turuncuya kayar — doygunluk/parlaklık korunur, cam görünüm bozulmaz.
-     * `false`: palet doğal hâlinde (mor-pembe-turuncu) kalır.
-     */
-    iconsFollowAccent: Boolean = true,
     // Dynamic color is available on Android 12+
     dynamicColor: Boolean = true,
     isTv: Boolean = false,
@@ -111,9 +102,6 @@ fun KitsugiAnimeListTheme(
     // Vurgu zeminindeki TÜM yazı/ikonlar için otomatik siyah-beyaz kontrast rengi
     val onAccent = onAccentColor(accentColor, accentColor2)
 
-    // 3B ikonların ton kaydırması: renk seçimine (gradyan dâhil) otomatik uyum.
-    val iconHueShift = if (iconsFollowAccent) iconHueShiftFor(accentColor, accentColor2) else 0f
-
     // MIUI / HyperOS / Android 10+ Force Dark (TransformCanvas) koruması:
     // Bu tema altındaki tüm AndroidComposeView ve kök DecorView örneklerinde
     // donanımsal ForceDark dönüşümünü kapatır.
@@ -136,8 +124,7 @@ fun KitsugiAnimeListTheme(
         LocalKitsugiAccent2 provides accentColor2,
         LocalKitsugiAccentAngle provides angleFloat,
         LocalKitsugiAccentBrush provides accentBrush,
-        LocalKitsugiOnAccent provides onAccent,
-        LocalKitsugiIconHueShift provides iconHueShift
+        LocalKitsugiOnAccent provides onAccent
     ) {
         val baseScheme = when {
             dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {

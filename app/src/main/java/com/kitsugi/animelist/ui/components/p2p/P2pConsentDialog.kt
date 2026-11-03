@@ -1,8 +1,4 @@
 package com.kitsugi.animelist.ui.components.p2p
-
-import com.kitsugi.animelist.ui.icons.KitsugiIcon as Icon
-import com.kitsugi.animelist.ui.icons.KitsugiArt
-import com.kitsugi.animelist.ui.icons.KitsugiArtIcon
 import com.kitsugi.animelist.ui.components.KitsugiButton
 
 import com.kitsugi.animelist.ui.theme.gradient.background
@@ -70,7 +66,12 @@ fun P2pConsentDialog(
                             .background(KitsugiColors.AccentOrange.copy(alpha = 0.15f)),
                         contentAlignment = Alignment.Center
                     ) {
-                        KitsugiArtIcon(art = KitsugiArt.Lock, contentDescription = stringResource(R.string.p2p_guvenlik), size = 24.dp)
+                        Icon(
+                            imageVector = Icons.Security,
+                            contentDescription = stringResource(R.string.p2p_guvenlik),
+                            tint = KitsugiColors.AccentOrange,
+                            modifier = Modifier.size(24.dp)
+                        )
                     }
                     Column {
                         Text(

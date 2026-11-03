@@ -1,8 +1,5 @@
 ﻿package com.kitsugi.animelist.ui.components
 
-import com.kitsugi.animelist.ui.icons.KitsugiArt
-import com.kitsugi.animelist.ui.icons.KitsugiArtIcon
-
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -44,17 +41,12 @@ fun KitsugiEmptyState(
         verticalArrangement = Arrangement.Center
     ) {
         if (icon != null) {
-            val art = KitsugiArt.fromVector(icon)
-            if (art != null) {
-                KitsugiArtIcon(art = art, size = 72.dp)
-            } else {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = KitsugiColors.TextSecondary.copy(alpha = 0.5f),
-                    modifier = Modifier.size(72.dp)
-                )
-            }
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = KitsugiColors.TextSecondary.copy(alpha = 0.5f),
+                modifier = Modifier.size(72.dp)
+            )
             Spacer(modifier = Modifier.height(16.dp))
         }
 

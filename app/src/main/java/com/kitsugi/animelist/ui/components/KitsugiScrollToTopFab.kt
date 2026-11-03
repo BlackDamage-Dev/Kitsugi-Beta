@@ -15,7 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
-import com.kitsugi.animelist.ui.icons.KitsugiIcon as Icon
+import androidx.compose.material3.Icon
 import com.kitsugi.animelist.ui.theme.gradient.FloatingActionButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue

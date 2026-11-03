@@ -1,8 +1,5 @@
 package com.kitsugi.animelist.ui.screens.search
 
-import com.kitsugi.animelist.ui.icons.KitsugiArt
-import com.kitsugi.animelist.ui.icons.KitsugiArtIcon
-
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -90,7 +87,12 @@ fun SearchBarSection(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            KitsugiArtIcon(art = KitsugiArt.NavSearch, contentDescription = stringResource(R.string.ara), size = 20.dp)
+            Icon(
+                imageVector = Icons.Search,
+                contentDescription = stringResource(R.string.ara),
+                tint = KitsugiColors.TextMuted,
+                modifier = Modifier.size(20.dp)
+            )
 
             BasicTextField(
                 value = query,

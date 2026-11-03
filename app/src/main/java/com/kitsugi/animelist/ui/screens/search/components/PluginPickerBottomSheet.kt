@@ -1,8 +1,5 @@
 package com.kitsugi.animelist.ui.screens.search.components
 
-import com.kitsugi.animelist.ui.icons.KitsugiArt
-import com.kitsugi.animelist.ui.icons.KitsugiArtIcon
-
 import com.kitsugi.animelist.ui.components.KitsugiEmojiLabel
 import com.kitsugi.animelist.ui.icons.KitsugiEmojiIcons
 import com.kitsugi.animelist.ui.theme.gradient.Icon
@@ -218,7 +215,12 @@ fun PluginPickerBottomSheet(
                         tint = KitsugiColors.TextPrimary
                     )
                 }
-                KitsugiArtIcon(art = KitsugiArt.Extensions, size = 22.dp)
+                Icon(
+                    imageVector = Icons.Extension,
+                    contentDescription = null,
+                    tint = accentColor,
+                    modifier = Modifier.size(22.dp)
+                )
                 Text(
                     text = stringResource(R.string.eklenti_portali),
                     color = KitsugiColors.TextPrimary,
@@ -254,8 +256,10 @@ fun PluginPickerBottomSheet(
                 placeholder = KitsugiStrings.get(R.string.eklentilerde_ara_x_eklenti, activeApis.size),
                 modifier = Modifier
                     .fillMaxWidth()
+
                     .padding(horizontal = 16.dp, vertical = 6.dp),
             )
+
 
             Spacer(modifier = Modifier.height(8.dp))
 
@@ -701,7 +705,12 @@ private fun PortalResultItemCard(
                             .background(Color.Gray.copy(alpha = 0.2f)),
                         contentAlignment = Alignment.Center
                     ) {
-                        KitsugiArtIcon(art = KitsugiArt.Extensions, size = 36.dp)
+                        Icon(
+                            imageVector = Icons.Extension,
+                            contentDescription = null,
+                            tint = KitsugiColors.TextMuted,
+                            modifier = Modifier.size(36.dp)
+                        )
                     }
                 }
 

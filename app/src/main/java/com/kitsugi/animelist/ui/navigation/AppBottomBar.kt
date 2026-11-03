@@ -25,8 +25,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.kitsugi.animelist.R
-import com.kitsugi.animelist.ui.icons.KitsugiArt
-import com.kitsugi.animelist.ui.icons.KitsugiArtIcon
 import com.kitsugi.animelist.ui.theme.KitsugiColors
 import com.kitsugi.animelist.ui.theme.LocalKitsugiAccent
 import com.kitsugi.animelist.ui.theme.LocalKitsugiAccentBrush
@@ -86,7 +84,7 @@ fun AppBottomBar(
                                 .then(
                                     if (isSelected) {
                                         Modifier.background(
-                                            color = accentColor.copy(alpha = 0.16f),
+                                            brush = accentBrush,
                                             shape = RoundedCornerShape(16.dp)
                                         )
                                     } else {
@@ -95,11 +93,11 @@ fun AppBottomBar(
                                 ),
                             contentAlignment = Alignment.Center
                         ) {
-                            NavTabIcon(
-                                tab = tab,
-                                label = label,
-                                isSelected = isSelected,
-                                accentColor = accentColor
+                            Icon(
+                                imageVector = tab.icon,
+                                contentDescription = label,
+                                tint = if (isSelected) onAccent else KitsugiColors.TextSecondary,
+                                modifier = Modifier.size(20.dp)
                             )
                         }
 
@@ -179,7 +177,7 @@ fun AppNavigationRail(
                                             .then(
                                                 if (isSelected) {
                                                     Modifier.background(
-                                                        color = accentColor.copy(alpha = 0.16f),
+                                                        brush = accentBrush,
                                                         shape = RoundedCornerShape(16.dp)
                                                     )
                                                 } else {
@@ -188,11 +186,11 @@ fun AppNavigationRail(
                                             ),
                                         contentAlignment = Alignment.Center
                                     ) {
-                                        NavTabIcon(
-                                            tab = tab,
-                                            label = label,
-                                            isSelected = isSelected,
-                                            accentColor = accentColor
+                                        Icon(
+                                            imageVector = tab.icon,
+                                            contentDescription = label,
+                                            tint = if (isSelected) onAccent else KitsugiColors.TextSecondary,
+                                            modifier = Modifier.size(20.dp)
                                         )
                                     }
                                 },
@@ -232,7 +230,7 @@ fun AppNavigationRail(
                                 .then(
                                     if (isSettingsSelected) {
                                         Modifier.background(
-                                            color = accentColor.copy(alpha = 0.16f),
+                                            brush = accentBrush,
                                             shape = RoundedCornerShape(16.dp)
                                         )
                                     } else {
@@ -241,11 +239,11 @@ fun AppNavigationRail(
                                 ),
                             contentAlignment = Alignment.Center
                         ) {
-                            NavTabIcon(
-                                tab = settingsTab,
-                                label = settingsLabel,
-                                isSelected = isSettingsSelected,
-                                accentColor = accentColor
+                            Icon(
+                                imageVector = settingsTab.icon,
+                                contentDescription = settingsLabel,
+                                tint = if (isSettingsSelected) onAccent else KitsugiColors.TextSecondary,
+                                modifier = Modifier.size(20.dp)
                             )
                         }
                     },
@@ -277,40 +275,5 @@ fun AppNavigationRail(
                     .background(KitsugiColors.Border)
             )
         }
-    }
-}
-
-/**
- * Gezinme çubuğu sekme ikonu.
- *
- * 3B ikon setinde karşılığı varsa saydam zeminli renkli görsel, yoksa tek renkli
- * glif çizilir. Seçili sekmede ikon büyür ve tam opaklığa çıkar; arkadaki vurgu
- * çipi yumuşak tonda kaldığı için 3B renkler boğulmaz.
- */
-@Composable
-private fun NavTabIcon(
-    tab: MainTab,
-    label: String,
-    isSelected: Boolean,
-    accentColor: Color
-) {
-    val art = KitsugiArt.fromVector(tab.icon)
-    if (art != null) {
-        KitsugiArtIcon(
-            art = art,
-            contentDescription = label,
-            size = if (isSelected) 24.dp else 21.dp,
-            alpha = if (isSelected) 1f else 0.86f,
-            // Seçili sekmede vurgu renginden hâle: ikon paleti sabit olsa da
-            // kullanıcının seçtiği tema rengiyle (gradyan dâhil) uyum sağlar.
-            accentGlow = isSelected
-        )
-    } else {
-        Icon(
-            imageVector = tab.icon,
-            contentDescription = label,
-            tint = if (isSelected) accentColor else KitsugiColors.TextSecondary,
-            modifier = Modifier.size(20.dp)
-        )
     }
 }

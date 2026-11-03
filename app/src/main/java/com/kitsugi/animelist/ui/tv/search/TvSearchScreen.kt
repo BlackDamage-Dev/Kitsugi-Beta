@@ -1,8 +1,5 @@
 package com.kitsugi.animelist.ui.tv.search
 
-import com.kitsugi.animelist.ui.icons.KitsugiArt
-import com.kitsugi.animelist.ui.icons.KitsugiArtIcon
-
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -248,8 +245,14 @@ private fun TvSearchBar(
             .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        KitsugiArtIcon(art = KitsugiArt.NavSearch, modifier = Modifier
-                .padding(end = 0.dp), size = 20.dp)
+        Icon(
+            imageVector = Icons.Search,
+            contentDescription = null,
+            tint = if (isFocused) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.5f),
+            modifier = Modifier
+                .size(20.dp)
+                .padding(end = 0.dp)
+        )
 
         Spacer(modifier = Modifier.width(10.dp))
 

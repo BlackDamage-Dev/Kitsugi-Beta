@@ -1,7 +1,5 @@
 package com.kitsugi.animelist.ui.screens.manga
 
-import com.kitsugi.animelist.ui.icons.KitsugiArt
-import com.kitsugi.animelist.ui.icons.KitsugiArtIcon
 
 import com.kitsugi.animelist.ui.components.KitsugiButton
 import com.kitsugi.animelist.ui.components.KitsugiWebViewDialog
@@ -189,7 +187,12 @@ fun MangaReaderScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier.padding(horizontal = 32.dp)
                 ) {
-                    KitsugiArtIcon(art = KitsugiArt.Warning, size = 48.dp)
+                    Icon(
+                        imageVector = Icons.ErrorOutline,
+                        contentDescription = null,
+                        tint = Color.White.copy(0.5f),
+                        modifier = Modifier.size(48.dp)
+                    )
                     Spacer(Modifier.height(16.dp))
                     Text(
                         text = uiState.pagesError ?: stringResource(R.string.ui_error_generic),

@@ -1,8 +1,5 @@
 package com.kitsugi.animelist.ui.screens.fullscreen.controls.components
 
-import com.kitsugi.animelist.ui.icons.KitsugiArt
-import com.kitsugi.animelist.ui.icons.KitsugiArtIcon
-
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
@@ -46,7 +43,12 @@ fun OutlinedNumericChooser(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         RepeatingIconButton(onClick = { onChange(value - step) }) {
-            KitsugiArtIcon(art = KitsugiArt.Storage, size = 32.dp)
+            Icon(
+                imageVector = Icons.RemoveCircle,
+                contentDescription = null,
+                modifier = Modifier.size(32.dp),
+                tint = Color.White
+            )
         }
         var valueString by remember { mutableStateOf("$value") }
         LaunchedEffect(value) {
@@ -117,7 +119,12 @@ fun OutlinedNumericChooser(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         RepeatingIconButton(onClick = { onChange(value - step) }) {
-            KitsugiArtIcon(art = KitsugiArt.Storage, size = 32.dp)
+            Icon(
+                imageVector = Icons.RemoveCircle,
+                contentDescription = null,
+                modifier = Modifier.size(32.dp),
+                tint = Color.White
+            )
         }
         var valueString by remember { mutableStateOf("$value") }
         LaunchedEffect(value) {

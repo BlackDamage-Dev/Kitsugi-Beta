@@ -62,7 +62,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeoutOrNull
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.material.icons.rounded.PlayCircle
 import com.kitsugi.animelist.ui.theme.gradient.CircularProgressIndicator
 import com.kitsugi.animelist.data.remote.KitsugiMediaVideoAggregator
 import com.kitsugi.animelist.data.remote.MediaVideoCategory

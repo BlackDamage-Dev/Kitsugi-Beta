@@ -1,5 +1,7 @@
 package com.kitsugi.animelist.ui.screens.search
 
+
+
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import com.kitsugi.animelist.ui.theme.gradient.Text
 import com.kitsugi.animelist.ui.theme.gradient.background
@@ -429,6 +431,7 @@ fun PluginPickerScreen(
                         .padding(horizontal = 16.dp, vertical = 4.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
+
                     // Ana arama sayfasıyla BİREBİR aynı arama çubuğu bileşeni:
                     // aynı görünüm, aynı "Ara" onayı, aynı X (temizle) davranışı.
                     KitsugiCosmicSearchBar(
@@ -438,6 +441,7 @@ fun PluginPickerScreen(
                             if (it.isBlank()) {
                                 submittedQuery = null
                                 PortalSearchCache.clear()
+
                             }
                         },
                         onSearch = {
