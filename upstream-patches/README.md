@@ -24,3 +24,20 @@ Depo zamanla değişirse yamayı güncel kaynaklara uyarlayın; dağıtımda olu
 ## Doğrulama sınırları
 
 Bu ortamda Android SDK/Gradle ve canlı Anizm/video barındırıcılarına erişim yoktu. Eklentinin Kotlin kaynakları, paketli CloudStream API sınıfları ve ağ/Android yer tutucularıyla derleme kontrolünden geçirildi; beş politika/form testi geçti. Ek üç davranış testi CloudStream yer tutucularıyla çalıştırıldı; bu, gerçek `.cs3` paketlemesi veya cihaz testi değildir. Sunucunun döndürdüğü gerçek “video kullanılamıyor” klibi uygulama veya eklenti tarafından onarılamaz.
+---
+
+# DiziBox eklentisi: Android ICU Regex Çökme Düzeltmesi
+
+`Kitsugi-Plugins-DiziBox-Android-ICU.patch`, **ayrı** `f26901964-eng/Kitsugi-Plugins` deposundaki DiziBox eklentisi içindir.
+Temel commit: `8cb8651baa00257b1423f295fb684c3f8bd6d74e`.
+
+### Çökme Nedeni ve Düzeltme:
+DiziBox `DiziBoxPlayerParser` sınıfı başlatılırken `\{[^{}]*}` deseni Android ICU regex motorunda `PatternSyntaxException` oluşturur. Bu durum statik başlatmada `ExceptionInInitializerError` ve ardından sınıfa her erişildiğinde `NoClassDefFoundError` fırlatılmasına yol açar.
+Yama, kapatma parantezini `\{[^{}]*\}` şeklinde kaçış karakteriyle koruyarak Android ICU uyumluluğunu sağlar.
+
+Eklenti deposunun kökünden uygulama:
+```sh
+git apply --check /Kitsugi-Beta/yolu/upstream-patches/Kitsugi-Plugins-DiziBox-Android-ICU.patch
+git apply /Kitsugi-Beta/yolu/upstream-patches/Kitsugi-Plugins-DiziBox-Android-ICU.patch
+./gradlew :DiziBox:make makePluginsJson
+```

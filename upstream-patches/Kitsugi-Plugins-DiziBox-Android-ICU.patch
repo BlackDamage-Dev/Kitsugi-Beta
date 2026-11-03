@@ -1,0 +1,11 @@
+--- a/DiziBox/src/main/kotlin/com/keyiflerolsun/DiziBoxPlayerParser.kt
++++ b/DiziBox/src/main/kotlin/com/keyiflerolsun/DiziBoxPlayerParser.kt
+@@ -118,7 +118,7 @@
+         """(?:["'](?:srclang|language|lang)["']|\b(?:srclang|language|lang)\b)\s*:\s*(?:"([^"]*)"|'([^']*)')""",
+         RegexOption.IGNORE_CASE,
+     )
+-    private val objectPattern = Regex("""\{[^{}]*}""")
++    private val objectPattern = Regex("""\{[^{}]*\}""")
+     private val sourcesArray = Regex("""\bsources\s*:\s*\[""", RegexOption.IGNORE_CASE)
+     private val knownPlayerPath = Regex(
+         """/(?:player/)?(?:[a-z0-9_-]+/)?(?:king|moly|haydi|spidy|player)\.php$|/player/.+\.php$|/embed/""",

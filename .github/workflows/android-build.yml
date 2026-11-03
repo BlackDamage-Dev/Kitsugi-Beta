@@ -87,6 +87,7 @@ jobs:
             --tests 'com.kitsugi.animelist.core.player.engine.*' \
             --tests 'com.kitsugi.animelist.data.remote.malweb.*' \
             --tests 'com.kitsugi.animelist.data.cloudstream.CsPluginUpdateCheckerTest' \
+            --tests 'com.kitsugi.animelist.data.cloudstream.PluginNetworkFailureGuardTest' \
             --tests 'com.kitsugi.animelist.data.remote.CloudstreamRepoMirrorTest' \
             --tests 'com.kitsugi.animelist.data.fandom.*' \
             --tests 'com.kitsugi.animelist.data.remote.MdbListClientTest' \

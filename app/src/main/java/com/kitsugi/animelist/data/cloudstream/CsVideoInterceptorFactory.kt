@@ -89,6 +89,7 @@ object CsVideoInterceptorFactory {
         Log.d(TAG, "Building CS OkHttpClient: ignoreSSL=$ignoreSSL, hasInterceptor=${interceptor != null}, headers=${headers.keys}")
 
         return OkHttpClient.Builder().apply {
+            addInterceptor(PluginNetworkFailureGuard)
             dns(com.kitsugi.animelist.core.network.IPv4FirstDns())
             connectTimeout(20, TimeUnit.SECONDS)
             readTimeout(20, TimeUnit.SECONDS)

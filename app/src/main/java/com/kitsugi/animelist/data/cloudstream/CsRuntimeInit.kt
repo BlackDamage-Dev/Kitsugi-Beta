@@ -126,6 +126,8 @@ object CsRuntimeInit {
                 .connectTimeout(30, TimeUnit.SECONDS)
                 .readTimeout(30, TimeUnit.SECONDS)
                 .writeTimeout(30, TimeUnit.SECONDS)
+                // First in the chain: also protects interceptors appended by plugins.
+                .addInterceptor(PluginNetworkFailureGuard)
                 .addInterceptor { chain ->
                     val original = chain.request()
                     val urlStr = original.url.toString()
