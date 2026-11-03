@@ -43,6 +43,7 @@ import com.kitsugi.animelist.ui.screens.mylist.MY_LIST_SHIKIMORI_TAB_INDEX
 import com.kitsugi.animelist.ui.screens.mylist.MY_LIST_BANGUMI_TAB_INDEX
 import com.kitsugi.animelist.ui.screens.mylist.MY_LIST_TMDB_TAB_INDEX
 import com.kitsugi.animelist.ui.screens.search.SearchScreen
+import com.kitsugi.animelist.ui.screens.mylist.MyListViewModel
 import com.kitsugi.animelist.ui.components.BackupImportMode
 import kotlinx.coroutines.CoroutineScope
 import androidx.compose.runtime.rememberCoroutineScope
@@ -54,6 +55,8 @@ import com.kitsugi.animelist.R
 
 data class TabPagesContext(
     val mediaEntries: List<MediaEntry>,
+    val mediaEntriesLoaded: Boolean = true,
+    val myListViewModel: MyListViewModel,
     val appSettings: AppSettings,
     val settingsDataStore: SettingsDataStore,
     val appViewModel: AppViewModel,
@@ -109,6 +112,8 @@ fun AppRootTabPages(
         MainTab.MyList -> {
             ctx.navState.stateHolder.SaveableStateProvider(key = "root_tab_mylist") {
                 MyListTabPageWrapper(
+                    mediaEntriesLoaded = ctx.mediaEntriesLoaded,
+                    myListViewModel = ctx.myListViewModel,
                     appSettings = ctx.appSettings,
                     settingsDataStore = ctx.settingsDataStore,
                     coroutineScope = ctx.coroutineScope,
@@ -472,6 +477,8 @@ private fun SettingsTabPage(
 
 @Composable
 private fun MyListTabPageWrapper(
+    mediaEntriesLoaded: Boolean,
+    myListViewModel: MyListViewModel,
     appSettings: AppSettings,
     settingsDataStore: SettingsDataStore,
     coroutineScope: CoroutineScope,
@@ -538,6 +545,9 @@ private fun MyListTabPageWrapper(
     }
 
     MyListScreen(
+        viewModel = myListViewModel,
+        entries = mediaEntries,
+        entriesLoaded = mediaEntriesLoaded,
         selectedListLayoutId = appSettings.selectedListLayoutId,
         onListLayoutChange = stableOnListLayoutChange,
         showAdultContent = appSettings.showAdultContent,

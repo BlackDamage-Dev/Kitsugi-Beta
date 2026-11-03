@@ -64,9 +64,12 @@ internal fun filterMyListEntries(
      * kayıtta bir `ensureActive()` çağırır.
      */
     checkActive: () -> Unit = {},
-    cancellationCheck: (() -> Unit)? = null
+    cancellationCheck: (() -> Unit)? = null,
+    fuzzySearchEnabled: Boolean? = null,
+    checkCancelled: (() -> Unit)? = null
 ): List<MediaEntry> {
-    val onCheckpoint = cancellationCheck ?: checkActive
+    val onCheckpoint = checkCancelled ?: cancellationCheck ?: checkActive
+    val effectiveFuzzyOverride = fuzzySearchEnabled ?: fuzzySearchOverride
     val selectedStatus = statusFilters.firstOrNull { it.id == selectedStatusFilterId }?.status
     val selectedType = typeFilters.firstOrNull { it.id == selectedTypeFilterId }?.type
     val favoritesOnly = selectedFavoriteFilterId == "favorites" || selectedStatusFilterId == "favorites"
@@ -80,7 +83,7 @@ internal fun filterMyListEntries(
         foldedQuery.split(SEARCH_TOKEN_SPLIT_REGEX).filter { it.isNotEmpty() }
     }
     val exactYearQuery = foldedQuery.takeIf { it.length == 4 && it.all(Char::isDigit) }
-    val fuzzyEnabled = fuzzySearchOverride ?: KitsugiContentPrefs.fuzzySearchEnabled
+    val fuzzyEnabled = effectiveFuzzyOverride ?: KitsugiContentPrefs.fuzzySearchEnabled
     var scanned = 0
 
     return entries.asSequence()

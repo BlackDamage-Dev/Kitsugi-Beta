@@ -8,6 +8,9 @@ import androidx.room.Transaction
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
+/** A metadata-only repair, conditional on the original value still being present. */
+data class SubtitleCorrection(val id: Int, val expected: String, val replacement: String)
+
 @Dao
 interface MediaEntryDao {
     @Query("SELECT * FROM media_entries ORDER BY id DESC")
@@ -41,6 +44,19 @@ interface MediaEntryDao {
 
     @Update
     suspend fun update(entry: MediaEntryEntity)
+
+    // Synopsis enrichment is metadata, not a user-field edit. Update only this column
+    // so a late detail response cannot overwrite progress, score or sibling records.
+    @Query("UPDATE media_entries SET synopsis = :synopsis WHERE id = :id AND synopsis IS :expectedSynopsis AND (synopsis IS NULL OR synopsis != :synopsis)")
+    suspend fun updateSynopsis(id: Int, expectedSynopsis: String?, synopsis: String)
+
+    @Query("UPDATE media_entries SET subtitle = :replacement WHERE id = :id AND source = 'simkl' AND subtitle = :expected")
+    suspend fun updateSimklSubtitle(id: Int, expected: String, replacement: String)
+
+    @Transaction
+    suspend fun repairSimklSubtitles(corrections: List<SubtitleCorrection>) {
+        corrections.forEach { updateSimklSubtitle(it.id, it.expected, it.replacement) }
+    }
 
     @Update
     suspend fun updateAll(entities: List<MediaEntryEntity>)

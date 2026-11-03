@@ -102,6 +102,7 @@ import com.kitsugi.animelist.ui.app.AppViewModel
 import com.kitsugi.animelist.ui.app.AuthViewModel
 import com.kitsugi.animelist.ui.app.PlayerSettingsViewModel
 import com.kitsugi.animelist.ui.app.ProfileViewModel
+import com.kitsugi.animelist.ui.screens.mylist.MyListViewModel
 import com.kitsugi.animelist.ui.app.KitsugiProfileViewModel
 import com.kitsugi.animelist.ui.app.AddonViewModel
 import com.kitsugi.animelist.ui.app.MangaViewModel
@@ -176,6 +177,7 @@ fun AppRoot(
     val searchViewModel: SearchViewModel = viewModel()
     val authViewModel: AuthViewModel = viewModel()
     val profileViewModel: ProfileViewModel = viewModel()
+    val myListViewModel: MyListViewModel = viewModel()
     val kitsugiProfileViewModel: KitsugiProfileViewModel = viewModel()
     val playerSettingsViewModel: PlayerSettingsViewModel = viewModel()
     val addonViewModel: AddonViewModel = viewModel()
@@ -217,9 +219,13 @@ fun AppRoot(
         initial = AppSettings()
     )
 
-    val mediaEntries by mediaRepository.entriesFlow.collectAsState(
-        initial = emptyList()
-    )
+    // A null first value means Room has not emitted yet; an empty list is a real result.
+    // Listem uses this same snapshot instead of opening a second full-table observer.
+    val mediaEntriesSnapshot by mediaRepository.entriesFlow.collectAsState(initial = null)
+    val mediaEntries = mediaEntriesSnapshot ?: emptyList()
+    LaunchedEffect(mediaEntriesSnapshot, appSettings.showAdultContent) {
+        mediaEntriesSnapshot?.let { myListViewModel.prepareLibrary(it, appSettings.showAdultContent) }
+    }
 
     val latestMediaEntries by rememberUpdatedState(mediaEntries)
 
@@ -964,6 +970,8 @@ fun AppRoot(
                     currentAppStateKey = currentAppStateKey,
                     navState = navState,
                     mediaEntries = mediaEntries,
+                    mediaEntriesLoaded = mediaEntriesSnapshot != null,
+                    myListViewModel = myListViewModel,
                     appSettings = appSettings,
                     settingsDataStore = settingsDataStore,
                     appViewModel = appViewModel,
@@ -1175,6 +1183,8 @@ private fun AppNavigationContent(
     currentAppStateKey: AppStateKey,
     navState: AppNavigationState,
     mediaEntries: List<MediaEntry>,
+    mediaEntriesLoaded: Boolean,
+    myListViewModel: MyListViewModel,
     appSettings: AppSettings,
     settingsDataStore: SettingsDataStore,
     appViewModel: AppViewModel,
@@ -1481,6 +1491,8 @@ private fun AppNavigationContent(
                     key = key,
                     ctx = TabPagesContext(
                         mediaEntries = mediaEntries,
+                        mediaEntriesLoaded = mediaEntriesLoaded,
+                        myListViewModel = myListViewModel,
                         appSettings = appSettings,
                         settingsDataStore = settingsDataStore,
                         appViewModel = appViewModel,

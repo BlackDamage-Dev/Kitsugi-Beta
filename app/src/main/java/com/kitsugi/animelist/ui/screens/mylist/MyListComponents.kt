@@ -866,10 +866,12 @@ fun MyListContentPage(
     selectedTabIndex: Int,
     isConnected: Boolean,
     isSimklSessionExpired: Boolean,
+    isLoading: Boolean = false,
     isLibraryComputing: Boolean = false,
     pageEntries: List<MediaEntry>,
     sourceBadgesByEntryId: Map<Int, List<String>>,
     visibleEntries: List<MediaEntry>,
+    groupedVisibleEntries: List<Pair<WatchStatus, List<MediaEntry>>> = emptyList(),
     /** Aktif sayfanın gruplanmış hali ([groupMyListEntries]); gruplama sıralamadan bağımsızdır. */
     visibleSections: List<MyListSection> = emptyList(),
     selectedGroupId: String = MyListGroupingIds.ADDED,
@@ -890,6 +892,7 @@ fun MyListContentPage(
     isSyncing: Boolean = false,
     onEntryClick: (MediaEntry) -> Unit,
     onEditEntry: ((MediaEntry) -> Unit)? = null,
+    onIncrementProgress: ((MediaEntry) -> Unit)? = null,
     onPosterLongClick: (String) -> Unit,
     accentColor: Color,
     horizontalPadding: Dp
@@ -933,15 +936,15 @@ fun MyListContentPage(
             )
         }
     ) {
-        if (!isConnected) {
+        if (!isConnected && searchQuery.isBlank()) {
             MyListNotConnectedState(
                 selectedTabIndex = pageTabIndex,
                 isSimklSessionExpired = isSimklSessionExpired,
                 onLogin = onLogin
             )
-        } else if (isLibraryComputing && pageEntries.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize())
-        } else if (pageEntries.isEmpty()) {
+        } else if (isLoading || (isLibraryComputing && pageEntries.isEmpty())) {
+            MyListLoadingState()
+        } else if (pageEntries.isEmpty() && searchQuery.isBlank()) {
             LazyColumn(
                 state = pageScrollState,
                 modifier = Modifier

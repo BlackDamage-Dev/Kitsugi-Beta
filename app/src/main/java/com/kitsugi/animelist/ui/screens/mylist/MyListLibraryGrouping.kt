@@ -349,7 +349,8 @@ internal fun groupMyListProviderTabs(
  */
 internal fun groupMyListEntries(
     entries: List<MediaEntry>,
-    identityExtras: Map<Int, Set<String>> = emptyMap()
+    identityExtras: Map<Int, Set<String>> = emptyMap(),
+    checkCancelled: () -> Unit = {}
 ): List<MyListLibraryItem> {
     if (entries.isEmpty()) return emptyList()
     val clustered = clusterMyListGroups(entries, identityExtras)

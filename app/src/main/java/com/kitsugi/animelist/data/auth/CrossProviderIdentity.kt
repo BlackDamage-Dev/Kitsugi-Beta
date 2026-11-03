@@ -851,6 +851,7 @@ object CrossProviderIdentityCache {
                 .put(CrossProviderIds.KEY_AT, System.currentTimeMillis())
                 .put(CrossProviderIds.KEY_COMPLETE, complete)
             prefs(context).edit().putString(key, json.toString()).apply()
+            com.kitsugi.animelist.data.local.IdentityCacheRevision.changed()
         }
     }
 
@@ -903,6 +904,7 @@ object CrossProviderIdentityCache {
             val editor = p.edit()
             targetKeys.forEach { k -> editor.putString(k, payload) }
             editor.apply()
+            com.kitsugi.animelist.data.local.IdentityCacheRevision.changed()
         }
     }
 

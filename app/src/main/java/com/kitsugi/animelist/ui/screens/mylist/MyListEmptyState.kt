@@ -1,7 +1,11 @@
 package com.kitsugi.animelist.ui.screens.mylist
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.ui.Alignment
 import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -53,4 +57,12 @@ internal fun MyListSyncPromptState() {
         icon = Icons.FormatListBulleted
     )
     Spacer(modifier = Modifier.height(90.dp))
+}
+
+/** A pending Room/identity calculation is not an empty library. */
+@Composable
+internal fun MyListLoadingState() {
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        CircularProgressIndicator()
+    }
 }

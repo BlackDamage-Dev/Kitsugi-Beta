@@ -243,9 +243,11 @@ class ScrollAwareHeaderState internal constructor(
 @Composable
 fun rememberScrollAwareHeaderState(
     listState: LazyListState,
-    hideDeadZonePx: Int = 120
+    hideDeadZonePx: Int = 120,
+    retainOnListChange: Boolean = false
 ): ScrollAwareHeaderState {
-    var collapsed by remember(listState) { mutableStateOf(false) }
+    val collapseKey = if (retainOnListChange) Unit else listState
+    var collapsed by remember(collapseKey) { mutableStateOf(false) }
 
     val connection = remember(listState, hideDeadZonePx) {
         object : NestedScrollConnection {
@@ -265,11 +267,14 @@ fun rememberScrollAwareHeaderState(
         }
     }
 
-    LaunchedEffect(listState) {
+    LaunchedEffect(listState, retainOnListChange) {
+        var firstEmission = true
         snapshotFlow {
             listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset
         }.collect { (index, offset) ->
-            if (index == 0 && offset == 0 && collapsed) collapsed = false
+            val pageSwitchSnapshot = retainOnListChange && firstEmission
+            firstEmission = false
+            if (!pageSwitchSnapshot && index == 0 && offset == 0 && collapsed) collapsed = false
         }
     }
 

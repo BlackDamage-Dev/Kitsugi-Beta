@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -69,13 +70,11 @@ class MediaEntryRepository(
      * [conflate] ardışık yazım patlamalarında (ör. +18 geri yazma turu satır satır günceller)
      * yalnızca EN GÜNCEL anlık görüntünün işlenmesini garanti eder.
      */
-    val entriesFlow: Flow<List<MediaEntry>> = kotlinx.coroutines.flow.flow {
-        dao.observeAll().collect { entities ->
-            emit(entities.withCrossSourceAdultFlags())
-        }
-    }
+    val entriesFlow: Flow<List<MediaEntry>> = dao.observeAll()
         .distinctUntilChanged()
         .conflate()
+        .map { entities -> entities.withCrossSourceAdultFlags() }
+        .distinctUntilChanged()
         .flowOn(Dispatchers.Default)
 
 
@@ -649,6 +648,10 @@ class MediaEntryRepository(
     suspend fun updateAllDirect(entries: List<MediaEntry>) {
         if (entries.isEmpty()) return
         dao.updateAll(entries.map { it.toEntity() })
+    }
+
+    suspend fun updateSynopsis(id: Int, expectedSynopsis: String?, synopsis: String) {
+        if (id > 0 && synopsis.isNotBlank()) dao.updateSynopsis(id, expectedSynopsis, synopsis)
     }
 
     suspend fun update(

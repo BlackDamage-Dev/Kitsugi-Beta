@@ -12,6 +12,8 @@ import com.kitsugi.animelist.model.MediaIdentity
 import com.kitsugi.animelist.model.MediaType
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 
 /**
@@ -101,7 +103,8 @@ object MyListIdentityCrosswalk {
             val crossTypeCandidates = if (allowNetwork) crossTypeResolutionCandidates(entries) else emptySet()
 
             val result = LinkedHashMap<MediaEntry, Set<String>>(entries.size)
-            entries.forEach { entry ->
+            entries.forEachIndexed { index, entry ->
+                if (index % 64 == 0) currentCoroutineContext().ensureActive()
                 var ids = lookupIndexedIds(entry, indexedBundles) ?: cachedIds(context, entry)
                 if (ids == null && allowNetwork && entry.id in crossTypeCandidates) {
                     ids = try {
@@ -118,7 +121,7 @@ object MyListIdentityCrosswalk {
                         null
                     }
                 }
-                if (ids == null && !needsCrosswalk(entry)) return@forEach
+                if (ids == null && !needsCrosswalk(entry)) return@forEachIndexed
                 val extras = extraKeysFor(
                     entry = entry,
                     ids = ids,

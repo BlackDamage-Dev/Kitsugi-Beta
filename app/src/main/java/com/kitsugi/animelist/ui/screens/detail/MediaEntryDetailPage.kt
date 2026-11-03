@@ -199,6 +199,10 @@ fun MediaEntryDetailPage(
         viewModel.loadEntry(entry, showAnimeLogos)
     }
 
+    LaunchedEffect(entry.id, entry.source, entry.malId, entry.type, entry.synopsis) {
+        viewModel.onStoredSynopsisChanged(entry)
+    }
+
     // PERF: Sekmeye özel akışlar (bölüm puanları, karakterler, ekip, öneriler, ilişkiler,
     // istatistikler, yorumlar, özet çevirisi, MDBList) ilgili sekme slotlarının kendi
     // RestartGroup'unda toplanır; arka plan ağ yanıtları kök sayfayı yeniden compose etmez.

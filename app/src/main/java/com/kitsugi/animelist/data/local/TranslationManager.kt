@@ -168,6 +168,45 @@ class TranslationManager(context: Context) {
         translateTo(text, sourceLang, targetLang)
     }
 
+    suspend fun translateToResult(
+        text: String?,
+        sourceLang: String,
+        targetLang: String,
+        onPartial: ((String) -> Unit)? = null
+    ): TranslationOutcome = withContext(Dispatchers.IO) {
+        if (text.isNullOrBlank()) return@withContext TranslationOutcome("", true)
+
+        val resolvedSource = sourceLang.trim().ifBlank { "auto" }
+        val resolvedTarget = targetLang.trim().ifBlank { "tr" }
+        val trimmed = text.trim().cleanShikimoriBbCode()
+        if (trimmed.isBlank()) return@withContext TranslationOutcome("", true)
+
+        if (resolvedSource.equals(resolvedTarget, ignoreCase = true)) return@withContext TranslationOutcome(trimmed, true)
+        if (isTechnicalTranslationValue(trimmed)) return@withContext TranslationOutcome(trimmed, true)
+
+        if (resolvedTarget.equals("tr", ignoreCase = true) && isLikelyTurkish(trimmed)) {
+            return@withContext TranslationOutcome(trimmed, true)
+        }
+        if (alreadyTargetLanguage(trimmed, resolvedTarget)) return@withContext TranslationOutcome(trimmed, true)
+
+        val hash = md5(completedTranslationCacheMaterial(trimmed, resolvedSource, resolvedTarget))
+        val cached = runCatching { dao.getTranslation(hash) }.getOrNull()
+        if (!cached.isNullOrBlank()) {
+            val cleanedCached = cached.cleanShikimoriBbCode()
+            if (cleanedCached.trim() != trimmed && !translationMatchesSource(trimmed, cleanedCached)) {
+                onPartial?.let { runCatching { it(cleanedCached) } }
+                return@withContext TranslationOutcome(cleanedCached, true)
+            }
+        }
+
+        val translated = translateTo(trimmed, resolvedSource, resolvedTarget, onPartial)
+        val fullyTranslated = translated.isNotBlank() && translated != trimmed && !translationMatchesSource(trimmed, translated)
+        if (fullyTranslated) {
+            runCatching { dao.insertTranslation(TranslationCacheEntity(hash, translated)) }
+        }
+        TranslationOutcome(translated.ifBlank { trimmed }, fullyTranslated)
+    }
+
     suspend fun translateTo(
         text: String?,
         sourceLang: String,

@@ -386,6 +386,7 @@ object BangumiLocalMappingCache {
     fun put(context: Context, malId: Int, subjectType: Int, subjectId: Int) {
         if (subjectId <= 0) return
         prefs(context).edit().putInt(key(malId, subjectType), subjectId).apply()
+        com.kitsugi.animelist.data.local.IdentityCacheRevision.changed()
     }
 
     /**

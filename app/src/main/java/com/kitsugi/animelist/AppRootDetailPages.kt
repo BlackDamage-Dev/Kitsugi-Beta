@@ -380,11 +380,8 @@ fun AppRootDetailPages(
                         },
                         onSynopsisLoaded = { synopsis ->
                             if (entry.synopsis != synopsis && synopsis.isNotBlank()) {
-                                val updatedEntry = entry.copy(
-                                    synopsis = synopsis
-                                )
                                 coroutineScope.launch {
-                                    mediaRepository.update(updatedEntry, syncExternal = false)
+                                    mediaRepository.updateSynopsis(entry.id, entry.synopsis, synopsis)
                                 }
                             }
                         },
