@@ -95,22 +95,18 @@ fun TvMangaReaderScreen(
     var hudVisible by remember { mutableStateOf(true) }
     var showSettingsPanel by remember { mutableStateOf(false) }
 
-    val pagerState = rememberPagerState(initialPage = currentPage) { pages.size }
-    val listState = rememberLazyListState(initialFirstVisibleItemIndex = currentPage)
+    val pagerState = key(currentChapter.url) { rememberPagerState(initialPage = 0) { pages.size } }
+    val listState = key(currentChapter.url) { rememberLazyListState() }
 
-    var hasRestoredProgress by remember(currentChapter.url) { mutableStateOf(false) }
+    var restoredChapterUrl by remember { mutableStateOf<String?>(null) }
 
     // Focus yönetimi
     val screenFocusRequester = remember { FocusRequester() }
     val backButtonFocusRequester = remember { FocusRequester() }
 
-    LaunchedEffect(currentChapter.url) {
-        hasRestoredProgress = false
-    }
-
-    LaunchedEffect(pages, currentPage) {
-        if (pages.isNotEmpty() && !hasRestoredProgress) {
-            hasRestoredProgress = true
+    LaunchedEffect(currentChapter.url, pages, uiState.isLoadingPages) {
+        if (!uiState.isLoadingPages && pages.isNotEmpty() && restoredChapterUrl != currentChapter.url) {
+            restoredChapterUrl = currentChapter.url
             val targetPage = currentPage.coerceIn(0, pages.size - 1)
             if (readingMode == ReadingMode.Webtoon) {
                 listState.scrollToItem(targetPage)
@@ -120,9 +116,12 @@ fun TvMangaReaderScreen(
         }
     }
 
-    // Pager sayfa değişimi progress kaydetme
+    // Pager sayfa değişimi progress kaydetme (Webtoon'da pager kullanılmıyor).
     LaunchedEffect(pagerState.currentPage) {
-        if (hasRestoredProgress && pages.isNotEmpty()) {
+        if (restoredChapterUrl == currentChapter.url &&
+            pages.isNotEmpty() &&
+            readingMode != ReadingMode.Webtoon
+        ) {
             viewModel.onPageChanged(currentChapter.url, pagerState.currentPage, pages.size)
         }
     }
@@ -281,7 +280,7 @@ fun TvMangaReaderScreen(
                         }
                     },
                     onPageChanged = { idx ->
-                        if (hasRestoredProgress) {
+                        if (restoredChapterUrl == currentChapter.url) {
                             viewModel.onPageChanged(currentChapter.url, idx, pages.size)
                         }
                     },

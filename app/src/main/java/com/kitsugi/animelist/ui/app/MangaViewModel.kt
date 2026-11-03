@@ -140,17 +140,45 @@ class MangaViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
-        // Loader arka planda eklentileri diskten yüklerken (ilk açılışta birkaç yüz ms alır)
-        // veya sonradan eklenti kurulduğunda/silindiğinde mangaSources listesini otomatik yenile.
+        // STARTUP YARIŞI: MangaSourceRepository eklentileri IO'da async yüklüyordu;
+        // ViewModel daha önce oluştuğu için "Installed (0)" / boş liste görülebiliyordu.
+        // Yükleme bitene kadar bekle, eski Disabled bayraklarını migrate et, listeyi tazele.
         viewModelScope.launch {
-            mangaRepository.availableSourcesFlow.collect { _ ->
-                val installed = withContext(Dispatchers.IO) { mangaRepository.getInstalledSources() }
-                if (installed.map { it.stableSourceKey() }.toSet() !=
-                    mangaSources.map { it.stableSourceKey() }.toSet()
-                ) {
-                    mangaSources = installed
-                }
+            withContext(Dispatchers.IO) {
+                mangaRepository.awaitExtensionsLoaded()
+                mangaRepository.migrateLegacyDisabledStates()
             }
+            mangaSources = mangaRepository.getInstalledSources()
+            checkAllUpdates()
+        }
+
+        // Kurulum / silme / güncelleme / sağlık değişimi başka bir ekrandan yapılsa
+        // bile tüm ViewModel örnekleri aynı listeyi görsün.
+        viewModelScope.launch {
+            MangaExtensionLoader.sourceChanges.collect {
+                val sources = withContext(Dispatchers.IO) {
+                    mangaRepository.getInstalledSources()
+                }
+                mangaSources = sources
+            }
+        }
+    }
+
+    /** Ayarlar ekranındaki aktif/pasif anahtarı için. */
+    fun isMangaSourceEnabled(source: MangaSource): Boolean =
+        mangaRepository.isSourceEnabled(source)
+
+    /**
+     * İmza "kullanıcı onayıyla güven" istisnası SADECE kullanıcının elle eklediği
+     * üçüncü parti repolar için geçerlidir. Resmî Keiyoushi kataloglarında
+     * asla uygulanmaz — aksi halde ele geçirilmiş bir yansıdan gelen imzasız /
+     * farklı imzalı APK sessizce kabul edilirdi.
+     */
+    private fun allowCustomSignature(repoUrl: String): Boolean {
+        if (repoUrl.contains("keiyoushi", ignoreCase = true)) return false
+        val normalized = repoUrl.trim().trimEnd('/')
+        return mangaReposState.any {
+            it.trim().trimEnd('/').equals(normalized, ignoreCase = true)
         }
     }
 
@@ -285,6 +313,14 @@ class MangaViewModel(application: Application) : AndroidViewModel(application) {
             untrustedRepoToConfirm = null
             newUrls.forEach { RepoVerifier.trustRepo(context, it) }
 
+            // repo.json varsa meta.signingKeyFingerprint'i güven listesine ekle.
+            // Özel repo anahtarı döndüğünde eklentiler "Signature untrusted" olmasın.
+            newUrls.forEach { repoUrl ->
+                val metaUrl = repoUrl.substringBeforeLast("/") + "/repo.json"
+                val meta = mangaRepoClient.fetchRepoMeta(metaUrl)
+                if (meta != null) TrustManager.trustRepoSigningKey(context, meta)
+            }
+
             val updatedList = mangaReposState + newUrls
             mangaReposState = updatedList
             saveMangaRepos(updatedList)
@@ -407,20 +443,13 @@ class MangaViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun toggleMangaSource(source: MangaSource, enabled: Boolean) {
-        viewModelScope.launch(Dispatchers.IO) {
-            val status = if (enabled) {
-                com.kitsugi.animelist.data.manga.model.SourceHealthStatus.Healthy
-            } else {
-                com.kitsugi.animelist.data.manga.model.SourceHealthStatus.Disabled
-            }
-            mangaRepository.setSourceHealthStatus(source, status)
-            withContext(Dispatchers.Main) {
-                mangaSources = mangaRepository.getInstalledSources()
-                onShowMessage?.invoke(
-                    if (enabled) KitsugiStrings.get(R.string.eklenti_etkinlestirildi_x, source.name)
-                    else "⏸️ Eklenti devre dışı bırakıldı: ${source.name}"
-                )
-            }
+        viewModelScope.launch {
+            mangaRepository.setSourceEnabled(source, enabled)
+            mangaSources = mangaRepository.getInstalledSources()
+            onShowMessage?.invoke(
+                if (enabled) KitsugiStrings.get(R.string.eklenti_etkinlestirildi_x, source.name)
+                else KitsugiStrings.get(R.string.manga_source_disabled, source.name)
+            )
         }
     }
 
@@ -481,6 +510,9 @@ class MangaViewModel(application: Application) : AndroidViewModel(application) {
                 return@launch
             }
 
+            // İmza istisnası yalnızca elle eklenmiş üçüncü parti repolarda.
+            val trustCustomSignature = allowCustomSignature(repoUrl)
+
             mangaBulkInstallRepoUrl = repoUrl
             mangaBulkInstallTotal = toInstall.size
             mangaBulkInstallDone = 0
@@ -497,14 +529,22 @@ class MangaViewModel(application: Application) : AndroidViewModel(application) {
                     semaphore.acquire()
                     try {
                         val extensionId = ext.pkg.replace(".", "_")
-                        val success = runCatching {
-                            withContext(Dispatchers.IO) {
+                        val success = withContext(Dispatchers.IO) {
+                            try {
                                 val downloaded = MangaExtensionLoader.downloadExtension(context, extensionId, ext.apkUrl)
-                                downloaded && MangaExtensionLoader.loadExtension(context, extensionId) != null
+                                if (downloaded) {
+                                    // Elle eklenen özel repo -> farklı (debug) imzaya güven.
+                                    // Resmî Keiyoushi kataloglarında false kalır.
+                                    MangaExtensionLoader.loadExtension(context, extensionId, trustSignature = trustCustomSignature) != null
+                                } else false
+                            } catch (e: SecurityException) {
+                                Log.w("MangaViewModel", "${ext.name} imza hatası: ${e.message}")
+                                false
+                            } catch (e: Exception) {
+                                Log.w("MangaViewModel", "${ext.name} kurulum hatası: ${e.message}")
+                                false
                             }
-                        }.onFailure { error ->
-                            Log.e("MangaViewModel", "Bulk install failed for ${ext.name}: ${error.message}", error)
-                        }.getOrDefault(false)
+                        }
                         if (success) successCounter.incrementAndGet() else failedCounter.incrementAndGet()
                         val completedCount = doneCounter.incrementAndGet()
                         mangaBulkInstallCurrentName = ext.name
@@ -545,6 +585,9 @@ class MangaViewModel(application: Application) : AndroidViewModel(application) {
                 return@launch
             }
 
+            // İmza istisnası yalnızca elle eklenmiş üçüncü parti repolarda.
+            val trustCustomSignature = allowCustomSignature(repoUrl)
+
             mangaBulkInstallRepoUrl = repoUrl
             mangaBulkInstallTotal = toUpdate.size
             mangaBulkInstallDone = 0
@@ -561,10 +604,20 @@ class MangaViewModel(application: Application) : AndroidViewModel(application) {
                     try {
                         val extensionId = ext.pkg.replace(".", "_")
                         val success = withContext(Dispatchers.IO) {
-                            val downloaded = MangaExtensionLoader.downloadExtension(context, extensionId, ext.apkUrl)
-                            if (downloaded) {
-                                MangaExtensionLoader.loadExtension(context, extensionId) != null
-                            } else false
+                            try {
+                                val downloaded = MangaExtensionLoader.downloadExtension(context, extensionId, ext.apkUrl)
+                                if (downloaded) {
+                                    // Elle eklenen özel repo -> farklı (debug) imzaya güven.
+                                    // Resmî Keiyoushi kataloglarında false kalır.
+                                    MangaExtensionLoader.loadExtension(context, extensionId, trustSignature = trustCustomSignature) != null
+                                } else false
+                            } catch (e: SecurityException) {
+                                Log.w("MangaViewModel", "${ext.name} imza hatası: ${e.message}")
+                                false
+                            } catch (e: Exception) {
+                                Log.w("MangaViewModel", "${ext.name} kurulum hatası: ${e.message}")
+                                false
+                            }
                         }
                         if (success) {
                             successCounter.incrementAndGet()

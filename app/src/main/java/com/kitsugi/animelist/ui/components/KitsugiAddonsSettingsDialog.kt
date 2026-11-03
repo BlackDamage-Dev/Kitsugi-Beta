@@ -79,6 +79,7 @@ fun KitsugiAddonsSettingsDialog(
     mangaSources: List<MangaSource> = emptyList(),
     onInstallMangaExtension: (Uri) -> Unit = {},
     onDeleteMangaExtension: (MangaSource) -> Unit = {},
+    onGetMangaSourceEnabled: (MangaSource) -> Boolean = { true },
     onToggleMangaSource: (MangaSource, Boolean) -> Unit = { _, _ -> },
     /** Null → manga sekmesinde callback'siz "Toplu Sil" butonu çizilmez. */
     mangaBulkDelete: MangaBulkDeleteState? = null,
@@ -339,6 +340,7 @@ fun KitsugiAddonsSettingsDialog(
                             accentColor = accentColor,
                             onInstallExtension = onInstallMangaExtension,
                             onDeleteExtension = onDeleteMangaExtension,
+                            onGetSourceEnabled = onGetMangaSourceEnabled,
                             onToggleSource = onToggleMangaSource,
                             repos = mangaRepos,
                             repoExtensions = mangaRepoExtensions,

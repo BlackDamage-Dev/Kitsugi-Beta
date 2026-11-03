@@ -5,10 +5,17 @@ import com.kitsugi.animelist.data.manga.model.SourceHealthStatus
 
 class MangaSearchCoordinator(
     private val stateStore: MangaSourceStateStore,
+    /** Null ise geriye dönük davranış (health != Disabled) korunur. */
+    private val enabledStore: MangaSourceEnabledStore? = null,
 ) {
+
+    /** Kullanıcı tarafından açık bırakılmış kaynaklar; ayarlar listesi bundan beslenir. */
+    fun isSourceEnabled(source: MangaSource): Boolean =
+        enabledStore?.isEnabled(source) ?: (stateStore.getHealthStatus(source) != SourceHealthStatus.Disabled)
 
     fun getAvailableSources(sources: List<MangaSource>): List<MangaSource> {
         return sources
+            .filter { isSourceEnabled(it) }
             .filter { stateStore.getHealthStatus(it) != SourceHealthStatus.Disabled }
             .sortedWith(
                 compareByDescending<MangaSource> { getSourcePriority(it) }
@@ -21,6 +28,7 @@ class MangaSearchCoordinator(
         includeTrustedFallbacks: Boolean = true,
     ): List<MangaSource> {
         val available = getAvailableSources(sources)
+            .filter { isSourceEnabled(it) }
             .filter { stateStore.isSearchEligible(it) }
             .filter { TurkishSourceRegistry.policyFor(it).allowGlobalSearch }
 

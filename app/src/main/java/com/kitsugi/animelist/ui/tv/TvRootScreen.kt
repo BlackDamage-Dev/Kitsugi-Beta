@@ -197,14 +197,14 @@ fun TvRootScreen(
             },
             mangaSourcesProvider = {
                 com.kitsugi.animelist.data.manga.MangaExtensionLoader.getLoadedSources().map { source ->
-                    val health = mangaViewModel.getSourceHealthStatus(source)
                     mapOf(
                         "id"        to source.stableSourceKey(),
                         "name"      to source.name,
                         "pkgName"   to source.pkgName,
                         "baseUrl"   to source.baseUrl,
                         "lang"      to source.lang,
-                        "isEnabled" to (health != com.kitsugi.animelist.data.manga.model.SourceHealthStatus.Disabled)
+                        // Aktiflik artık sağlık durumu değil, ayrı kullanıcı tercihidir.
+                        "isEnabled" to mangaViewModel.isMangaSourceEnabled(source)
                     )
                 }
             },

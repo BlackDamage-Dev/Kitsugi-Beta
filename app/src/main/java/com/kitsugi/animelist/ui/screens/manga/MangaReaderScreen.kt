@@ -4,6 +4,7 @@ import com.kitsugi.animelist.ui.icons.KitsugiArt
 import com.kitsugi.animelist.ui.icons.KitsugiArtIcon
 
 import com.kitsugi.animelist.ui.components.KitsugiButton
+import com.kitsugi.animelist.ui.components.KitsugiWebViewDialog
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -46,6 +47,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -111,18 +113,24 @@ fun MangaReaderScreen(
     var menuVisible     by remember { mutableStateOf(true) }
     var showSettings    by remember { mutableStateOf(false) }
 
-    val pagerState    = rememberPagerState(initialPage = currentPage) { pages.size }
-    val listState     = rememberLazyListState(initialFirstVisibleItemIndex = currentPage)
-
-    var hasRestoredProgress by remember(currentChapter.url) { mutableStateOf(false) }
-
-    LaunchedEffect(currentChapter.url) {
-        hasRestoredProgress = false
+    // Bölüm değişince pager/list state'i YENİDEN oluştur. Aksi halde yeni bölümün
+    // sayfaları eski bölümün konumunda açılıyor, "Tekrar Dene" sonrası scroll
+    // bir daha çalışmıyordu.
+    val pagerState = key(currentChapter.url) {
+        rememberPagerState(initialPage = 0) { pages.size }
+    }
+    val listState = key(currentChapter.url) {
+        rememberLazyListState()
     }
 
-    LaunchedEffect(pages, currentPage) {
-        if (pages.isNotEmpty() && !hasRestoredProgress) {
-            hasRestoredProgress = true
+    // Tek seferlik restore artık bölüm URL'i + gerçekten yüklenmiş sayfa listesi
+    // ile anahtarlanıyor. Eski kod currentPage değişince tekrar tetikleniyor ve
+    // bölüm geçişinde eski sayfa listesiyle yanlış konuma kaydırıyordu.
+    var restoredChapterUrl by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(currentChapter.url, pages, uiState.isLoadingPages) {
+        if (!uiState.isLoadingPages && pages.isNotEmpty() && restoredChapterUrl != currentChapter.url) {
+            restoredChapterUrl = currentChapter.url
             val targetPage = currentPage.coerceIn(0, pages.size - 1)
             if (readingMode == ReadingMode.Webtoon) {
                 listState.scrollToItem(targetPage)
@@ -133,12 +141,32 @@ fun MangaReaderScreen(
     }
 
     // Pager'daki sayfa değişimini takip et — V2 prefetch tetikle
+    // Webtoon modunda pagerState DİKKATE ALINMAZ: pagerState.currentPage her zaman
+    // 0 kalır ve listState'in bildirdiği gerçek ilerlemeyi 0 ile ezerdi!
     LaunchedEffect(pagerState.currentPage) {
-        if (hasRestoredProgress && pages.isNotEmpty()) {
+        if (restoredChapterUrl == currentChapter.url &&
+            pages.isNotEmpty() &&
+            readingMode != ReadingMode.Webtoon
+        ) {
             viewModel.onPageChanged(currentChapter.url, pagerState.currentPage, pages.size)
             // R2: Sayfa değiştikçe V2 loader'da 3 ileri prefetch'i başlat
             loader.onPageChanged(pagerState.currentPage)
         }
+    }
+
+    // Manga-TR / DDoS-Guard bot koruması: aynı WebView cookie oturumunda doğrula,
+    // kapatınca sayfaları yeniden çek (kapı token'ı tek kullanımlık olduğu için
+    // körü körüne retry değil, taze sayfa listesi gerekir).
+    var verificationUrl by remember { mutableStateOf<String?>(null) }
+    if (verificationUrl != null) {
+        KitsugiWebViewDialog(
+            title = stringResource(R.string.manga_source_verify_in_browser),
+            url = verificationUrl!!,
+            onDismiss = {
+                verificationUrl = null
+                viewModel.retryLoadPages()
+            }
+        )
     }
 
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
@@ -173,6 +201,22 @@ fun MangaReaderScreen(
                         Spacer(Modifier.height(10.dp))
                         com.kitsugi.animelist.ui.components.errors.PlatformErrorExplanationBlock(code = code)
                     }
+                    uiState.verificationUrl?.let { verifyUrl ->
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            text = stringResource(R.string.manga_source_verify_hint),
+                            color = Color.White.copy(0.5f),
+                            fontSize = 12.sp,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                        Spacer(Modifier.height(10.dp))
+                        KitsugiButton(
+                            onClick = { verificationUrl = verifyUrl },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E88E5))
+                        ) {
+                            Text(stringResource(R.string.manga_source_verify_in_browser), color = Color.White)
+                        }
+                    }
                     Spacer(Modifier.height(24.dp))
                     KitsugiButton(
                         onClick = { viewModel.retryLoadPages() },
@@ -199,7 +243,7 @@ fun MangaReaderScreen(
                     onGoToNextChapter = { viewModel.goToNextChapter() },
                     onCenterTap  = { menuVisible = !menuVisible },
                     onPageChanged = { idx ->
-                        if (hasRestoredProgress) {
+                        if (restoredChapterUrl == currentChapter.url) {
                             viewModel.onPageChanged(currentChapter.url, idx, pages.size)
                             // R2: Webtoon scroll'da V2 prefetch tetikle
                             loader.onPageChanged(idx)

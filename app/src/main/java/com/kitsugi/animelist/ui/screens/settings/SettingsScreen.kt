@@ -1246,6 +1246,7 @@ private fun SettingsAddonsContent(
         mangaSources = manga.mangaSources,
         onInstallMangaExtension = manga.onInstallMangaExtension,
         onDeleteMangaExtension = manga.onDeleteMangaExtension,
+        onGetMangaSourceEnabled = manga.onGetMangaSourceEnabled,
         onToggleMangaSource = manga.onToggleMangaSource,
         mangaBulkDelete = manga.mangaBulkDelete,
         mangaRepos = manga.mangaRepos,

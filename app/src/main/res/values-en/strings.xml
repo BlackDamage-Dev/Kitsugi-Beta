@@ -18469,4 +18469,7 @@
     <string name="detail_video_download_error_no_stream">No downloadable stream was found for this video.</string>
 
     <string name="plugin_portal_scan_progress">Scanning extensions (%1$d/%2$d) • %3$d results</string>
+    <string name="manga_source_disabled">Disabled</string>
+    <string name="manga_source_verify_in_browser">Verify in browser</string>
+    <string name="manga_source_verify_hint">This source requires a login or bot check. Verify in the same session, then retry.</string>
 </resources>

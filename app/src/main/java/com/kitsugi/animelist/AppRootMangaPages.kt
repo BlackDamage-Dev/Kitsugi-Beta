@@ -58,6 +58,8 @@ fun AppRootMangaPages(
                 onBack = { navState.closeMangaSourceHealth() },
                 onExportReportFile = { text -> onExportMangaSourceReportFile(text) },
                 onQuickCheckSource = { src -> mangaViewModel.quickCheckSource(src) },
+                onGetSourceEnabled = { src -> mangaViewModel.isMangaSourceEnabled(src) },
+                onToggleSource = { src, enabled -> mangaViewModel.toggleMangaSource(src, enabled) },
                 onRefreshSourceMirror = { src -> mangaViewModel.refreshSourceMirror(src) },
                 onResetSourceDiagnostics = { src -> mangaViewModel.resetSourceDiagnostics(src) },
                 onClearSourceMirror = { src -> mangaViewModel.clearSourceMirror(src) },

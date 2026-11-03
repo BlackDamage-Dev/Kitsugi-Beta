@@ -9,13 +9,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import com.kitsugi.animelist.utils.KitsugiStrings
 import com.kitsugi.animelist.R
-import org.json.JSONArray
 
 /**
  * MangaExtensionAutoUpdater
  *
- * Kullanıcının kayıtlı manga repo index'lerini kontrol ederek yüklü eklentileri günceller.
- * İlk kurulumda varsayılan katalog Kitsugi-Manga-Plugins'tir.
+ * Keiyoushi repo index'ini periyodik olarak kontrol ederek yüklü manga eklentilerini
+ * otomatik günceller. Uygulama başlangıcında arka planda çalışır.
  *
  * Mantık:
  *   1) Keiyoushi index.min.json çek
@@ -59,7 +58,7 @@ object MangaExtensionAutoUpdater {
             return@withContext UpdateResult.Skipped(minutesUntilNextCheck = ((CHECK_INTERVAL_MS - (now - lastCheck)) / 1000 / 60).toInt())
         }
 
-        Log.i(TAG, "Kayıtlı manga depoları kontrol ediliyor...")
+        Log.i(TAG, "Keiyoushi repo kontrolü başlıyor...")
         prefs.edit().putLong(KEY_LAST_CHECK_MS, now).apply()
 
         // Yüklü eklentileri al — loadedSources ve fiziksel klasör üzerinden paket adı → versionCode
@@ -72,33 +71,34 @@ object MangaExtensionAutoUpdater {
 
         Log.i(TAG, "${installedPackages.size} yüklü APK paketi bulundu.")
 
-        // Check every configured manga repository; Kitsugi-Manga-Plugins is seeded as default.
+        // Keiyoushi V2 index + kullanıcının eklediği özel repolar.
+        // Önceden SADECE Keiyoushi kontrol ediliyordu; Kitsugi-Manga-Plugins'teki
+        // Manga-TR (1.6.24) hiçbir zaman güncelleme almıyordu.
         val client = MangaRepoClient(context)
-        val configuredRepos = runCatching {
-            val raw = context.getSharedPreferences("manga_repos", Context.MODE_PRIVATE)
-                .getString("repo_urls", null)
-            val json = raw?.let(::JSONArray)
-            buildList {
-                for (index in 0 until (json?.length() ?: 0)) {
-                    json?.optString(index, "")?.trim()?.takeIf(String::isNotEmpty)?.let(::add)
-                }
-            }
-        }.getOrDefault(emptyList())
-        val repoUrls = configuredRepos.ifEmpty { listOf(MangaRepoClient.KITSUGI_MANGA_REPO_URL) }
-        val repoExtensions = repoUrls
-            .flatMap { client.fetchExtensionsAutoDetect(it).orEmpty() }
-            .distinctBy { it.pkg }
+        val keiyoushi = client.fetchExtensionsAutoDetect(MangaRepoClient.KEIYOUSHI_INDEX_URL)
+        val customRepos = loadCustomRepoUrls(context)
+        val customEntries = mutableListOf<MangaExtensionInfo>()
+        customRepos.forEach { repoUrl ->
+            client.fetchExtensionsAutoDetect(repoUrl)?.let { customEntries += it }
+        }
 
-        if (repoExtensions.isEmpty()) {
-            Log.e(TAG, "Configured manga repository catalogs could not be loaded or contained no extensions.")
+        if (keiyoushi == null && customEntries.isEmpty()) {
+            Log.e(TAG, "Hiçbir manga repo'su çekilemedi.")
             prefs.edit().putString(KEY_LAST_CHECK_RESULT, "REPO_FETCH_FAILED").apply()
             return@withContext UpdateResult.Failed(reasonCode = "REPO_FETCH_FAILED")
         }
 
-        Log.i(TAG, "Repo'da ${repoExtensions.size} eklenti var.")
+        // Aynı paket hem Keiyoushi hem özel repoda varsa KULLANICININ repolu kazanır.
+        // Özel girişleri ÖNE koyuyoruz: distinctBy ve associateBy ikisi de ilk/son
+        // kaydı farklı seçtiği için eski kodda liste ile lookup map'i çelişiyordu.
+        val repoExtensions = (customEntries + keiyoushi.orEmpty()).distinctBy { it.pkg }
+        Log.i(TAG, "Repo'larda ${repoExtensions.size} eklenti var (özel repo: ${customRepos.size}).")
 
-        // Paket adına göre hızlı lookup için map oluştur
+        // Paket adına göre hızlı lookup için map oluştur (aynı sıralama → aynı kazanan)
         val repoByPkg = repoExtensions.associateBy { it.pkg }
+        // repoExtensions özel girişlerle başladığı için repoByPkg bu paketlerde
+        // mutlaka özel katalogdaki girdiyi döndürür.
+        val customPkgs = customEntries.map { it.pkg }.toSet()
 
         var updatedCount = 0
         var checkedCount = 0
@@ -111,7 +111,11 @@ object MangaExtensionAutoUpdater {
             val repoVersionCode = repoEntry.versionCode
             if (repoVersionCode > installedVersionCode) {
                 Log.i(TAG, "${repoEntry.name}: güncelleme var! ($installedVersionCode → $repoVersionCode)")
-                val success = tryUpdateExtension(context, repoEntry)
+                val success = tryUpdateExtension(
+                    context,
+                    repoEntry,
+                    trustSignature = repoEntry.pkg in customPkgs,
+                )
                 if (success) {
                     updatedCount++
                     updatedNames.add(repoEntry.name)
@@ -145,15 +149,27 @@ object MangaExtensionAutoUpdater {
      * Tek bir eklentiyi indir ve yeniden yükle.
      * Başarısız olursa mevcut APK dokunulmaz.
      */
-    private fun tryUpdateExtension(context: Context, info: MangaExtensionInfo): Boolean {
+    private fun tryUpdateExtension(
+        context: Context,
+        info: MangaExtensionInfo,
+        trustSignature: Boolean = false,
+    ): Boolean {
         return try {
             val extensionId = info.pkg.replace(".", "_")
             val downloaded = MangaExtensionLoader.downloadExtension(context, extensionId, info.apkUrl)
             if (!downloaded) return false
 
+            // Kullanıcının açıkça eklediği repodan gelen yeni imzaya güven.
+            // Aksi halde özel derleme imza rotasyonunda güncelleme sessizce düşer.
+            if (trustSignature) {
+                com.kitsugi.animelist.core.security.TrustManager
+                    .getApkSignatureHash(context, MangaExtensionLoader.apkFile(context, extensionId))
+                    ?.let { com.kitsugi.animelist.core.security.TrustManager.trustSignature(context, it) }
+            }
+
             // Bellekten kaldır ve yeniden yükle
             MangaExtensionLoader.unloadExtension(context, extensionId)
-            val loaded = MangaExtensionLoader.loadExtension(context, extensionId)
+            val loaded = MangaExtensionLoader.loadExtension(context, extensionId, trustSignature)
             loaded != null
         } catch (e: Exception) {
             Log.e(TAG, "tryUpdateExtension hata (${info.name}): ${e.message}", e)
@@ -171,7 +187,7 @@ object MangaExtensionAutoUpdater {
     ): Map<String, Long> {
         val result = mutableMapOf<String, Long>()
         
-        // 1) loadedSources içindeki harici eklentileri al (dahili kaynaklar hariç)
+        // 1) loadedSources içindeki eklentileri al (dahili kaynaklar hariç)
         for (source in sources) {
             if (source.isBuiltIn) continue
             val pkg = source.pkgName.trim()
@@ -189,9 +205,14 @@ object MangaExtensionAutoUpdater {
             if (extDir.exists() && extDir.isDirectory) {
                 val apkFiles = extDir.listFiles { _, name -> name.endsWith(".apk", ignoreCase = true) }
                 apkFiles?.forEach { file ->
-                    val filename = file.nameWithoutExtension
-                    val pkg = filename.replace("_", ".")
-                    val vc = MangaExtensionLoader.getInstalledVersionCode(context, pkg)
+                    // Dosya adından paket çıkarmak yanlış: elle kurulmuş APK'lar
+                    // `tachiyomi-tr.mangatr-v1.6.24.apk` gibi adlar taşıyabilir.
+                    // Gerçek paket adını manifest'ten oku.
+                    val pkg = MangaExtensionLoader.readPackageName(context, file)
+                        ?: file.nameWithoutExtension.replace("_", ".")
+                    // Dosyanın kendisinden oku: paket adı → dosya adı varsayımı
+                    // elle kurulmuş APK'larda tutmuyor ve versionCode -1 düşüyordu.
+                    val vc = MangaExtensionLoader.getInstalledVersionCode(context, file)
                     if (vc >= 0) {
                         result[pkg] = vc
                     }
@@ -217,6 +238,19 @@ object MangaExtensionAutoUpdater {
 
     private fun prefs(context: Context): SharedPreferences =
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
+    /** Ayarlar → Manga Kaynakları → Repolar listesiyle aynı SharedPreferences. */
+    private fun loadCustomRepoUrls(context: Context): List<String> {
+        val saved = context.getSharedPreferences("manga_repos", Context.MODE_PRIVATE)
+            .getString("repo_urls", null) ?: return emptyList()
+        return try {
+            val arr = org.json.JSONArray(saved)
+            (0 until arr.length()).map { arr.getString(it) }
+                .filter { it.isNotBlank() && !it.contains("keiyoushi", ignoreCase = true) }
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
 
     // ─── Result sınıfları ────────────────────────────────────────────────────
 

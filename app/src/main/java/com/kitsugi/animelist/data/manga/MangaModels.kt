@@ -60,6 +60,13 @@ class MangaPage(
 
     /** Yerel arşiv dosyası yolu (ZIP/CBZ/RAR içindeki sayfa) — null ise normal HTTP akışı. */
     var archivePath: String? = null
+
+    /**
+     * Ready olduğunda diske yazılmış gerçek görsel dosyası.
+     * `imageUrl` her zaman mevcut olmayabilir (ZIP/CBZ arşivinde sadece entry adı var);
+     * UI bu dosyayı doğrudan kullanmalı, URL'den yeniden türetmemelidir.
+     */
+    var cachedFile: java.io.File? = null
 }
 
 /**

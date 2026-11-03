@@ -373,6 +373,7 @@ internal fun SettingsContext.buildSettingsParams() =
             onInstallMangaExtension = { mangaViewModel.installMangaExtension(it) },
             onDeleteMangaExtension = { mangaViewModel.deleteMangaExtension(it) },
             onDeleteMangaExtensions = { sources, done -> mangaViewModel.deleteMangaExtensions(sources, done) },
+            onGetMangaSourceEnabled = { mangaViewModel.isMangaSourceEnabled(it) },
             onToggleMangaSource = { source, enabled -> mangaViewModel.toggleMangaSource(source, enabled) },
             // Manga > Kurulu > Toplu Sil: callback'ler doğrudan ViewModel'e bağlı.
             // (CS eklentilerinde bu iki satır eksik olduğu için çöp kutusu ölüydü;

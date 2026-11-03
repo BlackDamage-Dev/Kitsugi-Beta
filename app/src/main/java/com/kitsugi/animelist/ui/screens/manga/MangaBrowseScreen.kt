@@ -108,13 +108,22 @@ fun MangaBrowseScreen(
         }
     }
 
-    // Yeni manga eklentisi kurulduğunda / silindiğinde / etkinleştirildiğinde
-    // Browse VM'in kaynak listesini otomatik yenile.
-    LaunchedEffect(mangaViewModel.mangaSources) {
+    // Kurulu kaynak seti değiştiğinde (eklenti kurulumu / silme / aktif-pasif)
+    // browse ViewModel'indeki kaynak listesini tazele. Önceden hiç çağrılmıyordu:
+    // ayarlar penceresinden eklenti kurup kapatınca "kaynak yok" ekranı kalıyordu.
+    // Anahtara aktif/pasif durumunu DA katıyoruz: getInstalledSources() kapalı
+    // kaynakları da döndürdüğü için sadece key listesi değişmez ve toggle sonrası
+    // browse tarafındaki getAvailableSources() listesi eski kalırdı.
+    val installedSourceKeys = mangaViewModel.mangaSources
+        .map { "${it.stableSourceKey()}:${mangaViewModel.isMangaSourceEnabled(it)}" }
+        .sorted()
+        .joinToString("|")
+    LaunchedEffect(installedSourceKeys) {
         vm.refreshSources()
     }
     val accentColor = LocalKitsugiAccent.current
     val cols = rememberKitsugiGridColumns()
+    val gridState = rememberLazyGridState()
 
     // Snapshot delegated props → allow smart cast
     val query          = ui.searchQuery
@@ -344,14 +353,44 @@ fun MangaBrowseScreen(
                                 ) {
                                     Icon(Icons.SearchOff, null, tint = KitsugiColors.TextMuted, modifier = Modifier.size(48.dp))
                                     Spacer(Modifier.height(8.dp))
-                                    Text(stringResource(R.string.sonuc_bulunamadi), color = KitsugiColors.TextSecondary)
+                                    Text(
+                                        ui.popularError?.takeIf { query.isBlank() } ?: stringResource(R.string.sonuc_bulunamadi),
+                                        color = KitsugiColors.TextSecondary
+                                    )
+                                    Spacer(Modifier.height(12.dp))
+                                    KitsugiButton(onClick = { vm.refreshSources() }) {
+                                        Text("Tekrar Dene", color = Color.White)
+                                    }
                                 }
                             }
-                        else -> LazyVerticalGrid(
-                            columns = GridCells.Fixed(cols),
-                            verticalArrangement   = Arrangement.spacedBy(12.dp),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
+                        else -> {
+                            val hasNextPageToShow = if (query.isBlank()) hasNext
+                                else (selFilter != null && (states.firstOrNull { it.source.stableSourceKey() == selFilter.stableSourceKey() }?.hasNextPage == true))
+                            // Eskiden `LaunchedEffect(mergedMangas.size)` vardı: her yeni sonuç
+                            // geldiğinde tekrar çalışıp bütün sayfaları arka arkaya (sonsuz)
+                            // indiriyordu. Artık yalnızca kullanıcı listenin sonuna yaklaşınca
+                            // ve gerçekten yüklenecek sayfa varsa tetikleniyor.
+                            val shouldAutoLoad by remember(visibleMangas.size, hasNextPageToShow, loading) {
+                                derivedStateOf {
+                                    if (!hasNextPageToShow || loading || visibleMangas.isEmpty()) {
+                                        false
+                                    } else {
+                                        val lastVisible = gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index
+                                            ?: Int.MAX_VALUE
+                                        lastVisible >= visibleMangas.size - 2
+                                    }
+                                }
+                            }
+                            LaunchedEffect(shouldAutoLoad) {
+                                if (shouldAutoLoad) vm.loadNextPage()
+                            }
+
+                            LazyVerticalGrid(
+                                columns = GridCells.Fixed(cols),
+                                state   = gridState,
+                                verticalArrangement   = Arrangement.spacedBy(12.dp),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
                             // 1) ÖNCE başarıyla veri gelen kaynakların mangaları (en üstte).
                             items(visibleMangas, key = { "${it.first.stableSourceKey()}|${it.second.url}" }) { (source, manga) ->
                                 MangaCard(manga, accentColor) { onMangaClick(source, manga) }
@@ -369,7 +408,6 @@ fun MangaBrowseScreen(
 
                             if (query.isBlank() || selFilter != null) {
                                 item(span = { GridItemSpan(cols) }) {
-                                    LaunchedEffect(mergedMangas.size) { vm.loadNextPage() }
                                     androidx.compose.animation.AnimatedVisibility(visible = hasNextPageToShow) {
                                         Box(Modifier.fillMaxWidth().height(64.dp), Alignment.Center) {
                                             KitsugiPlasmaLoader(size = 32.dp)
@@ -379,6 +417,7 @@ fun MangaBrowseScreen(
                             }
                         }
                     }
+                }
                 }
             }
         }
@@ -425,6 +464,8 @@ fun MangaBrowseScreen(
             mangaSources = mangaViewModel.mangaSources,
             onInstallMangaExtension = { mangaViewModel.installMangaExtension(it) },
             onDeleteMangaExtension = { mangaViewModel.deleteMangaExtension(it) },
+            onGetMangaSourceEnabled = { mangaViewModel.isMangaSourceEnabled(it) },
+            onToggleMangaSource = { source, enabled -> mangaViewModel.toggleMangaSource(source, enabled) },
             // Manga taraflı ayarlar diyalogu (initialTab = 2) da gerçek callback'i alsın;
             // aksi halde buradaki "Toplu Sil" butonu ölü kalırdı.
             mangaBulkDelete = com.kitsugi.animelist.ui.components.addons.MangaBulkDeleteState(

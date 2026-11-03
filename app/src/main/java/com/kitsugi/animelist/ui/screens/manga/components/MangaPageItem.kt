@@ -109,7 +109,11 @@ fun MangaPageItem(
         when (page.status) {
             MangaPageStatus.Ready -> {
                 val imageUrl = page.imageUrl ?: page.url
-                val cacheFile = loader.cache.getImageFile(imageUrl)
+                // Loader Ready'e geçerken gerçek dosyayı page.cachedFile'a yazar.
+                // URL'den yeniden türetmek arşiv (ZIP/CBZ) sayfalarında yanlış yola
+                // düşüyordu; ayrıca özel kaynakların fragment/query içeren URL'leri
+                // için de tek doğru kaynak bu dosyadır.
+                val cacheFile = page.cachedFile ?: loader.cache.getImageFile(imageUrl)
                 val modelToLoad: Any = if (cacheFile.exists()) cacheFile else imageUrl
 
                 val context = LocalContext.current

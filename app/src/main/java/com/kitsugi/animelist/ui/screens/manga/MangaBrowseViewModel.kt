@@ -46,6 +46,7 @@ class MangaBrowseViewModel(private val repository: MangaSourceRepository) : View
         val selectedSourceFilter: MangaSource? = null,
         val popularMangas: List<MangaDetails> = emptyList(),
         val isLoadingPopular: Boolean = false,
+        val popularError: String? = null,
         val hasNextPage: Boolean = false,
         val currentPage: Int = 1,
         val searchQuery: String = ""
@@ -58,15 +59,18 @@ class MangaBrowseViewModel(private val repository: MangaSourceRepository) : View
     private var searchJob: Job? = null
     private val paginationJobs = mutableListOf<Job>()
 
+    /** Otomatik "daha fazla yükle" çağrısının aynı sayfayı tekrar istemesini önler. */
+    private var lastAutoLoadKey: String? = null
+
     var lastInitialQuery: String? = null
 
     fun reset() {
         lastInitialQuery = null
+        lastAutoLoadKey = null
         paginationJobs.forEach { it.cancel() }
         paginationJobs.clear()
         searchJob?.cancel()
         loadJob?.cancel()
-        // Kaynakları sıfırla ama listede tut — refreshSources tekrar dolduracak.
         val available = repository.getAvailableSources()
         _ui.update {
             UiState(
@@ -77,38 +81,23 @@ class MangaBrowseViewModel(private val repository: MangaSourceRepository) : View
         if (available.isNotEmpty()) fetchPopularMangas(1)
     }
 
-    init {
-        refreshSources()
-        // Repository'nin canlı flow'unu dinle: loader arka planda eklenti yüklediğinde
-        // veya eklenti kurulduğunda/silindiğinde UI otomatik güncellenir.
-        viewModelScope.launch {
-            repository.availableSourcesFlow.collect { available ->
-                val prev = _ui.value.sources
-                val changed = prev.map { it.stableSourceKey() } != available.map { it.stableSourceKey() }
-                if (changed) {
-                    _ui.update { s ->
-                        s.copy(
-                            sources = available,
-                            selectedSourceFilter = s.selectedSourceFilter?.takeIf { cur ->
-                                available.any { it.stableSourceKey() == cur.stableSourceKey() }
-                            } ?: available.firstOrNull()
-                        )
-                    }
-                    if (_ui.value.searchQuery.isBlank()) fetchPopularMangas(1)
-                }
-            }
-        }
-    }
+    init { refreshSources() }
 
     fun refreshSources() {
+        lastAutoLoadKey = null
         val available = repository.getAvailableSources()
         _ui.update { s ->
-            s.copy(sources = available, selectedSourceFilter = s.selectedSourceFilter ?: available.firstOrNull())
+            // Silinmiş / devre dışı bırakılmış bir kaynak seçili kalmasın.
+            val selected = s.selectedSourceFilter?.takeIf { old ->
+                available.any { it.stableSourceKey() == old.stableSourceKey() }
+            } ?: available.firstOrNull()
+            s.copy(sources = available, selectedSourceFilter = selected)
         }
         if (_ui.value.searchQuery.isBlank()) fetchPopularMangas(1)
     }
 
     fun selectSourceFilter(source: MangaSource?) {
+        lastAutoLoadKey = null
         _ui.update { it.copy(selectedSourceFilter = source) }
         if (_ui.value.searchQuery.isBlank() && source != null) {
             _ui.update { it.copy(popularMangas = emptyList(), currentPage = 1) }
@@ -120,25 +109,31 @@ class MangaBrowseViewModel(private val repository: MangaSourceRepository) : View
         val src = _ui.value.selectedSourceFilter ?: _ui.value.sources.firstOrNull() ?: return
         loadJob?.cancel()
         loadJob = viewModelScope.launch {
-            _ui.update { it.copy(isLoadingPopular = true) }
+            _ui.update { it.copy(isLoadingPopular = true, popularError = null) }
             try {
                 val result = repository.fetchPopular(src, page)
                 _ui.update { s ->
                     s.copy(
                         popularMangas  = if (page == 1) result.mangas else s.popularMangas + result.mangas,
                         isLoadingPopular = false,
-                        hasNextPage    = result.hasNextPage,
+                        popularError   = result.error,
+                        // Boş sayfa + hasNextPage=true, otomatik scroll tetikleyicisini
+                        // sonsuz döngüye sokuyordu. Son sayfayı kesin olarak kapat.
+                        hasNextPage    = result.hasNextPage && result.error == null && result.mangas.isNotEmpty(),
                         currentPage    = page
                     )
                 }
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
-                _ui.update { it.copy(isLoadingPopular = false) }
+                _ui.update {
+                    it.copy(isLoadingPopular = false, popularError = e.message ?: "Popüler liste alınamadı.")
+                }
             }
         }
     }
 
     fun search(query: String) {
+        lastAutoLoadKey = null
         loadJob?.cancel()
         _ui.update { it.copy(searchQuery = query) }
         paginationJobs.forEach { it.cancel() }
@@ -211,7 +206,10 @@ class MangaBrowseViewModel(private val repository: MangaSourceRepository) : View
                         } catch (e: Exception) {
                             if (e is kotlinx.coroutines.CancellationException) throw e
                             repository.recordSearchFailure(src, e)
-                            patchState(src.stableSourceKey(), false, emptyList(), e.message ?: "Hata", page = 1, hasNext = false)
+                            patchState(
+                                src.stableSourceKey(), false, emptyList(), e.message ?: "Hata",
+                                page = 1, hasNext = false, errorCode = SourceFailureClassifier.classifyCode(e)
+                            )
                         }
                     }
                 }
@@ -219,26 +217,57 @@ class MangaBrowseViewModel(private val repository: MangaSourceRepository) : View
         }
     }
 
-    private fun patchState(key: String, loading: Boolean, mangas: List<MangaDetails>, error: String?, page: Int = 1, hasNext: Boolean = true) {
+    private fun patchState(
+        key: String,
+        loading: Boolean,
+        mangas: List<MangaDetails>,
+        error: String?,
+        page: Int = 1,
+        hasNext: Boolean = true,
+        errorCode: String? = null,
+    ) {
         _ui.update { s ->
-            s.copy(sourceStates = s.sourceStates.map { if (it.source.stableSourceKey() == key) it.copy(isLoading = loading, mangas = mangas, error = error, errorCode = if (error == null) null else it.errorCode, currentPage = page, hasNextPage = hasNext) else it })
+            s.copy(sourceStates = s.sourceStates.map {
+                if (it.source.stableSourceKey() == key) {
+                    it.copy(
+                        isLoading = loading,
+                        mangas = mangas,
+                        error = error,
+                        // Hata kodu artık düşmüyor: eski kod `it.errorCode`'u koruduğu
+                        // için ilk aramada oluşan kod hiçbir zaman UI'a ulaşmıyordu.
+                        errorCode = errorCode,
+                        currentPage = page,
+                        hasNextPage = hasNext
+                    )
+                } else it
+            })
         }
     }
 
     fun loadNextPage() {
         val state = _ui.value
         if (state.searchQuery.isBlank()) {
-            if (state.hasNextPage && !state.isLoadingPopular) {
-                fetchPopularMangas(state.currentPage + 1)
-            }
+            if (!state.hasNextPage || state.isLoadingPopular) return
+            val page = state.currentPage + 1
+            val key = "popular|${state.selectedSourceFilter?.stableSourceKey() ?: "ALL"}|$page"
+            if (key == lastAutoLoadKey) return
+            lastAutoLoadKey = key
+            fetchPopularMangas(page)
         } else {
-            val src = state.selectedSourceFilter
-            if (src != null) {
-                val fetchState = state.sourceStates.firstOrNull { it.source.stableSourceKey() == src.stableSourceKey() }
-                if (fetchState != null && fetchState.hasNextPage && !fetchState.isLoading) {
-                    loadMoreSearchForSource(src, fetchState.currentPage + 1)
-                }
+            // "Tümü" seçiliyken (selectedSourceFilter == null) eskiden hiçbir
+            // sayfalama yapılmıyordu — arama sadece ilk sayfada kalıyordu.
+            val candidates = state.sourceStates.filter { fetchState ->
+                fetchState.hasNextPage && !fetchState.isLoading &&
+                    (state.selectedSourceFilter == null ||
+                        fetchState.source.stableSourceKey() == state.selectedSourceFilter?.stableSourceKey())
             }
+            if (candidates.isEmpty()) return
+            val key = "search|${state.searchQuery}|" + candidates.joinToString(",") {
+                "${it.source.stableSourceKey()}:${it.currentPage + 1}"
+            }
+            if (key == lastAutoLoadKey) return
+            lastAutoLoadKey = key
+            candidates.forEach { loadMoreSearchForSource(it.source, it.currentPage + 1) }
         }
     }
 
@@ -266,7 +295,7 @@ class MangaBrowseViewModel(private val repository: MangaSourceRepository) : View
                                 isLoading = false,
                                 mangas = it.mangas + matched,
                                 currentPage = page,
-                                hasNextPage = result.hasNextPage
+                                hasNextPage = result.hasNextPage && matched.isNotEmpty()
                             )
                         } else it
                     })

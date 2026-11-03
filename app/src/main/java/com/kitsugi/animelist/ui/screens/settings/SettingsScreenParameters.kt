@@ -379,6 +379,7 @@ data class MangaSettings(
     val onInstallMangaExtension: (android.net.Uri) -> Unit = {},
     val onDeleteMangaExtension: (com.kitsugi.animelist.data.manga.MangaSource) -> Unit = {},
     val onDeleteMangaExtensions: (List<com.kitsugi.animelist.data.manga.MangaSource>, (Int) -> Unit) -> Unit = { sources, done -> done(sources.size) },
+    val onGetMangaSourceEnabled: (com.kitsugi.animelist.data.manga.MangaSource) -> Boolean = { true },
     val onToggleMangaSource: (com.kitsugi.animelist.data.manga.MangaSource, Boolean) -> Unit = { _, _ -> },
     /** Manga > Kurulu "Toplu Sil" durumu. Null ise buton gösterilmez. */
     val mangaBulkDelete: MangaBulkDeleteState? = null,

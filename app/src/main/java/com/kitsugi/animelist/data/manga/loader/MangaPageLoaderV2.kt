@@ -167,9 +167,22 @@ class MangaPageLoaderV2(
             val archiveLoader = ArchivePageLoader(context, archiveFile)
             val stream = archiveLoader.loadPage(page.archivePath!!)
             if (stream != null) {
-                page.stream = { stream }
-                page.status = MangaPageStatus.Ready
-                Log.v(TAG, "Archive page ready [${page.index}]: ${page.archivePath}")
+                // Arşiv sayfasını da aynı disk cache'e yaz. Eskiden sadece
+                // page.stream set ediliyordu ama MangaPageItem bunu okumuyordu;
+                // ZIP/CBZ okuyucu boş/bozuk görsel gösteriyordu.
+                val cacheKey = "archive://${archiveFile.absolutePath}/${page.archivePath}"
+                try {
+                    stream.use { cache.putImageToCache(cacheKey, it) }
+                    val file = cache.getImageFile(cacheKey)
+                    page.imageUrl = cacheKey
+                    page.cachedFile = file
+                    page.stream = { file.inputStream() }
+                    page.status = MangaPageStatus.Ready
+                    Log.v(TAG, "Archive page ready [${page.index}]: ${page.archivePath}")
+                } catch (e: Exception) {
+                    page.status = MangaPageStatus.Error
+                    Log.e(TAG, "Archive page decode error [${page.index}]: ${e.message}")
+                }
                 return
             }
             page.status = MangaPageStatus.Error
@@ -193,7 +206,9 @@ class MangaPageLoaderV2(
 
                     // 2. Disk cache'te var mı kontrol et
                     if (cache.isImageInCache(imageUrl)) {
-                        page.stream = { cache.getImageFile(imageUrl).inputStream() }
+                        val cached = cache.getImageFile(imageUrl)
+                        page.cachedFile = cached
+                        page.stream = { cached.inputStream() }
                         page.status = MangaPageStatus.Ready
                         Log.v(TAG, "Cache hit [${page.index}]: $imageUrl")
                         return@withTimeout
@@ -211,6 +226,7 @@ class MangaPageLoaderV2(
 
                     val file = cache.getImageFile(imageUrl)
                     if (file.exists() && file.length() > 0L) {
+                        page.cachedFile = file
                         page.stream = { file.inputStream() }
                         page.status = MangaPageStatus.Ready
 

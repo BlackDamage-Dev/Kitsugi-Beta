@@ -41,7 +41,9 @@ class MangaReaderViewModel(
     private val context: Context,
     val source: MangaSource,
     val mangaDetails: MangaDetails,
-    initialChapter: MangaChapter
+    initialChapter: MangaChapter,
+    /** Yerel ZIP/CBZ arşivi. Verilmezse chapter.url'den otomatik çözülür. */
+    archiveFile: java.io.File? = null
 ) : ViewModel() {
 
     private val db  = KitsugiDatabase.getDatabase(context)
@@ -49,8 +51,26 @@ class MangaReaderViewModel(
     private val cache = MangaCache(context)
     private val settingsDataStore = SettingsDataStore(context)
     private val sourceStateStore = MangaSourceStateStore(context)
-    val loader = MangaPageLoaderV2(context, source, cache)
+    // Named argument ŞART: MangaPageLoaderV2'nin 4. parametresi preloadAhead,
+    // 6. parametresi archiveFile. Konumsal geçiş arşiv yolunu preload sayısına
+    // yazıyordu ve ZIP/CBZ okuyucu hiçbir zaman aktifleşmiyordu.
+    val loader = MangaPageLoaderV2(
+        context = context,
+        source = source,
+        cache = cache,
+        archiveFile = archiveFile ?: resolveArchive(initialChapter)
+    )
     val pages: StateFlow<List<MangaPage>> = loader.pages
+
+    /** `file://...` veya mutlak yol olarak gelen bölümleri yerel arşiv kabul et. */
+    private fun resolveArchive(chapter: MangaChapter): java.io.File? {
+        val url = chapter.url
+        if (!url.startsWith("file://") && !url.startsWith("/")) return null
+        val file = java.io.File(url.removePrefix("file://"))
+        return file.takeIf {
+            it.isFile && it.extension.lowercase() in setOf("zip", "cbz")
+        }
+    }
 
     // F5: Debounce için Job referansı — hızlı swipe'ta Room IO flood önler
     private var progressSaveJob: kotlinx.coroutines.Job? = null
@@ -70,16 +90,23 @@ class MangaReaderViewModel(
         val isLoadingPages: Boolean = false,
         val pagesError: String? = null,
         /** Sayfa yükleme hatasının manga kaynak kodu (KTS-SRC-...). */
-        val pagesErrorCode: String? = null
+        val pagesErrorCode: String? = null,
+        /** Üye girişi / bot koruması gerekiyorsa WebView'da açılacak bölüm adresi. */
+        val verificationUrl: String? = null
     )
 
     private val _uiState = MutableStateFlow(UiState(currentChapter = initialChapter))
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
     init {
-        loadChapterList()
-        restoreProgress(initialChapter)
         observeSettings()
+        // Manga-TR gibi imzalı/gate'li kaynaklarda bölüm listesi ile okuyucu
+        // sayfasını AYNI ANDA istemek rate-limit ve tek kullanımlık token
+        // çakışmasına yol açıyordu. Sıralı çalıştırıyoruz.
+        viewModelScope.launch {
+            loadChapterList()
+            restoreProgress(initialChapter)
+        }
     }
 
     private fun observeSettings() {
@@ -122,9 +149,8 @@ class MangaReaderViewModel(
 
     // ─── Bölüm listesini yükle ────────────────────────────────────────────────
 
-    private fun loadChapterList() {
-        viewModelScope.launch {
-            _uiState.update { it.copy(isLoadingChapters = true, error = null) }
+    private suspend fun loadChapterList() {
+        _uiState.update { it.copy(isLoadingChapters = true, error = null) }
             val startedAt = System.currentTimeMillis()
             try {
                 val chapters = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -147,7 +173,6 @@ class MangaReaderViewModel(
                 )
                 _uiState.update { it.copy(isLoadingChapters = false, error = e.message) }
             }
-        }
     }
 
     // ─── İlerleme kaydetme ───────────────────────────────────────────────────
@@ -253,7 +278,14 @@ class MangaReaderViewModel(
     private fun restoreProgress(chapter: MangaChapter) {
         pageListJob?.cancel()
         pageListJob = viewModelScope.launch {
-            _uiState.update { it.copy(isLoadingPages = true, pagesError = null, pagesErrorCode = null) }
+            _uiState.update {
+                it.copy(
+                    isLoadingPages = true,
+                    pagesError = null,
+                    pagesErrorCode = null,
+                    verificationUrl = null,
+                )
+            }
             val saved = dao.getProgress(chapter.url)
             val pageIndex = if (saved != null && !saved.isCompleted) saved.lastPageIndex else 0
             _uiState.update { it.copy(currentPageIndex = pageIndex) }
@@ -264,21 +296,43 @@ class MangaReaderViewModel(
                 _uiState.update { it.copy(currentPageIndex = restoredIndex) }
                 loader.onPageChanged(restoredIndex)
                 if (loader.pages.value.isEmpty()) {
-                    _uiState.update { it.copy(isLoadingPages = false, pagesError = "Sayfalar yüklenemedi. İnternet bağlantınızı kontrol edip tekrar deneyin.") }
+                    val lastMsg = "Sayfalar yüklenemedi. İnternet bağlantınızı kontrol edip tekrar deneyin."
+                    _uiState.update {
+                        it.copy(
+                            isLoadingPages = false,
+                            pagesError = lastMsg,
+                            pagesErrorCode = null,
+                            verificationUrl = null,
+                        )
+                    }
                 } else {
                     _uiState.update { it.copy(isLoadingPages = false) }
                 }
             } catch (e: com.kitsugi.animelist.data.manga.CaptchaRequiredException) {
-                // F9: Captcha tespiti — kullanıcıya anlamlı mesaj göster
+                // Manga-TR: "WebView üzerinden üye girişi" / "Bot Korumasını geçin".
+                // Sadece mesaj göstermek yetmiyor; aynı cookie oturumunda doğrulama
+                // yapıp tekrar denemek için bölüm URL'ini UI'a veriyoruz.
                 _uiState.update {
                     it.copy(
                         isLoadingPages = false,
-                        pagesError = "⚠️ ${e.sourceName}: Bu bölümü açmak için captcha doğrulaması gerekiyor. Tarayıcıda açmayı deneyin."
+                        pagesError = "⚠️ ${e.sourceName}: ${e.message ?: "Üye girişi veya bot koruması gerekiyor."}",
+                        verificationUrl = com.kitsugi.animelist.data.manga.MangaTrCompat.readerUrl(source, chapter.url)
                     )
                 }
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) kotlinx.coroutines.currentCoroutineContext().ensureActive()
-                _uiState.update { it.copy(isLoadingPages = false, pagesError = e.localizedMessage ?: e.message ?: "Sayfalar yüklenirken bir hata oluştu.", pagesErrorCode = SourceFailureClassifier.classifyCode(e)) }
+                val message = e.localizedMessage ?: e.message ?: "Sayfalar yüklenirken bir hata oluştu."
+                val needsVerification = com.kitsugi.animelist.data.manga.MangaTrCompat.isVerificationError(message)
+                _uiState.update {
+                    it.copy(
+                        isLoadingPages = false,
+                        pagesError = message,
+                        pagesErrorCode = SourceFailureClassifier.classifyCode(e),
+                        verificationUrl = if (needsVerification) {
+                            com.kitsugi.animelist.data.manga.MangaTrCompat.readerUrl(source, chapter.url)
+                        } else null
+                    )
+                }
             }
         }
     }
@@ -302,10 +356,11 @@ class MangaReaderViewModel(
         private val context: Context,
         private val source: MangaSource,
         private val mangaDetails: MangaDetails,
-        private val initialChapter: MangaChapter
+        private val initialChapter: MangaChapter,
+        private val archiveFile: java.io.File? = null
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T =
-            MangaReaderViewModel(context, source, mangaDetails, initialChapter) as T
+            MangaReaderViewModel(context, source, mangaDetails, initialChapter, archiveFile) as T
     }
 }

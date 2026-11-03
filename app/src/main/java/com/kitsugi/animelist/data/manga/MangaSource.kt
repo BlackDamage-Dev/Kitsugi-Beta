@@ -133,7 +133,9 @@ interface MangaSource {
  */
 data class MangaSourceResult(
     val mangas: List<MangaDetails>,
-    val hasNextPage: Boolean
+    val hasNextPage: Boolean,
+    /** Kaynak hatası (varsa). Boş liste + hata ayırt edilebilsin diye. */
+    val error: String? = null
 )
 
 /**

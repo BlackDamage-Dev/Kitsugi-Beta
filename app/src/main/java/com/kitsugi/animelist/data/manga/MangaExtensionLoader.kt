@@ -11,6 +11,9 @@ import eu.kanade.tachiyomi.network.NetworkHelper
 import eu.kanade.tachiyomi.source.Source
 import eu.kanade.tachiyomi.source.SourceFactory
 import uy.kohesive.injekt.Injekt
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import java.io.File
 import java.io.FileOutputStream
 import java.util.concurrent.ConcurrentHashMap
@@ -46,6 +49,10 @@ object MangaExtensionLoader {
     /** Yüklü kaynak örneklerini tutar: filePath -> List<MangaSource> (birden fazla source içerebilir) */
     private val loadedSources = ConcurrentHashMap<String, List<MangaSource>>()
 
+    /** Kurulum / kaldırma / güncelleme sonrası tüm ViewModel'lerin listeyi tazelemesi için. */
+    private val _sourceChanges = MutableStateFlow(0L)
+    val sourceChanges: StateFlow<Long> = _sourceChanges.asStateFlow()
+
     /** Yükleme tamamlandığında (herhangi bir değişiklikte) çağrılan dinleyiciler. */
     private val loadListeners = mutableListOf<() -> Unit>()
 
@@ -61,20 +68,35 @@ object MangaExtensionLoader {
 
     @Synchronized
     fun notifyLoadComplete() {
+        _sourceChanges.value = System.currentTimeMillis()
         loadListeners.toList().forEach { listener ->
             runCatching { listener() }.onFailure { Log.w(TAG, "load listener error: ${it.message}") }
         }
+    }
+
+    /** Kurulum / silme / güncelleme / aktif-pasif değişimini dinleyenlere bildirir. */
+    fun notifySourceChanged() {
+        notifyLoadComplete()
     }
 
     fun getExternalSourcesSnapshot(): List<MangaSource> = loadedSources.values.flatten()
 
     // ─── Yüklü Kaynakları Sorgulama ─────────────────────────────────────────
 
-    /** Returns repository-installed APK/MEX sources plus explicitly enabled Kotatsu sources. */
-    fun getLoadedSources(): List<MangaSource> = buildList {
-        addAll(loadedSources.values.flatten())
-        addAll(KotatsuExtensionAdapter.getActiveSources())
-    }.distinctBy { it.stableSourceKey() }
+    /**
+     * Tüm yüklü kaynakları döner:
+     * 1) APK/MEX formatında yüklenmiş Keiyoushi/Mihon kaynakları
+     * 2) KotatsuExtensionAdapter üzerinden yüklü Kotatsu built-in kaynakları
+     *
+     * Kaynak listesi, tüm sisteme tek noktadan erişim sağlar.
+     */
+    fun getLoadedSources(): List<MangaSource> {
+        val apkMexSources = loadedSources.values.flatten()
+        // Sadece aktif dillerdeki Kotatsu kaynakları — Futon mantığıyla aynı
+        val kotatsuSources = KotatsuExtensionAdapter.getActiveSources()
+        return if (kotatsuSources.isEmpty()) apkMexSources
+        else apkMexSources + kotatsuSources
+    }
 
     fun getSource(extensionId: String, context: Context): MangaSource? {
         val apkFile = apkFile(context, extensionId)
@@ -110,50 +132,58 @@ object MangaExtensionLoader {
         return try {
             if (temp.exists()) temp.delete()
 
-            val mirroredUrl = com.kitsugi.animelist.data.remote.MangaRepoClient.applyMirror(urlString)
-            Log.d(TAG, "İndiriliyor [$targetExt]: $extensionId <- $mirroredUrl (original: $urlString)")
-            
+            // Önce ISP yansısını, başarısız olursa ORİJİNAL URL'i dene.
+            // Özel Kitsugi-Manga-Plugins katalogları mutlak raw.githubusercontent.com
+            // adresi verir; sadece yansıya güvenmek indirmeyi sessizce düşürüyordu.
+            val candidates = linkedSetOf(
+                com.kitsugi.animelist.data.remote.MangaRepoClient.applyMirror(urlString),
+                urlString,
+            )
             val networkHelper = Injekt.get(NetworkHelper::class.java)
             val client = networkHelper.client
 
             var success = false
-            var attempt = 1
-            val maxAttempts = 4
-            var delayMs = 1500L
+            for (candidate in candidates) {
+                if (success) break
+                Log.d(TAG, "İndiriliyor [$targetExt]: $extensionId <- $candidate")
+                if (temp.exists()) temp.delete()
+                var attempt = 1
+                val maxAttempts = 3
+                var delayMs = 1500L
 
-            while (attempt <= maxAttempts && !success) {
-                try {
-                    val request = okhttp3.Request.Builder()
-                        .url(mirroredUrl)
-                        .header("User-Agent", networkHelper.defaultUserAgentProvider())
-                        .build()
+                while (attempt <= maxAttempts && !success) {
+                    try {
+                        val request = okhttp3.Request.Builder()
+                            .url(candidate)
+                            .header("User-Agent", networkHelper.defaultUserAgentProvider())
+                            .build()
 
-                    client.newCall(request).execute().use { response ->
-                        if (response.code == 429) {
-                            val retryAfter = response.header("Retry-After")?.toLongOrNull() ?: (delayMs / 1000L)
-                            val sleepTime = (retryAfter * 1000L) + (Math.random() * 500).toLong()
-                            Log.w(TAG, "$extensionId: HTTP 429 (Too Many Requests). $sleepTime ms bekleniyor... (Deneme $attempt/$maxAttempts)")
-                            Thread.sleep(sleepTime)
-                            attempt++
-                            delayMs *= 2
-                        } else if (!response.isSuccessful) {
-                            Log.e(TAG, "$extensionId indirme hatası: HTTP ${response.code} (Deneme $attempt/$maxAttempts)")
-                            Thread.sleep(delayMs)
-                            attempt++
-                            delayMs *= 2
-                        } else {
-                            response.body?.byteStream()?.use { inp ->
-                                FileOutputStream(temp).use { out -> inp.copyTo(out) }
+                        client.newCall(request).execute().use { response ->
+                            if (response.code == 429) {
+                                val retryAfter = response.header("Retry-After")?.toLongOrNull() ?: (delayMs / 1000L)
+                                val sleepTime = (retryAfter * 1000L) + (Math.random() * 500).toLong()
+                                Log.w(TAG, "$extensionId: HTTP 429. $sleepTime ms bekleniyor... (Deneme $attempt/$maxAttempts)")
+                                Thread.sleep(sleepTime)
+                                attempt++
+                                delayMs *= 2
+                            } else if (!response.isSuccessful) {
+                                Log.e(TAG, "$extensionId indirme hatası: HTTP ${response.code} (Deneme $attempt/$maxAttempts)")
+                                Thread.sleep(delayMs)
+                                attempt++
+                                delayMs *= 2
+                            } else {
+                                response.body?.byteStream()?.use { inp ->
+                                    FileOutputStream(temp).use { out -> inp.copyTo(out) }
+                                }
+                                success = true
                             }
-                            success = true
                         }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "$extensionId bağlantı hatası (Deneme $attempt/$maxAttempts): ${e.message}")
+                        Thread.sleep(delayMs)
+                        attempt++
+                        delayMs *= 2
                     }
-                } catch (e: Exception) {
-                    Log.e(TAG, "$extensionId bağlantı hatası (Deneme $attempt/$maxAttempts): ${e.message}")
-                    if (attempt == maxAttempts) throw e
-                    Thread.sleep(delayMs)
-                    attempt++
-                    delayMs *= 2
                 }
             }
 
@@ -192,22 +222,23 @@ object MangaExtensionLoader {
      * İndirilen eklentiyi belleğe yükler.
      * Önce .apk uzantılı Mihon formatını dener, bulamazsa .mex formatını dener.
      */
-    fun loadExtension(context: Context, extensionId: String): MangaSource? {
+    fun loadExtension(
+        context: Context,
+        extensionId: String,
+        /** Kullanıcı tarafından açıkça eklenen repo / elle seçilen dosya için imzaya güven. */
+        trustSignature: Boolean = false,
+    ): MangaSource? {
         val apk = apkFile(context, extensionId)
         val mex = mexFile(context, extensionId)
 
-        val result = when {
-            apk.exists() -> loadMihonApk(context, extensionId, apk)
+        return when {
+            apk.exists() -> loadMihonApk(context, extensionId, apk, trustSignature)
             mex.exists() -> loadNativeMex(context, extensionId, mex)
             else -> {
                 Log.e(TAG, "$extensionId: ne .apk ne de .mex dosyası bulunamadı")
                 null
             }
         }
-        if (result != null) {
-            notifyLoadComplete()
-        }
-        return result
     }
 
     /**
@@ -220,7 +251,12 @@ object MangaExtensionLoader {
      * 3) NetworkHelper'ı Injekt'e kaydeder (HttpSource bu bağımlılığa ihtiyaç duyar).
      * 4) Source örneğini MihonSourceWrapper ile sarar ve döndürür.
      */
-    private fun loadMihonApk(context: Context, extensionId: String, file: File): MangaSource? {
+    private fun loadMihonApk(
+        context: Context,
+        extensionId: String,
+        file: File,
+        trustSignature: Boolean,
+    ): MangaSource? {
         // Önbellekten döndür (ilk source'u ver)
         loadedSources[file.absolutePath]?.let { return it.firstOrNull() }
 
@@ -235,11 +271,19 @@ object MangaExtensionLoader {
             val signatureHash = TrustManager.getApkSignatureHash(context, file)
             if (signatureHash != null) {
                 if (!TrustManager.isSignatureTrusted(context, signatureHash)) {
-                    Log.e(TAG, "SecurityException: extension signature is not trusted: $signatureHash")
-                    throw SecurityException("Signature untrusted for package $packageName: $signatureHash")
+                    if (trustSignature) {
+                        // Kullanıcı repo'yu kendisi ekledi veya APK dosyasını kendisi seçti.
+                        // Keiyoushi resmî anahtarıyla imzalanmayan özel derlemelerin
+                        // (ör. Kitsugi-Manga-Plugins Manga-TR) kurulabilmesi gerekir.
+                        Log.i(TAG, "$extensionId: kullanıcı onaylı repo imzası güvenildi: $signatureHash")
+                        TrustManager.trustSignature(context, signatureHash)
+                    } else {
+                        Log.e(TAG, "SecurityException: extension signature is not trusted: $signatureHash")
+                        throw SecurityException("Signature untrusted for package $packageName: $signatureHash")
+                    }
                 }
             } else {
-                Log.w(TAG, "Unsigned APK uyarısı ($extensionId): imza doğrulanamadı, güven listesi atlanıyor")
+                Log.w(TAG, "Could not extract signature for file: ${file.absolutePath}")
             }
 
             Log.d(TAG, "$extensionId [APK]: paket=$packageName, sınıf yükleniyor -> $className")
@@ -270,13 +314,11 @@ object MangaExtensionLoader {
                         }
                         else -> {
                             val instance = try {
-                                clazz.fields.firstOrNull { it.name == "INSTANCE" && java.lang.reflect.Modifier.isStatic(it.modifiers) }
-                                    ?.get(null) as? Source
-                                    ?: clazz.getDeclaredConstructor(Context::class.java).newInstance(context) as Source
+                                clazz.getDeclaredConstructor(Context::class.java).newInstance(context) as Source
                             } catch (_: NoSuchMethodException) {
                                 clazz.getDeclaredConstructor().newInstance() as Source
                             }
-                            listOfNotNull(instance)
+                            listOf(instance)
                         }
                     }
                 } catch (e: Exception) {
@@ -304,25 +346,25 @@ object MangaExtensionLoader {
 
             loadedSources[file.absolutePath] = wrappers
             Log.i(TAG, "$extensionId [APK] yüklendi: ${wrappers.size} kaynak (pkg=$packageName): ${wrappers.joinToString { "${it.name}[${it.lang}]" }}")
-            KitsugiMangaDefaultProfile.onExternalSourcesLoaded(context, wrappers)
+            notifySourceChanged()
 
-            // YENİ YÜKLENEN KAYNAKLARIN ESKİ COOLDOWN/BROKEN STATE'İNİ TEMİZLE
-            // Önceki broken build'den kalan "Broken" durumu yeni kaynakları arama dışı bırakır.
-            // Her fresh load'da state sıfırlanır — bir sonraki başarılı aramada Healthy'ye döner.
+            // Fresh load: yeni kurulan / güncellenen kaynak ASLA devre dışı kalmamalı.
+            // Eski "Disabled" sağlık bayrağı kullanıcı tercihi sanılıyordu; temizliyoruz.
+            // Ayrıca önceki bozuk derlemeden kalan Broken/Degraded/cooldown'u sıfırla.
             try {
                 val stateStore = MangaSourceStateStore(context)
+                val enabledStore = MangaSourceEnabledStore(context)
                 wrappers.forEach { wrapper ->
+                    if (enabledStore.ensureExplicitDefault(wrapper)) {
+                        stateStore.clearLegacyDisabledStatus(wrapper)
+                    }
                     val health = stateStore.getHealthStatus(wrapper)
-                    if (health == com.kitsugi.animelist.data.manga.model.SourceHealthStatus.Unknown &&
-                        stateStore.getLastUpdatedAt(wrapper) == 0L
+                    if (health == com.kitsugi.animelist.data.manga.model.SourceHealthStatus.Broken ||
+                        health == com.kitsugi.animelist.data.manga.model.SourceHealthStatus.Degraded ||
+                        stateStore.isCoolingDown(wrapper)
                     ) {
-                        stateStore.setHealthStatus(wrapper, com.kitsugi.animelist.data.manga.model.SourceHealthStatus.Healthy,
-                            reason = "initial_install_default")
-                        stateStore.recordOperationSuccess(wrapper, "load", 0L)
-                    } else if (health != com.kitsugi.animelist.data.manga.model.SourceHealthStatus.Disabled) {
+                        Log.d(TAG, "$extensionId [${wrapper.name}]: eski ${health.name} durumu sıfırlandı")
                         stateStore.resetSource(wrapper)
-                        stateStore.setHealthStatus(wrapper, com.kitsugi.animelist.data.manga.model.SourceHealthStatus.Healthy,
-                            reason = "fresh_load_reset")
                     }
                 }
             } catch (e: Exception) {
@@ -360,7 +402,6 @@ object MangaExtensionLoader {
 
             loadedSources[file.absolutePath] = listOf(instance)
             Log.i(TAG, "$extensionId [MEX] yüklendi: ${instance.name} [${instance.lang}]")
-            KitsugiMangaDefaultProfile.onExternalSourcesLoaded(context, listOf(instance))
             instance
         } catch (e: Exception) {
             Log.e(TAG, "$extensionId [MEX] yükleme hatası: ${e.message}", e)
@@ -371,10 +412,10 @@ object MangaExtensionLoader {
     // ─── Kaldırma / Silme ────────────────────────────────────────────────────
 
     fun unloadExtension(context: Context, extensionId: String) {
-        val removed = loadedSources.remove(apkFile(context, extensionId).absolutePath) != null ||
-            loadedSources.remove(mexFile(context, extensionId).absolutePath) != null
+        loadedSources.remove(apkFile(context, extensionId).absolutePath)
+        loadedSources.remove(mexFile(context, extensionId).absolutePath)
+        notifySourceChanged()
         Log.i(TAG, "$extensionId bellekten kaldırıldı")
-        if (removed) notifyLoadComplete()
     }
 
     fun deleteExtension(context: Context, extensionId: String): Boolean {
@@ -385,18 +426,10 @@ object MangaExtensionLoader {
                 Log.i(TAG, "${file.name} silindi: $it")
             }
         }
+        notifySourceChanged()
         return deleted
     }
 
-    /**
-     * Diskte kurulu TÜM manga eklentisi dosyalarını döner (.apk / .mex).
-     *
-     * "Toplu Sil" bu listeyi esas almak zorundadır: [getLoadedSources] yalnızca
-     * belleğe başarıyla yüklenmiş kaynakları görür; devre dışı bırakılmış,
-     * yüklenememiş ya da henüz taranmamış eklentiler orada yer almaz. Eski
-     * uygulama görünür `sources` listesini tek tek siliyordu ve bu yüzden
-     * dosyalar diskte kalıyordu (buton "çalışmıyor" sanılıyordu).
-     */
     fun getInstalledExtensionFiles(context: Context): List<File> {
         val dir = extensionDir(context)
         if (!dir.isDirectory) return emptyList()
@@ -406,7 +439,7 @@ object MangaExtensionLoader {
         return files?.toList() ?: emptyList()
     }
 
-    /** Belleğe yüklenmiş eklentilerin "kimlik → kaynaklar" anlık görüntüsü. */
+    /** Belleğe yüklenmiş eklentilerin "kimlik -> kaynaklar" anlık görüntüsü. */
     fun getLoadedExtensions(): Map<String, List<MangaSource>> =
         loadedSources.mapKeys { (path, _) -> File(path).nameWithoutExtension }
 
@@ -417,6 +450,25 @@ object MangaExtensionLoader {
      * bırakır (bkz. MangaSourceRepository.deleteAllExtensions).
      */
     fun getBuiltInSources(): List<MangaSource> = KotatsuExtensionAdapter.getActiveSources()
+
+    /** APK içindeki gerçek paket adını okur; dosya adından türetmek güvenilmezdir. */
+    fun readPackageName(context: Context, file: File): String? {
+        if (!file.exists()) return null
+        return try {
+            val pm = context.packageManager
+            val flags = 0
+            val info = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                pm.getPackageArchiveInfo(file.absolutePath, PackageManager.PackageInfoFlags.of(flags.toLong()))
+            } else {
+                @Suppress("DEPRECATION")
+                pm.getPackageArchiveInfo(file.absolutePath, flags)
+            }
+            info?.packageName?.takeIf { it.isNotBlank() }
+        } catch (e: Exception) {
+            Log.w(TAG, "readPackageName hata (${file.name}): ${e.message}")
+            null
+        }
+    }
 
     /** Yüklü source sayısını döndürür (debug amaçlı) */
     fun getLoadedSourceCount(): Int = loadedSources.values.sumOf { it.size }
@@ -438,7 +490,6 @@ object MangaExtensionLoader {
         val newFiles = files.filter { !loadedSources.containsKey(it.absolutePath) }
         if (newFiles.isEmpty()) {
             Log.d(TAG, "Tüm eklentiler zaten yüklü (${loadedSources.size} APK/MEX, ${getLoadedSourceCount()} kaynak)")
-            notifyLoadComplete()
             return
         }
 
@@ -448,8 +499,8 @@ object MangaExtensionLoader {
             try { loadExtension(context, extensionId) }
             catch (e: Exception) { Log.e(TAG, "Eklenti yükleme hatası ($extensionId): ${e.message}", e) }
         }
+        notifySourceChanged()
         Log.i(TAG, "Toplam yüklü kaynak: ${getLoadedSourceCount()}")
-        notifyLoadComplete()
     }
 
     // ─── Preference Varsayılanları ────────────────────────────────────────────
@@ -527,52 +578,61 @@ object MangaExtensionLoader {
             }
         }
 
+        // Özel Manga-TR derlemesi KeiSource 1.6'dır. multi-dex APK'larda kaynak
+        // kodu classes10.dex içinde olduğu için sadece classes.dex'e bakmak yanlış
+        // motor tespiti veriyordu; aşağıda tüm dex'ler taranır.
+        if (MangaTrCompat.isMangaTrExtensionId(extensionId)) {
+            prefs.edit()
+                .putString(cacheKey, ExtensionEngine.KEI_SOURCE.name)
+                .putLong(timeKey, lastModified)
+                .apply()
+            return ExtensionEngine.KEI_SOURCE
+        }
+
         val engine = try {
             ZipFile(apkFile).use { zip ->
-                // Tüm dex dosyalarını tara (Keiyoushi 2026+ eklentilerde sınıflar
-                // classes5.dex, classes13.dex vb. çoklu-dex dosyalarına dağılmış
-                // olabilir; sadece classes.dex bakmak yanlış tespit üretir).
-                val dexEntries = zip.entries().asSequence()
-                    .filter { !it.isDirectory && it.name.matches(Regex("classes[0-9]*\\.dex")) }
-                    .toList()
-                if (dexEntries.isEmpty()) return@use ExtensionEngine.UNKNOWN
-                val combined = buildString(dexEntries.sumOf { (it.size / 4).coerceAtMost(80_000).toInt() } + 16) {
-                    for (entry in dexEntries) {
-                        try {
-                            zip.getInputStream(entry).use { ins ->
-                                // Büyük dex'lerin tamamını okumaya gerek yok; ilk 80KB'lık kısım
-                                // fingerprint string'lerini içermeye yeter.
-                                val buf = ByteArray(entry.size.coerceAtMost(80_000L).toInt())
-                                val read = ins.read(buf)
-                                if (read > 0) append(String(buf, 0, read, Charsets.ISO_8859_1))
-                            }
-                        } catch (_: Exception) { /* bir dex okunamazsa diğerlerine devam et */ }
+                // TÜM classes*.dex dosyalarını tara (modern Keiyoushi APK'ları multi-dex).
+                val dexEntries = mutableListOf<java.util.zip.ZipEntry>()
+                val entries = zip.entries()
+                while (entries.hasMoreElements()) {
+                    val entry = entries.nextElement()
+                    if (!entry.isDirectory && entry.name.matches(Regex("classes\\d*\\.dex"))) {
+                        dexEntries += entry
+                    }
+                }
+                if (dexEntries.isEmpty()) return ExtensionEngine.UNKNOWN
+
+                // ISO-8859-1 is a 1-to-1 byte-to-char mapping. This performs direct conversion in native C++
+                // and avoids multi-MB StringBuilder loops in Kotlin, using native String.contains (Boyer-Moore/SIMD).
+                val dexStr = buildString {
+                    dexEntries.forEach { entry ->
+                        append(String(zip.getInputStream(entry).use { it.readBytes() }, Charsets.ISO_8859_1))
                     }
                 }
 
                 when {
                     // Inertia.js — en spesifik, önce kontrol et
-                    "InertiaDto" in combined || "X-Inertia" in combined ||
-                    ("inertia" in combined && "mangadenizi" in combined) ->
+                    "InertiaDto" in dexStr || "X-Inertia" in dexStr ||
+                    ("inertia" in dexStr && "mangadenizi" in dexStr) ->
                         ExtensionEngine.INERTIA
 
                     // SvelteKit — __data.json veya SvelteNode varlığı
-                    "SvelteNode" in combined || "SvelteResponse" in combined ||
-                    "__data.json" in combined || ("__data" in combined && "cdn-u.efsaneler" in combined) ->
+                    "SvelteNode" in dexStr || "SvelteResponse" in dexStr ||
+                    "__data.json" in dexStr || ("__data" in dexStr && "cdn-u.efsaneler" in dexStr) ->
                         ExtensionEngine.SVELTE
 
                     // Madara — WP-Manga Plugin spesifik string'ler
-                    "wpmangaprotectornonce" in combined || "madara_load_more" in combined ||
-                    "wp_manga_chapter_type" in combined ->
+                    "wpmangaprotectornonce" in dexStr || "madara_load_more" in dexStr ||
+                    "wp_manga_chapter_type" in dexStr ->
                         ExtensionEngine.MADARA
 
                     // Themesia — WP Manga Themesia spesifik
-                    "themesia" in combined || "ts_reader" in combined ||
-                    "MangaThemesia" in combined ->
+                    "themesia" in dexStr || "ts_reader" in dexStr ||
+                    "MangaThemesia" in dexStr ->
                         ExtensionEngine.THEMESIA
 
                     // Keiyoushi — Modern KeiSource / Keiyoushi core mimarisi
-                    "keiyoushi" in combined || "KeiSource" in combined ->
+                    "keiyoushi" in dexStr || "KeiSource" in dexStr ->
                         ExtensionEngine.KEI_SOURCE
 
                     // Diğer tüm HTML tabanlı extensionlar
@@ -610,9 +670,15 @@ object MangaExtensionLoader {
      * @param pkg APK paket adı (noktalı). Örn: "eu.kanade.tachiyomi.extension.tr.mangatr"
      * @return Kurulu versionCode, dosya yoksa veya okunamazsa -1L
      */
-    fun getInstalledVersionCode(context: Context, pkg: String): Long {
-        val extensionId = pkg.replace(".", "_")
-        val file = apkFile(context, extensionId)
+    fun getInstalledVersionCode(context: Context, pkg: String): Long =
+        getInstalledVersionCode(context, apkFile(context, pkg.replace(".", "_")))
+
+    /**
+     * Dosya adından bağımsız olarak verilen APK'nın versionCode'unu okur.
+     * Elle kurulan / katalogdan gelen APK'lar `tachiyomi-tr.mangatr-v1.6.24.apk`
+     * gibi isimler taşıyabilir; paket adından dosya yolu türetmek bu durumda -1 dönerdi.
+     */
+    fun getInstalledVersionCode(context: Context, file: File): Long {
         if (!file.exists()) return -1L
         return try {
             val pm = context.packageManager
@@ -631,7 +697,7 @@ object MangaExtensionLoader {
                 packageInfo.versionCode.toLong()
             }
         } catch (e: Exception) {
-            Log.w(TAG, "getInstalledVersionCode hata ($pkg): ${e.message}")
+            Log.w(TAG, "getInstalledVersionCode hata (${file.name}): ${e.message}")
             -1L
         }
     }

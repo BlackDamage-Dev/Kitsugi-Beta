@@ -62,13 +62,17 @@ class MangaDetailViewModel(
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
     init {
-        refreshDetails()
-        loadChapters()
+        // Manga-TR detay sayfası hem kapak/aciklama hem de imzalı `listKey` içerir.
+        // Eskiden refreshDetails() ve loadChapters() AYNI ANDA iki ayrı istek atıyordu;
+        // DDoS-Guard oturumu/rate-limit yüzünden bölüm listesi sık sık boş düşüyordu.
+        viewModelScope.launch {
+            refreshDetails()
+            loadChapters()
+        }
     }
 
     /** Kapak/açıklama gibi alanları tazelemek için detayları yeniden çeker (best-effort). */
-    private fun refreshDetails() {
-        viewModelScope.launch {
+    private suspend fun refreshDetails() {
             _uiState.update { it.copy(isLoadingDetails = true) }
             val initial = _uiState.value.details
             try {
@@ -101,7 +105,6 @@ class MangaDetailViewModel(
                 // Detay tazeleme başarısız olsa bile elimizdeki initialDetails ile devam ederiz.
                 _uiState.update { it.copy(isLoadingDetails = false) }
             }
-        }
     }
 
     fun loadChapters() {

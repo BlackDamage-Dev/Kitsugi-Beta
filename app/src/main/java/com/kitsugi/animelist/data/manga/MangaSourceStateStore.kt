@@ -204,6 +204,9 @@ class MangaSourceStateStore(context: Context) {
     fun isSearchEligible(source: MangaSource): Boolean {
         if (isCoolingDown(source)) return false
         return when (getHealthStatus(source)) {
+            // Eski sürümler "kapalı" bilgisini burada tutuyordu. Artık aktiflik ayrı
+            // bir store'da (MangaSourceEnabledStore); burada kalan eski kayıtları
+            // uyumluluk için hâlâ pasif kabul ediyoruz ama YENİDEN yazmıyoruz.
             SourceHealthStatus.Disabled -> false
             SourceHealthStatus.Broken -> {
                 val updatedAt = getLastUpdatedAt(source)
@@ -211,6 +214,26 @@ class MangaSourceStateStore(context: Context) {
             }
             else -> true
         }
+    }
+
+    /**
+     * Migrasyon: eski `Disabled` sağlık bayrağını temizler.
+     * Kullanıcı tercihi artık [MangaSourceEnabledStore] içinde tutulduğu için
+     * sağlık alanındaki `Disabled` sadece artık veridir ve kaynağın arama/listeye
+     * girmesini sonsuza kadar engellememelidir.
+     */
+    fun clearLegacyDisabledStatus(source: MangaSource) {
+        if (getHealthStatus(source) != SourceHealthStatus.Disabled) return
+        val now = System.currentTimeMillis()
+        prefs.edit()
+            .putString(key(source, KEY_HEALTH), SourceHealthStatus.Unknown.name)
+            .putLong(key(source, KEY_UPDATED_AT), now)
+            .putString(key(source, KEY_REASON), null)
+            .putString(key(source, KEY_ERROR_TYPE), null)
+            .putString(key(source, KEY_ERROR_CODE), null)
+            .putLong(key(source, KEY_COOLDOWN_UNTIL), 0L)
+            .apply()
+        persistSnapshotAsync(source)
     }
 
     fun persistSnapshotAsync(source: MangaSource) {

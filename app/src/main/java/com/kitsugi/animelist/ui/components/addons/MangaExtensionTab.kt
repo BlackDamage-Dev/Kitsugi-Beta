@@ -64,6 +64,7 @@ internal fun MangaExtensionsTab(
     onInstallExtension: (Uri) -> Unit,
     onDeleteExtension: (MangaSource) -> Unit,
     onDeleteExtensions: ((List<MangaSource>, (Int) -> Unit) -> Unit)? = null,
+    onGetSourceEnabled: (MangaSource) -> Boolean = { true },
     onToggleSource: (MangaSource, Boolean) -> Unit = { _, _ -> },
     repos: List<String>,
     repoExtensions: Map<String, List<com.kitsugi.animelist.data.remote.MangaExtensionInfo>?>,
@@ -994,7 +995,7 @@ internal fun MangaExtensionsTab(
                 val domain = onGetConfiguredDomain(source)
                 val sourceState = sourceStateByKey[source.stableSourceKey()]
                 val errorCode = PlatformErrorCode.fromMangaState(sourceState?.lastErrorCode, sourceState?.lastErrorType)?.id
-                val isEnabled = health != com.kitsugi.animelist.data.manga.model.SourceHealthStatus.Disabled
+                val isEnabled = onGetSourceEnabled(source)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1021,6 +1022,9 @@ internal fun MangaExtensionsTab(
                             HealthBadge(health = health, accentColor = accentColor)
                             if (source.isBuiltIn) {
                                 TinyInfoChip(text = "Varsayılan", tint = accentColor)
+                            }
+                            if (!isEnabled) {
+                                TinyInfoChip(text = KitsugiStrings.get(R.string.manga_source_disabled), tint = KitsugiColors.AccentRed)
                             }
                             if (!domain.isNullOrBlank()) {
                                 TinyInfoChip(text = domain, tint = accentColor)
@@ -1141,7 +1145,21 @@ internal fun MangaExtensionsTab(
                                         .padding(12.dp),
                                     verticalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
-                                    Text(item.sourceName, color = KitsugiColors.TextPrimary, fontWeight = FontWeight.Bold)
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            item.sourceName,
+                                            color = KitsugiColors.TextPrimary,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        installedSourceByKey[item.sourceKey]?.let { src ->
+                                            Switch(
+                                                checked = onGetSourceEnabled(src),
+                                                onCheckedChange = { enabled -> onToggleSource(src, enabled) },
+                                                modifier = Modifier.size(width = 40.dp, height = 26.dp)
+                                            )
+                                        }
+                                    }
                                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                                         TinyInfoChip(text = item.lang.uppercase(), tint = accentColor)
                                         TinyInfoChip(text = item.healthStatus, tint = accentColor)

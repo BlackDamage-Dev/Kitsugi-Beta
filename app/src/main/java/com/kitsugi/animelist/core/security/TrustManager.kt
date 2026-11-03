@@ -14,6 +14,12 @@ object TrustManager {
         "55c304f5d95f606028f8bc9d79c8ca7356e9bc6a41b9e5d129994c379a2cf505", // Legacy Tachiyomi Extensions
         "c65538561d2d0b671a5a041f021703cf9203a7a9cc5f6d7be761c566fb5eb4d7", // Keiyoushi Extensions (pre-2026)
         "9add655a78e96c4ec7a53ef89dccb557cb5d767489fac5e785d671a5a75d4da2", // Keiyoushi Extensions (2026, extensionLib 1.6+)
+        // Kitsugi-Manga-Plugins / builds dalındaki özel Manga-TR 1.6.24 APK'sının
+        // Android debug imza sertifikası (CN=Android Debug, 2026-07-03 → 2056-06-25).
+        // Bu repo kullanıcı tarafından açıkça eklenir; resmî Keiyoushi anahtarıyla
+        // imzalanmadığı için önceden "Signature untrusted" ile kurulum düşüyordu.
+        // Anahtar rotasyonunda genel "repo imzasına güven" akışı devreye girer.
+        "a53115764ff5e259e0e5acec3c58a85166e88aad110cd8a20674eefea5d6c016",
     )
 
     fun getApkSignatureHash(context: Context, file: File): String? {
