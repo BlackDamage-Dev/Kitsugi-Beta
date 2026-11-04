@@ -35,10 +35,14 @@ class AppNavigationState(
         private set
     var mangaBrowseMediaId by mutableStateOf<Int?>(null)
         private set
+    /** Eklenti Portalı'ndan tek kaynakla açılış: seçili kaynağın stableSourceKey'i. */
+    var mangaBrowseSourceKey by mutableStateOf<String?>(null)
+        private set
 
-    fun openMangaBrowse(query: String? = null, mediaId: Int? = null) {
+    fun openMangaBrowse(query: String? = null, mediaId: Int? = null, sourceKey: String? = null) {
         mangaBrowseQuery = query
         mangaBrowseMediaId = mediaId
+        mangaBrowseSourceKey = sourceKey
         mangaBrowseOpen = true
     }
 
@@ -46,6 +50,7 @@ class AppNavigationState(
         mangaBrowseOpen = false
         mangaBrowseQuery = null
         mangaBrowseMediaId = null
+        mangaBrowseSourceKey = null
     }
 
     var mangaSourceHealthOpen by mutableStateOf(false)

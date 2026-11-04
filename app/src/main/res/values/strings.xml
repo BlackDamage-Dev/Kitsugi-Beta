@@ -18514,4 +18514,14 @@ Eklentiler ekranından eklenti etkinleştirin.</string>
     <string name="page_controls">Sayfa seçenekleri</string>
     <string name="page_reset_filters">Filtreleri sıfırla</string>
     <string name="page_open_folder">Klasörü aç</string>
+    <!-- Eklenti Portalı: Video / Manga bölümleri -->
+    <string name="portal_tab_video">Video</string>
+    <string name="portal_tab_manga">Manga</string>
+    <string name="portal_kesfet">Keşfet</string>
+    <string name="manga_kaynaklarinda_ara_x_kaynak">Manga kaynaklarında ara... (%1$s kaynak)</string>
+    <string name="tum_manga_kaynaklari">Tüm Manga Kaynakları</string>
+    <string name="tum_manga_kaynaklarinda_ara_kesfet">Tüm kaynaklarda manga ara ve keşfet</string>
+    <string name="x_kaynak">%1$s kaynak</string>
+    <string name="aktif_manga_kaynagi_yok">Aktif manga kaynağı bulunamadı.\nAyarlar -&gt; Eklentilerim -&gt; Manga Kaynakları bölümünden kaynak ekleyin.</string>
+    <string name="bu_dilde_manga_kaynagi_yok">Bu dilde aktif manga kaynağı yok.</string>
 </resources>

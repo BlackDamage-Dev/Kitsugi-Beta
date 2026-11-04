@@ -56,6 +56,8 @@ import com.kitsugi.animelist.R
 fun MangaBrowseScreen(
     repository: MangaSourceRepository,
     initialQuery: String? = null,
+    /** Eklenti Portalı'ndan tek kaynakla açılış: bu kaynağın keşfeti önden seçilir. */
+    initialSourceKey: String? = null,
     vm: MangaBrowseViewModel = viewModel(factory = MangaBrowseViewModel.Factory(repository)),
     onMangaClick: (MangaSource, MangaDetails) -> Unit = { _, _ -> },
     onBack: () -> Unit = {}
@@ -105,6 +107,15 @@ fun MangaBrowseScreen(
             } else {
                 vm.search("")
             }
+        }
+    }
+
+    // Portal'dan kaynak satırına dokununca: o kaynağın keşfeti (popüler listesi)
+    // önden seçili açılır. Kaynak listesi henüz boşsa yeniden denenir.
+    LaunchedEffect(initialSourceKey, ui.sources) {
+        val key = initialSourceKey
+        if (!key.isNullOrBlank() && vm.lastInitialSourceKey != key) {
+            if (vm.applyInitialSource(key)) vm.lastInitialSourceKey = key
         }
     }
 

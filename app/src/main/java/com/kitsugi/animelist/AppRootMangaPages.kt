@@ -78,6 +78,7 @@ fun AppRootMangaPages(
             MangaBrowseScreen(
                 repository    = mangaViewModel.mangaRepository,
                 initialQuery  = navState.mangaBrowseQuery,
+                initialSourceKey = navState.mangaBrowseSourceKey,
                 vm            = mangaBrowseViewModel,
                 onMangaClick  = { source, mangaDetails ->
                     val targetMediaId = navState.mangaBrowseMediaId

@@ -63,9 +63,22 @@ class MangaBrowseViewModel(private val repository: MangaSourceRepository) : View
     private var lastAutoLoadKey: String? = null
 
     var lastInitialQuery: String? = null
+    var lastInitialSourceKey: String? = null
+
+    /**
+     * Eklenti Portalı'ndan tek kaynakla açılış: eşleşen kaynağı seçip popüler
+     * listesini yükler. Kaynak henüz bellekte yoksa false döner (ekran, kaynak
+     * listesi gelince yeniden dener).
+     */
+    fun applyInitialSource(key: String): Boolean {
+        val target = _ui.value.sources.firstOrNull { it.stableSourceKey() == key } ?: return false
+        selectSourceFilter(target)
+        return true
+    }
 
     fun reset() {
         lastInitialQuery = null
+        lastInitialSourceKey = null
         lastAutoLoadKey = null
         paginationJobs.forEach { it.cancel() }
         paginationJobs.clear()

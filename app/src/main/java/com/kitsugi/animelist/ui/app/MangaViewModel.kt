@@ -747,6 +747,15 @@ class MangaViewModel(application: Application) : AndroidViewModel(application) {
     fun isSourceBusy(source: MangaSource): Boolean =
         source.stableSourceKey() in mangaSourceBusyKeys
 
+    /**
+     * Belleğe yüklenmiş manga kaynaklarını yeniden okur.
+     * Eklentiler uygulama açılışında arka planda yüklendiği için, Eklenti Portalı
+     * gibi ekranlar Manga sekmesine geçerken listeyi tazelemek üzere çağırır.
+     */
+    fun refreshMangaSources() {
+        mangaSources = mangaRepository.getInstalledSources()
+    }
+
     fun quickCheckSource(source: MangaSource) {
         val key = source.stableSourceKey()
         if (key in mangaSourceBusyKeys) return
