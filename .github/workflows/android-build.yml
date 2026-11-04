@@ -78,6 +78,7 @@ jobs:
             --tests 'com.kitsugi.animelist.data.platform.*' \
             --tests 'com.kitsugi.animelist.data.manga.*' \
             --tests 'com.kitsugi.animelist.data.remote.MangaRepoPolicyTest' \
+            --tests 'com.kitsugi.animelist.ui.components.ExploreShelfDimensionsTest' \
             --tests 'com.kitsugi.animelist.ui.screens.manga.*' \
             --tests 'com.kitsugi.animelist.ui.screens.profile.*' \
             --tests 'com.kitsugi.animelist.ui.screens.mylist.*' \

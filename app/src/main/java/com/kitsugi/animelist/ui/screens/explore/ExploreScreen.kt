@@ -60,7 +60,30 @@ import com.kitsugi.animelist.ui.theme.LocalKitsugiAccent
 import com.kitsugi.animelist.ui.utils.KitsugiScrollDefaults
 import com.kitsugi.animelist.ui.utils.tvClickable
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
+
+/**
+ * Keşfet türev verileri (forSource kopyaları + distinctBy kimlik dizeleri + başlık
+ * normalizasyonu) kaynak durumları her değiştiğinde doğrudan kompozisyon içinde
+ * hesaplanırsa — "Tümü" modunda her kaynak tamamlandığında — ana thread yükleme
+ * sırasında anlık bloke olur; bu da kullanıcının gördüğü kasma/donma/lag'dir.
+ * Hesaplama Dispatchers.Default'a taşınır; ana thread yalnızca hazır sonucu
+ * state'e yazar. İlk kompozisyon boş durumla bilindiğinden pahalı değildir.
+ */
+@Composable
+private fun <T> rememberExploreDerived(
+    key1: Any?,
+    key2: Any?,
+    compute: () -> T
+): T {
+    var value by remember { mutableStateOf(compute()) }
+    LaunchedEffect(key1, key2) {
+        value = withContext(Dispatchers.Default) { compute() }
+    }
+    return value
+}
 
 @Composable
 fun ExploreScreen(
@@ -173,7 +196,9 @@ fun ExploreScreen(
             novels = effectiveNovels
         )
     }
-    val selectedSourceSections = remember(viewModel.selectedPlatform, filteredSourcePayload) {
+    // Türetilen bölüm listeleri ana thread'de hesaplanmaz — yükleme sırasında her
+    // kaynak durumu değişiminde kompozisyonu bloke edip kasmaya yol açıyordu.
+    val selectedSourceSections = rememberExploreDerived(viewModel.selectedPlatform, filteredSourcePayload) {
         if (viewModel.selectedPlatform == ExplorePlatform.ALL) emptyList()
         else sourceSections(viewModel.selectedPlatform, filteredSourcePayload)
     }
@@ -189,23 +214,27 @@ fun ExploreScreen(
 
     // "Tümü" modu bölümleri: yalnızca kaynak durumları/ayar değişince hesaplanır.
     // allSourceSections() her çağrısında forSource kopyaları + distinctBy string
-    // hesapları yapar; LazyListScope içerik lambda'sı her state değişiminde yeniden
-    // çalıştığı için hesaplanmadan geçirmek ciddi kare düşüşü üretiyordu.
-    val allSectionsList = remember(viewModel.allSourceStates, showAdultContent) {
-        allSourceSections(viewModel.allSourceStates, showAdultContent)
+    // hesapları yapar; bu tek blok Dispatchers.Default üzerinde tek geçişte üretilir.
+    val allSectionsDerived = rememberExploreDerived(viewModel.allSourceStates, showAdultContent) {
+        val list = allSourceSections(viewModel.allSourceStates, showAdultContent)
+        val byPlatform = list.groupBy { it.platform }
+        Triple(
+            list,
+            byPlatform,
+            byPlatform.mapValues { (_, sections) ->
+                sections.flatMap { it.results }.distinctBy { it.exploreIdentity() }.size
+            }
+        )
     }
-    val allSectionsByPlatform = remember(allSectionsList) { allSectionsList.groupBy { it.platform } }
-    val allSectionsDistinctCounts = remember(allSectionsList) {
-        allSectionsByPlatform.mapValues { (_, sections) ->
-            sections.flatMap { it.results }.distinctBy { it.exploreIdentity() }.size
-        }
-    }
+    val allSectionsList = allSectionsDerived.first
+    val allSectionsByPlatform = allSectionsDerived.second
+    val allSectionsDistinctCounts = allSectionsDerived.third
 
     // Tümü modunda tek ORTAK "Yakında Yayında" şeridi: tüm kaynakların yayın
     // takvimi verisinin BİRLEŞİMİ — AniList/MAL bölüm takvimi + TMDB vizyon/bölüm
     // tarihleri birlikte gösterilir (kimlik + normalize başlıkla tekilleştirilir,
     // yayın zamanına göre sıralanır). Kaynak modunda şerit kaynağa özgü kalır.
-    val sharedAiringSoon = remember(viewModel.allSourceStates, showAdultContent) {
+    val sharedAiringSoon = rememberExploreDerived(viewModel.allSourceStates, showAdultContent) {
         fun List<JikanSearchResult>?.ready() =
             this.orEmpty().filter { showAdultContent || !it.isAdult }
         // Öncelik sırası: bölüm numarası taşıyan kaynaklar önce (duplikasyonda

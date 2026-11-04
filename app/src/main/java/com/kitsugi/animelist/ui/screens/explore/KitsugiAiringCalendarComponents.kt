@@ -498,6 +498,10 @@ internal fun AiringEntryGridList(
     }
 }
 
+// Fixed portrait text slots are shared by the loaded card and its skeleton.
+internal val AIRING_GRID_TITLE_HEIGHT = 38.dp
+internal val AIRING_GRID_TIME_HEIGHT = 34.dp
+
 @Composable
 internal fun AiringEntryGridCard(
     entry: AiringEntry,
@@ -593,7 +597,7 @@ internal fun AiringEntryGridCard(
             color = KitsugiColors.TextPrimary,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.height(38.dp)
+            modifier = Modifier.height(AIRING_GRID_TITLE_HEIGHT)
         )
 
         Spacer(modifier = Modifier.height(4.dp))
@@ -605,7 +609,7 @@ internal fun AiringEntryGridCard(
             horizontalArrangement = Arrangement.spacedBy(3.dp),
             modifier = Modifier
                 .fillMaxWidth()
-                .height(34.dp)
+                .height(AIRING_GRID_TIME_HEIGHT)
         ) {
             Icon(
                 imageVector = Icons.Schedule,
@@ -743,7 +747,7 @@ internal fun AiringCalendarSkeleton(isGridView: Boolean) {
 }
 
 @Composable
-private fun AiringSkeletonCard(wide: Boolean, brush: Brush) {
+internal fun AiringSkeletonCard(wide: Boolean, brush: Brush) {
     if (wide) {
         Row(
             modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp))
@@ -767,11 +771,20 @@ private fun AiringSkeletonCard(wide: Boolean, brush: Brush) {
             .padding(8.dp)) {
             KitsugiShimmerBlock(brush, Modifier.fillMaxWidth().aspectRatio(2f / 3f), 14.dp)
             Spacer(Modifier.height(8.dp))
-            KitsugiShimmerBlock(brush, Modifier.fillMaxWidth(0.85f).height(16.dp))
-            Spacer(Modifier.height(8.dp))
-            KitsugiShimmerBlock(brush, Modifier.fillMaxWidth(0.55f).height(14.dp))
-            Spacer(Modifier.height(8.dp))
-            KitsugiShimmerBlock(brush, Modifier.fillMaxWidth(0.75f).height(12.dp))
+            Column(Modifier.fillMaxWidth().height(AIRING_GRID_TITLE_HEIGHT),
+                verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                KitsugiShimmerBlock(brush, Modifier.fillMaxWidth(0.85f).height(14.dp))
+                KitsugiShimmerBlock(brush, Modifier.fillMaxWidth(0.55f).height(14.dp))
+            }
+            Spacer(Modifier.height(4.dp))
+            Row(Modifier.fillMaxWidth().height(AIRING_GRID_TIME_HEIGHT),
+                horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                KitsugiShimmerBlock(brush, Modifier.size(11.dp), 999.dp)
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    KitsugiShimmerBlock(brush, Modifier.fillMaxWidth(0.85f).height(12.dp))
+                    KitsugiShimmerBlock(brush, Modifier.fillMaxWidth(0.6f).height(12.dp))
+                }
+            }
         }
     }
 }

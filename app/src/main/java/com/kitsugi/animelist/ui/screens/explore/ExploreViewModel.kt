@@ -683,14 +683,20 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
                 throw e
             } catch (e: Exception) {
                 if (selectedPlatform == platformSnapshot && generation == requestGeneration) {
-                    // Try to fall back to local offline database cache
-                    val db = com.kitsugi.animelist.data.local.KitsugiDatabase.getDatabase(getApplication())
-                    val cached = runCatching { db.exploreCacheDao().getCategory(exploreCacheKey(platformSnapshot)) }.getOrNull()
+                    // Try to fall back to local offline database cache — Room + Gson parse
+                    // ana thread'de yapılmaz (viewModelScope Main üzerinde koşar).
+                    val cached = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        runCatching {
+                            val db = com.kitsugi.animelist.data.local.KitsugiDatabase.getDatabase(getApplication())
+                            db.exploreCacheDao().getCategory(exploreCacheKey(platformSnapshot))
+                        }.getOrNull()
+                    }
                     currentCoroutineContext().ensureActive()
                     if (generation != requestGeneration || selectedPlatform != platformSnapshot) return@launch
                     if (cached != null) {
-                        val gson = com.google.gson.Gson()
-                        val payload = runCatching { gson.fromJson(cached.payloadJson, ExplorePayload::class.java) }.getOrNull()
+                        val payload = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                            runCatching { com.google.gson.Gson().fromJson(cached.payloadJson, ExplorePayload::class.java) }.getOrNull()
+                        }
                         if (payload != null) {
                             android.util.Log.d("ExploreViewModel", "Serving offline explore cache for ${platformSnapshot.name}")
                             isShowingCachedData = true
@@ -802,11 +808,20 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
                 platformLabel = platform.label,
                 cached = cached,
                 forceRefresh = needsFetch,
-                fetch = { fetchPlatform(platform, allowFallback = false).forSource(platform) },
+                // Ağdan dönen payload'un forSource kopyası + Room/Gson okuması ana
+                // thread'de yapılmaz; viewModelScope Main üzerinde koştuğu için yükleme
+                // sırasında her kaynak tamamlandığında UI donuyordu.
+                fetch = {
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                        fetchPlatform(platform, allowFallback = false)
+                    }.forSource(platform)
+                },
                 readOffline = {
-                    val db = com.kitsugi.animelist.data.local.KitsugiDatabase.getDatabase(getApplication())
-                    db.exploreCacheDao().getCategory(exploreCacheKey(platform))?.let {
-                        com.google.gson.Gson().fromJson(it.payloadJson, ExplorePayload::class.java)?.forSource(platform)
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        val db = com.kitsugi.animelist.data.local.KitsugiDatabase.getDatabase(getApplication())
+                        db.exploreCacheDao().getCategory(exploreCacheKey(platform))?.let {
+                            com.google.gson.Gson().fromJson(it.payloadJson, ExplorePayload::class.java)?.forSource(platform)
+                        }
                     }
                 },
                 context = getApplication()

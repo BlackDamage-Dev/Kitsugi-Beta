@@ -157,7 +157,7 @@ fun RecommendationCard(
     ) {
         Box(
             modifier = Modifier
-                .size(width = 54.dp, height = 76.dp)
+                .size(width = DETAIL_RECOMMENDATION_POSTER_WIDTH, height = DETAIL_RECOMMENDATION_POSTER_HEIGHT)
                 .clip(RoundedCornerShape(10.dp))
                 .background(KitsugiColors.SurfaceSoft)
         ) {

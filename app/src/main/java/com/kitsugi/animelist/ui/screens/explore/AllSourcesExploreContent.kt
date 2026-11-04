@@ -245,7 +245,13 @@ fun LazyListScope.allSourcesExploreSections(
             item(key = "all_source_footer_${platform.name}") {
                 if (sourceSections.isEmpty() && state.isLoading) {
                     Column(Modifier.padding(vertical = 16.dp)) {
-                        KitsugiShimmerMediaRow(cardCount = 5)
+                        val isLandscape = LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+                        com.kitsugi.animelist.ui.components.KitsugiShimmerResponsiveMediaRow(
+                            cardWidth = com.kitsugi.animelist.ui.components.exploreShelfCardWidth(isLandscape),
+                            isLandscape = isLandscape,
+                            contentPadding = PaddingValues(horizontal = 20.dp),
+                            cardSpacing = 12.dp,
+                        )
                     }
                 }
                 Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),

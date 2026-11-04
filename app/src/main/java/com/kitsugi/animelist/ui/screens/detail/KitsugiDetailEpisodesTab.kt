@@ -83,7 +83,7 @@ fun EpisodesTabContent(
 
     when (state) {
         is DetailTabState.Loading -> {
-            DetailEpisodesLoadingSkeleton(totalSeasons = totalSeasons)
+            DetailEpisodesLoadingSkeleton(totalSeasons = totalSeasons, targetSeason = targetSeason)
         }
         is DetailTabState.Success -> {
             val episodes = state.data
@@ -541,7 +541,7 @@ private fun EpisodeRow(
         // Thumbnail veya bölüm numarası
         Box(
             modifier = Modifier
-                .size(width = 100.dp, height = 60.dp)
+                .size(width = DETAIL_EPISODE_THUMB_WIDTH, height = DETAIL_EPISODE_THUMB_HEIGHT)
                 .clip(RoundedCornerShape(10.dp))
                 .background(KitsugiColors.Surface),
             contentAlignment = Alignment.Center

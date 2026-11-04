@@ -141,7 +141,7 @@ fun TvReviewsTabContent(
                         color = KitsugiColors.TextPrimary
                     )
                     if (isLoadingTopics && !hasTopics) {
-                        DetailSocialCardsLoadingSkeleton(itemCount = 3, cardWidth = 260.dp)
+                        DetailSocialCardsLoadingSkeleton(itemCount = 3, cardWidth = 260.dp, cardSpacing = KitsugiTvTokens.Spacing.itemGap, verticalPadding = 4.dp)
                     } else {
                         LazyRow(
                             modifier = Modifier
@@ -197,7 +197,7 @@ fun TvReviewsTabContent(
                         color = KitsugiColors.TextPrimary
                     )
                     if (isLoadingActivities && !hasActivities) {
-                        DetailSocialCardsLoadingSkeleton(itemCount = 3, cardWidth = 260.dp, isActivity = true)
+                        DetailSocialCardsLoadingSkeleton(itemCount = 3, cardWidth = 260.dp, isActivity = true, cardSpacing = KitsugiTvTokens.Spacing.itemGap, verticalPadding = 4.dp)
                     } else {
                         LazyRow(
                             modifier = Modifier
@@ -252,7 +252,7 @@ fun TvReviewsTabContent(
                         color = KitsugiColors.TextPrimary
                     )
                     if (isLoadingReviews && !hasReviews) {
-                        DetailReviewsLoadingSkeleton(itemCount = 3, cardWidth = 260.dp)
+                        TvReviewRailSkeleton()
                     } else {
                         LazyRow(
                             modifier = Modifier
@@ -584,6 +584,37 @@ private fun TvActivityCard(
     }
 }
 
+private val TV_REVIEW_CARD_WIDTH = 300.dp
+
+@Composable
+private fun TvReviewRailSkeleton() {
+    com.kitsugi.animelist.ui.components.KitsugiShimmerProvider {
+        val brush = com.kitsugi.animelist.ui.components.LocalShimmerBrush.current ?: return@KitsugiShimmerProvider
+        LazyRow(contentPadding = PaddingValues(vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(KitsugiTvTokens.Spacing.itemGap)) {
+            items(3) {
+                Column(Modifier.width(TV_REVIEW_CARD_WIDTH).clip(RoundedCornerShape(16.dp))
+                    .background(KitsugiColors.Surface).padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        com.kitsugi.animelist.ui.components.KitsugiShimmerBlock(brush, Modifier.size(32.dp), 999.dp)
+                        com.kitsugi.animelist.ui.components.KitsugiShimmerBlock(brush, Modifier.weight(1f).height(14.dp), 999.dp)
+                        com.kitsugi.animelist.ui.components.KitsugiShimmerBlock(brush, Modifier.width(42.dp).height(20.dp), 6.dp)
+                    }
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        repeat(3) { com.kitsugi.animelist.ui.components.KitsugiShimmerBlock(brush, Modifier.fillMaxWidth(if (it == 2) 0.7f else 1f).height(12.dp), 999.dp) }
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        com.kitsugi.animelist.ui.components.KitsugiShimmerBlock(brush, Modifier.width(65.dp).height(12.dp), 999.dp)
+                        com.kitsugi.animelist.ui.components.KitsugiShimmerBlock(brush, Modifier.width(40.dp).height(12.dp), 999.dp)
+                    }
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun TvReviewCard(
     review: KitsugiReview,
@@ -594,7 +625,7 @@ private fun TvReviewCard(
 
     Column(
         modifier = Modifier
-            .width(300.dp)
+            .width(TV_REVIEW_CARD_WIDTH)
             .clip(RoundedCornerShape(16.dp))
             .background(KitsugiColors.Surface)
             .border(

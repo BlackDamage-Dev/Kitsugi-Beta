@@ -74,7 +74,7 @@ import com.kitsugi.animelist.ui.screens.detail.DetailTabState
 import com.kitsugi.animelist.ui.screens.detail.DetailTvPeopleRailSkeleton
 import com.kitsugi.animelist.ui.screens.detail.DetailTvRelationsRailSkeleton
 import com.kitsugi.animelist.ui.screens.detail.DetailTvEpisodesRailSkeleton
-import com.kitsugi.animelist.ui.screens.detail.DetailStatsLoadingSkeleton
+import com.kitsugi.animelist.ui.screens.detail.DetailTvStatsLoadingSkeleton
 import com.kitsugi.animelist.ui.theme.LocalKitsugiAccent
 import com.kitsugi.animelist.ui.theme.KitsugiColors
 import com.kitsugi.animelist.ui.theme.KitsugiTvTokens
@@ -966,7 +966,7 @@ fun TvDetailScreen(
                                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                                     color = KitsugiColors.TextPrimary
                                 )
-                                DetailStatsLoadingSkeleton()
+                                DetailTvStatsLoadingSkeleton()
                             }
                         }
                         is DetailTabState.Success -> currentStats.data?.let { statsData ->

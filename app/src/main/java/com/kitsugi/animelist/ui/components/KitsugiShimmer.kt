@@ -306,7 +306,7 @@ fun KitsugiShimmerResponsiveMediaRow(
 }
 
 @Composable
-private fun KitsugiShimmerResponsiveMediaCard(
+internal fun KitsugiShimmerResponsiveMediaCard(
     brush: Brush,
     cardWidth: Dp,
     isLandscape: Boolean,
@@ -334,7 +334,7 @@ private fun KitsugiShimmerResponsiveMediaCard(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(76.dp)
+                        .height(EXPLORE_CARD_TV_TEXT_HEIGHT)
                         .padding(
                             horizontal = KitsugiTvTokens.Spacing.sm,
                             vertical = KitsugiTvTokens.Spacing.sm,
@@ -358,21 +358,9 @@ private fun KitsugiShimmerResponsiveMediaCard(
         isLandscape -> {
             // Keep the skeleton's outer dimensions and poster size in sync with the
             // landscape branch of KitsugiExploreMediaCard.
-            val landscapeRowHeight = when {
-                screenWidthDp >= 1200 -> 160.dp
-                screenWidthDp >= 800 -> 145.dp
-                else -> 130.dp
-            }
-            val posterWidth = when {
-                screenWidthDp >= 1200 -> 110.dp
-                screenWidthDp >= 800 -> 100.dp
-                else -> 90.dp
-            }
-            val posterHeight = when {
-                screenWidthDp >= 1200 -> 160.dp
-                screenWidthDp >= 800 -> 145.dp
-                else -> 130.dp
-            }
+            val landscapeRowHeight = exploreLandscapePosterHeight(screenWidthDp)
+            val posterWidth = exploreLandscapePosterWidth(screenWidthDp)
+            val posterHeight = landscapeRowHeight
 
             Row(
                 modifier = Modifier
@@ -440,7 +428,7 @@ private fun KitsugiShimmerResponsiveMediaCard(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(182.dp),
+                        .height(EXPLORE_CARD_PORTRAIT_TEXT_HEIGHT),
                 ) {
                     Spacer(modifier = Modifier.height(12.dp))
                     KitsugiShimmerBlock(
@@ -676,6 +664,8 @@ fun KitsugiShimmerAvatarRow(
 @Composable
 fun KitsugiShimmerSearchResultList(
     itemCount: Int = 5,
+    isPerson: Boolean = false,
+    showAddButton: Boolean = true,
 ) {
     val brush = LocalShimmerBrush.current ?: rememberKitsugiShimmerBrush()
     val isTv = com.kitsugi.animelist.ui.theme.LocalIsTv.current
@@ -688,32 +678,36 @@ fun KitsugiShimmerSearchResultList(
                     .fillMaxWidth()
                     .clip(if (isTv) com.kitsugi.animelist.ui.theme.KitsugiTvTokens.Shapes.posterCard else RoundedCornerShape(16.dp))
                     .background(KitsugiColors.Surface)
-                    .padding(if (isTv) 8.dp else 10.dp),
+                    .padding(if (isTv) 8.dp else if (isPerson) 12.dp else 10.dp),
                 verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalArrangement = Arrangement.spacedBy(if (isPerson) 14.dp else 12.dp)
             ) {
-                val thumbWidth = if (isTv) com.kitsugi.animelist.ui.theme.KitsugiTvTokens.Cards.searchThumbWidth else 56.dp
-                val thumbHeight = if (isTv) com.kitsugi.animelist.ui.theme.KitsugiTvTokens.Cards.searchThumbHeight else 80.dp
+                val thumbWidth = if (isPerson) (if (isTv) 64.dp else 56.dp)
+                    else if (isTv) KitsugiTvTokens.Cards.searchThumbWidth else 56.dp
+                val thumbHeight = if (isPerson) thumbWidth
+                    else if (isTv) KitsugiTvTokens.Cards.searchThumbHeight else 80.dp
                 KitsugiShimmerBlock(
                     brush = brush,
                     modifier = Modifier.size(width = thumbWidth, height = thumbHeight),
-                    cornerRadius = if (isTv) 12.dp else 10.dp
+                    cornerRadius = if (isPerson) 14.dp else if (isTv) 12.dp else 10.dp
                 )
                 Column(
                     modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                    verticalArrangement = Arrangement.spacedBy(if (isPerson) 4.dp else 6.dp)
                 ) {
                     KitsugiShimmerBlock(
                         brush = brush,
-                        modifier = Modifier.fillMaxWidth(0.7f).height(14.dp),
+                        modifier = Modifier.fillMaxWidth(0.7f).height(if (isPerson) 24.dp else 14.dp),
                         cornerRadius = 999.dp
                     )
                     KitsugiShimmerBlock(
                         brush = brush,
-                        modifier = Modifier.fillMaxWidth(0.4f).height(10.dp),
+                        modifier = Modifier.fillMaxWidth(0.4f).height(if (isPerson) 16.dp else 10.dp),
                         cornerRadius = 999.dp
                     )
-                    Row(
+                    if (isPerson) {
+                        KitsugiShimmerBlock(brush, Modifier.width(65.dp).height(20.dp), 6.dp)
+                    } else Row(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                     ) {
@@ -734,11 +728,13 @@ fun KitsugiShimmerSearchResultList(
                         )
                     }
                 }
-                KitsugiShimmerBlock(
-                    brush = brush,
-                    modifier = Modifier.size(40.dp),
-                    cornerRadius = 12.dp
-                )
+                if (!isPerson && showAddButton) {
+                    KitsugiShimmerBlock(
+                        brush = brush,
+                        modifier = Modifier.size(40.dp),
+                        cornerRadius = 12.dp
+                    )
+                }
             }
         }
     }

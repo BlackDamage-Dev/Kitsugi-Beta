@@ -135,7 +135,7 @@ fun RelationCard(
     ) {
         Box(
             modifier = Modifier
-                .size(width = 50.dp, height = 70.dp)
+                .size(width = DETAIL_RELATION_POSTER_WIDTH, height = DETAIL_RELATION_POSTER_HEIGHT)
                 .clip(RoundedCornerShape(8.dp))
                 .background(KitsugiColors.SurfaceSoft)
         ) {

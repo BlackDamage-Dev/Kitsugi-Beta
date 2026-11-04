@@ -465,7 +465,14 @@ fun SearchScreen(
                 uiState.results.isEmpty()
             if (showResultShimmer) {
                 item(key = "result_shimmer") {
-                    KitsugiShimmerSearchResultList(itemCount = 4)
+                    val isPerson = uiState.currentTab == KitsugiSearchTab.Character ||
+                        uiState.currentTab == KitsugiSearchTab.Staff ||
+                        uiState.selectedScope == SearchScope.STUDIO
+                    KitsugiShimmerSearchResultList(
+                        itemCount = if (isPerson) 6 else 4,
+                        isPerson = isPerson,
+                        showAddButton = !isPerson
+                    )
                 }
             }
 

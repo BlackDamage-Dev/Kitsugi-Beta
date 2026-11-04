@@ -63,6 +63,7 @@ fun KitsugiHorizontalMediaSection(
 ) {
     val accentColor = LocalKitsugiAccent.current
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val cardWidth = exploreShelfCardWidth(isLandscape)
 
     val shouldRender = results.isNotEmpty() || isLoading || onSeeAllClick == null
     if (shouldRender) {
@@ -102,8 +103,12 @@ fun KitsugiHorizontalMediaSection(
 
             when {
                 isLoading && results.isEmpty() -> {
-                    // KitsugiShimmer.kt'deki animasyonlu shimmer satırını kullan
-                    KitsugiShimmerMediaRow(cardCount = 5)
+                    KitsugiShimmerResponsiveMediaRow(
+                        cardWidth = cardWidth,
+                        isLandscape = isLandscape,
+                        contentPadding = PaddingValues(horizontal = 20.dp),
+                        cardSpacing = 12.dp,
+                    )
                 }
 
                 results.isEmpty() -> {
