@@ -1,11 +1,17 @@
 package com.kitsugi.animelist.ui.screens.offline
 
+import com.kitsugi.animelist.ui.components.KitsugiSheetOrDialog
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.navigationBarsPadding
+
 import androidx.compose.foundation.ExperimentalFoundationApi
 import com.kitsugi.animelist.ui.theme.gradient.background
 import com.kitsugi.animelist.ui.theme.gradient.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -137,13 +143,17 @@ private fun tileSizeLabel(size: DownloadsTileSize): String = stringResource(
  * - Uzun basınca **çoklu seçim** başlar; seçilenler tek seferde silinebilir.
  */
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 fun DownloadedImagesTab(
     images: List<DownloadedImageItem>,
     accentColor: Color,
     onRefresh: () -> Unit,
     onDeleteImages: (List<File>) -> Unit = {},
     query: String = "",
-    gridState: LazyGridState = rememberLazyGridState()
+    gridState: LazyGridState = rememberLazyGridState(),
+    menuOpen: Boolean = false,
+    onDismissMenu: () -> Unit = {},
+    commonMenu: @Composable () -> Unit = {}
 ) {
     val context = LocalContext.current
 
@@ -338,13 +348,18 @@ fun DownloadedImagesTab(
                     )
                 }
             }
-        } else if (visibleImages.isNotEmpty()) {
-            Row(
+        }
+        if (menuOpen) {
+            val sheetScroll = rememberScrollState()
+            KitsugiSheetOrDialog(onDismiss = onDismissMenu, innerColumnScrollState = sheetScroll) {
+                Column(modifier = Modifier.fillMaxWidth().navigationBarsPadding().verticalScroll(sheetScroll).padding(vertical = 12.dp)) {
+                    Text(stringResource(R.string.page_controls), color = KitsugiColors.TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+                    commonMenu()
+            FlowRow(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
                     .padding(horizontal = 12.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                verticalArrangement = Arrangement.spacedBy(6.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 DownloadsFilterChip(
@@ -360,6 +375,7 @@ fun DownloadedImagesTab(
                     accentColor = accentColor,
                     leadingIcon = Icons.Rounded.CheckCircle,
                     onClick = {
+                        onDismissMenu()
                         selectionMode = true
                         selectedPaths = emptySet()
                     }
@@ -427,6 +443,8 @@ fun DownloadedImagesTab(
                         DownloadsUiPrefs.setTileSize(context, next)
                     }
                 )
+            }
+                }
             }
         }
 

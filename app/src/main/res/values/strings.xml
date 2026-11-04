@@ -18511,4 +18511,7 @@ Eklentiler ekranından eklenti etkinleştirin.</string>
     <string name="kitsugi_clip_deleted_toast">Video silindi: %1$s</string>
     <string name="kitsugi_clip_delete_failed">Video silinemedi: %1$s</string>
     <string name="kitsugi_clip_section_title">Küçük videolar</string>
+    <string name="page_controls">Sayfa seçenekleri</string>
+    <string name="page_reset_filters">Filtreleri sıfırla</string>
+    <string name="page_open_folder">Klasörü aç</string>
 </resources>

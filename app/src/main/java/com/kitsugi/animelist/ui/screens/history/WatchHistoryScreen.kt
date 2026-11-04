@@ -1,5 +1,6 @@
 package com.kitsugi.animelist.ui.screens.history
 
+import com.kitsugi.animelist.ui.components.KitsugiSheetOrDialog
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
@@ -7,6 +8,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -98,6 +101,7 @@ import java.util.Locale
  *  - Tamamlanmış bir bölüm açıldığında baştan başlar; yarıda kalan bölüm kaldığı yerden
  *    devam eder.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun WatchHistoryScreen(
     onBack: () -> Unit
@@ -115,6 +119,7 @@ fun WatchHistoryScreen(
 
     // ── Oturumluk (kalıcı olmayan) durum ──────────────────────────────────────
     var query by rememberSaveable { mutableStateOf("") }
+    var menuOpen by remember { mutableStateOf(false) }
     var searchOpen by rememberSaveable { mutableStateOf(false) }
     var sourceFilter by remember { mutableStateOf<String?>(null) }
     var expandedSeries by remember { mutableStateOf<Set<String>>(emptySet()) }
@@ -211,6 +216,62 @@ fun WatchHistoryScreen(
         }
     }
 
+    if (menuOpen) {
+        val sheetScroll = rememberScrollState()
+        KitsugiSheetOrDialog(onDismiss = { menuOpen = false }, innerColumnScrollState = sheetScroll) {
+            Column(modifier = Modifier.fillMaxWidth().navigationBarsPadding().verticalScroll(sheetScroll).padding(vertical = 12.dp)) {
+                Text(text = stringResource(R.string.page_controls), color = KitsugiColors.TextPrimary,
+                    fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+            FilterBar(
+                sortMode = sortMode,
+                onSortChange = {
+                    sortMode = it
+                    preferences.sortMode = it
+                },
+                progressFilter = progressFilter,
+                onProgressFilterChange = {
+                    progressFilter = it
+                    preferences.progressFilter = it
+                },
+                mediaFilter = mediaFilter,
+                onMediaFilterChange = {
+                    mediaFilter = it
+                    preferences.mediaFilter = it
+                },
+                // Seçim modunda liste düz gösterilir; çipin durumu da listeyle uyumlu olsun.
+                groupBySeries = effectiveGrouping,
+                onToggleGrouping = {
+                    if (selectionMode) {
+                        selectionMode = false
+                        selectedKeys = emptySet()
+                    }
+                    groupBySeries = !groupBySeries
+                    preferences.groupBySeries = groupBySeries
+                },
+                availableSources = availableSources,
+                sourceFilter = sourceFilter,
+                onSourceFilterChange = { sourceFilter = it },
+                showMediaChips = stats.movieCount > 0 && stats.seriesCount > 0,
+                accentColor = accentColor
+            )
+                FlowRow(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = { if (searchOpen) query = ""; searchOpen = !searchOpen; menuOpen = false }) {
+                        Text(stringResource(if (searchOpen) R.string.wh_search_close else R.string.wh_search_hint))
+                    }
+                    TextButton(onClick = { menuOpen = false; selectionMode = true; selectedKeys = emptySet() }) {
+                        Text(stringResource(R.string.wh_selection_mode))
+                    }
+                    TextButton(onClick = { menuOpen = false; showClearDialog = true }) {
+                        Text(stringResource(R.string.tumunu_temizle))
+                    }
+                    TextButton(onClick = { resetFilters() }) {
+                        Text(stringResource(R.string.page_reset_filters))
+                    }
+                }
+            }
+        }
+    }
+
     Box(modifier = Modifier.fillMaxSize().background(KitsugiColors.Background)) {
         Column(
             modifier = Modifier
@@ -269,42 +330,13 @@ fun WatchHistoryScreen(
                         }
                     }
                     if (history.isNotEmpty()) {
-                        IconButton(
-                            onClick = {
-                                // Arama kapatılırken sorgu da temizlenir; aksi hâlde
-                                // liste filtrelenmiş kalır ama kullanıcı nedenini görmez.
-                                if (searchOpen) query = ""
-                                searchOpen = !searchOpen
-                            },
-                            modifier = Modifier.size(40.dp)
-                        ) {
-                            Icon(
-                                imageVector = if (searchOpen) Icons.Rounded.Close else Icons.Rounded.Search,
-                                contentDescription = stringResource(
-                                    if (searchOpen) R.string.wh_search_close else R.string.wh_search_hint
-                                ),
-                                tint = if (searchOpen || query.isNotBlank()) accentColor else KitsugiColors.TextMuted
-                            )
-                        }
-                        IconButton(
-                            onClick = {
-                                selectionMode = true
-                                selectedKeys = emptySet()
-                            },
-                            modifier = Modifier.size(40.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.SelectAll,
-                                contentDescription = stringResource(R.string.wh_selection_mode),
-                                tint = KitsugiColors.TextMuted
-                            )
-                        }
-                        IconButton(onClick = { showClearDialog = true }, modifier = Modifier.size(40.dp)) {
-                            Icon(
-                                imageVector = Icons.Rounded.DeleteSweep,
-                                contentDescription = stringResource(R.string.tumunu_temizle),
-                                tint = KitsugiColors.TextMuted
-                            )
+                        IconButton(onClick = { menuOpen = true }, modifier = Modifier.size(40.dp)) {
+                            Box {
+                                Icon(imageVector = Icons.Menu, contentDescription = stringResource(R.string.page_controls), tint = accentColor)
+                                if (query.isNotBlank() || progressFilter != WatchHistoryProgressFilter.ALL || mediaFilter != WatchHistoryMediaFilter.ALL || sourceFilter != null || sortMode != WatchHistorySortMode.RECENT) {
+                                    Box(Modifier.align(Alignment.TopEnd).size(7.dp).background(accentColor, CircleShape))
+                                }
+                            }
                         }
                     }
                 }
@@ -333,38 +365,7 @@ fun WatchHistoryScreen(
             }
 
             // ── Filtre / sıralama şeridi ──────────────────────────────────────
-            FilterBar(
-                sortMode = sortMode,
-                onSortChange = {
-                    sortMode = it
-                    preferences.sortMode = it
-                },
-                progressFilter = progressFilter,
-                onProgressFilterChange = {
-                    progressFilter = it
-                    preferences.progressFilter = it
-                },
-                mediaFilter = mediaFilter,
-                onMediaFilterChange = {
-                    mediaFilter = it
-                    preferences.mediaFilter = it
-                },
-                // Seçim modunda liste düz gösterilir; çipin durumu da listeyle uyumlu olsun.
-                groupBySeries = effectiveGrouping,
-                onToggleGrouping = {
-                    if (selectionMode) {
-                        selectionMode = false
-                        selectedKeys = emptySet()
-                    }
-                    groupBySeries = !groupBySeries
-                    preferences.groupBySeries = groupBySeries
-                },
-                availableSources = availableSources,
-                sourceFilter = sourceFilter,
-                onSourceFilterChange = { sourceFilter = it },
-                showMediaChips = stats.movieCount > 0 && stats.seriesCount > 0,
-                accentColor = accentColor
-            )
+
 
             // ── Özet şerit ────────────────────────────────────────────────────
             StatsStrip(stats = stats, accentColor = accentColor)
@@ -648,6 +649,7 @@ private fun SelectionTopBar(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun FilterBar(
     sortMode: WatchHistorySortMode,
@@ -667,14 +669,13 @@ private fun FilterBar(
     var sortMenuOpen by remember { mutableStateOf(false) }
     var sourceMenuOpen by remember { mutableStateOf(false) }
 
-    LazyRow(
-        modifier = Modifier.fillMaxWidth(),
-        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+    FlowRow(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalAlignment = Alignment.CenterVertically
+        verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         // Sıralama
-        item(key = "sort") {
+        run {
             Box {
                 FilterChip(
                     label = stringResource(sortMode.labelRes),
@@ -726,7 +727,7 @@ private fun FilterBar(
         }
 
         // Gruplama
-        item(key = "group") {
+        run {
             FilterChip(
                 label = stringResource(R.string.wh_group_short),
                 leadingIcon = if (groupBySeries) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
@@ -736,11 +737,11 @@ private fun FilterBar(
             )
         }
 
-        item(key = "divider1") { ChipDivider() }
+
 
         // İlerleme filtreleri
         WatchHistoryProgressFilter.values().forEach { filter ->
-            item(key = "progress_${filter.name}") {
+            run {
                 FilterChip(
                     label = stringResource(filter.labelRes),
                     selected = progressFilter == filter,
@@ -751,9 +752,9 @@ private fun FilterBar(
         }
 
         if (showMediaChips) {
-            item(key = "divider2") { ChipDivider() }
+
             WatchHistoryMediaFilter.values().forEach { filter ->
-                item(key = "media_${filter.name}") {
+                run {
                     FilterChip(
                         label = stringResource(filter.labelRes),
                         leadingIcon = when (filter) {
@@ -771,8 +772,8 @@ private fun FilterBar(
 
         // Kaynak filtresi (tek kaynak varsa gösterilmez)
         if (availableSources.size > 1) {
-            item(key = "divider3") { ChipDivider() }
-            item(key = "source") {
+
+            run {
                 Box {
                     FilterChip(
                         label = sourceFilter ?: stringResource(R.string.wh_source_all),
@@ -954,28 +955,11 @@ private fun StatCell(
     tint: Color,
     modifier: Modifier = Modifier
 ) {
-    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = tint,
-            modifier = Modifier.size(14.dp)
-        )
-        Spacer(modifier = Modifier.height(2.dp))
-        Text(
-            text = value,
-            color = KitsugiColors.TextPrimary,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-        Text(
-            text = label,
-            color = KitsugiColors.TextMuted,
-            fontSize = 9.sp,
-            maxLines = 1
-        )
+    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+        Icon(imageVector = icon, contentDescription = null, tint = tint, modifier = Modifier.size(13.dp))
+        Spacer(modifier = Modifier.width(4.dp))
+        Text(text = "$value $label", color = KitsugiColors.TextSecondary, fontSize = 10.sp,
+            maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 

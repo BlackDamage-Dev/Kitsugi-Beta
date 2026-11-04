@@ -1,5 +1,7 @@
 package com.kitsugi.animelist.ui.screens.offline
 
+import com.kitsugi.animelist.ui.components.KitsugiSheetOrDialog
+import androidx.compose.foundation.verticalScroll
 import com.kitsugi.animelist.ui.components.KitsugiChevronIcon
 import com.kitsugi.animelist.ui.components.KitsugiTopAction
 import com.kitsugi.animelist.ui.components.KitsugiTopActionButton
@@ -264,7 +266,7 @@ private fun buildVideoEntries(
     return entries
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun DownloadsScreen(
     onBack: () -> Unit
@@ -285,6 +287,7 @@ fun DownloadsScreen(
     var refreshImagesTrigger by remember { mutableIntStateOf(0) }
 
     // ── Arama & filtre durumu (ekran döndürülünce korunur) ───────────────────
+    var menuOpen by remember { mutableStateOf(false) }
     var searchOpen by rememberSaveable { mutableStateOf(false) }
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var videoFilter by rememberSaveable { mutableStateOf(DownloadsVideoFilter.ALL) }
@@ -780,6 +783,111 @@ fun DownloadsScreen(
     val subtitleBytes = remember(allSubtitles) { allSubtitles.sumOf { it.fileSizeBytes } }
     val imageBytes = remember(allImages) { allImages.sumOf { it.fileSizeBytes } }
 
+    val commonMenu: @Composable () -> Unit = {
+        FlowRow(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            DownloadsFilterChip(label = stringResource(R.string.downloads_search_open), selected = searchOpen, accentColor = accentColor, leadingIcon = Icons.Search, onClick = { searchOpen = !searchOpen; if (!searchOpen) searchQuery = ""; menuOpen = false })
+            DownloadsFilterChip(label = stringResource(R.string.page_open_folder), selected = false, accentColor = accentColor, leadingIcon = Icons.Folder, onClick = {
+                    val rootDir = when (pagerState.currentPage) {
+                        1 -> File(
+                            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+                            "Kitsugi/Subtitles"
+                        ).also { it.mkdirs() }
+                        2 -> File(
+                            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+                            "Kitsugi/Images"
+                        ).also { it.mkdirs() }
+                        else -> File(
+                            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+                            "Kitsugi/Video"
+                        ).also { it.mkdirs() }
+                    }
+                    openFolderInFileManager(context, rootDir)
+                menuOpen = false
+            })
+            if (downloads.any { it.status == AnimeDownload.Status.DOWNLOADING || it.status == AnimeDownload.Status.QUEUE }) {
+                DownloadsFilterChip(label = stringResource(R.string.downloads_pause_all), selected = false, accentColor = accentColor, leadingIcon = Icons.PauseCircle, onClick = pauseAllActive)
+            }
+            if (downloads.any { it.status == AnimeDownload.Status.PAUSED || it.status == AnimeDownload.Status.ERROR }) {
+                DownloadsFilterChip(label = stringResource(R.string.downloads_resume_all), selected = false, accentColor = accentColor, leadingIcon = Icons.PlayCircle, onClick = resumeAllPaused)
+            }
+        }
+    }
+    if (menuOpen && pagerState.currentPage != 2) {
+        val sheetScroll = rememberScrollState()
+        KitsugiSheetOrDialog(onDismiss = { menuOpen = false }, innerColumnScrollState = sheetScroll) {
+            Column(modifier = Modifier.fillMaxWidth().navigationBarsPadding().verticalScroll(sheetScroll).padding(vertical = 12.dp)) {
+                Text(stringResource(R.string.page_controls), color = KitsugiColors.TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+                commonMenu()
+                if (pagerState.currentPage == 0) {
+                                DownloadsVideoFilterRow(
+                                    downloads = downloads,
+                                    selected = videoFilter,
+                                    accentColor = accentColor,
+                                    onSelect = { videoFilter = it },
+                                    onRefresh = allRefreshed,
+                                    onDeleteCompleted = { list -> menuOpen = false; pendingDeleteCompleted = list }
+                                )
+                                DownloadsVideoControlsRow(
+                                    sort = videoSort,
+                                    onSortChange = { option ->
+                                        videoSort = option
+                                        DownloadsUiPrefs.setVideoSort(context, option)
+                                    },
+                                    grouped = videoGrouped,
+                                    onToggleGroup = {
+                                        val next = !videoGrouped
+                                        videoGrouped = next
+                                        DownloadsUiPrefs.setVideosGrouped(context, next)
+                                        if (next) collapsedVideoGroups = emptySet()
+                                    },
+                                    onStartSelection = {
+                                        menuOpen = false
+                                        videoSelectionMode = true
+                                        selectedVideoKeys = emptySet()
+                                    },
+                                    accentColor = accentColor
+                                )
+                } else {
+                                FlowRow(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    DownloadsSortOrder.entries.forEach { option ->
+                                        DownloadsFilterChip(
+                                            label = subtitleSortLabel(option),
+                                            selected = subtitleSort == option,
+                                            accentColor = accentColor,
+                                            leadingIcon = Icons.Sort,
+                                            onClick = { subtitleSort = option }
+                                        )
+                                    }
+                                    DownloadsFilterChip(
+                                        label = stringResource(R.string.downloads_select_subtitles),
+                                        selected = false,
+                                        accentColor = accentColor,
+                                        leadingIcon = Icons.CheckCircle,
+                                        onClick = {
+                                            menuOpen = false
+                                            subtitleSelectionMode = true
+                                            selectedSubtitlePaths = emptySet()
+                                        }
+                                    )
+                                    DownloadsFilterChip(
+                                        label = stringResource(R.string.downloads_refresh),
+                                        selected = false,
+                                        accentColor = accentColor,
+                                        leadingIcon = Icons.Refresh,
+                                        onClick = { refreshSubsTrigger++ }
+                                    )
+                                }
+                }
+            }
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -810,46 +918,9 @@ fun DownloadsScreen(
                     .padding(start = 4.dp)
             )
 
-            // Arama: tüm sekmelerde geçerli tek arama alanı
-            KitsugiTopActionButton(
-                action = KitsugiTopAction.SEARCH,
-                selected = searchOpen,
-                contentDescription = if (searchOpen) {
-                    stringResource(R.string.downloads_search_close)
-                } else {
-                    stringResource(R.string.downloads_search_open)
-                },
-                onClick = {
-                    searchOpen = !searchOpen
-                    if (!searchOpen) searchQuery = ""
-                }
-            )
-
-            Spacer(modifier = Modifier.width(KitsugiTopActionTokens.Spacing))
-
-            // Seçili sekmenin kök klasörünü dosya yöneticisinde aç
-            KitsugiTopActionButton(
-                action = KitsugiTopAction.FOLDER,
-                onClick = {
-                    val rootDir = when (pagerState.currentPage) {
-                        1 -> File(
-                            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
-                            "Kitsugi/Subtitles"
-                        ).also { it.mkdirs() }
-                        2 -> File(
-                            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
-                            "Kitsugi/Images"
-                        ).also { it.mkdirs() }
-                        else -> File(
-                            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
-                            "Kitsugi/Video"
-                        ).also { it.mkdirs() }
-                    }
-                    openFolderInFileManager(context, rootDir)
-                },
-                size = KitsugiTopActionTokens.CompactButtonSize,
-                cornerRadius = KitsugiTopActionTokens.CompactCornerRadius
-            )
+            IconButton(onClick = { menuOpen = true }, modifier = Modifier.size(40.dp)) {
+                Icon(imageVector = Icons.Menu, contentDescription = stringResource(R.string.page_controls), tint = accentColor)
+            }
         }
 
         // ── Arama alanı ──────────────────────────────────────────────────────
@@ -885,26 +956,22 @@ fun DownloadsScreen(
 
         // Sekme bandı: Videolar | Altyazılar | Resimler — "Görünüm & Tercihler" bandıyla aynı
         // (ekrana sığmazsa bandın kendi içinde yatay kaydırılır, ekrandan taşmaz)
-        KitsugiSettingsSegmentedTabs(
-            tabs = listOf(
-                KitsugiSettingsTabOption(
-                    title = stringResource(R.string.downloads_videos_count, downloads.size),
-                    icon = Icons.VideoLibrary
-                ),
-                KitsugiSettingsTabOption(
-                    title = stringResource(R.string.inline_subtitles_1_s_b81ee5c, allSubtitles.size),
-                    icon = Icons.Subtitles
-                ),
-                KitsugiSettingsTabOption(
-                    title = stringResource(R.string.downloads_images_count, allImages.size),
-                    icon = Icons.Image
-                )
-            ),
-            selectedIndex = pagerState.currentPage,
-            accentColor = accentColor,
-            onSelect = { index -> scope.launch { pagerState.animateScrollToPage(index) } },
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
-        )
+        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
+            .clip(RoundedCornerShape(12.dp)).background(KitsugiColors.Surface).padding(3.dp)) {
+            listOf(
+                stringResource(R.string.downloads_videos_count, downloads.size),
+                stringResource(R.string.inline_subtitles_1_s_b81ee5c, allSubtitles.size),
+                stringResource(R.string.downloads_images_count, allImages.size)
+            ).forEachIndexed { index, title ->
+                Box(modifier = Modifier.weight(1f).clip(RoundedCornerShape(9.dp))
+                    .background(if (pagerState.currentPage == index) accentColor.copy(alpha = 0.18f) else Color.Transparent)
+                    .clickable { scope.launch { pagerState.animateScrollToPage(index) } }
+                    .padding(horizontal = 4.dp, vertical = 9.dp), contentAlignment = Alignment.Center) {
+                    Text(title, color = if (pagerState.currentPage == index) accentColor else KitsugiColors.TextSecondary,
+                        fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+        }
 
         // ── İçerik ───────────────────────────────────────────────────────────
         HorizontalPager(
@@ -946,34 +1013,6 @@ fun DownloadsScreen(
                                     onDelete = {
                                         if (selectedVideoKeys.isNotEmpty()) deleteSelectedVideosPending = true
                                     }
-                                )
-                            } else {
-                                DownloadsVideoFilterRow(
-                                    downloads = downloads,
-                                    selected = videoFilter,
-                                    accentColor = accentColor,
-                                    onSelect = { videoFilter = it },
-                                    onRefresh = allRefreshed,
-                                    onDeleteCompleted = { list -> pendingDeleteCompleted = list }
-                                )
-                                DownloadsVideoControlsRow(
-                                    sort = videoSort,
-                                    onSortChange = { option ->
-                                        videoSort = option
-                                        DownloadsUiPrefs.setVideoSort(context, option)
-                                    },
-                                    grouped = videoGrouped,
-                                    onToggleGroup = {
-                                        val next = !videoGrouped
-                                        videoGrouped = next
-                                        DownloadsUiPrefs.setVideosGrouped(context, next)
-                                        if (next) collapsedVideoGroups = emptySet()
-                                    },
-                                    onStartSelection = {
-                                        videoSelectionMode = true
-                                        selectedVideoKeys = emptySet()
-                                    },
-                                    accentColor = accentColor
                                 )
                             }
 
@@ -1148,42 +1187,6 @@ fun DownloadsScreen(
                                         }
                                     }
                                 )
-                            } else {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .horizontalScroll(rememberScrollState())
-                                        .padding(horizontal = 16.dp, vertical = 4.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    DownloadsSortOrder.entries.forEach { option ->
-                                        DownloadsFilterChip(
-                                            label = subtitleSortLabel(option),
-                                            selected = subtitleSort == option,
-                                            accentColor = accentColor,
-                                            leadingIcon = Icons.Sort,
-                                            onClick = { subtitleSort = option }
-                                        )
-                                    }
-                                    DownloadsFilterChip(
-                                        label = stringResource(R.string.downloads_select_subtitles),
-                                        selected = false,
-                                        accentColor = accentColor,
-                                        leadingIcon = Icons.CheckCircle,
-                                        onClick = {
-                                            subtitleSelectionMode = true
-                                            selectedSubtitlePaths = emptySet()
-                                        }
-                                    )
-                                    DownloadsFilterChip(
-                                        label = stringResource(R.string.downloads_refresh),
-                                        selected = false,
-                                        accentColor = accentColor,
-                                        leadingIcon = Icons.Refresh,
-                                        onClick = { refreshSubsTrigger++ }
-                                    )
-                                }
                             }
 
                             if (filteredSubtitles.isEmpty()) {
@@ -1247,7 +1250,10 @@ fun DownloadsScreen(
                         onRefresh = { refreshImagesTrigger++ },
                         onDeleteImages = deleteImageFiles,
                         query = searchQuery,
-                        gridState = imageGridState
+                        gridState = imageGridState,
+                        menuOpen = menuOpen && pagerState.currentPage == 2,
+                        onDismissMenu = { menuOpen = false },
+                        commonMenu = commonMenu
                     )
                 }
             }
@@ -1585,6 +1591,7 @@ private fun subtitleSortLabel(sort: DownloadsSortOrder): String = stringResource
  * Yalnızca gerçekten kayıt bulunan filtreler gösterilir ("Tümü" her zaman görünür).
  */
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 private fun DownloadsVideoFilterRow(
     downloads: List<AnimeDownload>,
     selected: DownloadsVideoFilter,
@@ -1598,13 +1605,12 @@ private fun DownloadsVideoFilterRow(
             downloads.count { it.matchesFilter(filter) }
         }
     }
-    Row(
+    FlowRow(
         modifier = Modifier
             .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
             .padding(horizontal = 16.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalAlignment = Alignment.CenterVertically
+        verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         DownloadsVideoFilter.entries.forEach { filter ->
             val count = counts[filter] ?: 0
@@ -1668,6 +1674,7 @@ private fun videoSortLabel(sort: DownloadsVideoSort): String = stringResource(
  * (Durum filtresi ayrı satırda; böylece dar ekranlarda iki satır da taşmadan kaydırılır.)
  */
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 private fun DownloadsVideoControlsRow(
     sort: DownloadsVideoSort,
     onSortChange: (DownloadsVideoSort) -> Unit,
@@ -1676,13 +1683,12 @@ private fun DownloadsVideoControlsRow(
     onStartSelection: () -> Unit,
     accentColor: Color
 ) {
-    Row(
+    FlowRow(
         modifier = Modifier
             .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
             .padding(horizontal = 16.dp, vertical = 2.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalAlignment = Alignment.CenterVertically
+        verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         var sortMenuOpen by remember { mutableStateOf(false) }
         Box {
@@ -1969,7 +1975,7 @@ private fun DownloadsOverviewCard(
             .clip(RoundedCornerShape(16.dp))
             .background(KitsugiColors.Surface)
             .border(1.dp, KitsugiColors.Border.copy(alpha = 0.55f), RoundedCornerShape(16.dp))
-            .padding(horizontal = 12.dp, vertical = 10.dp)
+            .padding(horizontal = 10.dp, vertical = 5.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
@@ -1996,18 +2002,7 @@ private fun DownloadsOverviewCard(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                Text(
-                    text = stringResource(
-                        R.string.downloads_overview_stats,
-                        downloads.size,
-                        subtitleCount,
-                        imageCount
-                    ),
-                    color = KitsugiColors.TextMuted,
-                    fontSize = 11.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+
             }
             Spacer(modifier = Modifier.width(8.dp))
             Text(
@@ -2019,12 +2014,13 @@ private fun DownloadsOverviewCard(
         }
 
         // Tür bazlı boyut dağılımı (video / altyazı / resim)
-        FlowRow(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 8.dp),
+                .horizontalScroll(rememberScrollState())
+                .padding(top = 3.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
+            verticalAlignment = Alignment.CenterVertically
         ) {
             OverviewStatPill(Icons.VideoLibrary, downloads.size, videoBytes, KitsugiColors.AccentBlue)
             if (subtitleCount > 0) {
@@ -2089,32 +2085,7 @@ private fun DownloadsOverviewCard(
             }
         }
 
-        if (activeDownloads.isNotEmpty() || pausedCount > 0) {
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (activeDownloads.isNotEmpty()) {
-                    DownloadsFilterChip(
-                        label = stringResource(R.string.downloads_pause_all),
-                        selected = false,
-                        accentColor = accentColor,
-                        leadingIcon = Icons.PauseCircle,
-                        onClick = onPauseAll
-                    )
-                }
-                if (pausedCount > 0) {
-                    DownloadsFilterChip(
-                        label = stringResource(R.string.downloads_resume_all),
-                        selected = false,
-                        accentColor = accentColor,
-                        leadingIcon = Icons.PlayCircle,
-                        onClick = onResumeAll
-                    )
-                }
-            }
-        }
+
     }
 }
 

@@ -18503,4 +18503,7 @@
     <string name="kitsugi_clip_deleted_toast">Video deleted: %1$s</string>
     <string name="kitsugi_clip_delete_failed">Could not delete video: %1$s</string>
     <string name="kitsugi_clip_section_title">Small videos</string>
+    <string name="page_controls">Page options</string>
+    <string name="page_reset_filters">Reset filters</string>
+    <string name="page_open_folder">Open folder</string>
 </resources>
