@@ -18540,4 +18540,5 @@ Eklentiler ekranından eklenti etkinleştirin.</string>
     <!-- Ses indirme (Audio export) -->
     <string name="ses_parcasini_indir">Ses parçasını indir</string>
     <string name="eklentinin_ayri_sesi">Eklentinin ayrı ses kaynağı %1$d · İndir</string>
+    <string name="aktif_tum_manga_kaynaklarinda_ara">Aktif tüm manga kaynaklarında ara</string>
 </resources>

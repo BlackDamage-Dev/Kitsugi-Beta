@@ -18532,4 +18532,5 @@
     <!-- Audio export -->
     <string name="ses_parcasini_indir">Download audio track</string>
     <string name="eklentinin_ayri_sesi">Plugin audio source %1$d · Download</string>
+    <string name="aktif_tum_manga_kaynaklarinda_ara">Search across all active manga sources</string>
 </resources>
