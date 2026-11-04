@@ -1495,6 +1495,64 @@ object CsStreamRunner {
             api.name in CF_PROTECTED_PLUGINS ||
             api.name.contains("TrAnimeIzle", ignoreCase = true)
 
+        // ── ORTAK KÜME KİMLİĞİ + ÖĞRENİLMİŞ URL HAFIZASI ───────────────────────
+        // Eser, uygulamaya hangi katalog kaynağından gelirse gelsin aynı takma ad
+        // anahtarlarına indirgenir (CsUnifiedIdentity). Bu eklenti bu eserin içerik
+        // sayfasını daha önce BİR KEZ bulduysa (kendi araması / native ID / başlık
+        // eşlemesi — yol önemsiz), URL'si hafızadadır: arama ve eşleme halkaları
+        // hiç çalışmadan doğrudan load edilir. Torrentio'nun "kimlik → sonuç"
+        // determinizminin kazıyan eklentilere uygulama tarafından kazandırılmasıdır.
+        // Hafıza ıskası veya ölü URL hiçbir şeyi engellemez: native → arama sırası
+        // aynen devam eder, ölü kayıt düşürülür.
+        val identityAliases = CsUnifiedIdentity.aliasKeys(
+            imdbId = targetImdb,
+            tmdbId = targetTmdb,
+            malId = targetMal,
+            aniListId = targetAniList,
+            kitsuId = targetKitsu,
+            bangumiId = bangumiId,
+            title = title,
+            year = year,
+            mediaType = mediaType,
+            isMovie = isMovie == true
+        )
+        if (identityAliases.isNotEmpty()) {
+            val rememberedUrl = CsProviderUrlMemory.recall(identityAliases, api.name)
+            if (!rememberedUrl.isNullOrBlank()) {
+                Log.d(TAG, "[${api.name}] 🧠 Ortak küme hafızası isabeti (${identityAliases.first()}): $rememberedUrl")
+                CsTrace.info(api.name, "memory", "Öğrenilmiş URL doğrudan deneniyor: $rememberedUrl")
+                val rememberedType = when (mediaType ?: if (isMovie == true) MediaType.Movie else MediaType.Anime) {
+                    MediaType.Movie -> com.lagradost.cloudstream3.TvType.Movie
+                    MediaType.TvShow -> com.lagradost.cloudstream3.TvType.TvSeries
+                    else -> com.lagradost.cloudstream3.TvType.Anime
+                }
+                val rememberedResponse = api.newAnimeSearchResponse(
+                    name = api.name,
+                    url = rememberedUrl,
+                    type = rememberedType,
+                    fix = false
+                )
+                val rememberedResult = loadAndExtractStreams(
+                    api = api,
+                    match = rememberedResponse,
+                    season = season,
+                    episode = episode,
+                    isMovie = isMovie == true,
+                    partialSink = partialSink,
+                    title = title,
+                    alternativeTitles = effectiveAlts,
+                    year = year
+                )
+                if (rememberedResult.isNotEmpty()) {
+                    Log.d(TAG, "[${api.name}] 🧠 Hafıza yolu başarılı — arama atlandı (${rememberedResult.size} stream)")
+                    return rememberedResult
+                }
+                Log.w(TAG, "[${api.name}] 🧠 Hafızadaki URL sonuç vermedi — kayıt düşürülüyor, normal çözüm sırasına geçiliyor: $rememberedUrl")
+                CsTrace.warn(api.name, "memory", "Hafıza URL'si boş döndü, kayıt düşürüldü: $rememberedUrl")
+                CsProviderUrlMemory.forget(identityAliases, api.name)
+            }
+        }
+
         // ── Native ID Resolution Shortcut ────────────────────────────────────
         // If the plugin declares supportedSyncNames, try getLoadUrl() first.
         // This completely bypasses fuzzy title-matching and is far more reliable.
@@ -1510,7 +1568,8 @@ object CsStreamRunner {
             episode   = episode,
             isMovie   = isMovie == true,
             mediaType = mediaType,
-            partialSink = partialSink
+            partialSink = partialSink,
+            identityAliases = identityAliases
         )
         // v2.4.226: BOŞ native sonuç artık aramayı KİLİTLEMEZ. getLoadUrl() URL döndürüp
         // load/extract aşaması boş dönerse (site yapısı değişti, bölüm eşleşmedi vb.) eski
@@ -1833,7 +1892,7 @@ object CsStreamRunner {
         
         // If we already loaded the correct LoadResponse, reuse it instead of reloading!
         // Film ve dizi mekanikleri AYRI boru hatlarıdır — dispatcher türüne göre yönlendirir.
-        return loadAndExtractStreams(
+        val extractedStreams = loadAndExtractStreams(
             api = api,
             match = finalMatch,
             season = season,
@@ -1845,6 +1904,14 @@ object CsStreamRunner {
             alternativeTitles = effectiveAlts,
             year = year
         )
+        // Ortak küme öğrenmesi: arama+eşleme ile kanıtlanan içerik URL'si, eserin
+        // tüm kimlik anahtarlarına yazılır. Aynı esere başka katalog kaynağından
+        // (veya aynı kaynaktan tekrar) girildiğinde arama/eşleme halkaları
+        // atlanır ve bu URL doğrudan load edilir.
+        if (extractedStreams.isNotEmpty()) {
+            CsProviderUrlMemory.remember(identityAliases, api.name, finalMatch.url)
+        }
+        return extractedStreams
     }
 
     /**
@@ -2140,7 +2207,8 @@ object CsStreamRunner {
         episode: Int,
         isMovie: Boolean = false,
         mediaType: MediaType? = null,
-        partialSink: MutableList<StreamSource>? = null
+        partialSink: MutableList<StreamSource>? = null,
+        identityAliases: List<String> = emptyList()
     ): List<StreamSource>? {
         if (api.supportedSyncNames.isEmpty()) return null
 
@@ -2188,7 +2256,14 @@ object CsStreamRunner {
                         type = providerType,
                         fix  = false
                     )
-                    return loadAndExtractStreams(api, fakeSearchResponse, season, episode, resolvedIsMovie, partialSink)
+                    val extracted = loadAndExtractStreams(api, fakeSearchResponse, season, episode, resolvedIsMovie, partialSink)
+                    // Ortak küme öğrenmesi: native ID ile kanıtlanan URL, eserin tüm
+                    // kimlik anahtarlarına yazılır — bir sonraki sefer hangi katalog
+                    // kaynağından girilirse girilsin hafıza yolu bunu bulur.
+                    if (extracted.isNotEmpty()) {
+                        CsProviderUrlMemory.remember(identityAliases, api.name, loadUrl)
+                    }
+                    return extracted
                 } else {
                     Log.d(TAG, "[${api.name}] getLoadUrl($syncName, $syncId) → null (desteklenmiyor veya bulunamadı)")
                 }

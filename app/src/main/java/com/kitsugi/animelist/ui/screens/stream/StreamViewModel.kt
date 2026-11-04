@@ -1050,6 +1050,45 @@ class StreamViewModel(application: Application) : AndroidViewModel(application) 
                     )
                     if (forUrl.isNotEmpty()) {
                         collected.addAll(forUrl)
+                        // Ortak küme: doğrudan URL çalıştıysa, eserin bilinen kimliklerine yazılır.
+                        // Kullanıcı aynı esere sonra AniList/TMDB/MAL üzerinden girse
+                        // bile CsStreamRunner önce bu URL'yi doğrudan dener; başlık
+                        // arama/eşleme halkaları (kaynağa göre kopan kısım) atlanır.
+                        viewModelScope.launch {
+                            runCatching {
+                                val realMal = malId?.takeIf { it in 1..99_999_999 }
+                                val realAniList = when {
+                                    aniListId != null && aniListId >= 100_000_000 -> aniListId - 100_000_000
+                                    aniListId != null && aniListId > 0 -> aniListId
+                                    else -> null
+                                }
+                                val kitsu = malId?.takeIf { it >= 300_000_000 }?.let { it - 300_000_000 }
+                                val learnedIds = KitsugiIdResolver.resolveIds(
+                                    malId = realMal,
+                                    aniListId = realAniList,
+                                    tmdbId = tmdbId,
+                                    mediaType = mediaType,
+                                    kitsuId = kitsu ?: kitsuId,
+                                    bangumiId = bangumiId,
+                                    wikidataImdbFallback = true
+                                )
+                                val aliases = com.kitsugi.animelist.data.cloudstream.CsUnifiedIdentity.aliasKeys(
+                                    imdbId = knownImdbId ?: learnedIds.imdbId,
+                                    tmdbId = learnedIds.tmdbId ?: tmdbId,
+                                    malId = learnedIds.malId ?: realMal,
+                                    aniListId = learnedIds.aniListId ?: realAniList,
+                                    kitsuId = learnedIds.kitsuId ?: kitsu ?: kitsuId,
+                                    bangumiId = bangumiId,
+                                    title = title,
+                                    year = startYear,
+                                    mediaType = mediaType,
+                                    isMovie = isMovie
+                                )
+                                com.kitsugi.animelist.data.cloudstream.CsProviderUrlMemory.remember(
+                                    aliases, api.name, directUrl
+                                )
+                            }
+                        }
                         break
                     }
                 }

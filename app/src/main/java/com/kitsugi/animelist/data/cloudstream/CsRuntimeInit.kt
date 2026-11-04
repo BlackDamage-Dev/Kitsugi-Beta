@@ -21,6 +21,9 @@ object CsRuntimeInit {
             val wrapped = com.kitsugi.animelist.KitsugiApplication.getDynamicContext(context)
             com.lagradost.api.setContext(java.lang.ref.WeakReference(wrapped))
 
+            // Ortak küme: öğrenilmiş eklenti-URL hafızasının kalıcı katmanını yükle.
+            CsProviderUrlMemory.init(wrapped)
+
             // Pre-seed "DomainListesi" in SharedPreferences with current domains.
             // Turkish plugins (Anizium, Animeler, DiziPal, etc.) read this SharedPreferences
             // in their constructors. Setting last_domain_update prevents dead Kraptor123 network requests
