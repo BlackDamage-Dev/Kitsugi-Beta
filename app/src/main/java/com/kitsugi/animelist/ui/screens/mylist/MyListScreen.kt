@@ -648,6 +648,9 @@ fun MyListScreen(
                     } else emptyMap(),
                     visibleEntries = pageData?.visibleEntries.orEmpty(),
                     groupedVisibleEntries = pageData?.groupedEntries.orEmpty(),
+                    visibleSections = remember(pageData?.visibleEntries, selectedGroupId) {
+                        groupMyListEntries(pageData?.visibleEntries.orEmpty(), selectedGroupId)
+                    },
                     selectedGroupId = selectedGroupId,
                     searchQuery = searchQuery,
                     selectedStatusFilterId = selectedStatusFilterId,

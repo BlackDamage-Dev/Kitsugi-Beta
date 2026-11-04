@@ -54,6 +54,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -949,6 +950,7 @@ fun MyListContentPage(
                 state = pageScrollState,
                 modifier = Modifier
                     .fillMaxSize()
+                    .testTag("my_list_content")
                     .padding(horizontal = horizontalPadding)
             ) {
                 item { MyListSyncPromptState() }
@@ -964,11 +966,11 @@ fun MyListContentPage(
             }
             val displayEntries = if (isActivePage) visibleEntries else sortedPageEntries
             val groupingId = MyListGroupingIds.normalize(selectedGroupId)
-            val displaySections = if (isActivePage) {
-                visibleSections
-            } else {
-                remember(sortedPageEntries, groupingId) {
-                    groupMyListEntries(sortedPageEntries, groupingId)
+            val displaySections = remember(displayEntries, groupingId, visibleSections) {
+                if (visibleSections.isNotEmpty()) {
+                    visibleSections
+                } else {
+                    groupMyListEntries(displayEntries, groupingId)
                 }
             }
 

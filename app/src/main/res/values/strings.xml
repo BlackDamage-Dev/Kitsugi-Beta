@@ -7221,6 +7221,10 @@ Eklentiler ekranından eklenti etkinleştirin.</string>
     <!-- Ortak filtre çatısı: Kurumlar (2026-10-31) -->
     <string name="search_institutions">Kurumlar</string>
     <string name="search_institution_hint">Kurum ara (stüdyo, yapımcı, şirket)</string>
+    <string name="search_institution_loading">Kurum kataloğu yükleniyor…</string>
+    <string name="search_institution_narrow_hint">%1$d / %2$d kurum gösteriliyor — daraltmak için yazın</string>
+    <string name="search_institution_results">%1$d kurum bulundu</string>
+    <string name="search_institution_online_results">Çevrim içi kimlik sonuçları</string>
     <string name="search_institution_empty">Aramak için bir kurum adı yazın</string>
     <string name="search_institution_unsupported_title">Bu kaynakta sunucu taraflı kurum filtresi yok</string>
     <string name="search_institution_unsupported_desc">Bu kaynağın arama ucu stüdyo/şirket filtresi kabul etmiyor. Seçimleriniz korunur; MAL ve TMDB sayfalarında uygulanır.</string>
@@ -18070,8 +18074,7 @@ Eklentiler ekranından eklenti etkinleştirin.</string>
     <string name="search_org_title">Kurumlar</string>
     <string name="search_org_selected_count">%1$d kurum seçili</string>
     <string name="search_org_search_hint">Kurum veya diğer adını ara</string>
-    <string name="search_org_pending_notice">Kurum seçimi kaydedilir; sonuçlara uygulama sonraki sürümde eklenecek.</string>
-    <string name="search_org_pending_short">henüz etkin değil</string>
+    <string name="search_org_apply_notice">Seçimler "Filtreleri Uygula" ile aramaya uygulanır; çipten kaldırılabilir.</string>
     <string name="search_org_recents">Son seçimler</string>
     <string name="search_org_results">%1$d kurum bulundu</string>
     <string name="search_org_role_studio">Stüdyo</string>

@@ -77,6 +77,15 @@ class TaxonomyCatalog private constructor(
             value.trim().lowercase(Locale.ROOT).replace('ı', 'i'), Normalizer.Form.NFD
         ).replace(combiningMarks, "")
 
+        /**
+         * Kataloğu yükler; başarılı sonuç **kalıcı** önbelleğe alınır.
+         *
+         * ⚠️ Başarısız okuma önbelleğe alınmaz (eski davranış `runCatching { load() }`
+         * çağıranlarıyla birleşince ilk hata — ör. ilk açılışta düşük bellek / kısa
+         * süreli I/O hatası — oturum boyunca "katalog yüklenemedi" olarak kalıyor ve
+         * Kurumlar listesi 0 kayıt gösteriyordu). Ayrıca [invalidate] ile bellek
+         * baskısında önbellek boşaltılabilir.
+         */
         fun load(context: Context): TaxonomyCatalog {
             cached?.let { return it }
             return synchronized(this) {
@@ -89,6 +98,14 @@ class TaxonomyCatalog private constructor(
                     }
             }
         }
+
+        /** Önbelleği bırakır; bir sonraki [load] diski yeniden okur. */
+        fun invalidate() {
+            cached = null
+        }
+
+        /** Önbellekte hazır katalog var mı (test/telemetri). */
+        val isLoaded: Boolean get() = cached != null
 
         /** Pure parser for JVM tests (the caller handles I/O on Dispatchers.IO). */
         fun parse(json: String): TaxonomyCatalog {

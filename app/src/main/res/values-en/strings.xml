@@ -7216,6 +7216,10 @@
     <!-- Common filter roof: Institutions (2026-10-31) -->
     <string name="search_institutions">Studios</string>
     <string name="search_institution_hint">Search institution (studio, producer, company)</string>
+    <string name="search_institution_loading">Loading institution catalog…</string>
+    <string name="search_institution_narrow_hint">Showing %1$d of %2$d institutions — type to narrow</string>
+    <string name="search_institution_results">%1$d institutions found</string>
+    <string name="search_institution_online_results">Online identity results</string>
     <string name="search_institution_empty">Type an institution name to search</string>
     <string name="search_institution_unsupported_title">No server-side institution filter for this source</string>
     <string name="search_institution_unsupported_desc">This source\'s search endpoint does not accept a studio/company filter. Your selection is preserved and applied on MAL and TMDB pages.</string>
@@ -18065,8 +18069,7 @@
     <string name="search_org_title">Organizations</string>
     <string name="search_org_selected_count">%1$d organizations selected</string>
     <string name="search_org_search_hint">Search organization or alias</string>
-    <string name="search_org_pending_notice">Selections are saved; filtering provider results arrives in the next release.</string>
-    <string name="search_org_pending_short">not active yet</string>
+    <string name="search_org_apply_notice">Selections apply with "Apply filters" and can be removed from the chip.</string>
     <string name="search_org_recents">Recent selections</string>
     <string name="search_org_results">%1$d organizations found</string>
     <string name="search_org_role_studio">Studio</string>
@@ -18472,4 +18475,32 @@
     <string name="manga_source_disabled">Disabled</string>
     <string name="manga_source_verify_in_browser">Verify in browser</string>
     <string name="manga_source_verify_hint">This source requires a login or bot check. Verify in the same session, then retry.</string>
+<string name="kitsugi_clip_download_action">Download video</string>
+    <string name="kitsugi_clip_cancel_action">Cancel download</string>
+    <string name="kitsugi_clip_retry_action">Retry download</string>
+    <string name="kitsugi_clip_downloaded">Downloaded</string>
+    <string name="kitsugi_clip_downloading">Downloading: %1$d%%</string>
+    <string name="kitsugi_clip_queued">Waiting in download queue…</string>
+    <string name="kitsugi_clip_paused">Download paused</string>
+    <string name="kitsugi_clip_error">Could not download</string>
+    <string name="kitsugi_clip_label">Clips</string>
+    <string name="kitsugi_clip_error_no_stream">No downloadable stream found for this video.</string>
+    <string name="kitsugi_clip_error_separate_audio">This video serves audio and video as separate streams; it cannot be downloaded as a single file.</string>
+    <string name="kitsugi_clip_error_unsupported">This video link cannot be downloaded.</string>
+    <string name="kitsugi_clip_error_network">Could not reach the video source. Check your connection and retry.</string>
+    <string name="kitsugi_clip_error_no_space">Not enough free storage space.</string>
+    <string name="kitsugi_clip_error_too_large">This video is larger than expected; the download was stopped for safety.</string>
+    <string name="kitsugi_clip_error_http">Server error (%1$d).</string>
+    <string name="kitsugi_clip_error_invalid_content">The server returned a page instead of a video; the download was cancelled.</string>
+    <string name="kitsugi_clip_error_empty">The downloaded file was empty.</string>
+    <string name="kitsugi_clip_error_generic">The download could not be completed.</string>
+    <string name="kitsugi_clip_error_missing_file">The downloaded file is missing; you need to download it again.</string>
+    <string name="kitsugi_clip_error_failed">Download failed: %1$s</string>
+    <string name="kitsugi_clip_already_downloaded">This video is already downloaded.</string>
+    <string name="kitsugi_clip_started_toast">Download started: %1$s</string>
+    <string name="kitsugi_clip_queued_toast">Queued: %1$s</string>
+    <string name="kitsugi_clip_cancelled_toast">Download cancelled.</string>
+    <string name="kitsugi_clip_deleted_toast">Video deleted: %1$s</string>
+    <string name="kitsugi_clip_delete_failed">Could not delete video: %1$s</string>
+    <string name="kitsugi_clip_section_title">Small videos</string>
 </resources>

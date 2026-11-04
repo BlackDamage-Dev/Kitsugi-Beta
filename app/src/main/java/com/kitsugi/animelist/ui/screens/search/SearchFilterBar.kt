@@ -140,8 +140,11 @@ fun SearchOrganizationChips(
         organizations.forEach { filter ->
             val name = catalog?.organization(filter.canonicalKey)?.name
                 ?: stringResource(R.string.search_org_loading)
+            // Eski etiket "... • henüz etkin değil" idi. Katalog seçimi artık
+            // aramaya uygulandığı için (toggleOrganization → requestSearch) bu
+            // uyarı yanıltıcıydı; yalnızca rol + kurum adı gösterilir.
             ActiveFilterChip(
-                label = "${orgRoleLabel(filter.role)}: $name • ${stringResource(R.string.search_org_pending_short)}",
+                label = "${orgRoleLabel(filter.role)}: $name",
                 onCloseClick = { onRemove(filter) },
             )
         }

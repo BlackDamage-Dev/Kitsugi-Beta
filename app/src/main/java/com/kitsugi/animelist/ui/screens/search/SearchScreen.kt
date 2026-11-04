@@ -776,10 +776,18 @@ fun SearchScreen(
         )
     }
 
+    // Yerele kurum kataloğu (9.457 kayıt) — InstitutionFilterSheet artık kendi
+    // kataloğunu yüklediği için bu giriş noktası yalnızca kanonik anahtar
+    // seçimine (filtre çipi + "Tününü temizle") doğrudan erişim sağlar.
+    // Eskiden bu bayrak hiçbir yerde true yapılmıyordu: 9.457 kayıtlık katalog
+    // derlemede ölü kod olarak kalıyordu.
     if (showOrgFilterSheet) {
         OrgFilterSheet(
             currentFilters = uiState.toLegacyFilters(),
-            onApplyFilters = viewModel::updateOrganizations,
+            onApplyFilters = { applied ->
+                viewModel.updateOrganizations(applied)
+                showOrgFilterSheet = false
+            },
             onDismiss = { showOrgFilterSheet = false }
         )
     }

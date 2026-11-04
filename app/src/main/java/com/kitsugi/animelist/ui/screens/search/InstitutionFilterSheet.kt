@@ -20,6 +20,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
+import com.kitsugi.animelist.ui.theme.gradient.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -32,12 +33,14 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -48,7 +51,21 @@ import com.kitsugi.animelist.ui.components.KitsugiSheetOrDialog
 import com.kitsugi.animelist.ui.theme.KitsugiColors
 import com.kitsugi.animelist.ui.theme.LocalKitsugiAccent
 import com.kitsugi.animelist.ui.utils.tvClickable
+import com.kitsugi.animelist.utils.CatalogOrganization
+import com.kitsugi.animelist.utils.TaxonomyCatalog
+import com.kitsugi.animelist.utils.TaxonomyOrgRole
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
+
+/**
+ * Elle (arama yazmadan) gösterilen azami kurum satırı. Katalog 9.457 kayıt;
+ * hepsini çizmek sheet'i dondurduğu için ilk N kayıt listelenir.
+ */
+private const val CATALOG_IDLE_LIMIT = 60
+
+/** Arama yazıldığında gösterilen azami eşleşme; kalanı için sorgu daraltılır. */
+private const val CATALOG_SEARCH_LIMIT = 80
 
 /**
  * ORTAK FİLTRE ÇATISI — Kurumlar (stüdyo / yapımcı / yapım şirketi) sheet'i.
@@ -73,6 +90,7 @@ fun InstitutionFilterSheet(
 ) {
     val engine = uiState.selectedEngine
     val accentColor = LocalKitsugiAccent.current
+    val context = LocalContext.current
     val kinds = SearchCommonFiltersBridge.institutionKindsFor(engine)
     val searchableKinds = kinds.filter { SearchCommonFiltersBridge.canSearchInstitutionKind(it) }
     val results by viewModel.institutionSearchResults.collectAsState()
@@ -81,6 +99,48 @@ fun InstitutionFilterSheet(
         mutableStateOf<CommonInstitutionKind?>(searchableKinds.firstOrNull())
     }
     var query by remember(engine) { mutableStateOf("") }
+
+    // ── Yerele katalog (9.457 kurum) ─────────────────────────────────────────
+    // Eski hâlde sheet AÇILDIĞINDA boştu: liste yalnızca MAL/TMDB ağ araması
+    // sonucu doluyordu, "Aramak için bir kurum adı yazın" yazısından başka bir
+    // şey görünmüyordu ve kurum kataloğuna hiçbir yoldan erişilemiyordu
+    // (OrgFilterSheet'in açılış bayrağı hiçbir yerde true yapılmıyordu).
+    // Şimdi katalog her zaman yüklenir; ağ araması yalnızca kimlik çözümü için
+    // ek bir katman olarak kullanılır.
+    val catalogResult by produceState<Result<TaxonomyCatalog>?>(initialValue = null) {
+        value = withContext(Dispatchers.IO) {
+            runCatching { TaxonomyCatalog.load(context.applicationContext) }
+        }
+    }
+    val catalog = catalogResult?.getOrNull()
+    // Katalog rolü ↔ sheet kurum türü eşlemesi. MAL yapımcı ile katalog
+    // "producer" kayıtları aynı şeydir; TMDB şirket ise katalogda ayrı tür yok,
+    // bu yüzden şirket sekmesinde stüdyo + yapımcı + yayıncı birlikte listelenir.
+    // ⚠️ remember anahtarı olarak `selectedKind` kullanılır: her recomposition'da
+    // yeni bir Set üretmek (yukarıdaki when) remember'ı sürekli geçersiz kılar ve
+    // 9.457 kaydın tamamı her karede yeniden taranırdı.
+    val catalogRoles: Set<TaxonomyOrgRole> = remember(selectedKind) {
+        when (selectedKind) {
+            CommonInstitutionKind.PRODUCER -> setOf(TaxonomyOrgRole.PRODUCER)
+            CommonInstitutionKind.COMPANY -> setOf(
+                TaxonomyOrgRole.STUDIO, TaxonomyOrgRole.PRODUCER, TaxonomyOrgRole.PUBLISHER
+            )
+            else -> emptySet()
+        }
+    }
+    val catalogMatches = remember(catalog, query, catalogRoles) {
+        val needle = TaxonomyCatalog.fold(query)
+        catalog?.organizations.orEmpty().filter { organization ->
+            (catalogRoles.isEmpty() || organization.role in catalogRoles) &&
+                (needle.isEmpty() || organization.matchesFolded(needle))
+        }
+    }
+    // Katalog 9.457 kayıt: hepsini tek seferde çizmek (Column + verticalScroll)
+    // donmaya yol açar. Görünür pencere sonuçlarla sınırlanır; kalanı için
+    // arama alanına yazılır. Sorgu varken de üst sınır korunur.
+    val visibleCatalog = remember(catalogMatches, query) {
+        catalogMatches.take(if (query.isBlank()) CATALOG_IDLE_LIMIT else CATALOG_SEARCH_LIMIT)
+    }
 
     LaunchedEffect(selectedKind, query) {
         val kind = selectedKind
@@ -273,19 +333,119 @@ fun InstitutionFilterSheet(
                 Spacer(modifier = Modifier.height(10.dp))
 
                 // ── Sonuçlar ────────────────────────────────────────────────
-                if (query.isBlank()) {
+                // Öncelik: yerele katalog (her zaman dolu) → MAL/TMDB ağ araması
+                // (yalnızca ad → gerçek kimlik çözümü için ek katman).
+                val catalogReady = catalogResult != null
+                when {
+                    catalogResult == null -> {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                color = accentColor,
+                                strokeWidth = 2.dp
+                            )
+                            Text(
+                                text = stringResource(R.string.search_institution_loading),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = KitsugiColors.TextMuted
+                            )
+                        }
+                    }
+
+                    catalog == null -> {
+                        // Katalog okunamadı (bozuk APK/bellek baskısı): ağ araması
+                        // hâlâ çalışabildiği için onu kullanmaya devam ediyoruz.
+                        Text(
+                            text = stringResource(R.string.search_catalog_load_error),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = KitsugiColors.TextMuted
+                        )
+                    }
+
+                    else -> {
+                        // Katalog başlığı HER durumda gösterilir: eskiden liste boşken
+                        // ne sayı ne ipucu vardı, kullanıcı "0 kayıt / nereye gitti"
+                        // görüyordu. Yerel eşleşme yoksa ağ sonuçları aşağıda listelenir.
+                        Text(
+                            text = stringResource(R.string.search_institution_results, catalogMatches.size),
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = KitsugiColors.TextSecondary
+                        )
+                        if (catalogMatches.isEmpty()) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = if (query.isBlank()) {
+                                    stringResource(R.string.search_institution_empty)
+                                } else if (results.isEmpty()) {
+                                    stringResource(R.string.sonuc_bulunamadi)
+                                } else {
+                                    // Katalogda yok ama çevrim içi kimlik bulundu:
+                                    // aşağıdaki "Çevrim içi kimlik sonuçları" listesi kullanılır.
+                                    stringResource(R.string.search_institution_empty)
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = KitsugiColors.TextMuted
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
+                    }
+                }
+
+                if (catalogReady && catalog != null && visibleCatalog.isNotEmpty()) {
+                    // Üst sınır: kalan kayıtlar arama alanıyla daraltılır (9.457 satır
+                    // tek seferde çizilirse sheet donar).
+                    if (catalogMatches.size > visibleCatalog.size) {
+                        Text(
+                            text = stringResource(
+                                R.string.search_institution_narrow_hint,
+                                visibleCatalog.size,
+                                catalogMatches.size
+                            ),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = KitsugiColors.TextMuted
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                    }
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 320.dp)
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        visibleCatalog.forEach { organization ->
+                            CatalogInstitutionRow(
+                                organization = organization,
+                                accentColor = accentColor,
+                                selected = uiState.organizations.any { it.canonicalKey == organization.canonicalKey },
+                                onClick = {
+                                    // Yerel katalog kaydı: kimlik YOK, kanonik anahtar var.
+                                    // Seçim anında filtre çipi olarak görünür ve aramaya
+                                    // uygulanır (bayat "henüz etkin değil" notu kaldırıldı).
+                                    viewModel.toggleOrganization(organization)
+                                }
+                            )
+                        }
+                    }
+                }
+
+                // Ağ araması sonuçları (MAL yapımcı / TMDB şirket kimlikleri):
+                // yalnızca katalog eşleşmesi yoksa gösterilir; kimlik çözümü
+                // başarılıysa arama sunucu tarafında da süzülebilir.
+                if (results.isNotEmpty() && catalogMatches.isEmpty()) {
+                    Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = stringResource(R.string.search_institution_empty),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = KitsugiColors.TextMuted
+                        text = stringResource(R.string.search_institution_online_results),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = KitsugiColors.TextSecondary
                     )
-                } else if (results.isEmpty()) {
-                    Text(
-                        text = stringResource(R.string.sonuc_bulunamadi),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = KitsugiColors.TextMuted
-                    )
-                } else {
+                    Spacer(modifier = Modifier.height(6.dp))
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -348,9 +508,12 @@ fun InstitutionFilterSheet(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                if (uiState.institutions.isNotEmpty()) {
+                if (uiState.institutions.isNotEmpty() || uiState.organizations.isNotEmpty()) {
                     OutlinedButton(
-                        onClick = { viewModel.clearInstitutions() },
+                        onClick = {
+                            viewModel.clearInstitutions()
+                            viewModel.updateOrganizations(emptyList())
+                        },
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(14.dp),
                         border = BorderStroke(1.dp, KitsugiColors.Border)
@@ -463,6 +626,62 @@ private fun InstitutionResultRow(
         Spacer(modifier = Modifier.width(8.dp))
         Text(
             text = "+",
+            color = accentColor,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+
+/**
+ * Yerele katalogdan (9.457 kayıt) gelen kurum satırı.
+ *
+ * Ağ aramasından farkı: kimliği yoktur, yalnızca kanonik anahtarı vardır.
+ * Seçim bu yüzden [TaxonomyCatalog] anahtarıyla saklanır ve filtre çipi
+ * olarak görünür; arama sunucu tarafında kimlik gerektirmeden çalışır.
+ */
+@Composable
+private fun CatalogInstitutionRow(
+    organization: CatalogOrganization,
+    accentColor: Color,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    val shape = RoundedCornerShape(12.dp)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(
+                if (selected) accentColor.copy(alpha = 0.14f)
+                else KitsugiColors.SurfaceElevated.copy(alpha = 0.55f)
+            )
+            // TV'de kumanda ile seçilebilmesi için odaklanabilir tıklama.
+            .tvClickable(shape = shape, onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = organization.name,
+                color = KitsugiColors.TextPrimary,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = orgRoleLabel(organization.role),
+                color = KitsugiColors.TextMuted,
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        Spacer(modifier = Modifier.width(4.dp))
+        Text(
+            text = if (selected) "✓" else "+",
             color = accentColor,
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold

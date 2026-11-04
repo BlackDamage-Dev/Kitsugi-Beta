@@ -120,7 +120,7 @@ fun OrgFilterSheet(
                         label = { Text(orgRoleLabel(option)) })
                 }
             }
-            Text(stringResource(R.string.search_org_pending_notice),
+            Text(stringResource(R.string.search_org_apply_notice),
                 color = KitsugiColors.TextMuted, style = MaterialTheme.typography.labelSmall)
             Spacer(Modifier.height(8.dp))
             LazyColumn(state = listState, modifier = Modifier.weight(1f).fillMaxWidth(),

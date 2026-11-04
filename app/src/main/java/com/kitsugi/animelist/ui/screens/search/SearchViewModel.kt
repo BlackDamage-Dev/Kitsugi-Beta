@@ -89,6 +89,16 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
     val institutionSearchResults: StateFlow<List<JikanSearchResult>> = _institutionSearchResults.asStateFlow()
     private var institutionSearchJob: Job? = null
 
+    /**
+     * Katalog kurumunun kimlik çözümleme işi.
+     *
+     * ⚠️ [institutionSearchJob]'dan AYRI tutulur: sheet'te yazı yazıldıkça arama işi
+     * iptal edilir; aynı alanı paylaşsaydık kullanıcı bir kuruma dokunduğu anda
+     * başlayan kimlik çözümlemesi, sonraki tuş vuruşunda yarıda kesilir ve seçim
+     * hiçbir zaman aramaya uygulanmazdı.
+     */
+    private var organizationResolveJob: Job? = null
+
     private val mixedMediaEngines = setOf(
         SearchSourceEngine.ANILIST, SearchSourceEngine.MAL,
         SearchSourceEngine.SHIKIMORI, SearchSourceEngine.KITSU,
@@ -857,9 +867,134 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
     fun updateOrganizations(organizations: List<OrgFilter>) {
         _uiState.update { it.copy(organizations = organizations.distinctBy { org -> org.canonicalKey }) }
         val filters = _uiState.value
-        android.util.Log.d("KitsugiSearch", "Arama filtreleri: tÃ¼r=${filters.genres.size} " +
-            "etiket=${filters.tags.size} kurum=${filters.organizations.size} | " +
-            "kurum saÄŸlayÄ±cÄ± eÅŸlemesi henÃ¼z etkin deÄŸil")
+        android.util.Log.d("KitsugiSearch", "Arama filtreleri: tür=${filters.genres.size} " +
+            "etiket=${filters.tags.size} kurum=${filters.organizations.size}")
+    }
+
+    /**
+     * Yerele kurum kataloğundan tek dokunuşla seçim/kaldırma.
+     *
+     * Kurumlar sheet'i seçim anında uygulanır (tür/etiket sheet'iyle aynı dil):
+     * çip hemen görünür, arama yenilenir. Eski akışta bu yol yalnızca
+     * "Filtreleri Uygula" düğmesine bağlıydı ve sheet açıldığında liste boştu.
+     */
+    fun toggleOrganization(organization: com.kitsugi.animelist.utils.CatalogOrganization) {
+        val filter = OrgFilter(
+            role = organization.role,
+            canonicalKey = organization.canonicalKey
+        )
+        val removing = _uiState.value.organizations.any { it.canonicalKey == filter.canonicalKey }
+        _uiState.update { current ->
+            val merged = if (removing) {
+                current.organizations.filterNot { it.canonicalKey == filter.canonicalKey }
+            } else {
+                current.organizations + filter
+            }
+            current.copy(organizations = merged)
+        }
+        if (removing) {
+            // Kaldırma anında facet kimliği de temizlenir; aksi hâlde MAL/TMDB
+            // isteği az önce kaldırılan kurumla süzülmeye devam ediyordu.
+            clearOrganizationFacets(organization.canonicalKey)
+            requestSearch(resetPage = true)
+        } else {
+            resolveOrganizationAndSearch(organization)
+        }
+    }
+
+    /**
+     * Katalog kurumunu MAL/TMDB kimliğine çözer ve aramayı uygular.
+     *
+     * Neden gerekli: katalog yalnızca **ad** taşır (9.457 kayıt, kimlik yok).
+     * Arama uçları ise `producer_id` (MAL) / `with_companies` (TMDB) gibi kimlik
+     * bekler. Eski davranışta seçim yalnızca çip olarak görünüyor, "sonuçlara
+     * uygulama sonraki sürümde eklenecek" notuyla hiçbir şeyi değiştirmiyordu.
+     *
+     * Çözüm sırası (ilk eşleşme kazanır):
+     *  1. Yapımcı/stüdyo türleri → MAL `/producers` araması (en geniş kapsam).
+     *  2. Bulunamazsa TMDB `/search/company` (şirket kimliği).
+     *  3. Hiçbiri bulunamazsa seçim yine çipte kalır ve metin araması kullanılır;
+     *     böylece kullanıcı seçimini kaybetmez.
+     */
+    private fun resolveOrganizationAndSearch(organization: com.kitsugi.animelist.utils.CatalogOrganization) {
+        val name = organization.name
+        // Ad zaten Latin; arama uçları bu adı kabul eder. CJK takma ad varsa
+        // önce o denenir (Bangumi kayıtlarında isabet oranı daha yüksek).
+        val candidates = buildList {
+            add(name)
+            organization.aliases
+                .firstOrNull { alias -> alias != name && alias.isNotBlank() }
+                ?.let(::add)
+        }.distinct()
+
+        organizationResolveJob?.cancel()
+        organizationResolveJob = viewModelScope.launch {
+            var malProducerId: Int? = null
+            var tmdbCompanyId: Int? = null
+            for (candidate in candidates) {
+                if (malProducerId != null || tmdbCompanyId != null) break
+                malProducerId = runCatching {
+                    apiClient.searchMalProducers(candidate, page = 1)
+                        .firstOrNull { it.title.trim().equals(candidate.trim(), ignoreCase = true) }
+                        ?.malId?.takeIf { it > 0 }
+                }.getOrNull()
+                if (malProducerId == null) {
+                    tmdbCompanyId = runCatching {
+                        TmdbApiClient().searchCompany(candidate, page = 1)
+                            .firstOrNull { it.title.trim().equals(candidate.trim(), ignoreCase = true) }
+                            ?.malId?.takeIf { it > 0 }
+                    }.getOrNull()
+                }
+            }
+            // Çözülen kimlik motor paketine yazılır: arama uçları bunu kullanır.
+            _uiState.update { current ->
+                var next = current
+                if (malProducerId != null) {
+                    next = next.copy(
+                        malSpecificFilters = next.malSpecificFilters.copy(producerId = malProducerId)
+                    )
+                }
+                if (tmdbCompanyId != null) {
+                    next = next.copy(
+                        tmdbSpecificFilters = next.tmdbSpecificFilters.copy(companyId = tmdbCompanyId)
+                    )
+                }
+                next.copy(detailSearchFilterRequest = null)
+            }
+            requestSearch(resetPage = true)
+        }
+    }
+
+    /**
+     * Kaldırılan katalog kurumunun kimlik facetini motor paketlerinden siler.
+     *
+     * ⚠️ Anahtar biçimi `bangumi_<rol>_<...>` (ör. `bangumi_studio_studio_wasabi`).
+     * Bu yüzden rol, ilk parçadan değil **ikinci** parçadan okunur; `substringBefore('_')`
+     * her zaman "bangumi" döndürdüğü için hiçbir facet temizlenmiyordu.
+     */
+    private fun clearOrganizationFacets(canonicalKey: String) {
+        val role = canonicalKey.split('_').getOrNull(1).orEmpty()
+        _uiState.update { current ->
+            when (role) {
+                "producer", "studio" ->
+                    current.copy(
+                        malSpecificFilters = current.malSpecificFilters.copy(producerId = null)
+                    )
+                "publisher" ->
+                    current.copy(
+                        tmdbSpecificFilters = current.tmdbSpecificFilters.copy(companyId = null)
+                    )
+                "network" ->
+                    current.copy(
+                        tmdbSpecificFilters = current.tmdbSpecificFilters.copy(networkId = null)
+                    )
+                "magazine" ->
+                    current.copy(
+                        malSpecificFilters = current.malSpecificFilters.copy(magazineId = null)
+                    )
+                else -> current
+            }
+        }
     }
 
     /** Tüm ortak + kaynağa özel filtre katmanlarını sıfırlayan tek yardımcı. */
