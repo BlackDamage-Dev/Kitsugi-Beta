@@ -7218,6 +7218,8 @@
     <string name="search_institution_hint">Search institution (studio, producer, company)</string>
     <string name="search_institution_loading">Loading institution catalog…</string>
     <string name="search_institution_narrow_hint">Showing %1$d of %2$d institutions — type to narrow</string>
+    <string name="search_institution_scroll_hint">Showing %1$d of %2$d institutions — scroll for more</string>
+    <string name="search_institution_all_loaded">All %1$d institutions listed</string>
     <string name="search_institution_results">%1$d institutions found</string>
     <string name="search_institution_online_results">Online identity results</string>
     <string name="search_institution_empty">Type an institution name to search</string>
@@ -18518,4 +18520,10 @@
     <string name="bu_dilde_manga_kaynagi_yok">No active manga sources in this language.</string>
     <string name="player_mpv_hwdec_direct">📺 MediaCodec direct (HW+)</string>
     <string name="player_mpv_hwdec_copy">📺 MediaCodec copy (HW)</string>
+    <!-- Player episode list (drawer is never empty) -->
+    <string name="bolum_listesi_yukleniyor">Preparing episode list…</string>
+    <string name="bolum_listesi_guncelleniyor">Updating episode list…</string>
+    <string name="bolum_listesi_bos">Episode list unavailable</string>
+    <string name="bolum_listesi_bos_ipucu">The detail page, MAL/AniList/TMDB and the active addon were tried. You can retry.</string>
+    <string name="bolum_listesi_film">Movies do not have an episode list.</string>
 </resources>

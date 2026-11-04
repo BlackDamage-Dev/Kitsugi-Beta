@@ -7223,6 +7223,8 @@ Eklentiler ekranından eklenti etkinleştirin.</string>
     <string name="search_institution_hint">Kurum ara (stüdyo, yapımcı, şirket)</string>
     <string name="search_institution_loading">Kurum kataloğu yükleniyor…</string>
     <string name="search_institution_narrow_hint">%1$d / %2$d kurum gösteriliyor — daraltmak için yazın</string>
+    <string name="search_institution_scroll_hint">%1$d / %2$d kurum gösteriliyor — devamı için kaydırın</string>
+    <string name="search_institution_all_loaded">%1$d kurumun tamamı listelendi</string>
     <string name="search_institution_results">%1$d kurum bulundu</string>
     <string name="search_institution_online_results">Çevrim içi kimlik sonuçları</string>
     <string name="search_institution_empty">Aramak için bir kurum adı yazın</string>
@@ -18526,4 +18528,10 @@ Eklentiler ekranından eklenti etkinleştirin.</string>
     <string name="bu_dilde_manga_kaynagi_yok">Bu dilde aktif manga kaynağı yok.</string>
     <string name="player_mpv_hwdec_direct">📺 MediaCodec doğrudan (HW+)</string>
     <string name="player_mpv_hwdec_copy">📺 MediaCodec kopyalı (HW)</string>
+    <!-- Oynatıcı bölüm listesi (çekmece hiçbir zaman boş kalmaz) -->
+    <string name="bolum_listesi_yukleniyor">Bölüm listesi hazırlanıyor…</string>
+    <string name="bolum_listesi_guncelleniyor">Bölüm listesi güncelleniyor…</string>
+    <string name="bolum_listesi_bos">Bölüm listesi alınamadı</string>
+    <string name="bolum_listesi_bos_ipucu">Detay sayfası, MAL/AniList/TMDB ve açık eklenti denendi. Yeniden deneyebilirsin.</string>
+    <string name="bolum_listesi_film">Film içeriklerinde bölüm listesi bulunmaz.</string>
 </resources>

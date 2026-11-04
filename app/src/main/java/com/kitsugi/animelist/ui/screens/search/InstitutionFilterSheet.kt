@@ -33,8 +33,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -59,13 +61,19 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 /**
- * Elle (arama yazmadan) gösterilen azami kurum satırı. Katalog 9.457 kayıt;
- * hepsini çizmek sheet'i dondurduğu için ilk N kayıt listelenir.
+ * Elle (arama yazmadan) İLK gösterilen kurum satırı. Katalog 9.457 kayıt;
+ * hepsini tek seferde çizmek sheet'i dondurduğu için pencere kademeli büyür.
  */
 private const val CATALOG_IDLE_LIMIT = 60
 
-/** Arama yazıldığında gösterilen azami eşleşme; kalanı için sorgu daraltılır. */
+/** Arama yazıldığında İLK gösterilen eşleşme; kalanı kaydırdıkça eklenir. */
 private const val CATALOG_SEARCH_LIMIT = 80
+
+/** Listeyi kaydırırken her adımda eklenecek kurum satırı (sonsuz kaydırma). */
+private const val CATALOG_PAGE_SIZE = 60
+
+/** Listenin sonuna bu kadar (px) yaklaşınca sonraki pencere yüklenir. */
+private const val CATALOG_SCROLL_THRESHOLD_PX = 600
 
 /**
  * ORTAK FİLTRE ÇATISI — Kurumlar (stüdyo / yapımcı / yapım şirketi) sheet'i.
@@ -136,10 +144,29 @@ fun InstitutionFilterSheet(
         }
     }
     // Katalog 9.457 kayıt: hepsini tek seferde çizmek (Column + verticalScroll)
-    // donmaya yol açar. Görünür pencere sonuçlarla sınırlanır; kalanı için
-    // arama alanına yazılır. Sorgu varken de üst sınır korunur.
-    val visibleCatalog = remember(catalogMatches, query) {
-        catalogMatches.take(if (query.isBlank()) CATALOG_IDLE_LIMIT else CATALOG_SEARCH_LIMIT)
+    // donmaya yol açar. Bu yüzden liste KADEMELİ pencerelenir: ilk açılışta 60
+    // (aramada 80) satır çizilir, kullanıcı sona yaklaştıkça pencere büyür.
+    // ESKİ DAVRANIŞ: pencere sabitti ve kalan kayıtlar HİÇBİR yoldan görünmüyordu
+    // ("60 / 3802 kurum gösteriliyor" yazıp devamı gelmiyordu).
+    val initialCatalogLimit = if (query.isBlank()) CATALOG_IDLE_LIMIT else CATALOG_SEARCH_LIMIT
+    var catalogLimit by remember(catalogMatches, query) { mutableIntStateOf(initialCatalogLimit) }
+    val visibleCatalog = remember(catalogMatches, catalogLimit) {
+        catalogMatches.take(catalogLimit.coerceAtMost(catalogMatches.size))
+    }
+    val catalogScrollState = rememberScrollState()
+    val hasMoreCatalog = visibleCatalog.size < catalogMatches.size
+
+    // Sonsuz kaydırma: iç liste sonuna yaklaşınca sonraki pencere eklenir.
+    LaunchedEffect(catalogScrollState, hasMoreCatalog, catalogMatches.size) {
+        if (!hasMoreCatalog) return@LaunchedEffect
+        snapshotFlow { catalogScrollState.value }
+            .collect { value ->
+                val max = catalogScrollState.maxValue
+                if (max > 0 && max - value < CATALOG_SCROLL_THRESHOLD_PX) {
+                    catalogLimit = (catalogLimit + CATALOG_PAGE_SIZE)
+                        .coerceAtMost(catalogMatches.size)
+                }
+            }
     }
 
     LaunchedEffect(selectedKind, query) {
@@ -397,25 +424,30 @@ fun InstitutionFilterSheet(
                 }
 
                 if (catalogReady && catalog != null && visibleCatalog.isNotEmpty()) {
-                    // Üst sınır: kalan kayıtlar arama alanıyla daraltılır (9.457 satır
-                    // tek seferde çizilirse sheet donar).
-                    if (catalogMatches.size > visibleCatalog.size) {
-                        Text(
-                            text = stringResource(
-                                R.string.search_institution_narrow_hint,
+                    // Pencere kademeli büyür: kalan kayıt varsa "kaydırdıkça devamı
+                    // yüklenir" bilgisi verilir, hepsi yüklendiyse tamamlandı yazar.
+                    Text(
+                        text = if (hasMoreCatalog) {
+                            stringResource(
+                                R.string.search_institution_scroll_hint,
                                 visibleCatalog.size,
                                 catalogMatches.size
-                            ),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = KitsugiColors.TextMuted
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                    }
+                            )
+                        } else {
+                            stringResource(
+                                R.string.search_institution_all_loaded,
+                                catalogMatches.size
+                            )
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = KitsugiColors.TextMuted
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .heightIn(max = 320.dp)
-                            .verticalScroll(rememberScrollState()),
+                            .verticalScroll(catalogScrollState),
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         visibleCatalog.forEach { organization ->
