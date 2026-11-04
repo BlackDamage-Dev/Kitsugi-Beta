@@ -421,7 +421,8 @@ fun PlayerControls(
                             resetTimer()
                         },
                         onBackClick  = onBackClick,
-                        modifier     = Modifier.weight(1f)
+                        modifier     = Modifier.weight(1f),
+                        showKeyboardHint = settings.keyboardEnabled && settings.keyboardHelpEnabled
                     )
                     TopRightPlayerControls(
                         autoPlayEnabled      = settings.isAutoplayEnabled,

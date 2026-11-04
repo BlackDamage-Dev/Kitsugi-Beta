@@ -324,6 +324,20 @@ class SettingsDataStore(
         val EnableNetflixStyleIntroSkip = booleanPreferencesKey("pref_enable_netflix_style_intro_skip")
         val WaitingTimeIntroSkip = intPreferencesKey("pref_waiting_time_intro_skip")
         val ScreenshotSubtitles = booleanPreferencesKey("pref_screenshot_subtitles")
+        // ─── Klavye / gamepad oynatıcı kısayolları ───────────────────────────
+        val KeyboardEnabled = booleanPreferencesKey("player_keyboard_enabled")
+        val KeyboardAutoDetect = booleanPreferencesKey("player_keyboard_auto_detect")
+        val KeyboardOsdEnabled = booleanPreferencesKey("player_keyboard_osd_enabled")
+        val KeyboardOsdDurationScale = floatPreferencesKey("player_keyboard_osd_duration_scale")
+        val KeyboardOpensFullOsd = booleanPreferencesKey("player_keyboard_opens_full_osd")
+        val KeyboardHelpEnabled = booleanPreferencesKey("player_keyboard_help_enabled")
+        val KeyboardDisabledShortcuts = stringPreferencesKey("player_keyboard_disabled_shortcuts")
+        val KeyboardCustomBindings = stringPreferencesKey("player_keyboard_custom_bindings")
+        val KeyboardGamepadEnabled = booleanPreferencesKey("player_keyboard_gamepad_enabled")
+        val KeyboardSeekStepSeconds = intPreferencesKey("player_keyboard_seek_step_seconds")
+        val KeyboardPreciseSeekSeconds = intPreferencesKey("player_keyboard_precise_seek_seconds")
+        val KeyboardLargeSeekSeconds = intPreferencesKey("player_keyboard_large_seek_seconds")
+        val KeyboardHoldToAccelerate = booleanPreferencesKey("player_keyboard_hold_to_accelerate")
         val PreserveWatchingPosition = booleanPreferencesKey("pref_preserve_watching_position")
         val DefaultPlayerOrientation = stringPreferencesKey("pref_default_player_orientation")
         val PipEpisodeToasts = booleanPreferencesKey("pref_pip_episode_toasts")
@@ -725,6 +739,21 @@ class SettingsDataStore(
                     downloadNewUnreadChaptersOnly = preferences[Keys.DownloadNewUnreadChaptersOnly] ?: false,
                     downloadNewUnseenEpisodesOnly = preferences[Keys.DownloadNewUnseenEpisodesOnly] ?: false,
                     subtitleDownloadLanguages = preferences[Keys.SubtitleDownloadLanguages] ?: "tr"
+                ),
+                keyboard = PlayerKeyboardSettings(
+                    keyboardEnabled = preferences[Keys.KeyboardEnabled] ?: true,
+                    autoDetectExternalKeyboard = preferences[Keys.KeyboardAutoDetect] ?: true,
+                    keyboardOsdEnabled = preferences[Keys.KeyboardOsdEnabled] ?: true,
+                    keyboardOsdDurationScale = (preferences[Keys.KeyboardOsdDurationScale] ?: 1f).coerceIn(0.35f, 2.5f),
+                    keyboardOpensFullOsd = preferences[Keys.KeyboardOpensFullOsd] ?: false,
+                    keyboardHelpEnabled = preferences[Keys.KeyboardHelpEnabled] ?: true,
+                    disabledShortcuts = preferences[Keys.KeyboardDisabledShortcuts] ?: "",
+                    customBindings = preferences[Keys.KeyboardCustomBindings] ?: "",
+                    gamepadEnabled = preferences[Keys.KeyboardGamepadEnabled] ?: true,
+                    keyboardSeekStepSeconds = (preferences[Keys.KeyboardSeekStepSeconds] ?: 5).coerceIn(1, 120),
+                    keyboardPreciseSeekSeconds = (preferences[Keys.KeyboardPreciseSeekSeconds] ?: 1).coerceIn(1, 30),
+                    keyboardLargeSeekSeconds = (preferences[Keys.KeyboardLargeSeekSeconds] ?: 60).coerceIn(5, 600),
+                    keyboardHoldToAccelerate = preferences[Keys.KeyboardHoldToAccelerate] ?: true
                 )
             )
             // Çeviri intent'leri (suspend olmayan bağlamlar) ayarlara senkron erişebilsin.
@@ -2046,6 +2075,60 @@ class SettingsDataStore(
 
     suspend fun setScreenshotSubtitles(value: Boolean) {
         context.settingsDataStore.edit { it[Keys.ScreenshotSubtitles] = value }
+    }
+
+    // ── Klavye / gamepad kısayolları ─────────────────────────────────────────
+    suspend fun setKeyboardEnabled(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.KeyboardEnabled] = enabled }
+    }
+
+    suspend fun setKeyboardAutoDetect(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.KeyboardAutoDetect] = enabled }
+    }
+
+    suspend fun setKeyboardOsdEnabled(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.KeyboardOsdEnabled] = enabled }
+    }
+
+    suspend fun setKeyboardOsdDurationScale(scale: Float) {
+        context.settingsDataStore.edit { it[Keys.KeyboardOsdDurationScale] = scale.coerceIn(0.35f, 2.5f) }
+    }
+
+    /** Tam OSD (üst/alt bar) klavye ile açılsın mı? Varsayılan: hayır, yalnızca gösterge. */
+    suspend fun setKeyboardOpensFullOsd(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.KeyboardOpensFullOsd] = enabled }
+    }
+
+    suspend fun setKeyboardHelpEnabled(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.KeyboardHelpEnabled] = enabled }
+    }
+
+    suspend fun setKeyboardDisabledShortcuts(raw: String) {
+        context.settingsDataStore.edit { it[Keys.KeyboardDisabledShortcuts] = raw }
+    }
+
+    suspend fun setKeyboardCustomBindings(raw: String) {
+        context.settingsDataStore.edit { it[Keys.KeyboardCustomBindings] = raw }
+    }
+
+    suspend fun setGamepadEnabled(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.KeyboardGamepadEnabled] = enabled }
+    }
+
+    suspend fun setKeyboardSeekStepSeconds(seconds: Int) {
+        context.settingsDataStore.edit { it[Keys.KeyboardSeekStepSeconds] = seconds.coerceIn(1, 120) }
+    }
+
+    suspend fun setKeyboardPreciseSeekSeconds(seconds: Int) {
+        context.settingsDataStore.edit { it[Keys.KeyboardPreciseSeekSeconds] = seconds.coerceIn(1, 30) }
+    }
+
+    suspend fun setKeyboardLargeSeekSeconds(seconds: Int) {
+        context.settingsDataStore.edit { it[Keys.KeyboardLargeSeekSeconds] = seconds.coerceIn(5, 600) }
+    }
+
+    suspend fun setKeyboardHoldToAccelerate(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.KeyboardHoldToAccelerate] = enabled }
     }
 
     suspend fun setPreserveWatchingPosition(value: Boolean) {

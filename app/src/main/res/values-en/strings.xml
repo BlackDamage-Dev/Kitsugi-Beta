@@ -18526,4 +18526,7 @@
     <string name="bolum_listesi_bos">Episode list unavailable</string>
     <string name="bolum_listesi_bos_ipucu">The detail page, MAL/AniList/TMDB and the active addon were tried. You can retry.</string>
     <string name="bolum_listesi_film">Movies do not have an episode list.</string>
+    <!-- Keyboard & Gamepad Player Settings -->
+    <string name="pd_tab_keyboard">Keyboard</string>
+    <string name="pd_tab_keyboard_desc">Keyboard and gamepad shortcuts, compact action indicator, seek steps</string>
 </resources>

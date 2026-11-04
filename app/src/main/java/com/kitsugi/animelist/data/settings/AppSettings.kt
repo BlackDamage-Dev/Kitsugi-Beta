@@ -306,6 +306,46 @@ data class DownloadAndMangaSettings(
     val subtitleDownloadLanguages: String = "tr"
 )
 
+/**
+ * Klavye ve gamepad destekli oynatıcı kısayolları.
+ *
+ * Tek bir grup altında toplanmasının nedeni, `AppSettings` cephesinin Dalvik
+ * 255-yazmaç sınırına dokunmadan genişleyebilmesi (bkz. dosya başındaki mimari not).
+ *
+ * [PlayerShortcutAction] adları `disabledShortcuts` içinde **virgülle ayrılmış**
+ * tutulur; `Set<String>` DataStore'da doğrudan saklanamıyor.
+ * [customBindings] biçimi: `"shift+keycode22=F,keycode66=PLAY_PAUSE"` — küçük ve
+ * insan tarafından okunabilir, bozulursa sessizce yok sayılır.
+ */
+data class PlayerKeyboardSettings(
+    /** Özel klavye kısayolları açık mı? Kapalıyken oynatıcı klavye olaylarını MPV'ye bırakır. */
+    val keyboardEnabled: Boolean = true,
+    /** Harici klavye/gamepad takılıyken kısayollar devreye girsin mi (otomatik algılama). */
+    val autoDetectExternalKeyboard: Boolean = true,
+    /** Tuş basımında aksiyon göstergesi (küçük OSD) çizilsin mi? */
+    val keyboardOsdEnabled: Boolean = true,
+    /** Gösterge süresi çarpanı (0,5× … 2×). Varsayılan 1×. */
+    val keyboardOsdDurationScale: Float = 1f,
+    /** Tam OSD (üst/alt bar) klavyeyle açılsın mı? Varsayılan HAYIR: sadece gösterge. */
+    val keyboardOpensFullOsd: Boolean = false,
+    /** Kısayol yardım ekranı (?) açılabilsin mi? */
+    val keyboardHelpEnabled: Boolean = true,
+    /** Kullanıcının kapattığı eylemler, ör. "EXIT,SCREENSHOT". */
+    val disabledShortcuts: String = "",
+    /** Kullanıcının özel tuş eşlemeleri (boşsa varsayılan tablo geçerlidir). */
+    val customBindings: String = "",
+    /** Gamepad (oyun kolu) kısayolları açık mı? */
+    val gamepadEnabled: Boolean = true,
+    /** Normal arama adımı (sn) — ← / → tuşları. Varsayılan 5 sn. */
+    val keyboardSeekStepSeconds: Int = 5,
+    /** Hassas arama adımı (sn) — Shift + ← / →. Varsayılan 1 sn. */
+    val keyboardPreciseSeekSeconds: Int = 1,
+    /** Uzun arama adımı (sn) — ↑ / ↓. Varsayılan 60 sn. */
+    val keyboardLargeSeekSeconds: Int = 60,
+    /** Tuşa basılı tutulduğunda arama adımının katlanarak hızlanması. */
+    val keyboardHoldToAccelerate: Boolean = true
+)
+
 data class AppSettings(
     val profile: ProfileAndListSettings = ProfileAndListSettings(),
     val themeUi: ThemeAndAppUiSettings = ThemeAndAppUiSettings(),
@@ -314,7 +354,8 @@ data class AppSettings(
     val mpvSubtitle: MpvAndSubtitleSettings = MpvAndSubtitleSettings(),
     val gestures: GestureAndSkipSettings = GestureAndSkipSettings(),
     val integrations: IntegrationsAndNotificationsSettings = IntegrationsAndNotificationsSettings(),
-    val downloads: DownloadAndMangaSettings = DownloadAndMangaSettings()
+    val downloads: DownloadAndMangaSettings = DownloadAndMangaSettings(),
+    val keyboard: PlayerKeyboardSettings = PlayerKeyboardSettings()
 ) {
     val selectedThemeId: String get() = themeUi.selectedThemeId
     val showAdultContent: Boolean get() = themeUi.showAdultContent
@@ -574,6 +615,21 @@ data class AppSettings(
     val downloadNewUnreadChaptersOnly: Boolean get() = downloads.downloadNewUnreadChaptersOnly
     val downloadNewUnseenEpisodesOnly: Boolean get() = downloads.downloadNewUnseenEpisodesOnly
     val subtitleDownloadLanguages: String get() = downloads.subtitleDownloadLanguages
+
+    // ── Klavye / gamepad kısayolları ─────────────────────────────────────────
+    val keyboardEnabled: Boolean get() = keyboard.keyboardEnabled
+    val autoDetectExternalKeyboard: Boolean get() = keyboard.autoDetectExternalKeyboard
+    val keyboardOsdEnabled: Boolean get() = keyboard.keyboardOsdEnabled
+    val keyboardOsdDurationScale: Float get() = keyboard.keyboardOsdDurationScale
+    val keyboardOpensFullOsd: Boolean get() = keyboard.keyboardOpensFullOsd
+    val keyboardHelpEnabled: Boolean get() = keyboard.keyboardHelpEnabled
+    val disabledShortcuts: String get() = keyboard.disabledShortcuts
+    val customBindings: String get() = keyboard.customBindings
+    val gamepadEnabled: Boolean get() = keyboard.gamepadEnabled
+    val keyboardSeekStepSeconds: Int get() = keyboard.keyboardSeekStepSeconds
+    val keyboardPreciseSeekSeconds: Int get() = keyboard.keyboardPreciseSeekSeconds
+    val keyboardLargeSeekSeconds: Int get() = keyboard.keyboardLargeSeekSeconds
+    val keyboardHoldToAccelerate: Boolean get() = keyboard.keyboardHoldToAccelerate
 }
 
 enum class FrameRateMatchingMode {

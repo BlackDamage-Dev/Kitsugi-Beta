@@ -18534,4 +18534,7 @@ Eklentiler ekranından eklenti etkinleştirin.</string>
     <string name="bolum_listesi_bos">Bölüm listesi alınamadı</string>
     <string name="bolum_listesi_bos_ipucu">Detay sayfası, MAL/AniList/TMDB ve açık eklenti denendi. Yeniden deneyebilirsin.</string>
     <string name="bolum_listesi_film">Film içeriklerinde bölüm listesi bulunmaz.</string>
+    <!-- Klavye ve Gamepad Oynatıcı Ayarları -->
+    <string name="pd_tab_keyboard">Klavye</string>
+    <string name="pd_tab_keyboard_desc">Klavye ve gamepad kısayolları, küçük aksiyon göstergesi, arama adımları</string>
 </resources>

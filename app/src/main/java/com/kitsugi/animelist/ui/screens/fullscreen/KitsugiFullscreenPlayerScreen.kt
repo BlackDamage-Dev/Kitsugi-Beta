@@ -55,6 +55,8 @@ import com.kitsugi.animelist.data.repository.StreamSource
 import com.kitsugi.animelist.data.trailer.YoutubeChunkedDataSourceFactory
 import com.kitsugi.animelist.ui.screens.fullscreen.components.PauseOverlay
 import com.kitsugi.animelist.ui.screens.fullscreen.components.FeedbackBubble
+import com.kitsugi.animelist.ui.screens.fullscreen.components.KeyboardActionIndicator
+import com.kitsugi.animelist.ui.screens.fullscreen.components.KeyboardShortcutsHelpOverlay
 import com.kitsugi.animelist.ui.screens.fullscreen.components.PlayerInlineLoadingOverlay
 import com.kitsugi.animelist.ui.screens.fullscreen.components.PlayerLoadingView
 import com.kitsugi.animelist.ui.screens.fullscreen.components.PlayerErrorView
@@ -1180,10 +1182,210 @@ fun KitsugiFullscreenPlayerScreen(
                 var seekFeedback  by remember { mutableStateOf<String?>(null) }
                 // true = kullanıcı sağ tarafa tıkladı → gösterge sola (TopStart) gider
                 var seekFeedbackOnRightSide by remember { mutableStateOf(true) }
-                var keyboardFeedback by remember { mutableStateOf<Pair<String, ImageVector>?>(null) }
                 var playPauseIcon by remember { mutableStateOf<ImageVector?>(null) }
 
                 val controlsShown by viewModel.controlsShown.collectAsState()
+
+                // ─── Klavye / gamepad kısayolları (v2.4.341) ───────────────────────
+                // Kullanıcı isteği: "klavye ile bir şeyleri yönetirken sürekli oynatıcı
+                // arayüzüm gelip gitmesin; sadece tetiklediğim tuşun özelliği görünüp yok olsun."
+                //
+                // Bu yüzden tuş basımları artık `viewModel.showControls()` ÇAĞIRMIYOR.
+                // Yalnızca `keyboardController.indicator` (küçük OSD) güncelleniyor.
+                val keyboardEngineState = rememberUpdatedState(playerEngine)
+                val latestSettingsForKeys = rememberUpdatedState(safeSettings)
+                val keyboardTable = remember(safeSettings.customBindings, safeSettings.disabledShortcuts) {
+                    com.kitsugi.animelist.core.player.input.PlayerShortcutSettings.buildTable(
+                        disabledRaw = safeSettings.disabledShortcuts,
+                        overridesRaw = safeSettings.customBindings,
+                    )
+                }
+                val keyboardRouter = remember {
+                    com.kitsugi.animelist.core.player.input.PlayerKeyRouter(
+                        bindingsProvider = { keyboardTable }
+                    )
+                }
+                val keyboardController = remember(keyboardRouter) {
+                    com.kitsugi.animelist.ui.screens.fullscreen.controls.PlayerKeyboardController(
+                        router = keyboardRouter,
+                        callbacksProvider = {
+                            val engine = keyboardEngineState.value
+                            val cfg = latestSettingsForKeys.value
+                            com.kitsugi.animelist.ui.screens.fullscreen.controls.PlayerKeyboardCallbacks(
+                                keyboardEnabled = cfg.keyboardEnabled,
+                                showIndicators = cfg.keyboardOsdEnabled,
+                                indicatorDurationScale = cfg.keyboardOsdDurationScale,
+                                autoDetectExternalKeyboard = cfg.autoDetectExternalKeyboard,
+                                gamepadEnabled = cfg.gamepadEnabled,
+                                opensFullOsd = cfg.keyboardOpensFullOsd,
+                                onRefreshFullOsd = { viewModel.showControls() },
+                                holdToAccelerate = cfg.keyboardHoldToAccelerate,
+                                seekStepMs = cfg.keyboardSeekStepSeconds * 1000L,
+                                largeSeekStepMs = cfg.keyboardLargeSeekSeconds * 1000L,
+                                preciseSeekStepMs = cfg.keyboardPreciseSeekSeconds * 1000L,
+                                positionMs = { engine.currentPosition },
+                                durationMs = { engine.duration.coerceAtLeast(0L) },
+                                onSeekBy = { delta ->
+                                    val pos = engine.currentPosition
+                                    val dur = engine.duration.coerceAtLeast(0L)
+                                    engine.seekTo((pos + delta).coerceIn(0L, if (dur > 0L) dur else Long.MAX_VALUE))
+                                },
+                                onSeekTo = { target -> engine.seekTo(target.coerceAtLeast(0L)) },
+                                isPlaying = { engine.isPlaying },
+                                onPlayPause = { viewModel.togglePlay() },
+                                maxVolume = { viewModel.maxVolume },
+                                volume = { viewModel.currentVolume.value },
+                                mpvVolume = { viewModel.currentMPVVolume.value },
+                                onVolumeChange = { viewModel.changeVolumeTo(it) },
+                                onVolumeBoostChange = { viewModel.changeMPVVolumeTo(it) },
+                                volumeBoostSupported = { latestSettingsForKeys.value.volumeBoostCap > 100 },
+                                speed = { viewModel.playbackSpeed.value },
+                                onSpeedChange = { viewModel.setPlaybackSpeed(it, persist = false) },
+                                onCycleSubtitle = {
+                                    when {
+                                        textTrackOptions.isEmpty() -> "Altyazı parçası yok"
+                                        isSubtitleDisabled -> {
+                                            textTrackOptions.firstOrNull()?.let { engine.selectTrack(it) }
+                                            isSubtitleDisabled = false
+                                            "Altyazı açıldı"
+                                        }
+                                        else -> {
+                                            val next = textTrackOptions.firstOrNull { !it.isSelected }
+                                            if (next == null) {
+                                                engine.disableSubtitles()
+                                                isSubtitleDisabled = true
+                                                "Altyazı kapalı"
+                                            } else {
+                                                engine.selectTrack(next)
+                                                "Altyazı: ${next.label}"
+                                            }
+                                        }
+                                    }
+                                },
+                                onToggleSubtitleVisibility = {
+                                    if (isSubtitleDisabled) {
+                                        textTrackOptions.firstOrNull()?.let { engine.selectTrack(it) }
+                                        isSubtitleDisabled = false
+                                        true
+                                    } else {
+                                        engine.disableSubtitles()
+                                        isSubtitleDisabled = true
+                                        false
+                                    }
+                                },
+                                subtitleDelaySupported = { engine.supportsSubtitleDelay },
+                                onSubtitleDelayChange = { delta ->
+                                    val next = (subtitleDelayMs + delta).coerceIn(-30_000L, 30_000L)
+                                    subtitleDelayMs = next
+                                    engine.setSubtitleDelay(next)
+                                    next
+                                },
+                                onCycleAudio = {
+                                    if (audioTrackOptions.isEmpty()) {
+                                        "Ses parçası yok"
+                                    } else {
+                                        val target = audioTrackOptions.firstOrNull { !it.isSelected }
+                                            ?: audioTrackOptions.first()
+                                        engine.selectTrack(target)
+                                        "Ses: ${target.label}"
+                                    }
+                                },
+                                onNextEpisode = {
+                                    val hasNext = episodesList.any { it.episodeNumber == currentEpisode + 1 } ||
+                                        currentEpisode < (episodesList.lastOrNull()?.episodeNumber ?: Int.MAX_VALUE)
+                                    if (hasNext) { playNextEpisode(); true } else false
+                                },
+                                onPreviousEpisode = {
+                                    if (currentEpisode > 1) { playEpisode(currentEpisode - 1); true } else false
+                                },
+                                onChapterJump = { forward ->
+                                    val list = chapters
+                                    if (list.isEmpty()) {
+                                        null
+                                    } else {
+                                        val posSec = engine.currentPosition / 1000f
+                                        val target = if (forward) list.firstOrNull { it.start > posSec + 0.5f }
+                                        else list.lastOrNull { it.start < posSec - 0.5f }
+                                        if (target == null) null else {
+                                            engine.seekTo((target.start * 1000f).toLong())
+                                            target.name
+                                        }
+                                    }
+                                },
+                                onCycleAspect = {
+                                    val modes = com.kitsugi.animelist.core.player.PlayerAspectMode.entries
+                                    val nextMode = modes[(currentAspectMode.ordinal + 1) % modes.size]
+                                    currentAspectMode = nextMode
+                                    when (nextMode) {
+                                        com.kitsugi.animelist.core.player.PlayerAspectMode.ORIGINAL -> "Orijinal"
+                                        com.kitsugi.animelist.core.player.PlayerAspectMode.FIT -> "Sığdır"
+                                        com.kitsugi.animelist.core.player.PlayerAspectMode.FILL -> "Doldur"
+                                        com.kitsugi.animelist.core.player.PlayerAspectMode.CROP_16_9 -> "16:9"
+                                        com.kitsugi.animelist.core.player.PlayerAspectMode.CROP_4_3 -> "4:3"
+                                        com.kitsugi.animelist.core.player.PlayerAspectMode.ZOOM -> "Yakınlaştır (Kırp)"
+                                    }
+                                },
+                                onCycleOrientation = {
+                                    val next = when (screenOrientationState) {
+                                        ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                                        ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                                        else -> ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
+                                    }
+                                    screenOrientationState = next
+                                    activity?.requestedOrientation = next
+                                    when (next) {
+                                        ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR -> "Yönlendirme: Otomatik"
+                                        ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE -> "Yönlendirme: Yatay (Kilitli)"
+                                        else -> "Yönlendirme: Dikey (Kilitli)"
+                                    }
+                                },
+                                onToggleStatistics = {
+                                    if (engine !is com.kitsugi.animelist.core.player.engine.MpvPlayerEngine) {
+                                        null
+                                    } else {
+                                        val next = if (viewModel.statisticsPage.value == 0) 1 else 0
+                                        viewModel.updateStatisticsPage(next)
+                                        if (next == 0) "İstatistikler kapalı" else "İstatistikler açık"
+                                    }
+                                },
+                                onScreenshot = {
+                                    scope.launch {
+                                        val stream = viewModel.takeScreenshot(
+                                            context.cacheDir.absolutePath,
+                                            latestSettingsForKeys.value.screenshotSubtitles
+                                        )
+                                        if (stream != null) {
+                                            viewModel.saveImage({ stream }, engine.currentPosition.toInt())
+                                        }
+                                    }
+                                },
+                                onOpenSettings = {
+                                    viewModel.showPanel(KitsugiPanels.None)
+                                    viewModel.showSheet(KitsugiSheets.More)
+                                },
+                                onToggleUi = { viewModel.toggleControls() },
+                                onToggleLock = {
+                                    if (viewModel.areControlsLocked.value) {
+                                        viewModel.unlockControls(); false
+                                    } else {
+                                        viewModel.lockControls(); true
+                                    }
+                                },
+                            )
+                        }
+                    )
+                }
+                val keyboardIndicator = keyboardController.indicator
+                val shortcutsEnabled = safeSettings.keyboardEnabled
+
+                // Gösterge kendi kendine kaybolur — tam OSD'nin kapatma zamanlayıcısına dokunmaz.
+                LaunchedEffect(keyboardIndicator?.seq) {
+                    if (keyboardIndicator == null) return@LaunchedEffect
+                    delay(keyboardController.indicatorDwellMs())
+                    if (keyboardController.indicator?.seq == keyboardIndicator.seq) {
+                        keyboardController.clearIndicator()
+                    }
+                }
 
                 LaunchedEffect(controlsShown) {
                     if (!controlsShown && isFocusTargetAttached) {
@@ -1196,17 +1398,11 @@ fun KitsugiFullscreenPlayerScreen(
                 }
 
                 LaunchedEffect(isPlayingState) {
-                    // Duraklatıldığında kontrolleri göster; oynatma sırasında dokunma
-                    // davranışını GestureHandler yönetir. (Eskiden iki dal da aynı şeyi
-                    // yapıyordu — anlamsız bir "her durumda göster" çağrısıydı.)
                     if (!isPlayingState) viewModel.showControls()
                 }
 
                 LaunchedEffect(seekFeedback) {
                     if (seekFeedback != null) { delay(650); seekFeedback = null }
-                }
-                LaunchedEffect(keyboardFeedback) {
-                    if (keyboardFeedback != null) { delay(900); keyboardFeedback = null }
                 }
                 LaunchedEffect(playPauseIcon) {
                     if (playPauseIcon != null) { delay(500); playPauseIcon = null }
@@ -1218,15 +1414,31 @@ fun KitsugiFullscreenPlayerScreen(
                         .focusRequester(mainFocusRequester)
                         .focusable()
                         .onPreviewKeyEvent { event ->
-                            val native = event.nativeKeyEvent
-                            val keyCode = native.keyCode
-                            val isPhysicalKeyboard = native.device?.keyboardType == android.view.InputDevice.KEYBOARD_TYPE_ALPHABETIC
-                            val menuOpen = panelShown != KitsugiPanels.None ||
-                                sheetShown != KitsugiSheets.None || dialogShown != KitsugiDialogs.None
+                            val keyInfo = com.kitsugi.animelist.core.player.input.PlayerKeyRouter.KeyInfo(
+                                keyCode = event.nativeKeyEvent.keyCode,
+                                shift = event.nativeKeyEvent.isShiftPressed,
+                                ctrl = event.nativeKeyEvent.isCtrlPressed,
+                                alt = event.nativeKeyEvent.isAltPressed,
+                                repeatCount = event.nativeKeyEvent.repeatCount,
+                                source = event.nativeKeyEvent.source,
+                                deviceId = event.nativeKeyEvent.deviceId,
+                            )
+                            val isKeyDown = event.type == KeyEventType.KeyDown
+                            val isKeyUp = event.type == KeyEventType.KeyUp
+
+                            // ── 1) Back / Esc: kademeli kapanış (panel → OSD → çıkış) ──
                             if (event.key == Key.Back || event.key == Key.Escape) {
-                                if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent true
+                                if (!isKeyDown) return@onPreviewKeyEvent true
+                                if (keyboardController.helpVisible) {
+                                    keyboardController.dismissHelp()
+                                    return@onPreviewKeyEvent true
+                                }
+                                if (keyboardController.exitConfirmVisible) {
+                                    keyboardController.dismissExitConfirm()
+                                    return@onPreviewKeyEvent true
+                                }
                                 return@onPreviewKeyEvent when {
-                                    menuOpen -> {
+                                    panelShown != KitsugiPanels.None || sheetShown != KitsugiSheets.None || dialogShown != KitsugiDialogs.None -> {
                                         viewModel.showPanel(KitsugiPanels.None)
                                         viewModel.showSheet(KitsugiSheets.None)
                                         viewModel.showDialog(KitsugiDialogs.None)
@@ -1238,6 +1450,10 @@ fun KitsugiFullscreenPlayerScreen(
                                         mainFocusRequester.requestFocus()
                                         true
                                     }
+                                    event.key == Key.Escape && safeSettings.keyboardEnabled -> {
+                                        keyboardController.requestExitConfirmation()
+                                        true
+                                    }
                                     else -> {
                                         onBack()
                                         true
@@ -1245,317 +1461,43 @@ fun KitsugiFullscreenPlayerScreen(
                                 }
                             }
 
-                            // Let dialogs, sheets and panels keep their own focus/navigation.
-                            if (menuOpen) return@onPreviewKeyEvent false
-
-                            val isMediaKey = keyCode == android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE ||
-                                keyCode == android.view.KeyEvent.KEYCODE_MEDIA_PLAY ||
-                                keyCode == android.view.KeyEvent.KEYCODE_MEDIA_PAUSE ||
-                                keyCode == android.view.KeyEvent.KEYCODE_MEDIA_STOP ||
-                                keyCode == android.view.KeyEvent.KEYCODE_MEDIA_NEXT ||
-                                keyCode == android.view.KeyEvent.KEYCODE_MEDIA_PREVIOUS ||
-                                keyCode == android.view.KeyEvent.KEYCODE_MEDIA_FAST_FORWARD ||
-                                keyCode == android.view.KeyEvent.KEYCODE_MEDIA_REWIND
-                            val isShortcutKey = keyCode == android.view.KeyEvent.KEYCODE_SPACE ||
-                                keyCode == android.view.KeyEvent.KEYCODE_K ||
-                                keyCode == android.view.KeyEvent.KEYCODE_J ||
-                                keyCode == android.view.KeyEvent.KEYCODE_L ||
-                                keyCode == android.view.KeyEvent.KEYCODE_N ||
-                                keyCode == android.view.KeyEvent.KEYCODE_P ||
-                                keyCode == android.view.KeyEvent.KEYCODE_F ||
-                                keyCode == android.view.KeyEvent.KEYCODE_R ||
-                                keyCode == android.view.KeyEvent.KEYCODE_M ||
-                                keyCode == android.view.KeyEvent.KEYCODE_A ||
-                                keyCode == android.view.KeyEvent.KEYCODE_C ||
-                                keyCode == android.view.KeyEvent.KEYCODE_T ||
-                                keyCode == android.view.KeyEvent.KEYCODE_V ||
-                                keyCode == android.view.KeyEvent.KEYCODE_O ||
-                                keyCode == android.view.KeyEvent.KEYCODE_MOVE_HOME ||
-                                keyCode == android.view.KeyEvent.KEYCODE_MOVE_END ||
-                                keyCode == android.view.KeyEvent.KEYCODE_LEFT_BRACKET ||
-                                keyCode == android.view.KeyEvent.KEYCODE_RIGHT_BRACKET ||
-                                keyCode == android.view.KeyEvent.KEYCODE_MINUS ||
-                                keyCode == android.view.KeyEvent.KEYCODE_EQUALS ||
-                                keyCode == android.view.KeyEvent.KEYCODE_PLUS ||
-                                keyCode == android.view.KeyEvent.KEYCODE_NUMPAD_ADD ||
-                                keyCode == android.view.KeyEvent.KEYCODE_NUMPAD_SUBTRACT ||
-                                keyCode == android.view.KeyEvent.KEYCODE_COMMA ||
-                                keyCode == android.view.KeyEvent.KEYCODE_PERIOD ||
-                                keyCode in android.view.KeyEvent.KEYCODE_0..android.view.KeyEvent.KEYCODE_9 || isMediaKey
-                            val keyboardArrow = isPhysicalKeyboard &&
-                                (keyCode == android.view.KeyEvent.KEYCODE_DPAD_LEFT ||
-                                    keyCode == android.view.KeyEvent.KEYCODE_DPAD_RIGHT ||
-                                    keyCode == android.view.KeyEvent.KEYCODE_DPAD_UP ||
-                                    keyCode == android.view.KeyEvent.KEYCODE_DPAD_DOWN)
-                            val navigationKey = keyCode == android.view.KeyEvent.KEYCODE_DPAD_CENTER ||
-                                keyCode == android.view.KeyEvent.KEYCODE_ENTER ||
-                                keyCode == android.view.KeyEvent.KEYCODE_DPAD_LEFT ||
-                                keyCode == android.view.KeyEvent.KEYCODE_DPAD_RIGHT ||
-                                keyCode == android.view.KeyEvent.KEYCODE_DPAD_UP ||
-                                keyCode == android.view.KeyEvent.KEYCODE_DPAD_DOWN
-                            if (event.type != KeyEventType.KeyDown) {
-                                return@onPreviewKeyEvent if (isShortcutKey || keyboardArrow || navigationKey) true
-                                else playerEngine.handleKey(native)
+                            // ── 2) Panel/OSD açıkken gezinme tuşları arayüze aittir ──
+                            if (panelShown != KitsugiPanels.None || sheetShown != KitsugiSheets.None || dialogShown != KitsugiDialogs.None) {
+                                return@onPreviewKeyEvent false
                             }
-                            val ignoreKeyRepeat = keyCode == android.view.KeyEvent.KEYCODE_SPACE ||
-                                keyCode == android.view.KeyEvent.KEYCODE_K ||
-                                keyCode == android.view.KeyEvent.KEYCODE_M ||
-                                keyCode == android.view.KeyEvent.KEYCODE_A ||
-                                keyCode == android.view.KeyEvent.KEYCODE_C ||
-                                keyCode == android.view.KeyEvent.KEYCODE_T ||
-                                keyCode == android.view.KeyEvent.KEYCODE_V ||
-                                keyCode == android.view.KeyEvent.KEYCODE_R ||
-                                keyCode == android.view.KeyEvent.KEYCODE_O ||
-                                keyCode == android.view.KeyEvent.KEYCODE_N ||
-                                keyCode == android.view.KeyEvent.KEYCODE_P ||
-                                keyCode == android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE ||
-                                keyCode == android.view.KeyEvent.KEYCODE_MEDIA_PLAY ||
-                                keyCode == android.view.KeyEvent.KEYCODE_MEDIA_PAUSE ||
-                                keyCode == android.view.KeyEvent.KEYCODE_MEDIA_NEXT ||
-                                keyCode == android.view.KeyEvent.KEYCODE_MEDIA_PREVIOUS
-                            if (native.repeatCount > 0 && ignoreKeyRepeat) return@onPreviewKeyEvent true
-
-                            fun seekByKeyboard(deltaMs: Long) {
-                                val target = (playerEngine.currentPosition + deltaMs)
-                                    .coerceIn(0L, playerEngine.duration.coerceAtLeast(0L))
-                                playerEngine.seekTo(target)
-                                viewModel.onUserInteraction()
-                                seekFeedback = if (deltaMs < 0L) "-${kotlin.math.abs(deltaMs) / 1000}s" else "+${deltaMs / 1000}s"
-                                seekFeedbackOnRightSide = deltaMs > 0L
-                                viewModel.showControls()
-                            }
-
-                            fun showKeyboardFeedback(text: String, icon: ImageVector) {
-                                keyboardFeedback = text to icon
-                                viewModel.showControls()
-                            }
-
-                            fun adjustVolume(delta: Int) {
-                                val step = maxOf(1, (viewModel.maxVolume * 0.05f).toInt())
-                                viewModel.changeVolumeTo(viewModel.currentVolume.value + delta * step)
-                                viewModel.displayVolumeSlider()
-                                showKeyboardFeedback("Ses %${(viewModel.currentVolume.value * 100 / viewModel.maxVolume.coerceAtLeast(1))}", Icons.Rounded.VolumeUp)
-                            }
-
-                            fun adjustBrightness(delta: Float) {
-                                val windowBrightness = activity?.window?.attributes?.screenBrightness
-                                val base = viewModel.currentBrightness.value.takeIf { it >= -0.75f }
-                                    ?: windowBrightness?.takeIf { it in 0f..1f }
-                                    ?: viewModel.getSystemBrightness()
-                                val next = (base + delta).coerceIn(0f, 1f)
-                                viewModel.changeBrightnessTo(next)
-                                viewModel.displayBrightnessSlider()
-                                showKeyboardFeedback("Parlaklık %${(next * 100).toInt()}", Icons.Rounded.BrightnessMedium)
-                            }
-
-                            fun changePlaybackSpeed(delta: Float) {
-                                val speed = (viewModel.playbackSpeed.value + delta).coerceIn(0.1f, 6f)
-                                viewModel.setPlaybackSpeed(speed, persist = false)
-                                showKeyboardFeedback(
-                                    "Hız ${String.format(java.util.Locale.US, "%.2f×", speed)}",
-                                    Icons.Rounded.Speed
-                                )
-                            }
-
-                            fun cycleTrack(tracks: List<TrackOption>, label: String, icon: ImageVector) {
-                                if (tracks.isEmpty()) {
-                                    showKeyboardFeedback("$label parçası bulunamadı", icon)
-                                    return
-                                }
-                                val selected = tracks.indexOfFirst { it.isSelected }
-                                val next = tracks[(selected + 1) % tracks.size]
-                                playerEngine.selectTrack(next)
-                                showKeyboardFeedback("$label: ${next.label}", icon)
-                            }
-
-                            fun toggleSubtitles() {
-                                if (playerEngine.isSubtitleDisabled) {
-                                    cycleTrack(textTrackOptions, "Altyazı", Icons.Rounded.Subtitles)
-                                } else {
-                                    playerEngine.disableSubtitles()
-                                    showKeyboardFeedback("Altyazı kapalı", Icons.Rounded.Subtitles)
-                                }
-                            }
-
-                            fun adjustSubtitleDelay(deltaMs: Long) {
-                                subtitleDelayMs = (subtitleDelayMs + deltaMs).coerceIn(-10_000L, 10_000L)
-                                if (!playerEngine.supportsSubtitleDelay) {
-                                    viewModel.switchEngineForFeature(PlayerEngineType.MPV)
-                                }
-                                playerEngine.setSubtitleDelay(subtitleDelayMs)
-                                val signedDelay = if (subtitleDelayMs < 0L) "−" else "+"
-                                showKeyboardFeedback("Altyazı $signedDelay${kotlin.math.abs(subtitleDelayMs) / 1000.0}s", Icons.Rounded.Subtitles)
-                            }
-
-                            fun adjustAudioDelay(deltaMs: Long) {
-                                audioDelayMs = (audioDelayMs + deltaMs).coerceIn(-10_000L, 10_000L)
-                                playerEngine.setAudioDelay(audioDelayMs)
-                                val signedDelay = if (audioDelayMs < 0L) "−" else "+"
-                                showKeyboardFeedback("Ses gecikmesi $signedDelay${kotlin.math.abs(audioDelayMs) / 1000.0}s", Icons.Rounded.VolumeUp)
-                            }
-
-                            if (isPhysicalKeyboard && keyCode in android.view.KeyEvent.KEYCODE_0..android.view.KeyEvent.KEYCODE_9) {
-                                val fractionTenths = keyCode - android.view.KeyEvent.KEYCODE_0
-                                val durationMs = playerEngine.duration
-                                if (durationMs > 0L) {
-                                    playerEngine.seekTo(durationMs * fractionTenths / 10L)
-                                    viewModel.onUserInteraction()
-                                    seekFeedback = "${fractionTenths * 10}%"
-                                    seekFeedbackOnRightSide = fractionTenths >= 5
-                                }
-                                viewModel.showControls()
+                            if (keyboardController.helpVisible) {
+                                if (isKeyDown) keyboardController.dismissHelp()
                                 return@onPreviewKeyEvent true
                             }
 
-                            if (isMediaKey) {
-                                when (keyCode) {
-                                    android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> viewModel.togglePlay()
-                                    android.view.KeyEvent.KEYCODE_MEDIA_PLAY -> viewModel.play()
-                                    android.view.KeyEvent.KEYCODE_MEDIA_PAUSE,
-                                    android.view.KeyEvent.KEYCODE_MEDIA_STOP -> viewModel.pause()
-                                    android.view.KeyEvent.KEYCODE_MEDIA_NEXT -> if (viewModel.hasNextEpisode.value) playNextEpisode()
-                                    android.view.KeyEvent.KEYCODE_MEDIA_PREVIOUS -> if (viewModel.currentEpisode.value > 1) viewModel.changeEpisode(previous = true)
-                                    android.view.KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> seekByKeyboard(30_000L)
-                                    android.view.KeyEvent.KEYCODE_MEDIA_REWIND -> seekByKeyboard(-30_000L)
-                                }
-                                viewModel.showControls()
-                                return@onPreviewKeyEvent true
+                            val isDpadNavKey = event.key == Key.DirectionCenter ||
+                                event.key == Key.Enter ||
+                                event.key == Key.DirectionLeft ||
+                                event.key == Key.DirectionRight ||
+                                event.key == Key.DirectionUp ||
+                                event.key == Key.DirectionDown
+
+                            if (controlsShown && isDpadNavKey) {
+                                if (isKeyDown) viewModel.showControls()
+                                return@onPreviewKeyEvent false
                             }
 
-                            if (isPhysicalKeyboard) {
-                                when (keyCode) {
-                                    android.view.KeyEvent.KEYCODE_SPACE,
-                                    android.view.KeyEvent.KEYCODE_K -> {
-                                        viewModel.togglePlay()
-                                        viewModel.showControls()
-                                        true
-                                    }
-                                    android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
-                                        viewModel.togglePlay()
-                                        viewModel.showControls()
-                                        true
-                                    }
-                                    android.view.KeyEvent.KEYCODE_MEDIA_PLAY -> {
-                                        viewModel.play()
-                                        viewModel.showControls()
-                                        true
-                                    }
-                                    android.view.KeyEvent.KEYCODE_MEDIA_PAUSE -> {
-                                        viewModel.pause()
-                                        viewModel.showControls()
-                                        true
-                                    }
-                                    android.view.KeyEvent.KEYCODE_J -> { seekByKeyboard(-10_000L); true }
-                                    android.view.KeyEvent.KEYCODE_L -> { seekByKeyboard(10_000L); true }
-                                    android.view.KeyEvent.KEYCODE_DPAD_LEFT,
-                                    android.view.KeyEvent.KEYCODE_DPAD_RIGHT -> {
-                                        val direction = if (keyCode == android.view.KeyEvent.KEYCODE_DPAD_LEFT) -1L else 1L
-                                        when {
-                                            native.isCtrlPressed && native.isAltPressed -> adjustAudioDelay(direction * 50L)
-                                            native.isAltPressed -> adjustSubtitleDelay(direction * 100L)
-                                            else -> {
-                                                val multiplier = when {
-                                                    native.isCtrlPressed -> 12L
-                                                    native.isShiftPressed -> 6L
-                                                    else -> 1L
-                                                }
-                                                seekByKeyboard(direction * 5_000L * multiplier)
-                                            }
-                                        }
-                                        true
-                                    }
-                                    android.view.KeyEvent.KEYCODE_DPAD_UP,
-                                    android.view.KeyEvent.KEYCODE_DPAD_DOWN -> {
-                                        val direction = if (keyCode == android.view.KeyEvent.KEYCODE_DPAD_UP) 1 else -1
-                                        if (native.isShiftPressed || native.isAltPressed) {
-                                            adjustBrightness(direction * 0.05f)
-                                        } else {
-                                            adjustVolume(direction)
-                                        }
-                                        true
-                                    }
-                                    android.view.KeyEvent.KEYCODE_PLUS,
-                                    android.view.KeyEvent.KEYCODE_EQUALS,
-                                    android.view.KeyEvent.KEYCODE_NUMPAD_ADD -> { adjustVolume(1); true }
-                                    android.view.KeyEvent.KEYCODE_MINUS,
-                                    android.view.KeyEvent.KEYCODE_NUMPAD_SUBTRACT -> { adjustVolume(-1); true }
-                                    android.view.KeyEvent.KEYCODE_LEFT_BRACKET -> { adjustBrightness(-0.05f); true }
-                                    android.view.KeyEvent.KEYCODE_RIGHT_BRACKET -> { adjustBrightness(0.05f); true }
-                                    android.view.KeyEvent.KEYCODE_COMMA -> { changePlaybackSpeed(-0.1f); true }
-                                    android.view.KeyEvent.KEYCODE_PERIOD -> { changePlaybackSpeed(0.1f); true }
-                                    android.view.KeyEvent.KEYCODE_M -> { viewModel.toggleMute(); showKeyboardFeedback("Sessiz ${if (viewModel.currentVolume.value == 0) "açık" else "kapalı"}", Icons.Rounded.VolumeUp); true }
-                                    android.view.KeyEvent.KEYCODE_A -> { cycleTrack(audioTrackOptions, "Ses", Icons.Rounded.VolumeUp); true }
-                                    android.view.KeyEvent.KEYCODE_C -> { cycleTrack(textTrackOptions, "Altyazı", Icons.Rounded.Subtitles); true }
-                                    android.view.KeyEvent.KEYCODE_T -> { toggleSubtitles(); true }
-                                    android.view.KeyEvent.KEYCODE_V -> {
-                                        val modes = com.kitsugi.animelist.core.player.PlayerAspectMode.entries
-                                        val index = modes.indexOf(currentAspectMode).coerceAtLeast(0)
-                                        currentAspectMode = modes[(index + 1) % modes.size]
-                                        showKeyboardFeedback("Görüntü: ${currentAspectMode.name}", Icons.Rounded.AspectRatio)
-                                        true
-                                    }
-                                    android.view.KeyEvent.KEYCODE_R -> {
-                                        val nextOrientation = when (screenOrientationState) {
-                                            ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-                                            ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
-                                            else -> ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
-                                        }
-                                        screenOrientationState = nextOrientation
-                                        activity?.requestedOrientation = nextOrientation
-                                        showKeyboardFeedback("Yön: ${if (nextOrientation == ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE) "Yatay" else if (nextOrientation == ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT) "Dikey" else "Otomatik"}", Icons.Rounded.AspectRatio)
-                                        true
-                                    }
-                                    android.view.KeyEvent.KEYCODE_O -> {
-                                        if (viewModel.areControlsLocked.value) viewModel.unlockControls() else viewModel.lockControls()
-                                        showKeyboardFeedback(if (viewModel.areControlsLocked.value) "Kontroller kilitli" else "Kontroller açık", if (viewModel.areControlsLocked.value) Icons.Rounded.Lock else Icons.Rounded.LockOpen)
-                                        true
-                                    }
-                                    android.view.KeyEvent.KEYCODE_MOVE_HOME -> {
-                                        playerEngine.seekTo(0L)
-                                        viewModel.showControls()
-                                        true
-                                    }
-                                    android.view.KeyEvent.KEYCODE_MOVE_END -> {
-                                        val durationMs = playerEngine.duration
-                                        if (durationMs > 0L) playerEngine.seekTo((durationMs - 1_000L).coerceAtLeast(0L))
-                                        viewModel.showControls()
-                                        true
-                                    }
-                                    android.view.KeyEvent.KEYCODE_N -> {
-                                        if (viewModel.hasNextEpisode.value) playNextEpisode()
-                                        viewModel.showControls()
-                                        true
-                                    }
-                                    android.view.KeyEvent.KEYCODE_P -> {
-                                        if (viewModel.currentEpisode.value > 1) viewModel.changeEpisode(previous = true)
-                                        viewModel.showControls()
-                                        true
-                                    }
-                                    android.view.KeyEvent.KEYCODE_F -> {
-                                        viewModel.toggleControls()
-                                        true
-                                    }
-                                    else -> playerEngine.handleKey(native)
+                            // ── 3) Kısayol tablosu ────────────────────────────────────
+                            if (isKeyUp) {
+                                keyboardController.onKey(keyInfo, isKeyDown = false)
+                                return@onPreviewKeyEvent when {
+                                    !shortcutsEnabled -> playerEngine.handleKey(event.nativeKeyEvent)
+                                    else -> !isDpadNavKey
                                 }
-                            } else if (!controlsShown) {
-                                when (keyCode) {
-                                    android.view.KeyEvent.KEYCODE_DPAD_CENTER,
-                                    android.view.KeyEvent.KEYCODE_ENTER -> {
-                                        viewModel.togglePlay()
-                                        viewModel.showControls()
-                                        true
-                                    }
-                                    android.view.KeyEvent.KEYCODE_DPAD_LEFT -> { seekByKeyboard(-10_000L); true }
-                                    android.view.KeyEvent.KEYCODE_DPAD_RIGHT -> { seekByKeyboard(10_000L); true }
-                                    android.view.KeyEvent.KEYCODE_DPAD_UP,
-                                    android.view.KeyEvent.KEYCODE_DPAD_DOWN -> {
-                                        viewModel.showControls()
-                                        true
-                                    }
-                                    else -> playerEngine.handleKey(native)
-                                }
-                            } else {
-                                false
+                            }
+                            if (!isKeyDown) return@onPreviewKeyEvent false
+
+                            val handled = keyboardController.onKey(keyInfo, isKeyDown = true)
+                            if (handled) return@onPreviewKeyEvent true
+
+                            return@onPreviewKeyEvent when {
+                                shortcutsEnabled -> true
+                                else -> playerEngine.handleKey(event.nativeKeyEvent)
                             }
                         }
                         .pointerInput(playerEngine, safeSettings, isInPipMode) {
@@ -1713,7 +1655,9 @@ fun KitsugiFullscreenPlayerScreen(
                         }
                     }
 
-                    // Double Tap Seek feedback
+                    val bubbleTopPadding = if (controlsShown) 72.dp else 28.dp
+
+                    // Double Tap Seek feedback (sol/sağ — hangi tarafa dokunulduysa o taraf)
                     FeedbackBubble(
                         text = seekFeedback,
                         icon = if (seekFeedback?.startsWith("+") == true) Icons.FastForward else Icons.FastRewind,
@@ -1723,18 +1667,10 @@ fun KitsugiFullscreenPlayerScreen(
                                 else                         Alignment.TopEnd
                             )
                             .padding(
-                                top   = 80.dp,
-                                start = if (seekFeedbackOnRightSide) 32.dp else 0.dp,
-                                end   = if (seekFeedbackOnRightSide) 0.dp  else 32.dp
+                                top   = bubbleTopPadding,
+                                start = if (seekFeedbackOnRightSide) 24.dp else 0.dp,
+                                end   = if (seekFeedbackOnRightSide) 0.dp  else 24.dp
                             )
-                    )
-
-                    FeedbackBubble(
-                        text = keyboardFeedback?.first,
-                        icon = keyboardFeedback?.second ?: Icons.Rounded.VolumeUp,
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .padding(bottom = 150.dp)
                     )
 
                     // Aspect ratio feedback overlay
@@ -1743,8 +1679,82 @@ fun KitsugiFullscreenPlayerScreen(
                         icon = Icons.AspectRatio,
                         modifier = Modifier
                             .align(Alignment.TopCenter)
-                            .padding(top = 80.dp)
+                            .padding(top = bubbleTopPadding + if (seekFeedback != null) 52.dp else 0.dp)
                     )
+
+                    // ─── Klavye kısayolu göstergesi (küçük, kısa ömürlü OSD) ─────────
+                    if (!isInPipMode) {
+                        val controlsReserveDp = if (controlsShown) 124.dp else 24.dp
+                        val subtitlePos = subtitleStyle.pos.coerceIn(0, 150)
+                        val subtitleFraction = ((150 - subtitlePos) / 150f * 0.78f + 0.08f)
+                        val subtitleBlockDp = if (subtitleStyle.size > 0) 44.dp else 0.dp
+                        val bottomPadDp = controlsReserveDp +
+                            (220f * subtitleFraction).dp.coerceAtLeast(subtitleBlockDp)
+
+                        KeyboardActionIndicator(
+                            message = keyboardIndicator,
+                            imageVector = com.kitsugi.animelist.ui.screens.fullscreen.controls
+                                .keyboardActionIcon(keyboardIndicator?.action),
+                            reduceMotion = safeSettings.reducePlayerMotion,
+                            accentColor = LocalKitsugiAccent.current,
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .padding(bottom = bottomPadDp)
+                        )
+                    }
+
+                    // ─── Klavye kısayolları yardım ekranı (mpv `?` / VLC yardımı) ──────
+                    if (keyboardController.helpVisible && safeSettings.keyboardHelpEnabled && !isInPipMode) {
+                        KeyboardShortcutsHelpOverlay(
+                            visible = true,
+                            effectiveBindings = keyboardTable,
+                            disabledActions = com.kitsugi.animelist.core.player.input.PlayerShortcutSettings
+                                .parseDisabled(safeSettings.disabledShortcuts),
+                            onDismiss = { keyboardController.dismissHelp() },
+                            accentColor = LocalKitsugiAccent.current,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+
+                    // ─── Çıkış onayı (yanlış tuşla oturum kaybını önler) ───────────────
+                    if (keyboardController.exitConfirmVisible && !isInPipMode) {
+                        AlertDialog(
+                            onDismissRequest = { keyboardController.dismissExitConfirm() },
+                            containerColor = KitsugiColors.Surface,
+                            titleContentColor = KitsugiColors.TextPrimary,
+                            textContentColor = KitsugiColors.TextSecondary,
+                            shape = RoundedCornerShape(26.dp),
+                            title = {
+                                Text(
+                                    text = "Oynatıcıdan çıkılsın mı?",
+                                    fontWeight = FontWeight.Bold,
+                                    style = MaterialTheme.typography.titleLarge
+                                )
+                            },
+                            text = {
+                                Text(
+                                    text = "Klavyeden çıkış tuşuna bastınız (Esc / Q / gamepad B). " +
+                                        "İzlemeye devam etmek için İptal'i seçin.\n\n" +
+                                        "İpucu: tuşlarla yalnızca kısayol kullanmak istiyorsanız Esc, " +
+                                        "önce arayüzü kapatır; ikinci basışta bu onay çıkar.",
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            },
+                            confirmButton = {
+                                TextButton(onClick = {
+                                    keyboardController.dismissExitConfirm()
+                                    onBack()
+                                }) {
+                                    Text("Çık", color = LocalKitsugiAccent.current, fontWeight = FontWeight.Bold)
+                                }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = { keyboardController.dismissExitConfirm() }) {
+                                    Text("İptal", color = KitsugiColors.TextSecondary)
+                                }
+                            }
+                        )
+                    }
 
                     val hasNextEpisode = episodesList.isNotEmpty() && (episodesList.any { it.episodeNumber == nextEpNum } || currentEpisode < (episodesList.lastOrNull()?.episodeNumber ?: Int.MAX_VALUE))
                     PlaybackEndedOverlay(

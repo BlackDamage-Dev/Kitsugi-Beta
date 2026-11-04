@@ -1114,6 +1114,43 @@ class Media3PlayerEngine(
         }
     }
 
+    /**
+     * Medya tuşları köprüsü (kulaklık düğmesi, Bluetooth oynat/duraklat, TV kumandası).
+     *
+     * ExoPlayer varsayılanda pencere seviyesindeki medya tuşlarını dinlemez.
+     * Klavye/kumanda yöneticisi [PlayerKeyboardController] bu olayları motora iletir.
+     * Yalnızca motor seviyesinde güvenle yapılabilecek evrensel medya eylemleri
+     * uygulanır: oynat/duraklat, durdur ve ±10 sn. Diğer tuşlar sahiplenilmez.
+     */
+    override fun handleKey(event: android.view.KeyEvent): Boolean {
+        if (android.view.KeyEvent.isModifierKey(event.keyCode)) return false
+        if (event.action != android.view.KeyEvent.ACTION_DOWN) return false
+        val player = exoPlayer ?: return false
+        return when (event.keyCode) {
+            android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
+            android.view.KeyEvent.KEYCODE_HEADSETHOOK,
+            android.view.KeyEvent.KEYCODE_MEDIA_PLAY -> {
+                if (player.isPlaying) player.pause() else player.play()
+                true
+            }
+            android.view.KeyEvent.KEYCODE_MEDIA_PAUSE -> { player.pause(); true }
+            android.view.KeyEvent.KEYCODE_MEDIA_STOP -> { player.pause(); true }
+            android.view.KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> {
+                // `player.duration` canlı akışta C.TIME_UNSET (-1) döner; o durumda üst
+                // sınır uygulanmaz, aksi hâlde tüm atlamalar 0'a kırpılırdı.
+                val target = player.currentPosition + 10_000L
+                val total = player.duration
+                player.seekTo(if (total > 0L) target.coerceAtMost(total) else target)
+                true
+            }
+            android.view.KeyEvent.KEYCODE_MEDIA_REWIND -> {
+                player.seekTo((player.currentPosition - 10_000L).coerceAtLeast(0L))
+                true
+            }
+            else -> false
+        }
+    }
+
     override fun seekTo(positionMs: Long) {
         runOnMainThread {
             exoPlayer?.seekTo(positionMs)

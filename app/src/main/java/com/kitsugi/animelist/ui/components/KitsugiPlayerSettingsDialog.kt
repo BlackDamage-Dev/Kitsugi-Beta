@@ -1,5 +1,7 @@
 package com.kitsugi.animelist.ui.components
 
+import com.kitsugi.animelist.ui.components.player.PlayerKeyboardTab
+
 import com.kitsugi.animelist.ui.theme.gradient.FilterChip
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import com.kitsugi.animelist.ui.theme.gradient.Text
@@ -50,6 +52,7 @@ enum class PlayerSettingsSubScreen {
     Altyazilar,
     Ses,
     OzelButonlar,
+    Klavye,
     KodDuzenleyici,
     Gelismis
 }
@@ -74,6 +77,7 @@ internal val PlayerSettingsTabs: List<PlayerSettingsTab> = listOf(
     PlayerSettingsTab(PlayerSettingsSubScreen.Altyazilar, R.string.pd_tab_subtitles, Icons.Subtitles),
     PlayerSettingsTab(PlayerSettingsSubScreen.Ses, R.string.pd_sub_audio, Icons.VolumeUp),
     PlayerSettingsTab(PlayerSettingsSubScreen.OzelButonlar, R.string.pd_tab_custom_buttons, Icons.SmartButton),
+    PlayerSettingsTab(PlayerSettingsSubScreen.Klavye, R.string.pd_tab_keyboard, Icons.Keyboard),
     PlayerSettingsTab(PlayerSettingsSubScreen.KodDuzenleyici, R.string.pd_tab_code_editor, Icons.Code),
     PlayerSettingsTab(PlayerSettingsSubScreen.Gelismis, R.string.pd_tab_advanced, Icons.Settings)
 )
@@ -1577,6 +1581,39 @@ fun KitsugiPlayerSettingsDialog(
                                 }
                             }
                         }
+                    }
+
+                    PlayerSettingsSubScreen.Klavye -> {
+                        PlayerKeyboardTab(
+                            keyboardEnabled = appSettings?.keyboardEnabled ?: true,
+                            autoDetectExternalKeyboard = appSettings?.autoDetectExternalKeyboard ?: true,
+                            gamepadEnabled = appSettings?.gamepadEnabled ?: true,
+                            keyboardOsdEnabled = appSettings?.keyboardOsdEnabled ?: true,
+                            keyboardOsdDurationScale = appSettings?.keyboardOsdDurationScale ?: 1f,
+                            keyboardOpensFullOsd = appSettings?.keyboardOpensFullOsd ?: false,
+                            keyboardHelpEnabled = appSettings?.keyboardHelpEnabled ?: true,
+                            disabledShortcuts = appSettings?.disabledShortcuts ?: "",
+                            customBindings = appSettings?.customBindings ?: "",
+                            seekStepSeconds = appSettings?.keyboardSeekStepSeconds ?: 5,
+                            preciseSeekSeconds = appSettings?.keyboardPreciseSeekSeconds ?: 1,
+                            largeSeekSeconds = appSettings?.keyboardLargeSeekSeconds ?: 60,
+                            holdToAccelerate = appSettings?.keyboardHoldToAccelerate ?: true,
+                            accentColor = accentColor,
+                            onKeyboardEnabledChanged = { scope.launch { settingsDataStore.setKeyboardEnabled(it) } },
+                            onAutoDetectChanged = { scope.launch { settingsDataStore.setKeyboardAutoDetect(it) } },
+                            onGamepadEnabledChanged = { scope.launch { settingsDataStore.setGamepadEnabled(it) } },
+                            onOsdEnabledChanged = { scope.launch { settingsDataStore.setKeyboardOsdEnabled(it) } },
+                            onOsdDurationScaleChanged = { scope.launch { settingsDataStore.setKeyboardOsdDurationScale(it) } },
+                            onOpensFullOsdChanged = { scope.launch { settingsDataStore.setKeyboardOpensFullOsd(it) } },
+                            onHelpEnabledChanged = { scope.launch { settingsDataStore.setKeyboardHelpEnabled(it) } },
+                            onDisabledShortcutsChanged = { scope.launch { settingsDataStore.setKeyboardDisabledShortcuts(it) } },
+                            onCustomBindingsChanged = { scope.launch { settingsDataStore.setKeyboardCustomBindings(it) } },
+                            onSeekStepSelected = { scope.launch { settingsDataStore.setKeyboardSeekStepSeconds(it) } },
+                            onPreciseSeekSelected = { scope.launch { settingsDataStore.setKeyboardPreciseSeekSeconds(it) } },
+                            onLargeSeekSelected = { scope.launch { settingsDataStore.setKeyboardLargeSeekSeconds(it) } },
+                            onHoldToAccelerateChanged = { scope.launch { settingsDataStore.setKeyboardHoldToAccelerate(it) } },
+                            listState = pageScrollState,
+                        )
                     }
 
                     PlayerSettingsSubScreen.KodDuzenleyici -> {

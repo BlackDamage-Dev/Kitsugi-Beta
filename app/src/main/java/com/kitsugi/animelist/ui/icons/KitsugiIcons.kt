@@ -866,6 +866,7 @@ object KitsugiIcons {
     val HdrOff: ImageVector get() = SunDim
     val ExitToApp: ImageVector get() = LogIn
     val HelpOutline: ImageVector get() = Help
+    val SportsEsports: ImageVector get() = Gamepad2
 
     val Rounded: KitsugiIcons get() = this
     val Default: KitsugiIcons get() = this

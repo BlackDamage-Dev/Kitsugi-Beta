@@ -24,6 +24,12 @@ fun TopLeftPlayerControls(
     onTitleClick: () -> Unit,
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier,
+    /**
+     * Harici klavye/kol algılandığında `true`: başlığın altında tek satırlık
+     * "Klavye: ? ile tüm kısayollar" ipucu çizilir. Kısayolların varlığını
+     * keşfettirmek için (aksi hâlde kullanıcı hiç basmaz ve özellik ölü kalır).
+     */
+    showKeyboardHint: Boolean = false,
 ) {
     Row(
         modifier = modifier,
@@ -55,6 +61,16 @@ fun TopLeftPlayerControls(
                 style = MaterialTheme.typography.bodyMedium,
                 fontStyle = FontStyle.Italic,
             )
+            if (showKeyboardHint) {
+                Text(
+                    text = "Klavye: ? ile tüm kısayollar",
+                    fontSize = 11.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    color = Color.White.copy(alpha = 0.45f),
+                    style = MaterialTheme.typography.labelSmall,
+                )
+            }
         }
     }
 }
