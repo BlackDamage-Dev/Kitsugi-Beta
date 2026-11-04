@@ -94,6 +94,15 @@ class MihonSourceWrapper(
         maybeSlowdown()
         return try {
             block()
+        } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
+            val timeout = java.net.SocketTimeoutException("Zaman aşımı (${mihonSource.name}): ${e.message}").apply {
+                initCause(e)
+            }
+            val switched = mirrorResolver.tryResolveAndActivateMirror(this, timeout)
+            if (!switched) throw timeout
+            applyRuntimeSourceConfig()
+            maybeSlowdown()
+            block()
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
             val switched = mirrorResolver.tryResolveAndActivateMirror(this, e)

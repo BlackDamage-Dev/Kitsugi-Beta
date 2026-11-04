@@ -398,6 +398,8 @@ dependencies {
     implementation("com.github.Blatzar:NiceHttp:0.4.4")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.squareup.okhttp3:okhttp-dnsoverhttps:4.12.0")
+    // Real Brotli decoder for Keiyoushi/Mihon extension HTTP responses (Manga-TR, Cloudflare, DDoS-Guard).
+    implementation("org.brotli:dec:0.1.2")
     // Ktor 3 (Supabase) slf4j-api getiriyor ama sağlayıcı yoktu → her açılışta
     // "SLF4J(W): No SLF4J providers were found" uyarısı. Bilinçli NOP sağlayıcı: davranış
     // aynı (günlükler zaten atılıyordu), uyarı kalkar. META-INF/versions/** paketlemede hariç.

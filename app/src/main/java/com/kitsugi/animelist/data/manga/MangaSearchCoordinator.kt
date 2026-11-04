@@ -27,10 +27,14 @@ class MangaSearchCoordinator(
         sources: List<MangaSource>,
         includeTrustedFallbacks: Boolean = true,
     ): List<MangaSource> {
-        val available = getAvailableSources(sources)
+        val enabledGlobal = getAvailableSources(sources)
             .filter { isSourceEnabled(it) }
-            .filter { stateStore.isSearchEligible(it) }
             .filter { TurkishSourceRegistry.policyFor(it).allowGlobalSearch }
+
+        val eligible = enabledGlobal.filter { stateStore.isSearchEligible(it) }
+        // Tüm etkin kaynaklar soğutmada olsa bile kullanıcı açıkça arama başlattığında
+        // "0 kaynak" döndürmek yerine etkin kaynakları son çare olarak dene.
+        val available = eligible.ifEmpty { enabledGlobal }
 
         val turkish = available.filter { TurkishSourceRegistry.policyFor(it).isTurkishPreferred }
         if (turkish.isNotEmpty()) {

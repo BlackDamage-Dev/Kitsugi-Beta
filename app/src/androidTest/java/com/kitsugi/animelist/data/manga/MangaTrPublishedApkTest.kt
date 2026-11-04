@@ -5,11 +5,14 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
 import androidx.test.platform.app.InstrumentationRegistry
+import com.kitsugi.animelist.core.security.TrustManager
 import com.kitsugi.animelist.data.manga.loader.ChildFirstPathClassLoader
 import eu.kanade.tachiyomi.network.NetworkHelper
+import eu.kanade.tachiyomi.network.interceptor.WireDecompressionInterceptor
 import eu.kanade.tachiyomi.source.online.HttpSource
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.util.zip.GZIPOutputStream
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
@@ -25,17 +28,42 @@ import uy.kohesive.injekt.Injekt
 class MangaTrPublishedApkTest {
     @Test fun publishedV24RunsThroughHostBridge() = runBlocking { verifyPublishedApk("mangatr-v24.apk") }
     @Test fun publishedV26RunsThroughHostBridge() = runBlocking { verifyPublishedApk("mangatr-v26.apk") }
+    @Test fun publishedV28RunsThroughHostBridge() = runBlocking { verifyPublishedApk("mangatr-v28.apk", expectedVersionCode = 106028L) }
 
-    private suspend fun verifyPublishedApk(fixtureName: String) {
+    private fun brotliEncodeLiteral(payload: ByteArray): ByteArray {
+        require(payload.size in 1..65536)
+        val mlenMinus1 = payload.size - 1
+        val header24 = (mlenMinus1 shl 4) or (1 shl 20)
+        val out = ByteArray(payload.size + 4)
+        out[0] = (header24 and 0xFF).toByte()
+        out[1] = ((header24 ushr 8) and 0xFF).toByte()
+        out[2] = ((header24 ushr 16) and 0xFF).toByte()
+        System.arraycopy(payload, 0, out, 3, payload.size)
+        out[out.lastIndex] = 0x03
+        return out
+    }
+
+    private fun gzipEncode(payload: ByteArray): ByteArray =
+        ByteArrayOutputStream().also { bos -> GZIPOutputStream(bos).use { it.write(payload) } }.toByteArray()
+
+    private suspend fun verifyPublishedApk(fixtureName: String, expectedVersionCode: Long? = null) {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val assets = instrumentation.context.assets
         assumeTrue("The CI-downloaded, checksum-pinned APK fixture is absent", assets.list("")!!.contains(fixtureName))
         val context = instrumentation.targetContext
         val apk = File(context.codeCacheDir, fixtureName)
         // Delete a previous read-only file before writing again.
+        if (apk.exists()) apk.setWritable(true)
         apk.delete()
         assets.open(fixtureName).use { input -> apk.outputStream().use { input.copyTo(it) } }
         assertTrue(apk.setReadOnly()) // Android 14 disallows writable dynamically loaded DEX.
+
+        val sigHash = TrustManager.getApkSignatureHash(context, apk)
+        assertNotNull("Published APK signature must be readable by PackageManager", sigHash)
+        assertTrue("Published APK signature ($sigHash) must be trusted by TrustManager", TrustManager.isSignatureTrusted(context, sigHash!!))
+        if (expectedVersionCode != null) {
+            assertEquals(expectedVersionCode, MangaExtensionLoader.getInstalledVersionCode(context, apk))
+        }
 
         Injekt.addSingleton(Application::class.java, context.applicationContext as Application)
         Injekt.addSingleton(NetworkHelper::class.java, NetworkHelper(context))
@@ -65,27 +93,43 @@ class MangaTrPublishedApkTest {
         val encryptedConfig = encrypt(encrypt(config, "boot|$pageKey|reader"), "gate|$gateKey|reader")
         val encryptedParts = encrypt("""["https://image.mngtr.site/page.png"]""", "attr|$pageKey|reader")
         val encryptedOrder = encrypt("[1,0]", "order|$pageKey|reader")
-        val fixtureClient = originalClient.newBuilder().addInterceptor { chain ->
-            val request = chain.request()
-            synchronized(seen) { seen.add(request.url.encodedPath) }
-            val path = request.url.encodedPath
-            val body = when {
-                path == "/arama.html" -> """<div class="arama-card"><a class="arama-card__title" href="/manga-chainsaw-man.html">Chainsaw Man</a></div>""".toResponseBody("text/html; charset=utf-8".toMediaType())
-                path == "/manga-list-sayfala.html" -> """<div class="media-card"><a class="media-card__title" href="/manga-chainsaw-man.html">Chainsaw Man</a></div>""".toResponseBody("text/html; charset=utf-8".toMediaType())
-                path == "/manga-chainsaw-man.html" -> """<h1 class="bento-hero-title">Chainsaw Man</h1><div id="results" data-manga="chainsaw-man"></div><script>var cfg={listKey:'fixture1234567890'}</script>""".toResponseBody("text/html; charset=utf-8".toMediaType())
-                path == "/cek/fetch_pages_manga.php" -> {
-                    val form = request.body as? okhttp3.FormBody
-                    val offset = form?.let { f -> (0 until f.size).firstOrNull { f.name(it) == "offset" } }
-                    val html = if (offset != null) "" else """<article class="bento-ep-card"><a class="bento-ep-title-link" href="/id-1"><span class="bento-ep-chapter-num">1.</span> Bölüm</a></article><article class="bento-ep-card"><a class="bento-ep-title-link" href="/id-2"><span class="bento-ep-chapter-num">1.</span> Bölüm</a></article>"""
-                    html.toResponseBody("text/html; charset=utf-8".toMediaType())
+        val wireDecompressor = WireDecompressionInterceptor()
+        val fixtureClient = originalClient.newBuilder()
+            .addInterceptor(wireDecompressor)
+            .addInterceptor { chain ->
+                val request = chain.request()
+                synchronized(seen) { seen.add(request.url.encodedPath) }
+                val path = request.url.encodedPath
+                when {
+                    path == "/arama.html" -> {
+                        val html = """<div class="arama-card"><a class="arama-card__title" href="/manga-chainsaw-man.html">Chainsaw Man</a></div>""".toByteArray(Charsets.UTF_8)
+                        val br = brotliEncodeLiteral(html)
+                        Response.Builder().request(request).protocol(Protocol.HTTP_1_1).code(200).message("OK")
+                            .header("Content-Encoding", "br")
+                            .body(br.toResponseBody("text/html; charset=utf-8".toMediaType())).build()
+                    }
+                    path == "/manga-list-sayfala.html" -> Response.Builder().request(request).protocol(Protocol.HTTP_1_1).code(200).message("OK")
+                        .body("""<div class="media-card"><a class="media-card__title" href="/manga-chainsaw-man.html">Chainsaw Man</a></div>""".toResponseBody("text/html; charset=utf-8".toMediaType())).build()
+                    path == "/manga-chainsaw-man.html" -> Response.Builder().request(request).protocol(Protocol.HTTP_1_1).code(200).message("OK")
+                        .body("""<h1 class="bento-hero-title">Chainsaw Man</h1><div id="results" data-manga="chainsaw-man"></div><script>var cfg={listKey:'fixture1234567890'}</script>""".toResponseBody("text/html; charset=utf-8".toMediaType())).build()
+                    path == "/cek/fetch_pages_manga.php" -> {
+                        val form = request.body as? okhttp3.FormBody
+                        val offset = form?.let { f -> (0 until f.size).firstOrNull { f.name(it) == "offset" } }
+                        val html = if (offset != null) "" else """<article class="bento-ep-card"><a class="bento-ep-title-link" href="/id-1"><span class="bento-ep-chapter-num">1.</span> Bölüm</a></article><article class="bento-ep-card"><a class="bento-ep-title-link" href="/id-2"><span class="bento-ep-chapter-num">1.</span> Bölüm</a></article>"""
+                        val gz = gzipEncode(html.toByteArray(Charsets.UTF_8))
+                        Response.Builder().request(request).protocol(Protocol.HTTP_1_1).code(200).message("OK")
+                            .header("Content-Encoding", "gzip")
+                            .body(gz.toResponseBody("text/html; charset=utf-8".toMediaType())).build()
+                    }
+                    path == "/id-1" || path == "/id-2" -> Response.Builder().request(request).protocol(Protocol.HTTP_1_1).code(200).message("OK")
+                        .body("""<script type="application/json" id="rdm-fixture" data-key="$pageKey">$encryptedConfig</script><script>_fpx = "cek/gate.php"</script><div data-parts="$encryptedParts" data-order="$encryptedOrder" data-page="0"></div>""".toResponseBody("text/html; charset=utf-8".toMediaType())).build()
+                    path == "/cek/gate.php" -> Response.Builder().request(request).protocol(Protocol.HTTP_1_1).code(200).message("OK")
+                        .body("""{"k":"$gateKey"}""".toResponseBody("application/json; charset=utf-8".toMediaType())).build()
+                    path == "/page.png" -> Response.Builder().request(request).protocol(Protocol.HTTP_1_1).code(200).message("OK")
+                        .body(png.toResponseBody("image/png".toMediaType())).build()
+                    else -> error("Unexpected fixture request: $path")
                 }
-                path == "/id-1" || path == "/id-2" -> """<script type="application/json" id="rdm-fixture" data-key="$pageKey">$encryptedConfig</script><script>_fpx = "cek/gate.php"</script><div data-parts="$encryptedParts" data-order="$encryptedOrder" data-page="0"></div>""".toResponseBody("text/html; charset=utf-8".toMediaType())
-                path == "/cek/gate.php" -> """{"k":"$gateKey"}""".toResponseBody("application/json; charset=utf-8".toMediaType())
-                path == "/page.png" -> png.toResponseBody("image/png".toMediaType())
-                else -> error("Unexpected fixture request: $path")
-            }
-            Response.Builder().request(request).protocol(Protocol.HTTP_1_1).code(200).message("OK").body(body).build()
-        }.build()
+            }.build()
         // Inject only a test transport at the end of the plugin's real interceptor chain.
         // No production code or plugin implementation is replaced.
         // Release extensions can obfuscate both KeiSource and its delegate field.

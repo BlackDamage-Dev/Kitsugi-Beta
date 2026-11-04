@@ -8,6 +8,7 @@ import com.kitsugi.animelist.core.network.IPv4FirstDns
 import com.lagradost.nicehttp.ignoreAllSSLErrors
 import eu.kanade.tachiyomi.network.interceptor.UncaughtExceptionInterceptor
 import eu.kanade.tachiyomi.network.interceptor.UserAgentInterceptor
+import eu.kanade.tachiyomi.network.interceptor.WireDecompressionInterceptor
 
 class NetworkHelper(context: Context) {
     val cookieJar = WebViewCookieJar(context)
@@ -30,10 +31,8 @@ class NetworkHelper(context: Context) {
         .addInterceptor(UserAgentInterceptor { defaultUserAgentProvider() })
         .addInterceptor { chain ->
             val request = chain.request()
-            var url = request.url
-            var host = url.host
-            var urlString = url.toString()
-            var modified = false
+            val url = request.url
+            val host = url.host
 
             var matchedSource: com.kitsugi.animelist.data.manga.MangaSource? = null
             try {
@@ -47,33 +46,24 @@ class NetworkHelper(context: Context) {
                 android.util.Log.e("NetworkHelper", "Error scanning sources for domain redirect", e)
             }
 
-            if (matchedSource != null) {
-                val activeDomain = com.kitsugi.animelist.data.manga.SourceConfigStore(context).getActiveDomain(matchedSource)
-                if (activeDomain != null && !activeDomain.equals(host, ignoreCase = true)) {
-                    urlString = urlString.replace(host, activeDomain)
-                    modified = true
-                }
+            val activeDomain = matchedSource?.let {
+                com.kitsugi.animelist.data.manga.SourceConfigStore(context).getActiveDomain(it)
+            }
+            val rewrittenUrl = if (activeDomain != null && !activeDomain.equals(host, ignoreCase = true)) {
+                runCatching { url.newBuilder().host(activeDomain).build() }.getOrNull()
+            } else {
+                null
             }
 
-            val newRequestBuilder = if (modified) {
-                val reqBuilder = request.newBuilder().url(urlString)
+            val newRequestBuilder = if (rewrittenUrl != null) {
+                val reqBuilder = request.newBuilder().url(rewrittenUrl)
                 val referer = request.header("Referer")
-                if (referer != null && matchedSource != null) {
-                    val activeDomain = com.kitsugi.animelist.data.manga.SourceConfigStore(context).getActiveDomain(matchedSource)
-                    if (activeDomain != null) {
-                        reqBuilder.header("Referer", referer.replace(host, activeDomain))
-                    }
+                if (referer != null && activeDomain != null) {
+                    reqBuilder.header("Referer", referer.replaceFirst(host, activeDomain, ignoreCase = true))
                 }
                 reqBuilder
             } else {
                 request.newBuilder()
-            }
-
-            // The host's Brotli/Zstd compatibility objects cannot decode those encodings.
-            // KeiSource otherwise advertises them; identity keeps Manga-TR responses readable
-            // while preserving any explicit encoding (the chapter endpoint already uses identity).
-            if (com.kitsugi.animelist.data.manga.isMangaTrHost(host) && request.header("Accept-Encoding") == null) {
-                newRequestBuilder.header("Accept-Encoding", "identity")
             }
 
             // Manga-TR image CDN requires the site origin, while the source client retains its interceptors.
@@ -97,6 +87,10 @@ class NetworkHelper(context: Context) {
         // boylece ham ag yanitini once bu interceptor gorur, CloudflareKiller/DdosGuardKiller
         // cozemediyse WebView ile cf_clearance alinir; cozulmusse no-op olarak gecer.
         .addInterceptor(CloudflareInterceptor(context))
+        // Wire-level decompression (br/gzip/deflate) & Accept-Encoding normalizer so extension
+        // interceptors (DDoSGuardInterceptor.peekBody, check.js) and Jsoup parsers always see
+        // decoded bodies even when headersBuilder() manually sets Accept-Encoding.
+        .addNetworkInterceptor(WireDecompressionInterceptor())
         .build()
 
     val cloudflareClient: OkHttpClient = client

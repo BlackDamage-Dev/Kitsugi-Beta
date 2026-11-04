@@ -59,4 +59,30 @@ class MangaTrPolicyTest {
         assertEquals(2, chapters.filter { it.matchesChapterQuery("1") }.size)
         assertEquals("/id-2", chapters.single { it.matchesChapterQuery("Başka") }.url)
     }
+
+    @Test fun apkDownloadCandidatesIncludeSameRepoMainAndBuildsPathsOnly() {
+        val rawBuilds =
+            "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Manga-Plugins/builds/apk/tachiyomi-tr.mangatr-v1.6.28.apk"
+        val candidates = buildMangaApkDownloadCandidates(rawBuilds) { url ->
+            url.replace("https://raw.githubusercontent.com/", "https://cdn.jsdelivr.net/gh/")
+        }
+        assertTrue(candidates.contains(rawBuilds))
+        assertTrue(
+            candidates.contains(
+                "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Manga-Plugins/main/apk/tachiyomi-tr.mangatr-v1.6.28.apk"
+            )
+        )
+        assertTrue(
+            candidates.contains(
+                "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Manga-Plugins/main/builds/apk/tachiyomi-tr.mangatr-v1.6.28.apk"
+            )
+        )
+        // Must never cross owner/repo boundaries.
+        assertTrue(candidates.all { it.contains("f26901964-eng/Kitsugi-Manga-Plugins") })
+    }
+
+    @Test fun mangaTrKnownDomainsExcludeSquatterTlds() {
+        assertFalse(MangaTrCompat.KNOWN_DOMAINS.any { it.contains("mangatr.net") || it.contains("manga-tr.net") })
+        assertTrue(MangaTrCompat.KNOWN_DOMAINS.contains("manga-tr.com"))
+    }
 }

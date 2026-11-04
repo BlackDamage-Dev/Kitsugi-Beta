@@ -58,14 +58,17 @@
 
 # ── OkHttp / OkIO ─────────────────────────────────────────────────────────────
 -keep class okhttp3.** { *; }
+-keep interface okhttp3.** { *; }
 -keepclassmembers class okhttp3.** { *; }
 -keep class okio.** { *; }
+-keep interface okio.** { *; }
 -keepclassmembers class okio.** { *; }
 # Eklenti (extensionLib 1.6 / KeiSource) uyum stub'lari: bu siniflar eklenti JAR'i
 # tarafindan isimle baglanir; R8 ad degistirirse NoClassDefFoundError olusur.
 # okhttp3.CompressionInterceptor / okhttp3.Gzip / okhttp3.brotli.* / okhttp3.zstd.*
 # yukaridaki `okhttp3.**` kuraliyla zaten korunur. Asagidaki zstd stub'i icin ayrica:
 -keep class com.squareup.zstd.okio.** { *; }
+-keep interface com.squareup.zstd.okio.** { *; }
 -keepclassmembers class com.squareup.zstd.okio.** { *; }
 -dontwarn okhttp3.internal.platform.**
 -dontwarn okhttp3.internal.sse.**
@@ -155,6 +158,7 @@
 -keep class me.xdrop.fuzzywuzzy.** { *; }
 # Jsoup (eklentilerin kullandığı)
 -keep class org.jsoup.** { *; }
+-keep interface org.jsoup.** { *; }
 -keepclassmembers class org.jsoup.** { *; }
 -dontwarn org.mozilla.javascript.**
 -dontwarn com.google.re2j.**
@@ -162,15 +166,24 @@
 -dontwarn org.jsoup.helper.Re2jRegex
 # RxJava (manga extension compat)
 -keep class io.reactivex.** { *; }
+-keep interface io.reactivex.** { *; }
 -keepclassmembers class io.reactivex.** { *; }
 -keep class rx.** { *; }
+-keep interface rx.** { *; }
 -keepclassmembers class rx.** { *; }
 # Mihon / Tachiyomi / Keiyoushi extension host ABI & WebView boundary bridges
 -keep class eu.kanade.tachiyomi.** { *; }
+-keep interface eu.kanade.tachiyomi.** { *; }
 -keepclassmembers class eu.kanade.tachiyomi.** { *; }
+-keep class tachiyomi.core.** { *; }
+-keep interface tachiyomi.core.** { *; }
+-keepclassmembers class tachiyomi.core.** { *; }
 -keep class uy.kohesive.injekt.** { *; }
+-keep interface uy.kohesive.injekt.** { *; }
 -keepclassmembers class uy.kohesive.injekt.** { *; }
+-keep class org.brotli.dec.** { *; }
 -keep class androidx.webkit.** { *; }
+-keep interface androidx.webkit.** { *; }
 -keep interface org.chromium.support_lib_boundary.** { *; }
 -keep class org.chromium.support_lib_boundary.** { *; }
 # Kotlin reflect (extension loading)
@@ -195,6 +208,7 @@
 
 # ── androidx.preference (manga extension ConfigurableSource) ──────────────────
 -keep class androidx.preference.** { *; }
+-keep interface androidx.preference.** { *; }
 -keepclassmembers class androidx.preference.** { *; }
 
 # ── AndroidX / Compose genel ──────────────────────────────────────────────────

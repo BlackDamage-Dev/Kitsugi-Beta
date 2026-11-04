@@ -14,9 +14,16 @@ object SourceFailureClassifier {
 
         // Protection pages often return HTTP 403; identify the explicit platform signature first.
         return when {
-            // KeiSource checks host interceptors by class name. This is a host ABI
-            // failure, not a website CAPTCHA, even though the name says Cloudflare.
-            message.contains("cloudflareinterceptor must be present") -> SourceErrorCategory.Unknown
+            // KeiSource checks host interceptors by class name, and R8/ABI mismatches throw LinkageError.
+            // These are host runtime/ABI issues, not website CAPTCHAs, even when class names mention Cloudflare.
+            message.contains("must be present") ||
+                classes.any {
+                    it.contains("LinkageError") ||
+                        it.contains("AbstractMethodError") ||
+                        it.contains("NoSuchMethodError") ||
+                        it.contains("NoClassDefFoundError") ||
+                        it.contains("ClassNotFoundException")
+                } -> SourceErrorCategory.Unknown
 
             containsAny(
                 message,

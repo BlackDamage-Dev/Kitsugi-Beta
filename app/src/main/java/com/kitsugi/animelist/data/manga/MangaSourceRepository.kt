@@ -270,15 +270,18 @@ class MangaSourceRepository(private val context: Context) {
             }
 
             val dir = File(context.filesDir, "manga_extensions").also { if (!it.exists()) it.mkdirs() }
-            val tempFile = File(dir, "$fileName.$extension")
-            if (tempFile.exists()) tempFile.delete()
+            val tempFile = File(dir, ".staging_uri_${System.currentTimeMillis()}.$extension")
+            if (tempFile.exists()) {
+                tempFile.setWritable(true)
+                tempFile.delete()
+            }
 
             contentResolver.openInputStream(uri)?.use { input ->
                 FileOutputStream(tempFile).use { output ->
                     input.copyTo(output)
                 }
             }
-            // NOT: setReadOnly() KALDIRILDI — Android 10+ PathClassLoader read-only dosyayı yükleyemiyor
+            // NOT: setReadOnly() geçici okuma adımından sonra, hedef dosyada uygulanır.
 
             // Dosya adını paket adına normalize et. Aksi halde elle kurulan bir APK
             // (`tachiyomi-tr.mangatr-v1.6.24.apk`) repo kurulumuyla aynı kimliği
@@ -293,15 +296,22 @@ class MangaSourceRepository(private val context: Context) {
 
             val targetFile = File(dir, "$extensionId.$extension")
             if (targetFile.absolutePath != tempFile.absolutePath) {
-                if (targetFile.exists()) targetFile.delete()
+                if (targetFile.exists()) {
+                    targetFile.setWritable(true)
+                    targetFile.delete()
+                }
                 if (!tempFile.renameTo(targetFile)) {
                     tempFile.copyTo(targetFile, overwrite = true)
+                    tempFile.setWritable(true)
                     tempFile.delete()
                 }
             }
             if (android.os.Build.VERSION.SDK_INT >= 34 && !targetFile.setReadOnly()) {
                 throw java.io.IOException("Eklenti dosyası salt okunur yapılamadı")
             }
+
+            // Üzerine kurulum/güncelleme yapılıyorsa önceki sınıf yükleyici önbelleğini temizle.
+            MangaExtensionLoader.unloadExtension(context, extensionId)
 
             // Kullanıcı dosyayı elle seçti → imzaya açık onay vermiş sayılır.
             // (Özel Kitsugi-Manga-Plugins APK'ları debug anahtarıyla imzalıdır ve
@@ -331,7 +341,9 @@ class MangaSourceRepository(private val context: Context) {
      */
     fun deleteExtension(source: MangaSource): Boolean {
         if (source.isBuiltIn) {
+            sourceEnabledStore.setEnabled(source, false)
             sourceStateStore.setHealthStatus(source, SourceHealthStatus.Disabled, reason = "user_disabled")
+            MangaExtensionLoader.notifySourceChanged()
             return false
         }
         resetSourceDiagnostics(source)

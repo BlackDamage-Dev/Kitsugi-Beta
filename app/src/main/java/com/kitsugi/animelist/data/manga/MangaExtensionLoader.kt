@@ -49,6 +49,11 @@ object MangaExtensionLoader {
     /** Yüklü kaynak örneklerini tutar: filePath -> List<MangaSource> (birden fazla source içerebilir) */
     private val loadedSources = ConcurrentHashMap<String, List<MangaSource>>()
 
+    /** Son kurulum/indirme denemesinin kullanıcıya anlamlı hata açıklaması (extensionId -> mesaj). */
+    private val lastInstallErrors = ConcurrentHashMap<String, String>()
+
+    fun getLastInstallError(extensionId: String): String? = lastInstallErrors[extensionId]
+
     /** Kurulum / kaldırma / güncelleme sonrası tüm ViewModel'lerin listeyi tazelemesi için. */
     private val _sourceChanges = MutableStateFlow(0L)
     val sourceChanges: StateFlow<Long> = _sourceChanges.asStateFlow()
@@ -106,7 +111,14 @@ object MangaExtensionLoader {
     }
 
     fun getExtensionIdForSource(source: MangaSource): String? {
-        val entry = loadedSources.entries.find { list -> list.value.any { it === source } } ?: return null
+        val targetKey = source.stableSourceKey()
+        val entry = loadedSources.entries.find { (_, list) ->
+            list.any {
+                it === source ||
+                    it.stableSourceKey() == targetKey ||
+                    (source.pkgName.isNotBlank() && it.pkgName.equals(source.pkgName, ignoreCase = true))
+            }
+        } ?: return source.pkgName.takeIf { it.isNotBlank() }?.replace(".", "_")
         return File(entry.key).nameWithoutExtension
     }
 
@@ -156,30 +168,44 @@ object MangaExtensionLoader {
         val stagingDir = File(dir, ".staging").also { it.mkdirs() }
         val temp = File.createTempFile("manga_", ".$targetExt", stagingDir)
         val target = File(dir, "$extensionId.$targetExt")
+        lastInstallErrors.remove(extensionId)
+
+        fun cleanTemp() {
+            if (temp.exists()) {
+                temp.setWritable(true)
+                temp.delete()
+            }
+        }
 
         return try {
-            if (temp.exists()) temp.delete()
+            cleanTemp()
 
-            // Önce ISP yansısını, başarısız olursa ORİJİNAL URL'i dene.
-            // Özel Kitsugi-Manga-Plugins katalogları mutlak raw.githubusercontent.com
-            // adresi verir; sadece yansıya güvenmek indirmeyi sessizce düşürüyordu.
-            val candidates = linkedSetOf(
-                com.kitsugi.animelist.data.remote.MangaRepoClient.applyMirror(urlString),
-                urlString,
-            )
+            // Doğrudan raw.githubusercontent.com adresini, aynı <owner>/<repo> altındaki
+            // main/builds dal adaylarını ve ISP yansılarını sırayla dene; her adayı ZIP +
+            // APK manifest paket/sürüm doğrulamasından geçir. Böylece builds dalı 1 sürüm
+            // geride kaldığında main dalındaki gerçek imzalı APK otomatik bulunur.
+            val candidates = buildMangaApkDownloadCandidates(urlString) {
+                com.kitsugi.animelist.data.remote.MangaRepoClient.applyMirror(it)
+            }
             val networkHelper = Injekt.get(NetworkHelper::class.java)
             val client = networkHelper.client
 
-            var success = false
-            for (candidate in candidates) {
-                if (success) break
-                Log.d(TAG, "İndiriliyor [$targetExt]: $extensionId <- $candidate")
-                if (temp.exists()) temp.delete()
-                var attempt = 1
-                val maxAttempts = 3
-                var delayMs = 1500L
+            var verifiedDownload = false
+            var lastMetadataMismatch: String? = null
+            var lastHttpFailure: String? = null
 
-                while (attempt <= maxAttempts && !success) {
+            for (candidate in candidates) {
+                if (verifiedDownload) break
+                Log.d(TAG, "İndiriliyor [$targetExt]: $extensionId <- $candidate")
+                cleanTemp()
+                var downloadedBytes = false
+                var abortCandidate = false
+                var attempt = 1
+                // Çoklu aday olduğunda her adayda hızlı geçiş yap (toplam bekleme şişmesin).
+                val maxAttempts = if (candidates.size > 2) 2 else 3
+                var delayMs = 1000L
+
+                while (attempt <= maxAttempts && !downloadedBytes && !abortCandidate) {
                     try {
                         val request = okhttp3.Request.Builder()
                             .url(candidate)
@@ -190,11 +216,18 @@ object MangaExtensionLoader {
                             if (response.code == 429) {
                                 val retryAfter = response.header("Retry-After")?.toLongOrNull() ?: (delayMs / 1000L)
                                 val sleepTime = (retryAfter * 1000L) + (Math.random() * 500).toLong()
+                                lastHttpFailure = "HTTP 429"
                                 Log.w(TAG, "$extensionId: HTTP 429. $sleepTime ms bekleniyor... (Deneme $attempt/$maxAttempts)")
                                 Thread.sleep(sleepTime)
                                 attempt++
                                 delayMs *= 2
+                            } else if (response.code == 404) {
+                                // Bu dalda/adreste dosya yok -> beklemeden sonraki adaya geç.
+                                lastHttpFailure = "HTTP 404"
+                                Log.w(TAG, "$extensionId: $candidate üzerinde HTTP 404, sonraki aday denenecek")
+                                abortCandidate = true
                             } else if (!response.isSuccessful) {
+                                lastHttpFailure = "HTTP ${response.code}"
                                 Log.e(TAG, "$extensionId indirme hatası: HTTP ${response.code} (Deneme $attempt/$maxAttempts)")
                                 Thread.sleep(delayMs)
                                 attempt++
@@ -203,60 +236,95 @@ object MangaExtensionLoader {
                                 response.body?.byteStream()?.use { inp ->
                                     // Android 14+ refuses writable dynamic-code files. Open the
                                     // descriptor first, then make the path read-only before writing.
-                                    if (temp.exists()) temp.setWritable(true)
+                                    cleanTemp()
                                     FileOutputStream(temp).use { out ->
                                         if (!temp.setReadOnly()) throw java.io.IOException("Eklenti dosyası salt okunur yapılamadı")
                                         inp.copyTo(out)
                                     }
                                 }
-                                success = true
+                                downloadedBytes = temp.exists() && temp.length() > 0L
                             }
                         }
                     } catch (e: Exception) {
+                        lastHttpFailure = e.message ?: e.javaClass.simpleName
                         Log.e(TAG, "$extensionId bağlantı hatası (Deneme $attempt/$maxAttempts): ${e.message}")
-                        Thread.sleep(delayMs)
+                        if (attempt < maxAttempts) Thread.sleep(delayMs)
                         attempt++
                         delayMs *= 2
                     }
                 }
-            }
 
-            if (!success) {
-                Log.e(TAG, "$extensionId: Tüm indirme denemeleri başarısız oldu.")
-                return false
-            }
-
-            // ZIP/APK geçerliliği kontrolü
-            val valid = try { ZipFile(temp).use { true } } catch (_: Exception) { false }
-            if (!valid) {
-                Log.e(TAG, "$extensionId: indirilen dosya geçerli bir ZIP/APK değil")
-                temp.delete()
-                return false
-            }
-
-            if (isApk && expectedPackage?.startsWith("eu.kanade.tachiyomi.extension.") == true) {
-                val info = context.packageManager.getPackageArchiveInfo(temp.absolutePath, 0)
-                val version = info?.let {
-                    if (android.os.Build.VERSION.SDK_INT >= 28) it.longVersionCode else @Suppress("DEPRECATION") it.versionCode.toLong()
+                if (!downloadedBytes) {
+                    cleanTemp()
+                    continue
                 }
-                if (!matchesMangaApkMetadata(expectedPackage, expectedVersionCode, info?.packageName, version)) {
-                    Log.e(TAG, "$extensionId: APK manifest/katalog uyuşmazlığı: beklenen=$expectedPackage/$expectedVersionCode, indirilen=${info?.packageName}/$version")
-                    temp.delete()
-                    return false
+
+                // ZIP/APK geçerliliği kontrolü (HTML hata sayfası döndüyse sonraki adaya geç)
+                val validZip = try { ZipFile(temp).use { true } } catch (_: Exception) { false }
+                if (!validZip) {
+                    Log.w(TAG, "$extensionId: $candidate geçerli bir ZIP/APK değil, sonraki aday denenecek")
+                    lastHttpFailure = "Geçersiz APK arşivi"
+                    cleanTemp()
+                    continue
                 }
+
+                if (isApk && expectedPackage?.startsWith("eu.kanade.tachiyomi.extension.") == true) {
+                    val pm = context.packageManager
+                    val info = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        pm.getPackageArchiveInfo(temp.absolutePath, PackageManager.PackageInfoFlags.of(0L))
+                    } else {
+                        @Suppress("DEPRECATION")
+                        pm.getPackageArchiveInfo(temp.absolutePath, 0)
+                    }
+                    val version = info?.let {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) it.longVersionCode
+                        else @Suppress("DEPRECATION") it.versionCode.toLong()
+                    }
+                    if (!matchesMangaApkMetadata(expectedPackage, expectedVersionCode, info?.packageName, version)) {
+                        lastMetadataMismatch = "beklenen=$expectedPackage/$expectedVersionCode, indirilen=${info?.packageName}/$version"
+                        Log.w(TAG, "$extensionId: $candidate APK manifest/katalog uyuşmazlığı ($lastMetadataMismatch), sonraki aday denenecek")
+                        cleanTemp()
+                        continue
+                    }
+                }
+
+                verifiedDownload = true
+            }
+
+            if (!verifiedDownload) {
+                val detail = lastMetadataMismatch?.let { "APK sürüm bilgisi katalogla uyuşmuyor ($it)." }
+                    ?: lastHttpFailure?.let { "İndirme başarısız ($it)." }
+                    ?: "İndirme başarısız."
+                lastInstallErrors[extensionId] = detail
+                Log.e(TAG, "$extensionId: Tüm indirme adayları başarısız oldu: $detail")
+                cleanTemp()
+                return false
             }
 
             // Atomic replacement on the same filesystem: leave the previous APK intact on failure.
-            if (!temp.renameTo(target)) {
+            if (target.exists()) target.setWritable(true)
+            val moved = temp.renameTo(target) || runCatching {
+                temp.copyTo(target, overwrite = true)
+                target.setReadOnly()
+                cleanTemp()
+                true
+            }.getOrDefault(false)
+
+            if (!moved) {
+                lastInstallErrors[extensionId] = "Eklenti dosyası kaydedilemedi."
                 Log.e(TAG, "$extensionId: geçici dosya taşınamadı")
-                temp.delete()
+                cleanTemp()
                 return false
+            }
+            if (Build.VERSION.SDK_INT >= 34) {
+                target.setReadOnly()
             }
             Log.i(TAG, "$extensionId başarıyla indirildi (${target.length()} bytes) [$targetExt]")
             true
         } catch (e: Exception) {
+            lastInstallErrors[extensionId] = "İndirme hatası: ${e.message ?: e.javaClass.simpleName}"
             Log.e(TAG, "$extensionId indirme hatası: ${e.message}", e)
-            if (temp.exists()) temp.delete()
+            cleanTemp()
             false
         }
     }
@@ -372,15 +440,20 @@ object MangaExtensionLoader {
                 } catch (e: LinkageError) {
                     // A missing or incompatible plugin ABI is an Error, not an Exception.
                     // Isolate the broken entry so it cannot crash loading other sources.
+                    lastInstallErrors[extensionId] = "Eklenti ABI uyumsuzluğu (${e.javaClass.simpleName}: ${e.message})"
                     Log.e(TAG, "Eklenti ABI uyumsuzluğu ($name): ${e.message}", e)
                     emptyList()
                 } catch (e: Exception) {
+                    lastInstallErrors[extensionId] = "Sınıf yükleme hatası (${e.javaClass.simpleName}: ${e.message})"
                     Log.e(TAG, "Sınıf yükleme hatası ($name): ${e.message}", e)
                     emptyList()
                 }
             }
 
             if (sources.isEmpty()) {
+                if (!lastInstallErrors.containsKey(extensionId)) {
+                    lastInstallErrors[extensionId] = "Kaynak sınıfı yüklenemedi."
+                }
                 Log.e(TAG, "$extensionId: kaynak listesi boş veya yüklenemedi")
                 return null
             }
@@ -403,7 +476,8 @@ object MangaExtensionLoader {
 
             // Fresh load: yeni kurulan / güncellenen kaynak ASLA devre dışı kalmamalı.
             // Eski "Disabled" sağlık bayrağı kullanıcı tercihi sanılıyordu; temizliyoruz.
-            // Ayrıca önceki bozuk derlemeden kalan Broken/Degraded/cooldown'u sıfırla.
+            // Ayrıca önceki bozuk derlemeden veya geçici korumadan kalan Broken/Degraded/
+            // CaptchaRequired/RateLimited/cooldown durumunu sıfırla.
             try {
                 val stateStore = MangaSourceStateStore(context)
                 val enabledStore = MangaSourceEnabledStore(context)
@@ -414,6 +488,8 @@ object MangaExtensionLoader {
                     val health = stateStore.getHealthStatus(wrapper)
                     if (health == com.kitsugi.animelist.data.manga.model.SourceHealthStatus.Broken ||
                         health == com.kitsugi.animelist.data.manga.model.SourceHealthStatus.Degraded ||
+                        health == com.kitsugi.animelist.data.manga.model.SourceHealthStatus.CaptchaRequired ||
+                        health == com.kitsugi.animelist.data.manga.model.SourceHealthStatus.RateLimited ||
                         stateStore.isCoolingDown(wrapper)
                     ) {
                         Log.d(TAG, "$extensionId [${wrapper.name}]: eski ${health.name} durumu sıfırlandı")
@@ -430,6 +506,7 @@ object MangaExtensionLoader {
             Log.e(TAG, "$extensionId [APK] signature verification failed: ${e.message}", e)
             throw e
         } catch (e: LinkageError) {
+            lastInstallErrors[extensionId] = "Çalışma zamanı uyumsuzluğu (${e.javaClass.simpleName}: ${e.message})"
             Log.e(TAG, "$extensionId [APK] çalışma zamanı uyumsuzluğu: ${e.message}", e)
             null
         } catch (e: Exception) {
@@ -478,10 +555,21 @@ object MangaExtensionLoader {
 
     fun deleteExtension(context: Context, extensionId: String): Boolean {
         unloadExtension(context, extensionId)
+        lastInstallErrors.remove(extensionId)
+        runCatching {
+            context.getSharedPreferences("manga_extension_engines", Context.MODE_PRIVATE)
+                .edit()
+                .remove("engine_$extensionId")
+                .remove("engine_time_$extensionId")
+                .apply()
+        }
         var deleted = false
         listOf(apkFile(context, extensionId), mexFile(context, extensionId)).forEach { file ->
-            if (file.exists()) deleted = file.delete().also {
-                Log.i(TAG, "${file.name} silindi: $it")
+            if (file.exists()) {
+                file.setWritable(true)
+                deleted = (file.delete() || deleted).also {
+                    Log.i(TAG, "${file.name} silindi: $it")
+                }
             }
         }
         notifySourceChanged()

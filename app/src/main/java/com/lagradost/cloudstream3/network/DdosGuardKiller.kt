@@ -220,14 +220,30 @@ class DdosGuardKiller(private val alwaysBypass: Boolean) : Interceptor {
     }
 
     private suspend fun probeCookies(url: HttpUrl): Map<String, String> {
-        val path = ddosBypassPath ?: Regex("'(.*?)'").find(
-            app.get("https://check.ddos-guard.net/check.js").text
-        )?.groupValues?.get(1)
+        // DDoS-Guard check.js paths contain single-use challenge tokens; always fetch fresh.
+        val checkJs = runCatching {
+            app.get(
+                "https://check.ddos-guard.net/check.js",
+                headers = mapOf("Referer" to url.toString())
+            ).text
+        }.getOrDefault("")
+        val path = Regex("""['"](/.well-known/ddos-guard/[^'"]+)['"]""")
+            .find(checkJs)
+            ?.groupValues
+            ?.get(1)
+            ?: ddosBypassPath
         ddosBypassPath = path
 
-        val bypassUrl = url.scheme + "://" + url.host + (path ?: "")
+        if (path.isNullOrBlank()) return emptyMap()
+        val bypassUrl = "${url.scheme}://${url.host}$path"
         // Kendi istemcimiz DEĞİL: interceptor zincirine geri girmemek için taze Requests().
-        return Requests().get(bypassUrl).cookies
+        return Requests().get(
+            bypassUrl,
+            headers = mapOf(
+                "Referer" to url.toString(),
+                "Origin" to "${url.scheme}://${url.host}"
+            )
+        ).cookies
     }
 
     private fun proceedWithCookies(

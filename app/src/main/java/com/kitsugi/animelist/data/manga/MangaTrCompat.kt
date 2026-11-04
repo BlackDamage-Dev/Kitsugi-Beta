@@ -32,14 +32,11 @@ object MangaTrCompat {
     const val CANONICAL_DOMAIN = "manga-tr.com"
     const val CANONICAL_BASE_URL = "https://manga-tr.com"
 
-    /** Gerçekten bilinen alan adları. Rastgele TLD türetmek bu kaynak için zararlıdır. */
+    /** Gerçekten Manga-TR'ye ait kanonik alan adları (squatter TLD'ler hariç). */
     val KNOWN_DOMAINS = listOf(
         "manga-tr.com",
         "www.manga-tr.com",
-        "mangatr.net",
-        "www.mangatr.net",
-        "manga-tr.net",
-        "www.manga-tr.net",
+        "mngtr.site",
     )
 
     private val VERIFICATION_MARKERS = listOf(
@@ -64,7 +61,7 @@ object MangaTrCompat {
     fun isMangaTrBaseUrl(baseUrl: String): Boolean {
         val host = runCatching { Uri.parse(baseUrl).host.orEmpty() }.getOrDefault("")
             .lowercase()
-        return host == CANONICAL_DOMAIN || host == "www.$CANONICAL_DOMAIN" || host == "mangatr.net"
+        return isMangaTrHost(host)
     }
 
     fun isMangaTrExtensionId(extensionId: String): Boolean =

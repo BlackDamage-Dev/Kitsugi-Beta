@@ -498,9 +498,10 @@ class MangaViewModel(application: Application) : AndroidViewModel(application) {
                 untrustedSignatureToConfirm = null
                 mangaSources = mangaRepository.getInstalledSources()
                 onResult?.invoke(success)
+                val detail = MangaExtensionLoader.getLastInstallError(extensionId)
                 onShowMessage?.invoke(
                     if (success) KitsugiStrings.get(R.string.yuklendi_x, ext.name)
-                    else "${ext.name}: İndirme başarısız veya APK paket/sürüm bilgisi katalogla uyuşmuyor."
+                    else "${ext.name}: ${detail ?: "İndirme başarısız veya APK paket/sürüm bilgisi katalogla uyuşmuyor."}"
                 )
                 if (success) checkAllUpdates()
             }

@@ -1,25 +1,23 @@
 package okhttp3.zstd
 
 import okhttp3.CompressionInterceptor
+import okhttp3.Gzip
 import okio.BufferedSource
 import okio.Source
 
 /**
- * Stub: `okhttp-zstd` (OkHttp 5.x) sinifi.
+ * Binary-compatible `okhttp3.zstd.Zstd` adapter for `KeiSource`'s
+ * `CompressionInterceptor(Brotli, Gzip, Zstd)` call.
  *
- * KeiSource `CompressionInterceptor(Brotli, Gzip, Zstd)` cagrisinda bu nesneyi
- * parametre olarak gecirir. Kitsugi'da `com.squareup.okhttp3:okhttp-zstd`
- * bagimliligi olmadigi icin sinif yok -> NoClassDefFoundError.
- *
- * Zstd cozuco (zstd-jni) APK'ya eklenmedigi icin decompress() firlatir;
- * CompressionInterceptor stub'i "zstd" reklam etmedigi icin bu yol normalde calismaz.
+ * Because OkHttp 5.x's real `CompressionInterceptor` builds its `Accept-Encoding`
+ * header directly from `algorithms.map { it.encoding }`, returning `"gzip"` here
+ * prevents advertising `"zstd"` without bundling native `zstd-jni`, while keeping
+ * `Lokhttp3/zstd/Zstd;->INSTANCE` intact for extension DEX bytecode.
  */
 object Zstd : CompressionInterceptor.DecompressionAlgorithm {
 
-    override val encoding: String get() = "zstd"
+    override val encoding: String get() = "gzip"
 
     override fun decompress(compressedSource: BufferedSource): Source =
-        throw UnsupportedOperationException(
-            "Zstd dekompresyonu desteklenmiyor (okhttp-zstd bagimliligi yok)"
-        )
+        Gzip.decompress(compressedSource)
 }

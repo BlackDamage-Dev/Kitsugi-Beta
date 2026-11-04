@@ -44,6 +44,11 @@ jobs:
             'https://api.github.com/repos/f26901964-eng/Kitsugi-Manga-Plugins/contents/apk/tachiyomi-tr.mangatr-v1.6.26.apk?ref=bca61cbff15930394f3c87fac9ce556b041c7bac' \
             -o app/src/androidTest/assets/mangatr-v26.apk
           echo '17694bbcbb7ade8e9a03fcd60c3ce4fb24633b0312a5e82a5ddee9bfc83360f9  app/src/androidTest/assets/mangatr-v26.apk' | sha256sum -c -
+          curl --fail --location --retry 3 \
+            -H 'Accept: application/vnd.github.raw+json' \
+            'https://api.github.com/repos/f26901964-eng/Kitsugi-Manga-Plugins/contents/apk/tachiyomi-tr.mangatr-v1.6.28.apk?ref=5c738ab7c13bd0422e6857cf2a3877aa888749ec' \
+            -o app/src/androidTest/assets/mangatr-v28.apk
+          echo 'f0301f4e00700879c524496ec1bbb3fa27da2e4866df352c1dde84bebe33ec91  app/src/androidTest/assets/mangatr-v28.apk' | sha256sum -c -
       # ubuntu-latest may have the SDK platforms but no sdkmanager on PATH.
       # The emulator action also needs the command-line tools to install its image.
       - uses: android-actions/setup-android@v3

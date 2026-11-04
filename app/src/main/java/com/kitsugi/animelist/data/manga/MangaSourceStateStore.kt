@@ -319,9 +319,11 @@ class MangaSourceStateStore(context: Context) {
         now: Long,
     ): Long {
         val durationMs = when (status) {
-            SourceHealthStatus.RateLimited -> 15L * 60L * 1000L
-            SourceHealthStatus.CaptchaRequired -> 30L * 60L * 1000L
-            SourceHealthStatus.Broken -> if (failureStreak >= 2) 2L * 60L * 60L * 1000L else 0L
+            // Tekil geçici 429 / DDoS-Guard / Cloudflare yanıtında kaynağı hemen 30 dk
+            // arama dışı bırakma ("0 kaynak" kilidi oluşmasın); üst üste 3 hatada soğutmaya al.
+            SourceHealthStatus.RateLimited -> if (failureStreak >= 3) 10L * 60L * 1000L else 0L
+            SourceHealthStatus.CaptchaRequired -> if (failureStreak >= 3) 15L * 60L * 1000L else 0L
+            SourceHealthStatus.Broken -> if (failureStreak >= 3) 2L * 60L * 60L * 1000L else 0L
             SourceHealthStatus.Degraded -> if (failureStreak >= 3) 10L * 60L * 1000L else 0L
             else -> 0L
         }

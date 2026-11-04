@@ -25,7 +25,10 @@ internal fun withMangaApkRollback(target: File, install: () -> Boolean): Boolean
         return committed
     } finally {
         if (committed) {
-            backup?.delete()
+            backup?.let {
+                it.setWritable(true)
+                it.delete()
+            }
         } else if (backup != null) {
             // Same filesystem: replace the failed candidate atomically. Retain the
             // backup if rename fails, so it can still be recovered manually.

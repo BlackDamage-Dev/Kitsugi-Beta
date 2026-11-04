@@ -49,6 +49,10 @@ class SourceFailureClassifierTest {
         val error = IllegalStateException("CloudflareInterceptor must be present in default client")
         assertEquals(SourceErrorCategory.Unknown, SourceFailureClassifier.classifyCategory(error))
         assertEquals("KTS-SRC-9008", SourceFailureClassifier.classifyCode(error))
+
+        val linkage = NoSuchMethodError("eu.kanade.tachiyomi.network.interceptor.CloudflareInterceptor")
+        assertEquals(SourceErrorCategory.Unknown, SourceFailureClassifier.classifyCategory(linkage))
+        assertEquals("KTS-SRC-9008", SourceFailureClassifier.classifyCode(linkage))
     }
 
     @Test
