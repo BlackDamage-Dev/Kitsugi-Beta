@@ -228,29 +228,26 @@ object CsStreamSanitizer {
             kept += stream
         }
 
-        // The same URL with another Referer/Cookie/type/audio may be a different,
-        // playable source. Do not discard it based on the URL alone.
-        data class PlaybackKey(
-            val url: String,
-            val headers: Map<String, String>,
-            val type: com.kitsugi.animelist.core.player.StreamMediaType?,
-            val audioUrl: String?
-        )
-        val seen = HashSet<PlaybackKey>()
+        // 3) URL ve oynatma koşulları aynı olan tekrarlar
+        val seen = HashSet<List<Any?>>()
         val deduped = ArrayList<StreamSource>(kept.size)
         for (stream in kept) {
-            val url = stream.url.orEmpty().substringBefore('#').trim()
-            if (url.isBlank()) {
+            val key = stream.url.orEmpty().substringBefore('#').trim()
+            if (key.isBlank()) {
                 deduped += stream
                 continue
             }
-            val key = PlaybackKey(
-                url,
-                stream.requestHeaders.orEmpty().mapKeys { it.key.lowercase(Locale.ROOT) },
-                stream.mediaType,
-                stream.externalAudioUrl
+            val identity = listOf(
+                key,
+                CsPlaybackHeaders.identity(stream.requestHeaders),
+                stream.externalAudioUrl,
+                stream.quality,
+                stream.qualityValue,
+                stream.csStreamType,
+                stream.csExtractorData,
+                stream.mediaType
             )
-            if (seen.add(key)) deduped += stream else droppedCount++
+            if (seen.add(identity)) deduped += stream else droppedCount++
         }
 
         if (dropped.isNotEmpty()) {

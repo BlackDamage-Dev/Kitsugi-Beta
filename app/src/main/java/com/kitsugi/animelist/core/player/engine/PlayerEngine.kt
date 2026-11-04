@@ -113,7 +113,9 @@ interface PlayerEngine {
         isCS: Boolean = false,
         streamTitle: String? = null,
         qualityValue: Int? = null,
-        mediaType: com.kitsugi.animelist.core.player.StreamMediaType? = null
+        mediaType: com.kitsugi.animelist.core.player.StreamMediaType? = null,
+        csStreamType: String? = null,
+        csExtractorData: String? = null
     )
 
     /**

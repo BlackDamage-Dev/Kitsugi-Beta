@@ -1118,8 +1118,15 @@ fun KitsugiFullscreenPlayerScreen(
                 val lastPreparedStream = remember {
                     java.util.concurrent.atomic.AtomicReference<PreparedStreamIdentity?>(null)
                 }
-                val prepareKey = remember(source?.videoUrl, currentHeaders, currentSubtitles) {
-                    Triple(source?.videoUrl, currentHeaders.hashCode(), currentSubtitles.map { it.url }.hashCode())
+                val activePlaybackStream = currentStreamSources.getOrNull(currentSourceIndex)
+                val prepareKey = remember(
+                    source?.videoUrl, currentHeaders, currentSubtitles,
+                    activePlaybackStream?.csStreamType, activePlaybackStream?.csExtractorData
+                ) {
+                    listOf(
+                        source?.videoUrl, currentHeaders.hashCode(), currentSubtitles.map { it.url }.hashCode(),
+                        activePlaybackStream?.csStreamType, activePlaybackStream?.csExtractorData
+                    )
                 }
                 LaunchedEffect(playerEngine, prepareKey) {
                     // EXTERNAL tercihinde Activity kapanmadan dahili motoru hazırlamaya
@@ -1191,7 +1198,9 @@ fun KitsugiFullscreenPlayerScreen(
                                     .sanitize(activeSource?.name)
                             }
                             .takeIf { it.isNotBlank() },
-                        qualityValue = activeSource?.qualityValue
+                        qualityValue = activeSource?.qualityValue,
+                        csStreamType = activeSource?.csStreamType,
+                        csExtractorData = activeSource?.csExtractorData
                     )
                     Log.d("KitsugiPlayer", "prepare() ÇAĞRILDI: url=$safeVideoUrl addon=${currentAddonName} startPos=$startPos")
                 }

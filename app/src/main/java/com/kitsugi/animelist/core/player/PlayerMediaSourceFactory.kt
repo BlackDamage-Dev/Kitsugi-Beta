@@ -100,12 +100,16 @@ class PlayerMediaSourceFactory(
         videoUrl: String,
         subtitles: List<SubtitleInput> = emptyList(),
         streamTypeHint: String? = null,
-        mediaType: StreamMediaType? = null
+        mediaType: StreamMediaType? = null,
+        csStreamType: String? = null
     ): MediaItem {
         val videoUri = Uri.parse(videoUrl)
         val format = StreamFormatPolicy.resolve(videoUrl, mediaType)
-        val isM3u8  = format == StreamMediaType.HLS || isHlsUrl(videoUrl, streamTypeHint)
-        val isDash  = format == StreamMediaType.DASH || isDashUrl(videoUrl, streamTypeHint)
+        val adaptiveType = com.kitsugi.animelist.data.cloudstream.CsStreamFormat.choose(
+            csStreamType, isHlsUrl(videoUrl, streamTypeHint), isDashUrl(videoUrl, streamTypeHint)
+        )
+        val isM3u8  = adaptiveType == "M3U8" || format == StreamMediaType.HLS || isHlsUrl(videoUrl, streamTypeHint)
+        val isDash  = adaptiveType == "DASH" || format == StreamMediaType.DASH || isDashUrl(videoUrl, streamTypeHint)
         val isSs    = videoUrl.contains(".ism",   ignoreCase = true)
 
         val builder = MediaItem.Builder().setUri(videoUri)
@@ -155,7 +159,9 @@ class PlayerMediaSourceFactory(
         streamTitle: String?,
         isCS: Boolean,
         qualityValue: Int?,
-        mediaType: StreamMediaType? = null
+        mediaType: StreamMediaType? = null,
+        csStreamType: String? = null,
+        csExtractorData: String? = null
     ): androidx.media3.datasource.DataSource.Factory {
         val provider = if (isCS && !addonName.isNullOrBlank()) {
             runCatching {
@@ -163,7 +169,31 @@ class PlayerMediaSourceFactory(
             }.getOrNull()
         } else null
 
-        val videoInterceptor = CsVideoInterceptorFactory.videoInterceptor(
+        @Suppress("DEPRECATION")
+        val csLink = if (provider != null) {
+            runCatching {
+                val isM3u8Link = isHlsUrl(videoUrl)
+                com.lagradost.cloudstream3.utils.ExtractorLink(
+                    source    = addonName!!,
+                    name      = streamTitle ?: addonName,
+                    url       = videoUrl,
+                    referer   = headers.entries.firstOrNull { it.key.equals("referer", ignoreCase = true) }?.value ?: "",
+                    quality   = qualityValue ?: com.lagradost.cloudstream3.utils.Qualities.Unknown.value,
+                    headers   = headers,
+                    extractorData = csExtractorData,
+                    type      = when {
+                        csStreamType == "DASH" -> com.lagradost.cloudstream3.utils.ExtractorLinkType.DASH
+                        csStreamType == "M3U8" || isM3u8Link -> com.lagradost.cloudstream3.utils.ExtractorLinkType.M3U8
+                        else -> com.lagradost.cloudstream3.utils.ExtractorLinkType.VIDEO
+                    },
+                    audioTracks = emptyList()
+                )
+            }.getOrNull()
+        } else null
+
+        val videoInterceptor = runCatching {
+            csLink?.let { provider?.getVideoInterceptor(it) }
+        }.getOrNull() ?: CsVideoInterceptorFactory.videoInterceptor(
             provider = provider,
             name = streamTitle ?: addonName.orEmpty(),
             url = videoUrl,
@@ -204,7 +234,8 @@ class PlayerMediaSourceFactory(
         )
         val base = DefaultDataSource.Factory(context, OkHttpDataSource.Factory(okHttpClient))
 
-        val isHlsOrDash = isHlsUrl(videoUrl) || videoUrl.contains(".mpd", ignoreCase = true)
+        val isHlsOrDash = csStreamType == "M3U8" || csStreamType == "DASH" ||
+            isHlsUrl(videoUrl) || videoUrl.contains(".mpd", ignoreCase = true)
         val isLocalP2p = videoUrl.contains("127.0.0.1") || videoUrl.contains("localhost")
 
         return if (settings.parallelRangeEnabled && !isHlsOrDash && !isLocalP2p) {
@@ -242,9 +273,11 @@ class PlayerMediaSourceFactory(
         mediaItemOverride: MediaItem? = null,
         externalAudioTracks: List<ExternalAudioTrackInput> = emptyList(),
         streamTypeHint: String? = null,
-        mediaType: StreamMediaType? = null
+        mediaType: StreamMediaType? = null,
+        csStreamType: String? = null,
+        csExtractorData: String? = null
     ): MediaSource {
-        val mediaItem = mediaItemOverride ?: buildMediaItem(videoUrl, subtitles, streamTypeHint, mediaType)
+        val mediaItem = mediaItemOverride ?: buildMediaItem(videoUrl, subtitles, streamTypeHint, mediaType, csStreamType)
 
         val activeExtractorsFactory = if (extractorsFactory is DolbyVisionExtractorsFactory) {
             customSubtitleParserFactory?.let { extractorsFactory.withSubtitleParser(it) } ?: extractorsFactory
@@ -278,7 +311,9 @@ class PlayerMediaSourceFactory(
                 streamTitle = streamTitle,
                 isCS = isCS,
                 qualityValue = qualityValue,
-                mediaType = mediaType
+                mediaType = mediaType,
+                csStreamType = csStreamType,
+                csExtractorData = csExtractorData
             )
         }
         val dsFactory = withPerUrlHeaders(rawDataSourceFactory, perUrlHeaders)
