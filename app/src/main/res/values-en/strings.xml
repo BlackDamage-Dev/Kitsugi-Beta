@@ -18529,4 +18529,7 @@
     <!-- Keyboard & Gamepad Player Settings -->
     <string name="pd_tab_keyboard">Keyboard</string>
     <string name="pd_tab_keyboard_desc">Keyboard and gamepad shortcuts, compact action indicator, seek steps</string>
+    <!-- Audio export -->
+    <string name="ses_parcasini_indir">Download audio track</string>
+    <string name="eklentinin_ayri_sesi">Plugin audio source %1$d · Download</string>
 </resources>

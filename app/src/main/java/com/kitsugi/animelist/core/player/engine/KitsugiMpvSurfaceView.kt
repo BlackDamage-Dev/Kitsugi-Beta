@@ -736,7 +736,10 @@ class KitsugiMpvSurfaceView @JvmOverloads constructor(
                         channelCount = channelCount,
                         isSelected = selected,
                         isForced = false,
-                        isExternal = external
+                        isExternal = external,
+                        externalFilename = if (external) mpv.getPropertyString("track-list/$i/external-filename") else null,
+                        title = title,
+                        bitrate = mpv.getPropertyInt("track-list/$i/demux-bitrate")?.takeIf { it > 0 }
                     )
                 }
 
@@ -750,7 +753,10 @@ class KitsugiMpvSurfaceView @JvmOverloads constructor(
                         channelCount = null,
                         isSelected = selected,
                         isForced = forced,
-                        isExternal = external
+                        isExternal = external,
+                        externalFilename = if (external) mpv.getPropertyString("track-list/$i/external-filename") else null,
+                        title = title,
+                        bitrate = mpv.getPropertyInt("track-list/$i/demux-bitrate")?.takeIf { it > 0 }
                     )
                 }
             }

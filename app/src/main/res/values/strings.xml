@@ -18537,4 +18537,7 @@ Eklentiler ekranından eklenti etkinleştirin.</string>
     <!-- Klavye ve Gamepad Oynatıcı Ayarları -->
     <string name="pd_tab_keyboard">Klavye</string>
     <string name="pd_tab_keyboard_desc">Klavye ve gamepad kısayolları, küçük aksiyon göstergesi, arama adımları</string>
+    <!-- Ses indirme (Audio export) -->
+    <string name="ses_parcasini_indir">Ses parçasını indir</string>
+    <string name="eklentinin_ayri_sesi">Eklentinin ayrı ses kaynağı %1$d · İndir</string>
 </resources>
