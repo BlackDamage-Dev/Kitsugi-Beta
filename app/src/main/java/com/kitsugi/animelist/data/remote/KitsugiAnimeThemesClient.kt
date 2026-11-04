@@ -81,7 +81,9 @@ internal object KitsugiAnimeThemesClient {
                         }
                     }
                 }
-                val videoUrl = pickBestThemeVideoLink(candidates)
+                val rankedLinks = rankThemeVideoLinks(candidates)
+                val videoUrl = rankedLinks.firstOrNull()
+                val alternateUrls = rankedLinks.drop(1).take(3)
 
                 val label = buildString {
                     append("\"$title\"")
@@ -92,7 +94,12 @@ internal object KitsugiAnimeThemesClient {
                     if (slug.isNotBlank()) append(" ($slug)")
                 }
 
-                val theme = KitsugiTheme(label = label, videoUrl = videoUrl, source = "animethemes")
+                val theme = KitsugiTheme(
+                    label = label,
+                    videoUrl = videoUrl,
+                    source = "animethemes",
+                    alternateVideoUrls = alternateUrls
+                )
                 if (type == "OP") openings.add(theme)
                 else if (type == "ED") endings.add(theme)
             }
@@ -121,31 +128,39 @@ internal object KitsugiAnimeThemesClient {
      * kullanıcılar için Media3 sessizce ses-only oynatıyordu. Bu yüzden H.264 varsa her
      * zaman ona öncelik verilir.
      */
-    internal fun pickBestThemeVideoLink(candidates: List<ThemeVideoCandidate>): String? =
-        candidates
+    internal fun orderThemeVideoCandidates(candidates: List<ThemeVideoCandidate>): List<ThemeVideoCandidate> {
+        val ranked = candidates
             .filter { it.link.isNotBlank() }
-            .minWithOrNull(
+            .sortedWith(
                 compareBy<ThemeVideoCandidate>(
                     { it.isSubbed },                                    // false (temiz) önce
                     { if (it.link.isMp4Link()) 0 else 1 },              // MP4/H.264 önce
                     { if (it.isNc) 0 else 1 },                          // creditsiz önce
                     { if (it.source.equals("WEB", ignoreCase = true)) 0 else 1 },
-                    { if (it.resolution in 1..1080) 0 else 1 }, // 2K/4K dosyaları sona at
-                    {
-                        // Kompakt oynatıcı için 720p'ye yakın ve akıcı boyutları tercih et
-                        when (it.resolution) {
-                            720 -> 0
-                            in 480..719 -> 1
-                            in 721..1080 -> 2
-                            in 1..479 -> 3
-                            else -> 4
-                        }
-                    },
-                    { if (it.sizeBytes > 0L) it.sizeBytes else Long.MAX_VALUE },
-                    { -it.resolution.coerceAtMost(720) }
+                    { if (it.resolution in 1..1080) 0 else 1 },          // 2K/4K dosyaları sona at
+                    { -it.resolution.coerceAtMost(1080) }               // en yüksek çözünürlük
                 )
             )
-            ?.link
+            .distinctBy { it.link }
+
+        if (ranked.size <= 1) return ranked
+
+        val fallbacks = ranked.drop(1).sortedWith(
+            compareBy<ThemeVideoCandidate>(
+                { if (it.resolution > 0) it.resolution else Int.MAX_VALUE },
+                { if (it.link.isMp4Link()) 0 else 1 }
+            )
+        )
+        return listOf(ranked.first()) + fallbacks
+    }
+
+    /** Oynatma/indirme zinciri: birincil adres önce, ardından hafif yedekler. */
+    internal fun rankThemeVideoLinks(candidates: List<ThemeVideoCandidate>): List<String> =
+        orderThemeVideoCandidates(candidates).map { it.link }
+
+    /** Geriye dönük uyumluluk: zincirin ilk adresi. */
+    internal fun pickBestThemeVideoLink(candidates: List<ThemeVideoCandidate>): String? =
+        rankThemeVideoLinks(candidates).firstOrNull()
 
     /**
      * AniList streaming episode başlıklarından bölüm numarasını çıkarmaya çalışır.

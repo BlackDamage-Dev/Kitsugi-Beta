@@ -62,7 +62,7 @@ class KitsugiAnimeThemesClientTest {
     }
 
     @Test
-    fun compactPreviewPrefers720pOverHeavier1080pWithinTheSameSource() {
+    fun highestPlayableResolutionWinsWithinTheSameSource() {
         val link = KitsugiAnimeThemesClient.pickBestThemeVideoLink(
             listOf(
                 candidate(link = "https://a.animethemes.moe/op1-480.webm", isNc = true, resolution = 480),
@@ -70,37 +70,7 @@ class KitsugiAnimeThemesClientTest {
                 candidate(link = "https://a.animethemes.moe/op1-720.webm", isNc = true, resolution = 720)
             )
         )
-        assertEquals("https://a.animethemes.moe/op1-720.webm", link)
-    }
-
-    @Test
-    fun anySupportedResolutionBeatsAnUnsupported4kRendition() {
-        val link = KitsugiAnimeThemesClient.pickBestThemeVideoLink(
-            listOf(
-                candidate(link = "https://a.animethemes.moe/op1-4k.webm", resolution = 2160),
-                candidate(link = "https://a.animethemes.moe/op1-360.webm", resolution = 360)
-            )
-        )
-        assertEquals("https://a.animethemes.moe/op1-360.webm", link)
-    }
-
-    @Test
-    fun smallerFileWinsWhenResolutionAndOtherPropertiesMatch() {
-        val link = KitsugiAnimeThemesClient.pickBestThemeVideoLink(
-            listOf(
-                candidate(link = "https://a.animethemes.moe/op1-large.webm", sizeBytes = 60_000_000),
-                candidate(link = "https://a.animethemes.moe/op1-small.webm", sizeBytes = 20_000_000)
-            )
-        )
-        assertEquals("https://a.animethemes.moe/op1-small.webm", link)
-    }
-
-    @Test
-    fun single1080pThemeRemainsPlayableWhenNoLighterRenditionExists() {
-        val link = KitsugiAnimeThemesClient.pickBestThemeVideoLink(
-            listOf(candidate(link = "https://a.animethemes.moe/op1.webm", resolution = 1080, sizeBytes = 62_128_452))
-        )
-        assertEquals("https://a.animethemes.moe/op1.webm", link)
+        assertEquals("https://a.animethemes.moe/op1-1080.webm", link)
     }
 
     @Test
@@ -110,19 +80,46 @@ class KitsugiAnimeThemesClientTest {
         assertTrue(!"https://a.animethemes.moe/op1.webm".isMp4Link())
     }
 
+    @Test
+    fun rankedLinksKeepEveryPlayableFallbackInOrder() {
+        val ranked = KitsugiAnimeThemesClient.rankThemeVideoLinks(
+            listOf(
+                candidate(link = "https://a.animethemes.moe/op1.webm", isNc = true, resolution = 1080),
+                candidate(link = "https://a.animethemes.moe/op1.mp4", isNc = true, resolution = 720),
+                candidate(link = "https://a.animethemes.moe/op1-480.webm", isNc = true, resolution = 480),
+                candidate(link = "https://a.animethemes.moe/op1.mp4", isNc = true, resolution = 720)
+            )
+        )
+        // Birincil: en iyi dosya (mp4/720p). Yedekler hafiften ağıra: 480p önce gelir,
+        // çünkü yedek yalnızca cihaz birinci dosyayı çözemediğinde deneniyor.
+        assertEquals(
+            listOf(
+                "https://a.animethemes.moe/op1.mp4",
+                "https://a.animethemes.moe/op1-480.webm",
+                "https://a.animethemes.moe/op1.webm"
+            ),
+            ranked
+        )
+        // Zincirin ilk elemanı tek-adres API'siyle aynı olmalı (geriye dönük uyum).
+        assertEquals(ranked.first(), KitsugiAnimeThemesClient.pickBestThemeVideoLink(
+            listOf(
+                candidate(link = "https://a.animethemes.moe/op1.webm", isNc = true, resolution = 1080),
+                candidate(link = "https://a.animethemes.moe/op1.mp4", isNc = true, resolution = 720)
+            )
+        ))
+    }
+
     private fun candidate(
         link: String,
         resolution: Int = 720,
         isSubbed: Boolean = false,
         isNc: Boolean = true,
-        source: String = "WEB",
-        sizeBytes: Long = 0L
+        source: String = "WEB"
     ) = ThemeVideoCandidate(
         link = link,
         resolution = resolution,
         isSubbed = isSubbed,
         isNc = isNc,
-        source = source,
-        sizeBytes = sizeBytes
+        source = source
     )
 }

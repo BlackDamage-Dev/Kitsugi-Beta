@@ -202,6 +202,61 @@ class InlinePlayerSupportTest {
     }
 
     @Test
+    fun slowButProgressingStartIsNotAbandoned() {
+        // Yavaş bağlantı: hazırlık uzun sürüyor ama tampon büyümeye devam ediyor.
+        // Eski sabit 18 sn kuralı bu dosyayı "oynatılamadı" kartına düşürüyordu.
+        assertFalse(
+            inlineStartShouldAbandon(
+                elapsedMs = 60_000L,
+                sinceProgressMs = 1_000L,
+                state = PlayerEngine.State.BUFFERING,
+                positionMs = 0L
+            )
+        )
+    }
+
+    @Test
+    fun genuineStallSwitchesToTheBackupEngine() {
+        assertTrue(
+            inlineStartShouldAbandon(
+                elapsedMs = 30_000L,
+                sinceProgressMs = INLINE_PLAYER_STALL_TIMEOUT_MS,
+                state = PlayerEngine.State.BUFFERING,
+                positionMs = 0L
+            )
+        )
+        assertFalse(
+            inlineStartShouldAbandon(
+                elapsedMs = 30_000L,
+                sinceProgressMs = INLINE_PLAYER_STALL_TIMEOUT_MS - 1L,
+                state = PlayerEngine.State.BUFFERING,
+                positionMs = 0L
+            )
+        )
+    }
+
+    @Test
+    fun hardCapPreventsAnEndlessSkeleton() {
+        assertTrue(
+            inlineStartShouldAbandon(
+                elapsedMs = INLINE_PLAYER_START_HARD_CAP_MS,
+                sinceProgressMs = 0L,
+                state = PlayerEngine.State.BUFFERING,
+                positionMs = 0L
+            )
+        )
+        // Oynatma gerçekten ilerliyorsa hiçbir süre hükmü verilmez.
+        assertFalse(
+            inlineStartShouldAbandon(
+                elapsedMs = INLINE_PLAYER_START_HARD_CAP_MS * 2,
+                sinceProgressMs = 0L,
+                state = PlayerEngine.State.READY,
+                positionMs = 4_000L
+            )
+        )
+    }
+
+    @Test
     fun sourceFailureMovesToDifferentUrlBeforeChangingEngine() {
         val failed = InlinePlaybackAttempt(0, PlayerEngineType.MEDIA3)
         val next = nextInlinePlaybackAttempt(

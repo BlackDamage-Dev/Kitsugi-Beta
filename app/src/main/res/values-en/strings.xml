@@ -18544,4 +18544,12 @@
     <string name="stream_more_options">More options</string>
     <string name="stream_only_with_results">Only with results</string>
     <string name="stream_addon_settings">Add-on settings</string>
+
+    <!-- Small video download -->
+    <string name="video_download_action">Download video</string>
+    <string name="video_download_done_short">Done</string>
+    <string name="video_download_retry">Retry download</string>
+    <string name="video_download_completed">Video downloaded: %1$s</string>
+    <string name="video_download_failed">Download failed: %1$s</string>
+    <string name="video_download_split_saved">Audio and video were saved as separate files.</string>
 </resources>

@@ -26,8 +26,36 @@ internal fun AppSettings.forCompactInlinePlayback(): AppSettings {
     )
 }
 
-/** A network/format stall must not leave the compact player black at 00:00 forever. */
-internal const val INLINE_PLAYER_START_TIMEOUT_MS = 18_000L
+internal const val INLINE_PLAYER_STALL_TIMEOUT_MS = 25_000L
+
+/** Tıkanma sayacı ne olursa olsun bu süreden sonra vazgeç (sonsuz skeleton olmaz). */
+internal const val INLINE_PLAYER_START_HARD_CAP_MS = 120_000L
+
+/** Geriye dönük ad: artık sabit süre değil, üst sınır. */
+internal const val INLINE_PLAYER_START_TIMEOUT_MS = INLINE_PLAYER_START_HARD_CAP_MS
+
+/**
+ * Hazırlık aşaması bırakılmalı mı?
+ *
+ * @param elapsedMs hazırlığın başlamasından bu yana geçen süre
+ * @param sinceProgressMs en son konum/tampon ilerlemesinden bu yana geçen süre
+ * @param state motorun anlık durumu
+ * @param positionMs oynatma konumu
+ */
+internal fun inlineStartShouldAbandon(
+    elapsedMs: Long,
+    sinceProgressMs: Long,
+    state: PlayerEngine.State,
+    positionMs: Long
+): Boolean {
+    if (positionMs > 0L) return false
+    if (elapsedMs >= INLINE_PLAYER_START_HARD_CAP_MS) return true
+    // READY olsa bile konum 0 ve tampon büyümüyorsa çözücü kare üretmiyor demektir:
+    // yedek motor denenmeli. Tampon büyüdükçe `sinceProgressMs` sıfırlandığı için
+    // yavaş ama sağlıklı bir indirme asla "bozuk" sayılmaz.
+    if (state == PlayerEngine.State.ENDED) return true
+    return sinceProgressMs >= INLINE_PLAYER_STALL_TIMEOUT_MS
+}
 
 internal fun PlayerEngineType.alternateInlineEngine(): PlayerEngineType = when (this) {
     PlayerEngineType.MEDIA3 -> PlayerEngineType.MPV

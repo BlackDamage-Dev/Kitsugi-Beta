@@ -60,7 +60,8 @@ class YouTubeRequestPolicyTest {
             "https://v.animethemes.moe/AttackOnTitan-OP1.webm"
         )
         assertEquals("https://v.animethemes.moe/", theme["Referer"])
-        assertEquals("https://v.animethemes.moe", theme["Origin"])
+        org.junit.Assert.assertNull(theme["Origin"])
+        assertEquals("video/*,application/octet-stream,*/*;q=0.8", theme["Accept"])
         assertEquals(YouTubeRequestPolicy.STREAM_USER_AGENT, theme["User-Agent"])
     }
 

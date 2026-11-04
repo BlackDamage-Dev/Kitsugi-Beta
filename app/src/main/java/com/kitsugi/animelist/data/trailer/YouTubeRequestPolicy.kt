@@ -27,12 +27,17 @@ internal object YouTubeRequestPolicy {
 
         val headers = linkedMapOf(
             "User-Agent" to STREAM_USER_AGENT,
-            "Accept-Language" to ACCEPT_LANGUAGE
+            "Accept-Language" to ACCEPT_LANGUAGE,
+            // Bazı CDN'ler (animethemes CDN'i dâhil) tarayıcı dışı istemcilere Accept
+            // başlığı olmadan 403 dönebiliyor.
+            "Accept" to "video/*,application/octet-stream,*/*;q=0.8"
         )
         val origin = originOf(url)
         if (origin != null) {
+            // `Origin` BİLİNÇLİ olarak gönderilmiyor: yabancı bir Origin başlığı bazı
+            // CDN'lerde CORS kuralına takılıp 403 üretiyor ve küçük oynatıcı sessizce
+            // "oynatılamadı" kartına düşüyordu. Referer yeterli ve daha güvenli.
             headers["Referer"] = "$origin/"
-            headers["Origin"] = origin
         }
         return mergeHeaders(headers, overrides)
     }

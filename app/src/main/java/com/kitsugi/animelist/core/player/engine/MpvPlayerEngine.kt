@@ -450,6 +450,14 @@ class MpvPlayerEngine(
 
     /** true = kullanıcı seek işlemi yapıyor */
 
+        /**
+     * play() çağrıldığında [mpvView] daha önce oluşturulmamışsa (ör. compact player'ın
+     * Media3 → MPV yedek geçişinde), buraya işaretlenir ve [createVideoView] içinde
+     * yüzey hazır olduğunda oynatma başlatılır. Bypass: play() no-op kalıp videonun
+     * asla başlamaması durumu önlenir.
+     */
+    private var pendingPlay: Boolean = false
+
     private var isSeeking: Boolean = false
 
 
@@ -729,11 +737,14 @@ class MpvPlayerEngine(
 
 
     override fun play() {
-
-        if (mpvView == null) return
-
+        if (mpvView == null) {
+            // Görüntü yüzeyi henüz yok (compact player'ın engine değiştirmesinde createVideoView
+            // sonra çalışır). Oynatmayı beklet, view hazır olduğunda başlat.
+            pendingPlay = true
+            return
+        }
+        pendingPlay = false
         if (audioFocus().request()) setPlaying(true)
-
     }
 
 
@@ -1343,17 +1354,21 @@ class MpvPlayerEngine(
                 val pendingUrl = videoUrl
 
                 if (!pendingUrl.isNullOrBlank()) {
-
                     beginLoad(pendingUrl, pendingAudioTracks, pendingHeaders, pendingStartPositionMs)
-
                     setMedia(pendingUrl, pendingHeaders, pendingStartPositionMs)
-
-                    engineScope.launch {
-
-                        setupCustomButtons()
-
+                    // play() daha önce mpvView == null iken çağrılmışsa (engine geçişinde),
+                    // yüzey hazır olduğunda oynatmaya başla.
+                    if (pendingPlay) {
+                        pendingPlay = false
+                        if (audioFocus().request()) setPlaying(true)
                     }
-
+                    engineScope.launch {
+                        setupCustomButtons()
+                    }
+                } else if (pendingPlay) {
+                    // URL henüz setMedia'ye gitmedi ama play istenmiş: play'i tekrar çağırmak
+                    // yerine bayrağı koru; prepare() + createVideoView akışı play'i tetikleyecek.
+                    pendingPlay = true
                 }
 
             }

@@ -33,7 +33,8 @@ data class MediaVideoItem(
     val videoUrl: String?,
     val category: MediaVideoCategory,
     val source: String,
-    val sources: List<String> = listOf(canonicalVideoSource(source)).filter { it.isNotBlank() }
+    val sources: List<String> = listOf(canonicalVideoSource(source)).filter { it.isNotBlank() },
+    val alternateUrls: List<String> = emptyList()
 )
 
 private val RAW_YOUTUBE_ID_REGEX = Regex("^[A-Za-z0-9_-]{8,64}$")
@@ -240,7 +241,8 @@ fun mergeAndOrderMediaVideos(
         var titleSource: String,
         var videoUrl: String?,
         var category: MediaVideoCategory,
-        val sources: LinkedHashSet<String>
+        val sources: LinkedHashSet<String>,
+        val alternateUrls: LinkedHashSet<String> = LinkedHashSet()
     )
 
     val mergedByKey = LinkedHashMap<String, Accumulator>()
@@ -260,12 +262,15 @@ fun mergeAndOrderMediaVideos(
         if (existing == null) {
             val set = LinkedHashSet<String>()
             normSources.forEach { set += it }
+            val altSet = LinkedHashSet<String>()
+            normalizedItem.alternateUrls.forEach { altSet += it }
             mergedByKey[dedupKey] = Accumulator(
                 title = normalizedItem.title.trim(),
                 titleSource = normalizedItem.source,
                 videoUrl = normalizedItem.videoUrl?.trim()?.takeIf { it.isNotEmpty() },
                 category = normalizedItem.category,
-                sources = set
+                sources = set,
+                alternateUrls = altSet
             )
         } else {
             if (shouldReplaceVideoTitle(
@@ -284,6 +289,7 @@ fun mergeAndOrderMediaVideos(
             }
             existing.category = pickBetterCategory(existing.category, normalizedItem.category)
             normSources.forEach { existing.sources += it }
+            normalizedItem.alternateUrls.forEach { existing.alternateUrls += it }
         }
     }
 
@@ -304,7 +310,8 @@ fun mergeAndOrderMediaVideos(
             videoUrl = acc.videoUrl,
             category = acc.category,
             source = primary,
-            sources = orderedSources
+            sources = orderedSources,
+            alternateUrls = acc.alternateUrls.toList()
         )
     }
 

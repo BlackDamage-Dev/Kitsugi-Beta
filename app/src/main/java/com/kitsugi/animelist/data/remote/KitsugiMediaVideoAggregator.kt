@@ -102,7 +102,8 @@ object KitsugiMediaVideoAggregator {
                 title = theme.label,
                 videoUrl = theme.videoUrl,
                 category = category,
-                source = src
+                source = src,
+                alternateUrls = theme.alternateVideoUrls
             )
         }
 
@@ -113,7 +114,8 @@ object KitsugiMediaVideoAggregator {
                 title = theme.label,
                 videoUrl = theme.videoUrl,
                 category = MediaVideoCategory.ENDING,
-                source = src
+                source = src,
+                alternateUrls = theme.alternateVideoUrls
             )
         }
 
@@ -688,7 +690,8 @@ object KitsugiMediaVideoAggregator {
                         title = theme.label,
                         videoUrl = theme.videoUrl,
                         category = MediaVideoCategory.OPENING,
-                        source = "animethemes"
+                        source = "animethemes",
+                        alternateUrls = theme.alternateVideoUrls
                     )
                 }
                 eds.forEachIndexed { idx, theme ->
@@ -697,7 +700,8 @@ object KitsugiMediaVideoAggregator {
                         title = theme.label,
                         videoUrl = theme.videoUrl,
                         category = MediaVideoCategory.ENDING,
-                        source = "animethemes"
+                        source = "animethemes",
+                        alternateUrls = theme.alternateVideoUrls
                     )
                 }
                 return items

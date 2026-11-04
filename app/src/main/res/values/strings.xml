@@ -18552,4 +18552,12 @@ Eklentiler ekranından eklenti etkinleştirin.</string>
     <string name="stream_more_options">Diğer seçenekler</string>
     <string name="stream_only_with_results">Yalnızca sonuç verenler</string>
     <string name="stream_addon_settings">Eklenti ayarları</string>
+
+    <!-- Küçük video indirme -->
+    <string name="video_download_action">Videoyu indir</string>
+    <string name="video_download_done_short">İndi</string>
+    <string name="video_download_retry">İndirmeyi yeniden dene</string>
+    <string name="video_download_completed">Video indirildi: %1$s</string>
+    <string name="video_download_failed">İndirme başarısız: %1$s</string>
+    <string name="video_download_split_saved">Ses ve görüntü ayrı dosyalar olarak kaydedildi.</string>
 </resources>
