@@ -37,21 +37,36 @@ fun isTechnicalTranslationValue(value: String): Boolean {
     return false
 }
 
-private val TRANSLATION_BARE_URL_REGEX = Regex("""^\s*(?:https?://|www\.)\S+\s*$""", RegexOption.IGNORE_CASE)
+/**
+ * Derlenemeyen bir regex, dosya düzeyi `val` içindeyken sınıfın `<clinit>`'inde
+ * [ExceptionInInitializerError] fırlatıp TÜM uygulamayı çökertiyordu (bkz. 2026-11-04
+ * çökme raporu: bozuk wikitext regex'i). Bu yardımcı, desen derlenemezse asla eşleşmeyen
+ * güvenli bir regex'e düşer; çeviri katmanı böyle bir durumda en fazla bazı teknik
+ * değerleri çeviriye gönderir, ASLA çökmez.
+ */
+private val NEVER_MATCH_REGEX = Regex("(?!)")
 
-private val TRANSLATION_INLINE_URL_REGEX = Regex("""(?:https?://|www\.)\S+""", RegexOption.IGNORE_CASE)
+private fun safeTranslationRegex(pattern: String, vararg options: RegexOption): Regex =
+    runCatching { Regex(pattern, options.toSet()) }.getOrElse { NEVER_MATCH_REGEX }
 
-private val TRANSLATION_FILE_NAME_REGEX = Regex(
+private val TRANSLATION_BARE_URL_REGEX = safeTranslationRegex("""^\s*(?:https?://|www\.)\S+\s*$""", RegexOption.IGNORE_CASE)
+
+private val TRANSLATION_INLINE_URL_REGEX = safeTranslationRegex("""(?:https?://|www\.)\S+""", RegexOption.IGNORE_CASE)
+
+private val TRANSLATION_FILE_NAME_REGEX = safeTranslationRegex(
     """^\s*\S+\.(?:ogg|oga|mp3|wav|flac|m4a|mp4|webm|mkv|png|jpe?g|gif|webp|svg|pdf|txt|csv|json|xml)\s*$""",
     RegexOption.IGNORE_CASE
 )
 
-private val TRANSLATION_WIKI_NAMESPACE_REGEX = Regex(
+private val TRANSLATION_WIKI_NAMESPACE_REGEX = safeTranslationRegex(
     """^\s*(?:File|Image|Category|Template|Dosya|Resim|Kategori|Şablon)\s*:\s*\S+\s*$""",
     RegexOption.IGNORE_CASE
 )
 
-private val TRANSLATION_WIKITEXT_ONLY_REGEX = Regex(
-    """^\s*(?:\[\[[^\]]+\]\]|\{\{[^}]+}}|\[https?://[^\]]+])\s*$""",
-    RegexOption.IGNORE_CASE
+// Yalnızca TAMAMI wiki sözdizimi olan satırlar teknik sayılır ([[...]], {{...}}, [http...]).
+// Köşeli ayraçların TÜMÜ Android ICU uyumlu biçimde kaçırıldı: eski sürümdeki kaçırılmamış
+// `}}` ICU'da PatternSyntaxException → ExceptionInInitializerError ile uygulamayı çökertiyordu
+// (2026-11-04 raporu). JVM'de geçerli olan bu desen ICU'da geçersizdir; `\}\}` şart.
+private val TRANSLATION_WIKITEXT_ONLY_REGEX = safeTranslationRegex(
+    """^\s*(?:\[\[[^\]]+\]\]|\{\{[^}]+\}\}|\[https?://[^\]]+\])\s*$"""
 )

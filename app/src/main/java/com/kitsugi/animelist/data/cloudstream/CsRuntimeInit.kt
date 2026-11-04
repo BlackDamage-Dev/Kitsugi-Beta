@@ -247,7 +247,25 @@ object CsRuntimeInit {
                     if (!hasUserAgent) {
                         requestBuilder.header("User-Agent", com.lagradost.cloudstream3.network.CloudflareKiller.UNIFIED_USER_AGENT)
                     }
-                    chain.proceed(requestBuilder.build())
+                    // Eklenti hatları TÜM uygulamayı çökertmemeli. Bu en dıştaki uygulama
+                    // interceptor'ı, içteki eklenti interceptor'larının (örn. DiziBox'ın
+                    // DiziBoxWire'ı) TÜM isteklerini sarar. Eklentinin companion/static
+                    // init'i bozuk bir regex yüzünden patlarsa (ExceptionInInitializerError
+                    // → sonraki çağrılarda NoClassDefFoundError) veya bir RuntimeException
+                    // fırlatırsa, bunu bir AĞ HATASINA çeviriyoruz: OkHttp ve eklentinin
+                    // kendi ağ katmanı IOException'ı zaten zarifçe karşılar (boş sonuç döner),
+                    // böylece tek bir bozuk eklenti süreci öldüremez.
+                    // Not: IOException burada YAKALANMAZ — gerçek ağ hataları normal akışta
+                    // ilerlemeye devam eder (RuntimeException, IOException'ı kapsamaz).
+                    try {
+                        chain.proceed(requestBuilder.build())
+                    } catch (e: LinkageError) {
+                        android.util.Log.e("CsRuntimeInit", "Eklenti sınıf/init hatası ($urlStr) — ağ hatası olarak işleniyor", e)
+                        throw java.io.IOException("Eklenti hatası (linkage): ${e.javaClass.simpleName}", e)
+                    } catch (e: RuntimeException) {
+                        android.util.Log.e("CsRuntimeInit", "Eklenti çalışma zamanı hatası ($urlStr) — ağ hatası olarak işleniyor", e)
+                        throw java.io.IOException("Eklenti hatası: ${e.javaClass.simpleName}", e)
+                    }
                 }
                 .addInterceptor(com.lagradost.cloudstream3.network.CloudflareKiller())
                 .addInterceptor(com.lagradost.cloudstream3.network.DdosGuardKiller(alwaysBypass = false))

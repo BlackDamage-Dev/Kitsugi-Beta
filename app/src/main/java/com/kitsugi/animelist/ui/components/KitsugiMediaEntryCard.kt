@@ -165,6 +165,7 @@ fun KitsugiMediaEntryCard(
         }
 
         if (additionalSources.isNotEmpty()) {
+            if (layoutId == "grid_2col") Spacer(Modifier.height(4.dp))
             LibrarySourceBadgeStrip(sources = additionalSources)
         } else if (reserveSourceStripSpace && layoutId == "grid_2col") {
             Spacer(Modifier.height(38.dp))
