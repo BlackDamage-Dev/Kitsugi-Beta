@@ -18533,4 +18533,15 @@
     <string name="ses_parcasini_indir">Download audio track</string>
     <string name="eklentinin_ayri_sesi">Plugin audio source %1$d · Download</string>
     <string name="aktif_tum_manga_kaynaklarinda_ara">Search across all active manga sources</string>
+    <!-- Stream source panel (single bar) -->
+    <string name="stream_sources_title">Sources</string>
+    <string name="stream_source_summary_compact">%1$d/%2$d add-ons · %3$d videos</string>
+    <string name="stream_sort_source">Source order</string>
+    <string name="stream_sort_source_short">Source</string>
+    <string name="stream_sort_size">Size</string>
+    <string name="stream_retry_errors">Retry errors (%1$d)</string>
+    <string name="stream_refresh_all">Refresh all sources</string>
+    <string name="stream_more_options">More options</string>
+    <string name="stream_only_with_results">Only with results</string>
+    <string name="stream_addon_settings">Add-on settings</string>
 </resources>

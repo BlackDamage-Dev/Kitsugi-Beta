@@ -18541,4 +18541,15 @@ Eklentiler ekranından eklenti etkinleştirin.</string>
     <string name="ses_parcasini_indir">Ses parçasını indir</string>
     <string name="eklentinin_ayri_sesi">Eklentinin ayrı ses kaynağı %1$d · İndir</string>
     <string name="aktif_tum_manga_kaynaklarinda_ara">Aktif tüm manga kaynaklarında ara</string>
+    <!-- Stream kaynak paneli (tek bar) -->
+    <string name="stream_sources_title">Kaynaklar</string>
+    <string name="stream_source_summary_compact">%1$d/%2$d eklenti · %3$d video</string>
+    <string name="stream_sort_source">Kaynak sırası</string>
+    <string name="stream_sort_source_short">Kaynak</string>
+    <string name="stream_sort_size">Boyut</string>
+    <string name="stream_retry_errors">Hataları yenile (%1$d)</string>
+    <string name="stream_refresh_all">Tüm kaynakları yenile</string>
+    <string name="stream_more_options">Diğer seçenekler</string>
+    <string name="stream_only_with_results">Yalnızca sonuç verenler</string>
+    <string name="stream_addon_settings">Eklenti ayarları</string>
 </resources>

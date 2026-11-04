@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kitsugi · Kaynak Paneli — Tek Bar Önizleme</title>
+<style>
+  :root{
+    --bg:#0b0b12; --bg2:#12121c; --surface:#1a1a26; --surface2:#22222f;
+    --border:#2c2c3a; --text:#f2f0f5; --text2:#a9a6b8; --muted:#6f6c80;
+    --accent:#e6a9bf; --accent-dim:rgba(230,169,191,.14); --accent-border:rgba(230,169,191,.4);
+    --red:#fb7185; --radius:14px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0; font-family:'Segoe UI',Roboto,system-ui,sans-serif;}
+  body{background:#050508; color:var(--text); min-height:100vh; display:flex; flex-direction:column; align-items:center; padding:28px 16px 60px;}
+  h1{font-size:20px; font-weight:700; margin-bottom:4px;}
+  .sub{color:var(--text2); font-size:13px; margin-bottom:20px; text-align:center; max-width:560px; line-height:1.5;}
+  .toggle{display:flex; gap:8px; margin-bottom:22px; background:var(--surface); padding:5px; border-radius:12px; border:1px solid var(--border);}
+  .toggle button{border:none; background:transparent; color:var(--text2); padding:8px 18px; border-radius:9px; font-size:13px; font-weight:600; cursor:pointer; transition:.15s;}
+  .toggle button.active{background:var(--accent-dim); color:var(--accent);}
+  .phone{width:380px; max-width:94vw; background:var(--bg); border:1px solid var(--border); border-radius:26px; overflow:hidden; box-shadow:0 20px 60px rgba(0,0,0,.6);}
+  .statusbar{display:flex; justify-content:space-between; padding:8px 18px; font-size:11px; color:var(--text2);}
+  .appbar{display:flex; align-items:center; gap:10px; padding:10px 14px; border-bottom:1px solid var(--border);}
+  .appbar .back{width:30px;height:30px;border-radius:50%;background:var(--surface2);display:flex;align-items:center;justify-content:center;color:var(--text);font-size:15px;}
+  .appbar .t{flex:1;} .appbar .t b{font-size:14px;display:block;} .appbar .t span{font-size:11px;color:var(--text2);}
+  .imdb{background:#f5c518;color:#000;font-size:10px;font-weight:800;padding:3px 6px;border-radius:5px;}
+  .body{padding:12px 14px; background:linear-gradient(180deg,rgba(230,169,191,.06),transparent 180px);}
+  .search{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 12px;color:var(--muted);font-size:12px;margin-bottom:10px;}
+  .chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;}
+  .chip{font-size:11px;padding:5px 10px;border-radius:9px;background:var(--surface);border:1px solid var(--border);color:var(--text2);}
+  .chip.on{background:var(--accent-dim);border-color:var(--accent-border);color:var(--accent);font-weight:700;}
+
+  /* trigger card */
+  .trigger{display:flex;align-items:center;gap:9px;background:var(--surface);border:1px solid var(--accent-border);border-radius:var(--radius);padding:9px 11px;cursor:pointer;}
+  .trigger .ic{width:30px;height:30px;border-radius:50%;background:var(--accent-dim);color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;}
+  .trigger .meta{flex:1;min-width:0;} .trigger .meta b{font-size:13.5px;display:block;} .trigger .meta span{font-size:11px;color:var(--text2);}
+  .sortchip{display:flex;align-items:center;gap:3px;background:var(--accent-dim);border:1px solid var(--accent-border);color:var(--accent);font-size:11px;font-weight:700;padding:5px 7px;border-radius:9px;flex-shrink:0;}
+  .chev{color:var(--accent);font-size:16px;}
+
+  /* sheet */
+  .sheet{margin-top:14px;background:var(--bg2);border:1px solid var(--border);border-radius:20px 20px 0 0;padding:0 12px 16px;position:relative;}
+  .handle{width:34px;height:4px;border-radius:2px;background:var(--border);margin:9px auto 10px;}
+  .bar{display:flex;align-items:center;gap:2px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);height:48px;padding:0 6px;}
+  .bar .title{flex:1;min-width:0;padding-left:6px;} .bar .title b{font-size:13.5px;display:block;} .bar .title span{font-size:10.5px;color:var(--text2);}
+  .bar .bicon{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--text2);font-size:16px;cursor:pointer;position:relative;flex-shrink:0;}
+  .bar .bicon:hover{background:var(--surface2);}
+  .badge{position:absolute;top:0;right:0;background:var(--accent);color:#1a1a26;font-size:8px;font-weight:800;min-width:14px;height:14px;border-radius:7px;display:flex;align-items:center;justify-content:center;padding:0 3px;}
+  .dot{position:absolute;top:4px;right:4px;width:6px;height:6px;border-radius:50%;background:var(--accent);}
+  .list{margin-top:8px;}
+  .row{display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:12px;cursor:pointer;}
+  .row:hover{background:var(--surface);}
+  .row.sel{background:var(--accent-dim);}
+  .row .avatar{width:30px;height:30px;border-radius:50%;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--text2);flex-shrink:0;}
+  .row .rm{flex:1;min-width:0;} .row .rm b{font-size:13px;display:block;} .row .rm span{font-size:11px;color:var(--text2);}
+  .row .rm span.err{color:var(--red);}
+  .row .check{color:var(--accent);font-size:17px;}
+  .row .ract{color:var(--accent);font-size:15px;width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:7px;}
+
+  /* OLD messy layout */
+  .old .blk{margin-bottom:12px;}
+  .old .h{display:flex;align-items:center;gap:10px;margin-bottom:6px;}
+  .old .h .ic{width:38px;height:38px;border-radius:50%;background:var(--accent-dim);color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:18px;}
+  .old .h b{font-size:17px;display:block;} .old .h span{font-size:12px;color:var(--text2);}
+  .old .lbl{font-size:12px;color:var(--text2);font-weight:700;margin:10px 0 6px;border-left:3px solid var(--accent);padding-left:7px;}
+  .old .sortrow{display:flex;gap:7px;}
+  .old .schip{font-size:12px;padding:8px 14px;border-radius:11px;background:var(--surface);border:1px solid var(--border);color:var(--text2);}
+  .old .schip.on{background:var(--accent-dim);border-color:var(--accent-border);color:var(--accent);font-weight:700;}
+  .old .addonhead{display:flex;justify-content:space-between;align-items:center;margin-top:12px;}
+  .old .addonhead .l{font-size:13px;font-weight:700;border-left:3px solid var(--accent);padding-left:7px;}
+  .old .addonhead .r{font-size:12px;color:var(--accent);}
+  .old .retry{display:flex;align-items:center;gap:7px;color:var(--accent);font-size:13px;font-weight:700;margin:12px 0;}
+  .old .fullsearch{display:flex;align-items:center;gap:9px;background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:13px 14px;color:var(--muted);font-size:13px;margin-bottom:10px;}
+  .old .toggleline{display:flex;justify-content:space-between;align-items:center;}
+  .old .onlychip{font-size:12px;font-weight:700;padding:9px 14px;border-radius:11px;background:var(--surface);border:1px solid var(--border);}
+  .old .loading{font-size:11px;color:var(--text2);}
+  .note{margin-top:18px;font-size:12px;color:var(--text2);max-width:380px;text-align:center;line-height:1.6;}
+  .note b{color:var(--accent);}
+  .hidden{display:none;}
+  .legend{display:flex;gap:16px;margin-top:14px;font-size:11px;color:var(--muted);}
+</style>
+</head>
+<body>
+  <h1>🎌 Kaynak Paneli — “Tek Bar” Düzeni</h1>
+  <p class="sub">İzle sayfasındaki kaynak seçim panelinin başlık + sıralama + arama + ayarlar bloğu tek bir 48&nbsp;dp kontrol barına indirgendi. Kaynak listesi artık çok daha fazla alan alıyor.</p>
+
+  <div class="toggle">
+    <button id="btnNew" class="active" onclick="show('new')">✨ Yeni · Tek Bar</button>
+    <button id="btnOld" onclick="show('old')">🗂 Eski · Dağınık</button>
+  </div>
+
+  <div class="phone">
+    <div class="statusbar"><span>19:04</span><span>📶 ️</span></div>
+    <div class="appbar">
+      <div class="back">←</div>
+      <div class="t"><b>Date A Live</b><span>Sezon 1 · Bölüm 1</span></div>
+      <div class="imdb">tt2575684</div>
+    </div>
+    <div class="body">
+      <div class="search">🔍 Kaynak, eklenti veya video ara…</div>
+      <div class="chips">
+        <span class="chip">Altyazı</span><span class="chip">Dublaj</span><span class="chip">4K</span>
+        <span class="chip">1080p+</span><span class="chip">720p</span><span class="chip">⚡ Debrid</span>
+      </div>
+
+      <!-- trigger -->
+      <div class="trigger">
+        <div class="ic">🎚</div>
+        <div class="meta"><b>Tüm kaynaklar</b><span>5/9 eklenti · 94 video</span></div>
+        <div class="sortchip">⇅ Kalite ▾</div>
+        <div class="chev">⌄</div>
+      </div>
+
+      <!-- NEW sheet -->
+      <div class="sheet" id="newSheet">
+        <div class="handle"></div>
+        <div class="bar">
+          <div class="title"><b>Kaynaklar</b><span>5/9 eklenti · 94 video</span></div>
+          <div class="sortchip">⇅ Kalite </div>
+          <div class="bicon" title="Eklentilerde ara">🔍</div>
+          <div class="bicon" title="Hataları yenile (3)">🔄<span class="badge">3</span></div>
+          <div class="bicon" title="Diğer seçenekler">⋮<span class="dot"></span></div>
+          <div class="bicon" title="Kapat">✕</div>
+        </div>
+        <div class="list">
+          <div class="row sel"><div class="avatar">T</div><div class="rm"><b>Tüm kaynaklar</b><span>94 video</span></div><div class="check">✓</div></div>
+          <div class="row"><div class="avatar">T</div><div class="rm"><b>Torrentio</b><span>45 video</span></div></div>
+          <div class="row"><div class="avatar">⚡</div><div class="rm"><b>Anizium</b><span>28 video</span></div></div>
+          <div class="row"><div class="avatar">⚡</div><div class="rm"><b>Anizm</b><span>4 video</span></div></div>
+          <div class="row"><div class="avatar">⚡</div><div class="rm"><b>AnimeciX</b><span>1 video</span></div></div>
+          <div class="row"><div class="avatar">⚠️</div><div class="rm"><b>Diziyou</b><span class="err">Kaynak hatası · yeniden dene</span></div><div class="ract">🔄</div></div>
+        </div>
+      </div>
+
+      <!-- OLD sheet -->
+      <div class="sheet old hidden" id="oldSheet">
+        <div class="handle"></div>
+        <div class="blk h"><div class="ic">🎚</div><div><b>Kaynaklar ve sıralama</b><span>5/9 eklenti · 94 video</span></div></div>
+        <div class="lbl">Sıralama</div>
+        <div class="sortrow"><span class="schip on">Kaynak sırası</span><span class="schip">Kalite</span><span class="schip">Boyut</span></div>
+        <div class="addonhead"><span class="l">Eklentiler · 9</span><span class="r">⚙️ Eklenti ayarları</span></div>
+        <div class="retry">🔄 Hataları yenile (3)</div>
+        <div class="fullsearch">🔍 Eklentilerde ara</div>
+        <div class="toggleline"><span class="onlychip">Yalnızca sonuç verenler</span><span class="loading">Kaynaklar aranıyor…</span></div>
+        <div class="list" style="margin-top:12px;">
+          <div class="row sel"><div class="avatar">T</div><div class="rm"><b>Tüm kaynaklar</b><span>94 video</span></div><div class="check">✓</div></div>
+          <div class="row"><div class="avatar">T</div><div class="rm"><b>Torrentio</b><span>45 video</span></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p class="note" id="noteNew">Tüm kontroller <b>tek satırda</b>: sıralama çipi (Kaynak/Kalite/Boyut), arama 🔍, hataları yenile 🔄 (rozetli), ⋮ menü (yalnızca sonuç verenler + eklenti ayarları) ve kapat ✕. Arama açılınca bar aynı yükseklikte arama alanına dönüşür — ikinci satır açılmaz.</p>
+  <p class="note hidden" id="noteOld">Eski düzen: başlık, sıralama etiketi + çipleri, eklenti başlığı, hata yenileme, tam genişlik arama ve filtre ayrı satırlar hâlindeydi — liste alanını daraltıyordu.</p>
+
+<script>
+  function show(mode){
+    const isNew = mode==='new';
+    document.getElementById('newSheet').classList.toggle('hidden',!isNew);
+    document.getElementById('oldSheet').classList.toggle('hidden',isNew);
+    document.getElementById('noteNew').classList.toggle('hidden',!isNew);
+    document.getElementById('noteOld').classList.toggle('hidden',isNew);
+    document.getElementById('btnNew').classList.toggle('active',isNew);
+    document.getElementById('btnOld').classList.toggle('active',!isNew);
+  }
+</script>
+</body>
+</html>

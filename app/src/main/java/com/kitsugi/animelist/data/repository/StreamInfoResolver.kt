@@ -371,6 +371,26 @@ object StreamInfoResolver {
         return match.value.trim().uppercase(Locale.ROOT)
     }
 
+    /**
+     * Boyut sıralaması için bayt değeri. Önce gerçek ölçüm (`Content-Length`), yoksa
+     * kaynağın bildirdiği `videoSizeBytes`, yoksa dosya/ad başlığındaki AÇIK boyut
+     * etiketi (ör. "1.4 GB", "700MB") okunur. Kanıt yoksa 0 döner — uydurma yapılmaz,
+     * bilinmeyenler sıralamanın sonuna düşer.
+     */
+    fun resolveSizeBytes(stream: StreamSource, measured: MeasuredStreamInfo? = null): Long {
+        val measuredBytes = measured?.sizeBytes
+        if (measuredBytes != null && measuredBytes > 0) return measuredBytes
+        val providerBytes = stream.videoSizeBytes
+        if (providerBytes != null && providerBytes > 0) return providerBytes
+        val match = SIZE_REGEX.find("${stream.title} ${stream.name}") ?: return 0L
+        val value = match.groupValues[1].replace(',', '.').toDoubleOrNull() ?: return 0L
+        return when (match.groupValues[2].lowercase(Locale.ROOT)) {
+            "gb", "gib" -> (value * 1_000_000_000).toLong()
+            "mb", "mib" -> (value * 1_000_000).toLong()
+            else -> 0L
+        }
+    }
+
     fun formatBytes(bytes: Long): String {
         val gb = bytes / 1_000_000_000.0
         if (gb >= 1.0) return String.format(Locale.ROOT, "%.2f GB", gb)

@@ -844,6 +844,7 @@ object KitsugiIcons {
     val TravelExplore: ImageVector get() = Compass
     val Tune: ImageVector get() = SlidersHorizontal
     val Verified: ImageVector get() = ShieldCheck
+    val VerifiedUser: ImageVector get() = ShieldCheck
     val VideoLibrary: ImageVector get() = Library
     val VideoSettings: ImageVector get() = Settings
     val ViewCarousel: ImageVector get() = GalleryHorizontal
