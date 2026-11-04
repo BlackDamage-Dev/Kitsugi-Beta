@@ -457,32 +457,38 @@ class MangaViewModel(application: Application) : AndroidViewModel(application) {
         installMangaApk(ext, force = false, onResult = onResult)
     }
 
-    fun installMangaApk(ext: MangaExtensionInfo, force: Boolean, onResult: ((Boolean) -> Unit)? = null) {
+    fun installMangaApk(ext: MangaExtensionInfo, force: Boolean, onResult: ((Boolean) -> Unit)? = null, approvedSignature: String? = null) {
         viewModelScope.launch {
             val extensionId = ext.pkg.replace(".", "_")
             var signatureHashToPrompt: String? = null
             
             val success = withContext(Dispatchers.IO) {
-                val downloaded = MangaExtensionLoader.downloadExtension(context, extensionId, ext.apkUrl)
-                if (downloaded) {
-                    val apkFile = MangaExtensionLoader.apkFile(context, extensionId)
-                    val sigHash = TrustManager.getApkSignatureHash(context, apkFile)
-                    if (sigHash != null) {
-                        if (force) {
-                            TrustManager.trustSignature(context, sigHash)
-                        } else if (!TrustManager.isSignatureTrusted(context, sigHash)) {
-                            signatureHashToPrompt = sigHash
-                            return@withContext false
+                MangaExtensionLoader.installWithRollback(context, extensionId) {
+                    val downloaded = MangaExtensionLoader.downloadExtension(
+                        context, extensionId, ext.apkUrl,
+                        expectedPackage = ext.pkg, expectedVersionCode = ext.versionCode.toLong()
+                    )
+                    if (downloaded) {
+                        val apkFile = MangaExtensionLoader.apkFile(context, extensionId)
+                        val sigHash = TrustManager.getApkSignatureHash(context, apkFile)
+                        if (sigHash != null) {
+                            if (force && (approvedSignature == null || sigHash.equals(approvedSignature, ignoreCase = true))) {
+                                TrustManager.trustSignature(context, sigHash)
+                            } else if (!TrustManager.isSignatureTrusted(context, sigHash)) {
+                                signatureHashToPrompt = sigHash
+                                return@installWithRollback false
+                            }
                         }
-                    }
-                    try {
-                        MangaExtensionLoader.loadExtension(context, extensionId) != null
-                    } catch (e: SecurityException) {
-                        val hash = e.message?.substringAfterLast(": ")?.trim() ?: ""
-                        signatureHashToPrompt = hash.ifEmpty { sigHash ?: "" }
-                        false
-                    }
-                } else false
+                        try {
+                            MangaExtensionLoader.unloadExtension(context, extensionId)
+                            MangaExtensionLoader.loadExtension(context, extensionId) != null
+                        } catch (e: SecurityException) {
+                            val hash = e.message?.substringAfterLast(": ")?.trim() ?: ""
+                            signatureHashToPrompt = hash.ifEmpty { sigHash ?: "" }
+                            false
+                        }
+                    } else false
+                }
             }
 
             if (signatureHashToPrompt != null && !force) {
@@ -493,7 +499,8 @@ class MangaViewModel(application: Application) : AndroidViewModel(application) {
                 mangaSources = mangaRepository.getInstalledSources()
                 onResult?.invoke(success)
                 onShowMessage?.invoke(
-                    if (success) KitsugiStrings.get(R.string.yuklendi_x, ext.name) else KitsugiStrings.get(R.string.indirilemedi_x, ext.name)
+                    if (success) KitsugiStrings.get(R.string.yuklendi_x, ext.name)
+                    else "${ext.name}: İndirme başarısız veya APK paket/sürüm bilgisi katalogla uyuşmuyor."
                 )
                 if (success) checkAllUpdates()
             }
@@ -531,12 +538,16 @@ class MangaViewModel(application: Application) : AndroidViewModel(application) {
                         val extensionId = ext.pkg.replace(".", "_")
                         val success = withContext(Dispatchers.IO) {
                             try {
-                                val downloaded = MangaExtensionLoader.downloadExtension(context, extensionId, ext.apkUrl)
-                                if (downloaded) {
-                                    // Elle eklenen özel repo -> farklı (debug) imzaya güven.
-                                    // Resmî Keiyoushi kataloglarında false kalır.
-                                    MangaExtensionLoader.loadExtension(context, extensionId, trustSignature = trustCustomSignature) != null
-                                } else false
+                                MangaExtensionLoader.installWithRollback(context, extensionId) {
+                                    val downloaded = MangaExtensionLoader.downloadExtension(
+                                        context, extensionId, ext.apkUrl,
+                                        expectedPackage = ext.pkg, expectedVersionCode = ext.versionCode.toLong()
+                                    )
+                                    if (downloaded) {
+                                        MangaExtensionLoader.unloadExtension(context, extensionId)
+                                        MangaExtensionLoader.loadExtension(context, extensionId, trustSignature = trustCustomSignature) != null
+                                    } else false
+                                }
                             } catch (e: SecurityException) {
                                 Log.w("MangaViewModel", "${ext.name} imza hatası: ${e.message}")
                                 false
@@ -605,12 +616,16 @@ class MangaViewModel(application: Application) : AndroidViewModel(application) {
                         val extensionId = ext.pkg.replace(".", "_")
                         val success = withContext(Dispatchers.IO) {
                             try {
-                                val downloaded = MangaExtensionLoader.downloadExtension(context, extensionId, ext.apkUrl)
-                                if (downloaded) {
-                                    // Elle eklenen özel repo -> farklı (debug) imzaya güven.
-                                    // Resmî Keiyoushi kataloglarında false kalır.
-                                    MangaExtensionLoader.loadExtension(context, extensionId, trustSignature = trustCustomSignature) != null
-                                } else false
+                                MangaExtensionLoader.installWithRollback(context, extensionId) {
+                                    val downloaded = MangaExtensionLoader.downloadExtension(
+                                        context, extensionId, ext.apkUrl,
+                                        expectedPackage = ext.pkg, expectedVersionCode = ext.versionCode.toLong()
+                                    )
+                                    if (downloaded) {
+                                        MangaExtensionLoader.unloadExtension(context, extensionId)
+                                        MangaExtensionLoader.loadExtension(context, extensionId, trustSignature = trustCustomSignature) != null
+                                    } else false
+                                }
                             } catch (e: SecurityException) {
                                 Log.w("MangaViewModel", "${ext.name} imza hatası: ${e.message}")
                                 false

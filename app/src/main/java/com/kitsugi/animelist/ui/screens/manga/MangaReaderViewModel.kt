@@ -91,6 +91,7 @@ class MangaReaderViewModel(
         val pagesError: String? = null,
         /** Sayfa yükleme hatasının manga kaynak kodu (KTS-SRC-...). */
         val pagesErrorCode: String? = null,
+        val loginRequired: Boolean = false,
         /** Üye girişi / bot koruması gerekiyorsa WebView'da açılacak bölüm adresi. */
         val verificationUrl: String? = null
     )
@@ -154,7 +155,7 @@ class MangaReaderViewModel(
             val startedAt = System.currentTimeMillis()
             try {
                 val chapters = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                    source.fetchChapterList(mangaDetails.url)
+                    source.fetchChapterList(mangaDetails.url).distinctBy { it.url }
                 }
                 sourceStateStore.recordOperationSuccess(
                     source = source,
@@ -323,11 +324,13 @@ class MangaReaderViewModel(
                 if (e is kotlinx.coroutines.CancellationException) kotlinx.coroutines.currentCoroutineContext().ensureActive()
                 val message = e.localizedMessage ?: e.message ?: "Sayfalar yüklenirken bir hata oluştu."
                 val needsVerification = com.kitsugi.animelist.data.manga.MangaTrCompat.isVerificationError(message)
+                val loginReq = com.kitsugi.animelist.data.manga.isMangaTrLoginRequired(source.pkgName, message)
                 _uiState.update {
                     it.copy(
                         isLoadingPages = false,
                         pagesError = message,
                         pagesErrorCode = SourceFailureClassifier.classifyCode(e),
+                        loginRequired = loginReq,
                         verificationUrl = if (needsVerification) {
                             com.kitsugi.animelist.data.manga.MangaTrCompat.readerUrl(source, chapter.url)
                         } else null

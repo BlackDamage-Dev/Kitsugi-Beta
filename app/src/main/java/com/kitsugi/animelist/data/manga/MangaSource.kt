@@ -74,6 +74,10 @@ interface MangaSource {
      */
     suspend fun fetchSearchManga(page: Int, query: String): MangaSourceResult
 
+    /** Select-filter indices are interpreted by the extension, never as server values. */
+    fun selectFilters(): List<MangaSelectFilter> = emptyList()
+    suspend fun fetchFilteredManga(page: Int, selections: Map<Int, Int>): MangaSourceResult = fetchPopularManga(page)
+
     /**
      * Verilen [mangaUrl] için detaylı manga bilgilerini çeker.
      * Açıklama, yazar, durum ve kapak resmi bu çağrıyla doldurulur.
@@ -127,6 +131,8 @@ interface MangaSource {
         }
     }
 }
+
+data class MangaSelectFilter(val index: Int, val name: String, val values: List<String>, val selected: Int)
 
 /**
  * Bir sorgu veya listeleme işleminin sonucunu taşır.

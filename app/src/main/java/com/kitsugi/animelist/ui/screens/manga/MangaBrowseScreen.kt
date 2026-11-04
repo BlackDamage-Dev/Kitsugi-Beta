@@ -13,6 +13,7 @@ import androidx.compose.animation.core.*
 import com.kitsugi.animelist.ui.theme.gradient.background
 import com.kitsugi.animelist.ui.utils.tvClickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.*
 import androidx.compose.foundation.lazy.items
@@ -73,6 +74,7 @@ fun MangaBrowseScreen(
 
     val context = LocalContext.current
     var showSettingsDialog by remember { mutableStateOf(false) }
+    var showSourceFilters by remember { mutableStateOf(false) }
 
     // ── GitHub Vekil Sunucu ayarı (Manga Kaynakları sekmesindeki diyalog için) ──
     // Diyalog bu iki parametre geçilmediği sürece varsayılan (false / no-op) değerlerle
@@ -364,13 +366,26 @@ fun MangaBrowseScreen(
                                 ) {
                                     Icon(Icons.SearchOff, null, tint = KitsugiColors.TextMuted, modifier = Modifier.size(48.dp))
                                     Spacer(Modifier.height(8.dp))
-                                    Text(
-                                        ui.popularError?.takeIf { query.isBlank() } ?: stringResource(R.string.sonuc_bulunamadi),
-                                        color = KitsugiColors.TextSecondary
-                                    )
-                                    Spacer(Modifier.height(12.dp))
-                                    KitsugiButton(onClick = { vm.refreshSources() }) {
-                                        Text("Tekrar Dene", color = Color.White)
+                                    val failures = states.filter { it.error != null && (selFilter == null || it.source.stableSourceKey() == selFilter.stableSourceKey()) }
+                                    if (query.isNotBlank() && failures.isNotEmpty()) {
+                                        Text("Arama tamamlanamadı", color = KitsugiColors.TextPrimary, fontWeight = FontWeight.SemiBold)
+                                        failures.take(3).forEach { failure ->
+                                            Text(
+                                                "${failure.source.name}${failure.errorCode?.let { " ($it)" } ?: ""}: ${failure.error.orEmpty().take(240)}",
+                                                color = KitsugiColors.TextSecondary, maxLines = 4, overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+                                        TextButton(onClick = { vm.retrySearch() }) { Text("Tekrar dene") }
+                                    } else if (query.isNotBlank() && states.isEmpty() && ui.sources.isNotEmpty()) {
+                                        Text("Kaynaklar şu anda aramaya alınmadı; elle tekrar deneyebilirsiniz.", color = KitsugiColors.TextSecondary)
+                                        TextButton(onClick = { vm.retrySearch() }) { Text("Tekrar dene") }
+                                    } else {
+                                        Text(ui.popularError ?: stringResource(R.string.sonuc_bulunamadi), color = KitsugiColors.TextSecondary)
+                                    }
+                                    if (query.isBlank() && ui.popularError != null) {
+                                        TextButton(onClick = { vm.retryBrowsePage() }) { Text("Tekrar dene") }
+                                    } else if (query.isBlank() && ui.hasNextPage) {
+                                        TextButton(onClick = { vm.loadNextPage() }) { Text("Devamını Göster") }
                                     }
                                 }
                             }
@@ -417,11 +432,15 @@ fun MangaBrowseScreen(
                             val hasNextPageToShow = if (query.isBlank()) hasNext
                                 else (selFilter != null && (states.firstOrNull { it.source.stableSourceKey() == selFilter.stableSourceKey() }?.hasNextPage == true))
 
-                            if (query.isBlank() || selFilter != null) {
+                            if ((query.isBlank() || selFilter != null) && (hasNextPageToShow || (query.isBlank() && ui.popularError != null))) {
                                 item(span = { GridItemSpan(cols) }) {
-                                    androidx.compose.animation.AnimatedVisibility(visible = hasNextPageToShow) {
-                                        Box(Modifier.fillMaxWidth().height(64.dp), Alignment.Center) {
+                                    Box(Modifier.fillMaxWidth().height(64.dp), Alignment.Center) {
+                                        if (loading) {
                                             KitsugiPlasmaLoader(size = 32.dp)
+                                        } else {
+                                            TextButton(onClick = {
+                                                if (query.isBlank() && ui.popularError != null) vm.retryBrowsePage() else vm.loadNextPage()
+                                            }) { Text(if (ui.popularError != null && query.isBlank()) "Tekrar dene" else "Devamını Göster") }
                                         }
                                     }
                                 }
@@ -521,7 +540,7 @@ fun MangaBrowseScreen(
             untrustedSignatureToConfirm = mangaViewModel.untrustedSignatureToConfirm,
             onConfirmUntrustedRepo = { mangaViewModel.addMangaRepo(it, force = true) },
             onDismissUntrustedRepo = { mangaViewModel.clearUntrustedRepoConfirm() },
-            onConfirmUntrustedSignature = { ext, hash -> mangaViewModel.installMangaApk(ext, force = true) },
+            onConfirmUntrustedSignature = { ext, hash -> mangaViewModel.installMangaApk(ext, force = true, approvedSignature = hash) },
             onDismissUntrustedSignature = { mangaViewModel.clearUntrustedSignatureConfirm() },
             onDismiss = { showSettingsDialog = false }
         )
@@ -709,4 +728,47 @@ private fun MangaCardShimmer() {
             }
         }
     }
+}
+
+
+/** Render extension-supplied labels and return indices, not guessed site query values. */
+@Composable
+fun SourceSelectFiltersDialog(
+    filters: List<com.kitsugi.animelist.data.manga.MangaSelectFilter>,
+    current: Map<Int, Int>?,
+    onDismiss: () -> Unit,
+    onApply: (Map<Int, Int>) -> Unit,
+) {
+    val choices = remember(filters, current) {
+        androidx.compose.runtime.mutableStateMapOf<Int, Int>().apply {
+            filters.forEach { put(it.index, current?.get(it.index) ?: it.selected) }
+        }
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Kaynak filtreleri") },
+        text = {
+            Column(Modifier.fillMaxWidth().heightIn(max = 480.dp).then(Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState()))) {
+                filters.forEach { filter ->
+                    var expanded by remember(filter.index) { mutableStateOf(false) }
+                    Text(filter.name, fontWeight = FontWeight.SemiBold)
+                    Box {
+                        TextButton(onClick = { expanded = true }) {
+                            Text(filter.values.getOrNull(choices[filter.index] ?: filter.selected) ?: "")
+                        }
+                        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                            filter.values.forEachIndexed { index, label ->
+                                DropdownMenuItem(text = { Text(label) }, onClick = {
+                                    choices[filter.index] = index
+                                    expanded = false
+                                })
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = { onApply(choices.toMap()) }) { Text("Uygula") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("İptal") } },
+    )
 }

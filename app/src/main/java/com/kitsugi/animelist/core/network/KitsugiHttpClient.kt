@@ -129,6 +129,10 @@ object KitsugiHttpClient {
                     if (original.header("Accept-Language") == null) {
                         reqBuilder.header("Accept-Language", "tr-TR,tr;q=0.9,en;q=0.8")
                     }
+                    // Manga-TR covers use a different CDN and may enforce hotlink protection.
+                    if ((original.url.host.equals("mngtr.site", true) || original.url.host.endsWith(".mngtr.site", true)) && original.header("Referer") == null) {
+                        reqBuilder.header("Referer", "https://manga-tr.com")
+                    }
                     // Fandom görsel CDN'i (static.wikia.nocookie.net): tarayıcı dışı istemcilere
                     // Referer/Accept olmadan 403 dönebiliyor ya da içerik pazarlığında AVIF seçebiliyor
                     // (eski Android sürümleri AVIF çözemez). Tarayıcıya yakın başlıklar eklenir;

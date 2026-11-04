@@ -421,7 +421,7 @@ internal fun SettingsContext.buildSettingsParams() =
             untrustedSignatureToConfirm = mangaViewModel.untrustedSignatureToConfirm,
             onConfirmUntrustedRepo = { mangaViewModel.addMangaRepo(it, force = true) },
             onDismissUntrustedRepo = { mangaViewModel.clearUntrustedRepoConfirm() },
-            onConfirmUntrustedSignature = { ext, hash -> mangaViewModel.installMangaApk(ext, force = true) },
+            onConfirmUntrustedSignature = { ext, hash -> mangaViewModel.installMangaApk(ext, force = true, approvedSignature = hash) },
             onDismissUntrustedSignature = { mangaViewModel.clearUntrustedSignatureConfirm() }
         ),
         integrations = com.kitsugi.animelist.ui.screens.settings.IntegrationsSettings(

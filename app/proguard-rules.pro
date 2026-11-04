@@ -234,3 +234,7 @@
 -keep class com.lagradost.cloudstream3.R$* { *; }
 -keep class org.schabi.newpipe.extractor.** { *; }
 -keep class androidx.appcompat.** { *; }
+
+# KeiSource checks this interceptor's *simple class name* at runtime in external DEX.
+# R8 cannot see that string comparison, so release builds must keep the name and class.
+-keep class com.kitsugi.animelist.core.network.CloudflareInterceptor { *; }

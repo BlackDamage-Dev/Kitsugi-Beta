@@ -45,6 +45,13 @@ class SourceFailureClassifierTest {
     }
 
     @Test
+    fun missingHostInterceptorIsNotAWebsiteCaptcha() {
+        val error = IllegalStateException("CloudflareInterceptor must be present in default client")
+        assertEquals(SourceErrorCategory.Unknown, SourceFailureClassifier.classifyCategory(error))
+        assertEquals("KTS-SRC-9008", SourceFailureClassifier.classifyCode(error))
+    }
+
+    @Test
     fun errorCategoryAlsoDeterminesHealthStatus() {
         assertEquals(SourceHealthStatus.RateLimited, SourceFailureClassifier.classifyStatus(IOException("429 Too Many Requests")))
         assertEquals(

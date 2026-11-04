@@ -346,10 +346,8 @@ class MangaRepoClient(context: android.content.Context) {
                     return@withContext null
                 }
 
-                // Decoy kontrolu SADECE Keiyoushi / index.min.json icin. Ucuncu parti
-                // kucuk kataloglar (487 baytlik Kitsugi-Manga-Plugins index.json gibi)
-                // gecerli veridir ve oldugu gibi ayristirilmalidir.
-                if (shouldUseKeiyoushiFallback(repoUrl, trimmed)) {
+                // Decoy tespiti: kucuk/sahte yanit varsa V2 index.json'u cek
+                if (isMangaRepoDecoy(trimmed, repoUrl)) {
                     Log.w(TAG, "DECOY TESPIT EDILDI: $repoUrl -- Keiyoushi V2 index.json'a geciliyor")
                     val v2Body = fetchBodyWithMirrorFallback(KEIYOUSHI_INDEX_URL)
                         ?: return@withContext null

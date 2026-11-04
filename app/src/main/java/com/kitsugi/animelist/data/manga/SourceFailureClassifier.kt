@@ -14,6 +14,10 @@ object SourceFailureClassifier {
 
         // Protection pages often return HTTP 403; identify the explicit platform signature first.
         return when {
+            // KeiSource checks host interceptors by class name. This is a host ABI
+            // failure, not a website CAPTCHA, even though the name says Cloudflare.
+            message.contains("cloudflareinterceptor must be present") -> SourceErrorCategory.Unknown
+
             containsAny(
                 message,
                 "cloudflare", "captcha", "turnstile", "cf-ray", "just a moment", "ddos-guard", "ddos guard",

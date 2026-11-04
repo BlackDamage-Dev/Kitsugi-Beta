@@ -69,6 +69,18 @@ class NetworkHelper(context: Context) {
                 request.newBuilder()
             }
 
+            // The host's Brotli/Zstd compatibility objects cannot decode those encodings.
+            // KeiSource otherwise advertises them; identity keeps Manga-TR responses readable
+            // while preserving any explicit encoding (the chapter endpoint already uses identity).
+            if (com.kitsugi.animelist.data.manga.isMangaTrHost(host) && request.header("Accept-Encoding") == null) {
+                newRequestBuilder.header("Accept-Encoding", "identity")
+            }
+
+            // Manga-TR image CDN requires the site origin, while the source client retains its interceptors.
+            if ((host.equals("mngtr.site", true) || host.endsWith(".mngtr.site", true)) && request.header("Referer").isNullOrBlank()) {
+                newRequestBuilder.header("Referer", "https://manga-tr.com")
+            }
+
             val hasUserAgent = request.header("User-Agent")
             if (hasUserAgent.isNullOrBlank() || 
                 hasUserAgent.startsWith("okhttp", ignoreCase = true) || 

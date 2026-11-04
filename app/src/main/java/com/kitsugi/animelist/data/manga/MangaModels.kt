@@ -44,6 +44,14 @@ data class MangaChapter(
     val mangaUrl: String = ""
 )
 
+/** Search the fully loaded extension list without collapsing translations with equal numbers. */
+fun MangaChapter.matchesChapterQuery(query: String): Boolean {
+    val term = query.trim()
+    return term.isEmpty() || name.contains(term, ignoreCase = true) ||
+        scanlator?.contains(term, ignoreCase = true) == true ||
+        (chapterNumber >= 0f && chapterNumber.toString().removeSuffix(".0").contains(term, ignoreCase = true))
+}
+
 /**
  * Bir bölümdeki tek bir sayfayı temsil eder.
  */
@@ -57,6 +65,10 @@ class MangaPage(
     // Pages retain identity while downloads run. StateFlow suppresses equal lists;
     // Compose must observe the status itself, not a shallow copy of that list.
     var status: MangaPageStatus by mutableStateOf(status)
+
+    /** Source-processed image file; the UI must never refetch imageUrl independently. */
+    var localFile: java.io.File? = null
+    var aspectRatio: Float? by mutableStateOf(null)
 
     /** Yerel arşiv dosyası yolu (ZIP/CBZ/RAR içindeki sayfa) — null ise normal HTTP akışı. */
     var archivePath: String? = null

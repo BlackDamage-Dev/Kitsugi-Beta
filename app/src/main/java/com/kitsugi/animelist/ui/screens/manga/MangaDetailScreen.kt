@@ -45,6 +45,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.kitsugi.animelist.data.manga.MangaChapter
+import com.kitsugi.animelist.data.manga.matchesChapterQuery
+import androidx.compose.material3.OutlinedTextField
 import com.kitsugi.animelist.data.manga.MangaDetails
 import com.kitsugi.animelist.data.manga.MangaSource
 import com.kitsugi.animelist.data.manga.MangaStatus
@@ -176,6 +178,18 @@ fun MangaDetailScreen(
                 }
             }
 
+            if (uiState.chapters.isNotEmpty()) {
+                item(key = "chapter_search") {
+                    OutlinedTextField(
+                        value = uiState.chapterQuery,
+                        onValueChange = viewModel::setChapterQuery,
+                        label = { Text("Bölüm ara") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
+                    )
+                }
+            }
+
             // ─── Bölüm Durumları ───────────────────────────────────────────────
             when {
                 uiState.isLoadingChapters -> item {
@@ -213,7 +227,7 @@ fun MangaDetailScreen(
 
                 // Bazı kaynaklar aynı bölüm URL'sini (farklı çeviri grupları) tekrar listeler.
                 else -> uniqueItems(
-                    items = uiState.chapters,
+                    items = uiState.chapters.filter { it.chapter.matchesChapterQuery(uiState.chapterQuery) },
                     key = { it.chapter.url }
                 ) { row ->
                     ChapterListItem(

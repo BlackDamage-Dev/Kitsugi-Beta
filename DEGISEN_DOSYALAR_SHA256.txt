@@ -1,0 +1,55 @@
+Başlangıç commit: a6dda9d6df6e6babf3f93d9750ff7331c4bf6dfe
+Paketlenen commit: 14ff2de8651845d9e7348b4d6befcfd30554aa1f
+Değişen dosya sayısı: 51
+
+d1ef71c7a84c7f6f614fd4cf8d2ee912f2a591469f8ad1a4f61e179a5c147e39  .github/workflows/android-build.yml
+6de63313a62c3fd501b22167078f1e19fe9ea9dd8f4d0ed8e4350d88d56392ab  .github/workflows/mangatr-emulator.yml
+54ab40c6c320687eb670a1ac7944d32149600b75a319470da250f9d5277487ed  app/build.gradle.kts
+e96b1bc48416159a63e33f79417f45a5fa5c6a3601de670f39bb665e78986236  app/proguard-rules.pro
+06dca77b0f86fdf0b65d12c91addb8c89a48ea49412e7cf514341dcb0a6b706a  app/src/androidTest/java/com/kitsugi/animelist/data/manga/MangaTrPublishedApkTest.kt
+1d7c0972fda7b8d32180bac1fba566e2d06f7c986e6e59a44b0a74fc45654425  app/src/androidTest/java/com/kitsugi/animelist/data/manga/MihonMangaIntegrationTest.kt
+bd8b6ba77d6af95bbff8a31b3b75d36a93803324a4e6d20153a561e4ede947aa  app/src/main/java/com/kitsugi/animelist/AppRootSettingsExtras.kt
+2e067b9785d578c7eb84cc8e5dda4b8c8b4c485c28f2862925fa7d5532eb277e  app/src/main/java/com/kitsugi/animelist/core/network/CloudflareInterceptor.kt
+df9ed74bd4a002a4700513256625cc6966e2c1e2e1c4a42907bba73a8eb6105f  app/src/main/java/com/kitsugi/animelist/core/network/KitsugiHttpClient.kt
+46668ba78d17d94262479a29e5c08466de9c0d1067f052650fda947e01562d05  app/src/main/java/com/kitsugi/animelist/data/manga/MangaApkTransaction.kt
+40771b6ed33a7c39d8e2cfa387f6f8ff4c1426097d589cc2230321a1d3a55d47  app/src/main/java/com/kitsugi/animelist/data/manga/MangaExtensionAutoUpdater.kt
+8f66b968fb5caa992b857640becb8f6d4b0679b7feb2990005a2fea360919575  app/src/main/java/com/kitsugi/animelist/data/manga/MangaExtensionLoader.kt
+833eb6bdb2c79e0ef4a23d1661beab198b0573e7aafd795fc919e2f94f8d841d  app/src/main/java/com/kitsugi/animelist/data/manga/MangaModels.kt
+f4823132b710812f4fdd1f60130b1d1daee125eb79f672d82179d7a922b2c851  app/src/main/java/com/kitsugi/animelist/data/manga/MangaSource.kt
+200527a232a323f92a0dcce4be168deb412eb40cfa96ef64af83faf94e4545ba  app/src/main/java/com/kitsugi/animelist/data/manga/MangaSourceRepository.kt
+254819a8dce2c277b8770172e8eff031bae704cd1438eb49e214563edd1b75fe  app/src/main/java/com/kitsugi/animelist/data/manga/MangaTrPolicy.kt
+db589c01726eb1099de1e40b7234070253682177c26c845bb5d1b5020201615f  app/src/main/java/com/kitsugi/animelist/data/manga/MihonFilters.kt
+ae3b41d52872ab29fd2a2ba529bb9527ee11f4c38466dfc1c5a336bf9664ca6d  app/src/main/java/com/kitsugi/animelist/data/manga/MihonSourceWrapper.kt
+ec28787c3099be0b95fc3f13678767d6613f939ddfe95d150434fe90cef049bd  app/src/main/java/com/kitsugi/animelist/data/manga/SourceFailureClassifier.kt
+8be8a4ae273e957dd8d82fb59e97a57fb4bf04275dd1b6c2e80862381dce9e31  app/src/main/java/com/kitsugi/animelist/data/manga/SourceMirrorResolver.kt
+a36fd0757b3ccb2266dcf45f6a329f8f9ec1f4913b23d8cad9339dac370c2c8c  app/src/main/java/com/kitsugi/animelist/data/manga/loader/MangaPageLoaderV2.kt
+3e478dd73dc6896b679671cdb0081cc3d43966fe2c399e78b2a08f87ffd34349  app/src/main/java/com/kitsugi/animelist/data/remote/MangaRepoClient.kt
+8a44d317d211d810faabeeeae49e63c96a69345ab9164eae64349e9340d88e39  app/src/main/java/com/kitsugi/animelist/data/remote/MangaRepoPolicy.kt
+6952e09e88e8f0558461bec8ce4f5ba23f3fd18e4c902e20fc4935f4e99ce8d2  app/src/main/java/com/kitsugi/animelist/ui/app/MangaViewModel.kt
+963d30c0eaab6da973774feb0e4520f59c412eb810ed46bb4af85385e48d8618  app/src/main/java/com/kitsugi/animelist/ui/screens/manga/MangaBrowseScreen.kt
+16ea6913f8541249ecfb8aa86969b0a0e7a24e5ee9559634fa0d23145681541d  app/src/main/java/com/kitsugi/animelist/ui/screens/manga/MangaBrowseViewModel.kt
+5ead10f3a56a1fcb1da94ac84719231d9d447e227a7fcd77a463384b082db0b2  app/src/main/java/com/kitsugi/animelist/ui/screens/manga/MangaDetailScreen.kt
+d206c905f903ffb4a7128be777719ca9c450adbc961b6841fe55f38df88a9731  app/src/main/java/com/kitsugi/animelist/ui/screens/manga/MangaDetailViewModel.kt
+bfe9e63bee7aac50fa42b673a465b2c661333d782287d1da986dea27f168ad78  app/src/main/java/com/kitsugi/animelist/ui/screens/manga/MangaReaderScreen.kt
+b1ff42ac8c0410a6153dde48669f7d037028bfb87b0969b5b58a8a14b223e3d7  app/src/main/java/com/kitsugi/animelist/ui/screens/manga/MangaReaderViewModel.kt
+209012901bc14e5464a5e52f58bb6280c4c867e34924b9cf771849fb83bd76c8  app/src/main/java/com/kitsugi/animelist/ui/screens/manga/MangaSearchRetry.kt
+ea98a4f0c3ae74369a8d48d3494fa04047b8d978fae8e9464ee1c3b4c9064b71  app/src/main/java/com/kitsugi/animelist/ui/screens/manga/MangaTrLoginDialog.kt
+f837f013f85053861999aa3dc6a6d18e5197425823cbc77f166bf77a03c3cd38  app/src/main/java/com/kitsugi/animelist/ui/screens/manga/components/MangaPageItem.kt
+dcf78096929f5cfcdc6abc6739fdeca3e15e6d809e35134c5df868f103b634e4  app/src/main/java/com/kitsugi/animelist/ui/screens/manga/components/MangaPagerReader.kt
+264fc7d5adea3da4cd9fef29a71a6b1e2a330009d40929a5ce1cd43682238718  app/src/main/java/com/kitsugi/animelist/ui/screens/manga/components/MangaWebtoonReader.kt
+9fa7cf00c57c7eef83d5e25b2b977cd14e33fcf206819f4bc19d7ba0e66c8d56  app/src/main/java/com/kitsugi/animelist/ui/tv/manga/TvMangaBrowseScreen.kt
+2cc18f5ec7953281ebecc15191cccf036226591392eb5243fb3dc526264d8c3c  app/src/main/java/com/kitsugi/animelist/ui/tv/manga/TvMangaDetailScreen.kt
+46c6edf597d84fdcd4d77ca82e28f8c6d2d485e6963374a6e741603f0b5a878d  app/src/main/java/com/kitsugi/animelist/ui/tv/manga/TvMangaReaderScreen.kt
+fa14e5355aa308983578b70622d0f8274120d7c0cb2bd7f1829f63f1c31ac871  app/src/main/java/com/lagradost/cloudstream3/network/CloudflareKiller.kt
+d014face8ace46f0fd8ea40e43f8da191c11f046bac9e26b6c2d87655798f1f0  app/src/main/java/com/lagradost/cloudstream3/network/DdosGuardKiller.kt
+9db64f06e3c32a5d9263a12ee1d044f4055c3792b01282b53cab2a3408b5488a  app/src/main/java/eu/kanade/tachiyomi/network/NetworkHelper.kt
+b3d82038ecaaa7967868175f6c52470292eff28c438b233c8d73f879689bf461  app/src/main/java/eu/kanade/tachiyomi/network/WebViewCookieJar.kt
+72630c694e966817290e5924608799de42cb8364514c5b28312aecb38bb44c83  app/src/main/java/okhttp3/brotli/Brotli.kt
+4aec7d338c0fdeae1cf6a48d7fce41b798aa1b7932cb7947afefc3caa092fe74  app/src/main/java/okhttp3/zstd/Zstd.kt
+24248d762b871fe17fa81e95607b170dabed703339bd1c9abfb9ee516c9d2b23  app/src/test/java/com/kitsugi/animelist/data/manga/MangaApkTransactionTest.kt
+0bb76f127f0aec49a8c185c2a16d50a5ebe315ebf37efeb648570362922db6df  app/src/test/java/com/kitsugi/animelist/data/manga/MangaTrPolicyTest.kt
+3c339a272537c5669e5aec4f9a410b1b6356e561f30b676ea47ac050d665d450  app/src/test/java/com/kitsugi/animelist/data/manga/MihonFiltersTest.kt
+37de583e619d5110f31226e0b448435434896930961a3a4dcc61fb3f1594c275  app/src/test/java/com/kitsugi/animelist/data/manga/SourceFailureClassifierTest.kt
+098a2c559ea69f910165e02814c8b47986ab6e4bda2e068a1042ce2d41857cf1  app/src/test/java/com/kitsugi/animelist/data/remote/MangaRepoPolicyTest.kt
+b59f8ef6f1188cf7941fdb1a1620f6b3dc0f419e2a4350c6cd9b997ee5baab25  app/src/test/java/com/kitsugi/animelist/ui/screens/manga/MangaSearchRetryTest.kt
+05b4f21a5a2cd9af694f2871f33c87c0ec11918489bc1d602dd667563bed5ec3  docs/manga-tr-integration.md

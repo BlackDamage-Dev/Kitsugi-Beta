@@ -41,6 +41,7 @@ class CloudflareInterceptor(private val context: Context) : Interceptor {
 
     override fun intercept(chain: Interceptor.Chain): Response {
         val request = chain.request()
+        if (com.kitsugi.animelist.data.manga.isMangaTrHost(request.url.host)) return chain.proceed(request)
         val response = chain.proceed(request)
 
         // Sadece 403/503 + Cloudflare server header'ı varsa müdahale et

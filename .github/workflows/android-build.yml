@@ -76,6 +76,9 @@ jobs:
           # APK derlenip tüm classes*.dex buyruk akışları ikili düzeyde ART kurallarıyla doğrulanır.
           ./gradlew :app:testFossDebugUnitTest \
             --tests 'com.kitsugi.animelist.data.platform.*' \
+            --tests 'com.kitsugi.animelist.data.manga.*' \
+            --tests 'com.kitsugi.animelist.data.remote.MangaRepoPolicyTest' \
+            --tests 'com.kitsugi.animelist.ui.screens.manga.*' \
             --tests 'com.kitsugi.animelist.ui.screens.profile.*' \
             --tests 'com.kitsugi.animelist.ui.screens.mylist.*' \
             --tests 'com.kitsugi.animelist.core.diagnostics.*' \

@@ -110,6 +110,31 @@ object MangaExtensionLoader {
         return File(entry.key).nameWithoutExtension
     }
 
+    // Serialize attempts for the same APK; different extensions may still download in parallel.
+    private val installLocks = Array(32) { Any() }
+
+    fun installWithRollback(context: Context, extensionId: String, install: () -> Boolean): Boolean {
+        val target = apkFile(context, extensionId)
+        val lock = installLocks[(extensionId.hashCode() and Int.MAX_VALUE) % installLocks.size]
+        return synchronized(lock) {
+            val previous = loadedSources[target.absolutePath]
+            var committed = false
+            try {
+                committed = withMangaApkRollback(target, install)
+                committed
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                Log.e(TAG, "$extensionId: kurulum veya geri yükleme başarısız: ${e.message}", e)
+                false
+            } finally {
+                if (!committed) {
+                    if (previous == null) loadedSources.remove(target.absolutePath)
+                    else loadedSources[target.absolutePath] = previous
+                }
+            }
+        }
+    }
+
     // ─── İndirme ─────────────────────────────────────────────────────────────
 
     /**
@@ -119,14 +144,17 @@ object MangaExtensionLoader {
     fun downloadExtension(
         context: Context,
         extensionId: String,
-        urlString: String
+        urlString: String,
+        expectedPackage: String? = null,
+        expectedVersionCode: Long? = null,
     ): Boolean {
         val dir = extensionDir(context).also { if (!it.exists()) it.mkdirs() }
         val isApk = urlString.substringBefore("?").endsWith(".apk", ignoreCase = true)
             || urlString.contains(".apk", ignoreCase = true)
             || extensionId.startsWith("eu_kanade_tachiyomi")
         val targetExt = if (isApk) "apk" else "mex"
-        val temp = File(dir, "$extensionId.$targetExt.tmp")
+        val stagingDir = File(dir, ".staging").also { it.mkdirs() }
+        val temp = File.createTempFile("manga_", ".$targetExt", stagingDir)
         val target = File(dir, "$extensionId.$targetExt")
 
         return try {
@@ -173,7 +201,13 @@ object MangaExtensionLoader {
                                 delayMs *= 2
                             } else {
                                 response.body?.byteStream()?.use { inp ->
-                                    FileOutputStream(temp).use { out -> inp.copyTo(out) }
+                                    // Android 14+ refuses writable dynamic-code files. Open the
+                                    // descriptor first, then make the path read-only before writing.
+                                    if (temp.exists()) temp.setWritable(true)
+                                    FileOutputStream(temp).use { out ->
+                                        if (!temp.setReadOnly()) throw java.io.IOException("Eklenti dosyası salt okunur yapılamadı")
+                                        inp.copyTo(out)
+                                    }
                                 }
                                 success = true
                             }
@@ -200,13 +234,24 @@ object MangaExtensionLoader {
                 return false
             }
 
-            if (target.exists()) target.delete()
+            if (isApk && expectedPackage?.startsWith("eu.kanade.tachiyomi.extension.") == true) {
+                val info = context.packageManager.getPackageArchiveInfo(temp.absolutePath, 0)
+                val version = info?.let {
+                    if (android.os.Build.VERSION.SDK_INT >= 28) it.longVersionCode else @Suppress("DEPRECATION") it.versionCode.toLong()
+                }
+                if (!matchesMangaApkMetadata(expectedPackage, expectedVersionCode, info?.packageName, version)) {
+                    Log.e(TAG, "$extensionId: APK manifest/katalog uyuşmazlığı: beklenen=$expectedPackage/$expectedVersionCode, indirilen=${info?.packageName}/$version")
+                    temp.delete()
+                    return false
+                }
+            }
+
+            // Atomic replacement on the same filesystem: leave the previous APK intact on failure.
             if (!temp.renameTo(target)) {
                 Log.e(TAG, "$extensionId: geçici dosya taşınamadı")
                 temp.delete()
                 return false
             }
-            // NOT: setReadOnly() KALDIRILDI — Android 10+ PathClassLoader read-only dosyayı yükleyemez
             Log.i(TAG, "$extensionId başarıyla indirildi (${target.length()} bytes) [$targetExt]")
             true
         } catch (e: Exception) {
@@ -261,7 +306,10 @@ object MangaExtensionLoader {
         loadedSources[file.absolutePath]?.let { return it.firstOrNull() }
 
         return try {
-            // NOT: setReadOnly() kaldırıldı — Android 10+ PathClassLoader için dosya readable olmalı
+            // Existing installations may predate Android 14's read-only DEX requirement.
+            if (android.os.Build.VERSION.SDK_INT >= 34 && !file.setReadOnly()) {
+                throw java.io.IOException("Eklenti dosyası salt okunur yapılamadı")
+            }
 
             // AndroidManifest.xml meta-data'dan paket adı ve sınıf adını oku
             val (packageName, className) = readMihonClassNameFromManifest(context, file, extensionId)
@@ -321,6 +369,11 @@ object MangaExtensionLoader {
                             listOf(instance)
                         }
                     }
+                } catch (e: LinkageError) {
+                    // A missing or incompatible plugin ABI is an Error, not an Exception.
+                    // Isolate the broken entry so it cannot crash loading other sources.
+                    Log.e(TAG, "Eklenti ABI uyumsuzluğu ($name): ${e.message}", e)
+                    emptyList()
                 } catch (e: Exception) {
                     Log.e(TAG, "Sınıf yükleme hatası ($name): ${e.message}", e)
                     emptyList()
@@ -376,6 +429,9 @@ object MangaExtensionLoader {
         } catch (e: SecurityException) {
             Log.e(TAG, "$extensionId [APK] signature verification failed: ${e.message}", e)
             throw e
+        } catch (e: LinkageError) {
+            Log.e(TAG, "$extensionId [APK] çalışma zamanı uyumsuzluğu: ${e.message}", e)
+            null
         } catch (e: Exception) {
             Log.e(TAG, "$extensionId [APK] yükleme hatası: ${e.message}", e)
             null
@@ -391,7 +447,9 @@ object MangaExtensionLoader {
         return try {
             val valid = try { ZipFile(file).use { true } } catch (_: Exception) { false }
             if (!valid) { Log.e(TAG, "$extensionId [MEX]: bozuk ZIP"); return null }
-            // NOT: setReadOnly() kaldırıldı
+            if (android.os.Build.VERSION.SDK_INT >= 34 && !file.setReadOnly()) {
+                throw java.io.IOException("Eklenti dosyası salt okunur yapılamadı")
+            }
 
             val loader = PathClassLoader(file.absolutePath, context.classLoader)
             val className = readSourceClassNameFromJson(loader, file, extensionId) ?: return null

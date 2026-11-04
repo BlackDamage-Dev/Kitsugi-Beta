@@ -156,21 +156,26 @@ object MangaExtensionAutoUpdater {
     ): Boolean {
         return try {
             val extensionId = info.pkg.replace(".", "_")
-            val downloaded = MangaExtensionLoader.downloadExtension(context, extensionId, info.apkUrl)
-            if (!downloaded) return false
+            MangaExtensionLoader.installWithRollback(context, extensionId) {
+                val downloaded = MangaExtensionLoader.downloadExtension(
+                    context, extensionId, info.apkUrl,
+                    expectedPackage = info.pkg, expectedVersionCode = info.versionCode.toLong()
+                )
+                if (!downloaded) return@installWithRollback false
 
-            // Kullanıcının açıkça eklediği repodan gelen yeni imzaya güven.
-            // Aksi halde özel derleme imza rotasyonunda güncelleme sessizce düşer.
-            if (trustSignature) {
-                com.kitsugi.animelist.core.security.TrustManager
-                    .getApkSignatureHash(context, MangaExtensionLoader.apkFile(context, extensionId))
-                    ?.let { com.kitsugi.animelist.core.security.TrustManager.trustSignature(context, it) }
+                // Kullanıcının açıkça eklediği repodan gelen yeni imzaya güven.
+                // Aksi halde özel derleme imza rotasyonunda güncelleme sessizce düşer.
+                if (trustSignature) {
+                    com.kitsugi.animelist.core.security.TrustManager
+                        .getApkSignatureHash(context, MangaExtensionLoader.apkFile(context, extensionId))
+                        ?.let { com.kitsugi.animelist.core.security.TrustManager.trustSignature(context, it) }
+                }
+
+                // Bellekten kaldır ve yeniden yükle
+                MangaExtensionLoader.unloadExtension(context, extensionId)
+                val loaded = MangaExtensionLoader.loadExtension(context, extensionId, trustSignature)
+                loaded != null
             }
-
-            // Bellekten kaldır ve yeniden yükle
-            MangaExtensionLoader.unloadExtension(context, extensionId)
-            val loaded = MangaExtensionLoader.loadExtension(context, extensionId, trustSignature)
-            loaded != null
         } catch (e: Exception) {
             Log.e(TAG, "tryUpdateExtension hata (${info.name}): ${e.message}", e)
             false

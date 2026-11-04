@@ -299,6 +299,9 @@ class MangaSourceRepository(private val context: Context) {
                     tempFile.delete()
                 }
             }
+            if (android.os.Build.VERSION.SDK_INT >= 34 && !targetFile.setReadOnly()) {
+                throw java.io.IOException("Eklenti dosyası salt okunur yapılamadı")
+            }
 
             // Kullanıcı dosyayı elle seçti → imzaya açık onay vermiş sayılır.
             // (Özel Kitsugi-Manga-Plugins APK'ları debug anahtarıyla imzalıdır ve
@@ -466,6 +469,22 @@ class MangaSourceRepository(private val context: Context) {
     /**
      * Tek bir kaynaktan popüler mangaların listesini çeker.
      */
+    /** Unlike the legacy best-effort helper, browsing must expose failures for retry. */
+    suspend fun fetchBrowsePage(source: MangaSource, page: Int, selections: Map<Int, Int>?): MangaSourceResult =
+        withContext(Dispatchers.IO) {
+            val startedAt = System.currentTimeMillis()
+            try {
+                val result = if (selections == null) source.fetchPopularManga(page)
+                    else source.fetchFilteredManga(page, selections)
+                recordPopularSuccess(source, System.currentTimeMillis() - startedAt)
+                result.copy(mangas = result.mangas.map { it.copy(source = source.name) })
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                recordPopularFailure(source, e, System.currentTimeMillis() - startedAt)
+                throw e
+            }
+        }
+
     suspend fun fetchPopular(source: MangaSource, page: Int = 1): MangaSourceResult =
         withContext(Dispatchers.IO) {
             val startedAt = System.currentTimeMillis()

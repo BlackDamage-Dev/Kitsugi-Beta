@@ -20,6 +20,9 @@ class SourceMirrorResolver(
     private val tag = "SourceMirrorResolver"
 
     suspend fun tryResolveAndActivateMirror(source: MangaSource, cause: Throwable? = null): Boolean = kotlinx.coroutines.supervisorScope {
+        // Do not redirect Manga-TR traffic (including reader credentials/cookies) to
+        // merely reachable guessed domains. Keep any explicitly configured domain.
+        if (!allowsAutomaticMangaMirror(source.pkgName)) return@supervisorScope false
         if (!shouldAttemptRecovery(cause)) return@supervisorScope false
 
         // Manga-TR: DDoS-Guard + tek kullanımlık okuyucu/gate token'ı. Bir hata

@@ -99,7 +99,21 @@ fun MangaReaderScreen(
         )
     )
 
+    var showMangaTrLogin by remember { mutableStateOf(false) }
+    if (showMangaTrLogin) {
+        com.kitsugi.animelist.ui.screens.manga.MangaTrLoginDialog(onDismiss = {
+            showMangaTrLogin = false
+            viewModel.retryLoadPages()
+        })
+    }
     val uiState by viewModel.uiState.collectAsState()
+    var promptedLoginForChapter by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(uiState.loginRequired, uiState.currentChapter.url) {
+        if (uiState.loginRequired && promptedLoginForChapter != uiState.currentChapter.url) {
+            promptedLoginForChapter = uiState.currentChapter.url
+            showMangaTrLogin = true
+        }
+    }
     val pages by viewModel.pages.collectAsState()
 
     val currentChapter = uiState.currentChapter
@@ -203,6 +217,12 @@ fun MangaReaderScreen(
                     uiState.pagesErrorCode?.let { code ->
                         Spacer(Modifier.height(10.dp))
                         com.kitsugi.animelist.ui.components.errors.PlatformErrorExplanationBlock(code = code)
+                    }
+                    if (uiState.loginRequired) {
+                        Spacer(Modifier.height(16.dp))
+                        KitsugiButton(onClick = { showMangaTrLogin = true }) {
+                            Text("Üye girişi yap", color = Color.White)
+                        }
                     }
                     uiState.verificationUrl?.let { verifyUrl ->
                         Spacer(Modifier.height(8.dp))

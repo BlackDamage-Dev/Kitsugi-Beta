@@ -56,6 +56,8 @@ import androidx.tv.material3.MaterialTheme
 import com.kitsugi.animelist.ui.theme.gradient.Text
 import coil3.compose.AsyncImage
 import com.kitsugi.animelist.data.manga.MangaChapter
+import com.kitsugi.animelist.data.manga.matchesChapterQuery
+import androidx.compose.material3.OutlinedTextField
 import com.kitsugi.animelist.data.manga.MangaDetails
 import com.kitsugi.animelist.data.manga.MangaSource
 import com.kitsugi.animelist.data.manga.MangaStatus
@@ -367,6 +369,18 @@ fun TvMangaDetailScreen(
                     }
                 }
 
+                if (uiState.chapters.isNotEmpty()) {
+                    item(key = "chapter_search") {
+                        OutlinedTextField(
+                            value = uiState.chapterQuery,
+                            onValueChange = viewModel::setChapterQuery,
+                            label = { Text("Bölüm ara") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 6.dp)
+                        )
+                    }
+                }
+
                 when {
                     uiState.isLoadingChapters -> item(key = "chapters_loading") {
                         Box(
@@ -397,7 +411,7 @@ fun TvMangaDetailScreen(
                         }
                     }
                     else -> uniqueItemsIndexed(
-                        items = uiState.chapters,
+                        items = uiState.chapters.filter { it.chapter.matchesChapterQuery(uiState.chapterQuery) },
                         key = { _, ch -> ch.chapter.url }
                     ) { _, row ->
                         TvChapterListItem(
