@@ -246,7 +246,11 @@ class PlayerMediaSourceFactory(
     ): MediaSource {
         val mediaItem = mediaItemOverride ?: buildMediaItem(videoUrl, subtitles, streamTypeHint, mediaType)
 
-        val activeExtractorsFactory = customExtractorsFactory ?: extractorsFactory
+        val activeExtractorsFactory = if (extractorsFactory is DolbyVisionExtractorsFactory) {
+            customSubtitleParserFactory?.let { extractorsFactory.withSubtitleParser(it) } ?: extractorsFactory
+        } else {
+            customExtractorsFactory ?: extractorsFactory
+        }
         val isYouTubeSource = YouTubeRequestPolicy.shouldUseYouTubeDataSource(
             videoUrl = videoUrl,
             audioUrl = audioUrl,

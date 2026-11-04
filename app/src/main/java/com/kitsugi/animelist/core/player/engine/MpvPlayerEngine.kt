@@ -233,6 +233,10 @@ class MpvPlayerEngine(
     private var pendingSubtitles: List<SubtitleInput> = emptyList()
     private var pendingStartPositionMs: Long = 0L
     private var pendingAudioTracks: List<com.kitsugi.animelist.core.player.ExternalAudioTrackInput> = emptyList()
+    private var appliedVideoFilters: String? = null
+    private var appliedDeband: String? = null
+    private var appliedHwdec: String? = null
+    private var appliedRenderer: String? = null
 
     /** Hazırlık sırasında motorun aldığı SubtitleInput listesi (dahili/harici bayrağını taşır). */
     private var preparedSubtitles: List<SubtitleInput> = emptyList()
@@ -970,8 +974,30 @@ class MpvPlayerEngine(
         // Ayarlar kullanıcı tarafından değiştirilebildiği için bunlar her prepare'da
         // tazelenir; hiçbiri görüntü çıkışını yeniden kurmaz.
         option("speed", _currentSpeed.toString())
-        option("deband", if (settings.mpvDebandMode == "gpu") "yes" else "no")
-        option("vf", MpvPlaybackPolicy.videoFilters(settings.mpvDebandMode, settings.mpvForceYuv420p))
+        val deband = if (settings.mpvDebandMode == "gpu") "yes" else "no"
+        if (appliedDeband != deband) {
+            runCatching { view.mpv.setPropertyString("deband", deband) }
+                .onSuccess { appliedDeband = deband }
+                .onFailure { Log.w(TAG, "MPV option deband could not be applied: ${it.message}") }
+        }
+        val filters = MpvPlaybackPolicy.videoFilters(settings.mpvDebandMode, settings.mpvForceYuv420p)
+        if (appliedVideoFilters != filters) {
+            runCatching { view.mpv.setPropertyString("vf", filters) }
+                .onSuccess { appliedVideoFilters = filters }
+                .onFailure { Log.w(TAG, "MPV option vf could not be applied: ${it.message}") }
+        }
+        val renderer = resolvedVoOption ?: settings.mpvGpuRenderer.ifBlank { "gpu" }
+        if (appliedRenderer != renderer) {
+            runCatching { view.mpv.setPropertyString("vo", renderer) }
+                .onSuccess { appliedRenderer = renderer }
+                .onFailure { Log.w(TAG, "MPV option vo could not be applied: ${it.message}") }
+        }
+        val hwdec = resolvedHwdecOption ?: settings.mpvHwdecMode.ifBlank { "auto-safe" }
+        if (appliedHwdec != hwdec) {
+            runCatching { view.mpv.setPropertyString("hwdec", hwdec) }
+                .onSuccess { appliedHwdec = hwdec }
+                .onFailure { Log.w(TAG, "MPV option hwdec could not be applied: ${it.message}") }
+        }
         option("volume-max", settings.volumeBoostCap.coerceIn(100, 200).toString())
         option("alang", settings.preferredAudioLanguages)
         option("audio-pitch-correction", if (settings.audioPitchCorrection) "yes" else "no")

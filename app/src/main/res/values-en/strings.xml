@@ -18516,4 +18516,6 @@
     <string name="x_kaynak">%1$s sources</string>
     <string name="aktif_manga_kaynagi_yok">No active manga sources found.\nAdd sources from Settings -&gt; Extensions -&gt; Manga Sources.</string>
     <string name="bu_dilde_manga_kaynagi_yok">No active manga sources in this language.</string>
+    <string name="player_mpv_hwdec_direct">📺 MediaCodec direct (HW+)</string>
+    <string name="player_mpv_hwdec_copy">📺 MediaCodec copy (HW)</string>
 </resources>

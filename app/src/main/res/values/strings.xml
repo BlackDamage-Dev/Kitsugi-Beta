@@ -18524,4 +18524,6 @@ Eklentiler ekranından eklenti etkinleştirin.</string>
     <string name="x_kaynak">%1$s kaynak</string>
     <string name="aktif_manga_kaynagi_yok">Aktif manga kaynağı bulunamadı.\nAyarlar -&gt; Eklentilerim -&gt; Manga Kaynakları bölümünden kaynak ekleyin.</string>
     <string name="bu_dilde_manga_kaynagi_yok">Bu dilde aktif manga kaynağı yok.</string>
+    <string name="player_mpv_hwdec_direct">📺 MediaCodec doğrudan (HW+)</string>
+    <string name="player_mpv_hwdec_copy">📺 MediaCodec kopyalı (HW)</string>
 </resources>

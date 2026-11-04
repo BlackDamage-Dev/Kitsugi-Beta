@@ -1,7 +1,6 @@
 package com.kitsugi.animelist.core.player
 
 import android.net.Uri
-import android.util.Log
 import androidx.media3.common.C
 import androidx.media3.common.DataReader
 import androidx.media3.common.Format
@@ -16,6 +15,7 @@ import androidx.media3.extractor.PositionHolder
 import androidx.media3.extractor.SeekMap
 import androidx.media3.extractor.TrackOutput
 import androidx.media3.extractor.text.DefaultSubtitleParserFactory
+import androidx.media3.extractor.text.SubtitleParser
 import com.kitsugi.animelist.core.player.dvmkv.MatroskaExtractor as DvMatroskaExtractor
 import java.io.EOFException
 import java.io.IOException
@@ -43,8 +43,13 @@ internal class DolbyVisionExtractorsFactory(
     private val delegate: ExtractorsFactory,
     private val config: DolbyVisionConversionConfig,
     private val stripDvRpu: Boolean = false,
-    private val stripHdr10PlusSei: Boolean = false
+    private val stripHdr10PlusSei: Boolean = false,
+    private val subtitleParserFactory: SubtitleParser.Factory = DefaultSubtitleParserFactory()
 ) : ExtractorsFactory {
+
+    internal fun withSubtitleParser(factory: SubtitleParser.Factory) = DolbyVisionExtractorsFactory(
+        delegate, config, stripDvRpu, stripHdr10PlusSei, factory
+    )
 
     override fun createExtractors(): Array<Extractor> =
         delegate.createExtractors().map(::wrap).toTypedArray()
@@ -62,7 +67,7 @@ internal class DolbyVisionExtractorsFactory(
         // vendored extractor that surfaces the RPU through a transformer.
         if (extractor.javaClass.name == STOCK_MATROSKA_EXTRACTOR) {
             return DvMatroskaExtractor(
-                DefaultSubtitleParserFactory(),
+                subtitleParserFactory,
                 /* flags= */ 0,
                 DolbyVisionMatroskaTransformer(
                     config = if (config.active) config else DolbyVisionConversionConfig(active = false),
@@ -140,13 +145,6 @@ internal data class DolbyVisionConversionConfig(
     val dv5Enabled: Boolean = false,
     /** True when the user explicitly chose "Convert to DV8.1" (not AUTO). */
     val manualDv81: Boolean = false,
-    /**
-     * Cihazın DV çözücüsü P5'i değil yalnızca P8.1'i çözebiliyorsa, profil 5
-     * akışını **yalnızca sinyal olarak** 8.1'e çevir (codec dizesi 8.1, RPU ve
-     * örnekler olduğu gibi kalır). Çözücü böylece akışı kabul eder ve
-     * IPTPQc2→RGB dönüşümünü donanımda kendisi yapar. P5 RPU'sunu yeniden
-     * yazmak (libdovi mode 3) renkleri bozabildiği için varsayılan yol budur.
-     */
     val dv5ToDv81SignalOnly: Boolean = false
 ) {
     /** Manual mode-2 default with per-RPU fallback to mode 1 (not for AUTO / forced). */
@@ -193,8 +191,12 @@ private class DolbyVisionExtractor(
     private val stripHdr10PlusSei: Boolean = false
 ) : Extractor {
 
+    private var wrappedOutput: DolbyVisionExtractorOutput? = null
+
     override fun init(output: ExtractorOutput) {
-        delegate.init(DolbyVisionExtractorOutput(output, config, nalFormat, stripDvRpu, stripHdr10PlusSei))
+        val wrapped = DolbyVisionExtractorOutput(output, config, nalFormat, stripDvRpu, stripHdr10PlusSei)
+        wrappedOutput = wrapped
+        delegate.init(wrapped)
     }
 
     @Throws(IOException::class)
@@ -204,7 +206,10 @@ private class DolbyVisionExtractor(
     override fun read(input: ExtractorInput, seekPosition: PositionHolder): Int =
         delegate.read(input, seekPosition)
 
-    override fun seek(position: Long, timeUs: Long) = delegate.seek(position, timeUs)
+    override fun seek(position: Long, timeUs: Long) {
+        wrappedOutput?.resetPendingSamples()
+        delegate.seek(position, timeUs)
+    }
 
     override fun release() = delegate.release()
 
@@ -220,6 +225,9 @@ private class DolbyVisionExtractorOutput(
     private val stripDvRpu: Boolean = false,
     private val stripHdr10PlusSei: Boolean = false
 ) : ExtractorOutput {
+    private val videoOutputs = mutableListOf<NativeOptimizedVideoTrackOutput>()
+
+    fun resetPendingSamples() = videoOutputs.forEach { it.resetPendingSample() }
 
     override fun track(id: Int, type: Int): TrackOutput {
         val track = delegate.track(id, type)
@@ -230,7 +238,7 @@ private class DolbyVisionExtractorOutput(
                 nalFormat = nalFormat,
                 stripDvRpu = stripDvRpu,
                 stripHdr10PlusSei = stripHdr10PlusSei
-            )
+            ).also { videoOutputs.add(it) }
         } else {
             track
         }
@@ -257,15 +265,23 @@ private class NativeOptimizedVideoTrackOutput(
 
     private var converting = false
     private var shouldProcess = false
+    private var stripCurrentDvRpu = false
     private var profile: Int? = null
     private var codecs: String? = null
     private var nalLengthFieldLength = 4
-    /**
-     * Bu iz için RPU sıyırma gerçekten uygulanacak mı? Profil 5'te `false`'tur
-     * (bkz. [format]); sıyırma kararı format() anında verilip burada saklanır
-     * çünkü örnek işleme başka fonksiyonlarda gerçekleşir.
-     */
-    private var stripThisTrack = false
+    private var stripCurrentHdr10Plus = false
+    private var passthroughSample = false
+
+    fun resetPendingSample() { pendingLen = 0; passthroughSample = false }
+
+    private fun beginPassthroughSample() {
+        if (pendingLen > 0) {
+            scratch.reset(pendingBuf, pendingLen)
+            delegate.sampleData(scratch, pendingLen, TrackOutput.SAMPLE_DATA_PART_MAIN)
+            pendingLen = 0
+        }
+        passthroughSample = true
+    }
 
     private fun ensurePendingCapacity(extra: Int) {
         val need = pendingLen + extra
@@ -287,54 +303,32 @@ private class NativeOptimizedVideoTrackOutput(
     override fun durationUs(durationUs: Long) = delegate.durationUs(durationUs)
 
     override fun format(format: Format) {
+        resetPendingSample()
         profile = parseDvProfile(format.codecs)
-        converting = config.active && config.shouldConvert(profile)
+        val isHevc = HdrSampleSafety.isHevcTrack(format.sampleMimeType, format.codecs)
+        val canRewrite = isHevc && format.drmInitData == null && DoviBridge.isAvailable()
+        converting = canRewrite && config.active && config.shouldConvert(profile)
         nalLengthFieldLength = parseNalLengthFieldLength(format)
+        stripCurrentHdr10Plus = canRewrite && stripHdr10PlusSei
 
-        // ── DV5 koruması (NuvioTV paritesi) ──────────────────────────────────
-        // Profil 5 pikselleri IPTPQc2 renk uzayındadır ve kendi başına
-        // görüntülenebilir bir HDR10 taban katmanı YOKTUR. RPU'yu sıyırmak ya da
-        // codec dizesini hvc1'e indirmek görüntüyü yeşil/mor yapar. Bu yüzden
-        // "HDR10 base layer" modunda bile P5'e dokunmuyoruz: akış dvhe.05
-        // olarak kalır; DV çözücüsü olan cihaz doğru oynatır, olmayan cihaz
-        // motor yedeğine (MPV + gpu-next) düşer.
-        val dv5Protected = stripDvRpu && profile == 5
-        if (dv5Protected) {
-            Log.i(
-                TAG,
-                "DV5_PROTECT: profile-5 track left intact (no RPU strip, no codec downgrade)"
-            )
-        }
-        stripThisTrack = stripDvRpu && !dv5Protected
-
-        // ── DV5 sinyal düzeltmesi ────────────────────────────────────────────
-        // Cihaz P5 çözemiyor ama P8.1 çözebiliyorsa: RPU'ya dokunmadan codec
-        // dizesini 8.1'e çevir. Örnekler olduğu gibi kalır.
-        val dv5SignalFix = config.dv5ToDv81SignalOnly && profile == 5 && !converting &&
-            !stripThisTrack
-        if (dv5SignalFix) {
-            Log.i(TAG, "DV5_SIGNAL_REWRITE: dvhe.05 -> dvhe.08 (samples untouched)")
-        }
-
-        val strippedCodecs = if (stripThisTrack) stripDvCodecString(format.codecs) else null
-        val codecsToUse = strippedCodecs ?: if (converting || dv5SignalFix) {
-            rewriteDvCodecString(format.codecs)
-        } else {
-            format.codecs
-        }
+        stripCurrentDvRpu = canRewrite && stripDvRpu && profile == 7
+        // A DV codec string does not encode an HEVC profile/level. Inventing one
+        // (formerly hvc1.2.4.L153.B0) misrepresents streams and decoder limits.
+        val codecsToUse = if (stripCurrentDvRpu) null
+            else if (converting) rewriteDvCodecString(format.codecs) else format.codecs
 
         var outFormat = format
-        if (codecsToUse != null && codecsToUse != format.codecs) {
+        if (codecsToUse != format.codecs) {
             outFormat = format.buildUpon().setCodecs(codecsToUse).build()
         }
-        if (stripThisTrack && outFormat.sampleMimeType == MimeTypes.VIDEO_DOLBY_VISION) {
+        if (stripCurrentDvRpu && outFormat.sampleMimeType == MimeTypes.VIDEO_DOLBY_VISION) {
             outFormat = outFormat.buildUpon().setSampleMimeType(MimeTypes.VIDEO_H265).build()
         }
 
         val rewriteSamples = converting && !(profile == 5 && !config.convertDv5Rpu)
-        val shouldStripDovi = stripThisTrack && strippedCodecs != null && strippedCodecs != format.codecs
+        val shouldStripDovi = stripCurrentDvRpu
 
-        shouldProcess = rewriteSamples || shouldStripDovi || stripHdr10PlusSei
+        shouldProcess = rewriteSamples || shouldStripDovi || stripCurrentHdr10Plus
         codecs = outFormat.codecs
         delegate.format(outFormat)
     }
@@ -346,7 +340,11 @@ private class NativeOptimizedVideoTrackOutput(
         allowEndOfInput: Boolean,
         sampleDataPart: Int
     ): Int {
-        if (!shouldProcess) return delegate.sampleData(input, length, allowEndOfInput, sampleDataPart)
+        if (!shouldProcess || passthroughSample) return delegate.sampleData(input, length, allowEndOfInput, sampleDataPart)
+        if (sampleDataPart != TrackOutput.SAMPLE_DATA_PART_MAIN) {
+            beginPassthroughSample()
+            return delegate.sampleData(input, length, allowEndOfInput, sampleDataPart)
+        }
         ensureInputScratch(length)
         val read = input.read(inputScratch, 0, length)
         if (read == C.RESULT_END_OF_INPUT) {
@@ -370,7 +368,12 @@ private class NativeOptimizedVideoTrackOutput(
         length: Int,
         sampleDataPart: Int
     ) {
-        if (!shouldProcess || sampleDataPart != TrackOutput.SAMPLE_DATA_PART_MAIN || length <= 0) {
+        if (!shouldProcess || passthroughSample || length <= 0) {
+            delegate.sampleData(data, length, sampleDataPart)
+            return
+        }
+        if (sampleDataPart != TrackOutput.SAMPLE_DATA_PART_MAIN) {
+            beginPassthroughSample()
             delegate.sampleData(data, length, sampleDataPart)
             return
         }
@@ -386,13 +389,24 @@ private class NativeOptimizedVideoTrackOutput(
         offset: Int,
         cryptoData: TrackOutput.CryptoData?
     ) {
-        if (!shouldProcess || pendingLen == 0) {
+        if (!shouldProcess || passthroughSample || pendingLen == 0) {
+            passthroughSample = false
             delegate.sampleMetadata(timeUs, flags, size, offset, cryptoData)
             return
         }
 
         val carrySize = offset.coerceIn(0, pendingLen)
         val sampleEnd = pendingLen - carrySize
+        // Never inspect or change encrypted access units. The extractor normally advertises
+        // DRM in Format, but a late crypto flag must still not corrupt the ciphertext.
+        if (cryptoData != null || (flags and C.BUFFER_FLAG_ENCRYPTED) != 0) {
+            scratch.reset(pendingBuf, sampleEnd)
+            delegate.sampleData(scratch, sampleEnd)
+            delegate.sampleMetadata(timeUs, flags, sampleEnd, 0, cryptoData)
+            if (carrySize > 0) System.arraycopy(pendingBuf, sampleEnd, pendingBuf, 0, carrySize)
+            pendingLen = carrySize
+            return
+        }
 
         val mode = if (converting) config.conversionMode(profile) else 1
         val formatVal = if (nalFormat == NalFormat.LENGTH_DELIMITED) 1 else 0
@@ -406,8 +420,8 @@ private class NativeOptimizedVideoTrackOutput(
             convertDovi = converting,
             doviMode = mode,
             doviProfile = profile ?: -1,
-            stripDoviRpu = stripThisTrack,
-            stripHdr10Plus = stripHdr10PlusSei
+            stripDoviRpu = stripCurrentDvRpu,
+            stripHdr10Plus = stripCurrentHdr10Plus
         )
 
         val useRewritten = written > 0
@@ -425,8 +439,6 @@ private class NativeOptimizedVideoTrackOutput(
     }
 
     private companion object {
-        const val TAG = "DvExtractorsFactory"
-
         fun parseDvProfile(codecs: String?): Int? {
             if (codecs.isNullOrBlank()) return null
             val m = Regex("^(?:dvhe|dvav|dvh1|dva1)\\.(\\d+)\\.")
@@ -438,13 +450,6 @@ private class NativeOptimizedVideoTrackOutput(
             if (codecs.isNullOrBlank()) return null
             return Regex("(?i)(dvhe|dvav|dvh1|dva1)\\.0[57]\\.")
                 .replace(codecs) { mr -> "${mr.groupValues[1]}.08." }
-        }
-
-        fun stripDvCodecString(codecs: String?): String? {
-            if (codecs.isNullOrBlank()) return null
-            return Regex("(?i)(dvhe|dvh1)\\.[0-9]+\\.[0-9]+")
-                .replace(codecs.trim()) { "hvc1.2.4.L153.B0" }
-                .takeIf { it != codecs }
         }
 
         fun parseNalLengthFieldLength(format: Format): Int {

@@ -23,6 +23,7 @@ enum class VideoAspect(val label: String) {
 }
 
 enum class Decoder(val title: String, val value: String) {
+    AutoSafe("Auto", "auto-safe"),
     AutoCopy("Auto", "auto-copy"),
     Auto("Auto", "auto"),
     SW("SW", "no"),

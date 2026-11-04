@@ -872,6 +872,8 @@ internal fun PlayerGeneralTab(
                 val hwdecOptions = listOf(
                     "auto-safe" to stringResource(R.string.player_mpv_hwdec_auto_safe),
                     "auto" to stringResource(R.string.player_mpv_hwdec_auto_all),
+                    "mediacodec" to stringResource(R.string.player_mpv_hwdec_direct),
+                    "mediacodec-copy" to stringResource(R.string.player_mpv_hwdec_copy),
                     "no" to stringResource(R.string.player_mpv_hwdec_sw)
                 )
                 val currentHwdecName = hwdecOptions.find { it.first == mpvHwdecMode }?.second ?: stringResource(R.string.player_mpv_hwdec_auto_safe)
