@@ -1284,6 +1284,22 @@ private fun AppNavigationContent(
                     onAddApiSelectionToList = onAddApiSelectionToList,
                     onLoginBangumi = onLoginBangumi,
                     onReadMangaClick = { entry, mapping ->
+                        // "Oku" → arama adları seçili başlık diline göre sıralanır
+                        // (İngilizce seçiliyse İngilizce adla aranır, romaji yedektir).
+                        val titleSet = com.kitsugi.animelist.data.manga.MangaTitleSet(
+                            localTitle = entry.title,
+                            englishTitle = entry.titleEnglish,
+                            romajiTitle = entry.title,
+                            nativeTitle = entry.titleJapanese
+                        )
+                        val variants = titleSet.queries(
+                            titleLanguage = appSettings.titleLanguage,
+                            searchLanguage = com.kitsugi.animelist.data.manga.MangaSearchLanguage.fromId(
+                                if (appSettings.mangaSearchFollowTitleLanguage) appSettings.titleLanguage
+                                else appSettings.mangaSearchTitleLanguage
+                            ),
+                            followTitleLanguage = appSettings.mangaSearchFollowTitleLanguage
+                        )
                         if (mapping != null) {
                             val source = mangaViewModel.mangaRepository.getSourceByName(mapping.mangaSource)
                             if (source != null) {
@@ -1297,17 +1313,23 @@ private fun AppNavigationContent(
                                     )
                                 )
                             } else {
+                                // Kaynak bulunamadı → başlık diline göre sıralı adlarla ara.
                                 navState.openMangaBrowse(
-                                    query = entry.title,
+                                    query = variants.firstOrNull(),
                                     mediaId = entry.id,
                                     alternates = listOfNotNull(entry.titleEnglish, entry.titleJapanese),
+                                    titleVariants = variants,
+                                    titleSet = titleSet
                                 )
                             }
                         } else {
+                            // Eşleme yok → "Oku" seçili başlık dilindeki adla arar.
                             navState.openMangaBrowse(
-                                query = entry.title,
+                                query = variants.firstOrNull(),
                                 mediaId = entry.id,
                                 alternates = listOfNotNull(entry.titleEnglish, entry.titleJapanese),
+                                titleVariants = variants,
+                                titleSet = titleSet
                             )
                         }
                     },
@@ -1500,7 +1522,8 @@ private fun AppNavigationContent(
                     mangaViewModel = mangaViewModel,
                     mangaBrowseViewModel = mangaBrowseViewModel,
                     coroutineScope = coroutineScope,
-                    onExportMangaSourceReportFile = exportMangaSourceReportFile
+                    onExportMangaSourceReportFile = exportMangaSourceReportFile,
+                    appSettings = appSettings
                 )
             }
 

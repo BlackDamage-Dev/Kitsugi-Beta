@@ -1004,7 +1004,10 @@ private fun SettingsPreferencesContent(
                 mangaReadingMode = general.mangaReadingMode,
                 mangaColorFilter = general.mangaColorFilter,
                 mangaFitMode = general.mangaFitMode,
-                mangaBrightness = general.mangaBrightness
+                mangaBrightness = general.mangaBrightness,
+                // Arama dili: "Oku" butonu ve kaynak aramaları bu ayarı kullanır.
+                mangaSearchTitleLanguage = general.mangaSearchTitleLanguage,
+                mangaSearchFollowTitleLanguage = general.mangaSearchFollowTitleLanguage
             )
         )
     }
@@ -1069,6 +1072,8 @@ private fun SettingsPreferencesContent(
         onMangaColorFilterSelected = general.onMangaColorFilterSelected,
         onMangaFitModeSelected = general.onMangaFitModeSelected,
         onMangaBrightnessChanged = general.onMangaBrightnessChanged,
+        onMangaSearchTitleLanguageSelected = general.onMangaSearchTitleLanguageSelected,
+        onMangaSearchFollowTitleLanguageChanged = general.onMangaSearchFollowTitleLanguageChanged,
         onDismiss = {}  // Sub-sayfada dismiss = no-op; geri butonu ile çıkılır
     )
 

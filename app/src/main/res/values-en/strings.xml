@@ -153,6 +153,24 @@
     <string name="color_indigo">Indigo</string>
 
     <!-- Manga Settings -->
+    <!-- Source search language (manga / manhwa / manhua / novel) -->
+    <string name="manga_search_language_section">Manga Search Language</string>
+    <string name="manga_search_language_title">Search language in sources</string>
+    <string name="manga_search_language_desc">Sets which title is used when searching every manga, manhwa, manhua and novel source, including the \"Read\" button.</string>
+    <string name="manga_search_lang_english">English title</string>
+    <string name="manga_search_lang_english_desc">English title first, then romaji and original title as fallback.</string>
+    <string name="manga_search_lang_romaji">Romaji (latin original)</string>
+    <string name="manga_search_lang_romaji_desc">Latin-script original title; the main catalogue of most sources.</string>
+    <string name="manga_search_lang_native">Original title (Japanese/Chinese/Korean)</string>
+    <string name="manga_search_lang_native_desc">Title in its original language; most accurate for East Asian sources.</string>
+    <string name="manga_search_lang_local">Localized title</string>
+    <string name="manga_search_lang_local_desc">Uses the localized release title when available, otherwise English.</string>
+    <string name="manga_search_follow_title_language">Follow title language</string>
+    <string name="manga_search_follow_title_language_desc">When on, the search language automatically follows the app\'s title language setting.</string>
+    <string name="manga_search_language_chip">Search: %1$s</string>
+    <string name="manga_search_language_changed">Search language: %1$s</string>
+    <string name="manga_search_follow_enabled">Search language now follows the title language</string>
+    <string name="manga_search_follow_disabled">Search language uses the fixed selection</string>
     <string name="manga_reading_direction">Reading Direction</string>
     <string name="manga_reading_direction_desc">Set the default scroll direction for manga pages</string>
     <string name="manga_direction_rtl">Right to Left</string>

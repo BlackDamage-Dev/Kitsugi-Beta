@@ -13,6 +13,7 @@ import androidx.compose.runtime.setValue
 import com.kitsugi.animelist.DetailScreen
 import com.kitsugi.animelist.MangaDetailNavState
 import com.kitsugi.animelist.MangaReaderNavState
+import com.kitsugi.animelist.data.manga.MangaTitleSet
 
 /** Kept while a source-search page is underneath a pushed detail screen. */
 class SourceSearchOwner : ViewModelStoreOwner {
@@ -41,17 +42,30 @@ class AppNavigationState(
     /** Aynı eserin diğer dillerdeki başlıkları (romaji / İngilizce / Japonca). */
     var mangaBrowseAlternates by mutableStateOf<List<String>>(emptyList())
         private set
+    /** "Oku" akışından gelen, dil sırasına göre aday başlıklar. */
+    var mangaBrowseTitleVariants by mutableStateOf<List<String>>(emptyList())
+        private set
+    /**
+     * "Oku" akışından gelen serinin **tüm** adları.
+     * Arama dili ekranda değiştirildiğinde sorgular bu kümeden yeniden üretilir.
+     */
+    var mangaBrowseTitleSet by mutableStateOf<MangaTitleSet?>(null)
+        private set
 
     fun openMangaBrowse(
         query: String? = null,
         mediaId: Int? = null,
         sourceKey: String? = null,
         alternates: List<String> = emptyList(),
+        titleVariants: List<String> = emptyList(),
+        titleSet: MangaTitleSet? = null
     ) {
         mangaBrowseQuery = query
         mangaBrowseMediaId = mediaId
         mangaBrowseSourceKey = sourceKey
         mangaBrowseAlternates = alternates.filter { it.isNotBlank() }.distinct()
+        mangaBrowseTitleVariants = (titleVariants.ifEmpty { alternates }).filter { it.isNotBlank() }.distinct()
+        mangaBrowseTitleSet = titleSet
         mangaBrowseOpen = true
     }
 
@@ -61,6 +75,8 @@ class AppNavigationState(
         mangaBrowseMediaId = null
         mangaBrowseSourceKey = null
         mangaBrowseAlternates = emptyList()
+        mangaBrowseTitleVariants = emptyList()
+        mangaBrowseTitleSet = null
     }
 
     var mangaSourceHealthOpen by mutableStateOf(false)

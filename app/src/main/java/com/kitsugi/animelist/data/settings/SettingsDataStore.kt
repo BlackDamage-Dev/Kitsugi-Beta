@@ -35,6 +35,7 @@ class SettingsDataStore(
         "show_anime_logos", "player_preference", "is_autoplay_enabled", "skip_intro_duration_sec",
         "default_subtitle_size", "default_subtitle_color", "subtitle_bold", "subtitle_outline_enabled",
         "manga_reading_mode", "manga_color_filter", "manga_fit_mode", "search_history_enabled",
+        "manga_search_title_language", "manga_search_follow_title_language",
         "tmdb_language"
     )
 
@@ -51,7 +52,8 @@ class SettingsDataStore(
                     "show_adult_content", "blur_adult_media", "hide_scores", "show_anime_logos",
                     "is_autoplay_enabled", "subtitle_bold", "subtitle_outline_enabled",
                     "search_history_enabled", "separated_list_style", "show_low_priority",
-                    "fuzzy_search_enabled", "separate_novels_manga" -> if (value is Boolean) prefs[booleanPreferencesKey(name)] = value
+                    "fuzzy_search_enabled", "separate_novels_manga",
+                    "manga_search_follow_title_language" -> if (value is Boolean) prefs[booleanPreferencesKey(name)] = value
                     "skip_intro_duration_sec", "default_subtitle_size", "default_subtitle_color" ->
                         if (value is Int) prefs[intPreferencesKey(name)] = value
                     else -> if (value is String) prefs[stringPreferencesKey(name)] = value
@@ -131,6 +133,10 @@ class SettingsDataStore(
         val MangaColorFilter = stringPreferencesKey("manga_color_filter")
         val MangaFitMode = stringPreferencesKey("manga_fit_mode")
         val MangaBrightness = floatPreferencesKey("manga_brightness")
+        /** Kaynak arama dili: ENGLISH / ROMAJI / NATIVE / LOCAL. */
+        val MangaSearchTitleLanguage = stringPreferencesKey("manga_search_title_language")
+        /** Arama dili genel başlık dilini takip etsin mi. */
+        val MangaSearchFollowTitleLanguage = booleanPreferencesKey("manga_search_follow_title_language")
         val DnsChoice = intPreferencesKey("dns_choice")
         // ─── GitHub Vekil Sunucu ───────────────────────────────────────────────
         val UseGithubProxy = booleanPreferencesKey("use_github_proxy")
@@ -729,6 +735,9 @@ class SettingsDataStore(
                     mangaColorFilter = preferences[Keys.MangaColorFilter] ?: "Normal",
                     mangaFitMode = preferences[Keys.MangaFitMode] ?: "FitScreen",
                     mangaBrightness = normalizeMangaBrightness(preferences[Keys.MangaBrightness] ?: 1.0f),
+                    mangaSearchTitleLanguage = preferences[Keys.MangaSearchTitleLanguage] ?: "ENGLISH",
+                    mangaSearchFollowTitleLanguage =
+                        preferences[Keys.MangaSearchFollowTitleLanguage] ?: true,
                     customImageDownloadUri = preferences[Keys.CustomImageDownloadUri] ?: "",
                     videoDownloadUri = preferences[Keys.VideoDownloadUri] ?: "",
                     downloaderPreference = preferences[Keys.DownloaderPreference] ?: "INTERNAL",
@@ -1197,6 +1206,22 @@ class SettingsDataStore(
         context.settingsDataStore.edit { preferences ->
             preferences[Keys.MangaBrightness] = normalizeMangaBrightness(brightness)
         }
+    }
+
+    /** Kaynak arama dili (ENGLISH / ROMAJI / NATIVE / LOCAL). */
+    suspend fun setMangaSearchTitleLanguage(language: String) {
+        val safe = when (language.uppercase()) {
+            "ENGLISH", "EN" -> "ENGLISH"
+            "NATIVE", "ORIGINAL" -> "NATIVE"
+            "LOCAL", "TURKISH" -> "LOCAL"
+            else -> "ROMAJI"
+        }
+        context.settingsDataStore.edit { it[Keys.MangaSearchTitleLanguage] = safe }
+    }
+
+    /** Arama dili genel başlık dili ayarını takip etsin mi. */
+    suspend fun setMangaSearchFollowTitleLanguage(follow: Boolean) {
+        context.settingsDataStore.edit { it[Keys.MangaSearchFollowTitleLanguage] = follow }
     }
 
     // ─── Harici API Entegrasyonları set fonksiyonları ─────────────────────────────────────

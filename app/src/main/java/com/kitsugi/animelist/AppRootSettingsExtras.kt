@@ -118,6 +118,10 @@ internal fun SettingsContext.buildSettingsParams() =
             onMangaColorFilterSelected = { onMangaColorFilterSelected(it) },
             onMangaFitModeSelected = { onMangaFitModeSelected(it) },
             onMangaBrightnessChanged = { onMangaBrightnessChanged(it) },
+            mangaSearchTitleLanguage = appSettings.mangaSearchTitleLanguage,
+            onMangaSearchTitleLanguageSelected = { onMangaSearchTitleLanguageSelected(it) },
+            mangaSearchFollowTitleLanguage = appSettings.mangaSearchFollowTitleLanguage,
+            onMangaSearchFollowTitleLanguageChanged = { onMangaSearchFollowTitleLanguageChanged(it) },
             autoUpdateCheckEnabled = appSettings.autoUpdateCheckEnabled,
             onAutoUpdateCheckEnabledChanged = { onAutoUpdateCheckEnabledChanged(it) },
             onCheckForUpdatesClick = { onCheckForUpdatesClick() },
@@ -1208,6 +1212,33 @@ internal fun SettingsContext.onMangaFitModeSelected(fitMode: String) {
     coroutineScope.launch {
         settingsDataStore.setMangaFitMode(fitMode)
         appViewModel.showSnackbarMessage(KitsugiStrings.get(R.string.sigdirma_modu_x, fitMode))
+    }
+}
+
+/**
+ * Kaynak arama dili (ENGLISH / ROMAJI / NATIVE / LOCAL).
+ *
+ * "Oku" butonu ve tüm manga/manhwa/manhua kaynak aramaları bu dili kullanır;
+ * böylece başlık dili İngilizce seçiliyken arama da İngilizce adla yapılır.
+ */
+internal fun SettingsContext.onMangaSearchTitleLanguageSelected(language: String) {
+    coroutineScope.launch {
+        settingsDataStore.setMangaSearchTitleLanguage(language)
+        appViewModel.showSnackbarMessage(
+            KitsugiStrings.get(R.string.manga_search_language_changed, language)
+        )
+    }
+}
+
+/** Arama dili genel başlık dilini takip etsin mi. */
+internal fun SettingsContext.onMangaSearchFollowTitleLanguageChanged(follow: Boolean) {
+    coroutineScope.launch {
+        settingsDataStore.setMangaSearchFollowTitleLanguage(follow)
+        appViewModel.showSnackbarMessage(
+            KitsugiStrings.get(
+                if (follow) R.string.manga_search_follow_enabled else R.string.manga_search_follow_disabled
+            )
+        )
     }
 }
 

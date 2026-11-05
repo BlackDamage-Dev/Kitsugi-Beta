@@ -115,6 +115,8 @@ fun KitsugiPreferencesSettingsDialog(
     onMangaColorFilterSelected: (String) -> Unit = {},
     onMangaFitModeSelected: (String) -> Unit = {},
     onMangaBrightnessChanged: (Float) -> Unit = {},
+    onMangaSearchTitleLanguageSelected: (String) -> Unit = {},
+    onMangaSearchFollowTitleLanguageChanged: (Boolean) -> Unit = {},
     embeddedMode: Boolean = false,
     initialPage: Int = 0
 ) {
@@ -258,6 +260,8 @@ fun KitsugiPreferencesSettingsDialog(
                         onMangaColorFilterSelected = onMangaColorFilterSelected,
                         onMangaFitModeSelected = onMangaFitModeSelected,
                         onMangaBrightnessChanged = onMangaBrightnessChanged,
+                        onMangaSearchTitleLanguageSelected = onMangaSearchTitleLanguageSelected,
+                        onMangaSearchFollowTitleLanguageChanged = onMangaSearchFollowTitleLanguageChanged,
                         accentColor = accentColor,
                         scrollState = mangaReaderScrollState
                     )
@@ -1977,6 +1981,8 @@ private fun MangaReaderTab(
     onMangaColorFilterSelected: (String) -> Unit,
     onMangaFitModeSelected: (String) -> Unit,
     onMangaBrightnessChanged: (Float) -> Unit,
+    onMangaSearchTitleLanguageSelected: (String) -> Unit,
+    onMangaSearchFollowTitleLanguageChanged: (Boolean) -> Unit,
     accentColor: Color,
     scrollState: ScrollState = rememberScrollState()
 ) {
@@ -2009,6 +2015,17 @@ private fun MangaReaderTab(
         KitsugiChoiceOption(id = MangaSettingIds.FIT_ORIGINAL, title = stringResource(R.string.manga_fit_original), description = "")
     )
 
+    // ─── Kaynak arama dili ────────────────────────────────────────────────────
+    // "Oku" butonu ve tüm kaynak aramaları bu dili kullanır (kullanıcı şikâyeti:
+    // başlık dili İngilizce iken arama rastgele adla yapılıyordu).
+    val searchLanguageOptions = listOf(
+        KitsugiChoiceOption(id = "ENGLISH", title = stringResource(R.string.manga_search_lang_english), description = stringResource(R.string.manga_search_lang_english_desc)),
+        KitsugiChoiceOption(id = "ROMAJI",  title = stringResource(R.string.manga_search_lang_romaji),  description = stringResource(R.string.manga_search_lang_romaji_desc)),
+        KitsugiChoiceOption(id = "NATIVE",  title = stringResource(R.string.manga_search_lang_native),  description = stringResource(R.string.manga_search_lang_native_desc)),
+        KitsugiChoiceOption(id = "LOCAL",   title = stringResource(R.string.manga_search_lang_local),   description = stringResource(R.string.manga_search_lang_local_desc))
+    )
+    var showSearchLanguageMenu by remember { mutableStateOf(false) }
+
     var showReadingModeMenu by remember { mutableStateOf(false) }
     var showColorFilterMenu by remember { mutableStateOf(false) }
     var showFitModeMenu by remember { mutableStateOf(false) }
@@ -2020,6 +2037,51 @@ private fun MangaReaderTab(
             .padding(vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
+        KitsugiSettingsSection(title = stringResource(R.string.manga_search_language_section)) {
+            Box {
+                KitsugiSettingsListItem(
+                    title = stringResource(R.string.manga_search_language_title),
+                    description = stringResource(R.string.manga_search_language_desc),
+                    icon = Icons.Language,
+                    iconColor = accentColor,
+                    value = searchLanguageOptions.firstOrNull {
+                        it.id.equals(appSettings.mangaSearchTitleLanguage, ignoreCase = true)
+                    }?.title ?: appSettings.mangaSearchTitleLanguage,
+                    onClick = {
+                        if (!appSettings.mangaSearchFollowTitleLanguage) {
+                            showSearchLanguageMenu = true
+                        }
+                    }
+                )
+                KitsugiDropdownMenu(
+                    expanded = showSearchLanguageMenu,
+                    onDismissRequest = { showSearchLanguageMenu = false },
+                    dialogTitle = stringResource(R.string.manga_search_language_title)
+                ) {
+                    searchLanguageOptions.forEach { opt ->
+                        KitsugiDropdownItem(
+                            text = opt.title,
+                            selected = opt.id.equals(appSettings.mangaSearchTitleLanguage, ignoreCase = true),
+                            onClick = {
+                                onMangaSearchTitleLanguageSelected(opt.id)
+                                showSearchLanguageMenu = false
+                            }
+                        )
+                    }
+                }
+            }
+
+            KitsugiSettingsDivider()
+
+            KitsugiSettingsSwitchItem(
+                title = stringResource(R.string.manga_search_follow_title_language),
+                description = stringResource(R.string.manga_search_follow_title_language_desc),
+                icon = Icons.Sync,
+                iconColor = accentColor,
+                checked = appSettings.mangaSearchFollowTitleLanguage,
+                onCheckedChange = onMangaSearchFollowTitleLanguageChanged
+            )
+        }
         KitsugiSettingsSection(title = stringResource(R.string.settings_section_manga_reader)) {
             Box {
                 KitsugiSettingsListItem(

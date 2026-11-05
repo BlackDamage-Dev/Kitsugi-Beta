@@ -10,6 +10,7 @@ import com.kitsugi.animelist.ui.components.KitsugiButton
 
 import android.content.res.Configuration
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.clickable
 import com.kitsugi.animelist.ui.theme.gradient.background
 import com.kitsugi.animelist.ui.utils.tvClickable
 import androidx.compose.foundation.layout.*
@@ -66,6 +67,19 @@ fun MangaBrowseScreen(
     initialSourceKey: String? = null,
     /** Animeden gelen diğer dillerdeki başlıklar (romaji / İngilizce / Japonca). */
     initialAlternates: List<String> = emptyList(),
+    /**
+     * "Oku" butonundan gelen, dil sırasına göre arama adayları.
+     * İlk adla sonuç bulunamazsa sıradaki ad denenir.
+     */
+    initialQueryVariants: List<String> = emptyList(),
+    /** Arama dili (ENGLISH / ROMAJI / NATIVE / LOCAL) — yedek sorgu sırasını belirler. */
+    initialSearchLanguage: String? = null,
+    /**
+     * "Oku" akışından gelen serinin tüm adları. Dil çipine dokunulduğunda
+     * sorgular bu kümeden **yeni dilde** yeniden üretilir (yoksa çip yalnız
+     * etiket değiştirirdi).
+     */
+    initialTitleSet: com.kitsugi.animelist.data.manga.MangaTitleSet? = null,
     vm: MangaBrowseViewModel = viewModel(factory = MangaBrowseViewModel.Factory(repository)),
     onMangaClick: (MangaSource, MangaDetails) -> Unit = { _, _ -> },
     onBack: () -> Unit = {}
@@ -96,6 +110,35 @@ fun MangaBrowseScreen(
     val appSettings by settingsDataStore.settingsFlow.collectAsState(
         initial = com.kitsugi.animelist.data.settings.AppSettings()
     )
+    // Çipten yapılan geçici seçim (null = ayarları takip et).
+    var languageOverride by remember { mutableStateOf<String?>(null) }
+    val activeSearchLanguage = remember(
+        appSettings.mangaSearchTitleLanguage,
+        appSettings.mangaSearchFollowTitleLanguage,
+        appSettings.titleLanguage,
+        initialSearchLanguage,
+        languageOverride
+    ) {
+        languageOverride ?: initialSearchLanguage ?: if (appSettings.mangaSearchFollowTitleLanguage) {
+            appSettings.titleLanguage
+        } else {
+            appSettings.mangaSearchTitleLanguage
+        }
+    }
+
+    /**
+     * Verilen dil için "Oku" sorguları. Ekran başlık kümesini taşıdığı için dil
+     * değiştiğinde sorgular yeniden üretilebilir; küme yoksa (elle açılmış
+     * tarayıcı) mevcut arama metni korunur.
+     */
+    fun queriesForLanguage(language: String): List<String>? {
+        val titleSet = initialTitleSet ?: return null
+        return titleSet.queries(
+            titleLanguage = appSettings.titleLanguage,
+            searchLanguage = com.kitsugi.animelist.data.manga.MangaSearchLanguage.fromId(language),
+            followTitleLanguage = false
+        )
+    }
     val settingsScope = rememberCoroutineScope()
 
     LaunchedEffect(reposList) {
@@ -114,13 +157,17 @@ fun MangaBrowseScreen(
         }
     }
 
-    LaunchedEffect(initialQuery, initialAlternates) {
-        if (vm.lastInitialQuery != initialQuery) {
+    // "Oku" ile aynı başlıkla tekrar gelindiğinde (ör. geri dönüp yeniden Oku)
+    // arama yeniden çalışsın: aynı sorgu + farklı dil/yedek listesi de yeni aramadır.
+    LaunchedEffect(initialQuery, initialQueryVariants, initialSearchLanguage, initialAlternates) {
+        val effectiveVariants = initialQueryVariants.ifEmpty { initialAlternates }
+        if (vm.lastInitialQuery != initialQuery || vm.lastSearchFingerprint != effectiveVariants) {
             vm.lastInitialQuery = initialQuery
+            vm.lastSearchFingerprint = effectiveVariants
             if (!initialQuery.isNullOrBlank()) {
-                // Seçili dil ne olursa olsun eser bulunsun: kaynak hangi dilde
-                // kayıtlıysa o başlıkla da aranır.
-                vm.search(initialQuery, initialAlternates)
+                // Aday adlar zaten dil sırasına göre gelir (AppRootDetailPages);
+                // ilk sorgu her zaman seçili dildeki addır, kalanlar yedektir.
+                vm.search(initialQuery, effectiveVariants)
             } else {
                 vm.search("")
             }
@@ -308,7 +355,72 @@ fun MangaBrowseScreen(
                 }
             }
 
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(10.dp))
+
+            // ── Arama dili çipi ──────────────────────────────────────────────
+            // Kullanıcı "Oku" ile gelen aramanın hangi adla yapıldığını görsün ve
+            // tek dokunuşla değiştirebilsin (İngilizce → Romaji → Orijinal → Yerel).
+            if (query.isNotBlank()) {
+                val languageOrder = listOf("ENGLISH", "ROMAJI", "NATIVE", "LOCAL")
+                val currentLanguage = activeSearchLanguage.uppercase()
+                val currentLabel = when (currentLanguage) {
+                    "ENGLISH", "EN" -> stringResource(R.string.manga_search_lang_english)
+                    "NATIVE", "ORIGINAL" -> stringResource(R.string.manga_search_lang_native)
+                    "LOCAL", "TURKISH" -> stringResource(R.string.manga_search_lang_local)
+                    else -> stringResource(R.string.manga_search_lang_romaji)
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(50))
+                            .background(accentColor.copy(alpha = 0.14f))
+                            .clickable {
+                                // Sıradaki dile geç ve kalıcı olarak kaydet.
+                                // Bilinmeyen dil (ör. JAPANESE_STAFF) → baştan başla.
+                                val currentIndex = languageOrder.indexOf(currentLanguage)
+                                val nextIndex = if (currentIndex < 0) 0 else (currentIndex + 1) % languageOrder.size
+                                val next = languageOrder[nextIndex]
+                                languageOverride = next
+                                // Adlar elimizdeyse yeni dilde GERÇEKTEN yeniden ara.
+                                val nextQueries = queriesForLanguage(next)
+                                if (nextQueries.isNullOrEmpty()) {
+                                    vm.search(query)
+                                } else {
+                                    vm.search(nextQueries.first(), nextQueries)
+                                }
+                                // Seçim kalıcı olsun (sonraki "Oku" da bu dilde arasın).
+                                settingsScope.launch {
+                                    settingsDataStore.setMangaSearchTitleLanguage(next)
+                                    settingsDataStore.setMangaSearchFollowTitleLanguage(false)
+                                }
+                            }
+                            .padding(horizontal = 10.dp, vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Language,
+                            contentDescription = null,
+                            tint = accentColor,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            text = stringResource(R.string.manga_search_language_chip, currentLabel),
+                            color = accentColor,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+            }
+
+            Spacer(Modifier.height(2.dp))
 
             // ── Search bar ──
             OutlinedTextField(

@@ -153,6 +153,24 @@
     <string name="color_indigo">İndigo</string>
 
     <!-- Manga Settings -->
+    <!-- Kaynak arama dili (manga / manhwa / manhua / novel) -->
+    <string name="manga_search_language_section">Manga Arama Dili</string>
+    <string name="manga_search_language_title">Kaynaklarda arama dili</string>
+    <string name="manga_search_language_desc">\"Oku\" butonu ve tüm manga, manhwa, manhua ve novel kaynaklarında aramanın hangi adla yapılacağını belirler.</string>
+    <string name="manga_search_lang_english">İngilizce ad</string>
+    <string name="manga_search_lang_english_desc">Önce İngilizce başlık, bulunamazsa romaji ve orijinal ad denenir.</string>
+    <string name="manga_search_lang_romaji">Romaji (Latin orijinal)</string>
+    <string name="manga_search_lang_romaji_desc">Latin harfli orijinal ad; çoğu kaynağın ana kataloğu.</string>
+    <string name="manga_search_lang_native">Orijinal ad (Japonca/Çince/Korece)</string>
+    <string name="manga_search_lang_native_desc">Orijinal dildeki ad; Doğu Asya kaynaklarında en isabetli sonuç.</string>
+    <string name="manga_search_lang_local">Yerel / çevrilmiş ad</string>
+    <string name="manga_search_lang_local_desc">Varsa yerel yayın adı, yoksa İngilizce ada düşer.</string>
+    <string name="manga_search_follow_title_language">Başlık dilini takip et</string>
+    <string name="manga_search_follow_title_language_desc">Açıkken arama dili, uygulamada seçili başlık dili ayarına göre otomatik belirlenir.</string>
+    <string name="manga_search_language_chip">Arama: %1$s</string>
+    <string name="manga_search_language_changed">Arama dili: %1$s</string>
+    <string name="manga_search_follow_enabled">Arama dili artık başlık dilini takip ediyor</string>
+    <string name="manga_search_follow_disabled">Arama dili sabit seçime göre kullanılıyor</string>
     <string name="manga_reading_direction">Okuma Yönü</string>
     <string name="manga_reading_direction_desc">Manga sayfalarının varsayılan kaydırma yönünü belirleyin</string>
     <string name="manga_direction_rtl">Sağdan Sola</string>

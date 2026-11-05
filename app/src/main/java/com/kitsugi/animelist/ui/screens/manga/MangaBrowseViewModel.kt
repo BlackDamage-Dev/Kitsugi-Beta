@@ -66,6 +66,13 @@ class MangaBrowseViewModel(
     var lastInitialSourceKey: String? = null
 
     /**
+     * Son "Oku" aramasının yedek ad listesi.
+     * Aynı sorgu ama farklı dil sırası (ör. İngilizce → Orijinal ad) yeni bir
+     * arama sayılır; ekran bu sayede tekrar arar.
+     */
+    var lastSearchFingerprint: List<String> = emptyList()
+
+    /**
      * Eklenti Portalı'ndan tek kaynakla açılış: eşleşen kaynağı seçip popüler
      * listesini yükler. Kaynak henüz bellekte yoksa false döner (ekran, kaynak
      * listesi gelince yeniden dener).
@@ -79,6 +86,7 @@ class MangaBrowseViewModel(
     fun reset() {
         lastInitialQuery = null
         lastInitialSourceKey = null
+        lastSearchFingerprint = emptyList()
         lastAutoLoadKey = null
         alternatesUsed = emptyList()
         paginationJobs.forEach { it.cancel() }

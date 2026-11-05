@@ -193,7 +193,20 @@ fun ApiResultDetailPage(
     onLoginMal: () -> Unit = {},
     onLoginSimkl: () -> Unit = {},
     onLoginBangumi: () -> Unit = {},
-    onReadMangaClick: (() -> Unit)? = null,
+    /**
+     * "Oku" butonu → manga kaynağı araması.
+     *
+     * Parametreler: (seçili başlık dili, İngilizce ad, romaji ad, orijinal ad, alternatif adlar).
+     * Arama sorgusu bu adlardan **seçili dile göre** üretilir; böylece buton, ekranda
+     * hangi dil seçili/r görünüyorsa o adla arar.
+     */
+    onReadMangaClick: ((
+        titleLanguage: String,
+        titleEnglish: String?,
+        titleRomaji: String?,
+        titleNative: String?,
+        synonyms: List<String>
+    ) -> Unit)? = null,
     mdbListShowImdb: Boolean = true,
     mdbListShowTomatoes: Boolean = true,
     mdbListShowMetacritic: Boolean = true,
@@ -550,7 +563,17 @@ fun ApiResultDetailPage(
                     onAddClick = onAddClick,
                     onEditClick = onEditClick,
                     onToggleFavoriteClick = onToggleFavoriteClick,
-                    onReadMangaClick = onReadMangaClick,
+                    onReadMangaClick = onReadMangaClick?.let { cb ->
+                        {
+                            cb(
+                                titleLanguage,
+                                detailState?.titleEnglish ?: displayResult.titleEnglish,
+                                detailState?.titleRomaji,
+                                detailState?.titleNative ?: detailState?.titleJapanese ?: displayResult.titleJapanese,
+                                detailState?.synonyms.orEmpty()
+                            )
+                        }
+                    },
                     onGalleryOpen = { items, idx ->
                         activeGalleryCategory = items.getOrNull(idx)?.category ?: GalleryCategory.POSTER
                         if (!galleryLoading) activeGalleryItems = items
@@ -634,7 +657,17 @@ fun ApiResultDetailPage(
                         onAddClick = onAddClick,
                         onEditClick = onEditClick,
                         onToggleFavoriteClick = onToggleFavoriteClick,
-                        onReadMangaClick = onReadMangaClick,
+                        onReadMangaClick = onReadMangaClick?.let { cb ->
+                            {
+                                cb(
+                                    titleLanguage,
+                                    detailState?.titleEnglish ?: displayResult.titleEnglish,
+                                    detailState?.titleRomaji,
+                                    detailState?.titleNative ?: detailState?.titleJapanese ?: displayResult.titleJapanese,
+                                    detailState?.synonyms.orEmpty()
+                                )
+                            }
+                        },
                         onGalleryOpen = { items, idx ->
                             activeGalleryCategory = items.getOrNull(idx)?.category ?: GalleryCategory.POSTER
                             if (!galleryLoading) activeGalleryItems = items

@@ -161,6 +161,13 @@ fun MediaEntryDetailPage(
     showAnimeLogos: Boolean = false,
     blurAdultMedia: Boolean = false,
     onReadMangaClick: ((MangaMappingEntity?) -> Unit)? = null,
+    /**
+     * "Oku" (eşleme yok) → kaynak araması.
+     *
+     * Gönderilen liste: **dil sırasına göre** aday başlıklar (seçili arama dili
+     * önce, kalanlar yedek). Dil kararı tek yerde — `AppRoot` — verilir.
+     */
+    onSearchMangaByTitles: ((List<String>) -> Unit)? = null,
     preferredTranslator: String = "DEFAULT",
     mdbListShowImdb: Boolean = true,
     mdbListShowTomatoes: Boolean = true,
@@ -430,7 +437,24 @@ fun MediaEntryDetailPage(
                     onToggleFavoriteClick = onToggleFavoriteClick,
                     onEditClick = onEditClick,
                     onDeleteClick = onDeleteClick,
-                    onReadMangaClick = onReadMangaClick,
+                    onReadMangaClick = { mapping ->
+                        if (mapping == null) {
+                            // Eşleme yok → "Oku" ekranda seçili başlık diline göre arar.
+                            onSearchMangaByTitles?.invoke(
+                                com.kitsugi.animelist.data.manga.MangaSearchQueryBuilder.buildQueries(
+                                    titleLanguage = titleLanguage,
+                                    searchLanguage = com.kitsugi.animelist.data.manga.MangaSearchLanguage.fromId(titleLanguage),
+                                    followTitleLanguage = true,
+                                    localTitle = displayEntry.title,
+                                    englishTitle = displayEntry.titleEnglish,
+                                    romajiTitle = displayEntry.title,
+                                    nativeTitle = displayEntry.titleJapanese
+                                )
+                            )
+                        } else {
+                            onReadMangaClick?.invoke(mapping)
+                        }
+                    },
                     onUnlinkMangaClick = { viewModel.deleteMangaMapping(displayEntry.id) },
                     onGalleryOpen = { items, idx ->
                         activeGalleryCategory = items.getOrNull(idx)?.category ?: GalleryCategory.POSTER
@@ -503,7 +527,24 @@ fun MediaEntryDetailPage(
                         onToggleFavoriteClick = onToggleFavoriteClick,
                         onEditClick = onEditClick,
                         onDeleteClick = onDeleteClick,
-                        onReadMangaClick = onReadMangaClick,
+                        onReadMangaClick = { mapping ->
+                            if (mapping == null) {
+                                // Eşleme yok → "Oku" ekranda seçili başlık diline göre arar.
+                                onSearchMangaByTitles?.invoke(
+                                    com.kitsugi.animelist.data.manga.MangaSearchQueryBuilder.buildQueries(
+                                        titleLanguage = titleLanguage,
+                                        searchLanguage = com.kitsugi.animelist.data.manga.MangaSearchLanguage.fromId(titleLanguage),
+                                        followTitleLanguage = true,
+                                        localTitle = displayEntry.title,
+                                        englishTitle = displayEntry.titleEnglish,
+                                        romajiTitle = displayEntry.title,
+                                        nativeTitle = displayEntry.titleJapanese
+                                    )
+                                )
+                            } else {
+                                onReadMangaClick?.invoke(mapping)
+                            }
+                        },
                         onUnlinkMangaClick = { viewModel.deleteMangaMapping(displayEntry.id) },
                         onGalleryOpen = { items, idx ->
                             activeGalleryCategory = items.getOrNull(idx)?.category ?: GalleryCategory.POSTER

@@ -130,6 +130,13 @@ data class GeneralSettings(
     val onMangaColorFilterSelected: (String) -> Unit = {},
     val onMangaFitModeSelected: (String) -> Unit = {},
     val onMangaBrightnessChanged: (Float) -> Unit = {},
+    // ─── Kaynak arama dili (manga / manhwa / manhua / novel) ────────────────
+    /** "ENGLISH" | "ROMAJI" | "NATIVE" | "LOCAL" */
+    val mangaSearchTitleLanguage: String = "ENGLISH",
+    val onMangaSearchTitleLanguageSelected: (String) -> Unit = {},
+    /** Arama dili genel başlık dili ayarını takip etsin mi. */
+    val mangaSearchFollowTitleLanguage: Boolean = true,
+    val onMangaSearchFollowTitleLanguageChanged: (Boolean) -> Unit = {},
     // ─── Otomatik & Manuel Güncelleme Kontrolü ─────────────────────────
     val autoUpdateCheckEnabled: Boolean = true,
     val onAutoUpdateCheckEnabledChanged: (Boolean) -> Unit = {},

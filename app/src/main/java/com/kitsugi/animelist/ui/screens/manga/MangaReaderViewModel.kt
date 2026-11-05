@@ -10,6 +10,8 @@ import androidx.lifecycle.viewModelScope
 import com.kitsugi.animelist.data.local.MangaChapterProgressEntity
 import com.kitsugi.animelist.data.local.KitsugiDatabase
 import com.kitsugi.animelist.data.manga.MangaChapter
+import com.kitsugi.animelist.data.manga.MangaChapterNumberResolver
+import com.kitsugi.animelist.data.manga.MangaChapterSequence
 import com.kitsugi.animelist.data.manga.MangaDetails
 import com.kitsugi.animelist.data.manga.MangaPage
 import com.kitsugi.animelist.data.manga.MangaSource
@@ -292,30 +294,59 @@ class MangaReaderViewModel(
         restoreProgress(chapter)
     }
 
-    /** Açık bölümün bulunduğu grubun indeksi (yoksa −1). */
-    private fun currentGroupIndex(): Int {
+    /**
+     * Bölüm gruplarını **okuma sırasına** (1 → N) göre dizer.
+     *
+     * Kaynaklar bölüm listesini kimi zaman yeniden eskiye, kimi zaman eskiden yeniye
+     * döndürür. Okuyucudaki ileri/geri ve bölüm sonu kartı bu sayede kaynağın listeleme
+     * yönünden bağımsız olarak her zaman doğru çalışır.
+     */
+    private fun groupsInReadingOrder(): List<MangaChapterGroup> {
+        val groups = _uiState.value.chapterGroups
+        if (groups.isEmpty()) return emptyList()
+        val withNumbers = groups.map { group ->
+            val number = if (group.chapterNumber >= 0f) group.chapterNumber
+            else MangaChapterNumberResolver.resolve(
+                mangaTitle = mangaDetails.title,
+                chapterName = group.displayName,
+                declaredNumber = group.chapterNumber
+            )
+            group to number
+        }
+        val numbered = withNumbers.filter { it.second >= 0f }
+        val unnumbered = withNumbers.filter { it.second < 0f }
+        return if (numbered.size >= 2) {
+            numbered.sortedBy { it.second }.map { it.first } + unnumbered.map { it.first }
+        } else {
+            groups.reversed()
+        }
+    }
+
+    /** Açık bölümün okuma sırasındaki grup indeksi (yoksa −1). */
+    private fun currentGroupIndex(ordered: List<MangaChapterGroup> = groupsInReadingOrder()): Int {
         val state = _uiState.value
-        val groups = state.chapterGroups
-        if (groups.isEmpty()) return -1
-        val direct = groups.indexOfFirst { it.containsUrl(state.currentChapter.url) }
+        if (ordered.isEmpty()) return -1
+        val direct = ordered.indexOfFirst { it.containsUrl(state.currentChapter.url) }
         if (direct >= 0) return direct
         // Navigasyondan gelen bölüm listede birebir yoksa (URL farklı olabilir)
         // bölüm numarasına göre eşleştir.
         val key = MangaChapterGrouping.groupKey(state.currentChapter)
-        return groups.indexOfFirst { it.key == key }
+        return ordered.indexOfFirst { it.key == key }
     }
 
     fun goToNextChapter() {
-        val groups = _uiState.value.chapterGroups
-        val idx = currentGroupIndex()
-        if (idx > 0) requestGroup(groups[idx - 1], ChapterChoiceReason.Next, isForward = true)
+        val ordered = groupsInReadingOrder()
+        val idx = currentGroupIndex(ordered)
+        if (idx >= 0 && idx < ordered.size - 1) {
+            requestGroup(ordered[idx + 1], ChapterChoiceReason.Next, isForward = true)
+        }
     }
 
     fun goToPreviousChapter() {
-        val groups = _uiState.value.chapterGroups
-        val idx = currentGroupIndex()
-        if (idx >= 0 && idx < groups.size - 1) {
-            requestGroup(groups[idx + 1], ChapterChoiceReason.Previous, isForward = false)
+        val ordered = groupsInReadingOrder()
+        val idx = currentGroupIndex(ordered)
+        if (idx > 0) {
+            requestGroup(ordered[idx - 1], ChapterChoiceReason.Previous, isForward = false)
         }
     }
 
@@ -412,28 +443,33 @@ class MangaReaderViewModel(
     }
 
     val hasNextChapter: Boolean
-        get() = currentGroupIndex() > 0
+        get() {
+            val ordered = groupsInReadingOrder()
+            val idx = currentGroupIndex(ordered)
+            return idx >= 0 && idx < ordered.size - 1
+        }
 
     /** Sonraki bölümün adı (bölüm sonu geçiş kartında göstermek için); yoksa null. */
     val nextChapterName: String?
         get() {
-            val groups = _uiState.value.chapterGroups
-            val idx = currentGroupIndex()
-            return if (idx > 0) groups[idx - 1].displayName else null
+            val ordered = groupsInReadingOrder()
+            val idx = currentGroupIndex(ordered)
+            return if (idx >= 0 && idx < ordered.size - 1) ordered[idx + 1].displayName else null
         }
 
     /** Sonraki bölümün çevirmen sayısı (>1 ise "N çevirmen" rozeti gösterilir). */
     val nextChapterVariantCount: Int
         get() {
-            val groups = _uiState.value.chapterGroups
-            val idx = currentGroupIndex()
-            return if (idx > 0) groups[idx - 1].variantCount else 0
+            val ordered = groupsInReadingOrder()
+            val idx = currentGroupIndex(ordered)
+            return if (idx >= 0 && idx < ordered.size - 1) ordered[idx + 1].variantCount else 0
         }
 
     val hasPreviousChapter: Boolean
         get() {
-            val idx = currentGroupIndex()
-            return idx >= 0 && idx < _uiState.value.chapterGroups.size - 1
+            val ordered = groupsInReadingOrder()
+            val idx = currentGroupIndex(ordered)
+            return idx > 0
         }
 
     private var pageListJob: kotlinx.coroutines.Job? = null
