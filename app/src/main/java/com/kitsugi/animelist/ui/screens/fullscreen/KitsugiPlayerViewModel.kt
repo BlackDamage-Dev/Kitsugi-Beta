@@ -866,17 +866,16 @@ class KitsugiPlayerViewModel(application: Application) : AndroidViewModel(applic
 
 
     fun updateDecoder(decoder: Decoder) {
-
         _currentDecoder.value = decoder
-
-        // Apply to MPV engine immediately
-
-        val mpvEngine = activeEngine as? com.kitsugi.animelist.core.player.engine.MpvPlayerEngine
-
-        mpvEngine?.mpvView?.mpv?.setPropertyString("hwdec", decoder.value)
-
+        when (val engine = activeEngine) {
+            // MPV: hwdec özelliği anında uygulanır (auto/no/mediacodec-copy/mediacodec).
+            is com.kitsugi.animelist.core.player.engine.MpvPlayerEngine ->
+                engine.mpvView?.mpv?.setPropertyString("hwdec", decoder.value)
+            // Media3: MediaCodecSelector değiştiği için oynatıcı konum korunarak yeniden kurulur.
+            is com.kitsugi.animelist.core.player.engine.Media3PlayerEngine ->
+                viewModelScope.launch { engine.applyDecoderMode(decoder.value) }
+        }
         viewModelScope.launch { dataStore.setMpvHwdecMode(decoder.value) }
-
     }
 
 

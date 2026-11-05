@@ -264,6 +264,90 @@ class Media3PlayerEngine(
 
     }
 
+    /**
+     * Saklanan hwdec değerini Media3 kod çözücü seçimine uygun kanonik değere çevirir.
+     * Tanınmayan/eski değerler ("auto-safe", "auto-copy" vb.) güvenli "auto"ya düşer.
+     */
+    private fun normalizeDecoderMode(raw: String?): String = when (raw?.trim()) {
+        "no" -> "no"
+        "mediacodec-copy" -> "mediacodec-copy"
+        "mediacodec" -> "mediacodec"
+        else -> "auto"
+    }
+
+    /** Android'de yazılım çözücüler "OMX.google.*" / "c2.android.*" adlarıyla bildirilir. */
+    private fun isSoftwareDecoder(info: androidx.media3.exoplayer.mediacodec.MediaCodecInfo): Boolean {
+        val name = info.name.lowercase(Locale.ROOT)
+        return name.startsWith("omx.google") || name.startsWith("c2.android")
+    }
+
+    /**
+     * Seçili kod çözücü moduna göre MediaCodecSelector üretir:
+     * - SW ("no"): yalnızca yazılım çözücüler; yoksa varsayılana düşer.
+     * - HW/HW+ ("mediacodec-copy"/"mediacodec"): donanım çözücüler öncelikli; yoksa varsayılana düşer.
+     * - Auto: Media3 varsayılanı.
+     * Boş liste döndürmez; bu sayede "çözücü yok → siyah ekran" durumu oluşmaz.
+     * Ayrıca profil-bağımsız Dolby Vision çözücü yedeğini de gözetir.
+     */
+    private fun buildDecoderSelector(mode: String): androidx.media3.exoplayer.mediacodec.MediaCodecSelector {
+        return androidx.media3.exoplayer.mediacodec.MediaCodecSelector { mimeType, requiresSecureDecoder, requiresTunnelingDecoder ->
+            val standard = androidx.media3.exoplayer.mediacodec.MediaCodecSelector.DEFAULT
+                .getDecoderInfos(mimeType, requiresSecureDecoder, requiresTunnelingDecoder)
+            val base = if (standard.isNotEmpty() || !dv81CodecFallbackActive.get() ||
+                !mimeType.equals(MimeTypes.VIDEO_DOLBY_VISION, ignoreCase = true)
+            ) {
+                standard
+            } else {
+                DolbyVisionCodecFallback.findDvDecodersIgnoringProfile()
+            }
+
+            when (mode) {
+                "no" -> base.filter { isSoftwareDecoder(it) }.ifEmpty { base }
+                "mediacodec", "mediacodec-copy" -> base.filter { !isSoftwareDecoder(it) }.ifEmpty { base }
+                else -> base
+            }
+        }
+    }
+
+    /**
+     * Oynatıcı içinden kod çözücü modu değiştiğinde çağrılır. Mevcut konumu koruyarak
+     * ExoPlayer'ı yeni MediaCodecSelector ile yeniden kurar ve kaldığı yerden devam eder.
+     */
+    suspend fun applyDecoderMode(mode: String) {
+        val normalized = normalizeDecoderMode(mode)
+        val url = videoUrl
+        if (normalized == decoderMode && exoPlayer != null) return
+        decoderMode = normalized
+        if (url.isNullOrBlank()) return
+        val resumePos = currentPosition.coerceAtLeast(0L)
+        runOnMainThread {
+            exoPlayer?.let { player ->
+                runCatching { player.clearAssHandlerCompat() }
+                player.removeListener(playerListener)
+                player.stop()
+                player.clearMediaItems()
+                player.release()
+            }
+            exoPlayer = null
+        }
+        prepare(
+            videoUrl = url,
+            audioUrl = lastAudioUrl,
+            externalAudioTracks = lastExternalAudioTracks,
+            streamTypeHint = lastStreamTypeHint,
+            headers = lastHeaders,
+            subtitles = preparedSubtitles,
+            startPositionMs = resumePos,
+            addonName = currentAddonName,
+            isCS = isCsSource,
+            streamTitle = streamTitle,
+            qualityValue = lastQualityValue,
+            mediaType = lastMediaType,
+            csStreamType = lastCsStreamType,
+            csExtractorData = lastCsExtractorData,
+        )
+    }
+
     private var exoPlayer: ExoPlayer? = null
 
     private var trackSelector: androidx.media3.exoplayer.trackselection.DefaultTrackSelector? = null
@@ -475,6 +559,21 @@ class Media3PlayerEngine(
     override val supportsVideoFilters: Boolean get() = false
 
     override val supportsNegativeAudioDelay: Boolean get() = false
+
+    /**
+     * Oynatıcı içi "Donanım Kod Çözücü Modu" (Auto/SW/HW/HW+).
+     * MPV değerleriyle saklanır: "auto", "no", "mediacodec-copy", "mediacodec".
+     * Eski kayıtlar ("auto-safe", "auto-copy") `normalizeDecoderMode` ile "auto"ya çekilir.
+     */
+    @Volatile private var decoderMode: String = normalizeDecoderMode(settings.mpvHwdecMode)
+    private var lastAudioUrl: String? = null
+    private var lastExternalAudioTracks: List<com.kitsugi.animelist.core.player.ExternalAudioTrackInput> = emptyList()
+    private var lastStreamTypeHint: String? = null
+    private var lastHeaders: Map<String, String> = emptyMap()
+    private var lastQualityValue: Int? = null
+    private var lastMediaType: com.kitsugi.animelist.core.player.StreamMediaType? = null
+    private var lastCsStreamType: String? = null
+    private var lastCsExtractorData: String? = null
 
 
 
@@ -1445,32 +1544,8 @@ class Media3PlayerEngine(
 
                 setEnableDecoderFallback(true)
 
-                // Profil-bağımsız DV çözücü yedeği: yalnızca dönüştürme aktifken ve
-
-                // standart seçici `video/dolby-vision` için boş döndüğünde devreye girer.
-
-                setMediaCodecSelector { mimeType, requiresSecureDecoder, requiresTunnelingDecoder ->
-
-                    val standard = androidx.media3.exoplayer.mediacodec.MediaCodecSelector.DEFAULT
-
-                        .getDecoderInfos(mimeType, requiresSecureDecoder, requiresTunnelingDecoder)
-
-                    if (standard.isNotEmpty() || !dv81CodecFallbackActive.get() ||
-
-                        !mimeType.equals(MimeTypes.VIDEO_DOLBY_VISION, ignoreCase = true)
-
-                    ) {
-
-                        standard
-
-                    } else {
-
-                        DolbyVisionCodecFallback.findDvDecodersIgnoringProfile()
-
-                    }
-
-                }
-
+                // SW/HW/HW+ seçimi ve Dolby Vision yedeği: MediaCodecSelector belirler.
+                setMediaCodecSelector(buildDecoderSelector(decoderMode))
             }
 
 
@@ -1738,15 +1813,17 @@ class Media3PlayerEngine(
         }
 
         this.videoUrl = videoUrl
-
+        this.lastAudioUrl = audioUrl
+        this.lastExternalAudioTracks = externalAudioTracks
+        this.lastStreamTypeHint = streamTypeHint
+        this.lastHeaders = headers
+        this.lastQualityValue = qualityValue
+        this.lastMediaType = mediaType
+        this.lastCsStreamType = csStreamType
+        this.lastCsExtractorData = csExtractorData
         this.currentAddonName = addonName
-
         this.isCsSource = isCS
-
         this.streamTitle = streamTitle
-
-        // Yeni ortam için otomatik parça seçimini sıfırla
-
         this.preparedSubtitles = subtitles
 
         this.initialSelectionDone = false
