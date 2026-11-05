@@ -421,6 +421,10 @@ fun PlayerControls(
                             resetTimer()
                         },
                         onBackClick  = onBackClick,
+                        onKeyboardShortcutsClick = {
+                            viewModel.showDialog(KitsugiDialogs.KeyboardShortcuts)
+                            resetTimer()
+                        },
                         modifier     = Modifier.weight(1f),
                         showKeyboardHint = settings.keyboardEnabled && settings.keyboardHelpEnabled
                     )

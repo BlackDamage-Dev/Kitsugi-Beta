@@ -12,6 +12,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -23,13 +24,10 @@ fun TopLeftPlayerControls(
     mediaTitle: String,
     onTitleClick: () -> Unit,
     onBackClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    /**
-     * Harici klavye/kol algılandığında `true`: başlığın altında tek satırlık
-     * "Klavye: ? ile tüm kısayollar" ipucu çizilir. Kısayolların varlığını
-     * keşfettirmek için (aksi hâlde kullanıcı hiç basmaz ve özellik ölü kalır).
-     */
+    onKeyboardShortcutsClick: () -> Unit = {},
     showKeyboardHint: Boolean = false,
+    modifier: Modifier = Modifier,
+    title: String = animeTitle,
 ) {
     Row(
         modifier = modifier,
@@ -41,36 +39,35 @@ fun TopLeftPlayerControls(
             onClick = onBackClick,
         )
         Column(
-            verticalArrangement = Arrangement.spacedBy(2.dp),
             modifier = Modifier.clickable(onClick = onTitleClick),
         ) {
             Text(
-                text = animeTitle,
-                fontSize = 16.sp,
+                text = title,
+                fontSize = 17.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 color = Color.White,
-                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.bodyMedium,
             )
             Text(
                 text = mediaTitle,
-                fontSize = 14.sp,
+                fontSize = 12.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                color = Color.White.copy(alpha = 0.6f),
+                color = Color.White.copy(alpha = 0.5f),
                 style = MaterialTheme.typography.bodyMedium,
                 fontStyle = FontStyle.Italic,
             )
-            if (showKeyboardHint) {
-                Text(
-                    text = "Klavye: ? ile tüm kısayollar",
-                    fontSize = 11.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    color = Color.White.copy(alpha = 0.45f),
-                    style = MaterialTheme.typography.labelSmall,
-                )
-            }
+            Text(
+                text = "Klavye: ? veya H • Kısayol rehberi",
+                fontSize = 11.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                color = Color.White.copy(alpha = 0.48f),
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.clickable(onClick = onKeyboardShortcutsClick),
+            )
         }
     }
 }

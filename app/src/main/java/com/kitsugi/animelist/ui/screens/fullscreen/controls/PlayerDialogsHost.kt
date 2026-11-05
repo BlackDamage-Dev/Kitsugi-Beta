@@ -49,6 +49,7 @@ import androidx.compose.ui.window.Dialog
 import coil.compose.AsyncImage
 import com.kitsugi.animelist.data.remote.KitsugiStreamingEpisode
 import com.kitsugi.animelist.ui.screens.fullscreen.KitsugiDialogs
+import com.kitsugi.animelist.ui.screens.fullscreen.controls.components.KeyboardShortcutsDialog
 import androidx.compose.ui.res.stringResource
 import com.kitsugi.animelist.R
 
@@ -79,6 +80,12 @@ fun PlayerDialogsHost(
                 isLoading = episodesLoading,
                 isMovie = isMovie,
                 onRetryEpisodes = onRetryEpisodes,
+            )
+        }
+        is KitsugiDialogs.KeyboardShortcuts -> {
+            KeyboardShortcutsDialog(
+                onDismissRequest = onDismissRequest,
+                modifier = modifier,
             )
         }
         is KitsugiDialogs.IntegerPicker -> {

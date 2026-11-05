@@ -1,5 +1,49 @@
 # Kitsugi-Beta — Sürüm Notları / Release Notes
 
+## Kitsugi Beta v2.4.432
+
+### 🇹🇷 Türkçe
+
+#### ⌨️ 1. Kapsamlı Klavye ve Donanım Kontrolleri
+- **Tam Donanım Klavye Desteği:** Oynatıcı kontrolleri kapalıyken veya açıkken klavye ile oynatıcıyı yönetebilme:
+  - **Ses Kontrolü:** Kontroller kapalıyken `↑ / ↓`, kontroller açıkken `0 / 9`, donanım ses tuşları, `M` tuşu ile sessize alma ve önceki seviyeye dönme.
+  - **Parlaklık:** `Ctrl + ↑ / ↓` ve klavye parlaklık tuşları ile %5 hassasiyetle ekran parlaklığı ayarı.
+  - **Oynatma ve Gezinme:** `Space` / `K` (oynat/duraklat), `← / →` ve `J / L` (10s sarma), `Shift + ← / →` (60s hızlı sarma), `N` / `P` (sonraki/önceki bölüm), `Tab` (kontrolleri aç/kapat).
+  - **Hız ve Araçlar:** `[` / `]` ve `\` (hız adımları ve sıfırlama), `S` (altyazı listesi), `D` (altyazı aç/kapat), `A` (ses listesi), `#` (ses parçası döngüsü), `Q` (kalite), `E` (bölüm listesi), `Z` (en-boy oranı), `R` (ekran döndürme), `X` (kilit), `I` (PiP).
+- **Türkçe Klavye Kısayol Rehberi:** `H`, `F1` veya `?` tuşuna basıldığında açılan kaydırılabilir, kategorize edilmiş Türkçe kısayol penceresi (`KeyboardShortcutsDialog`). Kontrol çubuğunda tıklanabilir `"Klavye: ? veya H • Kısayol rehberi"` ipucu.
+- **OSD ve Odak Koruması:** Kontroller açıkken D-pad ve Enter odak navigasyonu bozulmaz; basılı tutma tekrarı yalnızca sürekli kontrollerde çalışır; MPV `input.conf` özel kısayollarına düşüş korunur.
+
+#### 🏷️ 2. Gerçek Format ve Kanal Rozetleri (`TrackFormatUtils`)
+- **İçerik ve Codec Tabanlı Format Tespiti:** Altyazı ve ses listelerinde motor codec/MIME bilgisi, dosya uzantısı ve önbellek içerik imzası değerlendirilerek SRT, ASS, SSA, VTT, TTML, DFXP, PGS, MicroDVD, AAC, AC-3, E-AC-3, DTS, TrueHD, FLAC, Opus etiketleri rozet olarak gösterilir.
+- **Akıllı Ses Kanalı Gösterimi:** Ses parçalarında Mono, Stereo, 5.1, 7.1 ve çoklu kanal rozetleri eklenir.
+- **Doğru Eşleştirme ve Taşma Koruması:** Eklenti meta verileri yalnızca gerçek harici parçalarla eşleşir; dahili parçalara yanıltıcı format yapışmaz. Dil adları tekrarlanmaz.
+
+#### ⏱️ 3. Yenilenen Altyazı Gecikmesi Seçici Paneli
+- **Düzgün Konumlanan Açılır Menü:** Birincil / İkincil / İkisi Birden seçimi, dar başlık metni yerine 280 dp genişlikte kart tipi şık bir seçim alanına bağlandı. Ekrandan taşma ve hizalama sorunları giderildi.
+
+---
+
+### 🇬🇧 English
+
+#### ⌨️ 1. Comprehensive Keyboard & Hardware Controls
+- **Full Hardware Keyboard Integration:** Smooth player control without interface clutter:
+  - **Volume:** `↑ / ↓` when controls hidden, `0 / 9` anytime, hardware keys, `M` for mute/unmute toggle.
+  - **Brightness:** `Ctrl + ↑ / ↓` and hardware brightness keys in 5% steps.
+  - **Playback & Seek:** `Space` / `K` (play/pause), `← / →` and `J / L` (10s seek), `Shift + ← / →` (60s seek), `N` / `P` (next/prev episode), `Tab` (toggle controls).
+  - **Speed & Tools:** `[` / `]` and `\` (playback speed), `S` (subtitles), `D` (toggle subs), `A` (audio tracks), `#` (cycle audio), `Q` (quality), `E` (episodes), `Z` (aspect ratio), `R` (rotate), `X` (lock), `I` (PiP).
+- **Turkish Shortcuts Guide Dialog:** Accessible via `H`, `F1`, or `?`, featuring categorized lists and quick reference in top-left controls.
+- **Preserved OSD Focus & Repeat Gating:** D-pad and Enter navigation preserved when controls are shown; repeat gating on single-action shortcuts; fallback to MPV `input.conf`.
+
+#### 🏷️ 2. Real Format & Channel Badges (`TrackFormatUtils`)
+- **Sniffing & Engine-Based Identification:** Real format tags (SRT, ASS, SSA, VTT, TTML, PGS, AAC, AC-3, E-AC-3, DTS, FLAC, Opus) determined via codec, MIME, and cache signatures.
+- **Audio Channel Layouts:** Mono, Stereo, 5.1, 7.1 badges on audio track items.
+- **Accurate Addon Metadata Matching:** Prevents embedded tracks from incorrectly inheriting addon format tags.
+
+#### ⏱️ 3. Redesigned Subtitle Delay Picker Panel
+- **Bounded Dropdown Card:** Replaced misaligned dropdown with a clean 280 dp anchored card for Primary / Secondary / Both selection.
+
+---
+
 ## Kitsugi Beta v2.4.394
 
 ### 🇹🇷 Türkçe

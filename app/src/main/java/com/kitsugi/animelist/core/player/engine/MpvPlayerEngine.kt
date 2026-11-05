@@ -2558,57 +2558,53 @@ class MpvPlayerEngine(
 
 
         val audioOptions = snapshot.audioTracks.map { track ->
-
             TrackOption(
-
                 group = dummyGroup,
-
                 groupIndex = 0,
-
                 trackIndex = track.id,
-
                 label = track.name,
-
                 isSelected = track.isSelected,
-
+                language = track.language,
+                codec = track.codec,
+                externalUri = track.externalFilePath,
+                isExternal = track.isExternal,
+                channelCount = track.channelCount?.takeIf { it > 0 },
                 audioLanguage = track.language,
-
                 audioName = track.title,
-
                 audioCodec = track.codec,
-
                 audioBitrate = track.bitrate,
-
                 audioSource = track.externalFilename,
-
                 audioIsExternal = track.isExternal,
-
                 audioOriginKnown = true,
-
                 audioMediaUrl = videoUrl
-
             )
-
         }
 
-
+        fun matchingSubtitleInput(track: MpvTrack): SubtitleInput? {
+            if (!track.isExternal) return null
+            val trackPath = track.externalFilePath?.removePrefix("file://")
+            return preparedSubtitles.firstOrNull { input ->
+                val inputPath = input.url.removePrefix("file://")
+                !trackPath.isNullOrBlank() && inputPath == trackPath
+            } ?: preparedSubtitles.filter { input ->
+                input.name.isNotBlank() && input.name.equals(track.name, ignoreCase = true)
+            }.singleOrNull()
+        }
 
         val subtitleOptions = snapshot.subtitleTracks.map { track ->
-
+            val matchingInput = matchingSubtitleInput(track)
             TrackOption(
-
                 group = dummyGroup,
-
                 groupIndex = 1,
-
                 trackIndex = track.id,
-
                 label = track.name,
-
-                isSelected = track.isSelected
-
+                isSelected = track.isSelected,
+                language = track.language,
+                codec = track.codec,
+                externalUri = track.externalFilePath ?: matchingInput?.url,
+                declaredFormat = matchingInput?.format,
+                isExternal = track.isExternal,
             )
-
         }
 
 

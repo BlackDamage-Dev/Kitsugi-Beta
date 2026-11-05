@@ -114,6 +114,19 @@ data class TrackOption(
     val trackIndex: Int,
     val label: String,
     val isSelected: Boolean,
+    /** Gerçek parça dili (BCP-47/ISO kodu olabilir). */
+    val language: String? = null,
+    /** Motorun bildirdiği codec veya codec profili. */
+    val codec: String? = null,
+    /** Media3 sampleMimeType; MPV tarafında null kalabilir. */
+    val mimeType: String? = null,
+    /** Harici dosyanın yolu/URL'si; codec alt türünü ve uzantıyı ayırt etmeye yarar. */
+    val externalUri: String? = null,
+    /** Eklenti/domain katmanından gelen doğrulanmış format ipucu. */
+    val declaredFormat: String? = null,
+    val isExternal: Boolean = false,
+    val channelCount: Int? = null,
+    val sampleRate: Int? = null,
     /** The UI index and mpv aid are NOT MediaExtractor stream indices. */
     val audioLanguage: String? = null,
     val audioName: String? = null,

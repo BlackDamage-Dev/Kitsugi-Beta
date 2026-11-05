@@ -20,7 +20,7 @@ data class Subtitle(
     val lang: String,
     val addonName: String,
     val addonLogo: String? = null,
-    val format: String = "srt" // "ass", "srt", "vtt"
+    val format: String? = null // "ass", "srt", "vtt" vb.
 )
 
 /**
@@ -248,13 +248,18 @@ class SubtitleRepositoryImpl(private val context: Context) {
     /**
      * URL uzantısından format tahmin eder.
      */
-    private fun guessFormat(url: String): String {
-        val path = url.substringBefore("?").lowercase()
+    private fun guessFormat(url: String): String? {
+        val path = url.substringBefore("?").substringBefore('#').lowercase(java.util.Locale.ROOT)
         return when {
-            path.endsWith(".ass") || path.endsWith(".ssa") -> "ass"
+            path.endsWith(".ass") -> "ass"
+            path.endsWith(".ssa") -> "ssa"
+            path.endsWith(".srt") -> "srt"
             path.endsWith(".vtt") -> "vtt"
-            path.endsWith(".ttml") || path.endsWith(".dfxp") -> "ttml"
-            else -> "srt"
+            path.endsWith(".ttml") -> "ttml"
+            path.endsWith(".dfxp") -> "dfxp"
+            path.endsWith(".sub") -> "sub"
+            path.endsWith(".smi") || path.endsWith(".sami") -> "smi"
+            else -> null // Bilinmeyeni SRT diye etiketleme; indirilen içerik imzasıyla tanınır.
         }
     }
 }

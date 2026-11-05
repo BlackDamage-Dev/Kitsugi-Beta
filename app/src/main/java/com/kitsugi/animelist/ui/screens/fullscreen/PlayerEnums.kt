@@ -70,6 +70,7 @@ enum class KitsugiPanels {
 sealed class KitsugiDialogs {
     data object None : KitsugiDialogs()
     data object EpisodeList : KitsugiDialogs()
+    data object KeyboardShortcuts : KitsugiDialogs()
     data class IntegerPicker(
         val defaultValue: Int,
         val minValue: Int,

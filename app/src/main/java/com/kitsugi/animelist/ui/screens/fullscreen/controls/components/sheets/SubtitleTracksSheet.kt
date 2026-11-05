@@ -4,7 +4,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -22,6 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.kitsugi.animelist.core.player.SubtitleInput
 import androidx.compose.ui.res.stringResource
@@ -32,6 +32,8 @@ data class SubtitleTrackInfo(
     val id: Int,
     val label: String,
     val language: String? = null,
+    /** Motorun codec/MIME bilgisinden çözülen gerçek altyazı biçimi (SRT, ASS, PGS vb.). */
+    val formatTag: String? = null,
 )
 
 @Composable
@@ -42,10 +44,10 @@ fun SubtitleTracksSheet(
     selectedSecondaryIndex: Int = -1,
     supportsSecondary: Boolean = false,
     onSelectSecondary: (Int) -> Unit = {},
-    onAddSubtitleFile: () -> Unit,
+    onAddSubtitleFile: () -> Unit = {},
     onOpenSubtitleSettings: () -> Unit,
     onOpenSubtitleDelay: () -> Unit,
-    onDismissRequest: () -> Unit,
+    onDismissRequest: () -> Unit = {},
     /** Oynatıcıdaki mevcut SubtitleInput listesi — indirme butonları için eşleştirmede kullanılır. */
     subtitleInputs: List<SubtitleInput> = emptyList(),
     /** Kullanıcı bir altyazıyı indirmek istediğinde çağrılır. */
@@ -55,8 +57,10 @@ fun SubtitleTracksSheet(
     val allTracks = androidx.compose.runtime.remember(tracks) {
         listOf(SubtitleTrackInfo(id = -99, label = KitsugiStrings.get(R.string.altyaziyi_kapat))) + tracks
     }
-    val allSelected = androidx.compose.runtime.remember(selectedIndices) {
-        if (selectedIndices.isEmpty()) listOf(-99) else selectedIndices
+    val allSelected = if (selectedSecondaryIndex != -99) {
+        selectedIndices + selectedSecondaryIndex
+    } else {
+        selectedIndices
     }
 
     GenericTracksSheet(
@@ -66,62 +70,43 @@ fun SubtitleTracksSheet(
             TrackSheetTitle(
                 title = stringResource(R.string.altyazilar),
                 actions = {
-                    TextButton(onClick = onOpenSubtitleSettings) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        ) {
-                            Icon(imageVector = Icons.Palette, contentDescription = null)
-                            Text("Stil")
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        TextButton(onClick = onOpenSubtitleSettings) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            ) {
+                                Icon(imageVector = Icons.Palette, contentDescription = null)
+                                Text("Stil")
+                            }
                         }
-                    }
-                    TextButton(onClick = onOpenSubtitleDelay) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        ) {
-                            Icon(imageVector = Icons.MoreTime, contentDescription = null)
-                            Text("Gecikme")
+                        TextButton(onClick = onOpenSubtitleDelay) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            ) {
+                                Icon(imageVector = Icons.MoreTime, contentDescription = null)
+                                Text("Gecikme")
+                            }
                         }
                     }
                 },
             )
-            AddTrackRow(title = KitsugiStrings.get(R.string.harici_altyazi_ekle), onClick = onAddSubtitleFile)
         },
         track = { track ->
-            // "Altyazıyı Kapat" (-99) veya negatif track için indirme yok
-            val matchedInput = if (track.id >= 0) {
-                val cleanLabel = track.label.replace(Regex("""^\d+\.\s*"""), "").trim()
-                // 1. İsim birebir eşleşmesi (yerel dosya, http/https, file:// tüm formatlar desteklenir)
-                subtitleInputs.firstOrNull { sub ->
-                    sub.url.isNotBlank() && (
-                        sub.name.trim().equals(cleanLabel, ignoreCase = true) ||
-                        sub.name.trim().equals(track.label.trim(), ignoreCase = true)
-                    )
-                } ?:
-                // 2. İsim içerme eşleşmesi (örn: "Türkçe (OpenSubtitles v3)" vs "Türkçe")
-                subtitleInputs.firstOrNull { sub ->
-                    sub.url.isNotBlank() && (
-                        cleanLabel.contains(sub.name.trim(), ignoreCase = true) ||
-                        sub.name.trim().contains(cleanLabel, ignoreCase = true)
-                    )
-                } ?:
-                // 3. İndeks bazlı doğrudan eşleşme
-                subtitleInputs.getOrNull(track.id)?.takeIf { it.url.isNotBlank() } ?:
-                // 4. Dil kodu eşleşmesi
-                (if (!track.language.isNullOrBlank()) {
-                    subtitleInputs.firstOrNull { sub ->
-                        sub.url.isNotBlank() && sub.lang.equals(track.language, ignoreCase = true)
-                    }
-                } else null) ?:
-                // 5. Türkçe anahtar kelime eşleşmesi
-                (if (com.kitsugi.animelist.core.player.PlayerSubtitleUtils.isTurkish(track.language, track.label)) {
-                    subtitleInputs.firstOrNull { sub ->
-                        sub.url.isNotBlank() && com.kitsugi.animelist.core.player.PlayerSubtitleUtils.isTurkish(sub.lang, sub.name)
-                    }
-                } else null)
-            } else null
-
+            val matchedInput = subtitleInputs.firstOrNull { input ->
+                val trackLang = track.language?.trim().orEmpty()
+                val trackLabel = track.label.trim()
+                val inputLang = input.lang.trim()
+                val inputName = input.name.trim()
+                (trackLang.isNotBlank() && inputLang.isNotBlank() &&
+                    com.kitsugi.animelist.core.player.PlayerSubtitleUtils.matchesLanguageCode(trackLang, inputLang)) ||
+                    (trackLabel.isNotBlank() && inputName.isNotBlank() && trackLabel.contains(inputName, ignoreCase = true)) ||
+                    (trackLabel.isNotBlank() && inputName.isNotBlank() && inputName.contains(trackLabel, ignoreCase = true))
+            }
             if (supportsSecondary) {
                 TextButton(onClick = { onSelectSecondary(track.id) },
                     enabled = track.id == -99 || track.id !in selectedIndices) {
@@ -137,6 +122,7 @@ fun SubtitleTracksSheet(
             }
             SubtitleTrackRow(
                 title = if (track.id == -99) track.label else buildTrackTitle(track),
+                formatTag = track.formatTag,
                 selected = if (allSelected.contains(track.id)) 0 else -1,
                 onClick = { onSelect(track.id) },
                 downloadableInput = matchedInput,
@@ -165,6 +151,7 @@ fun SubtitleTrackRow(
     title: String,
     selected: Int, // -1=seçilmedi, 0=1. seçim, 1=2. seçim
     onClick: () -> Unit,
+    formatTag: String? = null,
     modifier: Modifier = Modifier,
     /** Eğer null değilse bu altyazı indirilebilir demektir — indirme ikonu gösterilir. */
     downloadableInput: SubtitleInput? = null,
@@ -174,24 +161,30 @@ fun SubtitleTrackRow(
         modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(start = 8.dp, end = 4.dp),
+            .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Checkbox(
-            checked = selected > -1,
-            onCheckedChange = { onClick() },
-        )
+        Checkbox(checked = selected != -1, onCheckedChange = { onClick() })
         Text(
             text = title,
             fontStyle = if (selected > -1) FontStyle.Italic else FontStyle.Normal,
             fontWeight = if (selected > -1) FontWeight.ExtraBold else FontWeight.Normal,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
+        if (!formatTag.isNullOrBlank()) {
+            TrackFormatTag(
+                value = formatTag,
+                modifier = Modifier.padding(start = 6.dp),
+            )
+        }
         if (selected != -1) {
             Text(
                 text = "#${selected + 1}",
-                fontStyle = FontStyle.Italic,
                 fontWeight = FontWeight.ExtraBold,
+                style = MaterialTheme.typography.bodyMedium,
             )
         }
         if (downloadableInput != null) {
@@ -210,11 +203,22 @@ fun SubtitleTrackRow(
 }
 
 private fun buildTrackTitle(track: SubtitleTrackInfo): String {
-    return when {
-        track.id == -1 -> track.label
-        track.language.isNullOrBlank() && track.label.isNotBlank() -> "${track.id}. ${track.label}"
-        !track.language.isNullOrBlank() && track.label.isNotBlank() -> "${track.id}. ${track.label} [${track.language}]"
-        !track.language.isNullOrBlank() -> "${track.id}. [${track.language}]"
-        else -> "${track.id}. ${track.label}"
-    }
+    if (track.id == -1) return track.label
+    val rawLanguage = track.language?.trim().orEmpty()
+    val friendlyLanguage = rawLanguage.takeIf { it.isNotBlank() }
+        ?.let { com.kitsugi.animelist.core.player.PlayerSubtitleUtils.getFriendlyLanguageName(it) }
+    val showLanguage = !friendlyLanguage.isNullOrBlank() &&
+        !track.label.contains(rawLanguage, ignoreCase = true) &&
+        !track.label.contains(friendlyLanguage, ignoreCase = true)
+    return buildString {
+        append(track.id)
+        append(". ")
+        if (track.label.isNotBlank()) append(track.label)
+        if (showLanguage) {
+            if (track.label.isNotBlank()) append(' ')
+            append('[')
+            append(friendlyLanguage)
+            append(']')
+        }
+    }.trim()
 }

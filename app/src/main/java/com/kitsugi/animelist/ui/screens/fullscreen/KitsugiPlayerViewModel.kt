@@ -1232,6 +1232,21 @@ class KitsugiPlayerViewModel(application: Application) : AndroidViewModel(applic
         _pos.value = target
 
     }
+    fun adjustVolumeBy(delta: Int) {
+        val systemVolume = audioManager.getStreamVolume(android.media.AudioManager.STREAM_MUSIC)
+        currentVolume.value = systemVolume
+        changeVolumeTo(systemVolume + delta)
+        displayVolumeSlider()
+    }
+
+    /** Klavye için %5'lik adımlarla parlaklık değiştirir ve mevcut OSD'yi gösterir. */
+    fun adjustBrightnessBy(delta: Float) {
+        val current = currentBrightness.value
+        val base = if (current == -2f) getSystemBrightness() else current
+        changeBrightnessTo(base + delta)
+        displayBrightnessSlider()
+    }
+
 
 
 
@@ -4502,7 +4517,9 @@ class KitsugiPlayerViewModel(application: Application) : AndroidViewModel(applic
 
                                         // bu harici altyazılara göre önceliklendirir.
 
-                                        isExternal = true
+                                        isExternal = true,
+                                        // Önbellekteki imza-tabanlı uzantı, addon'un URL tahmininden daha güvenilirdir.
+                                        format = localFile.extension.takeIf { it.isNotBlank() } ?: sub.format
 
                                     )
 

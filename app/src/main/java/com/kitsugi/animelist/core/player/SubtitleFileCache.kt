@@ -30,6 +30,20 @@ object SubtitleFileCache {
         val file = dir.listFiles()?.find { it.name.startsWith(hash) && it.isFile }
         if (file != null) {
             file.setLastModified(System.currentTimeMillis())
+            // Eski sürümler uzantısı olmayan her yanıtı .srt olarak saklıyordu.
+            // Mevcut önbellek girdisini içeriğinden yeniden tanıyıp yanlış format
+            // etiketini ve yanlış Media3 MIME seçimini sessizce düzelt.
+            val detected = runCatching {
+                file.inputStream().use { input ->
+                    TrackFormatUtils.detectSubtitleContentFormat(input.readBytes())
+                }
+            }.getOrNull()
+            if (detected != null && !detected.equals(file.extension, ignoreCase = true)) {
+                val corrected = File(dir, "$hash.$detected")
+                if (corrected.exists() || file.renameTo(corrected)) {
+                    return corrected
+                }
+            }
         }
         return file
     }
@@ -85,7 +99,10 @@ object SubtitleFileCache {
                 }
 
                 val bodyBytes = response.body?.bytes() ?: return@withContext null
-                val ext = guessExtension(url, response.header("Content-Type"))
+                // İçerik imzası > Content-Type > URL uzantısı. Böylece ".php?id=..." gibi
+                // addon bağlantıları da SRT/ASS/VTT/TTML olarak doğru tanımlanır.
+                val ext = TrackFormatUtils.detectSubtitleContentFormat(bodyBytes)
+                    ?: guessExtension(url, response.header("Content-Type"))
                 val hash = cacheKey(url, headers) ?: return@withContext null
                 val tempFile = File(getCacheDir(context), "${hash}_temp.$ext")
                 tempFile.writeBytes(bodyBytes)

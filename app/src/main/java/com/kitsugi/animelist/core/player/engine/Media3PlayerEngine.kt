@@ -799,6 +799,15 @@ class Media3PlayerEngine(
         override fun onTracksChanged(tracks: Tracks) {
 
             // Subtitle track detection
+            fun matchingSubtitleInput(format: androidx.media3.common.Format): SubtitleInput? {
+                val id = format.id?.removePrefix("file://")
+                return preparedSubtitles.firstOrNull { input ->
+                    val inputPath = input.url.removePrefix("file://")
+                    !id.isNullOrBlank() && (id == inputPath || id.endsWith(inputPath) || inputPath.endsWith(id))
+                } ?: preparedSubtitles.filter { input ->
+                    input.name.isNotBlank() && input.name.equals(format.label, ignoreCase = true)
+                }.singleOrNull()
+            }
 
             val textOptions = mutableListOf<TrackOption>()
 
@@ -846,22 +855,23 @@ class Media3PlayerEngine(
 
                     )
 
+                    val matchingInput = matchingSubtitleInput(format)
+                    val isExternal = matchingInput?.isExternal == true ||
+                        (format.id != null && (format.id!!.contains("/cache/") || format.id!!.contains("/subtitles/")))
                     textOptions.add(
-
                         TrackOption(
-
                             group = group,
-
                             groupIndex = groupIndex,
-
                             trackIndex = trackIndex,
-
                             label = trackLabel,
-
-                            isSelected = group.isTrackSelected(trackIndex)
-
+                            isSelected = group.isTrackSelected(trackIndex),
+                            language = format.language,
+                            codec = format.codecs,
+                            mimeType = format.sampleMimeType,
+                            externalUri = matchingInput?.url ?: format.id,
+                            declaredFormat = matchingInput?.format,
+                            isExternal = isExternal,
                         )
-
                     )
 
                 }
@@ -919,31 +929,24 @@ class Media3PlayerEngine(
                     )
 
                     audioOptions.add(
-
                         TrackOption(
-
                             group = group,
-
                             groupIndex = groupIndex,
-
                             trackIndex = trackIndex,
-
                             label = trackLabel,
-
                             isSelected = group.isTrackSelected(trackIndex),
-
+                            language = format.language,
+                            codec = format.codecs,
+                            mimeType = format.sampleMimeType,
+                            externalUri = format.id,
+                            channelCount = format.channelCount.takeIf { it > 0 },
+                            sampleRate = format.sampleRate.takeIf { it > 0 },
                             audioLanguage = format.language,
-
                             audioName = format.label,
-
                             audioCodec = format.sampleMimeType,
-
                             audioBitrate = format.bitrate.takeIf { it > 0 },
-
                             audioMediaUrl = videoUrl
-
                         )
-
                     )
 
                 }
@@ -1070,25 +1073,7 @@ class Media3PlayerEngine(
 
                     // "Türkçe (addon)" adlı harici altyazıyla karıştırılıp harici sayılıyordu.
 
-                    val isExternalTrack: (TrackOption) -> Boolean = { opt ->
-
-                        val format = opt.group.getTrackFormat(opt.trackIndex)
-
-                        val label = format.label ?: ""
-
-                        val id = format.id ?: ""
-
-                        val externals = preparedSubtitles.filter { it.isExternal }
-
-                        externals.any { sub ->
-
-                            (id.isNotBlank() && (id == sub.url || id == "file://${sub.url}")) ||
-
-                                (label.isNotBlank() && sub.name.isNotBlank() && label.equals(sub.name, ignoreCase = true))
-
-                        }
-
-                    }
+                    val isExternalTrack: (TrackOption) -> Boolean = { option -> option.isExternal }
 
 
 
@@ -2055,23 +2040,19 @@ class Media3PlayerEngine(
                 val subConfigs = subtitles.map { sub ->
 
                     val mime = when {
-
+                        sub.format.equals("srt", ignoreCase = true) -> MimeTypes.APPLICATION_SUBRIP
+                        sub.format.equals("vtt", ignoreCase = true) -> MimeTypes.TEXT_VTT
+                        sub.format.equals("ass", ignoreCase = true) || sub.format.equals("ssa", ignoreCase = true) -> MimeTypes.TEXT_SSA
+                        sub.format.equals("ttml", ignoreCase = true) || sub.format.equals("dfxp", ignoreCase = true) -> MimeTypes.APPLICATION_TTML
                         sub.url.startsWith("/") || sub.url.startsWith("file://") -> {
-
                             val path = sub.url.removePrefix("file://")
-
                             guessLocalMimeType(path)
-
                         }
-
                         sub.url.contains(".vtt", ignoreCase = true) -> MimeTypes.TEXT_VTT
-
                         sub.url.contains(".srt", ignoreCase = true) -> MimeTypes.APPLICATION_SUBRIP
-
                         sub.url.contains(".ass", ignoreCase = true) || sub.url.contains(".ssa", ignoreCase = true) -> MimeTypes.TEXT_SSA
-
+                        sub.url.contains(".ttml", ignoreCase = true) || sub.url.contains(".dfxp", ignoreCase = true) -> MimeTypes.APPLICATION_TTML
                         else -> MimeTypes.TEXT_VTT
-
                     }
 
                     // NOT: "file://$sub.url" yanlış interpolasyondu (sub.toString() + ".url").

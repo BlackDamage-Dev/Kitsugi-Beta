@@ -18,5 +18,7 @@ data class MpvTrack(
     val externalFilename: String? = null,
     val title: String? = null,
     val bitrate: Int? = null
-)
-
+) {
+    /** Harici parçanın dosya yolu/URL'si (MPV track-list/external-filename). */
+    val externalFilePath: String? get() = externalFilename
+}
