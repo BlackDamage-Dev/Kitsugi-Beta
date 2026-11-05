@@ -303,7 +303,9 @@ class KitsugiFullscreenPlayerActivity : ComponentActivity() {
             isMovie: Boolean = false,
             cs3Url: String? = null,
             cs3ApiName: String? = null,
-            resumePositionMs: Long = 0L
+            resumePositionMs: Long = 0L,
+            bangumiId: Int? = null,
+            imdbId: String? = null
         ): Boolean {
             tempSubtitles = subtitles
             tempStreamSources = allSources
@@ -326,6 +328,8 @@ class KitsugiFullscreenPlayerActivity : ComponentActivity() {
                         malId?.let { putExtra(EXTRA_MAL_ID, it) }
                         aniListId?.let { putExtra(EXTRA_ANILIST_ID, it) }
                         tmdbId?.let { putExtra(EXTRA_TMDB_ID, it) }
+                        bangumiId?.let { putExtra("subtitle_bangumi_id", it) }
+                        imdbId?.let { putExtra("subtitle_imdb_id", it) }
                         putExtra(EXTRA_SEASON, season)
                         putExtra(EXTRA_EPISODE, episode)
                         putExtra(EXTRA_ANIME_TITLE, animeTitle)
@@ -725,6 +729,8 @@ class KitsugiFullscreenPlayerActivity : ComponentActivity() {
                     malId            = malId,
                     aniListId        = aniListId,
                     tmdbId           = tmdbId,
+                    bangumiId        = intent.getIntExtra("subtitle_bangumi_id", -1).takeIf { it > 0 },
+                    imdbId           = intent.getStringExtra("subtitle_imdb_id"),
                     season           = season,
                     episode          = episode,
                     animeTitle       = animeTitle,

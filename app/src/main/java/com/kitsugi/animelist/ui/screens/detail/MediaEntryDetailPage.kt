@@ -704,6 +704,8 @@ fun MediaEntryDetailPage(
                 aniListId = streamIds.aniListId,
                 tmdbId = streamIds.tmdbId,
                 bangumiId = streamIds.bangumiId,
+                imdbId = detailState?.externalLinks?.firstOrNull { it.url.contains("imdb.com", ignoreCase = true) }
+                    ?.url?.let { Regex("(?i)tt[0-9]{5,12}").find(it)?.value?.lowercase() },
                 posterUrl = displayEntry.imageUrl,
                 titleEnglish = detailState?.titleEnglish,
                 titleRomaji = detailState?.titleRomaji,

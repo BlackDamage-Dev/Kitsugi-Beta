@@ -11,6 +11,9 @@ object OpenSubtitlesHasher {
 
     data class HashResult(val hash: String, val size: Long)
 
+    internal fun validRange(code: Int, contentRange: String?, start: Long, end: Long, size: Long): Boolean =
+        code == 206 && contentRange?.trim()?.equals("bytes $start-$end/$size", ignoreCase = true) == true
+
     fun compute(url: String, headers: Map<String, String>? = null): HashResult? {
         if (!url.startsWith("http://") && !url.startsWith("https://")) {
             return null
@@ -47,11 +50,13 @@ object OpenSubtitlesHasher {
                 .build()
 
             val firstBytes = client.newCall(firstRangeRequest).execute().use { response ->
-                if (!response.isSuccessful) return null
-                response.body?.bytes()
+                if (!validRange(response.code, response.header("Content-Range"), 0, HASH_CHUNK_SIZE.toLong() - 1, size)) return null
+                val body = response.body ?: return null
+                if (body.contentLength() != HASH_CHUNK_SIZE.toLong()) return null
+                body.source().readByteArray(HASH_CHUNK_SIZE.toLong())
             } ?: return null
 
-            if (firstBytes.size < HASH_CHUNK_SIZE) return null
+            if (firstBytes.size != HASH_CHUNK_SIZE) return null
 
             // 3. Fetch last 64KB
             val lastRangeRequest = Request.Builder()
@@ -63,11 +68,13 @@ object OpenSubtitlesHasher {
                 .build()
 
             val lastBytes = client.newCall(lastRangeRequest).execute().use { response ->
-                if (!response.isSuccessful) return null
-                response.body?.bytes()
+                if (!validRange(response.code, response.header("Content-Range"), size - HASH_CHUNK_SIZE, size - 1, size)) return null
+                val body = response.body ?: return null
+                if (body.contentLength() != HASH_CHUNK_SIZE.toLong()) return null
+                body.source().readByteArray(HASH_CHUNK_SIZE.toLong())
             } ?: return null
 
-            if (lastBytes.size < HASH_CHUNK_SIZE) return null
+            if (lastBytes.size != HASH_CHUNK_SIZE) return null
 
             // Calculate checksum
             var head = size

@@ -612,7 +612,7 @@ class AnimeDownloader(private val context: Context) {
                         val cleanedFilename = guessedFilename?.substringBefore("\n")?.substringBefore("\r")?.trim()
                         
                         val subRepo = com.kitsugi.animelist.data.repository.SubtitleRepositoryImpl(context)
-                        val remoteSubs = mutableListOf<com.kitsugi.animelist.core.player.model.Subtitle>()
+                        val remoteSubs = mutableListOf<com.kitsugi.animelist.data.repository.Subtitle>()
                         for (queryId in queryIds) {
                             try {
                                 val subs = subRepo.getSubtitles(

@@ -200,7 +200,9 @@ fun ApiDetailLeftPanel(
                             titleRomaji = detailState?.titleRomaji,
                             titleNative = detailState?.titleNative,
                             synonyms = detailState?.synonyms.orEmpty(),
-                            startYear = displayResult.year
+                            startYear = displayResult.year,
+                            imdbId = detailState?.externalLinks?.firstOrNull { it.url.contains("imdb.com", ignoreCase = true) }
+                                ?.url?.let { Regex("(?i)tt[0-9]{5,12}").find(it)?.value?.lowercase() }
                         )
                     },
                     modifier = Modifier

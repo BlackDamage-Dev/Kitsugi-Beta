@@ -808,7 +808,16 @@ internal fun EntryDetailEpisodesTab(
                         videoUrl = "file://${completedDownload.localPath}",
                         title = context.getString(R.string.completeddownload_animetitle_bolum_completed, completedDownload.animeTitle, completedDownload.episode),
                         headers = emptyMap(),
-                        subtitles = emptyList()
+                        subtitles = emptyList(),
+                        malId = streamIds.malId, aniListId = streamIds.aniListId,
+                        tmdbId = streamIds.tmdbId, bangumiId = streamIds.bangumiId,
+                        imdbId = detailState?.externalLinks?.firstOrNull { it.url.contains("imdb.com", ignoreCase = true) }
+                            ?.url?.let { Regex("(?i)tt[0-9]{5,12}").find(it)?.value?.lowercase() },
+                        season = episode.seasonNumber ?: targetSeason ?: 1, episode = epNum,
+                        animeTitle = entry.title, titleEnglish = detailState?.titleEnglish,
+                        titleRomaji = detailState?.titleRomaji, titleNative = detailState?.titleNative,
+                        synonyms = detailState?.synonyms.orEmpty(), startYear = entry.year,
+                        isMovie = entry.type == com.kitsugi.animelist.model.MediaType.Movie
                     )
                 } else {
                     KitsugiStreamActivity.start(
@@ -827,7 +836,9 @@ internal fun EntryDetailEpisodesTab(
                         titleRomaji = detailState?.titleRomaji,
                         titleNative = detailState?.titleNative,
                         synonyms = detailState?.synonyms.orEmpty(),
-                        startYear = entry.year
+                        startYear = entry.year,
+                        imdbId = detailState?.externalLinks?.firstOrNull { it.url.contains("imdb.com", ignoreCase = true) }
+                            ?.url?.let { Regex("(?i)tt[0-9]{5,12}").find(it)?.value?.lowercase() }
                     )
                 }
             } else {
@@ -854,6 +865,8 @@ internal fun EntryDetailEpisodesTab(
                     titleNative = detailState?.titleNative,
                     synonyms = detailState?.synonyms.orEmpty(),
                     startYear = entry.year,
+                    imdbId = detailState?.externalLinks?.firstOrNull { it.url.contains("imdb.com", ignoreCase = true) }
+                        ?.url?.let { Regex("(?i)tt[0-9]{5,12}").find(it)?.value?.lowercase() },
                     isDownloadMode = true
                 )
             }

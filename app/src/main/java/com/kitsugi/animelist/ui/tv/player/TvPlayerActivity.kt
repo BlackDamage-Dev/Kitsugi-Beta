@@ -63,7 +63,9 @@ class TvPlayerActivity : ComponentActivity() {
             isMovie: Boolean = false,
             startYear: Int? = null,
             description: String? = null,
-            cast: List<MetaCastMember> = emptyList()
+            cast: List<MetaCastMember> = emptyList(),
+            bangumiId: Int? = null,
+            imdbId: String? = null
         ) {
             context.startActivity(
                 Intent(context, TvPlayerActivity::class.java).apply {
@@ -79,6 +81,8 @@ class TvPlayerActivity : ComponentActivity() {
                     malId?.let { putExtra(EXTRA_MAL_ID, it) }
                     aniListId?.let { putExtra(EXTRA_ANILIST_ID, it) }
                     tmdbId?.let { putExtra(EXTRA_TMDB_ID, it) }
+                    bangumiId?.let { putExtra("subtitle_bangumi_id", it) }
+                    imdbId?.let { putExtra("subtitle_imdb_id", it) }
                     putExtra(EXTRA_SEASON, season)
                     putExtra(EXTRA_EPISODE, episode)
                     putExtra(EXTRA_ANIME_TITLE, animeTitle)
@@ -159,6 +163,8 @@ class TvPlayerActivity : ComponentActivity() {
                     malId = malId,
                     aniListId = aniListId,
                     tmdbId = tmdbId,
+                    bangumiId = intent.getIntExtra("subtitle_bangumi_id", -1).takeIf { it > 0 },
+                    imdbId = intent.getStringExtra("subtitle_imdb_id"),
                     season = season,
                     episode = episode,
                     animeTitle = animeTitle,

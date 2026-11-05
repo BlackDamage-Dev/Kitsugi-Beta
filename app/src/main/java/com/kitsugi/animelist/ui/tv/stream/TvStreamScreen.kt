@@ -169,7 +169,7 @@ fun TvStreamScreen(
         )
     }
 
-    val launchPlayer = remember(context, allStreams, streamPrefs, onLaunchExternalPlayer) {
+    val launchPlayer = remember(context, allStreams, streamPrefs, onLaunchExternalPlayer, imdbId) {
         { source: StreamSource, resolvedUrl: String, engine: String ->
             val streamKey = (source.infoHash ?: resolvedUrl).hashCode().toString()
             val resumePositionMs = streamPrefs.getLong("pos_$streamKey", 0L)
@@ -200,6 +200,8 @@ fun TvStreamScreen(
                     malId = args.malId,
                     aniListId = args.aniListId,
                     tmdbId = args.tmdbId,
+                    bangumiId = args.bangumiId,
+                    imdbId = imdbId,
                     season = args.season,
                     episode = args.episode,
                     animeTitle = args.title,

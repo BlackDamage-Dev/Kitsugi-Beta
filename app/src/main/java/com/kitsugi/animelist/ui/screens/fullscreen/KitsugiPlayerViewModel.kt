@@ -1586,6 +1586,10 @@ class KitsugiPlayerViewModel(application: Application) : AndroidViewModel(applic
 
     private var tmdbId: Int? = null
 
+    private var bangumiId: Int? = null
+
+    private var knownImdbId: String? = null
+
     private var seasonNum: Int = 1
 
     private var animeTitle: String = ""
@@ -1664,11 +1668,15 @@ class KitsugiPlayerViewModel(application: Application) : AndroidViewModel(applic
 
         cs3ApiName: String? = null,
 
-        synonyms: List<String> = emptyList()
+        synonyms: List<String> = emptyList(),
+
+        bangumiId: Int? = null,
+
+        imdbId: String? = null
 
     ) {
 
-        val initKey = "${videoId ?: ""}_${videoUrl ?: ""}_${episode}_${aniListId ?: 0}_${malId ?: 0}_${tmdbId ?: 0}_${isMovie}_${synonyms.hashCode()}"
+        val initKey = "${videoId ?: ""}_${videoUrl ?: ""}_${episode}_${aniListId ?: 0}_${malId ?: 0}_${tmdbId ?: 0}_${isMovie}_${synonyms.hashCode()}_${bangumiId}_${imdbId}"
 
         if (_isInitialized.value && lastInitializedKey == initKey) return
 
@@ -1683,6 +1691,10 @@ class KitsugiPlayerViewModel(application: Application) : AndroidViewModel(applic
         this.aniListId = aniListId
 
         this.tmdbId = tmdbId
+
+        this.bangumiId = bangumiId
+
+        this.knownImdbId = imdbId?.trim()?.takeIf { Regex("tt[0-9]{5,12}").matches(it) }
 
         this.seasonNum = season
 
@@ -4122,6 +4134,8 @@ class KitsugiPlayerViewModel(application: Application) : AndroidViewModel(applic
 
 
 
+    private var subtitleSearchJob: kotlinx.coroutines.Job? = null
+
     fun fetchAutoSubtitles() {
 
         val currentMalId = malId
@@ -4134,248 +4148,124 @@ class KitsugiPlayerViewModel(application: Application) : AndroidViewModel(applic
 
         val isMovieType = _isMovie.value || (currentS == 0 && currentEp <= 1)
 
-
-
-        viewModelScope.launch {
-
+        subtitleSearchJob?.cancel()
+        subtitleSearchJob = viewModelScope.launch {
             _subtitleSearchStatus.value = SubtitleSearchStatus.LOADING
-
             try {
-
-                var resolvedIds = com.kitsugi.animelist.data.remote.KitsugiIdResolver.resolveIds(currentMalId, currentAniList, tmdbId)
-
-                var imdbId = resolvedIds.imdbId
-
-                var kitsuId = resolvedIds.kitsuId
-
-
-
-                var resolvedMovieType = isMovieType
-
-                if (imdbId.isNullOrBlank() && kitsuId == null && animeTitle.isNotBlank()) {
-
-                    Log.d("KitsugiPlayerViewModel", "Subtitle resolution fallback: Searching TMDB for title '$animeTitle'")
-
-                    val tmdbSearchClient = com.kitsugi.animelist.data.remote.TmdbApiClient()
-
-                    val searchResults = tmdbSearchClient.search(animeTitle)
-
-                    val bestMatch = searchResults.firstOrNull { result ->
-
-                        if (isMovieType) result.type == com.kitsugi.animelist.model.MediaType.Movie
-
-                        else result.type == com.kitsugi.animelist.model.MediaType.TvShow
-
-                    } ?: searchResults.firstOrNull()
-
-
-
-                    if (bestMatch != null) {
-
-                        resolvedMovieType = bestMatch.type == com.kitsugi.animelist.model.MediaType.Movie
-
-                        Log.d("KitsugiPlayerViewModel", "Fallback found match on TMDB: id=${bestMatch.tmdbId}, type=${bestMatch.type}, title=${bestMatch.title}")
-
-                        val fallbackResolved = com.kitsugi.animelist.data.remote.KitsugiIdResolver.resolveIds(
-
-                            malId = null,
-
-                            aniListId = null,
-
-                            tmdbId = bestMatch.tmdbId,
-
-                            mediaType = bestMatch.type
-
-                        )
-
-                        if (!fallbackResolved.imdbId.isNullOrBlank()) {
-
-                            imdbId = fallbackResolved.imdbId
-
-                            Log.d("KitsugiPlayerViewModel", "Fallback successfully resolved IMDb ID: $imdbId")
-
+                // Stable IDs used by cards are not necessarily MAL IDs. Decode the
+                // same namespaces as the stream search before resolving subtitles.
+                val ids = com.kitsugi.animelist.data.repository.subtitleResolverIds(currentMalId, currentAniList)
+                val resolvedIds = try {
+                    com.kitsugi.animelist.data.remote.KitsugiIdResolver.resolveIds(
+                        malId = ids.malId, aniListId = ids.aniListId, tmdbId = tmdbId,
+                        kitsuId = ids.kitsuId, bangumiId = bangumiId,
+                        mediaType = when {
+                            isMovieType -> com.kitsugi.animelist.model.MediaType.Movie
+                            ids.malId != null || ids.aniListId != null || ids.kitsuId != null || bangumiId != null -> com.kitsugi.animelist.model.MediaType.Anime
+                            else -> com.kitsugi.animelist.model.MediaType.TvShow
+                        },
+                        wikidataImdbFallback = true
+                    )
+                } catch (cancel: kotlinx.coroutines.CancellationException) {
+                    throw cancel
+                } catch (e: Exception) {
+                    Log.w("KitsugiPlayerViewModel", "Subtitle ID resolution failed; searching known IDs and titles", e)
+                    com.kitsugi.animelist.data.remote.ResolvedIds()
+                }
+                var imdbId = knownImdbId ?: resolvedIds.imdbId
+                var kitsuId = resolvedIds.kitsuId ?: ids.kitsuId
+                val resolvedMovieType = isMovieType
+                val titles = listOfNotNull(animeTitle, titleEnglish, titleRomaji, titleNative) + synonyms
+                // A title-only route has no cross IDs. Accept a TMDB fallback only
+                // for an exact normalized title and compatible type/year; never
+                // silently use the first unrelated search result.
+                if (imdbId == null && kitsuId == null && titles.any { it.isNotBlank() }) {
+                    try {
+                        val normalize = com.kitsugi.animelist.data.cloudstream.CsTitleMatcher::normalizeTitleForMatch
+                        val names = titles.map(normalize).filter { it.isNotBlank() }.toSet()
+                        val expectedType = if (isMovieType) com.kitsugi.animelist.model.MediaType.Movie else com.kitsugi.animelist.model.MediaType.TvShow
+                        val match = com.kitsugi.animelist.data.remote.TmdbApiClient().search(animeTitle).firstOrNull {
+                            it.type == expectedType && normalize(it.title) in names &&
+                                (startYear == null || it.year == null || kotlin.math.abs(it.year - startYear!!) <= 1)
                         }
-
-                        if (fallbackResolved.kitsuId != null) {
-
-                            kitsuId = fallbackResolved.kitsuId
-
+                        if (match?.tmdbId != null) {
+                            val fallback = com.kitsugi.animelist.data.remote.KitsugiIdResolver.resolveIds(
+                                malId = null, aniListId = null, tmdbId = match.tmdbId,
+                                mediaType = expectedType, wikidataImdbFallback = true
+                            )
+                            imdbId = fallback.imdbId
+                            kitsuId = fallback.kitsuId
                         }
-
+                    } catch (cancel: kotlinx.coroutines.CancellationException) {
+                        throw cancel
+                    } catch (e: Exception) {
+                        Log.w("KitsugiPlayerViewModel", "Subtitle title lookup failed; using title queries", e)
                     }
-
                 }
-
-
-
-                data class SubtitleQuery(val type: String, val id: String)
-
-                val queries = mutableListOf<SubtitleQuery>()
-
-
-
-                // 1. IMDB ID varsa ekle (en yaygın format, çoğu addon destekler)
-
-                if (!imdbId.isNullOrBlank()) {
-
-                    if (resolvedMovieType) {
-
-                        queries.add(SubtitleQuery("movie", imdbId))
-
-                    } else {
-
-                        queries.add(SubtitleQuery("series", "$imdbId:$currentS:$currentEp"))
-
-                        queries.add(SubtitleQuery("movie", imdbId))
-
-                    }
-
-                }
-
-                // 2. Kitsu ID varsa ekle (anime-specific eklentiler için)
-
-                if (kitsuId != null) {
-
-                    if (resolvedMovieType) {
-
-                        queries.add(SubtitleQuery("movie", "kitsu:$kitsuId"))
-
-                    } else {
-
-                        queries.add(SubtitleQuery("series", "kitsu:$kitsuId:$currentEp"))
-
-                        queries.add(SubtitleQuery("movie", "kitsu:$kitsuId"))
-
-                    }
-
-                }
-
-                // 3. Anime başlığı ile PARALEL arama — her zaman eklenir.
-
-                // Bazı altyazı eklentileri (türkçealtyazi.org gibi) isim aramasını da
-
-                // destekleyebilir. ID'ler varsa ekstra coverage sağlar, yoksa tek seçenektir.
-
-                // 0 maliyetle çalışır çünkü diğer sorgularla zaten paralel atılıyor.
-
-                val titleQuery = animeTitle.trim().takeIf { it.isNotBlank() }
-
-                if (titleQuery != null) {
-
-                    if (resolvedMovieType) {
-
-                        queries.add(SubtitleQuery("movie", titleQuery))
-
-                    } else {
-
-                        queries.add(SubtitleQuery("series", "$titleQuery:$currentS:$currentEp"))
-
-                        queries.add(SubtitleQuery("movie", titleQuery))
-
-                    }
-
-                }
-
-
+                val queries = com.kitsugi.animelist.data.repository.buildSubtitleQueries(
+                    imdbId, kitsuId, titles, resolvedMovieType, currentS, currentEp
+                )
 
                 if (queries.isEmpty()) {
-
                     Log.w("KitsugiPlayerViewModel", "Altyazı atlandı: ID ve başlık çözümlenemedi (malId=$currentMalId, aniListId=$currentAniList).")
-
+                    _subtitleSearchStatus.value = SubtitleSearchStatus.EMPTY
                     return@launch
-
                 }
-
-
 
                 val selectedSource = _currentStreamSources.value.getOrNull(_currentSourceIndex.value)
-
                 val guessedFilename = selectedSource?.title?.takeIf { it.isNotBlank() }
-
                     ?: _currentVideoUrl.value?.let { url ->
-
                         try {
-
                             val lastSeg = android.net.Uri.parse(url).lastPathSegment
-
                             if (!lastSeg.isNullOrBlank() && lastSeg.contains(".")) lastSeg else null
-
                         } catch (_: Exception) { null }
-
                     }
-
                 val cleanedFilename = guessedFilename?.substringBefore("\n")?.substringBefore("\r")?.trim()
-
                 val mediaTitle = animeTitle.trim()
-
                 val isTitleInFilename = !cleanedFilename.isNullOrBlank() && mediaTitle.isNotBlank() && cleanedFilename.lowercase().contains(mediaTitle.lowercase())
-
                 val finalFilename = if (isTitleInFilename) {
-
                     cleanedFilename
-
                 } else if (mediaTitle.isNotBlank()) {
-
                     val suffix = if (resolvedMovieType) "" else " - S${currentS.toString().padStart(2, '0')}E${currentEp.toString().padStart(2, '0')}"
-
                     "$mediaTitle$suffix.mkv"
-
                 } else {
-
                     cleanedFilename
-
                 }
-
-
 
                 Log.d("KitsugiPlayerViewModel", "Fetching subtitles for queries: $queries, filename=$finalFilename (original=$cleanedFilename)")
 
-
-
                 val subRepo = com.kitsugi.animelist.data.repository.SubtitleRepositoryImpl(context)
-
                 // Tüm query'ler için paralel sorgu — IMDB + kitsu + title hepsi aynı anda
-
                 val remoteSubs = kotlinx.coroutines.coroutineScope {
-
+                    val videoUrl = _currentVideoUrl.value
+                    val videoHeaders = _currentHeaders.value
+                    val hash = async(kotlinx.coroutines.Dispatchers.IO) {
+                        videoUrl?.let { com.kitsugi.animelist.core.player.OpenSubtitlesHasher.compute(it, videoHeaders) }
+                    }
                     queries.map { query ->
-
                         async(kotlinx.coroutines.Dispatchers.IO) {
-
                             try {
-
                                 subRepo.getSubtitles(
-
                                     type = query.type,
-
                                     id = query.id,
-
                                     videoUrl = _currentVideoUrl.value,
-
                                     videoHeaders = _currentHeaders.value,
-
                                     filename = finalFilename,
-
-                                    aniListId = currentAniList,
-
-                                    animeTitle = animeTitle,
-
-                                    episode = currentEp
-
+                                    aniListId = resolvedIds.aniListId ?: ids.aniListId,
+                                    animeTitle = query.title ?: animeTitle,
+                                    episode = if (resolvedMovieType) null else currentEp,
+                                    season = if (resolvedMovieType) null else currentS,
+                                    precomputedHash = hash.await(),
+                                    hashAlreadyComputed = true
                                 )
-
+                            } catch (cancel: kotlinx.coroutines.CancellationException) {
+                                throw cancel
                             } catch (e: Exception) {
-
                                 Log.e("KitsugiPlayerViewModel", "Failed to fetch subtitles for queryId=${query.id} type=${query.type}", e)
-
                                 emptyList()
-
                             }
-
                         }
-
                     }.awaitAll().flatten().distinctBy { it.url }
-
                 }.toMutableList()
 
 

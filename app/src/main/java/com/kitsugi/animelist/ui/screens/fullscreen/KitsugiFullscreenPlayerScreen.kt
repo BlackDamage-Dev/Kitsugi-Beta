@@ -133,6 +133,8 @@ fun KitsugiFullscreenPlayerScreen(
     malId: Int? = null,
     aniListId: Int? = null,
     tmdbId: Int? = null,
+    bangumiId: Int? = null,
+    imdbId: String? = null,
     season: Int = 1,
     episode: Int = 1,
     animeTitle: String = "",
@@ -279,7 +281,7 @@ fun KitsugiFullscreenPlayerScreen(
         }
     }
 
-    LaunchedEffect(videoId, videoUrl, audioUrl, title, initialIndex, episode, tmdbId, isMovie, synonyms) {
+    LaunchedEffect(videoId, videoUrl, audioUrl, title, initialIndex, episode, tmdbId, isMovie, synonyms, bangumiId, imdbId) {
         viewModel.initialize(
             videoId = videoId,
             videoUrl = videoUrl,
@@ -292,6 +294,8 @@ fun KitsugiFullscreenPlayerScreen(
             malId = malId,
             aniListId = aniListId,
             tmdbId = tmdbId,
+            bangumiId = bangumiId,
+            imdbId = imdbId,
             season = season,
             episode = episode,
             animeTitle = animeTitle,

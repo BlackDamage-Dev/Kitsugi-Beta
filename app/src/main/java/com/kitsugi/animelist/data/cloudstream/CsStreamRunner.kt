@@ -9122,7 +9122,7 @@ object CsStreamRunner {
 
                             } else {
 
-                                CsPluginStatusTracker.recordFailure(providerName, t)
+                                CsPluginStatusTracker.recordSearchFailure(providerName, t)
 
                                 Log.w(TAG, "[$providerName] search(query, 1) hata verdi: ${t.message}")
 
@@ -9166,7 +9166,7 @@ object CsStreamRunner {
 
                             } else {
 
-                                CsPluginStatusTracker.recordFailure(providerName, t)
+                                CsPluginStatusTracker.recordSearchFailure(providerName, t)
 
                                 Log.w(TAG, "[$providerName] search(query) hata verdi: ${t.message}")
 
@@ -9210,7 +9210,7 @@ object CsStreamRunner {
 
                             } else {
 
-                                CsPluginStatusTracker.recordFailure(providerName, t)
+                                CsPluginStatusTracker.recordSearchFailure(providerName, t)
 
                                 Log.w(TAG, "[$providerName] quickSearch(query) hata verdi: ${t.message}")
 
@@ -9244,7 +9244,7 @@ object CsStreamRunner {
 
                             val isNotImpl = t is kotlin.NotImplementedError || t.message?.contains("NotImplementedError", ignoreCase = true) == true
 
-                            if (!isNotImpl) CsPluginStatusTracker.recordFailure(providerName, t)
+                            if (!isNotImpl) CsPluginStatusTracker.recordSearchFailure(providerName, t)
 
                             try {
 
@@ -9258,7 +9258,7 @@ object CsStreamRunner {
 
                                 val isNotImpl2 = t2 is kotlin.NotImplementedError || t2.message?.contains("NotImplementedError", ignoreCase = true) == true
 
-                                if (!isNotImpl2) CsPluginStatusTracker.recordFailure(providerName, t2)
+                                if (!isNotImpl2) CsPluginStatusTracker.recordSearchFailure(providerName, t2)
 
                                 try {
 
@@ -9272,7 +9272,7 @@ object CsStreamRunner {
 
                                     val isNotImpl3 = t3 is kotlin.NotImplementedError || t3.message?.contains("NotImplementedError", ignoreCase = true) == true
 
-                                    if (!isNotImpl3) CsPluginStatusTracker.recordFailure(providerName, t3)
+                                    if (!isNotImpl3) CsPluginStatusTracker.recordSearchFailure(providerName, t3)
 
                                     throw t3
 
@@ -9382,7 +9382,7 @@ object CsStreamRunner {
 
                 val errMsg = if (resource is Resource.Failure) resource.errorString else (e.message ?: e.javaClass.simpleName)
 
-                CsPluginStatusTracker.recordFailure(api.name, e)
+                CsPluginStatusTracker.recordSearchFailure(api.name, e)
 
                 Log.e(TAG, "[${api.name}] search('$query') HATA: ${e.javaClass.simpleName}: $errMsg")
 

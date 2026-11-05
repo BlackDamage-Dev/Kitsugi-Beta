@@ -113,7 +113,7 @@ object SubtitleFileCache {
         val trimmed = url.trim()
         return when {
             trimmed.startsWith("file://", ignoreCase = true) -> {
-                val path = trimmed.substring("file://".length)
+                val path = android.net.Uri.parse(trimmed).path ?: trimmed.substring("file://".length)
                 if (path.isBlank()) null else File(path)
             }
             trimmed.startsWith("file:/", ignoreCase = true) ->

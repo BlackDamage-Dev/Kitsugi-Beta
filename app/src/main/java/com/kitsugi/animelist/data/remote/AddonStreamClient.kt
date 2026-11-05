@@ -226,7 +226,8 @@ class AddonStreamClient {
         extraParams: Map<String, String>? = null,
         aniListId: Int? = null,
         animeTitle: String? = null,
-        episode: Int? = null
+        episode: Int? = null,
+        season: Int? = null
     ): List<SubtitleResponseItem> = withContext(Dispatchers.IO) {
         if (manifestUrl.contains("anisub.co")) {
             // AniSub paket mantığı (bölüm seçimi / ZIP+RAR açma) standart Stremio

@@ -819,6 +819,8 @@ fun ApiResultDetailPage(
             aniListId = streamIds.aniListId,
             tmdbId = streamIds.tmdbId,
             bangumiId = streamIds.bangumiId,
+            imdbId = detailState?.externalLinks?.firstOrNull { it.url.contains("imdb.com", ignoreCase = true) }
+                ?.url?.let { Regex("(?i)tt[0-9]{5,12}").find(it)?.value?.lowercase() },
             mediaType = displayResult.type,
             posterUrl = displayResult.imageUrl,
             titleEnglish = displayResult.titleEnglish,
@@ -1269,6 +1271,8 @@ private fun ApiEpisodesTabSlot(
         displayTitleRomaji = detailState?.titleRomaji ?: displayResult.title,
         displayTitleNative = detailState?.titleNative ?: detailState?.titleJapanese ?: displayResult.titleJapanese,
         displaySynonyms = detailState?.synonyms.orEmpty(),
+        imdbId = detailState?.externalLinks?.firstOrNull { it.url.contains("imdb.com", ignoreCase = true) }
+            ?.url?.let { Regex("(?i)tt[0-9]{5,12}").find(it)?.value?.lowercase() },
         displayYear = displayResult.year,
         isMovie = displayResult.type == MediaType.Movie,
         isAdult = displayResult.isAdult,

@@ -204,6 +204,7 @@ internal fun ApiDetailEpisodesTab(
     displayTitleRomaji: String?,
     displayTitleNative: String?,
     displaySynonyms: List<String> = emptyList(),
+    imdbId: String? = null,
     displayYear: Int?,
     isMovie: Boolean = false,
     isAdult: Boolean = false,
@@ -242,7 +243,13 @@ internal fun ApiDetailEpisodesTab(
                         videoUrl = "file://${completedDownload.localPath}",
                         title = context.getString(R.string.completeddownload_animetitle_bolum_completed, completedDownload.animeTitle, completedDownload.episode),
                         headers = emptyMap(),
-                        subtitles = emptyList()
+                        subtitles = emptyList(),
+                        malId = streamIds.malId, aniListId = streamIds.aniListId,
+                        tmdbId = streamIds.tmdbId, bangumiId = streamIds.bangumiId, imdbId = imdbId,
+                        season = episode.seasonNumber ?: targetSeason ?: 1, episode = epNum,
+                        animeTitle = displayTitle, titleEnglish = displayTitleEnglish,
+                        titleRomaji = displayTitleRomaji, titleNative = displayTitleNative,
+                        synonyms = displaySynonyms, startYear = displayYear, isMovie = isMovie
                     )
                 } else {
                     KitsugiStreamActivity.start(
@@ -251,6 +258,7 @@ internal fun ApiDetailEpisodesTab(
                         aniListId = streamAniListId,
                         tmdbId = streamIds.tmdbId,
                         bangumiId = streamIds.bangumiId,
+                        imdbId = imdbId,
                         mediaType = mediaType,
                         episode = epNum,
                         season = targetSeason ?: 1,
@@ -277,6 +285,7 @@ internal fun ApiDetailEpisodesTab(
                     aniListId = streamAniListId,
                     tmdbId = streamIds.tmdbId,
                     bangumiId = streamIds.bangumiId,
+                    imdbId = imdbId,
                     mediaType = mediaType,
                     episode = epNum,
                     season = targetSeason ?: 1,

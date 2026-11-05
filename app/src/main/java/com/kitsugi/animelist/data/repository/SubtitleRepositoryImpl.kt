@@ -3,7 +3,6 @@ package com.kitsugi.animelist.data.repository
 import android.content.Context
 import android.util.Log
 import com.kitsugi.animelist.core.player.OpenSubtitlesHasher
-import com.kitsugi.animelist.core.player.model.Subtitle
 import com.kitsugi.animelist.data.local.KitsugiDatabase
 import com.kitsugi.animelist.data.local.ManagedAddonEntity
 import com.kitsugi.animelist.data.remote.AddonStreamClient
@@ -13,45 +12,45 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONArray
+import java.util.concurrent.ConcurrentHashMap
+
+data class Subtitle(
+    val id: String,
+    val url: String,
+    val lang: String,
+    val addonName: String,
+    val addonLogo: String? = null,
+    val format: String = "srt" // "ass", "srt", "vtt"
+)
 
 /**
- * S01 – SubtitleRepositoryImpl
- *
- * NuvioTV SubtitleRepositoryImpl.kt mantığı referans alınarak yeniden yazıldı.
- * Enabled subtitle addon'larını paralel olarak sorgular.
- *
- * Düzeltmeler (NuvioTV karşılaştırması):
- * 1. idPrefixes filtreleme: Addon yalnızca belirli ID prefix'lerini destekliyorsa
- *    (örn: OpenSubtitles → "tt"), queryId ile eşleştir.
- * 2. subtitleTypes tip kontrolü: Addon hangi içerik tipini (movie/series) destekliyorsa ona sor.
- * 3. Detaylı logging: Hangi addon'dan kaç altyazı geldi, hangi URL'e istek gitti.
+ * SubtitleRepository — Stremio /v11/ altyazı eklentilerinden altyazı çeker.
+ * NuvioTV referans mimarisine uygun olarak:
+ *  1. Aktif eklentileri çeker (addon.subtitleTypes != null veya altyazı eklentisi adını taşıyanlar).
+ *  2. Tüm eklentileri PARALEL sorgular (async/awaitAll).
+ *  3. OpenSubtitles için video hash'ini arka planda paralel hesaplar.
+ *  4. Sonuçları URL'e göre tekilleştirir (deduplicate).
  */
 class SubtitleRepositoryImpl(private val context: Context) {
 
+    private val addonDao = KitsugiDatabase.getDatabase(context).managedAddonDao()
+    private val addonClient = AddonStreamClient()
+
     companion object {
         private const val TAG = "SubtitleRepository"
-        private const val PER_ADDON_TIMEOUT_MS = 20_000L
+        private const val PER_ADDON_TIMEOUT_MS = 6000L
 
-        data class CircuitBreakerState(
+        // Circuit breaker: manifestUrl -> Hata sayısı ve son hata zamanı
+        private val circuitBreakers = ConcurrentHashMap<String, CircuitBreakerState>()
+
+        private data class CircuitBreakerState(
             var failureCount: Int = 0,
             var lastFailureTimeMs: Long = 0L
         )
-
-        private val circuitBreakers = java.util.concurrent.ConcurrentHashMap<String, CircuitBreakerState>()
     }
 
-    private val database = KitsugiDatabase.getDatabase(context.applicationContext)
-    private val addonDao = database.managedAddonDao()
-    private val addonClient = AddonStreamClient()
-
     /**
-     * Tüm aktif altyazı addon'larından paralel olarak altyazı listesi çeker.
-     *
-     * @param type        İçerik tipi: "series" veya "movie"
-     * @param id          Stremio ID (örn: "tt1234567:1:5" veya "kitsu:12345:5")
-     * @param videoUrl    Video URL'si (OpenSubtitles hash hesabı için; null ise hash atlanır)
-     * @param videoHeaders Video HTTP header'ları (hash isteği için)
-     * @param filename    Dosya adı (addon'lara ipucu olarak verilir)
+     * Verilen içerik için tüm aktif altyazı eklentilerini paralel sorgular.
      */
     suspend fun getSubtitles(
         type: String,
@@ -61,7 +60,10 @@ class SubtitleRepositoryImpl(private val context: Context) {
         filename: String? = null,
         aniListId: Int? = null,
         animeTitle: String? = null,
-        episode: Int? = null
+        episode: Int? = null,
+        season: Int? = null,
+        precomputedHash: OpenSubtitlesHasher.HashResult? = null,
+        hashAlreadyComputed: Boolean = false
     ): List<Subtitle> = coroutineScope {
 
         val normalizedType = if (type.equals("tv", ignoreCase = true)) "series" else type.lowercase()
@@ -70,19 +72,12 @@ class SubtitleRepositoryImpl(private val context: Context) {
         val allAddons = addonDao.getEnabledAddons()
         val subtitleAddons = allAddons.filter { addon ->
             // subtitleTypes kontrolü:
-            // null = "bilinmiyor" (eski DB kaydı veya manifest parse edilemedi)
-            //   → Addon adı/URL'si altyazı ile ilgiliyse dahil et, aksi halde DENE (atma)
-            // Not-null = manifest'ten kesin olarak parse edildi
             if (addon.subtitleTypes != null) {
-                // subtitleTypes tip kontrolü: "movie,series" içinde requestedType var mı?
-                val supportedTypes = addon.subtitleTypes.split(",").map { it.trim().lowercase() }
-                if (supportedTypes.isNotEmpty() && normalizedType !in supportedTypes) {
+                if (StremioSubtitleRouting.requestType(addon.subtitleTypes, normalizedType) == null) {
                     Log.d(TAG, "Addon '${addon.name}' atlandı: type=$normalizedType desteklenmiyor (desteklenenler: ${addon.subtitleTypes})")
                     return@filter false
                 }
             } else {
-                // subtitleTypes = null → Stream addon'u veya bilinmeyen. İsim/URL kontrolü yap:
-                // Eğer kesinlikle stream-only addon ise (stream türü var ama altyazı ilgisi yok), atla
                 val looksLikeSubtitleAddon = looksLikeSubtitleAddon(addon)
                 if (!looksLikeSubtitleAddon && addon.streamTypes != null) {
                     Log.d(TAG, "Addon '${addon.name}' atlandı: subtitleTypes=null ve stream-only addon gibi görünüyor")
@@ -90,13 +85,6 @@ class SubtitleRepositoryImpl(private val context: Context) {
                 }
                 Log.d(TAG, "Addon '${addon.name}' dahil edildi: subtitleTypes=null ama altyazı addon'u olabilir")
             }
-
-            // NOT: idPrefixes filtresi altyazı addon'ları için UYGULANMIYOR.
-            // NuvioTV kaynak kodu incelemesinde görüldüğü üzere, altyazı eklentileri
-            // top-level idPrefixes=["tt"] tanımlayabilir ama bu yalnızca stream resource içindir.
-            // Subtitle resource'unun kendi idPrefixes'i yoksa tüm ID'lerle denenmelidir.
-            // (örn: türkçealtyazi.org, YTS Subtitle eklentileri "tt" prefix tanımlıyor
-            //  ama bu kitsu:/anilist: ID'leriyle de sorgulanabilmeleri için engel değil)
             true
         }
 
@@ -109,6 +97,7 @@ class SubtitleRepositoryImpl(private val context: Context) {
 
         // 2. OpenSubtitles hash hesapla (arka planda, addon fetch'iyle eş zamanlı)
         val hashJob = async(Dispatchers.IO) {
+            if (hashAlreadyComputed) return@async precomputedHash
             if (videoUrl.isNullOrBlank()) return@async null
             try {
                 val result = OpenSubtitlesHasher.compute(videoUrl, videoHeaders)
@@ -116,6 +105,8 @@ class SubtitleRepositoryImpl(private val context: Context) {
                     Log.d(TAG, "OpenSubtitles hash: hash=${result.hash}, size=${result.size}")
                 }
                 result
+            } catch (cancel: kotlinx.coroutines.CancellationException) {
+                throw cancel
             } catch (e: Exception) {
                 Log.w(TAG, "Hash hesaplanamadı: ${e.message}")
                 null
@@ -151,12 +142,13 @@ class SubtitleRepositoryImpl(private val context: Context) {
                         val items = addonClient.fetchSubtitles(
                             context = context,
                             manifestUrl = addon.manifestUrl,
-                            type = normalizedType,
+                            type = StremioSubtitleRouting.requestType(addon.subtitleTypes, normalizedType) ?: normalizedType,
                             id = id,
                             extraParams = extraParams.ifEmpty { null },
                             aniListId = aniListId,
                             animeTitle = animeTitle,
-                            episode = episode
+                            episode = episode,
+                            season = season
                         )
                         querySuccess = true
                         Log.d(TAG, "Addon '${addon.name}': ${items.size} altyazı döndü")
@@ -169,12 +161,11 @@ class SubtitleRepositoryImpl(private val context: Context) {
                                 lang = lang,
                                 addonName = addon.name,
                                 addonLogo = addon.icon,
-                                // Addon biçimi beyan ettiyse (örn. AniSub'un uzantısız
-                                // URL'leri) tahminden önce o kullanılmalı; aksi halde
-                                // ASS dosyaları SRT sanılıp oyuncuda hiç görünmez.
                                 format = normalizeDeclaredFormat(item.format) ?: guessFormat(url)
                             )
                         }
+                    } catch (cancel: kotlinx.coroutines.CancellationException) {
+                        throw cancel
                     } catch (e: Exception) {
                         errorType = "EXCEPTION: ${e.javaClass.simpleName} - ${e.message}"
                         Log.e(TAG, "Addon '${addon.name}' fetch hatası: $errorType")
@@ -202,11 +193,11 @@ class SubtitleRepositoryImpl(private val context: Context) {
         val allSubtitles = deferredResults.awaitAll().flatten()
         Log.d(TAG, "Toplam ${allSubtitles.size} altyazı bulundu (${subtitleAddons.size} addon sorgulandı)")
 
-        // 4. ID'ye göre dedup
+        // 4. URL'e göre dedup
         val seen = LinkedHashSet<String>()
         val deduped = mutableListOf<Subtitle>()
         for (sub in allSubtitles) {
-            if (seen.add(sub.id)) deduped += sub
+            if (seen.add(sub.url)) deduped += sub
         }
 
         deduped

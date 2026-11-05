@@ -7,8 +7,8 @@ import org.junit.Test
 
 class CsPluginTypeCompatibilityTest {
     @Test
-    fun animeOnlyPluginIsNotUsedForLiveActionTvSeries() {
-        assertFalse(
+    fun animeOnlyPluginIsSearchedForTvCatalogEntries() {
+        assertTrue(
             CsPluginTypeCompatibility.supports(
                 MediaType.TvShow,
                 listOf("Anime", "OVA", "AnimeMovie")
@@ -30,9 +30,9 @@ class CsPluginTypeCompatibilityTest {
     }
 
     @Test
-    fun movieAndAnimeMovieTypesStayDistinctButAnimeMovieSupportsBoth() {
+    fun movieProvidersAreSearchedAcrossVideoTypes() {
         assertTrue(CsPluginTypeCompatibility.supports(MediaType.Movie, listOf("Movie")))
-        assertFalse(CsPluginTypeCompatibility.supports(MediaType.TvShow, listOf("Movie")))
+        assertTrue(CsPluginTypeCompatibility.supports(MediaType.TvShow, listOf("Movie")))
         assertTrue(CsPluginTypeCompatibility.supports(MediaType.Movie, listOf("AnimeMovie")))
         assertTrue(CsPluginTypeCompatibility.supports(MediaType.Anime, listOf("AnimeMovie")))
     }
@@ -59,6 +59,18 @@ class CsPluginTypeCompatibilityTest {
         assertFalse(CsPluginTypeCompatibility.resolveIsMovie(MediaType.Anime, isMovie = false))
         assertTrue(CsPluginTypeCompatibility.resolveIsMovie(MediaType.Movie, isMovie = false))
         assertFalse(CsPluginTypeCompatibility.resolveIsMovie(MediaType.TvShow, isMovie = null))
+    }
+
+    @Test
+    fun videoProvidersRemainEligibleAcrossCatalogClassifications() {
+        val providerTypes = listOf("Anime", "OVA", "TvSeries", "Movie", "AnimeMovie", "Cartoon")
+        for (mediaType in listOf(MediaType.Anime, MediaType.TvShow, MediaType.Movie)) {
+            for (providerType in providerTypes) {
+                assertTrue("$mediaType should search $providerType", CsPluginTypeCompatibility.supports(mediaType, listOf(providerType)))
+            }
+            assertFalse(CsPluginTypeCompatibility.supports(mediaType, listOf("Manga", "Comic")))
+        }
+        assertFalse(CsPluginTypeCompatibility.supports(MediaType.Manga, listOf("Anime")))
     }
 
     @Test
