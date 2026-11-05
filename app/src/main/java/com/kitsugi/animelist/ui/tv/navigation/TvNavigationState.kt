@@ -59,6 +59,8 @@ class TvNavigationState {
     // ── Manga Extension & Source Health navigation ──────────────────────────────
     var isMangaExtensionActive by mutableStateOf(false)
     var isMangaSourceHealthActive by mutableStateOf(false)
+    /** Manga kitaplığı TV ekranı — mobil kitaplıkla aynı veriyi gösterir. */
+    var isMangaLibraryActive by mutableStateOf(false)
 
     // ── TV Companion navigation ────────────────────────────────────────────────
     var isCompanionActive by mutableStateOf(false)
@@ -112,6 +114,10 @@ class TvNavigationState {
         isMangaSourceHealthActive = true
     }
 
+    fun navigateToMangaLibrary() {
+        isMangaLibraryActive = true
+    }
+
     fun navigateToCompanion() {
         isCompanionActive = true
     }
@@ -127,6 +133,10 @@ class TvNavigationState {
         }
         if (isCompanionActive) {
             isCompanionActive = false
+            return true
+        }
+        if (isMangaLibraryActive) {
+            isMangaLibraryActive = false
             return true
         }
         if (isMangaSourceHealthActive) {

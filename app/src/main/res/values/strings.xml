@@ -18730,7 +18730,7 @@ Eklentiler ekranından eklenti etkinleştirin.</string>
     <string name="manga_search_remove">Aramayı sil</string>
     <string name="manga_sort_label">Sırala:</string>
     <string name="manga_sort_relevance">İlgi</string>
-    <string name="manga_sort_title">A-Z</string>
+    <string name="manga_sort_title_az">A-Z</string>
     <string name="manga_search_sources_failed">%1$d kaynak yanıt vermedi</string>
     <string name="manga_empty_add_source">Kaynak ekle</string>
     <string name="manga_chapter_search_hint">Bölüm ara (ör. 42)</string>
@@ -18787,4 +18787,121 @@ Eklentiler ekranından eklenti etkinleştirin.</string>
     <string name="manga_source_rate_limited_desc">Kaynak çok fazla istek yapıldığı için geçici olarak engelledi. Birkaç dakika bekleyin.</string>
     <string name="manga_source_disabled_desc">Bu kaynak devre dışı bırakılmış.</string>
     <string name="manga_source_unknown_desc">Sağlık durumu henüz kontrol edilmedi. Hızlı kontrol yapın.</string>
+
+    <string name="history_clear_all_confirm">Hem izleme hem okuma geçmişin silinecek. Bu işlem geri alınamaz.</string>
+    <string name="history_clear_all_title">Geçmişi temizle</string>
+    <string name="history_clear_read_confirm">Tüm okuma geçmişin silinecek. Bu işlem geri alınamaz.</string>
+    <string name="history_clear_read_title">Okuma geçmişini temizle</string>
+    <string name="history_clear_watched_confirm">Tüm izleme geçmişin silinecek. Bu işlem geri alınamaz.</string>
+    <string name="history_clear_watched_title">İzleme geçmişini temizle</string>
+    <string name="history_empty_body">İzlediğin bölümler ve okuduğun manga bölümleri burada listelenir.</string>
+    <string name="history_empty_read">Henüz okuduğun bir manga bölümü yok.</string>
+    <string name="history_empty_title">Henüz geçmişin yok</string>
+    <string name="history_empty_watched">Henüz izlediğin bir bölüm yok.</string>
+    <string name="history_read_chapter_label">Bölüm: %1$s</string>
+    <string name="history_read_completed">Tamamlandı</string>
+    <string name="history_read_in_progress">Devam ediyor</string>
+    <string name="history_read_progress">%1$d/%2$d sayfa</string>
+    <string name="history_remove_read_entry">Okuma geçmişinden kaldır</string>
+    <string name="history_section_read">Okunan</string>
+    <string name="history_section_watched">İzlenen</string>
+    <string name="history_tab_all">Tümü</string>
+    <string name="history_tab_read">Okunan</string>
+    <string name="history_tab_watched">İzlenen</string>
+    <string name="history_title">Geçmiş</string>
+    <string name="manga_clear_filters">Filtreleri temizle</string>
+    <string name="manga_filter_all">Tümü</string>
+    <string name="manga_filter_unread">Okunmamış</string>
+    <string name="manga_keep_screen_on_off">Ekran açık tutma: Kapalı</string>
+    <string name="manga_keep_screen_on_on">Ekran açık tutma: Açık</string>
+    <string name="manga_no_chapters_found">Bu manga için bölüm bulunamadı.</string>
+    <string name="manga_no_matching_chapters">Bu filtrelere uyan bölüm yok.</string>
+    <string name="manga_page_of_total">Sayfa %1$d/%2$d</string>
+    <string name="manga_read_filter">Okunanları filtrele</string>
+    <string name="manga_read_from_start">Baştan Oku</string>
+    <string name="manga_reader_gallery_hint">Bir sayfaya dokunarak o sayfaya atla</string>
+    <string name="manga_reader_gallery_title">Sayfa galerisi</string>
+    <string name="manga_reader_open_gallery">Sayfa galerisini aç</string>
+    <string name="manga_reader_prev_chapter">Önceki bölüm</string>
+    <string name="manga_retry">Tekrar Dene</string>
+    <string name="manga_sort_chapters">Bölümleri sırala</string>
+    <string name="settings_manga_keep_screen_on">Okuma sırasında ekranı açık tut</string>
+    <string name="settings_manga_keep_screen_on_desc">Bölüm okurken ekranın kendiliğinden kapanmasını engeller</string>
+
+    <!-- ── Bölüm sıralaması (1 → N varsayılan) + Mihon tarzı bölüm araçları ── -->
+    <string name="manga_sort_title">Bölüm sıralaması</string>
+    <string name="manga_sort_title_desc">Bölüm listesinin hangi sırayla gösterileceğini seçer</string>
+    <string name="manga_sort_oldest_first">Eski → Yeni (1 → N)</string>
+    <string name="manga_sort_oldest_first_desc">Bölüm 1 başta, yeni bölümler sonda. Varsayılan.</string>
+    <string name="manga_sort_newest_first">Yeni → Eski (N → 1)</string>
+    <string name="manga_sort_newest_first_desc">En son yüklenen bölüm başta</string>
+    <string name="manga_sort_recently_updated">Son güncellenen</string>
+    <string name="manga_sort_recently_updated_desc">Yükleme tarihine göre, en yeni önce</string>
+    <string name="manga_sort_label_oldest">Sıralama: 1 → N</string>
+    <string name="manga_sort_label_newest">Sıralama: N → 1</string>
+    <string name="manga_sort_label_recent">Sıralama: Son güncellenen</string>
+    <string name="manga_sort_reset">Varsayılana dön</string>
+    <string name="manga_sort_this_series">Yalnızca bu seri için</string>
+    <string name="manga_sort_this_series_desc">Seçili sıralama yalnızca bu mangada geçerli olur, diğerleri etkilenmez</string>
+    <string name="manga_display_title">Bölüm görünümü</string>
+    <string name="manga_display_title_desc">Bölüm satırında numara mı, kaynağın başlığı mı gösterilsin</string>
+    <string name="manga_display_number">Numara (Bölüm 42)</string>
+    <string name="manga_display_title_mode">Başlık (kaynağın verdiği ad)</string>
+    <string name="manga_chapter_number_prefix">Bölüm</string>
+    <string name="manga_bookmark_chapter">Bölümü yer imine ekle</string>
+    <string name="manga_unbookmark_chapter">Yer imini kaldır</string>
+    <string name="manga_filter_bookmarked">Yer imli</string>
+    <string name="manga_bookmarked_count">%1$d yer imli</string>
+    <string name="manga_jump_to_current">Kaldığım yere git</string>
+    <string name="manga_jump_to_first">Bölüm 1\'e git</string>
+    <string name="manga_unread_count">%1$d okunmamış</string>
+    <string name="manga_progress_summary">%1$d/%2$d bölüm okundu</string>
+    <string name="manga_mark_previous_read">Öncekileri okundu işaretle</string>
+    <string name="manga_skip_read_chapters">Okunmuş bölümleri atla</string>
+    <string name="manga_skip_read_chapters_desc">Sıradaki bölüme geçerken zaten okunmuş bölümleri atlar</string>
+    <string name="manga_auto_advance_chapter">Bölüm bitince sonrakine geç</string>
+    <string name="manga_auto_advance_chapter_desc">Son sayfaya gelindiğinde sonraki bölüm otomatik açılır</string>
+    <string name="manga_chapter_start_end">%1$s – %2$s</string>
+    <string name="manga_missing_numbers">Eksik bölüm: %1$s</string>
+    <string name="manga_missing_numbers_desc">Kaynakta bu numaralar yok, liste atlayarak devam ediyor</string>
+    <string name="manga_duplicate_chapters">Yinelenen bölüm: %1$s</string>
+    <string name="manga_duplicate_chapters_desc">Aynı numara birden fazla grupta yayınlanmış</string>
+    <string name="manga_hide_duplicates">Yinelenenleri gizle</string>
+    <string name="manga_sorting_newest_hint">Liste yeni → eski sıralı. Bölüm 1\'e dönmek için sıralamayı değiştir.</string>
+    <string name="manga_restore_default_sort">Varsayılan sıralama (1 → N) geri yüklendi</string>
+
+
+    <string name="manga_download_chapter">Bölümü indir</string>
+    <string name="manga_download_delete">İndirilen dosyayı sil</string>
+    <string name="manga_downloaded_count">%1$d bölüm indirildi</string>
+    <string name="manga_download_all_visible">Görünenleri indir</string>
+    <string name="manga_downloading_progress">İndiriliyor: %1$d%%</string>
+    <string name="manga_download_failed">İndirme başarısız</string>
+    <string name="manga_storage_used">%1$s MB kullanılıyor</string>
+
+
+    <!-- ── Manga kitaplığı ───────────────────────────────────────────────── -->
+    <string name="manga_library_title">Manga Kitaplığım</string>
+    <string name="manga_library_summary">%1$d seri · %2$d bölüm indirildi</string>
+    <string name="manga_library_all">Tümü</string>
+    <string name="manga_library_sort">Kitaplığı sırala</string>
+    <string name="manga_library_sort_recent">Son güncellenen</string>
+    <string name="manga_library_sort_title_asc">A → Z</string>
+    <string name="manga_library_sort_title_desc">Z → A</string>
+    <string name="manga_library_sort_unread">En çok okunmamış</string>
+    <string name="manga_library_sort_last_read">Son okunan</string>
+    <string name="manga_library_empty_title">Kitaplığın boş</string>
+    <string name="manga_library_empty_body">Manga detay sayfasındaki kitaplık düğmesiyle seri ekleyebilirsin.</string>
+    <string name="manga_library_add">Kitaplığa ekle</string>
+    <string name="manga_library_added">Kitaplıkta</string>
+    <string name="manga_library_remove">Kitaplıktan çıkar</string>
+    <string name="manga_library_edit">Kategori ve seçenekler</string>
+    <string name="manga_library_category_hint">Kategori, kitaplık ekranındaki çiplerde görünür</string>
+    <string name="manga_library_category_placeholder">ör. Devam Eden</string>
+    <string name="manga_library_source_missing">Kaynak kaldırılmış</string>
+    <string name="manga_library_open">Kitaplığı aç</string>
+
+    <string name="manga_crop_borders">Kenarları kırp</string>
+    <string name="manga_crop_borders_desc">Taranmış sayfalardaki kenar boşluğunu atar, çizimi büyütür</string>
+
 </resources>

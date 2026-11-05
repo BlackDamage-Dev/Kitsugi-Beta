@@ -301,6 +301,30 @@ data class DownloadAndMangaSettings(
     val mangaColorFilter: String = "Normal",
     val mangaFitMode: String = "FitScreen",
     val mangaBrightness: Float = 1.0f,
+    /** Okurken ekranın kapanmasını engelle (webtoon okurken çok işe yarar). */
+    val mangaKeepScreenOn: Boolean = true,
+    /**
+     * Bölüm listesi sıralaması — `ChapterSortMode` adı.
+     *
+     * Varsayılan `"OldestFirst"`: liste **1'den** başlar ve numara büyüyerek gider.
+     * Kullanıcı isterse "Yeni → Eski" seçebilir; tercih kalıcıdır.
+     */
+    val mangaChapterSort: String = "OldestFirst",
+    /** Bölüm satırı etiket biçimi: `"Number"` (Bölüm 42) veya `"Title"`. */
+    val mangaChapterDisplayMode: String = "Number",
+    /** Bölüm sonuna gelince okunmuş bölümleri atlayıp sonrakine geç. */
+    val mangaSkipReadChapters: Boolean = false,
+    /** Bölüm bitince otomatik olarak sonraki bölüme geç. */
+    val mangaAutoAdvanceChapter: Boolean = false,
+    /** Yer imli (★) bölümlerin URL listesi — virgülle ayrılmış. */
+    val mangaBookmarkedChapters: String = "",
+    /**
+     * Sayfa kenarındaki taranmış boşluğu kırp (Mihon'daki "crop borders").
+     *
+     * Özellikle eski taramalarda kenarlarda 20-40 px siyah/beyaz şerit olur; kırpma
+     * sayfayı ekrana daha büyük sığdırır.
+     */
+    val mangaCropBorders: Boolean = false,
     // ─── Kaynak arama dili ────────────────────────────────────────────────────
     /**
      * Manga/manhwa/manhua kaynaklarında arama hangi adla yapılsın:
@@ -446,6 +470,13 @@ data class AppSettings(
     val mangaColorFilter: String get() = downloads.mangaColorFilter
     val mangaFitMode: String get() = downloads.mangaFitMode
     val mangaBrightness: Float get() = downloads.mangaBrightness
+    val mangaKeepScreenOn: Boolean get() = downloads.mangaKeepScreenOn
+    val mangaChapterSort: String get() = downloads.mangaChapterSort
+    val mangaChapterDisplayMode: String get() = downloads.mangaChapterDisplayMode
+    val mangaSkipReadChapters: Boolean get() = downloads.mangaSkipReadChapters
+    val mangaAutoAdvanceChapter: Boolean get() = downloads.mangaAutoAdvanceChapter
+    val mangaBookmarkedChapters: String get() = downloads.mangaBookmarkedChapters
+    val mangaCropBorders: Boolean get() = downloads.mangaCropBorders
     val mangaSearchTitleLanguage: String get() = downloads.mangaSearchTitleLanguage
     val mangaSearchFollowTitleLanguage: Boolean get() = downloads.mangaSearchFollowTitleLanguage
     val dnsChoice: Int get() = integrations.dnsChoice

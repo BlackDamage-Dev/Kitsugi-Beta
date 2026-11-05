@@ -800,6 +800,7 @@ fun AppRoot(
         when {
             navState.mangaReaderNavState != null          -> navState.mangaReaderNavState = null
             navState.mangaDetailNavState != null          -> navState.mangaDetailNavState = null
+            navState.mangaLibraryOpen                     -> navState.closeMangaLibrary()
             navState.mangaSourceHealthOpen                -> navState.closeMangaSourceHealth()
             navState.mangaBrowseOpen                      -> {
                 mangaBrowseViewModel.reset()
@@ -830,6 +831,7 @@ fun AppRoot(
             navState.mangaDetailNavState != null ||
             navState.mangaReaderNavState != null ||
             navState.mangaSourceHealthOpen ||
+            navState.mangaLibraryOpen ||
             navState.isSettingsSubPageOpen
 
     val configuration = LocalConfiguration.current
@@ -927,10 +929,12 @@ fun AppRoot(
                                    (if (navState.mangaDetailNavState != null) 1 else 0) +
                                    (if (navState.mangaReaderNavState != null) 1 else 0) +
                                    (if (navState.mangaSourceHealthOpen) 1 else 0) +
+                                   (if (navState.mangaLibraryOpen) 1 else 0) +
                                    navState.detailBackStack.size
                 val currentAppStateKey = when {
                     navState.mangaReaderNavState != null  -> AppStateKey.MangaReader(depth = currentDepth)
                     navState.mangaDetailNavState != null  -> AppStateKey.MangaDetail(depth = currentDepth)
+                    navState.mangaLibraryOpen             -> AppStateKey.MangaLibraryState(depth = currentDepth)
                     navState.mangaSourceHealthOpen        -> AppStateKey.MangaSourceHealth(depth = currentDepth)
                     navState.mangaBrowseOpen              -> AppStateKey.MangaBrowse(depth = currentDepth)
                     activeStudio != null         -> AppStateKey.StudioDetail(activeStudio.first, activeStudio.second, depth = currentDepth, name = (activeScreen as? DetailScreen.StudioDetail)?.name, imageUrl = (activeScreen as? DetailScreen.StudioDetail)?.imageUrl)
@@ -1237,6 +1241,7 @@ private fun AppNavigationContent(
     getMediaEntry: (JikanSearchResult) -> MediaEntry?,
     bottomBarScrollState: com.kitsugi.animelist.utils.ScrollVisibilityState
 ) {
+    val context = LocalContext.current
 
     AnimatedContent(
         targetState = currentAppStateKey,
@@ -1337,7 +1342,33 @@ private fun AppNavigationContent(
                     triggerSearchByGenre = triggerSearchByGenre,
                     triggerSearchByTag = triggerSearchByTag,
                     triggerDetailSearchFilter = triggerDetailSearchFilter,
-                    onScrollReset = { bottomBarScrollState.show() }
+                    onScrollReset = { bottomBarScrollState.show() },
+                    onOpenMangaReadHistory = { sourceName, mangaUrl, mangaTitle, coverUrl ->
+                        // Geçmiş sayfasından okunan bir bölüme dokunuldu: kaynak eklentisi
+                        // yüklüyse doğrudan manga detay sayfasına git (oradan "Devam Et").
+                        val resolved = mangaViewModel.mangaRepository.getSourceByName(sourceName)
+                        if (resolved != null) {
+                            // Geçmiş ekranı yığından düşürülür: manga detayı açıldığında
+                            // geri tuşu doğrudan bir üst ekrana döner (yığında iki ekran kalmaz).
+                            navState.detailBackStack = navState.detailBackStack
+                                .filterNot { it is DetailScreen.WatchHistory }
+                            navState.mangaDetailNavState = MangaDetailNavState(
+                                source = resolved,
+                                mangaDetails = com.kitsugi.animelist.data.manga.MangaDetails(
+                                    url = mangaUrl,
+                                    title = mangaTitle,
+                                    thumbnailUrl = coverUrl,
+                                    source = sourceName
+                                )
+                            )
+                        } else {
+                            android.widget.Toast.makeText(
+                                context,
+                                "$sourceName kaynağı yüklü değil. Eklentiler sayfasından yükleyebilirsin.",
+                                android.widget.Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    }
                 )
             }
 
@@ -1515,6 +1546,7 @@ private fun AppNavigationContent(
             is AppStateKey.MangaReader,
             is AppStateKey.MangaDetail,
             is AppStateKey.MangaSourceHealth,
+            is AppStateKey.MangaLibraryState,
             is AppStateKey.MangaBrowse -> {
                 AppRootMangaPages(
                     key = key,

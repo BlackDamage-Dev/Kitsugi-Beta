@@ -1,6 +1,5 @@
 package com.kitsugi.animelist.ui.screens.manga
 
-import com.kitsugi.animelist.R
 import android.content.Context
 import com.kitsugi.animelist.data.manga.SourceFailureClassifier
 import androidx.lifecycle.ViewModel
@@ -8,18 +7,17 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.kitsugi.animelist.data.local.KitsugiDatabase
 import com.kitsugi.animelist.data.manga.MangaChapter
-import com.kitsugi.animelist.data.manga.MangaChapterGroup
-import com.kitsugi.animelist.data.manga.MangaChapterGrouping
 import com.kitsugi.animelist.data.manga.MangaDetails
-import com.kitsugi.animelist.data.local.MangaChapterProgressEntity
-import com.kitsugi.animelist.data.manga.MangaScanlatorPreferences
 import com.kitsugi.animelist.data.manga.MangaSource
 import com.kitsugi.animelist.data.manga.MangaStatus
+import com.kitsugi.animelist.data.manga.withResolvedNumbers
+import com.kitsugi.animelist.data.manga.ChapterSortMode
+import com.kitsugi.animelist.data.settings.SettingsDataStore
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -42,10 +40,108 @@ class MangaDetailViewModel(
 
     private val db = KitsugiDatabase.getDatabase(context)
     private val progressDao = db.mangaChapterProgressDao()
-    private val scanlatorPrefs = MangaScanlatorPreferences.get(context)
+    private val settings = SettingsDataStore(context)
+    private val downloader = com.kitsugi.animelist.data.manga.download.MangaChapterDownloader(context)
 
-    /** Detay ekranındaki manga URL'si (bölüm ve çevirmen tercihleri için anahtar). */
-    private val mangaUrl: String get() = _uiState.value.details.url
+    /** Bölüm indirme durumları (URL → ilerleme). Detay ekranı bunu dinler. */
+    val downloadStates = downloader.states
+
+    /** İndirilmiş bölüm URL'leri — satırlardaki "indirildi" işareti için. */
+    private val _downloadedUrls = MutableStateFlow<Set<String>>(emptySet())
+    val downloadedUrls: StateFlow<Set<String>> = _downloadedUrls.asStateFlow()
+
+    /**
+     * Bir mangadaki indirilmiş bölümleri tarar.
+     *
+     * Dosya sistemi sorgusu IO'da yapılır; liste yüklendikten sonra bir kez çağrılır.
+     */
+    private fun refreshDownloadedFlags() {
+        viewModelScope.launch {
+            val state = _uiState.value
+            val urls = withContext(Dispatchers.IO) {
+                state.chapters
+                    .mapIndexedNotNull { index, row ->
+                        if (downloader.isDownloaded(
+                                source = source,
+                                mangaTitle = state.details.title,
+                                mangaUrl = state.details.url,
+                                chapter = row.chapter,
+                                index = index
+                            )
+                        ) row.chapter.url else null
+                    }
+                    .toSet()
+            }
+            _downloadedUrls.value = urls
+        }
+    }
+
+    /** Tek bölümü indirir (CBZ). Zaten indirilmişse yeniden indirmez. */
+    fun downloadChapter(chapter: MangaChapter) {
+        val state = _uiState.value
+        viewModelScope.launch {
+            val index = state.chapters.indexOfFirst { it.chapter.url == chapter.url }
+            val file = downloader.download(
+                source = source,
+                mangaTitle = state.details.title,
+                mangaUrl = state.details.url,
+                chapter = chapter,
+                index = if (index >= 0) index else 0
+            )
+            if (file != null) {
+                _downloadedUrls.value = _downloadedUrls.value + chapter.url
+            }
+        }
+    }
+
+    /** İndirilmiş bölüm dosyasını siler (depolama kazanmak için). */
+    fun deleteDownload(chapter: MangaChapter) {
+        val state = _uiState.value
+        viewModelScope.launch {
+            val index = state.chapters.indexOfFirst { it.chapter.url == chapter.url }
+            withContext(Dispatchers.IO) {
+                downloader.existingArchive(
+                    source = source,
+                    mangaTitle = state.details.title,
+                    mangaUrl = state.details.url,
+                    chapter = chapter,
+                    index = if (index >= 0) index else 0
+                )?.delete()
+            }
+            _downloadedUrls.value = _downloadedUrls.value - chapter.url
+        }
+    }
+
+    /**
+     * Okuyucudan dönüldüğünde çağrılır: yalnızca Room'daki okuma ilerlemesini tazeler.
+     *
+     * ViewModel, okuyucu açıkken de yaşadığı için (Activity'nin ViewModelStore'unda kalır)
+     * bölüm listesi çekilmeden sadece ilerleme satırları yeniden okunur — ağ trafiği yok,
+     * bölüm listesi yeniden sıralanıp kaydırma konumu bozulmaz.
+     */
+    fun refreshProgress() {
+        val state = _uiState.value
+        if (state.chapters.isEmpty()) return
+        viewModelScope.launch {
+            val mangaUrl = state.details.url
+            val progressList = withContext(Dispatchers.IO) { progressDao.getAllForManga(mangaUrl) }
+            val progressByUrl = progressList.associateBy { it.chapterUrl }
+            val rows = state.chapters.map { row ->
+                val p = progressByUrl[row.chapter.url] ?: return@map row
+                row.copy(
+                    isCompleted = p.isCompleted,
+                    lastPageIndex = p.lastPageIndex,
+                    totalPages = p.totalPages,
+                    isInProgress = !p.isCompleted && p.lastPageIndex > 0
+                )
+            }
+            val resume = progressList
+                .filter { !it.isCompleted }
+                .maxByOrNull { it.updatedAt }
+                ?.let { prog -> rows.firstOrNull { it.chapter.url == prog.chapterUrl }?.chapter }
+            _uiState.update { it.copy(chapters = rows, resumeChapter = resume) }
+        }
+    }
 
     /** Bir bölümün okuma durumunu UI'a taşıyan sarmalayıcı. */
     data class ChapterRow(
@@ -55,32 +151,6 @@ class MangaDetailViewModel(
         val totalPages: Int = 0,
         val isInProgress: Boolean = false
     )
-
-    /**
-     * Aynı bölümün tüm çevirmenlerini tek satırda temsil eder.
-     *
-     * @property group gruplanmış bölüm (çevirmen sürümleri)
-     * @property primary varsayılan açılacak sürüm (tercih → ilerleme → en yeni)
-     * @property variants tüm sürümlerin okuma durumları
-     */
-    data class ChapterGroupRow(
-        val group: MangaChapterGroup,
-        val primary: ChapterRow,
-        val variants: List<ChapterRow>,
-        val isCompleted: Boolean = false,
-        val isInProgress: Boolean = false
-    ) {
-        /**
-         * Bölüm araması eşleşmesi: ad parçası **veya** numara.
-         * "42" araması 42, 42.0 ve 42.5 bölümlerini de bulur.
-         */
-        fun matchesQuery(query: String): Boolean {
-            val q = query.trim()
-            if (q.isEmpty()) return true
-            if (group.displayName.contains(q, ignoreCase = true)) return true
-            return variants.any { chapterRowMatchesQuery(it, q) }
-        }
-    }
 
     data class UiState(
         val details: MangaDetails,
@@ -92,96 +162,120 @@ class MangaDetailViewModel(
         val errorCode: String? = null,
         /** "Devam Et" için hedef bölüm; yoksa null (baştan okunur). */
         val resumeChapter: MangaChapter? = null,
-        /** Aynı bölümün farklı çevirmenleri tek satırda gruplanmış hâli. */
-        val groups: List<ChapterGroupRow> = emptyList(),
-        /** true: çevirmenler birleşik gösterilir, false: her sürüm ayrı satır. */
-        val mergedScanlators: Boolean = true,
-        /** Açılmış (çevirmen listesi görünen) grup anahtarları. */
-        val expandedGroupKeys: Set<String> = emptySet(),
-        /** Bu manga için hatırlanan çevirmen. */
-        val preferredScanlator: String? = null,
-        /** Çok çevirmenli bölümlerde soru sormadan devam et. */
-        val autoContinue: Boolean = false,
-        /** Bölüm listesinde geçen tüm çevirmenler (filtre çipleri için). */
-        val scanlators: List<String> = emptyList(),
-        /** Seçili çevirmen filtresi (null = tümü). */
-        val scanlatorFilter: String? = null,
-        /** Bölüm listesi içinde arama (numara veya ad parçası). */
-        val chapterQuery: String = "",
-        /** Yalnızca okunmamış bölümleri göster. */
-        val onlyUnread: Boolean = false
-    ) {
-        /** Çevirmen filtresi uygulanmış gruplar. */
-        private val scanlatorFilteredGroups: List<ChapterGroupRow>
-            get() {
-                val filter = scanlatorFilter?.trim()?.lowercase()
-                if (filter.isNullOrEmpty()) return groups
-                return groups.filter { row ->
-                    row.variants.any { variant ->
-                        variant.chapter.scanlator?.trim()?.lowercase() == filter
-                    }
-                }
-            }
-
         /**
-         * Ekranın gösterdiği gruplar: çevirmen filtresi + bölüm araması +
-         * "yalnızca okunmamış" filtresi birlikte uygulanır.
+         * Bu manga için geçerli bölüm sıralaması.
+         *
+         * Kaynağı: manga bazlı ezme varsa o, yoksa Ayarlar > Manga Okuyucu'daki genel tercih.
+         * Varsayılan [ChapterSortMode.OldestFirst] — liste **1'den** başlar.
          */
-        val visibleGroups: List<ChapterGroupRow>
-            get() {
-                var result = scanlatorFilteredGroups
-                val query = chapterQuery.trim()
-                if (query.isNotEmpty()) {
-                    result = result.filter { it.matchesQuery(query) }
-                }
-                if (onlyUnread) {
-                    result = result.filter { !it.isCompleted }
-                }
-                return result
-            }
-
-        /** Ayrık (merge kapalı) görünüm için aynı filtreler. */
-        val visibleChapters: List<ChapterRow>
-            get() {
-                val filter = scanlatorFilter?.trim()?.lowercase()
-                val query = chapterQuery.trim()
-                return chapters.filter { row ->
-                    val scanlatorOk = filter.isNullOrEmpty() ||
-                        row.chapter.scanlator?.trim()?.lowercase() == filter
-                    // Birleşik/açık görünüm aynı arama kurallarını kullanır:
-                    // "42" araması 42 ve 42.5 bölümlerini bulur (sadece ad değil).
-                    val queryOk = chapterRowMatchesQuery(row, query)
-                    val unreadOk = !onlyUnread || !row.isCompleted
-                    scanlatorOk && queryOk && unreadOk
-                }
-            }
-
-        /** Filtrelerden herhangi biri etkin mi? (boş durum metnini seçmek için) */
-        val hasActiveChapterFilter: Boolean
-            get() = chapterQuery.isNotBlank() || onlyUnread || !scanlatorFilter.isNullOrBlank()
-    }
+        val sortMode: ChapterSortMode = ChapterSortMode.DEFAULT,
+        /** Bölüm satırı etiket biçimi (numara / başlık). */
+        val displayMode: com.kitsugi.animelist.data.manga.ChapterDisplayMode =
+            com.kitsugi.animelist.data.manga.ChapterDisplayMode.DEFAULT,
+        /** Yer imli (★) bölüm URL'leri. */
+        val bookmarked: Set<String> = emptySet()
+    )
 
     private val _uiState = MutableStateFlow(UiState(details = initialDetails))
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
     init {
-        // Manga-TR detay sayfası hem kapak/aciklama hem de imzalı `listKey` içerir.
-        // Eskiden refreshDetails() ve loadChapters() AYNI ANDA iki ayrı istek atıyordu;
-        // DDoS-Guard oturumu/rate-limit yüzünden bölüm listesi sık sık boş düşüyordu.
+        loadListPreferences()
+        refreshDetails()
+        loadChapters()
+    }
+
+    /**
+     * Bölüm listesi tercihlerini (sıralama / görünüm / yer imleri) yükler.
+     *
+     * Sıralama artık `rememberSaveable` değil **kalıcı** bir tercihtir: ekran yeniden
+     * açıldığında, uygulama yeniden başlatıldığında ve okuyucudan dönüldüğünde aynı kalır.
+     * Bu, "liste neden 386'dan başlıyor" şikâyetinin kalıcı çözümüdür.
+     */
+    private fun loadListPreferences() {
         viewModelScope.launch {
-            refreshDetails()
-            loadChapters()
+            val mangaUrl = _uiState.value.details.url
+            val sort = ChapterSortMode.fromName(settings.getMangaChapterSort(mangaUrl))
+            val prefs = settings.settingsFlow.first()
+            val display = com.kitsugi.animelist.data.manga.ChapterDisplayMode.fromName(
+                prefs.mangaChapterDisplayMode
+            )
+            val bookmarks = prefs.mangaBookmarkedChapters
+                .split('|')
+                .filter { it.isNotBlank() }
+                .toSet()
+            _uiState.update {
+                it.copy(sortMode = sort, displayMode = display, bookmarked = bookmarks)
+            }
         }
     }
 
+    /**
+     * Bölüm sıralamasını değiştirir ve **kalıcı** olarak kaydeder.
+     *
+     * @param onlyForThisSeries true ise yalnızca bu manga için ezme yazılır; false ise tüm
+     *   mangalar için geçerli varsayılan tercih güncellenir.
+     */
+    fun setSortMode(mode: ChapterSortMode, onlyForThisSeries: Boolean = false) {
+        _uiState.update { it.copy(sortMode = mode) }
+        viewModelScope.launch {
+            if (onlyForThisSeries) {
+                settings.setMangaChapterSortOverride(_uiState.value.details.url, mode.name)
+            } else {
+                settings.setMangaChapterSort(mode.name)
+                // Seriye özel eski bir ezme varsa kaldır: kullanıcı "tümü" dedi.
+                settings.setMangaChapterSortOverride(_uiState.value.details.url, null)
+            }
+        }
+    }
+
+    fun setDisplayMode(mode: com.kitsugi.animelist.data.manga.ChapterDisplayMode) {
+        _uiState.update { it.copy(displayMode = mode) }
+        viewModelScope.launch { settings.setMangaChapterDisplayMode(mode.name) }
+    }
+
+    /** Bölümü yer imine ekler / çıkarır ve kalıcı olarak saklar (Mihon ★ davranışı). */
+    fun toggleBookmark(chapter: MangaChapter) {
+        val next = _uiState.value.bookmarked.toMutableSet()
+        if (!next.add(chapter.url)) next.remove(chapter.url)
+        _uiState.update { it.copy(bookmarked = next) }
+        viewModelScope.launch { settings.setMangaBookmarkedChapters(next) }
+    }
+
+    /**
+     * Verilen bölümden **önceki** tüm bölümleri okundu işaretler.
+     *
+     * Mihon'da "mark previous as read": 200. bölümden başlayan kullanıcı tek dokunuşla
+     * 1–199 aralığını okundu yapar; tek tek tik atmak zorunda kalmaz. Sıralama ne olursa
+     * olsun doğru çalışması için numaraya göre karşılaştırma yapılır.
+     */
+    fun markPreviousRead(chapter: MangaChapter) {
+        val state = _uiState.value
+        val target = chapter.chapterNumber
+        val previous = state.chapters
+            .filter { row -> row.chapter.url != chapter.url }
+            .filter { row ->
+                if (target >= 0f && row.chapter.chapterNumber >= 0f) {
+                    row.chapter.chapterNumber < target
+                } else {
+                    // Numara yoksa kaynak sırasına düş (liste zaten kaynak sırasını korur).
+                    val idx = state.chapters.indexOfFirst { it.chapter.url == chapter.url }
+                    state.chapters.indexOfFirst { it.chapter.url == row.chapter.url } in 0 until idx
+                }
+            }
+            .filterNot { it.isCompleted }
+            .map { it.chapter }
+        markAllRead(previous, true)
+    }
+
     /** Kapak/açıklama gibi alanları tazelemek için detayları yeniden çeker (best-effort). */
-    private suspend fun refreshDetails() {
+    private fun refreshDetails() {
+        viewModelScope.launch {
             _uiState.update { it.copy(isLoadingDetails = true) }
             val initial = _uiState.value.details
             try {
                 val fresh = withContext(Dispatchers.IO) {
-                    val timeout = if (source.pkgName.endsWith(".mangatr", ignoreCase = true)) 200_000L else 15_000L
-                    kotlinx.coroutines.withTimeout(timeout) {
+                    kotlinx.coroutines.withTimeout(15_000L) {
                         source.fetchMangaDetails(initial.url)
                     }
                 }
@@ -209,6 +303,7 @@ class MangaDetailViewModel(
                 // Detay tazeleme başarısız olsa bile elimizdeki initialDetails ile devam ederiz.
                 _uiState.update { it.copy(isLoadingDetails = false) }
             }
+        }
     }
 
     fun loadChapters() {
@@ -220,16 +315,19 @@ class MangaDetailViewModel(
                 try {
                     val mangaUrl = _uiState.value.details.url
                     val chapters = withContext(Dispatchers.IO) {
-                        kotlinx.coroutines.withTimeout(180_000L) {
-                            source.fetchChapterList(mangaUrl).distinctBy { it.url }
+                        kotlinx.coroutines.withTimeout(45_000L) {
+                            source.fetchChapterList(mangaUrl)
                         }
                     }
+                    // Bölüm numarası eksik gelen kayıtlar başlıktan çözümlenir: aksi hâlde
+                    // "1, 10, 100, 11" gibi okunamaz bir sıralama oluşuyordu.
+                    val normalized = chapters.withResolvedNumbers(_uiState.value.details.title)
                     val progressList = withContext(Dispatchers.IO) {
                         progressDao.getAllForManga(mangaUrl)
                     }
                     val progressByUrl = progressList.associateBy { it.chapterUrl }
 
-                    val rows = chapters.map { ch ->
+                    val rows = normalized.map { ch ->
                         val p = progressByUrl[ch.url]
                         ChapterRow(
                             chapter = ch,
@@ -244,55 +342,20 @@ class MangaDetailViewModel(
                     val resume = progressList
                         .filter { !it.isCompleted }
                         .maxByOrNull { it.updatedAt }
-                        ?.let { prog -> chapters.firstOrNull { it.url == prog.chapterUrl } }
-
-                    // Aynı bölümün farklı çevirmen sürümlerini tek satırda topla.
-                    val preferred = scanlatorPrefs.preferredScanlator(mangaUrl)
-                    val rowsByUrl = rows.associateBy { it.chapter.url }
-                    val groups = MangaChapterGrouping.group(chapters).map { group ->
-                        val variantRows = group.variants.map { chapter ->
-                            rowsByUrl[chapter.url] ?: ChapterRow(chapter = chapter)
-                        }
-                        val primaryChapter = MangaChapterGrouping.pickVariant(
-                            group = group,
-                            preferredScanlator = preferred,
-                            hasProgress = { chapter -> rowsByUrl[chapter.url]?.isInProgress == true }
-                        )
-                        ChapterGroupRow(
-                            group = group,
-                            primary = variantRows.firstOrNull { it.chapter.url == primaryChapter.url }
-                                ?: variantRows.first(),
-                            variants = variantRows,
-                            isCompleted = variantRows.any { it.isCompleted },
-                            isInProgress = variantRows.any { it.isInProgress }
-                        )
-                    }
-
-                    // Filtre çipleri: en çok bölümü olan çevirmen önce.
-                    val scanlators = chapters
-                        .mapNotNull { it.scanlator?.trim()?.takeIf { name -> name.isNotEmpty() } }
-                        .groupingBy { it }
-                        .eachCount()
-                        .entries
-                        .sortedWith(compareByDescending<Map.Entry<String, Int>> { it.value }.thenBy { it.key })
-                        .map { it.key }
+                        ?.let { prog -> normalized.firstOrNull { it.url == prog.chapterUrl } }
 
                     _uiState.update {
                         it.copy(
                             isLoadingChapters = false,
                             chapters = rows,
-                            groups = groups,
-                            scanlators = scanlators,
                             resumeChapter = resume,
-                            preferredScanlator = preferred,
-                            autoContinue = scanlatorPrefs.autoContinue(mangaUrl),
-                            error = if (rows.isEmpty()) context.getString(R.string.manga_error_no_chapters) else null,
+                            error = if (rows.isEmpty()) "Bu manga için bölüm bulunamadı." else null,
                             errorCode = null
                         )
                     }
+                    refreshDownloadedFlags()
                     return@launch  // Başarılı — döngüden çık
                 } catch (e: Exception) {
-                    if (e is kotlinx.coroutines.CancellationException) kotlinx.coroutines.currentCoroutineContext().ensureActive()
                     lastError = e
                     if (attempt == 0) {
                         kotlinx.coroutines.delay(1_500L)  // Kısa bekleme sonrası tekrar dene
@@ -303,9 +366,139 @@ class MangaDetailViewModel(
             _uiState.update {
                 it.copy(
                     isLoadingChapters = false,
-                    error = lastError?.localizedMessage ?: lastError?.message
-                        ?: context.getString(R.string.manga_error_chapters_load),
+                    error = lastError?.localizedMessage ?: lastError?.message ?: "Bölümler yüklenemedi. Tekrar deneyin.",
                     errorCode = SourceFailureClassifier.classifyCode(lastError)
+                )
+            }
+        }
+    }
+
+    /**
+     * Bir bölümü okundu / okunmadı olarak işaretler.
+     *
+     * Bölüm listesindeki tik'e dokunulduğunda çağrılır. Room'daki ilerleme satırı yoksa
+     * oluşturulur, varsa `isCompleted` alanı güncellenir; okuma geçmişi de buna göre
+     * temizlenir/yazılır (geçmiş sayfasındaki "Okunan" sekmesi ile tutarlı kalması için).
+     */
+    fun setChapterRead(chapter: MangaChapter, read: Boolean, totalPages: Int = 0) {
+        viewModelScope.launch {
+            val mangaUrl = _uiState.value.details.url
+            val details = _uiState.value.details
+            val existing = withContext(Dispatchers.IO) { progressDao.getProgress(chapter.url) }
+            val pages = if (totalPages > 0) totalPages else existing?.totalPages ?: 0
+            val now = System.currentTimeMillis()
+            withContext(Dispatchers.IO) {
+                progressDao.upsert(
+                    com.kitsugi.animelist.data.local.MangaChapterProgressEntity(
+                        chapterUrl = chapter.url,
+                        mangaUrl = mangaUrl,
+                        chapterName = chapter.name,
+                        // Okundu işaretlenirse son sayfa = toplam sayfa (kaldığı yer kalmaz).
+                        lastPageIndex = if (read) (pages - 1).coerceAtLeast(0) else 0,
+                        totalPages = pages,
+                        isCompleted = read,
+                        updatedAt = now
+                    )
+                )
+            }
+            if (read) {
+                com.kitsugi.animelist.data.local.MangaReadHistoryManager.record(
+                    sourceName = source.name,
+                    mangaUrl = mangaUrl,
+                    mangaTitle = details.title,
+                    thumbnailUrl = details.thumbnailUrl,
+                    chapterUrl = chapter.url,
+                    chapterName = chapter.name,
+                    lastPageIndex = (pages - 1).coerceAtLeast(0),
+                    totalPages = pages,
+                    isCompleted = true
+                )
+            }
+            _uiState.update { state ->
+                state.copy(
+                    chapters = state.chapters.map { row ->
+                        if (row.chapter.url != chapter.url) {
+                            row
+                        } else {
+                            row.copy(
+                                isCompleted = read,
+                                isInProgress = !read && row.lastPageIndex > 0,
+                                lastPageIndex = if (read) (pages - 1).coerceAtLeast(0) else 0,
+                                totalPages = pages
+                            )
+                        }
+                    },
+                    resumeChapter = if (read) {
+                        // Tamamlanan bölüm "devam et" hedefi olamaz.
+                        if (state.resumeChapter?.url == chapter.url) null else state.resumeChapter
+                    } else {
+                        state.resumeChapter
+                    }
+                )
+            }
+        }
+    }
+
+    /**
+     * Görünen (filtrelenmiş) bölümleri toplu olarak okundu/okunmadı işaretler.
+     *
+     * 200+ bölümlük bir seride tek tek tik atmak gerçekçi değil; bu fonksiyon "Tümünü
+     * okundu işaretle" düğmesini besler. Tek bir Room işlemi yerine satır satır yazar
+     * çünkü mevcut toplam sayfa bilgisi korunmalı; yine de hepsi tek IO bloğunda çalışır.
+     */
+    fun markAllRead(chapters: List<MangaChapter>, read: Boolean) {
+        if (chapters.isEmpty()) return
+        viewModelScope.launch {
+            val mangaUrl = _uiState.value.details.url
+            val details = _uiState.value.details
+            val now = System.currentTimeMillis()
+            withContext(Dispatchers.IO) {
+                chapters.forEach { chapter ->
+                    runCatching {
+                        val existing = progressDao.getProgress(chapter.url)
+                        val pages = existing?.totalPages ?: 0
+                        progressDao.upsert(
+                            com.kitsugi.animelist.data.local.MangaChapterProgressEntity(
+                                chapterUrl = chapter.url,
+                                mangaUrl = mangaUrl,
+                                chapterName = chapter.name,
+                                lastPageIndex = if (read) (pages - 1).coerceAtLeast(0) else 0,
+                                totalPages = pages,
+                                isCompleted = read,
+                                updatedAt = now
+                            )
+                        )
+                        if (read) {
+                            com.kitsugi.animelist.data.local.MangaReadHistoryManager.record(
+                                sourceName = source.name,
+                                mangaUrl = mangaUrl,
+                                mangaTitle = details.title,
+                                thumbnailUrl = details.thumbnailUrl,
+                                chapterUrl = chapter.url,
+                                chapterName = chapter.name,
+                                lastPageIndex = (pages - 1).coerceAtLeast(0),
+                                totalPages = pages,
+                                isCompleted = true
+                            )
+                        }
+                    }
+                }
+            }
+            // UI'ı tek seferde güncelle; hangi bölümlerin etkilendiğini bilmek için
+            // yalnızca işaretlenen URL'lerin satırları değiştirilir.
+            val urls = chapters.mapTo(HashSet()) { it.url }
+            _uiState.update { state ->
+                state.copy(
+                    chapters = state.chapters.map { row ->
+                        if (row.chapter.url in urls) {
+                            row.copy(
+                                isCompleted = read,
+                                isInProgress = false,
+                                lastPageIndex = if (read) (row.totalPages - 1).coerceAtLeast(0) else 0
+                            )
+                        } else row
+                    },
+                    resumeChapter = if (read && state.resumeChapter?.url in urls) null else state.resumeChapter
                 )
             }
         }
@@ -319,156 +512,19 @@ class MangaDetailViewModel(
     fun chapterToOpen(): MangaChapter? {
         val state = _uiState.value
         state.resumeChapter?.let { return it }
-        // Bölüm listesi en yeniden eskiye sıralı geldiği için "baştan oku" = son eleman.
-        return state.groups.lastOrNull()?.primary?.chapter
-            ?: state.chapters.lastOrNull()?.chapter
-    }
-
-    // ─── Çevirmen (scanlator) yönetimi ───────────────────────────────────────
-
-    // ─── Okundu / okunmadı işaretleme ────────────────────────────────────────
-
-    /**
-     * Bir bölüm sürümünü okundu/okunmadı olarak işaretler.
-     *
-     * Başka bir uygulamada okunmuş bölümler için "okundu" işaretlemek, ilerleme
-     * yeniden yazılmadan listede doğru durumu görmeyi sağlar. Grup içindeki tek
-     * bir çevirmen sürümü de işaretlenebilir.
-     */
-    fun toggleChapterCompleted(chapter: MangaChapter) {
-        viewModelScope.launch {
-            val existing = runCatching { progressDao.getProgress(chapter.url) }.getOrNull()
-            val nowCompleted = !(existing?.isCompleted ?: false)
-            val totalPages = existing?.totalPages ?: 0
-            val newLastPage = if (nowCompleted) (totalPages - 1).coerceAtLeast(0) else 0
-
-            runCatching {
-                progressDao.upsert(
-                    MangaChapterProgressEntity(
-                        chapterUrl = chapter.url,
-                        mangaUrl = mangaUrl,
-                        chapterName = chapter.name,
-                        lastPageIndex = newLastPage,
-                        totalPages = totalPages,
-                        isCompleted = nowCompleted,
-                        updatedAt = System.currentTimeMillis()
-                    )
-                )
-            }
-
-            applyCompletion(chapter.url, nowCompleted, totalPages, newLastPage)
+        // "Baştan oku" = en küçük bölüm numarası. Kaynağın dizi sırasına güvenilmez
+        // (bazı kaynaklar yeniden eskiye, bazıları karışık döndürür): numaraya göre seçilir,
+        // numara yoksa kaynak sırasının ilk elemanı kullanılır.
+        val numbered = state.chapters.filter { it.chapter.chapterNumber >= 0f }
+        return if (numbered.isNotEmpty()) {
+            numbered.minByOrNull { it.chapter.chapterNumber }?.chapter
+        } else {
+            state.chapters.firstOrNull()?.chapter
         }
     }
 
-    /** Tüm görünür bölümleri (filtre uygulanmışsa yalnız onları) okundu işaretler. */
-    fun markVisibleAsCompleted() {
-        val targets = _uiState.value.visibleGroups
-            .filter { !it.isCompleted }
-            .map { it.primary.chapter }
-        if (targets.isEmpty()) return
-        viewModelScope.launch {
-            targets.forEach { chapter ->
-                runCatching {
-                    val existing = progressDao.getProgress(chapter.url)
-                    progressDao.upsert(
-                        MangaChapterProgressEntity(
-                            chapterUrl = chapter.url,
-                            mangaUrl = mangaUrl,
-                            chapterName = chapter.name,
-                            lastPageIndex = ((existing?.totalPages ?: 0) - 1).coerceAtLeast(0),
-                            totalPages = existing?.totalPages ?: 0,
-                            isCompleted = true,
-                            updatedAt = System.currentTimeMillis()
-                        )
-                    )
-                }
-            }
-            targets.forEach { chapter -> applyCompletion(chapter.url, true, 0, 0) }
-        }
-    }
-
-    /** DB'ye yazdıktan sonra listeyi ağa çıkmadan günceller. */
-    private fun applyCompletion(url: String, completed: Boolean, totalPages: Int, lastPageIndex: Int) {
-        _uiState.update { state ->
-            fun ChapterRow.patched(): ChapterRow {
-                if (chapter.url != url) return this
-                return copy(
-                    isCompleted = completed,
-                    isInProgress = !completed && lastPageIndex > 0,
-                    lastPageIndex = lastPageIndex,
-                    totalPages = if (totalPages > 0) totalPages else this.totalPages
-                )
-            }
-
-            val chapters = state.chapters.map { it.patched() }
-            val rowsByUrl = chapters.associateBy { it.chapter.url }
-            val groups = state.groups.map { groupRow ->
-                val variants = groupRow.variants.map { it.patched() }
-                groupRow.copy(
-                    variants = variants,
-                    primary = rowsByUrl[groupRow.primary.chapter.url] ?: groupRow.primary,
-                    isCompleted = variants.any { it.isCompleted },
-                    isInProgress = variants.any { it.isInProgress }
-                )
-            }
-            state.copy(chapters = chapters, groups = groups)
-        }
-    }
-
-    /** Bölüm araması: numara ("42") veya ad parçası. */
-    fun setChapterQuery(query: String) {
-        _uiState.update { it.copy(chapterQuery = query) }
-    }
-
-    /** "Yalnızca okunmamış" filtresini aç/kapa. */
-    fun toggleOnlyUnread() {
-        _uiState.update { it.copy(onlyUnread = !it.onlyUnread) }
-    }
-
-    /** Tüm bölüm filtrelerini sıfırla. */
-    fun clearChapterFilters() {
-        _uiState.update { it.copy(chapterQuery = "", onlyUnread = false, scanlatorFilter = null) }
-    }
-
-    /** Çevirmen filtresi: null → tümü. */
-    fun setScanlatorFilter(scanlator: String?) {
-        _uiState.update { it.copy(scanlatorFilter = scanlator) }
-    }
-
-    /** Birleşik/ayrık görünüm arasında geçiş yapar. */
-    fun toggleMergedScanlators() {
-        _uiState.update { it.copy(mergedScanlators = !it.mergedScanlators) }
-    }
-
-    /** Grup satırına dokunulduğunda çevirmen listesini aç/kapa yapar. */
-    fun toggleGroup(groupKey: String) {
-        _uiState.update { state ->
-            val expanded = state.expandedGroupKeys
-            state.copy(
-                expandedGroupKeys = if (groupKey in expanded) expanded - groupKey else expanded + groupKey
-            )
-        }
-    }
-
-    /** Kullanıcı belirli bir çevirmen sürümünü açtığında tercihi kaydeder. */
-    fun rememberVariant(groupKey: String, chapter: MangaChapter) {
-        val scanlator = chapter.scanlator?.takeIf { it.isNotBlank() }
-        if (scanlator != null) {
-            scanlatorPrefs.setPreferredScanlator(mangaUrl, scanlator)
-            scanlatorPrefs.setGroupChoice(mangaUrl, groupKey, scanlator)
-        }
-    }
-
-    fun clearPreferredScanlator() {
-        scanlatorPrefs.clearPreferredScanlator(mangaUrl)
-        _uiState.update { it.copy(preferredScanlator = null) }
-    }
-
-    fun setAutoContinue(enabled: Boolean) {
-        scanlatorPrefs.setAutoContinue(mangaUrl, enabled)
-        _uiState.update { it.copy(autoContinue = enabled) }
-    }
-
+    /** Doğrudan bölüm 1'e (en küçük numaralı bölüme) gitmek için. */
+    fun firstChapter(): MangaChapter? = chapterToOpen()
 
     class Factory(
         private val context: Context,
@@ -480,19 +536,3 @@ class MangaDetailViewModel(
             MangaDetailViewModel(context, source, details) as T
     }
 }
-
-/**
- * Tek bir bölüm satırı arama sorgusuyla eşleşiyor mu?
- *
- * Ad parçası **veya** numara: "42" araması 42, 42.0 ve 42.5 bölümlerini bulur.
- * (Birleşik ve açık görünüm aynı kuralı kullansın diye ortak yardımcı.)
- */
-private fun chapterRowMatchesQuery(row: MangaDetailViewModel.ChapterRow, query: String): Boolean {
-    val q = query.trim()
-    if (q.isEmpty()) return true
-    if (row.chapter.name.contains(q, ignoreCase = true)) return true
-    val parsed = q.replace(',', '.').toFloatOrNull() ?: return false
-    val number = MangaChapterGrouping.chapterNumberOf(row.chapter)
-    return number > 0f && (number == parsed || number.toInt() == parsed.toInt())
-}
-

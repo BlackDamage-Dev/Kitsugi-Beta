@@ -152,6 +152,21 @@ class KitsugiApplication : Application(), SingletonImageLoader.Factory {
         runCatching { com.kitsugi.animelist.data.local.WatchHistoryManager.init(this) }
             .onFailure { android.util.Log.e("KitsugiApplication", "WatchHistoryManager.init hatası: ${it.message}", it) }
 
+        // 📖 Okunan manga/novel bölüm geçmişi — geçmiş sayfasındaki "Okunan" sekmesini besler.
+        // Açılışı bloklamamak için arka planda başlatılır (Room instance'ı ilk erişimde kurulur).
+        val appContextForReadHistory = this
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            runCatching {
+                com.kitsugi.animelist.data.local.MangaReadHistoryManager.init(appContextForReadHistory)
+            }.onFailure {
+                android.util.Log.e(
+                    "KitsugiApplication",
+                    "MangaReadHistoryManager.init hatası: ${it.message}",
+                    it
+                )
+            }
+        }
+
         com.kitsugi.animelist.core.diagnostics.StartupStage.mark(this, "FileLoggingTree.init")
         runCatching { com.kitsugi.animelist.core.diagnostics.FileLoggingTree.init(this) }
             .onFailure { android.util.Log.e("KitsugiApplication", "FileLoggingTree.init hatası: ${it.message}", it) }

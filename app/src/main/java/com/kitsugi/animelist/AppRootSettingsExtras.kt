@@ -114,14 +114,24 @@ internal fun SettingsContext.buildSettingsParams() =
             mangaColorFilter = appSettings.mangaColorFilter,
             mangaFitMode = appSettings.mangaFitMode,
             mangaBrightness = appSettings.mangaBrightness,
+            mangaKeepScreenOn = appSettings.mangaKeepScreenOn,
             onMangaReadingModeSelected = { onMangaReadingModeSelected(it) },
             onMangaColorFilterSelected = { onMangaColorFilterSelected(it) },
             onMangaFitModeSelected = { onMangaFitModeSelected(it) },
             onMangaBrightnessChanged = { onMangaBrightnessChanged(it) },
+            onMangaKeepScreenOnChanged = { onMangaKeepScreenOnChanged(it) },
             mangaSearchTitleLanguage = appSettings.mangaSearchTitleLanguage,
             onMangaSearchTitleLanguageSelected = { onMangaSearchTitleLanguageSelected(it) },
             mangaSearchFollowTitleLanguage = appSettings.mangaSearchFollowTitleLanguage,
             onMangaSearchFollowTitleLanguageChanged = { onMangaSearchFollowTitleLanguageChanged(it) },
+            mangaChapterSort = appSettings.mangaChapterSort,
+            mangaChapterDisplayMode = appSettings.mangaChapterDisplayMode,
+            mangaSkipReadChapters = appSettings.mangaSkipReadChapters,
+            mangaAutoAdvanceChapter = appSettings.mangaAutoAdvanceChapter,
+            onMangaChapterSortSelected = { onMangaChapterSortSelected(it) },
+            onMangaChapterDisplayModeSelected = { onMangaChapterDisplayModeSelected(it) },
+            onMangaSkipReadChaptersChanged = { onMangaSkipReadChaptersChanged(it) },
+            onMangaAutoAdvanceChapterChanged = { onMangaAutoAdvanceChapterChanged(it) },
             autoUpdateCheckEnabled = appSettings.autoUpdateCheckEnabled,
             onAutoUpdateCheckEnabledChanged = { onAutoUpdateCheckEnabledChanged(it) },
             onCheckForUpdatesClick = { onCheckForUpdatesClick() },
@@ -1240,6 +1250,56 @@ internal fun SettingsContext.onMangaSearchFollowTitleLanguageChanged(follow: Boo
                 if (follow) R.string.manga_search_follow_enabled else R.string.manga_search_follow_disabled
             )
         )
+    }
+}
+
+internal fun SettingsContext.onMangaKeepScreenOnChanged(enabled: Boolean) {
+    coroutineScope.launch {
+        settingsDataStore.setMangaKeepScreenOn(enabled)
+        appViewModel.showSnackbarMessage(
+            if (enabled) KitsugiStrings.get(R.string.manga_keep_screen_on_on)
+            else KitsugiStrings.get(R.string.manga_keep_screen_on_off)
+        )
+    }
+}
+
+/**
+ * Bölüm listesi sıralaması tercihi.
+ *
+ * "Eski → Yeni (1 → N)" seçildiğinde kullanıcıya kısa bir onay gösterilir: şikâyet edilen
+ * davranışın (listenin 386'dan başlaması) gerçekten düzeldiğini görmesi için.
+ */
+internal fun SettingsContext.onMangaChapterSortSelected(sortName: String) {
+    coroutineScope.launch {
+        settingsDataStore.setMangaChapterSort(sortName)
+        val label = when (sortName) {
+            "NewestFirst" -> KitsugiStrings.get(R.string.manga_sort_label_newest)
+            "RecentlyUpdated" -> KitsugiStrings.get(R.string.manga_sort_label_recent)
+            else -> KitsugiStrings.get(R.string.manga_sort_label_oldest)
+        }
+        appViewModel.showSnackbarMessage(label)
+    }
+}
+
+internal fun SettingsContext.onMangaChapterDisplayModeSelected(modeName: String) {
+    coroutineScope.launch {
+        settingsDataStore.setMangaChapterDisplayMode(modeName)
+    }
+}
+
+internal fun SettingsContext.onMangaSkipReadChaptersChanged(enabled: Boolean) {
+    coroutineScope.launch {
+        settingsDataStore.setMangaSkipReadChapters(enabled)
+        appViewModel.showSnackbarMessage(
+            if (enabled) KitsugiStrings.get(R.string.manga_skip_read_chapters)
+            else KitsugiStrings.get(R.string.manga_auto_advance_chapter)
+        )
+    }
+}
+
+internal fun SettingsContext.onMangaAutoAdvanceChapterChanged(enabled: Boolean) {
+    coroutineScope.launch {
+        settingsDataStore.setMangaAutoAdvanceChapter(enabled)
     }
 }
 

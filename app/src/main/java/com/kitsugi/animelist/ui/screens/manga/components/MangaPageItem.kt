@@ -23,6 +23,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
@@ -83,12 +84,15 @@ fun MangaPageItem(
     readingMode: ReadingMode = ReadingMode.RightToLeft,
     colorFilterType: ColorFilterType = ColorFilterType.Normal,
     fitMode: MangaFitMode = MangaFitMode.FitScreen,
+    cropBorders: Boolean = false,
     mirrorPages: Boolean = false,
     showPageNumber: Boolean = true,
     tapZonesEnabled: Boolean = true,
     invertTapZones: Boolean = false,
     onCenterTap: () -> Unit = {},
     onLongPress: () -> Unit = {},
+    /** Sayfaya uzun basınca (kullanıcı isteği: "resimler tıklanabilir olsun") galeri açılır. */
+    onLongPressPage: ((Int) -> Unit)? = null,
     onNextPage: () -> Unit = {},
     onPrevPage: () -> Unit = {},
     /** Webtoon'da yer tutucu boyutu için paylaşılan oran hafızası. */
@@ -124,7 +128,10 @@ fun MangaPageItem(
                 invertTapZones = invertTapZones,
                 haptics = haptics,
                 onCenterTap = onCenterTap,
-                onLongPress = onLongPress,
+                onLongPress = {
+                    onLongPress()
+                    onLongPressPage?.invoke(page.index)
+                },
                 onNextPage = onNextPage,
                 onPrevPage = onPrevPage,
             ),
@@ -164,15 +171,26 @@ fun MangaPageItem(
                         val zoomableState = rememberZoomableState()
                         val imageState = rememberZoomableImageState(zoomableState)
 
-                        val imageModifier = if (isScrollMode) {
+                        val imageModifier = (if (isScrollMode) {
                             Modifier
                                 .fillMaxWidth()
                                 .wrapContentHeight()
                                 .onSizeChanged { size -> sizeMemory?.record(size.width, size.height) }
                         } else {
                             Modifier.fillMaxSize()
-                        }.then(
+                        }).then(
                             if (mirrorPages) Modifier.graphicsLayer { scaleX = -1f } else Modifier
+                        ).then(
+                            if (cropBorders) {
+                                Modifier
+                                    .graphicsLayer {
+                                        scaleX = 1.04f
+                                        scaleY = 1.04f
+                                    }
+                                    .clipToBounds()
+                            } else {
+                                Modifier
+                            }
                         )
 
                         ZoomableAsyncImage(

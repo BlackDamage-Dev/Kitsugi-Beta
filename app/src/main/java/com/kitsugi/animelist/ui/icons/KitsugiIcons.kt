@@ -645,6 +645,7 @@ object KitsugiIcons {
     val Bookmark: ImageVector get() = BookmarkSolid
     val BookmarkBorder: ImageVector get() = BookmarkStroke
     val Bookmarks: ImageVector get() = BookmarkStroke
+    val CollectionsBookmark: ImageVector get() = BookmarkStroke
     val BorderColor: ImageVector get() = PaintBucket
     val BorderOuter: ImageVector get() = Square
     val Brightness6: ImageVector get() = SunMedium
@@ -760,6 +761,7 @@ object KitsugiIcons {
     val Layers: ImageVector get() = Copy
     val LocalFlorist: ImageVector get() = Flower
     val LocationOn: ImageVector get() = MapPin
+    val MyLocation: ImageVector get() = MapPin
     val Login: ImageVector get() = LogIn
     val ManageSearch: ImageVector get() = Search
     val Memory: ImageVector get() = Cpu
@@ -809,6 +811,7 @@ object KitsugiIcons {
     val Restore: ImageVector get() = RotateCcw
     val RssFeed: ImageVector get() = Rss
     val Schedule: ImageVector get() = Clock
+    val ScreenLockPortrait: ImageVector get() = Smartphone
     val ScreenRotation: ImageVector get() = RotateCw
     val SdCard: ImageVector get() = HardDrive
     val SearchOff: ImageVector get() = SearchX
@@ -829,6 +832,7 @@ object KitsugiIcons {
     val SlowMotionVideo: ImageVector get() = Timer
     val SmartButton: ImageVector get() = Sparkles
     val Sort: ImageVector get() = ArrowUpDown
+    val SwapVert: ImageVector get() = ArrowUpDown
     val Speed: ImageVector get() = Gauge
     val Star: ImageVector get() = StarSolid
     val StarBorder: ImageVector get() = StarStroke
@@ -850,6 +854,7 @@ object KitsugiIcons {
     val TouchApp: ImageVector get() = Pointer
     val Translate: ImageVector get() = Languages
     val TravelExplore: ImageVector get() = Compass
+    val Undo: ImageVector get() = RotateCcw
     val Tune: ImageVector get() = SlidersHorizontal
     val Verified: ImageVector get() = ShieldCheck
     val VerifiedUser: ImageVector get() = ShieldCheck

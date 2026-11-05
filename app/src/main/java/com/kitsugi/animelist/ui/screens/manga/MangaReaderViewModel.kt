@@ -61,6 +61,8 @@ class MangaReaderViewModel(
     private val settingsDataStore = SettingsDataStore(context)
     private val sourceStateStore = MangaSourceStateStore(context)
     private val scanlatorPrefs = com.kitsugi.animelist.data.manga.MangaScanlatorPreferences.get(context)
+    private val downloader = com.kitsugi.animelist.data.manga.download.MangaChapterDownloader(context)
+
     // Named argument ŞART: MangaPageLoaderV2'nin 4. parametresi preloadAhead,
     // 6. parametresi archiveFile. Konumsal geçiş arşiv yolunu preload sayısına
     // yazıyordu ve ZIP/CBZ okuyucu hiçbir zaman aktifleşmiyordu.
@@ -68,9 +70,30 @@ class MangaReaderViewModel(
         context = context,
         source = source,
         cache = cache,
-        archiveFile = archiveFile ?: resolveArchive(initialChapter)
+        archiveFile = archiveFile ?: resolveArchive(initialChapter),
+        archiveResolver = { chapter -> archiveFor(chapter) }
     )
     val pages: StateFlow<List<MangaPage>> = loader.pages
+
+    /**
+     * Bölümün indirilmiş arşivini bulur.
+     *
+     * Dosya adı numara/sıra tabanlı olduğu için o an bilinen bölüm listesindeki sıra
+     * kullanılır; liste henüz yüklenmemişse 0 ile denenir. Bulunamazsa null döner ve
+     * okuyucu normal akışa (ağ) düşer.
+     */
+    private fun archiveFor(chapter: MangaChapter): java.io.File? = runCatching {
+        val index = _uiState.value.chapterList
+            .sortedWith(compareBy({ it.chapterNumber < 0f }, { it.chapterNumber }))
+            .indexOfFirst { it.url == chapter.url }
+        downloader.existingArchive(
+            source = source,
+            mangaTitle = mangaDetails.title,
+            mangaUrl = mangaDetails.url,
+            chapter = chapter,
+            index = if (index >= 0) index else 0
+        )
+    }.getOrNull()
 
     /** `file://...` veya mutlak yol olarak gelen bölümleri yerel arşiv kabul et. */
     private fun resolveArchive(chapter: MangaChapter): java.io.File? {
@@ -121,7 +144,17 @@ class MangaReaderViewModel(
         /** Bu manga için hatırlanan çevirmen (bölüm geçişinde ön seçim). */
         val preferredScanlator: String? = null,
         /** Aynı bölümün birden çok çevirmeni varsa açılacak seçim penceresi. */
-        val pendingChoice: com.kitsugi.animelist.data.manga.ChapterChoiceRequest? = null
+        val pendingChoice: com.kitsugi.animelist.data.manga.ChapterChoiceRequest? = null,
+        /** Okurken ekran kapanmasın (Ayarlar > Okuyucu). */
+        val keepScreenOn: Boolean = true,
+        /** Bölüm geçişinde okunmuş bölümleri atla (Ayarlar > Okuyucu). */
+        val skipReadChapters: Boolean = false,
+        /** Bölüm bitince otomatik sonraki bölüme geç (Ayarlar > Okuyucu). */
+        val autoAdvanceChapter: Boolean = false,
+        /** Okundu olarak işaretlenmiş bölüm URL'leri — atlama için. */
+        val readChapterUrls: Set<String> = emptySet(),
+        /** Sayfa kenarlarını kırp (Mihon "crop borders"). */
+        val cropBorders: Boolean = false
     )
 
     private val _uiState = MutableStateFlow(UiState(currentChapter = initialChapter))
@@ -159,7 +192,11 @@ class MangaReaderViewModel(
                             readingMode = mode,
                             colorFilterType = filter,
                             fitMode = fit,
-                            customBrightness = settings.mangaBrightness
+                            customBrightness = settings.mangaBrightness,
+                            keepScreenOn = settings.mangaKeepScreenOn,
+                            skipReadChapters = settings.mangaSkipReadChapters,
+                            autoAdvanceChapter = settings.mangaAutoAdvanceChapter,
+                            cropBorders = settings.mangaCropBorders
                         )
                     }
                 }
@@ -181,13 +218,21 @@ class MangaReaderViewModel(
                     operation = "chapters",
                     elapsedMs = System.currentTimeMillis() - startedAt,
                 )
+                // Okunan bölümler "skip read" için tek seferde çekilir (Room).
+                val readUrls = runCatching {
+                    dao.getAllForManga(mangaDetails.url)
+                        .filter { it.isCompleted }
+                        .map { it.chapterUrl }
+                        .toSet()
+                }.getOrDefault(emptySet())
                 val groups = com.kitsugi.animelist.data.manga.MangaChapterGrouping.group(chapters)
                 _uiState.update {
                     it.copy(
                         chapterList = chapters,
                         chapterGroups = groups,
                         isLoadingChapters = false,
-                        preferredScanlator = scanlatorPrefs.preferredScanlator(mangaDetails.url)
+                        preferredScanlator = scanlatorPrefs.preferredScanlator(mangaDetails.url),
+                        readChapterUrls = readUrls
                     )
                 }
             } catch (e: Exception) {
@@ -206,6 +251,35 @@ class MangaReaderViewModel(
     // ─── İlerleme kaydetme ───────────────────────────────────────────────────
 
     /**
+     * Okuyucudan çıkarken / uygulama arkaya geçerken çağrılır.
+     *
+     * Debounce (500 ms) bekleyen ilerleme varsa **hemen** yazılır; aksi hâlde kullanıcı son
+     * sayfadan çıkıp geri döndüğünde "son okunan sayfa" bir önceki sayfada kalıyordu.
+     */
+    fun flushProgress() {
+        val pending = pendingProgress ?: return
+        pendingProgress = null
+        progressSaveJob?.cancel()
+        progressSaveJob = null
+        flushScope.launch {
+            runCatching {
+                dao.upsert(pending)
+                com.kitsugi.animelist.data.local.MangaReadHistoryManager.record(
+                    sourceName = source.name,
+                    mangaUrl = mangaDetails.url,
+                    mangaTitle = mangaDetails.title,
+                    thumbnailUrl = mangaDetails.thumbnailUrl,
+                    chapterUrl = pending.chapterUrl,
+                    chapterName = pending.chapterName,
+                    lastPageIndex = pending.lastPageIndex,
+                    totalPages = pending.totalPages,
+                    isCompleted = pending.isCompleted
+                )
+            }
+        }
+    }
+
+    /**
      * Sayfa değiştikçe Room'a anlık olarak kaydeder.
      * Bölüm tamamlandıysa isCompleted = true olarak işaretler.
      */
@@ -213,6 +287,9 @@ class MangaReaderViewModel(
     fun onPageChanged(chapterUrl: String, pageIndex: Int, totalPages: Int) {
         _uiState.update { it.copy(currentPageIndex = pageIndex) }
         val isCompleted = totalPages > 0 && pageIndex >= totalPages - 1
+        if (isCompleted) {
+            _uiState.update { it.copy(readChapterUrls = it.readChapterUrls + chapterUrl) }
+        }
         val entity = MangaChapterProgressEntity(
             chapterUrl    = chapterUrl,
             mangaUrl      = mangaDetails.url,
@@ -226,8 +303,22 @@ class MangaReaderViewModel(
         progressSaveJob?.cancel()
         progressSaveJob = viewModelScope.launch {
             kotlinx.coroutines.delay(500L)
-            dao.upsert(entity)
+            val toSave = pendingProgress ?: return@launch
             pendingProgress = null
+            dao.upsert(toSave)
+            runCatching {
+                com.kitsugi.animelist.data.local.MangaReadHistoryManager.record(
+                    sourceName = source.name,
+                    mangaUrl = mangaDetails.url,
+                    mangaTitle = mangaDetails.title,
+                    thumbnailUrl = mangaDetails.thumbnailUrl,
+                    chapterUrl = toSave.chapterUrl,
+                    chapterName = toSave.chapterName,
+                    lastPageIndex = toSave.lastPageIndex,
+                    totalPages = toSave.totalPages,
+                    isCompleted = toSave.isCompleted
+                )
+            }
         }
     }
 
@@ -272,6 +363,21 @@ class MangaReaderViewModel(
             kotlinx.coroutines.delay(250L)
             settingsDataStore.setMangaBrightness(brightness)
         }
+    }
+
+    /** Okunmuş bölümleri atla tercihi — kalıcı (Ayarlar > Okuyucu ile aynı anahtar). */
+    fun setSkipReadChapters(enabled: Boolean) {
+        viewModelScope.launch { settingsDataStore.setMangaSkipReadChapters(enabled) }
+    }
+
+    /** Kenarlık kırpma tercihi — kalıcı. */
+    fun setCropBorders(enabled: Boolean) {
+        viewModelScope.launch { settingsDataStore.setMangaCropBorders(enabled) }
+    }
+
+    /** Bölüm bitince otomatik geçiş tercihi — kalıcı. */
+    fun setAutoAdvanceChapter(enabled: Boolean) {
+        viewModelScope.launch { settingsDataStore.setMangaAutoAdvanceChapter(enabled) }
     }
 
     // ─── Bölüm gezinme ───────────────────────────────────────────────────────
@@ -335,19 +441,36 @@ class MangaReaderViewModel(
     }
 
     fun goToNextChapter() {
-        val ordered = groupsInReadingOrder()
-        val idx = currentGroupIndex(ordered)
-        if (idx >= 0 && idx < ordered.size - 1) {
-            requestGroup(ordered[idx + 1], ChapterChoiceReason.Next, isForward = true)
-        }
+        val target = nextGroup() ?: return
+        requestGroup(target, ChapterChoiceReason.Next, isForward = true)
     }
 
     fun goToPreviousChapter() {
+        val target = previousGroup() ?: return
+        requestGroup(target, ChapterChoiceReason.Previous, isForward = false)
+    }
+
+    /** Sıradaki grup — okunanları atlama tercihi ([UiState.skipReadChapters]) uygulanmış hâlde. */
+    private fun nextGroup(): MangaChapterGroup? {
         val ordered = groupsInReadingOrder()
         val idx = currentGroupIndex(ordered)
-        if (idx > 0) {
-            requestGroup(ordered[idx - 1], ChapterChoiceReason.Previous, isForward = false)
-        }
+        if (idx < 0) return null
+        val candidates = ordered.drop(idx + 1)
+        if (!_uiState.value.skipReadChapters) return candidates.firstOrNull()
+        val read = _uiState.value.readChapterUrls
+        return candidates.firstOrNull { group -> group.variants.none { it.url in read } }
+            ?: candidates.firstOrNull()
+    }
+
+    private fun previousGroup(): MangaChapterGroup? {
+        val ordered = groupsInReadingOrder()
+        val idx = currentGroupIndex(ordered)
+        if (idx <= 0) return null
+        val candidates = ordered.take(idx).reversed()
+        if (!_uiState.value.skipReadChapters) return candidates.firstOrNull()
+        val read = _uiState.value.readChapterUrls
+        return candidates.firstOrNull { group -> group.variants.none { it.url in read } }
+            ?: candidates.firstOrNull()
     }
 
     /**
@@ -443,34 +566,21 @@ class MangaReaderViewModel(
     }
 
     val hasNextChapter: Boolean
-        get() {
-            val ordered = groupsInReadingOrder()
-            val idx = currentGroupIndex(ordered)
-            return idx >= 0 && idx < ordered.size - 1
-        }
+        get() = nextGroup() != null
 
     /** Sonraki bölümün adı (bölüm sonu geçiş kartında göstermek için); yoksa null. */
     val nextChapterName: String?
-        get() {
-            val ordered = groupsInReadingOrder()
-            val idx = currentGroupIndex(ordered)
-            return if (idx >= 0 && idx < ordered.size - 1) ordered[idx + 1].displayName else null
-        }
+        get() = nextGroup()?.displayName
 
     /** Sonraki bölümün çevirmen sayısı (>1 ise "N çevirmen" rozeti gösterilir). */
     val nextChapterVariantCount: Int
-        get() {
-            val ordered = groupsInReadingOrder()
-            val idx = currentGroupIndex(ordered)
-            return if (idx >= 0 && idx < ordered.size - 1) ordered[idx + 1].variantCount else 0
-        }
+        get() = nextGroup()?.variantCount ?: 0
 
     val hasPreviousChapter: Boolean
-        get() {
-            val ordered = groupsInReadingOrder()
-            val idx = currentGroupIndex(ordered)
-            return idx > 0
-        }
+        get() = previousGroup() != null
+
+    val previousChapterName: String?
+        get() = previousGroup()?.displayName
 
     private var pageListJob: kotlinx.coroutines.Job? = null
     private var brightnessSaveJob: kotlinx.coroutines.Job? = null
@@ -552,9 +662,7 @@ class MangaReaderViewModel(
     override fun onCleared() {
         super.onCleared()
         // Son ilerlemeyi kaçırmamak için bekleyen (debounce edilmiş) kaydı yaz.
-        pendingProgress?.let { entity ->
-            flushScope.launch { runCatching { dao.upsert(entity) } }
-        }
+        flushProgress()
         loader.recycle()
     }
 

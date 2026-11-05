@@ -100,7 +100,9 @@ fun TvMangaBrowseScreen(
     /** Seçili arama dili (ENGLISH / ROMAJI / NATIVE / LOCAL) — bilgi amaçlı. */
     initialSearchLanguage: String? = null,
     onMangaClick: (MangaSource, MangaDetails) -> Unit = { _, _ -> },
-    onBack: () -> Unit = {}
+    onBack: () -> Unit = {},
+    /** Manga kitaplığını açar (takip edilen seriler). */
+    onOpenMangaLibrary: () -> Unit = {}
 ) {
     // "Oku" ile gelindiyse aramayı kendiliğinden başlat (mobil akışla aynı davranış).
     LaunchedEffect(initialQuery, initialQueryVariants, initialSearchLanguage) {
@@ -222,6 +224,30 @@ fun TvMangaBrowseScreen(
                     fontWeight = FontWeight.Bold
                 )
                 Spacer(Modifier.weight(1f))
+                // Kitaplık kısayolu — kumandayla erişilebilir, odak halkası standart.
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(KitsugiColors.SurfaceStrong.copy(0.5f))
+                        .tvClickable(shape = RoundedCornerShape(8.dp)) { onOpenMangaLibrary() }
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.CollectionsBookmark,
+                        contentDescription = null,
+                        tint = KitsugiColors.AccentBlue,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        text = stringResource(R.string.manga_library_title),
+                        color = KitsugiColors.TextPrimary,
+                        style = androidx.compose.material3.MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+                Spacer(Modifier.width(12.dp))
                 Icon(
                     Icons.TravelExplore,
                     contentDescription = null,

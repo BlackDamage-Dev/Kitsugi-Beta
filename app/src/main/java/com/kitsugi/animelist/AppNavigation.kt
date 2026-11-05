@@ -56,6 +56,7 @@ sealed interface AppStateKey {
     data class MangaDetail(override val depth: Int) : AppStateKey
     data class MangaReader(override val depth: Int) : AppStateKey
     data class MangaSourceHealth(override val depth: Int) : AppStateKey
+    data class MangaLibraryState(override val depth: Int) : AppStateKey
     data class AiringCalendar(override val depth: Int, val preferredSource: String? = null) : AppStateKey
     data class Stats(override val depth: Int) : AppStateKey
     data class Favourites(override val depth: Int) : AppStateKey

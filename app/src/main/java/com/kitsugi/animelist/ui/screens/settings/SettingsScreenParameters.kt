@@ -126,10 +126,12 @@ data class GeneralSettings(
     val mangaColorFilter: String = "Normal",
     val mangaFitMode: String = "FitScreen",
     val mangaBrightness: Float = 1.0f,
+    val mangaKeepScreenOn: Boolean = true,
     val onMangaReadingModeSelected: (String) -> Unit = {},
     val onMangaColorFilterSelected: (String) -> Unit = {},
     val onMangaFitModeSelected: (String) -> Unit = {},
     val onMangaBrightnessChanged: (Float) -> Unit = {},
+    val onMangaKeepScreenOnChanged: (Boolean) -> Unit = {},
     // ─── Kaynak arama dili (manga / manhwa / manhua / novel) ────────────────
     /** "ENGLISH" | "ROMAJI" | "NATIVE" | "LOCAL" */
     val mangaSearchTitleLanguage: String = "ENGLISH",
@@ -137,6 +139,15 @@ data class GeneralSettings(
     /** Arama dili genel başlık dili ayarını takip etsin mi. */
     val mangaSearchFollowTitleLanguage: Boolean = true,
     val onMangaSearchFollowTitleLanguageChanged: (Boolean) -> Unit = {},
+    // Bölüm sıralaması / görünümü — liste 1'den başlasın diye kalıcı tercih.
+    val mangaChapterSort: String = "OldestFirst",
+    val mangaChapterDisplayMode: String = "Number",
+    val mangaSkipReadChapters: Boolean = false,
+    val mangaAutoAdvanceChapter: Boolean = false,
+    val onMangaChapterSortSelected: (String) -> Unit = {},
+    val onMangaChapterDisplayModeSelected: (String) -> Unit = {},
+    val onMangaSkipReadChaptersChanged: (Boolean) -> Unit = {},
+    val onMangaAutoAdvanceChapterChanged: (Boolean) -> Unit = {},
     // ─── Otomatik & Manuel Güncelleme Kontrolü ─────────────────────────
     val autoUpdateCheckEnabled: Boolean = true,
     val onAutoUpdateCheckEnabledChanged: (Boolean) -> Unit = {},

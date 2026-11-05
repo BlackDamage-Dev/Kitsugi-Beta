@@ -18723,7 +18723,7 @@
     <string name="manga_search_remove">Remove search</string>
     <string name="manga_sort_label">Sort:</string>
     <string name="manga_sort_relevance">Relevance</string>
-    <string name="manga_sort_title">A-Z</string>
+    <string name="manga_sort_title_az">A-Z</string>
     <string name="manga_search_sources_failed">%1$d sources did not respond</string>
     <string name="manga_empty_add_source">Add source</string>
     <string name="manga_chapter_search_hint">Search chapters (e.g. 42)</string>
@@ -18780,4 +18780,121 @@
     <string name="manga_source_rate_limited_desc">The source rate-limited us temporarily. Wait a few minutes.</string>
     <string name="manga_source_disabled_desc">This source has been disabled.</string>
     <string name="manga_source_unknown_desc">Health has not been checked yet. Run a quick check.</string>
+
+    <string name="history_clear_all_confirm">Both your watch and reading history will be deleted. This cannot be undone.</string>
+    <string name="history_clear_all_title">Clear history</string>
+    <string name="history_clear_read_confirm">Your entire reading history will be deleted. This cannot be undone.</string>
+    <string name="history_clear_read_title">Clear reading history</string>
+    <string name="history_clear_watched_confirm">Your entire watch history will be deleted. This cannot be undone.</string>
+    <string name="history_clear_watched_title">Clear watch history</string>
+    <string name="history_empty_body">Episodes you watch and manga chapters you read appear here.</string>
+    <string name="history_empty_read">You have not read any manga chapter yet.</string>
+    <string name="history_empty_title">No history yet</string>
+    <string name="history_empty_watched">You have not watched any episode yet.</string>
+    <string name="history_read_chapter_label">Chapter: %1$s</string>
+    <string name="history_read_completed">Completed</string>
+    <string name="history_read_in_progress">In progress</string>
+    <string name="history_read_progress">%1$d/%2$d pages</string>
+    <string name="history_remove_read_entry">Remove from reading history</string>
+    <string name="history_section_read">Read</string>
+    <string name="history_section_watched">Watched</string>
+    <string name="history_tab_all">All</string>
+    <string name="history_tab_read">Read</string>
+    <string name="history_tab_watched">Watched</string>
+    <string name="history_title">History</string>
+    <string name="manga_clear_filters">Clear filters</string>
+    <string name="manga_filter_all">All</string>
+    <string name="manga_filter_unread">Unread</string>
+    <string name="manga_keep_screen_on_off">Keep screen on: Disabled</string>
+    <string name="manga_keep_screen_on_on">Keep screen on: Enabled</string>
+    <string name="manga_no_chapters_found">No chapters found for this manga.</string>
+    <string name="manga_no_matching_chapters">No chapters match these filters.</string>
+    <string name="manga_page_of_total">Page %1$d/%2$d</string>
+    <string name="manga_read_filter">Filter read chapters</string>
+    <string name="manga_read_from_start">Read from start</string>
+    <string name="manga_reader_gallery_hint">Tap a page to jump to it</string>
+    <string name="manga_reader_gallery_title">Page gallery</string>
+    <string name="manga_reader_open_gallery">Open page gallery</string>
+    <string name="manga_reader_prev_chapter">Previous chapter</string>
+    <string name="manga_retry">Retry</string>
+    <string name="manga_sort_chapters">Sort chapters</string>
+    <string name="settings_manga_keep_screen_on">Keep screen on while reading</string>
+    <string name="settings_manga_keep_screen_on_desc">Prevents the screen from turning off while reading a chapter</string>
+
+    <!-- ── Chapter sorting (default 1 → N) + Mihon-style chapter tools ── -->
+    <string name="manga_sort_title">Chapter sorting</string>
+    <string name="manga_sort_title_desc">Choose the order chapters are listed in</string>
+    <string name="manga_sort_oldest_first">Oldest → Newest (1 → N)</string>
+    <string name="manga_sort_oldest_first_desc">Chapter 1 first, new chapters at the end. Default.</string>
+    <string name="manga_sort_newest_first">Newest → Oldest (N → 1)</string>
+    <string name="manga_sort_newest_first_desc">Most recently uploaded chapter first</string>
+    <string name="manga_sort_recently_updated">Recently updated</string>
+    <string name="manga_sort_recently_updated_desc">By upload date, newest first</string>
+    <string name="manga_sort_label_oldest">Sort: 1 → N</string>
+    <string name="manga_sort_label_newest">Sort: N → 1</string>
+    <string name="manga_sort_label_recent">Sort: Recently updated</string>
+    <string name="manga_sort_reset">Reset to default</string>
+    <string name="manga_sort_this_series">Only for this series</string>
+    <string name="manga_sort_this_series_desc">The chosen order applies to this manga only</string>
+    <string name="manga_display_title">Chapter display</string>
+    <string name="manga_display_title_desc">Show the chapter number or the source title in each row</string>
+    <string name="manga_display_number">Number (Chapter 42)</string>
+    <string name="manga_display_title_mode">Title (as named by source)</string>
+    <string name="manga_chapter_number_prefix">Chapter</string>
+    <string name="manga_bookmark_chapter">Bookmark chapter</string>
+    <string name="manga_unbookmark_chapter">Remove bookmark</string>
+    <string name="manga_filter_bookmarked">Bookmarked</string>
+    <string name="manga_bookmarked_count">%1$d bookmarked</string>
+    <string name="manga_jump_to_current">Jump to last read</string>
+    <string name="manga_jump_to_first">Jump to chapter 1</string>
+    <string name="manga_unread_count">%1$d unread</string>
+    <string name="manga_progress_summary">%1$d/%2$d chapters read</string>
+    <string name="manga_mark_previous_read">Mark previous as read</string>
+    <string name="manga_skip_read_chapters">Skip read chapters</string>
+    <string name="manga_skip_read_chapters_desc">Skips already read chapters when moving to the next one</string>
+    <string name="manga_auto_advance_chapter">Go to next chapter when finished</string>
+    <string name="manga_auto_advance_chapter_desc">Opens the next chapter automatically at the last page</string>
+    <string name="manga_chapter_start_end">%1$s – %2$s</string>
+    <string name="manga_missing_numbers">Missing chapter: %1$s</string>
+    <string name="manga_missing_numbers_desc">These numbers are absent from the source, the list continues past them</string>
+    <string name="manga_duplicate_chapters">Duplicate chapter: %1$s</string>
+    <string name="manga_duplicate_chapters_desc">The same number was published by multiple groups</string>
+    <string name="manga_hide_duplicates">Hide duplicates</string>
+    <string name="manga_sorting_newest_hint">List is sorted newest → oldest. Change the sort to get back to chapter 1.</string>
+    <string name="manga_restore_default_sort">Default sorting (1 → N) restored</string>
+
+
+    <string name="manga_download_chapter">Download chapter</string>
+    <string name="manga_download_delete">Delete downloaded file</string>
+    <string name="manga_downloaded_count">%1$d chapters downloaded</string>
+    <string name="manga_download_all_visible">Download visible chapters</string>
+    <string name="manga_downloading_progress">Downloading: %1$d%%</string>
+    <string name="manga_download_failed">Download failed</string>
+    <string name="manga_storage_used">%1$s MB used</string>
+
+
+    <!-- ── Manga library ─────────────────────────────────────────────────── -->
+    <string name="manga_library_title">My Manga Library</string>
+    <string name="manga_library_summary">%1$d series · %2$d chapters downloaded</string>
+    <string name="manga_library_all">All</string>
+    <string name="manga_library_sort">Sort library</string>
+    <string name="manga_library_sort_recent">Recently updated</string>
+    <string name="manga_library_sort_title_asc">A → Z</string>
+    <string name="manga_library_sort_title_desc">Z → A</string>
+    <string name="manga_library_sort_unread">Most unread</string>
+    <string name="manga_library_sort_last_read">Last read</string>
+    <string name="manga_library_empty_title">Your library is empty</string>
+    <string name="manga_library_empty_body">Add a series with the library button on a manga detail page.</string>
+    <string name="manga_library_add">Add to library</string>
+    <string name="manga_library_added">In library</string>
+    <string name="manga_library_remove">Remove from library</string>
+    <string name="manga_library_edit">Category and options</string>
+    <string name="manga_library_category_hint">The category shows up as a chip in the library screen</string>
+    <string name="manga_library_category_placeholder">e.g. Ongoing</string>
+    <string name="manga_library_source_missing">Source removed</string>
+    <string name="manga_library_open">Open library</string>
+
+    <string name="manga_crop_borders">Crop borders</string>
+    <string name="manga_crop_borders_desc">Trims scanned page margins and enlarges the artwork</string>
+
 </resources>

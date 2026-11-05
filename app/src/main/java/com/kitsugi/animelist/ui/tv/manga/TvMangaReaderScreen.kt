@@ -1,13 +1,12 @@
 package com.kitsugi.animelist.ui.tv.manga
 
-
 import android.view.KeyEvent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
-import com.kitsugi.animelist.ui.theme.gradient.background
+import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.*
@@ -81,21 +80,7 @@ fun TvMangaReaderScreen(
         )
     )
 
-    var showMangaTrLogin by remember { mutableStateOf(false) }
-    if (showMangaTrLogin) {
-        com.kitsugi.animelist.ui.screens.manga.MangaTrLoginDialog(onDismiss = {
-            showMangaTrLogin = false
-            viewModel.retryLoadPages()
-        })
-    }
     val uiState by viewModel.uiState.collectAsState()
-    var promptedLoginForChapter by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(uiState.loginRequired, uiState.currentChapter.url) {
-        if (uiState.loginRequired && promptedLoginForChapter != uiState.currentChapter.url) {
-            promptedLoginForChapter = uiState.currentChapter.url
-            showMangaTrLogin = true
-        }
-    }
     val pages by viewModel.pages.collectAsState()
 
     val currentChapter = uiState.currentChapter
@@ -107,18 +92,22 @@ fun TvMangaReaderScreen(
     var hudVisible by remember { mutableStateOf(true) }
     var showSettingsPanel by remember { mutableStateOf(false) }
 
-    val pagerState = key(currentChapter.url) { rememberPagerState(initialPage = 0) { pages.size } }
-    val listState = key(currentChapter.url) { rememberLazyListState() }
+    val pagerState = rememberPagerState(initialPage = currentPage) { pages.size }
+    val listState = rememberLazyListState(initialFirstVisibleItemIndex = currentPage)
 
-    var restoredChapterUrl by remember { mutableStateOf<String?>(null) }
+    var hasRestoredProgress by remember(currentChapter.url) { mutableStateOf(false) }
 
     // Focus yönetimi
     val screenFocusRequester = remember { FocusRequester() }
     val backButtonFocusRequester = remember { FocusRequester() }
 
-    LaunchedEffect(currentChapter.url, pages, uiState.isLoadingPages) {
-        if (!uiState.isLoadingPages && pages.isNotEmpty() && restoredChapterUrl != currentChapter.url) {
-            restoredChapterUrl = currentChapter.url
+    LaunchedEffect(currentChapter.url) {
+        hasRestoredProgress = false
+    }
+
+    LaunchedEffect(pages, currentPage) {
+        if (pages.isNotEmpty() && !hasRestoredProgress) {
+            hasRestoredProgress = true
             val targetPage = currentPage.coerceIn(0, pages.size - 1)
             if (readingMode == ReadingMode.Webtoon) {
                 listState.scrollToItem(targetPage)
@@ -128,12 +117,9 @@ fun TvMangaReaderScreen(
         }
     }
 
-    // Pager sayfa değişimi progress kaydetme (Webtoon'da pager kullanılmıyor).
+    // Pager sayfa değişimi progress kaydetme
     LaunchedEffect(pagerState.currentPage) {
-        if (restoredChapterUrl == currentChapter.url &&
-            pages.isNotEmpty() &&
-            readingMode != ReadingMode.Webtoon
-        ) {
+        if (hasRestoredProgress && pages.isNotEmpty()) {
             viewModel.onPageChanged(currentChapter.url, pagerState.currentPage, pages.size)
         }
     }
@@ -147,17 +133,22 @@ fun TvMangaReaderScreen(
         screenFocusRequester.requestFocusAfterFrames(frames = 2)
     }
 
-    // Aynı bölümün birden çok çevirmeni varsa telefon okuyucusunda ayrıntılı bir
-    // seçim penceresi açılıyor. TV'de HUD'u bölmemek için ön seçili sürüm
-    // (hatırlanan çevirmen → ilerlemesi olan → en yeni) sessizce açılır.
-    LaunchedEffect(uiState.pendingChoice?.groupKey, uiState.pendingChoice?.variants?.size) {
-        val request = uiState.pendingChoice ?: return@LaunchedEffect
-        val chosen = request.preselected ?: return@LaunchedEffect
-        viewModel.confirmChapterChoice(
-            chapter = chosen.chapter,
-            rememberScanlator = true,
-            autoContinue = false,
-        )
+    // ─── Ekran açık kalsın + uygulama arka plana inince okuma ilerlemesini kaydet ───
+    val localView = androidx.compose.ui.platform.LocalView.current
+    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    LaunchedEffect(uiState.keepScreenOn) {
+        localView.keepScreenOn = uiState.keepScreenOn
+    }
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_PAUSE) viewModel.flushProgress()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            viewModel.flushProgress()
+            localView.keepScreenOn = false
+        }
     }
 
     Box(
@@ -266,7 +257,7 @@ fun TvMangaReaderScreen(
                     modifier = Modifier.padding(horizontal = 32.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.ErrorOutline,
+                        imageVector = Icons.Rounded.ErrorOutline,
                         contentDescription = null,
                         tint = Color.White.copy(0.5f),
                         modifier = Modifier.size(48.dp)
@@ -277,12 +268,6 @@ fun TvMangaReaderScreen(
                         color = Color.White.copy(0.7f),
                         fontSize = 14.sp
                     )
-                    if (uiState.loginRequired) {
-                        Spacer(Modifier.height(16.dp))
-                        Button(onClick = { showMangaTrLogin = true }) {
-                            Text("Üye girişi yap", color = Color.White)
-                        }
-                    }
                     Spacer(Modifier.height(24.dp))
                     Button(
                         onClick = { viewModel.retryLoadPages() },
@@ -304,9 +289,9 @@ fun TvMangaReaderScreen(
                     loader = loader,
                     colorFilterType = uiState.colorFilterType,
                     fitMode = uiState.fitMode,
+                    cropBorders = uiState.cropBorders,
                     hasNextChapter = viewModel.hasNextChapter,
                     nextChapterName = viewModel.nextChapterName,
-                    nextChapterVariantCount = viewModel.nextChapterVariantCount,
                     onGoToNextChapter = { viewModel.goToNextChapter() },
                     onCenterTap = {
                         hudVisible = !hudVisible
@@ -317,7 +302,7 @@ fun TvMangaReaderScreen(
                         }
                     },
                     onPageChanged = { idx ->
-                        if (restoredChapterUrl == currentChapter.url) {
+                        if (hasRestoredProgress) {
                             viewModel.onPageChanged(currentChapter.url, idx, pages.size)
                         }
                     },
@@ -345,6 +330,7 @@ fun TvMangaReaderScreen(
                     readingMode = readingMode,
                     colorFilterType = uiState.colorFilterType,
                     fitMode = uiState.fitMode,
+                    cropBorders = uiState.cropBorders,
                     onCenterTap = {
                         hudVisible = !hudVisible
                         if (hudVisible) {
@@ -408,7 +394,7 @@ fun TvMangaReaderScreen(
                         )
                     ) {
                         Icon(
-                            Icons.ArrowBack,
+                            Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = stringResource(R.string.geri),
                             tint = Color.White
                         )
@@ -443,7 +429,7 @@ fun TvMangaReaderScreen(
                         )
                     ) {
                         Icon(
-                            Icons.MenuBook,
+                            Icons.AutoMirrored.Filled.MenuBook,
                             contentDescription = stringResource(R.string.okuyucu_ayarlari),
                             tint = Color.White
                         )
@@ -486,7 +472,7 @@ fun TvMangaReaderScreen(
                             )
                         ) {
                             Icon(
-                                Icons.NavigateBefore,
+                                Icons.AutoMirrored.Filled.NavigateBefore,
                                 contentDescription = stringResource(R.string.onceki_bolum),
                                 tint = if (viewModel.hasPreviousChapter) Color.White else Color.White.copy(0.3f)
                             )
@@ -495,9 +481,9 @@ fun TvMangaReaderScreen(
                         // Sayfa İlerleme Metni
                         val currentText = "${currentPage + 1} / ${pages.size}"
                         val readingLabel = when (readingMode) {
-                            ReadingMode.RightToLeft -> stringResource(R.string.manga_direction_rtl)
-                            ReadingMode.LeftToRight -> stringResource(R.string.manga_direction_ltr)
-                            ReadingMode.Vertical -> stringResource(R.string.manga_direction_vertical)
+                            ReadingMode.RightToLeft -> "Sağdan Sola"
+                            ReadingMode.LeftToRight -> "Soldan Sağa"
+                            ReadingMode.Vertical -> "Dikey"
                             ReadingMode.Webtoon -> "Webtoon"
                         }
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -512,6 +498,23 @@ fun TvMangaReaderScreen(
                                 color = MaterialTheme.colorScheme.primary,
                                 style = MaterialTheme.typography.bodySmall
                             )
+                            // Bölüm içi konum: tek satırlık ince ilerleme çubuğu (3dp)
+                            Spacer(Modifier.height(6.dp))
+                            Box(
+                                modifier = Modifier
+                                    .width(180.dp)
+                                    .height(3.dp)
+                                    .background(Color.White.copy(alpha = 0.18f), androidx.compose.foundation.shape.RoundedCornerShape(2.dp))
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth(
+                                            ((currentPage + 1).toFloat() / pages.size.toFloat()).coerceIn(0f, 1f)
+                                        )
+                                        .fillMaxHeight()
+                                        .background(MaterialTheme.colorScheme.primary, androidx.compose.foundation.shape.RoundedCornerShape(2.dp))
+                                )
+                            }
                         }
 
                         var isNextFocused by remember { mutableStateOf(false) }
@@ -524,7 +527,7 @@ fun TvMangaReaderScreen(
                             )
                         ) {
                             Icon(
-                                Icons.NavigateNext,
+                                Icons.AutoMirrored.Filled.NavigateNext,
                                 contentDescription = stringResource(R.string.sonraki_bolum),
                                 tint = if (viewModel.hasNextChapter) Color.White else Color.White.copy(0.3f)
                             )

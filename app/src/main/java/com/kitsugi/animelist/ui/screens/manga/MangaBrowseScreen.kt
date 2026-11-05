@@ -82,6 +82,7 @@ fun MangaBrowseScreen(
     initialTitleSet: com.kitsugi.animelist.data.manga.MangaTitleSet? = null,
     vm: MangaBrowseViewModel = viewModel(factory = MangaBrowseViewModel.Factory(repository)),
     onMangaClick: (MangaSource, MangaDetails) -> Unit = { _, _ -> },
+    onOpenMangaLibrary: () -> Unit = {},
     onBack: () -> Unit = {}
 ) {
     val ui by vm.ui.collectAsState()
@@ -286,21 +287,32 @@ fun MangaBrowseScreen(
                 Spacer(Modifier.width(12.dp))
                 Text(stringResource(R.string.inline_discover_manga_eb24f62), color = KitsugiColors.TextPrimary, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.weight(1f))
+                IconButton(
+                    onClick = onOpenMangaLibrary,
+                    colors  = IconButtonDefaults.iconButtonColors(containerColor = KitsugiColors.SurfaceStrong.copy(0.5f)),
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(Icons.CollectionsBookmark, stringResource(R.string.manga_library_title), tint = KitsugiColors.TextPrimary, modifier = Modifier.size(18.dp))
+                }
+                Spacer(Modifier.width(8.dp))
                 Icon(Icons.TravelExplore, null, tint = accentColor, modifier = Modifier.padding(end = 8.dp).size(22.dp))
             }
 
-            // ── Info card (CS3 portrait style) — kısa ekranda gizlenir ──
+            // ── Info şeridi ──
+            // Önceden 76dp yüksekliğinde büyük bir kart vardı; arama alanını ekranın
+            // altına itiyordu. Artık tek satırlık kompakt şerit: küçük kapak + başlık
+            // + "N sonuç · M kaynak" bilgisi (istediğin sayı/kaynak satırı korunuyor).
             if (!compactLayout) Row(
                 Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp)
-                    .background(KitsugiColors.Surface.copy(0.4f), RoundedCornerShape(12.dp))
-                    .padding(12.dp),
+                    .background(KitsugiColors.Surface.copy(0.35f), RoundedCornerShape(10.dp))
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // mini poster
                 Box(
-                    Modifier.size(width = 52.dp, height = 76.dp)
+                    Modifier.size(width = 40.dp, height = 58.dp)
                         .clip(RoundedCornerShape(8.dp))
                         .background(KitsugiColors.SurfaceStrong)
                 ) {
@@ -316,7 +328,7 @@ fun MangaBrowseScreen(
                         }
                     }
                 }
-                Spacer(Modifier.width(14.dp))
+                Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
                     Text(
                         if (query.isNotBlank()) stringResource(R.string.manga_search_query_label, query)
@@ -355,7 +367,7 @@ fun MangaBrowseScreen(
                 }
             }
 
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(8.dp))
 
             // ── Arama dili çipi ──────────────────────────────────────────────
             // Kullanıcı "Oku" ile gelen aramanın hangi adla yapıldığını görsün ve
@@ -589,7 +601,7 @@ fun MangaBrowseScreen(
                             onClick = { sortMode = MangaSearchSort.Relevance }
                         )
                         MiniSortChip(
-                            label = stringResource(R.string.manga_sort_title),
+                            label = stringResource(R.string.manga_sort_title_az),
                             selected = sortMode == MangaSearchSort.Title,
                             accent = accentColor,
                             onClick = { sortMode = MangaSearchSort.Title }

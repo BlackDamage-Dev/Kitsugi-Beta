@@ -671,7 +671,8 @@ fun TvRootScreen(
                             onMangaClick = { source, manga ->
                                 navigationState.navigateToMangaDetail(source, manga)
                             },
-                            onBack = { navigationState.currentTab = TvDestination.HOME }
+                            onBack = { navigationState.currentTab = TvDestination.HOME },
+                            onOpenMangaLibrary = { navigationState.navigateToMangaLibrary() }
                         )
                         TvDestination.SETTINGS -> TvSettingsScreen(
                             addonViewModel = addonViewModel,
@@ -683,6 +684,7 @@ fun TvRootScreen(
                             onNavigateToAddons = { navigationState.navigateToAddons() },
                             onNavigateToMangaExtension = { navigationState.navigateToMangaExtension() },
                             onNavigateToMangaSourceHealth = { navigationState.navigateToMangaSourceHealth() },
+                            onNavigateToMangaLibrary = { navigationState.navigateToMangaLibrary() },
                             onNavigateToCompanion = { navigationState.navigateToCompanion() }
                         )
                         TvDestination.ACCOUNT  -> TvQrLoginScreen(authViewModel = authViewModel)
@@ -804,6 +806,18 @@ fun TvRootScreen(
                 onGetCooldownUntil = { mangaViewModel.getSourceCooldownUntil(it) },
                 onQuickCheckSource = { mangaViewModel.quickCheckSource(it) },
                 onNavigateToHealth = { navigationState.navigateToMangaSourceHealth() },
+                onBack = { navigationState.pop() }
+            )
+        }
+
+        // ── Manga Kitaplığı (TV) ───────────────────────────────────────────────
+        // Mobil kitaplıkla **aynı** ekran ve aynı Room verisi kullanılır; TV'de kumanda
+        // ile gezilebilmesi için tvClickable odak desteği zaten ekranın içinde.
+        if (navigationState.isMangaLibraryActive) {
+            BackHandler(enabled = true) { navigationState.pop() }
+            com.kitsugi.animelist.ui.screens.manga.MangaLibraryScreen(
+                availableSources = mangaViewModel.mangaSources,
+                onOpenManga = { source, manga -> navigationState.navigateToMangaDetail(source, manga) },
                 onBack = { navigationState.pop() }
             )
         }

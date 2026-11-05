@@ -90,7 +90,25 @@ class AppNavigationState(
         mangaSourceHealthOpen = false
     }
 
+    var mangaLibraryOpen by mutableStateOf(false)
+        private set
+
+    fun openMangaLibrary() {
+        mangaLibraryOpen = true
+    }
+
+    fun closeMangaLibrary() {
+        mangaLibraryOpen = false
+    }
+
     var mangaDetailNavState by mutableStateOf<MangaDetailNavState?>(null)
+
+    /**
+     * Okuyucudan dönüşte artırılır. Manga detay ekranı bu değeri izleyip **bölüm listesini
+     * yeniden çekmeden** yalnızca okuma ilerlemesini Room'dan tazeler; böylece okundu
+     * işaretleri ve "Devam Et" hedefi anında güncellenir.
+     */
+    var mangaDetailRefreshTick by mutableStateOf(0)
     var mangaReaderNavState by mutableStateOf<MangaReaderNavState?>(null)
     var fullScreenGridState by mutableStateOf<FullScreenMediaGridState?>(null)
     var addonFullScreenGridState by mutableStateOf<AddonFullScreenGridState?>(null)
@@ -119,7 +137,8 @@ class AppNavigationState(
                          (if (mangaBrowseOpen) 1 else 0) +
                          (if (mangaDetailNavState != null) 1 else 0) +
                          (if (mangaReaderNavState != null) 1 else 0) +
-                         (if (mangaSourceHealthOpen) 1 else 0)
+                         (if (mangaSourceHealthOpen) 1 else 0) +
+                         (if (mangaLibraryOpen) 1 else 0)
 
         poppedWithIndices.forEach { (idx, screen) ->
             val depth = baseOffset + (idx + 1)

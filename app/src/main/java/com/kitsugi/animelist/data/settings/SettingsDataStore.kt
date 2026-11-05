@@ -36,7 +36,8 @@ class SettingsDataStore(
         "default_subtitle_size", "default_subtitle_color", "subtitle_bold", "subtitle_outline_enabled",
         "manga_reading_mode", "manga_color_filter", "manga_fit_mode", "search_history_enabled",
         "manga_search_title_language", "manga_search_follow_title_language",
-        "tmdb_language"
+        "tmdb_language",
+        "manga_chapter_sort", "manga_chapter_display_mode"
     )
 
     val cloudSettingsFlow: Flow<Map<String, Any>> = context.settingsDataStore.data.map { prefs ->
@@ -77,6 +78,11 @@ class SettingsDataStore(
 
         /** Varsayılan dizi & film (TMDB) başlık/açıklama dili: **Türkçe**. */
         const val DEFAULT_TMDB_LANGUAGE: String = "tr"
+
+        const val SORT_OVERRIDE_PREFIX = "manga_sort_override_"
+
+        fun sortOverrideKey(mangaUrl: String): String =
+            SORT_OVERRIDE_PREFIX + mangaUrl.hashCode().toUInt().toString(16)
     }
 
     private object Keys {
@@ -150,6 +156,18 @@ class SettingsDataStore(
         val MangaColorFilter = stringPreferencesKey("manga_color_filter")
         val MangaFitMode = stringPreferencesKey("manga_fit_mode")
         val MangaBrightness = floatPreferencesKey("manga_brightness")
+        val MangaKeepScreenOn = booleanPreferencesKey("manga_keep_screen_on")
+        // Bölüm listesi sıralaması: "OldestFirst" (varsayılan, 1 → N), "NewestFirst",
+        // "RecentlyUpdated". Ayrıca manga bazında ezme: MangaSortOverride_<mangaUrl>
+        val MangaChapterSort = stringPreferencesKey("manga_chapter_sort")
+        val MangaChapterDisplayMode = stringPreferencesKey("manga_chapter_display_mode")
+        // Okuyucu ekstra: bölüm sonunda otomatik sonraki bölüme geçiş, okunanı atla.
+        val MangaSkipReadChapters = booleanPreferencesKey("manga_skip_read_chapters")
+        val MangaAutoAdvanceChapter = booleanPreferencesKey("manga_auto_advance_chapter")
+        // Bölüm yer imleri (bookmark) — Mihon'daki ★ davranışı.
+        val MangaBookmarkedChapters = stringPreferencesKey("manga_bookmarked_chapters")
+        // Mihon "crop borders": sayfa kenarındaki beyaz/siyah boşluğu kırp.
+        val MangaCropBorders = booleanPreferencesKey("manga_crop_borders")
         /** Kaynak arama dili: ENGLISH / ROMAJI / NATIVE / LOCAL. */
         val MangaSearchTitleLanguage = stringPreferencesKey("manga_search_title_language")
         /** Arama dili genel başlık dilini takip etsin mi. */
@@ -752,6 +770,13 @@ class SettingsDataStore(
                     mangaColorFilter = preferences[Keys.MangaColorFilter] ?: "Normal",
                     mangaFitMode = preferences[Keys.MangaFitMode] ?: "FitScreen",
                     mangaBrightness = normalizeMangaBrightness(preferences[Keys.MangaBrightness] ?: 1.0f),
+                    mangaKeepScreenOn = preferences[Keys.MangaKeepScreenOn] ?: true,
+                    mangaChapterSort = preferences[Keys.MangaChapterSort] ?: "OldestFirst",
+                    mangaChapterDisplayMode = preferences[Keys.MangaChapterDisplayMode] ?: "Number",
+                    mangaSkipReadChapters = preferences[Keys.MangaSkipReadChapters] ?: false,
+                    mangaAutoAdvanceChapter = preferences[Keys.MangaAutoAdvanceChapter] ?: false,
+                    mangaBookmarkedChapters = preferences[Keys.MangaBookmarkedChapters] ?: "",
+                    mangaCropBorders = preferences[Keys.MangaCropBorders] ?: false,
                     mangaSearchTitleLanguage = preferences[Keys.MangaSearchTitleLanguage] ?: "ENGLISH",
                     mangaSearchFollowTitleLanguage =
                         preferences[Keys.MangaSearchFollowTitleLanguage] ?: true,
@@ -1217,6 +1242,80 @@ class SettingsDataStore(
         context.settingsDataStore.edit { preferences ->
             preferences[Keys.MangaFitMode] = fitMode
         }
+    }
+
+    suspend fun setMangaKeepScreenOn(enabled: Boolean) {
+        context.settingsDataStore.edit { preferences ->
+            preferences[Keys.MangaKeepScreenOn] = enabled
+        }
+    }
+
+    /** Bölüm listesi varsayılan sıralaması (tüm mangalar için). */
+    suspend fun setMangaChapterSort(sortName: String) {
+        context.settingsDataStore.edit { preferences ->
+            preferences[Keys.MangaChapterSort] = sortName
+        }
+    }
+
+    /** Bölüm satırı etiket biçimi: Number / Title. */
+    suspend fun setMangaChapterDisplayMode(modeName: String) {
+        context.settingsDataStore.edit { preferences ->
+            preferences[Keys.MangaChapterDisplayMode] = modeName
+        }
+    }
+
+    suspend fun setMangaSkipReadChapters(enabled: Boolean) {
+        context.settingsDataStore.edit { preferences ->
+            preferences[Keys.MangaSkipReadChapters] = enabled
+        }
+    }
+
+    suspend fun setMangaAutoAdvanceChapter(enabled: Boolean) {
+        context.settingsDataStore.edit { preferences ->
+            preferences[Keys.MangaAutoAdvanceChapter] = enabled
+        }
+    }
+
+    /**
+     * Yer imli bölüm listesini kaydeder (Mihon'daki ★ davranışı).
+     *
+     * Kalıcılık için tek bir string anahtar kullanılır: yüzlerce bölümde her biri için ayrı
+     * anahtar açmak DataStore'u şişirirdi. URL'ler `|` ile ayrılır (URL içinde geçmez).
+     */
+    suspend fun setMangaBookmarkedChapters(urls: Set<String>) {
+        context.settingsDataStore.edit { preferences ->
+            preferences[Keys.MangaBookmarkedChapters] = urls.joinToString("|")
+        }
+    }
+
+    /**
+     * Tek bir manga için sıralama ezmesi yazar; `null` verilirse ezme kaldırılır ve manga
+     * genel varsayılana döner.
+     *
+     * Anahtar adı manga URL'sinden türetilir; URL'ler çok uzun olabildiği için
+     * anahtar adı `hashCode` ile sabitlenir (DataStore anahtar adı uzunluğu sorun değil ama
+     * dosya boyutu ve okunabilirlik için kısa tutuluyor).
+     */
+    suspend fun setMangaChapterSortOverride(mangaUrl: String, sortName: String?) {
+        if (mangaUrl.isBlank()) return
+        val key = stringPreferencesKey(sortOverrideKey(mangaUrl))
+        context.settingsDataStore.edit { preferences ->
+            if (sortName == null) preferences.remove(key) else preferences[key] = sortName
+        }
+    }
+
+    /** Sayfa kenarlarını kırp (Mihon "crop borders"). */
+    suspend fun setMangaCropBorders(enabled: Boolean) {
+        context.settingsDataStore.edit { preferences ->
+            preferences[Keys.MangaCropBorders] = enabled
+        }
+    }
+
+    /** Tek manga için geçerli sıralama: ezme varsa o, yoksa genel tercih. */
+    suspend fun getMangaChapterSort(mangaUrl: String): String {
+        val prefs = context.settingsDataStore.data.first()
+        val override = prefs[stringPreferencesKey(sortOverrideKey(mangaUrl))]
+        return override ?: prefs[Keys.MangaChapterSort] ?: "OldestFirst"
     }
 
     suspend fun setMangaBrightness(brightness: Float) {

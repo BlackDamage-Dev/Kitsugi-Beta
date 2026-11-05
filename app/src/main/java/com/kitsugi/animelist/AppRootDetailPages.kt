@@ -62,6 +62,11 @@ fun AppRootDetailPages(
     onAddApiSelectionToList: (ApiSearchSelection) -> Unit,
     onLoginBangumi: () -> Unit = {},
     onReadMangaClick: (MediaEntry, MangaMappingEntity?) -> Unit,
+    /**
+     * Geçmiş sayfasındaki **okunan** bir bölüme dokunulduğunda manga detay sayfasını açar.
+     * Kaynak adı yüklü eklentiler arasında bulunamazsa kullanıcıya bilgi verilir.
+     */
+    onOpenMangaReadHistory: (source: String, mangaUrl: String, mangaTitle: String, coverUrl: String?) -> Unit = { _, _, _, _ -> },
     triggerSearch: (String) -> Unit,
     triggerSearchByGenre: (String) -> Unit = {},
     triggerSearchByTag: (String) -> Unit = {},
@@ -822,7 +827,10 @@ fun AppRootDetailPages(
         is AppStateKey.WatchHistory -> {
             navState.stateHolder.SaveableStateProvider(key = "watch_history_${key.depth}") {
                 com.kitsugi.animelist.ui.screens.history.WatchHistoryScreen(
-                    onBack = { navState.popDetailStack() }
+                    onBack = { navState.popDetailStack() },
+                    onOpenManga = { sourceName, mangaUrl, mangaTitle, coverUrl ->
+                        onOpenMangaReadHistory(sourceName, mangaUrl, mangaTitle, coverUrl)
+                    }
                 )
             }
         }

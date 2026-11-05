@@ -115,8 +115,17 @@ fun KitsugiPreferencesSettingsDialog(
     onMangaColorFilterSelected: (String) -> Unit = {},
     onMangaFitModeSelected: (String) -> Unit = {},
     onMangaBrightnessChanged: (Float) -> Unit = {},
+    onMangaKeepScreenOnChanged: (Boolean) -> Unit = {},
     onMangaSearchTitleLanguageSelected: (String) -> Unit = {},
     onMangaSearchFollowTitleLanguageChanged: (Boolean) -> Unit = {},
+    mangaChapterSort: String = "OldestFirst",
+    mangaChapterDisplayMode: String = "Number",
+    mangaSkipReadChapters: Boolean = false,
+    mangaAutoAdvanceChapter: Boolean = false,
+    onMangaChapterSortSelected: (String) -> Unit = {},
+    onMangaChapterDisplayModeSelected: (String) -> Unit = {},
+    onMangaSkipReadChaptersChanged: (Boolean) -> Unit = {},
+    onMangaAutoAdvanceChapterChanged: (Boolean) -> Unit = {},
     embeddedMode: Boolean = false,
     initialPage: Int = 0
 ) {
@@ -260,8 +269,13 @@ fun KitsugiPreferencesSettingsDialog(
                         onMangaColorFilterSelected = onMangaColorFilterSelected,
                         onMangaFitModeSelected = onMangaFitModeSelected,
                         onMangaBrightnessChanged = onMangaBrightnessChanged,
+                        onMangaKeepScreenOnChanged = onMangaKeepScreenOnChanged,
                         onMangaSearchTitleLanguageSelected = onMangaSearchTitleLanguageSelected,
                         onMangaSearchFollowTitleLanguageChanged = onMangaSearchFollowTitleLanguageChanged,
+                        onMangaChapterSortSelected = onMangaChapterSortSelected,
+                        onMangaChapterDisplayModeSelected = onMangaChapterDisplayModeSelected,
+                        onMangaSkipReadChaptersChanged = onMangaSkipReadChaptersChanged,
+                        onMangaAutoAdvanceChapterChanged = onMangaAutoAdvanceChapterChanged,
                         accentColor = accentColor,
                         scrollState = mangaReaderScrollState
                     )
@@ -1981,8 +1995,13 @@ private fun MangaReaderTab(
     onMangaColorFilterSelected: (String) -> Unit,
     onMangaFitModeSelected: (String) -> Unit,
     onMangaBrightnessChanged: (Float) -> Unit,
+    onMangaKeepScreenOnChanged: (Boolean) -> Unit,
     onMangaSearchTitleLanguageSelected: (String) -> Unit,
     onMangaSearchFollowTitleLanguageChanged: (Boolean) -> Unit,
+    onMangaChapterSortSelected: (String) -> Unit = {},
+    onMangaChapterDisplayModeSelected: (String) -> Unit = {},
+    onMangaSkipReadChaptersChanged: (Boolean) -> Unit = {},
+    onMangaAutoAdvanceChapterChanged: (Boolean) -> Unit = {},
     accentColor: Color,
     scrollState: ScrollState = rememberScrollState()
 ) {
@@ -2015,6 +2034,17 @@ private fun MangaReaderTab(
         KitsugiChoiceOption(id = MangaSettingIds.FIT_ORIGINAL, title = stringResource(R.string.manga_fit_original), description = "")
     )
 
+    val sortOptions = listOf(
+        KitsugiChoiceOption(id = "OldestFirst",     title = stringResource(R.string.manga_sort_oldest_first),     description = stringResource(R.string.manga_sort_oldest_first_desc)),
+        KitsugiChoiceOption(id = "NewestFirst",     title = stringResource(R.string.manga_sort_newest_first),     description = stringResource(R.string.manga_sort_newest_first_desc)),
+        KitsugiChoiceOption(id = "RecentlyUpdated", title = stringResource(R.string.manga_sort_recently_updated), description = stringResource(R.string.manga_sort_recently_updated_desc))
+    )
+
+    val displayOptions = listOf(
+        KitsugiChoiceOption(id = "Number", title = stringResource(R.string.manga_display_number),     description = ""),
+        KitsugiChoiceOption(id = "Title",  title = stringResource(R.string.manga_display_title_mode), description = "")
+    )
+
     // ─── Kaynak arama dili ────────────────────────────────────────────────────
     // "Oku" butonu ve tüm kaynak aramaları bu dili kullanır (kullanıcı şikâyeti:
     // başlık dili İngilizce iken arama rastgele adla yapılıyordu).
@@ -2029,6 +2059,8 @@ private fun MangaReaderTab(
     var showReadingModeMenu by remember { mutableStateOf(false) }
     var showColorFilterMenu by remember { mutableStateOf(false) }
     var showFitModeMenu by remember { mutableStateOf(false) }
+    var showSortMenu by remember { mutableStateOf(false) }
+    var showDisplayMenu by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -2196,6 +2228,101 @@ private fun MangaReaderTab(
                     steps = 8
                 )
             }
+
+            KitsugiSettingsDivider()
+
+            KitsugiSettingsSwitchItem(
+                title = stringResource(R.string.settings_manga_keep_screen_on),
+                description = stringResource(R.string.settings_manga_keep_screen_on_desc),
+                icon = Icons.ScreenLockPortrait,
+                iconColor = accentColor,
+                checked = appSettings.mangaKeepScreenOn,
+                onCheckedChange = onMangaKeepScreenOnChanged
+            )
+
+            KitsugiSettingsDivider()
+
+            // ── Bölüm sıralaması ─────────────────────────────────────────────
+            // Liste 1'den başlasın diye VARSAYILAN "Eski → Yeni (1 → N)". Kullanıcı
+            // isterse "Yeni → Eski"ye çevirir; tercih cihazda kalıcı ve buluta taşınır.
+            Box {
+                KitsugiSettingsListItem(
+                    title = stringResource(R.string.manga_sort_title),
+                    description = stringResource(R.string.manga_sort_title_desc),
+                    value = sortOptions.find { it.id == appSettings.mangaChapterSort }?.title ?: "",
+                    icon = Icons.SwapVert,
+                    iconColor = accentColor,
+                    onClick = { showSortMenu = true }
+                )
+                KitsugiDropdownMenu(
+                    expanded = showSortMenu,
+                    onDismissRequest = { showSortMenu = false },
+                    dialogTitle = stringResource(R.string.manga_sort_title)
+                ) {
+                    sortOptions.forEach { opt ->
+                        KitsugiDropdownItem(
+                            text = opt.title,
+                            selected = opt.id == appSettings.mangaChapterSort,
+                            onClick = {
+                                onMangaChapterSortSelected(opt.id)
+                                showSortMenu = false
+                            }
+                        )
+                    }
+                }
+            }
+
+            KitsugiSettingsDivider()
+
+            // ── Bölüm görünümü (numara / başlık) ─────────────────────────────
+            Box {
+                KitsugiSettingsListItem(
+                    title = stringResource(R.string.manga_display_title),
+                    description = stringResource(R.string.manga_display_title_desc),
+                    value = displayOptions.find { it.id == appSettings.mangaChapterDisplayMode }?.title ?: "",
+                    icon = Icons.FormatListNumbered,
+                    iconColor = accentColor,
+                    onClick = { showDisplayMenu = true }
+                )
+                KitsugiDropdownMenu(
+                    expanded = showDisplayMenu,
+                    onDismissRequest = { showDisplayMenu = false },
+                    dialogTitle = stringResource(R.string.manga_display_title)
+                ) {
+                    displayOptions.forEach { opt ->
+                        KitsugiDropdownItem(
+                            text = opt.title,
+                            selected = opt.id == appSettings.mangaChapterDisplayMode,
+                            onClick = {
+                                onMangaChapterDisplayModeSelected(opt.id)
+                                showDisplayMenu = false
+                            }
+                        )
+                    }
+                }
+            }
+
+            KitsugiSettingsDivider()
+
+            KitsugiSettingsSwitchItem(
+                title = stringResource(R.string.manga_skip_read_chapters),
+                description = stringResource(R.string.manga_skip_read_chapters_desc),
+                icon = Icons.SkipNext,
+                iconColor = accentColor,
+                checked = appSettings.mangaSkipReadChapters,
+                onCheckedChange = onMangaSkipReadChaptersChanged
+            )
+
+            KitsugiSettingsDivider()
+
+            KitsugiSettingsSwitchItem(
+                title = stringResource(R.string.manga_auto_advance_chapter),
+                description = stringResource(R.string.manga_auto_advance_chapter_desc),
+                icon = Icons.FastForward,
+                iconColor = accentColor,
+                checked = appSettings.mangaAutoAdvanceChapter,
+                onCheckedChange = onMangaAutoAdvanceChapterChanged
+            )
         }
 
         Spacer(modifier = Modifier.height(16.dp))

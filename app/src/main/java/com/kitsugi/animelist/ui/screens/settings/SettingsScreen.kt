@@ -939,6 +939,7 @@ private fun SettingsPreferencesContent(
         integrations.translateSourceLanguage, integrations.translateTargetLanguage, general.appLanguage, general.fixedNavBar,
         general.airingNotificationsEnabled, general.splashAnimationEnabled, general.splashSoundEnabled,
         general.mangaReadingMode, general.mangaColorFilter, general.mangaFitMode, general.mangaBrightness,
+        general.mangaKeepScreenOn,
         general.aniListNotificationsEnabled, general.malNotificationsEnabled, general.simklNotificationsEnabled,
         general.kitsuNotificationsEnabled, general.shikimoriNotificationsEnabled,
         general.tmdbNotificationsEnabled, general.bangumiNotificationsEnabled,
@@ -1005,9 +1006,14 @@ private fun SettingsPreferencesContent(
                 mangaColorFilter = general.mangaColorFilter,
                 mangaFitMode = general.mangaFitMode,
                 mangaBrightness = general.mangaBrightness,
+                mangaKeepScreenOn = general.mangaKeepScreenOn,
                 // Arama dili: "Oku" butonu ve kaynak aramaları bu ayarı kullanır.
                 mangaSearchTitleLanguage = general.mangaSearchTitleLanguage,
-                mangaSearchFollowTitleLanguage = general.mangaSearchFollowTitleLanguage
+                mangaSearchFollowTitleLanguage = general.mangaSearchFollowTitleLanguage,
+                mangaChapterSort = general.mangaChapterSort,
+                mangaChapterDisplayMode = general.mangaChapterDisplayMode,
+                mangaSkipReadChapters = general.mangaSkipReadChapters,
+                mangaAutoAdvanceChapter = general.mangaAutoAdvanceChapter
             )
         )
     }
@@ -1072,8 +1078,17 @@ private fun SettingsPreferencesContent(
         onMangaColorFilterSelected = general.onMangaColorFilterSelected,
         onMangaFitModeSelected = general.onMangaFitModeSelected,
         onMangaBrightnessChanged = general.onMangaBrightnessChanged,
+        onMangaKeepScreenOnChanged = general.onMangaKeepScreenOnChanged,
         onMangaSearchTitleLanguageSelected = general.onMangaSearchTitleLanguageSelected,
         onMangaSearchFollowTitleLanguageChanged = general.onMangaSearchFollowTitleLanguageChanged,
+        mangaChapterSort = general.mangaChapterSort,
+        mangaChapterDisplayMode = general.mangaChapterDisplayMode,
+        mangaSkipReadChapters = general.mangaSkipReadChapters,
+        mangaAutoAdvanceChapter = general.mangaAutoAdvanceChapter,
+        onMangaChapterSortSelected = general.onMangaChapterSortSelected,
+        onMangaChapterDisplayModeSelected = general.onMangaChapterDisplayModeSelected,
+        onMangaSkipReadChaptersChanged = general.onMangaSkipReadChaptersChanged,
+        onMangaAutoAdvanceChapterChanged = general.onMangaAutoAdvanceChapterChanged,
         onDismiss = {}  // Sub-sayfada dismiss = no-op; geri butonu ile çıkılır
     )
 

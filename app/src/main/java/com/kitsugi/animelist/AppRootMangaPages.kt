@@ -30,7 +30,14 @@ fun AppRootMangaPages(
                     chapter          = readerState.chapter,
                     mangaDetails     = readerState.mangaDetails,
                     source           = readerState.source,
-                    onBack           = { navState.mangaReaderNavState = null }
+                    onBack           = {
+                        // Okuyucudan dönüşte detay ekranı arkada yaşamaya devam ediyor;
+                        // bu yüzden bölüm listesini yeniden çekmeden (ağ trafiği yok)
+                        // yalnızca okuma ilerlemesi tazelenir. Bunun için detay ekranı
+                        // yeniden kompoze edildiğinde kendi ViewModel'inden refresh ister.
+                        navState.mangaReaderNavState = null
+                        navState.mangaDetailRefreshTick += 1
+                    }
                 )
             }
         }
@@ -48,7 +55,8 @@ fun AppRootMangaPages(
                             chapter      = chapter
                         )
                     },
-                    onBack        = { navState.mangaDetailNavState = null }
+                    onBack        = { navState.mangaDetailNavState = null },
+                    refreshTick   = navState.mangaDetailRefreshTick
                 )
             }
         }
@@ -76,6 +84,20 @@ fun AppRootMangaPages(
             )
         }
 
+        is AppStateKey.MangaLibraryState -> {
+            // Manga kitaplığı: takip edilen seriler, kategoriler, indirme/ilerleme özeti.
+            com.kitsugi.animelist.ui.screens.manga.MangaLibraryScreen(
+                availableSources = mangaViewModel.mangaSources,
+                onOpenManga = { source, mangaDetails ->
+                    navState.mangaDetailNavState = MangaDetailNavState(
+                        source       = source,
+                        mangaDetails = mangaDetails
+                    )
+                },
+                onBack = { navState.closeMangaLibrary() }
+            )
+        }
+
         is AppStateKey.MangaBrowse -> {
             MangaBrowseScreen(
                 repository    = mangaViewModel.mangaRepository,
@@ -89,6 +111,7 @@ fun AppRootMangaPages(
                     else settings.mangaSearchTitleLanguage
                 },
                 vm            = mangaBrowseViewModel,
+                onOpenMangaLibrary = { navState.openMangaLibrary() },
                 onMangaClick  = { source, mangaDetails ->
                     val targetMediaId = navState.mangaBrowseMediaId
                     if (targetMediaId != null) {
