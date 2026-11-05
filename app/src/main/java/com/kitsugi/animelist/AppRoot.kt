@@ -953,7 +953,7 @@ fun AppRoot(
                     activeScreen is DetailScreen.Downloads -> AppStateKey.Downloads(depth = currentDepth)
                     activeScreen is DetailScreen.WatchHistory -> AppStateKey.WatchHistory(depth = currentDepth)
                     activeScreen is DetailScreen.PluginPicker -> AppStateKey.PluginPicker(depth = currentDepth)
-                    activeScreen is DetailScreen.AddonExplore -> AppStateKey.AddonExplore(activeScreen.apiName, depth = currentDepth)
+                    activeScreen is DetailScreen.AddonExplore -> AppStateKey.AddonExplore(activeScreen.apiName, depth = currentDepth, initialQuery = activeScreen.initialQuery)
                     activeScreen is DetailScreen.SourceSearchPage -> AppStateKey.SourceSearchPage(activeScreen.engine, activeScreen.query, activeScreen.scope, activeScreen.shelfResults, depth = currentDepth)
                     else                         -> AppStateKey.Tab(selectedTab)
                 }
@@ -1407,7 +1407,7 @@ private fun AppNavigationContent(
             }
 
             is AppStateKey.AddonExplore -> {
-                navState.stateHolder.SaveableStateProvider(key = "addon_explore_${key.depth}_${key.apiName}") {
+                navState.stateHolder.SaveableStateProvider(key = "addon_explore_${key.depth}_${key.apiName}_${key.initialQuery.hashCode()}") {
                     val api = remember(key.apiName) {
                         com.lagradost.cloudstream3.APIHolder.allProviders.firstOrNull { it.name.equals(key.apiName, ignoreCase = true) }
                     }
@@ -1415,6 +1415,7 @@ private fun AppNavigationContent(
                         com.kitsugi.animelist.ui.screens.search.components.AddonExplorePage(
                             api = api,
                             onBackClick = { navState.popDetailStack() },
+                            initialQuery = key.initialQuery,
                             titleLanguage = appSettings.titleLanguage,
                             scoreFormat = appSettings.scoreFormat,
                             hideScores = appSettings.hideScores,

@@ -2,10 +2,14 @@ package com.kitsugi.animelist.data.repository
 
 import com.kitsugi.animelist.data.account.KitsugiAccountRepository
 import com.kitsugi.animelist.data.local.SearchHistoryDao
+import com.kitsugi.animelist.data.local.SearchHistoryEntity
 import com.kitsugi.animelist.data.local.SearchHistoryMapper
 import com.kitsugi.animelist.ui.screens.search.SearchHistoryItem
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+
+/** Eklenti portalı arama geçmişi kayıtlarının `type` öneki. */
+const val EXTENSION_HISTORY_TYPE = "EXTENSION:ALL"
 
 class SearchHistoryRepository(private val searchHistoryDao: SearchHistoryDao) {
 
@@ -13,6 +17,40 @@ class SearchHistoryRepository(private val searchHistoryDao: SearchHistoryDao) {
         return searchHistoryDao.getRecentSearchHistory().map { list ->
             list.map { SearchHistoryMapper.toDomain(it) }
         }
+    }
+
+    /** Eklenti portalı aramalarına ait geçmiş (ana aramadan bağımsız). */
+    fun getRecentExtensionSearchHistory(): Flow<List<SearchHistoryItem>> {
+        return searchHistoryDao.getRecentExtensionSearchHistory().map { list ->
+            list.map { SearchHistoryMapper.toDomain(it) }
+        }
+    }
+
+    /** Eklentiler arası arama sorgusunu eklenti geçmişine kaydeder. */
+    suspend fun insertExtensionSearchQuery(query: String) {
+        val trimmed = query.trim()
+        if (trimmed.isBlank()) return
+        val owner = KitsugiAccountRepository.currentUserId()
+        searchHistoryDao.insertSearchQuery(
+            SearchHistoryEntity(
+                query = trimmed,
+                timestamp = System.currentTimeMillis(),
+                type = EXTENSION_HISTORY_TYPE
+            )
+        )
+        KitsugiAccountRepository.onSearchHistoryChanged(searchHistoryDao, expectedOwner = owner)
+    }
+
+    suspend fun deleteExtensionSearchQuery(query: String) {
+        val owner = KitsugiAccountRepository.currentUserId()
+        searchHistoryDao.deleteExtensionSearchQuery(query)
+        KitsugiAccountRepository.onSearchHistoryChanged(searchHistoryDao, expectedOwner = owner)
+    }
+
+    suspend fun clearExtensionSearchHistory() {
+        val owner = KitsugiAccountRepository.currentUserId()
+        searchHistoryDao.clearExtensionSearchHistory()
+        KitsugiAccountRepository.onSearchHistoryChanged(searchHistoryDao, expectedOwner = owner)
     }
 
     suspend fun insertSearchQuery(item: SearchHistoryItem) {

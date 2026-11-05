@@ -80,7 +80,8 @@ fun AddonExplorePage(
     titleLanguage: String = "ENGLISH",
     scoreFormat: String = "POINT_10",
     hideScores: Boolean = false,
-    blurAdultMedia: Boolean = false
+    blurAdultMedia: Boolean = false,
+    initialQuery: String = ""
 ) {
     val context = LocalContext.current
     val accentColor = LocalKitsugiAccent.current
@@ -176,6 +177,15 @@ fun AddonExplorePage(
                 searchResults = results
                 isSearchLoading = false
             }
+        }
+    }
+
+    // "Tümünü Gör" ile önceden doldurulmuş sorgu geldiyse otomatik arama yap
+    // (ana aramadaki kaynağa özel "Tümünü Gör" sayfasının eklenti karşılığı).
+    LaunchedEffect(api.name, initialQuery) {
+        if (initialQuery.isNotBlank()) {
+            searchQuery = initialQuery
+            performSearch()
         }
     }
 
@@ -532,12 +542,14 @@ fun AddonExplorePage(
 fun AddonExploreDialog(
     api: MainAPI,
     onDismissRequest: () -> Unit,
-    onSeeAllClick: ((title: String, mainPageData: String, horizontalImages: Boolean, initialItems: List<SearchResponse>) -> Unit)? = null
+    onSeeAllClick: ((title: String, mainPageData: String, horizontalImages: Boolean, initialItems: List<SearchResponse>) -> Unit)? = null,
+    initialQuery: String = ""
 ) {
     AddonExplorePage(
         api = api,
         onBackClick = onDismissRequest,
-        onSeeAllClick = onSeeAllClick
+        onSeeAllClick = onSeeAllClick,
+        initialQuery = initialQuery
     )
 }
 

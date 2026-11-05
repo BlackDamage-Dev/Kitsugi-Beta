@@ -750,11 +750,9 @@ class MpvPlayerEngine(
 
 
     override fun pause() {
-
+        pendingPlay = false
         focusController?.abandonFocus()
-
         setPlaying(false)
-
     }
 
 
@@ -1382,9 +1380,8 @@ class MpvPlayerEngine(
 
 
     override fun release() {
-
+        if (released) return
         // Motor kapanırken bekleyen script/custom-button kurulum coroutine'leri de iptal edilir.
-
         released = true
 
         loadGeneration++

@@ -62,7 +62,9 @@ import com.kitsugi.animelist.core.player.engine.Media3PlayerEngine
 import com.kitsugi.animelist.core.player.engine.MpvPlayerEngine
 import androidx.compose.runtime.collectAsState
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withTimeoutOrNull
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
@@ -287,30 +289,37 @@ fun ThemePlayerContainer(
         val safeSettings = remember(appSettings) { appSettings ?: com.kitsugi.animelist.data.settings.AppSettings() }
 
         val preferredEngineType = remember(url) { initialCompactThemeEngineType(url) }
-        var activeEngineType by remember(url) { mutableStateOf(preferredEngineType) }
-        var didTryAlternateEngine by remember(url) { mutableStateOf(false) }
-        val playerEngine = remember(context, activeEngineType, url) {
-            when (activeEngineType) {
-                PlayerEngineType.MPV -> MpvPlayerEngine(context, safeSettings)
-                else -> Media3PlayerEngine(context, safeSettings)
-            }
+        var activeEngineType by remember(url) {
+            mutableStateOf(preferredEngineType)
         }
+        var didTryAlternateEngine by remember(url) { mutableStateOf(false) }
+
+        // Oynatıcı motoru artık `remember { }` içinde — yani COMPOSITION sırasında —
+        // kurulmuyor (2026-11-05, bkz. [InlinePlaybackHandoff]).
+        //
+        // NEDEN: `remember` yeni düğüm kurulurken, eski düğümün `onDispose` bloğu ise aynı
+        // karenin apply fazında çalışır. Yani satır değiştiğinde yeni `ExoPlayer` (MediaCodec
+        // çözücüsü + AudioTrack + TextureView + OkHttp istemcisi) eski motor hâlâ ayaktayken
+        // kuruluyordu. Hızlı dokunmalarda bu yığınlar üst üste binince cihazın sınırlı
+        // MediaCodec havuzu tükeniyor, sonraki videolar "decoder init failed" ile açılmıyor
+        // ve ses odağı çakışması yeni oynatıcıyı duraklatılmış bırakıyordu.
+        // Motor artık el değiştirme kapısı beklenerek kurulur ve tek bir yerde bırakılır.
+        val session = remember(url) { InlineThemeEngineSession() }
+        var playerEngine by remember(url) { mutableStateOf<PlayerEngine?>(null) }
 
         var isPlayingState by remember(url) { mutableStateOf(false) }
         var currentPosition by remember(url) { mutableStateOf(0L) }
         var duration by remember(url) { mutableStateOf(0L) }
-        var playerState by remember(playerEngine) { mutableStateOf(PlayerEngine.State.IDLE) }
-        val engineTypeForPlayer = activeEngineType
         val resumedState = rememberInlinePlayerResumed()
 
-        fun failCurrentAttempt(reason: String) {
+        fun failCurrentAttempt(failedEngine: PlayerEngineType, reason: String) {
             Log.w(
                 "ThemePlayerContainer",
-                "$engineTypeForPlayer başarısız: $reason (aday ${safeIndex + 1}/${candidates.size})"
+                "$failedEngine başarısız: $reason (aday ${safeIndex + 1}/${candidates.size})"
             )
             if (!didTryAlternateEngine) {
                 didTryAlternateEngine = true
-                val alternate = engineTypeForPlayer.alternateInlineEngine()
+                val alternate = failedEngine.alternateInlineEngine()
                 Log.w("ThemePlayerContainer", "Yedek motor deneniyor: $alternate")
                 activeEngineType = alternate
                 return
@@ -331,25 +340,46 @@ fun ThemePlayerContainer(
             isPlayerError = true
         }
 
-        DisposableEffect(playerEngine) {
-            var released = false
+        // Bu satır kapatıldığında (veya başka satıra geçildiğinde) motoru bırak.
+        DisposableEffect(session) {
+            onDispose {
+                session.release()
+            }
+        }
+
+        LaunchedEffect(url, retryTrigger, activeEngineType) {
+            val attemptedEngineType = activeEngineType
+            isPlayerError = false
+            isPlayerLoading = true
+
+            // Aynı oynatıcı konumunda ikinci bir motor asla yaşamasın: önce mevcut motoru
+            // bırak, sonra el değiştirme aralığını bekle, en son yenisini kur.
+            session.release()
+            playerEngine = null
+            InlinePlaybackHandoff.awaitEngineSlot()
+            // Bekleme sırasında satır kapanmış/başka satıra geçilmiş olabilir. İptal edilmiş
+            // bir efektin motor kurup sızdırmasını engelle.
+            currentCoroutineContext().ensureActive()
+
+            var currentEngine: PlayerEngine? = null
             val listener = object : PlayerEngine.Listener {
                 override fun onStateChanged(state: PlayerEngine.State) {
-                    if (released) return
-                    playerState = state
-                    isPlayingState = playerEngine.isPlaying
+                    val active = session.engine ?: return
+                    if (active !== currentEngine) return
+                    isPlayingState = active.isPlaying
                     isPlayerLoading = state == PlayerEngine.State.BUFFERING
                 }
 
                 override fun onPlaybackError(errorCode: Int, errorMsg: String, cause: Throwable?) {
-                    if (released) return
+                    val active = session.engine ?: return
+                    if (active !== currentEngine) return
                     isPlayerLoading = false
                     Log.e("ThemePlayerContainer", "Oynatma hatası: $errorMsg (kod: $errorCode)")
-                    failCurrentAttempt(errorMsg)
+                    failCurrentAttempt(attemptedEngineType, errorMsg)
                 }
 
                 override fun onPositionChanged(positionMs: Long, durationMs: Long) {
-                    if (released) return
+                    if (session.engine == null) return
                     currentPosition = positionMs
                     duration = durationMs
                     if (positionMs > 0L) hasStartedPlayback = true
@@ -360,104 +390,93 @@ fun ThemePlayerContainer(
                     subtitleTracks: List<com.kitsugi.animelist.ui.screens.fullscreen.components.TrackOption>
                 ) {}
             }
-            playerEngine.addListener(listener)
-            onDispose {
-                released = true
-                playerEngine.removeListener(listener)
-                runCatching { playerEngine.pause() }
-                playerEngine.release()
+
+            try {
+                val created: PlayerEngine = when (attemptedEngineType) {
+                    PlayerEngineType.MPV -> MpvPlayerEngine(context, safeSettings)
+                    else -> Media3PlayerEngine(context, safeSettings)
+                }
+                currentEngine = created
+                session.start(created, listener)
+                playerEngine = created
+
+                val reachedReady = withTimeoutOrNull(INLINE_PLAYER_START_TIMEOUT_MS) {
+                    created.prepare(
+                        videoUrl = url,
+                        headers = YouTubeRequestPolicy.headersForInlineUrl(url),
+                        startPositionMs = currentPosition
+                    )
+                    if (!resumedState.value) {
+                        runCatching { created.pause() }
+                        isPlayingState = false
+                        false
+                    } else {
+                        created.play()
+                        // READY is only a preparation signal. Fall back if playback never
+                        // advances instead of leaving the compact surface black at 00:00.
+                        while (!hasInlinePlaybackProgress(created.currentState, created.currentPosition)) {
+                            if (!resumedState.value) return@withTimeoutOrNull false
+                            delay(250L)
+                        }
+                        true
+                    }
+                }
+                if (reachedReady == null) {
+                    failCurrentAttempt(attemptedEngineType, "no playback progress within ${INLINE_PLAYER_START_TIMEOUT_MS}ms")
+                    return@LaunchedEffect
+                }
+                if (!reachedReady) return@LaunchedEffect
+
+                // Media3 VP8/VP9 gibi bazı codec'leri oynatamadığında veya video izi
+                // yoksa Media3 hata vermez; ses çalar, görüntü hiç gelmez. MPV yazılım
+                // çözücüyle aynı dosyayı oynatabildiği için bekçi motoru değiştirir.
+                val audioOnly = waitForInlineVideoTrack(
+                    engine = created,
+                    isResumed = { resumedState.value }
+                )
+                Log.i(
+                    "ThemePlayerContainer",
+                    "engine=$attemptedEngineType visibleVideo=${inlineVideoVisible(created)} " +
+                        "hasTrack=${created.hasVideoTrack} " +
+                        "renderedFrame=${created.hasRenderedVideoFrame} url=${url.take(140)}"
+                )
+                if (audioOnly && attemptedEngineType == activeEngineType) {
+                    failCurrentAttempt(
+                        attemptedEngineType,
+                        "audio-only playback (track=${created.hasVideoTrack}, " +
+                            "rendered=${created.hasRenderedVideoFrame})"
+                    )
+                }
+            } catch (e: CancellationException) {
+                // Closing or replacing this row cancels prepare; do not trigger a false fallback.
+                throw e
+            } catch (e: Exception) {
+                if (attemptedEngineType != activeEngineType) return@LaunchedEffect
+                Log.e("ThemePlayerContainer", "Prepare error", e)
+                failCurrentAttempt(attemptedEngineType, e.message ?: e.javaClass.simpleName)
             }
         }
 
         LaunchedEffect(resumedState.value, playerEngine) {
             if (!resumedState.value) {
-                runCatching { playerEngine.pause() }
+                playerEngine?.let { runCatching { it.pause() } }
                 isPlayingState = false
-            }
-        }
-
-        LaunchedEffect(url, retryTrigger, activeEngineType) {
-            isPlayerError = false
-            isPlayerLoading = true
-            playerState = PlayerEngine.State.BUFFERING
-            try {
-                playerEngine.prepare(
-                    videoUrl = url,
-                    headers = YouTubeRequestPolicy.headersForInlineUrl(url),
-                    startPositionMs = 0L
-                )
-                if (!resumedState.value) {
-                    runCatching { playerEngine.pause() }
-                    isPlayingState = false
-                    return@LaunchedEffect
-                }
-                playerEngine.play()
-
-                val startedAt = android.os.SystemClock.elapsedRealtime()
-                var lastProgressAt = startedAt
-                var lastBuffered = 0L
-                var lastPosition = 0L
-                var started = false
-                while (true) {
-                    if (!resumedState.value) return@LaunchedEffect
-                    val buffered = playerEngine.bufferedPosition
-                    val position = playerEngine.currentPosition
-                    if (buffered > lastBuffered || position > lastPosition) {
-                        lastBuffered = buffered
-                        lastPosition = position
-                        lastProgressAt = android.os.SystemClock.elapsedRealtime()
-                    }
-                    if (hasInlinePlaybackProgress(playerEngine.currentState, position)) {
-                        started = true
-                        break
-                    }
-                    val now = android.os.SystemClock.elapsedRealtime()
-                    if (inlineStartShouldAbandon(
-                            elapsedMs = now - startedAt,
-                            sinceProgressMs = now - lastProgressAt,
-                            state = playerEngine.currentState,
-                            positionMs = position
-                        )
-                    ) {
-                        break
-                    }
-                    delay(250L)
-                }
-                if (!started) {
-                    failCurrentAttempt("oynatma ilerlemedi")
-                    return@LaunchedEffect
-                }
-
-                val audioOnly = waitForInlineVideoTrack(
-                    engine = playerEngine,
-                    isResumed = { resumedState.value }
-                )
-                Log.i(
-                    "ThemePlayerContainer",
-                    "Compact inline video track probe ($activeEngineType): audioOnly=$audioOnly"
-                )
-                if (audioOnly) {
-                    failCurrentAttempt("yalnızca ses parçası algılandı")
-                    return@LaunchedEffect
-                }
-                isPlayerLoading = false
-            } catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) throw e
-                Log.e("ThemePlayerContainer", "Prepare error", e)
-                failCurrentAttempt(e.message ?: "prepare error")
             }
         }
 
         LaunchedEffect(playerEngine, isPlayingState) {
             if (isPlayingState) {
                 while (true) {
-                    currentPosition = playerEngine.currentPosition
-                    duration = playerEngine.duration
+                    playerEngine?.let { engine ->
+                        currentPosition = engine.currentPosition
+                        duration = engine.duration.coerceAtLeast(0L)
+                    }
                     delay(1000)
                 }
             }
         }
 
+        val liveEngine = playerEngine
         Box(
             modifier = if (activeEngineType == PlayerEngineType.MPV) {
                 modifier.background(Color.Black)
@@ -539,10 +558,10 @@ fun ThemePlayerContainer(
                     currentPosition = currentPosition,
                     duration = duration,
                     onPlayPause = {
-                        if (isPlayingState) playerEngine.pause() else playerEngine.play()
+                        liveEngine?.let { if (isPlayingState) it.pause() else it.play() }
                     },
                     onSeek = { target ->
-                        playerEngine.seekTo(target)
+                        liveEngine?.seekTo(target)
                     },
                     modifier = Modifier.fillMaxSize(),
                     isBuffering = !hasStartedPlayback && !isPlayerError,
@@ -550,7 +569,7 @@ fun ThemePlayerContainer(
                     controlsAutoHideMs = com.kitsugi.animelist.core.player.PlayerUiPolicy
                         .clampOsdHideDelayMs(safeSettings.playerTimeToDisappearMs),
                     onFullscreen = {
-                        playerEngine.pause()
+                        runCatching { liveEngine?.pause() }
                         KitsugiFullscreenPlayerActivity.startWithStreamUrls(
                             context = context,
                             videoUrl = url,
@@ -559,17 +578,60 @@ fun ThemePlayerContainer(
                         )
                     }
                 ) {
-                    key(playerEngine) {
-                        AndroidView(
-                            factory = { ctx ->
-                                playerEngine.createVideoView(ctx)
-                            },
-                            modifier = Modifier.fillMaxSize()
-                        )
+                    if (liveEngine != null) {
+                        key(liveEngine) {
+                            AndroidView(
+                                factory = { ctx ->
+                                    liveEngine.createVideoView(ctx)
+                                },
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                    }
+                    if (isPlayerLoading && !hasStartedPlayback) {
+                        CircularProgressIndicator(color = accentColor)
                     }
                 }
             }
         }
+    }
+}
+
+/**
+ * Satır içi tema oynatıcısının motor yaşam döngüsü.
+ *
+ * Motor, composition sırasında değil [LaunchedEffect] içinde kurulur; bu yüzden
+ * "şu an hangi motor ve hangi dinleyici bağlı" bilgisini hatırlayan küçük bir taşıyıcı
+ * gerekir. [release] tekrar tekrar çağrılabilir (satır kapanışı + yeniden deneme).
+ */
+private class InlineThemeEngineSession {
+    var engine: PlayerEngine? = null
+        private set
+
+    private var listener: PlayerEngine.Listener? = null
+
+    fun start(engine: PlayerEngine, listener: PlayerEngine.Listener) {
+        this.engine = engine
+        this.listener = listener
+        engine.addListener(listener)
+    }
+
+    /**
+     * Motoru bırakır ve el değiştirme kapısına "boş" damgası bırakır.
+     *
+     * Sıra önemli: dinleyici önce ayrılır (serbest bırakılan oynatıcıdan gecikmiş
+     * olay gelirse Compose durumu bozulmasın), sonra duraklatılır, en son serbest bırakılır.
+     */
+    fun release() {
+        val current = engine
+        val currentListener = listener
+        engine = null
+        listener = null
+        if (current == null) return
+        currentListener?.let { runCatching { current.removeListener(it) } }
+        runCatching { current.pause() }
+        runCatching { current.release() }
+        InlinePlaybackHandoff.onInlineEngineReleased()
     }
 }
 
@@ -862,6 +924,31 @@ fun KitsugiMediaVideosTab(
     val accentColor = LocalKitsugiAccent.current
     var activeVideoKey by remember { mutableStateOf<String?>(null) }
 
+    // Satır vurgusu anında değişir; OYNATICI ise ayrı bir anahtarla taşınır.
+    //
+    // NEDEN (2026-11-05 saha raporu): kullanıcı OP/ED satırlarına hızlı hızlı dokunduğunda
+    // her dokunuş bir oynatıcı yığınını (ExoPlayer + MediaCodec çözücü + AudioTrack +
+    // TextureView + OkHttp istemcisi) kurup yıkıyordu. Üst üste binen yığınlar cihazın
+    // sınırlı çözücü havuzunu tüketip sonraki videoları "açılmıyor/hata" durumuna
+    // düşürüyordu. Artık dokunmalar durulana kadar (bkz. [INLINE_PLAYER_TAP_COALESCE_MS])
+    // yalnızca son seçim için TEK oynatıcı kurulur: kullanıcı 4 satıra hızlıca bassa da
+    // tek motor açılır.
+    var playerVideoKey by remember(trailerItems, openingItems, endingItems, extraItems) { mutableStateOf<String?>(null) }
+    LaunchedEffect(activeVideoKey) {
+        val target = activeVideoKey
+        when {
+            // Kapatma her zaman anında: oynatıcı bekletilmeden kaldırılır.
+            target == null -> playerVideoKey = null
+            playerVideoKey == target -> Unit
+            // İlk açılışta bekleme yok: kullanıcı dokunduğu anda oynatıcı görünür.
+            playerVideoKey == null -> playerVideoKey = target
+            else -> {
+                delay(INLINE_PLAYER_TAP_COALESCE_MS)
+                if (activeVideoKey == target) playerVideoKey = target
+            }
+        }
+    }
+
     val onSearchVideo: (DetailVideoItem) -> Unit = { item ->
         val query = java.net.URLEncoder.encode(item.title, "UTF-8")
         runCatching { uriHandler.openUri("https://www.youtube.com/results?search_query=$query") }
@@ -955,6 +1042,7 @@ fun KitsugiMediaVideosTab(
                     icon = Icons.Movie,
                     items = trailerItems,
                     activeVideoKey = activeVideoKey,
+                    playerVideoKey = playerVideoKey,
                     accentColor = accentColor,
                     onVideoSelected = selectVideo,
                     onSearch = onSearchVideo,
@@ -972,6 +1060,7 @@ fun KitsugiMediaVideosTab(
                     icon = Icons.MusicNote,
                     items = openingItems,
                     activeVideoKey = activeVideoKey,
+                    playerVideoKey = playerVideoKey,
                     accentColor = accentColor,
                     onVideoSelected = selectVideo,
                     onSearch = onSearchVideo,
@@ -989,6 +1078,7 @@ fun KitsugiMediaVideosTab(
                     icon = Icons.MusicNote,
                     items = endingItems,
                     activeVideoKey = activeVideoKey,
+                    playerVideoKey = playerVideoKey,
                     accentColor = accentColor,
                     onVideoSelected = selectVideo,
                     onSearch = onSearchVideo,
@@ -1006,6 +1096,7 @@ fun KitsugiMediaVideosTab(
                     icon = Icons.PlayCircle,
                     items = extraItems,
                     activeVideoKey = activeVideoKey,
+                    playerVideoKey = playerVideoKey,
                     accentColor = accentColor,
                     onVideoSelected = selectVideo,
                     onSearch = onSearchVideo,
@@ -1054,7 +1145,10 @@ private fun DetailVideoGroup(
     title: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     items: List<DetailVideoItem>,
+    /** Satır vurgusu: dokunulan an güncellenir. */
     activeVideoKey: String?,
+    /** Oynatıcıyı taşıyan anahtar: hızlı dokunmalar durulduğunda güncellenir. */
+    playerVideoKey: String?,
     accentColor: Color,
     onVideoSelected: (String) -> Unit,
     onSearch: (DetailVideoItem) -> Unit,
@@ -1183,6 +1277,8 @@ private fun DetailVideoGroup(
             Column(modifier = Modifier.fillMaxWidth()) {
                 Spacer(modifier = Modifier.height(8.dp))
                 val isSelected = activeVideoKey == item.key && !item.playbackUrl.isNullOrBlank()
+                // Oynatıcı yalnızca "oturmuş" seçimde kurulur (bkz. KitsugiMediaVideosTab).
+                val isPlayerVisible = playerVideoKey == item.key && !item.playbackUrl.isNullOrBlank()
                 DetailVideoRow(
                     item = item,
                     isSelected = isSelected,
@@ -1199,7 +1295,7 @@ private fun DetailVideoGroup(
                 )
 
                 // Oynatıcı aynı kartın içinde, satırın hemen altında açılır.
-                if (isSelected) {
+                if (isPlayerVisible) {
                     Spacer(modifier = Modifier.height(8.dp))
                     Box(
                         modifier = Modifier

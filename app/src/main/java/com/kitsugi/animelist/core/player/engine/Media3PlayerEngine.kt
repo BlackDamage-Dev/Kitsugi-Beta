@@ -3418,43 +3418,24 @@ class Media3PlayerEngine(
 
 
     override fun release() {
-
+        if (released) return
         released = true
-
         renderedFirstVideoFrame = false
-
         stopPositionTicker()
-
         runOnMainThread {
-
+            runCatching { playerView?.player = null }
             exoPlayer?.let { player ->
-
-                // ASS handler kaydı statik map'te tutuluyor; motor kapanırken bırakılmazsa
-
-                // bayat handler kaydı kalır.
-
                 runCatching { player.clearAssHandlerCompat() }
-
-                player.removeListener(playerListener)
-
-                player.stop()
-
-                player.clearMediaItems()
-
-                player.release()
-
+                runCatching { player.removeListener(playerListener) }
+                runCatching { player.stop() }
+                runCatching { player.clearMediaItems() }
+                runCatching { player.release() }
             }
-
             exoPlayer = null
-
-            playerView?.player = null
-
             playerView = null
-
+            assSubtitleView = null
             listeners.clear()
-
         }
-
     }
 
 }

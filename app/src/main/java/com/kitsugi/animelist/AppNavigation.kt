@@ -34,7 +34,7 @@ sealed interface DetailScreen {
     data object Downloads : DetailScreen
     data object WatchHistory : DetailScreen
     data object PluginPicker : DetailScreen
-    data class AddonExplore(val apiName: String) : DetailScreen
+    data class AddonExplore(val apiName: String, val initialQuery: String = "") : DetailScreen
     /** "Tümünü Gör" → kaynağa özel filtreler + arama sonuçlarının ayrı sayfada açılması. */
     data class SourceSearchPage(val engine: SearchSourceEngine, val query: String, val scope: SearchScope, val shelfResults: List<JikanSearchResult>) : DetailScreen
 }
@@ -66,7 +66,7 @@ sealed interface AppStateKey {
     data class Downloads(override val depth: Int) : AppStateKey
     data class WatchHistory(override val depth: Int) : AppStateKey
     data class PluginPicker(override val depth: Int) : AppStateKey
-    data class AddonExplore(val apiName: String, override val depth: Int) : AppStateKey
+    data class AddonExplore(val apiName: String, override val depth: Int, val initialQuery: String = "") : AppStateKey
     data class SourceSearchPage(val engine: SearchSourceEngine, val query: String, val scope: SearchScope, val shelfResults: List<JikanSearchResult>, override val depth: Int) : AppStateKey
 }
 

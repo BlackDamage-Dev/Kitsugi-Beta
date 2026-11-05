@@ -402,67 +402,16 @@ fun PluginPickerBottomSheet(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .weight(1f),
-                            contentPadding = PaddingValues(bottom = 24.dp)
+                            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 24.dp)
                         ) {
+                            // Ana arama sayfası görünümüyle aynı bölüm düzeni
                             grouped.forEach { (api, items) ->
                                 item(key = api.name) {
-                                    Column(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(vertical = 8.dp)
-                                    ) {
-                                        // Plugin Header Row
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(horizontal = 16.dp, vertical = 6.dp),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                        ) {
-                                            val langFlag = SubtitleHelperCompat.getFlagFromIso(api.lang)
-                                            if (langFlag != null) {
-                                                Text(text = langFlag, fontSize = 16.sp)
-                                            } else {
-                                                Icon(
-                                                    imageVector = Icons.Globe,
-                                                    contentDescription = null,
-                                                    tint = KitsugiColors.TextMuted,
-                                                    modifier = Modifier.size(16.dp)
-                                                )
-                                            }
-                                            Text(
-                                                text = api.name,
-                                                color = KitsugiColors.TextPrimary,
-                                                fontSize = 15.sp,
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                            Spacer(modifier = Modifier.weight(1f))
-                                            Text(
-                                                text = stringResource(R.string.inline_1_s_results_b4b4d39, items.size),
-                                                color = KitsugiColors.TextMuted,
-                                                fontSize = 12.sp
-                                            )
-                                        }
-
-                                        // Horizontal row of media response cards
-                                        LazyRow(
-                                            contentPadding = PaddingValues(horizontal = 16.dp),
-                                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                            modifier = Modifier.fillMaxWidth()
-                                        ) {
-                                            items(items) { (_, response) ->
-                                                PortalResultItemCard(
-                                                    title = response.name,
-                                                    imageUrl = response.posterUrl,
-                                                    apiName = api.name,
-                                                    quality = null,
-                                                    onClick = {
-                                                        activeDetailItem = api to response
-                                                    }
-                                                )
-                                            }
-                                        }
-                                    }
+                                    AddonSearchResultSection(
+                                        api = api,
+                                        results = items.map { it.second },
+                                        onItemClick = { a, response -> activeDetailItem = a to response }
+                                    )
                                 }
                             }
                         }

@@ -266,75 +266,14 @@ fun AddonSearchDialog(
                                 ) { api ->
                                     val itemsForApi = groupedResults[api] ?: emptyList()
                                     if (itemsForApi.isNotEmpty()) {
-                                        val cardWidth = if (isLandscape) 260.dp else 180.dp
-                                        Column(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(vertical = 12.dp)
-                                        ) {
-                                            // Başlık — MultiSearchSection ile aynı: logo + başlık + Tümünü Gör
-                                            Row(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .padding(horizontal = 4.dp, vertical = 4.dp),
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                // Eklenti logosu yoksa Extension ikonu kullan (ana uygulamadaki fallback)
-                                                Box(
-                                                    modifier = Modifier
-                                                        .size(24.dp)
-                                                        .clip(RoundedCornerShape(6.dp))
-                                                        .background(accentColor.copy(alpha = 0.15f)),
-                                                    contentAlignment = Alignment.Center
-                                                ) {
-                                                    Icon(
-                                                        imageVector = Icons.Extension,
-                                                        contentDescription = null,
-                                                        tint = accentColor,
-                                                        modifier = Modifier.size(14.dp)
-                                                    )
-                                                }
-                                                Spacer(modifier = Modifier.width(8.dp))
-                                                Text(
-                                                    text = api.name,
-                                                    color = KitsugiColors.TextPrimary,
-                                                    style = MaterialTheme.typography.titleLarge,
-                                                    fontWeight = FontWeight.Bold,
-                                                    modifier = Modifier.weight(1f),
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis
-                                                )
-                                                Text(
-                                                    text = "${itemsForApi.size}",
-                                                    color = KitsugiColors.TextMuted,
-                                                    style = MaterialTheme.typography.labelMedium,
-                                                    modifier = Modifier.padding(end = 8.dp)
-                                                )
+                                        AddonSearchResultSection(
+                                            api = api,
+                                            results = itemsForApi.map { it.second },
+                                            onItemClick = { a, response -> activeDetailItem = a to response },
+                                            onSeeAllClick = { a ->
+                                                exploreApiName = a.name
                                             }
-                                            Spacer(modifier = Modifier.height(10.dp))
-                                        // Ana arama sayfasıyla AYNI sonuç düzeni: poster
-                                        // şeridi yerine tek sütun, kompakt yatay satırlar.
-                                        Column(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                                        ) {
-                                            itemsForApi.forEach { (_, response) ->
-                                                AddonResultRow(
-                                                    title = response.name,
-                                                    subtitle = response.type.toAddonTypeLabel(),
-                                                    imageUrl = response.posterUrl,
-                                                    apiName = api.name,
-                                                    qualityLabel = response.quality?.name,
-                                                    year = response.safeYear(),
-                                                    isAdult = isAddonAdultResponse(response),
-                                                    onClick = {
-                                                        activeDetailItem = api to response
-                                                    },
-                                                    modifier = Modifier.padding(horizontal = 8.dp)
-                                                )
-                                            }
-                                        }
-                                        }
+                                        )
                                     }
                                 }
                             } else if (hasSearched && visibleResults.isEmpty()) {
@@ -468,6 +407,7 @@ Box(
         AddonExploreDialog(
             api = capturedApi,
             onDismissRequest = { exploreApiName = null },
+            initialQuery = query.trim(),
             onSeeAllClick = if (onSeeAllAddonSection != null) {
                 { title, mainPageData, horizontalImages, initialItems ->
                     onSeeAllAddonSection(

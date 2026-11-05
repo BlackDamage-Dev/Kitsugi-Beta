@@ -60,8 +60,11 @@ import com.kitsugi.animelist.data.remote.JikanSearchResult
 import com.kitsugi.animelist.ui.components.KitsugiPlasmaLoader
 import com.kitsugi.animelist.ui.components.KitsugiSettingsSegmentedTabs
 import com.kitsugi.animelist.ui.components.KitsugiSettingsTabOption
+import com.kitsugi.animelist.data.repository.SearchHistoryRepository
+import com.kitsugi.animelist.ui.screens.search.SearchHistoryItem
+import com.kitsugi.animelist.ui.screens.search.SearchHistorySection
+import com.kitsugi.animelist.ui.screens.search.components.AddonSearchResultSection
 import com.kitsugi.animelist.ui.screens.search.components.KitsugiAddonDetailDialog
-import com.kitsugi.animelist.ui.screens.search.components.ResultItemCard
 import com.kitsugi.animelist.ui.screens.search.components.isAddonAdultResponse
 import com.kitsugi.animelist.ui.theme.LocalShowAdultContent
 import com.kitsugi.animelist.ui.app.AppNavigationState
@@ -155,6 +158,13 @@ fun PluginPickerScreen(
     var submittedMangaQuery by remember { mutableStateOf("") }
 
     val showAdultContent = LocalShowAdultContent.current
+
+    // Eklentiye ÖZEL arama geçmişi (ana arama geçmişinden bağımsız)
+    val historyRepository = remember { SearchHistoryRepository(KitsugiDatabase.getDatabase(context.applicationContext).searchHistoryDao()) }
+    var extensionHistory by remember { mutableStateOf<List<SearchHistoryItem>>(emptyList()) }
+    LaunchedEffect(Unit) {
+        historyRepository.getRecentExtensionSearchHistory().collect { extensionHistory = it }
+    }
 
     // Durum tabanlı metin alanı: uzun metinlerde yatay kaydırma (pan) desteği.
     // (queryText rememberSaveable ile korunur ve LaunchedEffect ile senkronize edilir.)
@@ -394,6 +404,9 @@ fun PluginPickerScreen(
                         videoSearchResults = results
                     }
                     isSearchingVideo = false
+                    if (results.isNotEmpty()) {
+                        scope.launch(Dispatchers.IO) { historyRepository.insertExtensionSearchQuery(q) }
+                    }
                 }
             }
             PluginPortalMode.MANGA -> {
@@ -421,6 +434,9 @@ fun PluginPickerScreen(
                         mangaSearchResults = results
                     }
                     isSearchingManga = false
+                    if (results.isNotEmpty()) {
+                        scope.launch(Dispatchers.IO) { historyRepository.insertExtensionSearchQuery(q) }
+                    }
                 }
             }
         }
@@ -721,7 +737,7 @@ fun PluginPickerScreen(
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = stringResource(R.string.sonuc_bulunamadi),
+                                text = stringResource(R.string.inline_no_results_found_for_1_3ed9f56, queryText.trim()),
                                 color = KitsugiColors.TextMuted,
                                 fontSize = 14.sp,
                                 modifier = Modifier.padding(horizontal = 32.dp)
@@ -732,55 +748,29 @@ fun PluginPickerScreen(
                             visibleVideoResults.groupBy { it.first }
                         }
                         LazyColumn(
+                            state = listState,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .weight(1f),
-                            contentPadding = PaddingValues(bottom = 24.dp),
+                            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 24.dp),
                             verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            groupedVideo.forEach { (api, apiResults) ->
-                                item(key = "vgrp_${api.name}_${api.sourcePlugin?.hashCode() ?: 0}") {
-                                    Column(modifier = Modifier.fillMaxWidth()) {
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(horizontal = 16.dp, vertical = 6.dp),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                        ) {
-                                            Text(
-                                                text = api.name,
-                                                color = KitsugiColors.TextPrimary,
-                                                fontSize = 15.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis,
-                                                modifier = Modifier.weight(1f, fill = false)
-                                            )
-                                            Text(
-                                                text = KitsugiStrings.get(R.string.inline_1_s_results_b4b4d39, apiResults.size),
-                                                color = KitsugiColors.TextMuted,
-                                                fontSize = 12.sp
-                                            )
-                                        }
-                                        LazyRow(
-                                            contentPadding = PaddingValues(horizontal = 16.dp),
-                                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                            modifier = Modifier.fillMaxWidth()
-                                        ) {
-                                            itemsIndexed(apiResults, key = { index, item -> "vres_${api.name}_${index}_${item.second.url.hashCode()}" }) { _, (_, response) ->
-                                                ResultItemCard(
-                                                    title = response.name,
-                                                    imageUrl = response.posterUrl,
-                                                    apiName = api.name,
-                                                    quality = response.quality?.name,
-                                                    onClick = { activeVideoDetail = api to response },
-                                                    isAdult = isAddonAdultResponse(response)
-                                                )
-                                            }
-                                        }
+                            items(
+                                items = groupedVideo.keys.toList(),
+                                key = { "vgrp_${java.io.File(it.sourcePlugin ?: "").nameWithoutExtension}_${it.name}" }
+                            ) { api ->
+                                AddonSearchResultSection(
+                                    api = api,
+                                    results = groupedVideo[api].orEmpty().map { it.second },
+                                    onItemClick = { a, response -> activeVideoDetail = a to response },
+                                    onSeeAllClick = { a ->
+                                        // Ana aramadaki "Tümünü Gör" gibi: eklentiye özel ayrı sayfada
+                                        // aynı sorgunun tüm sonuçları açılır.
+                                        navState.navigateToDetail(
+                                            com.kitsugi.animelist.DetailScreen.AddonExplore(a.name, initialQuery = queryText.trim())
+                                        )
                                     }
-                                }
+                                )
                             }
                         }
                     }
@@ -796,7 +786,7 @@ fun PluginPickerScreen(
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = stringResource(R.string.sonuc_bulunamadi),
+                                text = stringResource(R.string.inline_no_results_found_for_1_3ed9f56, queryText.trim()),
                                 color = KitsugiColors.TextMuted,
                                 fontSize = 14.sp,
                                 modifier = Modifier.padding(horizontal = 32.dp)
@@ -906,6 +896,24 @@ fun PluginPickerScreen(
                         contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 24.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
+                        if (queryText.isBlank() && extensionHistory.isNotEmpty()) {
+                            item(key = "manga_extension_history") {
+                                SearchHistorySection(
+                                    history = extensionHistory,
+                                    onHistoryItemClick = { item ->
+                                        queryText = item.query.trim()
+                                        performPortalSearch()
+                                    },
+                                    onRemoveItem = { item ->
+                                        scope.launch(Dispatchers.IO) { historyRepository.deleteExtensionSearchQuery(item.query) }
+                                    },
+                                    onClearAll = {
+                                        scope.launch(Dispatchers.IO) { historyRepository.clearExtensionSearchHistory() }
+                                    }
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+                            }
+                        }
                         item(key = "all_manga_sources_header") {
                             AllMangaSourcesListItem(
                                 accentColor = accentColor,
@@ -976,6 +984,25 @@ fun PluginPickerScreen(
                             contentPadding = PaddingValues(start = 12.dp, end = 34.dp, top = 6.dp, bottom = 24.dp),
                             verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
+                            // Eklentiye ÖZEL arama geçmişi (ana arama geçmişinden ayrı)
+                            if (queryText.isBlank() && extensionHistory.isNotEmpty()) {
+                                item(key = "extension_history") {
+                                    SearchHistorySection(
+                                        history = extensionHistory,
+                                        onHistoryItemClick = { item ->
+                                            queryText = item.query.trim()
+                                            performPortalSearch()
+                                        },
+                                        onRemoveItem = { item ->
+                                            scope.launch(Dispatchers.IO) { historyRepository.deleteExtensionSearchQuery(item.query) }
+                                        },
+                                        onClearAll = {
+                                            scope.launch(Dispatchers.IO) { historyRepository.clearExtensionSearchHistory() }
+                                        }
+                                    )
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                }
+                            }
                             if (selectedGroupLabel == null) {
                                 item(key = "all_plugins_header") {
                                     AllPluginsListItem(
