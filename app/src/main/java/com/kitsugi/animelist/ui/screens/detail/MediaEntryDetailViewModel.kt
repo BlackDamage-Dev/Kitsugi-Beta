@@ -48,6 +48,7 @@ import com.kitsugi.animelist.data.manga.MangaSourceRepository
 import com.kitsugi.animelist.data.remote.MdbListClient
 import com.kitsugi.animelist.data.remote.MdbListQuotaCenter
 import com.kitsugi.animelist.data.remote.MdbListRatings
+import com.kitsugi.animelist.data.remote.KitsugiSimklDetailClient
 import com.kitsugi.animelist.data.remote.resolveMdbListMediaIds
 import com.kitsugi.animelist.data.remote.KitsugiIdResolver
 import com.kitsugi.animelist.data.remote.KitsugiMediaVideoAggregator
@@ -302,6 +303,9 @@ class MediaEntryDetailViewModel(application: Application) : AndroidViewModel(app
     private var currentFetchKey: String? = null
     private var lastEntry: MediaEntry? = null
     private var mangaMappingJob: Job? = null
+    private var mdbListFetchJob: Job? = null
+    private var mdbListFetchGeneration = 0L
+    private var observedMdbListConfig: Pair<Boolean, String>? = null
 
     /** Çeviri işlerinin nesil sayacı — eski işlerin yüklenme durumunu kapatmasını engeller. */
     private var lastAutoTranslateSetting: Boolean? = null
@@ -316,6 +320,13 @@ class MediaEntryDetailViewModel(application: Application) : AndroidViewModel(app
     init {
         viewModelScope.launch {
             settingsDataStore.settingsFlow.collect { settings ->
+                val newMdbListConfig = settings.mdbListEnabled to settings.mdbListApiKey.trim()
+                val previousMdbListConfig = observedMdbListConfig
+                observedMdbListConfig = newMdbListConfig
+                if (previousMdbListConfig != null && previousMdbListConfig != newMdbListConfig) {
+                    lastEntry?.let(::refreshMdbListRatings)
+                }
+
                 val prevAuto = lastAutoTranslateSetting
                 val prevTarget = lastTargetLangSetting
                 lastAutoTranslateSetting = settings.autoTranslateEnabled
@@ -414,6 +425,7 @@ class MediaEntryDetailViewModel(application: Application) : AndroidViewModel(app
         _resolvedTmdbId.value = null
         _mdbListRatings.value = null
         _mdbListLoading.value = false
+        refreshMdbListRatings(entry)
         _galleryItems.value = emptyList()
         galleryTracker.reset()
 
@@ -638,15 +650,6 @@ class MediaEntryDetailViewModel(application: Application) : AndroidViewModel(app
             synopsisController.showErrorIfEmpty()
         }
 
-        // MDBList, birincil detaydaki IMDb/TMDB/MAL kimlikleri hazır olduktan sonra başlar.
-        // Böylece detay çağrısıyla yarışıp kimlik yok sanılarak sessizce kapanmaz.
-        viewModelScope.launch {
-            try {
-                fetchMdbListRatingsForEntry(entry)
-            } catch (e: Exception) {
-                Log.e(TAG, "Error fetching mdbList ratings: ${e.message}", e)
-            }
-        }
         val expectedFetchKey = currentFetchKey
 
         if (detail != null) {
@@ -1636,16 +1639,46 @@ class MediaEntryDetailViewModel(application: Application) : AndroidViewModel(app
         }
     }
 
+    private fun refreshMdbListRatings(entry: MediaEntry) {
+        val requestKey = currentFetchKey ?: return
+        mdbListFetchGeneration++
+        val generation = mdbListFetchGeneration
+        mdbListFetchJob?.cancel()
+        _mdbListRatings.value = null
+        _mdbListLoading.value = false
+        mdbListFetchJob = viewModelScope.launch {
+            try {
+                fetchMdbListRatingsForEntry(entry, requestKey, generation)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "MDBList entry rating fetch failed", e)
+                if (generation == mdbListFetchGeneration && currentFetchKey == requestKey) {
+                    _mdbListRatings.value = null
+                    _mdbListLoading.value = false
+                }
+            }
+        }
+    }
+
     /**
-     * Fetches MDBList external ratings for a library entry.
-     * Resolves IMDb ID via KitsugiIdResolver then calls MdbListClient.
-     * Works for AniList, MAL and Kitsu sources.
+     * Resolves provider-specific identities before querying MDBList. Stored IDs are not
+     * interchangeable: a Bangumi/Kitsu/TMDB ID must never be sent as a MAL or IMDb ID.
      */
-    private suspend fun fetchMdbListRatingsForEntry(entry: MediaEntry) {
+    private suspend fun fetchMdbListRatingsForEntry(
+        entry: MediaEntry,
+        requestKey: String,
+        generation: Long
+    ) {
+        fun isCurrentRequest(): Boolean =
+            generation == mdbListFetchGeneration && currentFetchKey == requestKey
+
         val context = getApplication<android.app.Application>().applicationContext
-        val settingsDataStore = SettingsDataStore(context)
-        val settings = runCatching { settingsDataStore.settingsFlow.first() }.getOrNull()
-        if (settings == null || !settings.mdbListEnabled || settings.mdbListApiKey.isBlank()) {
+        val settings = settingsDataStore.settingsFlow.first()
+        if (!isCurrentRequest()) return
+        if (!settings.mdbListEnabled || settings.mdbListApiKey.isBlank()) {
+            _mdbListRatings.value = null
+            _mdbListLoading.value = false
             // Özellik kapalı/anahtar yok: detay kartında bayat kota rozeti çizilmesin.
             MdbListQuotaCenter.bind(context, "")
             return
@@ -1657,78 +1690,123 @@ class MediaEntryDetailViewModel(application: Application) : AndroidViewModel(app
         // Manga/MDBList uyumsuz: MDBList film ve dizi puanları verir, manga için yok.
         if (entry.type == MediaType.Manga) {
             _mdbListRatings.value = null
+            _mdbListLoading.value = false
             return
         }
 
         _mdbListLoading.value = true
         try {
-            val detail = _detailState.value
-            val baseIds = resolveMdbListMediaIds(
-                source = entry.source,
-                storedId = entry.malId,
-                resolvedMalId = detail?.realMalId ?: entry.malId?.takeIf { it in 1..99_999_999 },
-                resolvedTmdbId = detail?.tmdbId ?: entry.tmdbId ?: _resolvedTmdbId.value
-            )
-
-            val ids = if (baseIds.malId == null) {
-                baseIds.copy(
-                    malId = when {
-                        entry.source.equals("bangumi", ignoreCase = true) ->
-                            KitsugiBangumiDetailClient.resolveCrossIds(entry.malId ?: 0, entry.type).malId
-                        entry.source.equals("shikimori", ignoreCase = true) ->
-                            KitsugiIdResolver.resolveMalIdFromShikimori(baseIds.shikimoriId)
-                        else -> null
-                    }
-                )
-            } else {
-                baseIds
+            var detail = _detailState.value
+            val rawSource = entry.source.trim().lowercase()
+            val source = when (rawSource) {
+                "bgm" -> "bangumi"
+                "myanimelist", "jikan" -> "mal"
+                else -> rawSource
             }
+            val storedId = entry.malId?.takeIf { it > 0 }
+            val isAniList = source == "anilist"
+            val aniListId = storedId?.takeIf { isAniList && it >= 100_000_000 }
+                ?.minus(100_000_000)
+            var malId: Int? = when {
+                source == "tmdb" -> detail?.realMalId?.takeIf { it in 1..99_999_999 }
+                isAniList && aniListId != null -> detail?.realMalId?.takeIf { it in 1..99_999_999 }
+                source == "bangumi" -> detail?.realMalId?.takeIf { it in 1..99_999_999 }
+                source == "kitsu" -> detail?.realMalId?.takeIf { it in 1..99_999_999 }
+                    ?: com.kitsugi.animelist.data.remote.KitsuIdNamespace.realMalIdOf(storedId)
+                else -> detail?.realMalId?.takeIf { it in 1..99_999_999 }
+                    ?: storedId?.takeIf { it in 1..99_999_999 }
+            }
+            var kitsuId: Int? = if (source == "kitsu") {
+                com.kitsugi.animelist.data.remote.KitsuIdNamespace.rawIdFromStable(storedId)
+            } else null
+            val bangumiId = storedId.takeIf { source == "bangumi" }
+            var tmdbId = entry.tmdbId ?: detail?.tmdbId ?: _resolvedTmdbId.value
+            if (source == "tmdb" && tmdbId == null) tmdbId = storedId
 
-            // Try to resolve IMDb ID from detail links first
-            var imdbId: String? = detail?.externalLinks
-                ?.firstOrNull { it.url.contains("imdb.com") }
-                ?.url?.substringAfter("/title/")?.substringBefore("/")
-            var lookupTmdbId = ids.tmdbId
+            var imdbId = detail?.externalLinks
+                ?.firstOrNull { it.url.contains("imdb.com", ignoreCase = true) }
+                ?.url?.let { Regex("(?i)tt[0-9]{5,12}").find(it)?.value?.lowercase() }
 
-            if (imdbId.isNullOrBlank() && ids.hasLookupIdentity) {
-                val resolved = withContext(Dispatchers.IO) {
-                    KitsugiIdResolver.resolveIds(
-                        malId = ids.malId,
-                        aniListId = ids.aniListId,
-                        tmdbId = ids.tmdbId,
+            if (source == "simkl") {
+                val simklId = entry.simklId?.takeIf { it > 0 }
+                if (simklId != null) {
+                    val crossIds = KitsugiSimklDetailClient.resolveSimklCrossIds(
+                        simklId = simklId,
                         mediaType = entry.type,
-                        kitsuId = ids.kitsuId,
-                        bangumiId = ids.bangumiId
+                        hintTmdbId = tmdbId,
+                        hintMalId = malId
                     )
+                    if (malId == null) malId = crossIds.malId
+                    if (tmdbId == null) tmdbId = crossIds.tmdbId
+                    if (imdbId.isNullOrBlank()) imdbId = crossIds.imdbId
+                    if (kitsuId == null) kitsuId = crossIds.kitsuId
                 }
-                imdbId = resolved.imdbId
-                lookupTmdbId = lookupTmdbId ?: resolved.tmdbId
             }
 
-            if (!imdbId.isNullOrBlank() || (lookupTmdbId != null && lookupTmdbId > 0)) {
-                val ratings = withContext(Dispatchers.IO) {
-                    MdbListClient.fetchRatings(
-                        imdbId = imdbId,
-                        tmdbId = lookupTmdbId,
-                        apiKey = settings.mdbListApiKey
-                    )
-                }
-                _mdbListRatings.value = ratings
-            } else {
-                _mdbListRatings.value = null
+            // AniList list entries can carry either its 100M-offset media ID or a real MAL ID.
+            // Bangumi and Kitsu are passed through their own namespaces to the resolver.
+            if (malId != null || aniListId != null || tmdbId != null || kitsuId != null || bangumiId != null) {
+                val resolved = KitsugiIdResolver.resolveIds(
+                    malId = malId,
+                    aniListId = aniListId,
+                    tmdbId = tmdbId,
+                    mediaType = entry.type,
+                    kitsuId = kitsuId,
+                    bangumiId = bangumiId
+                )
+                if (imdbId.isNullOrBlank()) imdbId = resolved.imdbId
+                if (tmdbId == null) tmdbId = resolved.tmdbId
             }
+
+            // Detail metadata can expose external IDs that were not present on the library
+            // row. Retry with it only if the row/resolver produced no usable MDBList identity.
+            if (imdbId.isNullOrBlank() && (tmdbId == null || tmdbId <= 0) && _detailLoading.value) {
+                withTimeoutOrNull(TAB_FETCH_TIMEOUT_MS) { _detailLoading.first { !it } }
+                if (!isCurrentRequest()) return
+                detail = _detailState.value
+                tmdbId = tmdbId ?: detail?.tmdbId ?: _resolvedTmdbId.value
+                if (source == "tmdb" && tmdbId == null) tmdbId = storedId
+                if (imdbId.isNullOrBlank()) {
+                    imdbId = detail?.externalLinks
+                        ?.firstOrNull { it.url.contains("imdb.com", ignoreCase = true) }
+                        ?.url?.let { Regex("(?i)tt[0-9]{5,12}").find(it)?.value?.lowercase() }
+                }
+                if (imdbId.isNullOrBlank() || tmdbId == null) {
+                    val resolved = KitsugiIdResolver.resolveIds(
+                        malId = detail?.realMalId?.takeIf { it in 1..99_999_999 } ?: malId,
+                        aniListId = aniListId,
+                        tmdbId = tmdbId,
+                        mediaType = entry.type,
+                        kitsuId = kitsuId,
+                        bangumiId = bangumiId
+                    )
+                    if (imdbId.isNullOrBlank()) imdbId = resolved.imdbId
+                    if (tmdbId == null) tmdbId = resolved.tmdbId
+                }
+            }
+
+            if (!isCurrentRequest()) return
+            if (!imdbId.isNullOrBlank() || (tmdbId != null && tmdbId > 0)) {
+                val ratings = MdbListClient.fetchRatings(
+                    imdbId = imdbId,
+                    tmdbId = tmdbId,
+                    apiKey = settings.mdbListApiKey
+                )
+                if (isCurrentRequest()) _mdbListRatings.value = ratings
+            } else {
+                Log.d(TAG, "MDBList skipped: no IMDb or TMDB identity is available for source=$source")
+                if (isCurrentRequest()) _mdbListRatings.value = null
+            }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "MDBList entry rating fetch failed", e)
-            _mdbListRatings.value = null
+            if (isCurrentRequest()) _mdbListRatings.value = null
         } finally {
-            _mdbListLoading.value = false
+            if (isCurrentRequest()) _mdbListLoading.value = false
         }
 
-        // Puan yanıtı çoğu zaman `X-RateLimit-*` başlıklarıyla kotayı zaten günceller.
-        // Başlık gelmeyen yanıtlarda sayı bayat kalmasın diye `/user` en fazla 10 dakikada
-        // bir doğrulanır. Ayrı iş olarak başlatılır: puan kartının iskeletini bekletmez.
         viewModelScope.launch {
-            // `refresh` ağ hatalarını kendi içinde yutar; yalnızca iptal durumunu yukarı iletir.
             MdbListQuotaCenter.refresh(settings.mdbListApiKey, maxAgeMillis = 10L * 60_000L)
         }
     }

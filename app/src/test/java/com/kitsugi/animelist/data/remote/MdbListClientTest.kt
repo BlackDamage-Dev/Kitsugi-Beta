@@ -13,37 +13,59 @@ class MdbListClientTest {
         val url = requireNotNull(MdbListClient.buildLookupUrl(
             apiKey = "key with&symbols",
             imdbId = " TT1234567 ",
-            tmdbId = 42,
-            mediaType = null
+            tmdbId = 42
         ))
 
         assertEquals("https", url.scheme)
-        assertEquals("api.mdblist.com", url.host)
-        assertEquals("/imdb/any/tt1234567", url.encodedPath)
+        assertEquals("mdblist.com", url.host)
+        assertEquals("/api/", url.encodedPath)
         assertEquals("key with&symbols", url.queryParameter("apikey"))
-        assertNull(url.queryParameter("i"))
+        assertEquals("tt1234567", url.queryParameter("i"))
         assertNull(url.queryParameter("tmdb"))
     }
 
     @Test
     fun lookupUrlFallsBackToPositiveTmdbId() {
         val url = requireNotNull(
-            MdbListClient.buildLookupUrl(apiKey = "personal-key", imdbId = null, tmdbId = 550, mediaType = "movie")
+            MdbListClient.buildLookupUrl(apiKey = "personal-key", imdbId = null, tmdbId = 550)
         )
 
-        assertEquals("api.mdblist.com", url.host)
-        assertEquals("/tmdb/movie/550", url.encodedPath)
-        assertEquals("personal-key", url.queryParameter("apikey"))
+        assertEquals("550", url.queryParameter("tmdb"))
         assertNull(url.queryParameter("i"))
-        assertNull(url.queryParameter("tmdb"))
+    }
+
+    @Test
+    fun fallbackPrefersNonEmptyTmdbRatingsWhenImdbLookupIsEmpty() {
+        val emptyImdb = MdbListRatings(imdbId = "tt1234567")
+        val fromTmdb = MdbListRatings(tmdb = 8.3, imdbId = null)
+
+        val selected = MdbListClient.selectRatingsWithFallback(
+            imdbResult = emptyImdb,
+            tmdbResult = fromTmdb,
+            preferredImdbId = "tt1234567"
+        )
+
+        requireNotNull(selected)
+        assertEquals(8.3, selected.tmdb!!, 0.001)
+        assertEquals("tt1234567", selected.imdbId)
+    }
+
+    @Test
+    fun fallbackKeepsImdbResultWhenItHasScores() {
+        val imdb = MdbListRatings(imdb = 8.1, imdbId = "tt1234567")
+        val tmdb = MdbListRatings(tmdb = 8.4)
+
+        val selected = MdbListClient.selectRatingsWithFallback(imdb, tmdb, "tt1234567")
+
+        assertEquals(imdb, selected)
     }
 
     @Test
     fun lookupUrlRejectsMissingOrInvalidIdentity() {
-        assertNull(MdbListClient.buildLookupUrl("key", imdbId = null, tmdbId = null, mediaType = null))
-        assertNull(MdbListClient.buildLookupUrl("key", imdbId = "tt123", tmdbId = null, mediaType = null))
-        assertNull(MdbListClient.buildLookupUrl("key", imdbId = null, tmdbId = 0, mediaType = null))
-        assertNull(MdbListClient.buildLookupUrl("", imdbId = "tt1234567", tmdbId = null, mediaType = null))
+        assertNull(MdbListClient.buildLookupUrl("key", imdbId = null, tmdbId = null))
+        assertNull(MdbListClient.buildLookupUrl("key", imdbId = "tt123", tmdbId = null))
+        assertNull(MdbListClient.buildLookupUrl("key", imdbId = null, tmdbId = 0))
+        assertNull(MdbListClient.buildLookupUrl("", imdbId = "tt1234567", tmdbId = null))
     }
 
     @Test
@@ -55,7 +77,7 @@ class MdbListClientTest {
               "ratings": [
                 {"source":"IMDb", "value":"8.5/10"},
                 {"source":"Rotten Tomatoes", "value":"92%"},
-                {"source":"popcorn", "score":87},
+                {"source":"Rotten Tomatoes Audience", "score":87},
                 {"source":"Metacritic", "value":"78/100"},
                 {"source":"Letterboxd", "value":"4.1/5"},
                 {"source":"TMDb", "value":"7.9/10"},
@@ -78,6 +100,32 @@ class MdbListClientTest {
     }
 
     @Test
+    fun parseRatingsSupportsObjectRatingsAndTheMovieDbAlias() {
+        val result = MdbListClient.parseRatings(
+            """
+            {
+              "response": true,
+              "imdbid": "tt1234567",
+              "ratings": {
+                "imdb": {"value": "8.6/10"},
+                "rottentomatoes": {"value": "94%"},
+                "themoviedb": {"value": "8.2/10"},
+                "letterboxd": 4.0
+              }
+            }
+            """.trimIndent(),
+            imdbId = null
+        )
+
+        requireNotNull(result)
+        assertEquals(8.6, result.imdb!!, 0.001)
+        assertEquals(94, result.tomatoes)
+        assertEquals(8.2, result.tmdb!!, 0.001)
+        assertEquals(4.0, result.letterboxd!!, 0.001)
+        assertEquals("tt1234567", result.imdbId)
+    }
+
+    @Test
     fun parseRatingsSupportsLegacyFieldsAndRejectsFailedResponses() {
         val legacy = MdbListClient.parseRatings(
             """{"response":"True","imdbid":"tt0133093","imdbrating":"8.7","tomatoesrating":"95%","tomatoesaudiencerating":"88%","metacriticrating":"82","letterboxdrating":"4.0/5","tmdbrating":"7.8","traktrating":"80%"}""",
@@ -96,6 +144,18 @@ class MdbListClientTest {
 
         assertNull(MdbListClient.parseRatings("""{"response":false,"ratings":[]}""", imdbId = null))
         assertNull(MdbListClient.parseRatings("not-json", imdbId = null))
+    }
+
+    @Test
+    fun parseRatingsFallsBackToLegacyFieldsWhenCurrentRatingsListIsEmpty() {
+        val result = MdbListClient.parseRatings(
+            """{"response":true,"ratings":[],"imdbrating":"8.1","tmdbrating":"7.9"}""",
+            imdbId = "tt1234567"
+        )
+
+        requireNotNull(result)
+        assertEquals(8.1, result.imdb!!, 0.001)
+        assertEquals(7.9, result.tmdb!!, 0.001)
     }
 
     @Test
