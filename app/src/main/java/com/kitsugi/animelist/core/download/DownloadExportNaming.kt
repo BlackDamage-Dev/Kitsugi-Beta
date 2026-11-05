@@ -37,8 +37,173 @@ object DownloadExportNaming {
     /** Video, altyazı ve metadata dosyalarının bulunduğu klasör (düz yapı). */
     fun publicVideoDir(): File = File(publicRoot(), "Video")
 
+    /** Ayrı indirilen ses parçalarının bulunduğu klasör (`Download/Kitsugi/Audio`). */
+    fun publicAudioDir(): File = File(publicRoot(), "Audio")
+
+    /** Ayrı indirilen altyazı dosyalarının bulunduğu klasör (`Download/Kitsugi/Subtitles`). */
+    fun publicSubtitlesDir(): File = File(publicRoot(), "Subtitles")
+
     /** Poster görsellerinin klasörü (`KitsugiImageDownloadHelper` ile ortak). */
     fun publicImagesDir(): File = File(publicRoot(), "Images")
+
+    /**
+     * Standart Kitsugi indirme klasörlerini (`Video`, `Audio`, `Subtitles`, `Images`)
+     * oluşturmayı dener ve birincil ses indirme klasörünü döner.
+     *
+     * Android 10+ Scoped Storage altında ortak `Download/Kitsugi/...` dizinlerinde `mkdirs()`
+     * bazı cihazlarda kısıtlı olabilir; hiçbir zaman istisna fırlatmaz ve uygulama özel yedek
+     * dizinlerini de hazırlar. IO iş parçacığından çağrılmalıdır.
+     */
+    fun ensureStandardDownloadDirs(context: Context): File {
+        val appContext = context.applicationContext
+        val subDirs = listOf("Video", "Audio", "Subtitles", "Images")
+        val publicBase = runCatching { publicRoot() }.getOrNull()
+        if (publicBase != null) {
+            runCatching { publicBase.mkdirs() }
+            subDirs.forEach { name ->
+                runCatching { File(publicBase, name).mkdirs() }
+            }
+        }
+        val appBase = runCatching {
+            appContext.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)?.let { File(it, "Kitsugi") }
+        }.getOrNull()
+        if (appBase != null) {
+            runCatching { appBase.mkdirs() }
+            subDirs.forEach { name ->
+                runCatching { File(appBase, name).mkdirs() }
+            }
+        }
+        val publicAudio = publicBase?.let { File(it, "Audio") }
+        return when {
+            publicAudio != null && (publicAudio.exists() || runCatching { publicAudio.mkdirs() }.getOrDefault(false)) ->
+                publicAudio
+            appBase != null -> File(appBase, "Audio").also { runCatching { it.mkdirs() } }
+            else -> File(appContext.filesDir, "Kitsugi/Audio").also { runCatching { it.mkdirs() } }
+        }
+    }
+
+    /**
+     * İndirilen bir ses dosyasının adından çözümlenen üst veri.
+     *
+     * `AudioExportWorker` adlandırması:
+     *  - Dizi bölümü: `<Başlık> - Bölüm <N>.<dil etiket>.<uzantı>`
+     *  - Film:        `<Başlık>.<dil etiket>.<uzantı>`
+     *  - Video tabanı: `<Başlık>_Bölüm_<N>.<dil>.<uzantı>`
+     *  - Serbest ses: `<Dosya Adı>.<uzantı>`
+     */
+    data class ParsedAudioFileName(
+        val displayTitle: String,
+        val animeTitle: String?,
+        val episode: Int?,
+        val trackLabel: String?,
+        val languageBadge: String?,
+        val extension: String
+    )
+
+    private val EPISODE_DASH_REGEX = Regex("^(.*?)\\s*-\\s*(?:Bölüm|Bolum|Episode|Ep\\.?)\\s*(\\d+)\\s*$", RegexOption.IGNORE_CASE)
+    private val EPISODE_UNDERSCORE_REGEX = Regex("^(.*?)_(?:Bölüm|Bolum|Episode)_(\\d+)$", RegexOption.IGNORE_CASE)
+    private val KNOWN_LANG_PREFIX_REGEX = Regex("^([a-zA-Z]{2,3})(?:[_\\s-]+(.+))?$")
+    private val COMMON_LANG_CODES = setOf(
+        "tr", "tur", "en", "eng", "ja", "jp", "jpn", "de", "deu", "ger",
+        "fr", "fra", "fre", "es", "spa", "it", "ita", "ru", "rus", "pt",
+        "por", "ar", "ara", "ko", "kor", "zh", "zho", "chi", "hi", "hin",
+        "id", "ind", "pl", "pol", "nl", "nld", "uk", "ukr", "vi", "vie",
+        "th", "tha", "fa", "per", "az", "aze", "und", "mul"
+    )
+
+    fun parseAudioFileName(fileName: String): ParsedAudioFileName {
+        val cleanFileName = fileName.trim()
+        val ext = cleanFileName.substringAfterLast('.', "").lowercase()
+        val withoutExt = if (ext.isNotEmpty() && cleanFileName.contains('.')) {
+            cleanFileName.substringBeforeLast('.')
+        } else {
+            cleanFileName
+        }
+
+        // Sondaki ` (1)` gibi MediaStore çakışma ekini ayıkla (ör. `Title.tr (1).m4a` veya `Title.tr.m4a`).
+        val normalizedStem = withoutExt.replace(Regex("\\s*\\(\\d+\\)$"), "").trim()
+
+        var mainPart = normalizedStem
+        var trackLabel: String? = null
+        var languageBadge: String? = null
+
+        val dotIndex = normalizedStem.lastIndexOf('.')
+        if (dotIndex > 0 && dotIndex < normalizedStem.lastIndex) {
+            val candidateBase = normalizedStem.substring(0, dotIndex).trim()
+            val candidateSuffix = normalizedStem.substring(dotIndex + 1).trim()
+            val langMatch = KNOWN_LANG_PREFIX_REGEX.matchEntire(candidateSuffix)
+            val looksLikeTrackMeta = when {
+                langMatch != null && langMatch.groupValues[1].lowercase() in COMMON_LANG_CODES -> true
+                EPISODE_DASH_REGEX.matches(candidateBase) || EPISODE_UNDERSCORE_REGEX.matches(candidateBase) -> true
+                candidateSuffix.length <= 28 && candidateSuffix.any { it.isLetter() } &&
+                    !candidateSuffix.all { it.isDigit() } &&
+                    (candidateSuffix.contains("ses", ignoreCase = true) ||
+                        candidateSuffix.contains("audio", ignoreCase = true) ||
+                        candidateSuffix.contains("dub", ignoreCase = true) ||
+                        candidateSuffix.contains("track", ignoreCase = true) ||
+                        candidateSuffix.contains("türkçe", ignoreCase = true) ||
+                        candidateSuffix.contains("turkce", ignoreCase = true) ||
+                        candidateSuffix.contains("english", ignoreCase = true) ||
+                        candidateSuffix.contains("japanese", ignoreCase = true) ||
+                        candidateSuffix.contains("orijinal", ignoreCase = true)) -> true
+                else -> false
+            }
+            if (looksLikeTrackMeta) {
+                mainPart = candidateBase
+                trackLabel = candidateSuffix.replace('_', ' ').trim().ifBlank { null }
+                if (langMatch != null && langMatch.groupValues[1].lowercase() in COMMON_LANG_CODES) {
+                    languageBadge = langMatch.groupValues[1].uppercase()
+                }
+            }
+        }
+
+        val dashMatch = EPISODE_DASH_REGEX.matchEntire(mainPart)
+        val underscoreMatch = if (dashMatch == null) EPISODE_UNDERSCORE_REGEX.matchEntire(mainPart) else null
+
+        val animeTitle: String?
+        val episode: Int?
+        val displayTitle: String
+
+        when {
+            dashMatch != null -> {
+                val rawTitle = dashMatch.groupValues[1].replace('_', ' ').trim()
+                val ep = dashMatch.groupValues[2].toIntOrNull()
+                animeTitle = rawTitle.ifBlank { null }
+                episode = ep
+                displayTitle = if (!animeTitle.isNullOrBlank() && ep != null) {
+                    "$animeTitle • Bölüm $ep"
+                } else {
+                    mainPart
+                }
+            }
+            underscoreMatch != null -> {
+                val rawTitle = underscoreMatch.groupValues[1].replace('_', ' ').trim()
+                val ep = underscoreMatch.groupValues[2].toIntOrNull()
+                animeTitle = rawTitle.ifBlank { null }
+                episode = ep
+                displayTitle = if (!animeTitle.isNullOrBlank() && ep != null) {
+                    "$animeTitle • Bölüm $ep"
+                } else {
+                    mainPart.replace('_', ' ')
+                }
+            }
+            else -> {
+                val cleaned = mainPart.replace('_', ' ').replace(Regex("\\s+"), " ").trim()
+                animeTitle = if (trackLabel != null && cleaned.isNotBlank()) cleaned else null
+                episode = null
+                displayTitle = cleaned.ifBlank { cleanFileName }
+            }
+        }
+
+        return ParsedAudioFileName(
+            displayTitle = displayTitle,
+            animeTitle = animeTitle,
+            episode = episode,
+            trackLabel = trackLabel,
+            languageBadge = languageBadge,
+            extension = ext
+        )
+    }
 
     /** Başlığı dosya adına uygun hâle getirir (boşsa "Video"). */
     fun sanitizeTitle(title: String): String =

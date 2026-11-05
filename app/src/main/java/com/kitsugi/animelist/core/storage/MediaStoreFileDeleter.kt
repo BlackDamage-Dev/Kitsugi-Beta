@@ -37,7 +37,7 @@ internal object MediaStoreFileDeleter {
     private const val TAG = "MediaStoreFileDeleter"
 
     /** Hangi klasör ailesinde arama yapılacağını belirler. */
-    enum class Mode { IMAGE, SUBTITLE, ANY }
+    enum class Mode { IMAGE, SUBTITLE, AUDIO, ANY }
 
     data class Outcome(
         /** En az bir MediaStore kaydı kaldırıldı mı? */
@@ -58,9 +58,15 @@ internal object MediaStoreFileDeleter {
             // .srt/.ass gibi medya olmayan dosyalar yalnızca Files koleksiyonunda görünür.
             MediaStore.Files.getContentUri("external")
         )
+        Mode.AUDIO -> listOf(
+            MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+            MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+            MediaStore.Files.getContentUri("external")
+        )
         Mode.ANY -> listOf(
             MediaStore.Downloads.EXTERNAL_CONTENT_URI,
             MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+            MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
             MediaStore.Files.getContentUri("external")
         )
     }
@@ -230,6 +236,9 @@ internal object MediaStoreFileDeleter {
         }
         runCatching {
             resolver.notifyChange(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, null)
+        }
+        runCatching {
+            resolver.notifyChange(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, null)
         }
         runCatching {
             resolver.notifyChange(MediaStore.Downloads.EXTERNAL_CONTENT_URI, null)

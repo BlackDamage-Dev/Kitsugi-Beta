@@ -106,6 +106,7 @@ internal fun rememberDownloadsOverviewScrollState(
     videoListState: LazyListState,
     subtitleListState: LazyListState,
     imageGridState: LazyGridState,
+    audioListState: LazyListState? = null,
     contentRevision: Any? = Unit
 ): DownloadsOverviewScrollState {
     val density = LocalDensity.current
@@ -120,25 +121,50 @@ internal fun rememberDownloadsOverviewScrollState(
     var visible by remember(policy) { mutableStateOf(true) }
     val currentPage by rememberUpdatedState(activePage)
 
-    fun snapshot(): DownloadsScrollSnapshot = when (currentPage) {
-        0 -> DownloadsScrollSnapshot(
-            atTop = videoListState.firstVisibleItemIndex == 0 &&
-                videoListState.firstVisibleItemScrollOffset == 0,
-            hasItems = videoListState.layoutInfo.totalItemsCount > 0
-        )
-        1 -> DownloadsScrollSnapshot(
-            atTop = subtitleListState.firstVisibleItemIndex == 0 &&
-                subtitleListState.firstVisibleItemScrollOffset == 0,
-            hasItems = subtitleListState.layoutInfo.totalItemsCount > 0
-        )
-        else -> DownloadsScrollSnapshot(
-            atTop = imageGridState.firstVisibleItemIndex == 0 &&
-                imageGridState.firstVisibleItemScrollOffset == 0,
-            hasItems = imageGridState.layoutInfo.totalItemsCount > 0
-        )
+    fun snapshot(): DownloadsScrollSnapshot = if (audioListState != null) {
+        when (currentPage) {
+            0 -> DownloadsScrollSnapshot(
+                atTop = videoListState.firstVisibleItemIndex == 0 &&
+                    videoListState.firstVisibleItemScrollOffset == 0,
+                hasItems = videoListState.layoutInfo.totalItemsCount > 0
+            )
+            1 -> DownloadsScrollSnapshot(
+                atTop = audioListState.firstVisibleItemIndex == 0 &&
+                    audioListState.firstVisibleItemScrollOffset == 0,
+                hasItems = audioListState.layoutInfo.totalItemsCount > 0
+            )
+            2 -> DownloadsScrollSnapshot(
+                atTop = subtitleListState.firstVisibleItemIndex == 0 &&
+                    subtitleListState.firstVisibleItemScrollOffset == 0,
+                hasItems = subtitleListState.layoutInfo.totalItemsCount > 0
+            )
+            else -> DownloadsScrollSnapshot(
+                atTop = imageGridState.firstVisibleItemIndex == 0 &&
+                    imageGridState.firstVisibleItemScrollOffset == 0,
+                hasItems = imageGridState.layoutInfo.totalItemsCount > 0
+            )
+        }
+    } else {
+        when (currentPage) {
+            0 -> DownloadsScrollSnapshot(
+                atTop = videoListState.firstVisibleItemIndex == 0 &&
+                    videoListState.firstVisibleItemScrollOffset == 0,
+                hasItems = videoListState.layoutInfo.totalItemsCount > 0
+            )
+            1 -> DownloadsScrollSnapshot(
+                atTop = subtitleListState.firstVisibleItemIndex == 0 &&
+                    subtitleListState.firstVisibleItemScrollOffset == 0,
+                hasItems = subtitleListState.layoutInfo.totalItemsCount > 0
+            )
+            else -> DownloadsScrollSnapshot(
+                atTop = imageGridState.firstVisibleItemIndex == 0 &&
+                    imageGridState.firstVisibleItemScrollOffset == 0,
+                hasItems = imageGridState.layoutInfo.totalItemsCount > 0
+            )
+        }
     }
 
-    val connection = remember(policy, videoListState, subtitleListState, imageGridState) {
+    val connection = remember(policy, videoListState, audioListState, subtitleListState, imageGridState) {
         object : NestedScrollConnection {
             override fun onPostScroll(
                 consumed: Offset,
@@ -180,7 +206,7 @@ internal fun rememberDownloadsOverviewScrollState(
     // Reaching the real top, or deleting the last item, reveals the card.
     // Do not reset on "fits in viewport": after a collapse the taller viewport
     // may fit a short list, and resetting there would oscillate forever.
-    LaunchedEffect(policy, videoListState, subtitleListState, imageGridState) {
+    LaunchedEffect(policy, videoListState, audioListState, subtitleListState, imageGridState) {
         snapshotFlow { snapshot() }.collect { position ->
             if (!position.hasItems || position.atTop) {
                 policy.reset()

@@ -656,12 +656,14 @@ private fun DeleteAllDownloadsRow(
 
 private fun downloadIconFor(kind: DownloadStorage.Kind): ImageVector = when (kind) {
     DownloadStorage.Kind.VIDEOS -> Icons.VideoLibrary
+    DownloadStorage.Kind.AUDIOS -> Icons.AudioLines
     DownloadStorage.Kind.IMAGES -> Icons.PhotoLibrary
     DownloadStorage.Kind.SUBTITLES -> Icons.Subtitles
 }
 
 private fun downloadConfirmMessageRes(kind: DownloadStorage.Kind): Int = when (kind) {
     DownloadStorage.Kind.VIDEOS -> R.string.storage_downloads_videos_confirm_message
+    DownloadStorage.Kind.AUDIOS -> R.string.storage_downloads_audios_confirm_message
     DownloadStorage.Kind.IMAGES -> R.string.storage_downloads_images_confirm_message
     DownloadStorage.Kind.SUBTITLES -> R.string.storage_downloads_subtitles_confirm_message
 }

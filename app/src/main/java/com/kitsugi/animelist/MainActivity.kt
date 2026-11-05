@@ -106,6 +106,10 @@ class MainActivity : AppCompatActivity() {
                     }
                     androidx.compose.runtime.LaunchedEffect(Unit) {
                         val hasUnreported = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            runCatching {
+                                com.kitsugi.animelist.core.download.DownloadExportNaming
+                                    .ensureStandardDownloadDirs(applicationContext)
+                            }
                             com.kitsugi.animelist.core.diagnostics.KitsugiCrashLogger.hasUnreadCrash(applicationContext)
                         }
                         if (hasUnreported) showCrashRecovery = true

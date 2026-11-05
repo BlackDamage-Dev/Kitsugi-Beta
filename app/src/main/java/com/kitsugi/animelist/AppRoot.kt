@@ -1016,6 +1016,15 @@ fun AppRoot(
                     getMediaEntry = getMediaEntry,
                     bottomBarScrollState = bottomBarScrollState
                 )
+
+                // İndirilenler ekranı kendi içinde KitsugiAudioPlayerHost barındırdığı için
+                // diğer tüm uygulama ekranlarında mini ses oynatıcısını burada tutuyoruz.
+                if (currentAppStateKey !is AppStateKey.Downloads) {
+                    com.kitsugi.animelist.ui.screens.audio.KitsugiAudioPlayerHost(
+                        bottomPadding = innerPadding.calculateBottomPadding(),
+                        modifier = Modifier.align(Alignment.BottomCenter)
+                    )
+                }
             } // Box (içerik alanı)
             } // Row (landscape layout)
         }

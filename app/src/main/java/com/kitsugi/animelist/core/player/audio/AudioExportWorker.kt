@@ -3,10 +3,13 @@ package com.kitsugi.animelist.core.player.audio
 import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.ContentValues
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
+import android.media.MediaScannerConnection
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
@@ -21,6 +24,8 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
+import com.kitsugi.animelist.core.download.DownloadExportNaming
+import com.kitsugi.animelist.ui.screens.offline.DownloadsActivity
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -36,11 +41,21 @@ class AudioExportWorker(context: Context, params: WorkerParameters) : CoroutineW
     private val channel = "kitsugi_audio_exports"
     private var reported = -1
 
+    private fun openAudiosPendingIntent(): PendingIntent {
+        val intent = Intent(applicationContext, DownloadsActivity::class.java).apply {
+            putExtra(DownloadsActivity.EXTRA_INITIAL_TAB, DownloadsActivity.TAB_AUDIOS)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        }
+        val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        return PendingIntent.getActivity(applicationContext, notificationId, intent, flags)
+    }
+
     private fun notification(title: String, detail: String, progress: Int? = null, ongoing: Boolean = true) =
         NotificationCompat.Builder(applicationContext, channel)
             .setSmallIcon(android.R.drawable.stat_sys_download)
             .setContentTitle(title.take(80))
             .setContentText(detail.take(120))
+            .setContentIntent(openAudiosPendingIntent())
             .setOnlyAlertOnce(true)
             .setOngoing(ongoing)
             .setAutoCancel(!ongoing)
@@ -234,6 +249,7 @@ class AudioExportWorker(context: Context, params: WorkerParameters) : CoroutineW
 
     private suspend fun publish(file: File, name: String, mime: String): String {
         val context = applicationContext
+        DownloadExportNaming.ensureStandardDownloadDirs(context)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val values = ContentValues().apply {
                 put(MediaStore.Downloads.DISPLAY_NAME, name)
@@ -289,16 +305,26 @@ class AudioExportWorker(context: Context, params: WorkerParameters) : CoroutineW
                     out.write(buffer, 0, count)
                 }
             } }
+            runCatching {
+                MediaScannerConnection.scanFile(context, arrayOf(dest.absolutePath), arrayOf(mime), null)
+            }
             return dest.absolutePath
         } catch (e: Exception) { dest.delete(); throw e }
     }
 
     companion object {
+        const val WORK_TAG = "kitsugi-audio-export"
+
         internal fun enqueue(context: Context, source: String, headers: Map<String, String>, selected: AudioTrackIdentity,
                     tracks: List<AudioTrackIdentity>, independent: Boolean, title: String,
                     episode: Int, movie: Boolean, bitrate: Int?, transport: String? = null) {
             require(transport == null || transport in setOf("hls", "dash", "progressive")) { "Medya türü geçersiz" }
             val safeTitle = title.take(90)
+            val safeLabel = listOfNotNull(selected.language, selected.name)
+                .filter { it.isNotBlank() }
+                .distinct()
+                .joinToString(" ")
+                .take(60)
             val payload = JSONObject().apply {
                 put("source", source)
                 put("headers", JSONObject(headers))
@@ -317,12 +343,18 @@ class AudioExportWorker(context: Context, params: WorkerParameters) : CoroutineW
             }.toString()
             require(payload.toByteArray(Charsets.UTF_8).size < 9_000) { "Kaynak başlıkları indirme kuyruğu için çok uzun" }
             val network = source.startsWith("http://", true) || source.startsWith("https://", true)
-            val data: Data = workDataOf("payload" to payload, "title" to safeTitle)
+            val data: Data = workDataOf(
+                "payload" to payload,
+                "title" to safeTitle,
+                "episode" to episode,
+                "movie" to movie,
+                "label" to safeLabel
+            )
             val work = OneTimeWorkRequestBuilder<AudioExportWorker>()
                 .setInputData(data)
                 .setConstraints(Constraints.Builder().setRequiredNetworkType(
                     if (network) NetworkType.CONNECTED else NetworkType.NOT_REQUIRED).build())
-                .addTag("kitsugi-audio-export").build()
+                .addTag(WORK_TAG).build()
             WorkManager.getInstance(context).enqueue(work)
         }
     }

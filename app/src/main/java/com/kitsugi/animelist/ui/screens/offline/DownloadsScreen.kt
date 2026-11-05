@@ -70,13 +70,16 @@ import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.FileProvider
 import coil3.compose.AsyncImage
+import com.kitsugi.animelist.core.download.DownloadExportNaming
 import com.kitsugi.animelist.core.player.OfflinePlaybackHelper
+import com.kitsugi.animelist.core.player.audio.player.KitsugiAudioPlayerManager
 import com.kitsugi.animelist.core.storage.DownloadStorage
 import com.kitsugi.animelist.data.local.AnimeDownloadManager
 import com.kitsugi.animelist.data.model.AnimeDownload
 import com.kitsugi.animelist.ui.components.KitsugiSettingsSegmentedTabs
 import com.kitsugi.animelist.ui.components.KitsugiSettingsTabOption
 import com.kitsugi.animelist.ui.components.KitsugiAnimatedDeleteButton
+import com.kitsugi.animelist.ui.screens.audio.KitsugiAudioPlayerHost
 import com.kitsugi.animelist.ui.screens.fullscreen.KitsugiFullscreenPlayerActivity
 import com.kitsugi.animelist.ui.theme.KitsugiColors
 import com.kitsugi.animelist.utils.KitsugiImageDownloadHelper
@@ -269,20 +272,32 @@ private fun buildVideoEntries(
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun DownloadsScreen(
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    initialTab: Int = 0
 ) {
     val context = LocalContext.current
     val accentColor = LocalKitsugiAccent.current
     val downloads by AnimeDownloadManager.downloads.collectAsState()
+    val audioManager = remember(context) { KitsugiAudioPlayerManager.getInstance(context) }
+    val audioPlayerState by audioManager.state.collectAsState()
 
-    val pagerState = rememberPagerState(initialPage = 0, pageCount = { 3 })
+    val pagerState = rememberPagerState(initialPage = initialTab.coerceIn(0, 3), pageCount = { 4 })
     val scope = rememberCoroutineScope()
 
-    // Keep all three scroll positions across tab changes and configuration changes.
+    LaunchedEffect(initialTab) {
+        val safePage = initialTab.coerceIn(0, 3)
+        if (pagerState.currentPage != safePage) {
+            pagerState.scrollToPage(safePage)
+        }
+    }
+
+    // Keep all four scroll positions across tab changes and configuration changes.
     // The shared overview observes only the active page, never an off-screen page.
     val videoListState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
+    val audioListState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
     val subtitleListState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
     val imageGridState = rememberSaveable(saver = LazyGridState.Saver) { LazyGridState() }
+    var refreshAudiosTrigger by remember { mutableIntStateOf(0) }
     var refreshSubsTrigger by remember { mutableIntStateOf(0) }
     var refreshImagesTrigger by remember { mutableIntStateOf(0) }
 
@@ -306,16 +321,25 @@ fun DownloadsScreen(
     var videoSelectionMode by remember { mutableStateOf(false) }
     var selectedVideoKeys by remember { mutableStateOf(setOf<String>()) }
 
+    // ── Sesler sekmesi: sıralama, gruplama, format filtresi ve çoklu seçim ───
+    var audioSort by remember { mutableStateOf(DownloadsUiPrefs.audioSort(context)) }
+    var audioGrouped by remember { mutableStateOf(DownloadsUiPrefs.audiosGrouped(context)) }
+    var selectedAudioFormat by rememberSaveable { mutableStateOf<String?>(null) }
+    var audioSelectionMode by remember { mutableStateOf(false) }
+
     // ── Altyazılar sekmesi: çoklu seçim ──────────────────────────────────────
     var subtitleSelectionMode by remember { mutableStateOf(false) }
     var selectedSubtitlePaths by remember { mutableStateOf(setOf<String>()) }
 
     // Geri tuşu: önce seçim modunu, sonra aramayı kapatır; ekrandan çıkmaz.
-    BackHandler(enabled = searchOpen || videoSelectionMode || subtitleSelectionMode) {
+    BackHandler(enabled = searchOpen || videoSelectionMode || audioSelectionMode || subtitleSelectionMode) {
         when {
             videoSelectionMode -> {
                 videoSelectionMode = false
                 selectedVideoKeys = emptySet()
+            }
+            audioSelectionMode -> {
+                audioSelectionMode = false
             }
             subtitleSelectionMode -> {
                 subtitleSelectionMode = false
@@ -329,7 +353,7 @@ fun DownloadsScreen(
     }
 
     // Galeriden yeni resim indirip bu ekrana dönüldüğünde listeler bayat kalmasın:
-    // ekran her öne geldiğinde (ON_RESUME) altyazı ve resim taramasını tazele.
+    // ekran her öne geldiğinde (ON_RESUME) ses, altyazı ve resim taramasını tazele.
     // İlk resume (ekran ilk açılış) atlanır — ilk yükleme zaten LaunchedEffect ile yapılıyor.
     val lifecycleOwner = LocalLifecycleOwner.current
     var resumeSeenOnce by remember { mutableStateOf(false) }
@@ -337,6 +361,7 @@ fun DownloadsScreen(
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 if (resumeSeenOnce) {
+                    refreshAudiosTrigger++
                     refreshSubsTrigger++
                     refreshImagesTrigger++
                 } else {
@@ -358,6 +383,18 @@ fun DownloadsScreen(
                 .map { "${it.animeId}_${it.episode}_${it.localPath}" }
                 .toList()
         }
+    }
+
+    var allAudios by remember { mutableStateOf(emptyList<DownloadedAudioItem>()) }
+    var isLoadingAudios by remember { mutableStateOf(true) }
+    val activeAudioExports = rememberActiveAudioExports(context) {
+        refreshAudiosTrigger++
+    }
+
+    LaunchedEffect(completedDownloadsKey, refreshAudiosTrigger) {
+        val currentDownloadsSnapshot = AnimeDownloadManager.downloads.value
+        allAudios = scanDownloadedAudioItems(context, currentDownloadsSnapshot)
+        isLoadingAudios = false
     }
 
     // FIX: Hızlı silme durumunda state güncelleme sorunu - produceState yerine mutableStateOf
@@ -384,11 +421,13 @@ fun DownloadsScreen(
         videoListState = videoListState,
         subtitleListState = subtitleListState,
         imageGridState = imageGridState,
+        audioListState = audioListState,
         // A new search/filter/sort is a new browsing context: show storage info
         // again instead of leaving the user with a hidden header over new data.
         contentRevision = listOf(
-            downloads.size, allSubtitles.size, allImages.size, searchOpen, searchQuery,
-            videoFilter, subtitleSort, videoSort, videoGrouped
+            downloads.size, allAudios.size, activeAudioExports.size, allSubtitles.size, allImages.size,
+            searchOpen, searchQuery, videoFilter, subtitleSort, videoSort, videoGrouped,
+            audioSort, audioGrouped, selectedAudioFormat
         )
     )
 
@@ -587,11 +626,13 @@ fun DownloadsScreen(
                 AnimeDownloadManager.deleteDownload(context, download.animeId, download.episode)
             }
         }
+        refreshAudiosTrigger++
         refreshSubsTrigger++
         refreshImagesTrigger++
     }
 
     val allRefreshed: () -> Unit = {
+        refreshAudiosTrigger++
         refreshSubsTrigger++
         refreshImagesTrigger++
     }
@@ -795,6 +836,10 @@ fun DownloadsScreen(
             }
     }
 
+    val audioBytes = remember(allAudios) { allAudios.sumOf { it.sizeBytes } }
+    val availableAudioFormats = remember(allAudios) {
+        allAudios.map { it.formatUpper }.distinct().sorted()
+    }
     val subtitleBytes = remember(allSubtitles) { allSubtitles.sumOf { it.fileSizeBytes } }
     val imageBytes = remember(allImages) { allImages.sumOf { it.fileSizeBytes } }
 
@@ -803,11 +848,12 @@ fun DownloadsScreen(
             DownloadsFilterChip(label = stringResource(R.string.downloads_search_open), selected = searchOpen, accentColor = accentColor, leadingIcon = Icons.Search, onClick = { searchOpen = !searchOpen; if (!searchOpen) searchQuery = ""; menuOpen = false })
             DownloadsFilterChip(label = stringResource(R.string.page_open_folder), selected = false, accentColor = accentColor, leadingIcon = Icons.Folder, onClick = {
                     val rootDir = when (pagerState.currentPage) {
-                        1 -> File(
+                        1 -> DownloadExportNaming.publicAudioDir().also { runCatching { it.mkdirs() } }
+                        2 -> File(
                             Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
                             "Kitsugi/Subtitles"
                         ).also { it.mkdirs() }
-                        2 -> File(
+                        3 -> File(
                             Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
                             "Kitsugi/Images"
                         ).also { it.mkdirs() }
@@ -827,13 +873,14 @@ fun DownloadsScreen(
             }
         }
     }
-    if (menuOpen && pagerState.currentPage != 2) {
+    if (menuOpen && pagerState.currentPage != 3) {
         val sheetScroll = rememberScrollState()
         KitsugiSheetOrDialog(onDismiss = { menuOpen = false }, innerColumnScrollState = sheetScroll) {
             Column(modifier = Modifier.fillMaxWidth().navigationBarsPadding().verticalScroll(sheetScroll).padding(vertical = 12.dp)) {
                 Text(stringResource(R.string.page_controls), color = KitsugiColors.TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
                 commonMenu()
-                if (pagerState.currentPage == 0) {
+                when (pagerState.currentPage) {
+                    0 -> {
                                 DownloadsVideoFilterRow(
                                     downloads = downloads,
                                     selected = videoFilter,
@@ -862,7 +909,42 @@ fun DownloadsScreen(
                                     },
                                     accentColor = accentColor
                                 )
-                } else {
+                    }
+                    1 -> {
+                        DownloadsAudioControlsRow(
+                            sortOrder = audioSort,
+                            onSortChange = { order ->
+                                audioSort = order
+                                DownloadsUiPrefs.setAudioSort(context, order)
+                            },
+                            groupedByMedia = audioGrouped,
+                            onGroupedChange = { next ->
+                                audioGrouped = next
+                                DownloadsUiPrefs.setAudiosGrouped(context, next)
+                            },
+                            availableFormats = availableAudioFormats,
+                            selectedFormat = selectedAudioFormat,
+                            onSelectFormat = { selectedAudioFormat = it },
+                            isSelectionMode = audioSelectionMode,
+                            onToggleSelectionMode = {
+                                menuOpen = false
+                                audioSelectionMode = !audioSelectionMode
+                            },
+                            hasItems = allAudios.isNotEmpty(),
+                            onPlayAll = {
+                                menuOpen = false
+                                if (allAudios.isNotEmpty()) {
+                                    audioManager.playQueue(
+                                        items = allAudios.map { it.toAudioPlayerItem() },
+                                        startIndex = 0,
+                                        openFullSheet = false
+                                    )
+                                }
+                            },
+                            onRefresh = { refreshAudiosTrigger++ }
+                        )
+                    }
+                    else -> {
                                 FlowRow(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -898,11 +980,13 @@ fun DownloadsScreen(
                                         onClick = { refreshSubsTrigger++ }
                                     )
                                 }
+                    }
                 }
             }
         }
     }
 
+    Box(modifier = Modifier.fillMaxSize().background(KitsugiColors.Background)) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -958,6 +1042,9 @@ fun DownloadsScreen(
         ) {
             DownloadsOverviewCard(
                 downloads = downloads,
+                audioCount = allAudios.size,
+                audioBytes = audioBytes,
+                activeAudioExportCount = activeAudioExports.size,
                 subtitleCount = allSubtitles.size,
                 subtitleBytes = subtitleBytes,
                 imageCount = allImages.size,
@@ -969,21 +1056,57 @@ fun DownloadsScreen(
             )
         }
 
-        // Sekme bandı: Videolar | Altyazılar | Resimler — "Görünüm & Tercihler" bandıyla aynı
-        // (ekrana sığmazsa bandın kendi içinde yatay kaydırılır, ekrandan taşmaz)
-        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
-            .clip(RoundedCornerShape(12.dp)).background(KitsugiColors.Surface).padding(3.dp)) {
-            listOf(
+        // Sekme bandı: Videolar | Sesler | Altyazılar | Resimler — "Görünüm & Tercihler" bandıyla aynı
+        // (geniş ekranlarda eşit bölünür, dar ekranlarda sıkışmadan yatay kaydırılabilir)
+        BoxWithConstraints(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 4.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(KitsugiColors.Surface)
+                .padding(3.dp)
+        ) {
+            val tabLabels = listOf(
                 stringResource(R.string.downloads_videos_count, downloads.size),
+                stringResource(R.string.downloads_audios_count, allAudios.size + activeAudioExports.size),
                 stringResource(R.string.inline_subtitles_1_s_b81ee5c, allSubtitles.size),
                 stringResource(R.string.downloads_images_count, allImages.size)
-            ).forEachIndexed { index, title ->
-                Box(modifier = Modifier.weight(1f).clip(RoundedCornerShape(9.dp))
-                    .background(if (pagerState.currentPage == index) accentColor.copy(alpha = 0.18f) else Color.Transparent)
-                    .clickable { scope.launch { pagerState.animateScrollToPage(index) } }
-                    .padding(horizontal = 4.dp, vertical = 9.dp), contentAlignment = Alignment.Center) {
-                    Text(title, color = if (pagerState.currentPage == index) accentColor else KitsugiColors.TextSecondary,
-                        fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            )
+            val useEqualWeights = maxWidth >= 380.dp
+            Row(
+                modifier = if (useEqualWeights) {
+                    Modifier.fillMaxWidth()
+                } else {
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
+                },
+                horizontalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                tabLabels.forEachIndexed { index, title ->
+                    val tabModifier = if (useEqualWeights) {
+                        Modifier.weight(1f)
+                    } else {
+                        Modifier.padding(horizontal = 4.dp)
+                    }
+                    Box(
+                        modifier = tabModifier
+                            .clip(RoundedCornerShape(9.dp))
+                            .background(
+                                if (pagerState.currentPage == index) accentColor.copy(alpha = 0.18f)
+                                else Color.Transparent
+                            )
+                            .clickable { scope.launch { pagerState.animateScrollToPage(index) } }
+                            .padding(horizontal = 6.dp, vertical = 9.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = title,
+                            color = if (pagerState.currentPage == index) accentColor else KitsugiColors.TextSecondary,
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
             }
         }
@@ -1155,6 +1278,24 @@ fun DownloadsScreen(
                                                             context,
                                                             subFile.parentFile ?: subFile
                                                         )
+                                                    },
+                                                    companionAudios = if (download.isClip) {
+                                                        emptyList()
+                                                    } else {
+                                                        findCompanionAudiosForEpisode(
+                                                            allAudios,
+                                                            download.animeTitle,
+                                                            download.episode
+                                                        )
+                                                    },
+                                                    onPlayCompanionAudio = { targetAudio, episodeAudios ->
+                                                        val idx = episodeAudios.indexOfFirst { it.id == targetAudio.id }
+                                                            .coerceAtLeast(0)
+                                                        audioManager.playQueue(
+                                                            items = episodeAudios.map { it.toAudioPlayerItem() },
+                                                            startIndex = idx,
+                                                            openFullSheet = false
+                                                        )
                                                     }
                                                 )
                                             }
@@ -1168,6 +1309,53 @@ fun DownloadsScreen(
                 }
 
                 1 -> {
+                    // ── SESLER (indirilen ses parçaları + canlı dışa aktarımlar + dahili oynatıcı) ──
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        DownloadsAudioControlsRow(
+                            sortOrder = audioSort,
+                            onSortChange = { order ->
+                                audioSort = order
+                                DownloadsUiPrefs.setAudioSort(context, order)
+                            },
+                            groupedByMedia = audioGrouped,
+                            onGroupedChange = { next ->
+                                audioGrouped = next
+                                DownloadsUiPrefs.setAudiosGrouped(context, next)
+                            },
+                            availableFormats = availableAudioFormats,
+                            selectedFormat = selectedAudioFormat,
+                            onSelectFormat = { selectedAudioFormat = it },
+                            isSelectionMode = audioSelectionMode,
+                            onToggleSelectionMode = { audioSelectionMode = !audioSelectionMode },
+                            hasItems = allAudios.isNotEmpty(),
+                            onPlayAll = {
+                                if (allAudios.isNotEmpty()) {
+                                    audioManager.playQueue(
+                                        items = allAudios.map { it.toAudioPlayerItem() },
+                                        startIndex = 0,
+                                        openFullSheet = false
+                                    )
+                                }
+                            },
+                            onRefresh = { refreshAudiosTrigger++ }
+                        )
+                        DownloadedAudiosTabContent(
+                            audioItems = allAudios,
+                            activeExports = activeAudioExports,
+                            isLoading = isLoadingAudios,
+                            listState = audioListState,
+                            sortOrder = audioSort,
+                            groupedByMedia = audioGrouped,
+                            selectedFormat = selectedAudioFormat,
+                            isSelectionMode = audioSelectionMode,
+                            onExitSelectionMode = { audioSelectionMode = false },
+                            onRefreshRequested = { refreshAudiosTrigger++ },
+                            bottomExtraPadding = if (audioPlayerState.isActive) 76.dp else 0.dp
+                        )
+                    }
+                }
+
+                2 -> {
                     // ── ALTYAZILAR ───────────────────────────────────────────
                     Column(modifier = Modifier.fillMaxSize()) {
                         if (allSubtitles.isEmpty()) {
@@ -1266,7 +1454,7 @@ fun DownloadsScreen(
                         onDeleteImages = deleteImageFiles,
                         query = searchQuery,
                         gridState = imageGridState,
-                        menuOpen = menuOpen && pagerState.currentPage == 2,
+                        menuOpen = menuOpen && pagerState.currentPage == 3,
                         onDismissMenu = { menuOpen = false },
                         commonMenu = commonMenu
                     )
@@ -1274,6 +1462,14 @@ fun DownloadsScreen(
             }
         }
     }
+
+    // ── Dahili evrensel ses oynatıcısı (mini çubuk + tam ekran panel) ────────
+    KitsugiAudioPlayerHost(
+        modifier = Modifier
+            .align(Alignment.BottomCenter)
+            .navigationBarsPadding()
+    )
+    } // Box
 
     // ── Onay: tekli video indirmesini sil ────────────────────────────────────
     pendingVideoDelete?.let { download ->
@@ -1930,6 +2126,9 @@ private fun VideoGroupHeaderRow(
 @Composable
 private fun DownloadsOverviewCard(
     downloads: List<AnimeDownload>,
+    audioCount: Int,
+    audioBytes: Long,
+    activeAudioExportCount: Int = 0,
     subtitleCount: Int,
     subtitleBytes: Long,
     imageCount: Int,
@@ -1949,8 +2148,8 @@ private fun DownloadsOverviewCard(
         downloads.count { it.status == AnimeDownload.Status.PAUSED || it.status == AnimeDownload.Status.ERROR }
     }
 
-    val totalBytes = videoBytes + subtitleBytes + imageBytes
-    if (totalBytes <= 0L && downloads.isEmpty() && subtitleCount == 0 && imageCount == 0) return
+    val totalBytes = videoBytes + audioBytes + subtitleBytes + imageBytes
+    if (totalBytes <= 0L && downloads.isEmpty() && audioCount == 0 && activeAudioExportCount == 0 && subtitleCount == 0 && imageCount == 0) return
 
     val activeBytes = activeDownloads.sumOf { it.downloadedBytes.coerceAtLeast(0L) }
     val activeTotalBytes = activeDownloads.sumOf { it.totalBytes.coerceAtLeast(0L) }
@@ -1966,9 +2165,9 @@ private fun DownloadsOverviewCard(
     // indirme sürerken 5 sn'de bir arka planda tazele. Böylece karttaki "boş"
     // değeri indirme bitmeden veya resim/altyazı silinince bayatlamaz.
     val completedCount = remember(downloads) { downloads.count { it.status == AnimeDownload.Status.COMPLETED } }
-    val hasActiveDownloads = activeDownloads.isNotEmpty()
+    val hasActiveDownloads = activeDownloads.isNotEmpty() || activeAudioExportCount > 0
     var freeSpaceBytes by remember { mutableLongStateOf(0L) }
-    LaunchedEffect(downloads.size, completedCount, subtitleCount, imageCount, hasActiveDownloads) {
+    LaunchedEffect(downloads.size, completedCount, audioCount, subtitleCount, imageCount, hasActiveDownloads) {
         suspend fun readFreeSpace(): Long = withContext(Dispatchers.IO) {
             runCatching {
                 android.os.StatFs(Environment.getExternalStorageDirectory().absolutePath).availableBytes
@@ -2028,7 +2227,7 @@ private fun DownloadsOverviewCard(
             )
         }
 
-        // Tür bazlı boyut dağılımı (video / altyazı / resim)
+        // Tür bazlı boyut dağılımı (video / ses / altyazı / resim)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -2038,6 +2237,9 @@ private fun DownloadsOverviewCard(
             verticalAlignment = Alignment.CenterVertically
         ) {
             OverviewStatPill(Icons.VideoLibrary, downloads.size, videoBytes, KitsugiColors.AccentBlue)
+            if (audioCount > 0 || activeAudioExportCount > 0) {
+                OverviewStatPill(Icons.AudioLines, audioCount + activeAudioExportCount, audioBytes, KitsugiColors.AccentTeal)
+            }
             if (subtitleCount > 0) {
                 OverviewStatPill(Icons.Subtitles, subtitleCount, subtitleBytes, KitsugiColors.AccentOrange)
             }
@@ -2293,7 +2495,7 @@ internal fun formatDuration(durationMs: Long): String {
  */
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-fun DownloadItemRow(
+internal fun DownloadItemRow(
     download: AnimeDownload,
     accentColor: Color,
     onPlay: () -> Unit,
@@ -2306,10 +2508,13 @@ fun DownloadItemRow(
     selected: Boolean = false,
     onLongClick: (() -> Unit)? = null,
     onMoveUp: (() -> Unit)? = null,
-    onMoveDown: (() -> Unit)? = null
+    onMoveDown: (() -> Unit)? = null,
+    companionAudios: List<DownloadedAudioItem> = emptyList(),
+    onPlayCompanionAudio: ((DownloadedAudioItem, List<DownloadedAudioItem>) -> Unit)? = null
 ) {
     val context = LocalContext.current
     var isExpanded by remember { mutableStateOf(true) }
+    var isAudiosExpanded by remember { mutableStateOf(true) }
 
     val mediaId = remember(download.animeId, download.animeTitle, download.episode) {
         "${resolveSafeAnimeId(download.animeId, download.animeTitle)}_ep${download.episode}"
@@ -2768,6 +2973,104 @@ Icon(Icons.PlayArrow, contentDescription = stringResource(R.string.oynat), tint 
                                 imageVector = Icons.FolderOpen,
                                 contentDescription = stringResource(R.string.altyazi_klasorunu_ac),
                                 tint = KitsugiColors.AccentOrange,
+                                modifier = Modifier.size(17.dp)
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                }
+            }
+        }
+
+        if (companionAudios.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(10.dp))
+            HorizontalDivider(color = KitsugiColors.Border.copy(alpha = 0.5f))
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { isAudiosExpanded = !isAudiosExpanded }
+                    .padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.AudioLines,
+                        contentDescription = null,
+                        tint = KitsugiColors.AccentTeal,
+                        modifier = Modifier.size(15.dp)
+                    )
+                    Text(
+                        text = stringResource(R.string.downloads_companion_audios_count, companionAudios.size),
+                        color = KitsugiColors.TextSecondary,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                KitsugiChevronIcon(
+                    expanded = isAudiosExpanded,
+                    contentDescription = null,
+                    tint = KitsugiColors.TextMuted,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+
+            if (isAudiosExpanded) {
+                Spacer(modifier = Modifier.height(6.dp))
+                companionAudios.forEach { audio ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(KitsugiColors.SurfaceStrong.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                            .clickable { onPlayCompanionAudio?.invoke(audio, companionAudios) }
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(
+                            onClick = { onPlayCompanionAudio?.invoke(audio, companionAudios) },
+                            modifier = Modifier.size(26.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.PlayArrow,
+                                contentDescription = stringResource(R.string.audio_player_play),
+                                tint = KitsugiColors.AccentTeal,
+                                modifier = Modifier.size(17.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = audio.trackLabel ?: audio.displayTitle,
+                            color = KitsugiColors.TextPrimary,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.weight(1f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = audio.formatUpper,
+                            color = KitsugiColors.AccentTeal,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier
+                                .background(KitsugiColors.SurfaceStrong, shape = RoundedCornerShape(4.dp))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        IconButton(
+                            onClick = { onOpenSubFolder(audio.folderForExplorer()) },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.FolderOpen,
+                                contentDescription = stringResource(R.string.klasoru_ac),
+                                tint = KitsugiColors.AccentTeal,
                                 modifier = Modifier.size(17.dp)
                             )
                         }

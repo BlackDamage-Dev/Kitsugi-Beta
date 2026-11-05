@@ -315,6 +315,8 @@ object KitsugiIcons {
     val Hash: ImageVector by lazy { build("Hash", listOf("M4 9L20 9", "M4 15L20 15", "M10 3L8 21", "M16 3L14 21")) }
     /** Lucide `heading-1`. */
     val Heading1: ImageVector by lazy { build("Heading1", listOf("M4 12h8", "M4 18V6", "M12 18V6", "m17 12 3-2v8")) }
+    /** Lucide `headphones`. */
+    val Headphones: ImageVector by lazy { build("Headphones", listOf("M3 14h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7a9 9 0 0 1 18 0v7a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3")) }
     /** Lucide `heart`. */
     val Heart: ImageVector by lazy { build("Heart", listOf("M2 9.5a5.5 5.5 0 0 1 9.591-3.676.56.56 0 0 0 .818 0A5.49 5.49 0 0 1 22 9.5c0 2.29-1.5 4-3 5.5l-5.492 5.313a2 2 0 0 1-3 .019L5 15c-1.5-1.5-3-3.2-3-5.5")) }
     /** Lucide `heart` — dolu (seçili/aktif) varyant. */
@@ -467,6 +469,8 @@ object KitsugiIcons {
     val Scan: ImageVector by lazy { build("Scan", listOf("M3 7V5a2 2 0 0 1 2-2h2", "M17 3h2a2 2 0 0 1 2 2v2", "M21 17v2a2 2 0 0 1-2 2h-2", "M7 21H5a2 2 0 0 1-2-2v-2")) }
     /** Lucide `school`. */
     val School: ImageVector by lazy { build("School", listOf("M14 21v-3a2 2 0 0 0-4 0v3", "M18 4.933V21", "m4 6 7.106-3.79a2 2 0 0 1 1.788 0L20 6", "m6 11-3.52 2.147a1 1 0 0 0-.48.854V19a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-5a1 1 0 0 0-.48-.853L18 11", "M6 4.933V21", "M10.0 9.0a2.0 2.0 0 1 0 4.0 0a2.0 2.0 0 1 0 -4.0 0Z")) }
+    /** Lucide `shuffle`. */
+    val Shuffle: ImageVector by lazy { build("Shuffle", listOf("m18 14 4 4-4 4", "m18 2 4 4-4 4", "M2 18h1.973a4 4 0 0 0 3.3-1.7l5.454-8.6a4 4 0 0 1 3.3-1.7H22", "M2 6h1.972a4 4 0 0 1 3.6 2.2", "M22 18h-6.041a4 4 0 0 1-3.3-1.8l-.359-.45")) }
     /** Lucide `scroll`. */
     val Scroll: ImageVector by lazy { build("Scroll", listOf("M19 17V5a2 2 0 0 0-2-2H4", "M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3")) }
     /** Lucide `search`. */

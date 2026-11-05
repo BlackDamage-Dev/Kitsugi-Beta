@@ -18,6 +18,8 @@ internal object DownloadsUiPrefs {
     private const val KEY_LAYOUT = "images_layout"
     private const val KEY_VIDEO_SORT = "videos_sort_order"
     private const val KEY_VIDEO_GROUPED = "videos_grouped"
+    private const val KEY_AUDIO_SORT = "audios_sort_order"
+    private const val KEY_AUDIO_GROUPED = "audios_grouped"
 
     private fun prefs(context: Context) =
         context.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE)
@@ -55,6 +57,20 @@ internal object DownloadsUiPrefs {
 
     fun setVideosGrouped(context: Context, value: Boolean) {
         prefs(context).edit().putBoolean(KEY_VIDEO_GROUPED, value).apply()
+    }
+
+    fun audioSort(context: Context): DownloadsSortOrder =
+        enumOrDefault(prefs(context).getString(KEY_AUDIO_SORT, null), DownloadsSortOrder.NEWEST)
+
+    fun setAudioSort(context: Context, value: DownloadsSortOrder) {
+        prefs(context).edit().putString(KEY_AUDIO_SORT, value.name).apply()
+    }
+
+    fun audiosGrouped(context: Context): Boolean =
+        prefs(context).getBoolean(KEY_AUDIO_GROUPED, true)
+
+    fun setAudiosGrouped(context: Context, value: Boolean) {
+        prefs(context).edit().putBoolean(KEY_AUDIO_GROUPED, value).apply()
     }
 
     private inline fun <reified T : Enum<T>> enumOrDefault(name: String?, fallback: T): T {
