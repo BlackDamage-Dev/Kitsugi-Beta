@@ -7548,6 +7548,15 @@ Eklentiler ekranından eklenti etkinleştirin.</string>
     <string name="downloads_unknown_content">Bilinmeyen içerik</string>
     <string name="downloads_videos_count">Videolar (%1$d)</string>
     <string name="manga_auto_update_all_current">✅ Tüm eklentiler güncel (%1$d kontrol edildi)</string>
+    <string name="manga_auto_update_all_disabled">🔕 Tüm eklentiler için otomatik güncelleme kapalı (%1$d eklenti atlandı)</string>
+    <string name="manga_auto_update_global_title">Otomatik güncelleme (tüm eklentiler)</string>
+    <string name="manga_auto_update_global_desc">Yüklü manga eklentileri günde bir kez denetlenir; yeni sürüm varsa otomatik kurulur. Eklenti başına &quot;Oto&quot; anahtarıyla tek tek kapatabilirsin.</string>
+    <string name="manga_auto_update_short">Oto</string>
+    <string name="manga_auto_update_toggle">Oto-güncelleme</string>
+    <string name="manga_eklenti_toplu_sil_mesaj">%1$d kurulu manga eklentisinin tamamı diskten silinecek ve kaldırılacak. Bu işlem geri alınamaz.</string>
+    <string name="manga_eklenti_toplu_sil_sonuc">🗑️ %1$d manga eklentisi kaldırıldı</string>
+    <string name="manga_extension_refresh">Eklentiyi yenile</string>
+    <string name="manga_repo_refresh">Depoyu yenile</string>
     <string name="manga_auto_update_check_button">Checking…</string>
     <string name="manga_auto_update_checking">🔄 Checking…</string>
     <string name="manga_auto_update_failed">❌ Güncelleme kontrolü başarısız: %1$s</string>

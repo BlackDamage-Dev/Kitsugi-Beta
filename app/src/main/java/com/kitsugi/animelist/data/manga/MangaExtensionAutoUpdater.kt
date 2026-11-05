@@ -58,6 +58,12 @@ object MangaExtensionAutoUpdater {
             return@withContext UpdateResult.Skipped(minutesUntilNextCheck = ((CHECK_INTERVAL_MS - (now - lastCheck)) / 1000 / 60).toInt())
         }
 
+        // Kullanıcı otomatik güncellemeyi tamamen kapatmışsa hiç ağ isteği yapma.
+        if (!forceCheck && !MangaExtensionPrefs.isAutoUpdateEnabled(context)) {
+            Log.d(TAG, "Otomatik güncelleme kullanıcı tarafından kapatılmış, atlanıyor.")
+            return@withContext UpdateResult.Skipped(minutesUntilNextCheck = (CHECK_INTERVAL_MS / 1000 / 60).toInt())
+        }
+
         Log.i(TAG, "Keiyoushi repo kontrolü başlıyor...")
         prefs.edit().putLong(KEY_LAST_CHECK_MS, now).apply()
 
@@ -102,10 +108,18 @@ object MangaExtensionAutoUpdater {
 
         var updatedCount = 0
         var checkedCount = 0
+        var skippedByPreference = 0
         val updatedNames = mutableListOf<String>()
 
         for ((pkg, installedVersionCode) in installedPackages) {
             val repoEntry = repoByPkg[pkg] ?: continue
+            // Eklenti başına "otomatik güncelleme" anahtarı kapalıysa bu eklentiyi atla.
+            // (Video eklentilerindeki eklenti başına güncelleme kontrolü ile aynı mantık.)
+            if (!MangaExtensionPrefs.isAutoUpdateEnabled(context, pkg)) {
+                skippedByPreference++
+                Log.d(TAG, "${repoEntry.name}: otomatik güncelleme kapalı, atlandı.")
+                continue
+            }
             checkedCount++
 
             val repoVersionCode = repoEntry.versionCode
@@ -132,6 +146,8 @@ object MangaExtensionAutoUpdater {
             KitsugiStrings.get(R.string.manga_auto_update_success, updatedCount, updatedNames.joinToString(", "))
         } else if (checkedCount > 0) {
             KitsugiStrings.get(R.string.manga_auto_update_all_current, checkedCount)
+        } else if (skippedByPreference > 0) {
+            KitsugiStrings.get(R.string.manga_auto_update_all_disabled, skippedByPreference)
         } else {
             KitsugiStrings.get(R.string.manga_auto_update_no_updates)
         }

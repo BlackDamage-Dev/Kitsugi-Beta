@@ -7543,6 +7543,15 @@
     <string name="downloads_unknown_content">Unknown content</string>
     <string name="downloads_videos_count">Videos (%1$d)</string>
     <string name="manga_auto_update_all_current">✅ All extensions are up to date (%1$d checked)</string>
+    <string name="manga_auto_update_all_disabled">🔕 Auto-update is off for all extensions (%1$d skipped)</string>
+    <string name="manga_auto_update_global_title">Auto-update (all extensions)</string>
+    <string name="manga_auto_update_global_desc">Installed manga extensions are checked once a day and updated automatically. Use the per-extension &quot;Auto&quot; switch to turn it off individually.</string>
+    <string name="manga_auto_update_short">Auto</string>
+    <string name="manga_auto_update_toggle">Auto-update</string>
+    <string name="manga_eklenti_toplu_sil_mesaj">All %1$d installed manga extensions will be deleted from disk and removed. This action cannot be undone.</string>
+    <string name="manga_eklenti_toplu_sil_sonuc">🗑️ %1$d manga extensions removed</string>
+    <string name="manga_extension_refresh">Refresh extension</string>
+    <string name="manga_repo_refresh">Refresh repository</string>
     <string name="manga_auto_update_check_button">Checking…</string>
     <string name="manga_auto_update_checking">🔄 Checking…</string>
     <string name="manga_auto_update_failed">❌ Update check failed: %1$s</string>

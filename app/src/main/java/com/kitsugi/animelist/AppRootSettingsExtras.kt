@@ -376,6 +376,7 @@ internal fun SettingsContext.buildSettingsParams() =
             mangaSources = mangaViewModel.mangaSources,
             onInstallMangaExtension = { mangaViewModel.installMangaExtension(it) },
             onDeleteMangaExtension = { mangaViewModel.deleteMangaExtension(it) },
+            onUninstallAllMangaExtensions = { mangaViewModel.uninstallAllMangaExtensions() },
             onDeleteMangaExtensions = { sources, done -> mangaViewModel.deleteMangaExtensions(sources, done) },
             onGetMangaSourceEnabled = { mangaViewModel.isMangaSourceEnabled(it) },
             onToggleMangaSource = { source, enabled -> mangaViewModel.toggleMangaSource(source, enabled) },

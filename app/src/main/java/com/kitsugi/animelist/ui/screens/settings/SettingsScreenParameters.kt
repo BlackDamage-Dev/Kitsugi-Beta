@@ -385,6 +385,8 @@ data class MangaSettings(
     val mangaSources: List<com.kitsugi.animelist.data.manga.MangaSource> = emptyList(),
     val onInstallMangaExtension: (android.net.Uri) -> Unit = {},
     val onDeleteMangaExtension: (com.kitsugi.animelist.data.manga.MangaSource) -> Unit = {},
+    /** Kurulu tüm manga eklentilerini kaldırır (video eklentileriyle parite). */
+    val onUninstallAllMangaExtensions: () -> Unit = {},
     val onDeleteMangaExtensions: (List<com.kitsugi.animelist.data.manga.MangaSource>, (Int) -> Unit) -> Unit = { sources, done -> done(sources.size) },
     val onGetMangaSourceEnabled: (com.kitsugi.animelist.data.manga.MangaSource) -> Boolean = { true },
     val onToggleMangaSource: (com.kitsugi.animelist.data.manga.MangaSource, Boolean) -> Unit = { _, _ -> },
@@ -442,7 +444,7 @@ data class IntegrationsSettings(
     val onTmdbModernHomeEnabledChanged: (Boolean) -> Unit = {},
     val tmdbEnrichContinueWatching: Boolean = true,
     val onTmdbEnrichContinueWatchingChanged: (Boolean) -> Unit = {},
-    val tmdbLanguage: String = "en",
+    val tmdbLanguage: String = "tr",
     val onTmdbLanguageChanged: (String) -> Unit = {},
     val tmdbUseArtwork: Boolean = true,
     val onTmdbUseArtworkChanged: (Boolean) -> Unit = {},

@@ -62,6 +62,23 @@ class SettingsDataStore(
         }
     }
 
+    companion object {
+        /**
+         * Varsayılan başlık dili artık **İngilizce**.
+         *
+         * Kullanıcı Ayarlar > Görünüm & Tercihler bölümünden Romaji / Ana Dil / Japonca
+         * seçeneklerini seçebilir; ancak hiç seçim yapılmamışsa (veya ayar hiç
+         * kaydedilmemişse) uygulama İngilizce başlıkları gösterir.
+         */
+        const val DEFAULT_TITLE_LANGUAGE: String = "ENGLISH"
+
+        /** Varsayılan ekip & karakter adı dili: **İngilizce**. */
+        const val DEFAULT_STAFF_NAME_LANGUAGE: String = "ENGLISH"
+
+        /** Varsayılan dizi & film (TMDB) başlık/açıklama dili: **Türkçe**. */
+        const val DEFAULT_TMDB_LANGUAGE: String = "tr"
+    }
+
     private object Keys {
         val SubtitleSpeed = floatPreferencesKey("player_parity_subtitleSpeed")
         val VideoFiltersJson = stringPreferencesKey("player_parity_videoFiltersJson")
@@ -490,10 +507,10 @@ class SettingsDataStore(
                     bangumiProfileImageUri = preferences[Keys.BangumiProfileImageUri] ?: "",
                     profileImageUri = preferences[Keys.ProfileImageUri] ?: "",
                     bannerImageUri = preferences[Keys.BannerImageUri] ?: "",
-                    titleLanguage = (preferences[Keys.TitleLanguage] ?: "ENGLISH").let { if (it == "ROMAJI") "ENGLISH" else it },
+                    titleLanguage = preferences[Keys.TitleLanguage] ?: DEFAULT_TITLE_LANGUAGE,
                     scoreFormat = preferences[Keys.ScoreFormat] ?: "POINT_10",
                     scoreStep = preferences[Keys.ScoreStep] ?: "1",
-                    staffNameLanguage = (preferences[Keys.StaffNameLanguage] ?: "ENGLISH").let { if (it == "ROMAJI") "ENGLISH" else it },
+                    staffNameLanguage = preferences[Keys.StaffNameLanguage] ?: DEFAULT_STAFF_NAME_LANGUAGE,
                     separatedListStyle = preferences[Keys.SeparatedListStyle] ?: true,
                     showLowPriority = preferences[Keys.ShowLowPriority] ?: false,
                     priorityColorsJson = preferences[Keys.PriorityColorsJson] ?: "",
@@ -687,7 +704,7 @@ class SettingsDataStore(
                     tmdbUserApiKey = preferences[Keys.TmdbUserApiKey] ?: "",
                     tmdbModernHomeEnabled = preferences[Keys.TmdbModernHomeEnabled] ?: true,
                     tmdbEnrichContinueWatching = preferences[Keys.TmdbEnrichContinueWatching] ?: true,
-                    tmdbLanguage = preferences[Keys.TmdbLanguage] ?: "tr",
+                    tmdbLanguage = preferences[Keys.TmdbLanguage] ?: DEFAULT_TMDB_LANGUAGE,
                     tmdbUseArtwork = preferences[Keys.TmdbUseArtwork] ?: true,
                     tmdbUseBasicInfo = preferences[Keys.TmdbUseBasicInfo] ?: true,
                     tmdbUseDetails = preferences[Keys.TmdbUseDetails] ?: true,
@@ -1230,7 +1247,7 @@ class SettingsDataStore(
         context.settingsDataStore.edit { preferences ->
             preferences[Keys.TmdbUserApiKey] = key.trim()
         }
-        val language = context.settingsDataStore.data.first()[Keys.TmdbLanguage] ?: "tr"
+        val language = context.settingsDataStore.data.first()[Keys.TmdbLanguage] ?: DEFAULT_TMDB_LANGUAGE
         com.kitsugi.animelist.data.remote.TmdbApiClient.updateCache(key, language)
     }
 

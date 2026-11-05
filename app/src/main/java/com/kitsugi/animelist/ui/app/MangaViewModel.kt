@@ -387,6 +387,32 @@ class MangaViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
+     * Kurulu tüm manga eklentilerini (APK) tek seferde kaldırır.
+     * Video eklentilerindeki "Tümünü Sil" davranışının manga karşılığıdır.
+     */
+    fun uninstallAllMangaExtensions() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val installed = mangaRepository.getAvailableSources()
+            if (installed.isEmpty()) {
+                withContext(Dispatchers.Main) {
+                    onShowMessage?.invoke(KitsugiStrings.get(R.string.eklenti_toplu_sil_bos))
+                }
+                return@launch
+            }
+            var removed = 0
+            installed.forEach { source ->
+                runCatching { mangaRepository.deleteExtension(source) }
+                    .onSuccess { if (it) removed++ }
+            }
+            withContext(Dispatchers.Main) {
+                mangaSources = mangaRepository.getAvailableSources()
+                checkAllUpdates()
+                onShowMessage?.invoke(KitsugiStrings.get(R.string.manga_eklenti_toplu_sil_sonuc, removed))
+            }
+        }
+    }
+
+    /**
      * Manga > Kurulu sekmesindeki "Toplu Sil" butonunun tek giriş noktası.
      *
      * Eski akış görünür `mangaSources` listesindeki her kaynak için `deleteExtension`
