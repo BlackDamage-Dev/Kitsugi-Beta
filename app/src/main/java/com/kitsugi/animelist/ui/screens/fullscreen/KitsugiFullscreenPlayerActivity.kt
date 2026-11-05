@@ -235,6 +235,8 @@ class KitsugiFullscreenPlayerActivity : ComponentActivity() {
         const val EXTRA_MAL_ID = "extra_mal_id"
         const val EXTRA_ANILIST_ID = "extra_anilist_id"
         const val EXTRA_TMDB_ID = "extra_tmdb_id"
+        const val EXTRA_BANGUMI_ID = "extra_bangumi_id"
+        const val EXTRA_TREAT_AS_TRAILER = "extra_treat_as_trailer"
         const val EXTRA_EPISODE = "extra_episode"
         const val EXTRA_SEASON = "extra_season"
         const val EXTRA_ANIME_TITLE = "extra_anime_title"
@@ -313,7 +315,8 @@ class KitsugiFullscreenPlayerActivity : ComponentActivity() {
             historyAnimeId: String? = null,
             autoResume: Boolean = false,
             mediaType: com.kitsugi.animelist.model.MediaType? = null,
-            knownImdbId: String? = null
+            knownImdbId: String? = null,
+            treatAsTrailer: Boolean = false
         ): Boolean {
             tempSubtitles = subtitles
             tempStreamSources = allSources
@@ -336,7 +339,11 @@ class KitsugiFullscreenPlayerActivity : ComponentActivity() {
                         malId?.let { putExtra(EXTRA_MAL_ID, it) }
                         aniListId?.let { putExtra(EXTRA_ANILIST_ID, it) }
                         tmdbId?.let { putExtra(EXTRA_TMDB_ID, it) }
-                        bangumiId?.let { putExtra("subtitle_bangumi_id", it) }
+                        bangumiId?.let {
+                            putExtra(EXTRA_BANGUMI_ID, it)
+                            putExtra("subtitle_bangumi_id", it)
+                        }
+                        if (treatAsTrailer) putExtra(EXTRA_TREAT_AS_TRAILER, true)
                         imdbId?.let { putExtra("subtitle_imdb_id", it) }
                         putExtra(EXTRA_SEASON, season)
                         putExtra(EXTRA_EPISODE, episode)
@@ -601,6 +608,9 @@ class KitsugiFullscreenPlayerActivity : ComponentActivity() {
         val malId = intent.getIntExtra(EXTRA_MAL_ID, -1).takeIf { it != -1 }
         val aniListId = intent.getIntExtra(EXTRA_ANILIST_ID, -1).takeIf { it != -1 }
         val tmdbId = intent.getIntExtra(EXTRA_TMDB_ID, -1).takeIf { it != -1 }
+        val bangumiId = intent.getIntExtra(EXTRA_BANGUMI_ID, -1).takeIf { it != -1 }
+            ?: intent.getIntExtra("subtitle_bangumi_id", -1).takeIf { it > 0 }
+        val treatAsTrailer = intent.getBooleanExtra(EXTRA_TREAT_AS_TRAILER, false)
         val season = intent.getIntExtra(EXTRA_SEASON, 1)
         val episode = intent.getIntExtra(EXTRA_EPISODE, 1)
         val animeTitle = intent.getStringExtra(EXTRA_ANIME_TITLE) ?: ""
@@ -745,7 +755,8 @@ class KitsugiFullscreenPlayerActivity : ComponentActivity() {
                     malId            = malId,
                     aniListId        = aniListId,
                     tmdbId           = tmdbId,
-                    bangumiId        = intent.getIntExtra("subtitle_bangumi_id", -1).takeIf { it > 0 },
+                    bangumiId        = bangumiId,
+                    treatAsTrailer   = treatAsTrailer,
                     imdbId           = intent.getStringExtra("subtitle_imdb_id"),
                     season           = season,
                     episode          = episode,

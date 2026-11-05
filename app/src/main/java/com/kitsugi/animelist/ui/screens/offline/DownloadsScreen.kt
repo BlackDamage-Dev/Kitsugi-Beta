@@ -656,7 +656,8 @@ fun DownloadsScreen(
                         videoUrl = "file://${file.absolutePath}",
                         title = download.clipTitle ?: download.animeTitle,
                         headers = emptyMap(),
-                        subtitles = emptyList()
+                        subtitles = emptyList(),
+                        treatAsTrailer = true
                     )
                 } else {
                     Toast.makeText(
@@ -679,7 +680,14 @@ fun DownloadsScreen(
                     videoUrl = params.videoUri,
                     title = params.title,
                     headers = params.headers,
-                    subtitles = params.subtitles
+                    subtitles = params.subtitles,
+                    malId = download.malId,
+                    aniListId = download.aniListId,
+                    tmdbId = download.tmdbId,
+                    season = download.season,
+                    episode = download.episode,
+                    animeTitle = download.animeTitle,
+                    posterUrl = download.posterUrl
                 )
             } else {
                 download.localPath?.let { path ->
@@ -710,7 +718,14 @@ fun DownloadsScreen(
                             download.episode
                         ),
                         headers = emptyMap(),
-                        subtitles = companionSubs
+                        subtitles = companionSubs,
+                        malId = download.malId,
+                        aniListId = download.aniListId,
+                        tmdbId = download.tmdbId,
+                        season = download.season,
+                        episode = download.episode,
+                        animeTitle = download.animeTitle,
+                        posterUrl = download.posterUrl
                     )
                 }
             }

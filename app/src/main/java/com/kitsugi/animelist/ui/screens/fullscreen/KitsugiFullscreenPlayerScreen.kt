@@ -54,6 +54,7 @@ import com.kitsugi.animelist.data.repository.StreamProbe
 import com.kitsugi.animelist.data.repository.StreamSource
 import com.kitsugi.animelist.data.trailer.YoutubeChunkedDataSourceFactory
 import com.kitsugi.animelist.ui.screens.fullscreen.components.PauseOverlay
+import com.kitsugi.animelist.ui.screens.fullscreen.components.QuickRateBar
 import com.kitsugi.animelist.ui.screens.fullscreen.components.FeedbackBubble
 import com.kitsugi.animelist.ui.screens.fullscreen.components.KeyboardActionIndicator
 import com.kitsugi.animelist.ui.screens.fullscreen.components.KeyboardShortcutsHelpOverlay
@@ -154,6 +155,7 @@ fun KitsugiFullscreenPlayerScreen(
     autoResume: Boolean = false,
     mediaType: com.kitsugi.animelist.model.MediaType? = null,
     knownImdbId: String? = null,
+    treatAsTrailer: Boolean = false,
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
@@ -285,7 +287,7 @@ fun KitsugiFullscreenPlayerScreen(
         }
     }
 
-    LaunchedEffect(videoId, videoUrl, audioUrl, title, initialIndex, episode, tmdbId, isMovie, synonyms, bangumiId, imdbId, historyAnimeId, autoResume) {
+    LaunchedEffect(videoId, videoUrl, audioUrl, title, initialIndex, episode, tmdbId, isMovie, synonyms, bangumiId, imdbId, historyAnimeId, autoResume, treatAsTrailer) {
         viewModel.initialize(
             videoId = videoId,
             videoUrl = videoUrl,
@@ -316,7 +318,9 @@ fun KitsugiFullscreenPlayerScreen(
             autoResume = autoResume,
             resumePositionMs = resumePosition,
             mediaType = mediaType,
-            knownImdbId = knownImdbId ?: imdbId
+            knownImdbId = knownImdbId ?: imdbId,
+            treatAsTrailer = treatAsTrailer,
+            posterUrl = posterUrl
         )
     }
 
@@ -345,6 +349,7 @@ fun KitsugiFullscreenPlayerScreen(
     val currentEpisode by viewModel.currentEpisode.collectAsState()
     val episodesList by viewModel.episodesList.collectAsState()
     val episodesLoading by viewModel.episodesLoading.collectAsState()
+    val quickRatePrompt by viewModel.quickRatePrompt.collectAsState()
     val userCancelledBinge by viewModel.userCancelledBingeFlow.collectAsState()
     val isResolvingStream by viewModel.isResolvingStreamFlow.collectAsState()
     val nextEpisodeLoading by viewModel.nextEpisodeLoading.collectAsState()
@@ -1112,6 +1117,7 @@ fun KitsugiFullscreenPlayerScreen(
                                 positionMs = finalPos,
                                 durationMs = duration
                             )
+                            viewModel.onPlayerLeaving(finalPos, duration)
                             com.kitsugi.animelist.data.local.WatchHistoryManager.flush()
                         }
                         playerEngine.release()
@@ -1879,6 +1885,17 @@ fun KitsugiFullscreenPlayerScreen(
                         modifier = Modifier
                             .align(Alignment.TopStart)
                             .padding(top = 70.dp, start = 24.dp)
+                    )
+
+                    // ── Hızlı puanlama çubuğu (bölüm/film bittiğinde) ──────────────────
+                    QuickRateBar(
+                        prompt = quickRatePrompt,
+                        onRate = { score -> viewModel.rateCurrentMedia(score) },
+                        onDismiss = { viewModel.dismissQuickRate() },
+                        visible = !isInPipMode && !areControlsLocked,
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(start = 16.dp, end = 16.dp, bottom = 82.dp)
                     )
 
                     // Search/Fetch loading overlay for next episode

@@ -807,6 +807,7 @@ object KitsugiIcons {
     val SearchOff: ImageVector get() = SearchX
     val Security: ImageVector get() = Shield
     val SelectAll: ImageVector get() = SquareDashed
+    val Science: ImageVector get() = FlaskConical
     val Sell: ImageVector get() = Tag
     val SettingsApplications: ImageVector get() = Settings
     val SettingsEthernet: ImageVector get() = Network

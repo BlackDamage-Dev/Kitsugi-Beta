@@ -342,6 +342,8 @@ internal fun settingsSearchEntries(): List<SettingsSearchEntry> {
 
         // Support and diagnostics
         entry(stringResource(R.string.settings_about), path(supportSection, stringResource(R.string.settings_about)), "hakkında sürüm version github açık kaynak contributors", Icons.Info, KitsugiColors.AccentIndigo, action = SettingsMainAction.About),
-        entry(stringResource(R.string.settings_feedback), path(supportSection, stringResource(R.string.settings_feedback)), "geri bildirim hata bildirimi öneri bug report feature request", Icons.Feedback, KitsugiColors.AccentBlue, route = SettingsRoute.Feedback)
+        entry(stringResource(R.string.settings_feedback), path(supportSection, stringResource(R.string.settings_feedback)), "geri bildirim hata bildirimi öneri bug report feature request", Icons.Feedback, KitsugiColors.AccentBlue, route = SettingsRoute.Feedback),
+        entry(stringResource(R.string.settings_experimental_title), path(supportSection, stringResource(R.string.settings_experimental_title)), "deneysel experimental beta otomatik liste takip tracking scrobble puanlama hızlı puan quick rate izlenen bölüm", Icons.Science, KitsugiColors.AccentOrange, route = SettingsRoute.ExperimentalFeatures),
+        entry(stringResource(R.string.experimental_autotrack_title), path(supportSection, stringResource(R.string.settings_experimental_title)), "otomatik liste takibi oynatınca listeye ekle tracking auto add progress bölüm ilerleme deneysel experimental", Icons.PlaylistAddCheck, KitsugiColors.AccentOrange, route = SettingsRoute.ExperimentalFeatures)
     )
 }

@@ -549,7 +549,8 @@ fun KitsugiYouTubePlayer(
                     context = context,
                     videoUrl = activeSource.videoUrl,
                     audioUrl = activeSource.audioUrl,
-                    headers = YouTubeRequestPolicy.headersForPlaybackSource(activeSource)
+                    headers = YouTubeRequestPolicy.headersForPlaybackSource(activeSource),
+                    treatAsTrailer = true
                 )
             }
         ) {

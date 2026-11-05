@@ -303,6 +303,16 @@ class SettingsDataStore(
         val AudioChannelsConfig = stringPreferencesKey("pref_audio_channels_config")
         val PlayerStatisticsPage = intPreferencesKey("pref_player_statistics_page")
         val ScrobbleThreshold = floatPreferencesKey("pref_scrobble_threshold")
+        // ─── v2.4.341: Otomatik liste takibi (oynatıcı → liste köprüsü) ───────────
+        /** Kullanıcı deneysel özelliği açtığını onayladı mı? */
+        val AutoTrackExperimentalConsent = booleanPreferencesKey("auto_track_experimental_consent")
+        val AutoTrackEnabled = booleanPreferencesKey("auto_track_enabled")
+        val AutoTrackAddNew = booleanPreferencesKey("auto_track_add_new")
+        val AutoTrackRespectDropped = booleanPreferencesKey("auto_track_respect_dropped")
+        val QuickRateEnabled = booleanPreferencesKey("quick_rate_enabled")
+        val QuickRateSeconds = intPreferencesKey("quick_rate_seconds")
+        val AutoTrackSyncSources = booleanPreferencesKey("auto_track_sync_sources")
+        val AutoTrackMinSeconds = intPreferencesKey("auto_track_min_seconds")
         val ShowLoadingCircle = booleanPreferencesKey("pref_show_loading_circle")
         val ShowCurrentChapter = booleanPreferencesKey("pref_show_current_chapter")
         val PlayerTimeToDisappearMs = intPreferencesKey("pref_player_time_to_disappear_ms")
@@ -589,7 +599,14 @@ class SettingsDataStore(
                     preserveWatchingPosition = preferences[Keys.PreserveWatchingPosition] ?: true,
                     defaultPlayerOrientation = preferences[Keys.DefaultPlayerOrientation] ?: "SENSOR_LANDSCAPE",
                     pipEpisodeToasts = preferences[Keys.PipEpisodeToasts] ?: true,
-                    pipOnExit = preferences[Keys.PipOnExit] ?: true
+                    pipOnExit = preferences[Keys.PipOnExit] ?: true,
+                    autoTrackEnabled = preferences[Keys.AutoTrackEnabled] ?: false,
+                    autoTrackAddNew = preferences[Keys.AutoTrackAddNew] ?: true,
+                    autoTrackRespectDropped = preferences[Keys.AutoTrackRespectDropped] ?: true,
+                    quickRateEnabled = preferences[Keys.QuickRateEnabled] ?: true,
+                    quickRateSeconds = preferences[Keys.QuickRateSeconds] ?: 20,
+                    autoTrackSyncSources = preferences[Keys.AutoTrackSyncSources] ?: true,
+                    autoTrackMinSeconds = preferences[Keys.AutoTrackMinSeconds] ?: 60
                 ),
                 mpvSubtitle = MpvAndSubtitleSettings(
                     defaultSubtitleSize = preferences[Keys.DefaultSubtitleSize] ?: 16,
@@ -1991,6 +2008,40 @@ class SettingsDataStore(
 
     suspend fun setScrobbleThreshold(value: Float) {
         context.settingsDataStore.edit { it[Keys.ScrobbleThreshold] = value.coerceIn(0.1f, 1.0f) }
+    }
+
+    // ─── Otomatik liste takibi ───────────────────────────────────────────────────
+
+    suspend fun setAutoTrackEnabled(value: Boolean) {
+        context.settingsDataStore.edit {
+            it[Keys.AutoTrackEnabled] = value
+            // true değeri yalnızca onay diyaloğu kabul edildikten sonra yazılır.
+            if (value) it[Keys.AutoTrackExperimentalConsent] = true
+        }
+    }
+
+    suspend fun setAutoTrackAddNew(value: Boolean) {
+        context.settingsDataStore.edit { it[Keys.AutoTrackAddNew] = value }
+    }
+
+    suspend fun setAutoTrackRespectDropped(value: Boolean) {
+        context.settingsDataStore.edit { it[Keys.AutoTrackRespectDropped] = value }
+    }
+
+    suspend fun setQuickRateEnabled(value: Boolean) {
+        context.settingsDataStore.edit { it[Keys.QuickRateEnabled] = value }
+    }
+
+    suspend fun setQuickRateSeconds(value: Int) {
+        context.settingsDataStore.edit { it[Keys.QuickRateSeconds] = value.coerceIn(5, 60) }
+    }
+
+    suspend fun setAutoTrackSyncSources(value: Boolean) {
+        context.settingsDataStore.edit { it[Keys.AutoTrackSyncSources] = value }
+    }
+
+    suspend fun setAutoTrackMinSeconds(value: Int) {
+        context.settingsDataStore.edit { it[Keys.AutoTrackMinSeconds] = value.coerceIn(15, 600) }
     }
 
     suspend fun setShowLoadingCircle(value: Boolean) {

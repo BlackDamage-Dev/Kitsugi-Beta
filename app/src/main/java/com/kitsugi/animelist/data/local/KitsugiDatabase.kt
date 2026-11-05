@@ -26,7 +26,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         PersistentDetailCacheEntity::class,  // 📂 Media details cache
         CustomButton::class
     ],
-    version = 31,
+    version = 32,
     exportSchema = true  // T3-03/TASK-106: KSP → $projectDir/schemas/ konumuna yazar
 )
 abstract class KitsugiDatabase : RoomDatabase() {
@@ -443,6 +443,21 @@ abstract class KitsugiDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v32: Otomatik liste takibi (`watch_history.watched`).
+         *
+         * `watch_history.watched`, "bu bölüm izleme eşiğini geçti mi?" sorusunun kalıcı
+         * cevabıdır. Otomatik takip (`AutoTrackPolicy`) bölüm tamamlandığında bu bayrağı
+         * yazar; böylece aynı bölüm ikinci kez ilerlemeye sayılmaz ve "kaldığı yerden
+         * devam et" satırı izlenmiş bölümü tekrar önermez. Eski satırlar `0` (izlenmedi)
+         * olarak gelir — geçmiş konumları korunur.
+         */
+        private val MIGRATION_31_32 = object : Migration(31, 32) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE watch_history ADD COLUMN watched INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         fun getDatabase(context: Context): KitsugiDatabase {
             return INSTANCE ?: synchronized(this) {
                 val builder = Room.databaseBuilder(
@@ -480,7 +495,8 @@ abstract class KitsugiDatabase : RoomDatabase() {
                         MIGRATION_28_29,
                         MIGRATION_29_30,  // 📅 Listeye eklenme zamanı (addedAt)
                         MIGRATION_30_31,  // 🎬 TMDB Watchlist & Rating
-                        MIGRATION_29_31
+                        MIGRATION_29_31,
+                        MIGRATION_31_32   // 🎬 Otomatik liste takibi (izlendi bayrağı)
                     )
                 
                 // T3-03: Güvenlik sertleştirmesi — Üretim sürümünde verilerin kazara sıfırlanmasını engeller.

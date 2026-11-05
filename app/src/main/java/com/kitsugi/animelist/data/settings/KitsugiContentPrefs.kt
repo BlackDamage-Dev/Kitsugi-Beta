@@ -68,6 +68,36 @@ object KitsugiContentPrefs {
     var defaultAddStatus: String = "PLANNED"
         private set
 
+    /** Oynatıcıdan otomatik liste takibi açık mı? (Compose dışı hattın hızlı okuması.) */
+    @Volatile
+    var autoTrackEnabled: Boolean = false
+        private set
+
+    /** Listede olmayan içerik oynatılınca otomatik eklensin mi? */
+    @Volatile
+    var autoTrackAddNew: Boolean = true
+        private set
+
+    /** "Bırakıldı" kayıtlar otomatik takiple ezilmesin. */
+    @Volatile
+    var autoTrackRespectDropped: Boolean = true
+        private set
+
+    /** Bitişte hızlı puanlama çubuğu gösterilsin mi? */
+    @Volatile
+    var quickRateEnabled: Boolean = true
+        private set
+
+    /** Hızlı puanlama çubuğunun ekranda kalma süresi (saniye). */
+    @Volatile
+    var quickRateSeconds: Int = 20
+        private set
+
+    /** Otomatik takip değişiklikleri bağlı tüm platformlara yayılsın mı? */
+    @Volatile
+    var autoTrackSyncSources: Boolean = true
+        private set
+
     fun update(settings: AppSettings) {
         staffNameLanguage = settings.staffNameLanguage
         scoreStep = settings.scoreStep.toFloatOrNull()?.takeIf { it > 0f } ?: 1f
@@ -80,6 +110,12 @@ object KitsugiContentPrefs {
         autoDateOnStatusChange = settings.autoDateOnStatusChange
         autoProgressOnComplete = settings.autoProgressOnComplete
         defaultAddStatus = settings.defaultAddStatus
+        autoTrackEnabled = settings.autoTrackEnabled
+        autoTrackAddNew = settings.autoTrackAddNew
+        autoTrackRespectDropped = settings.autoTrackRespectDropped
+        quickRateEnabled = settings.quickRateEnabled
+        quickRateSeconds = settings.quickRateSeconds
+        autoTrackSyncSources = settings.autoTrackSyncSources
     }
 
     /**
