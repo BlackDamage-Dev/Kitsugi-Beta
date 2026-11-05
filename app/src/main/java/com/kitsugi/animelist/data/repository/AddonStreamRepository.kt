@@ -203,48 +203,10 @@ class AddonStreamRepository(private val context: Context) {
                 val streams = addonClient.fetchStreams(task.manifestUrl, task.requestType, task.videoId)
 
                 streams.map { responseItem ->
-
-                    val nameText = responseItem.name ?: "Bilinmeyen Akış"
-
-                    val titleText = responseItem.title ?: "İsimsiz Dosya"
-
-                    val parsedQuality = StreamSorter.parseQualityFromTitle("$titleText $nameText")
-
-                    val parsedQualityValue = StreamSorter.parseQualityValue(parsedQuality)
-
-                    StreamSource(
-
+                    responseItem.toStreamSource(
                         addonName = task.addonName,
-
-                        name      = nameText,
-
-                        title     = titleText,
-
-                        url       = responseItem.url,
-
-                        infoHash  = responseItem.infoHash,
-
-                        fileIndex = responseItem.fileIdx ?: responseItem.fileIndex,
-
-                        trackers  = responseItem.trackers,
-
-                        requestHeaders = responseItem.behaviorHints?.proxyHeaders?.request,
-
-                        subtitleFilename = responseItem.behaviorHints?.filename,
-
-                        subtitleVideoHash = responseItem.behaviorHints?.videoHash,
-
-                        subtitleVideoSize = responseItem.behaviorHints?.videoSize,
-
-                        quality   = parsedQuality,
-
-                        qualityValue = parsedQualityValue,
-
-                        thumbnailUrl = responseItem.thumbnail,
                         addonId = com.kitsugi.animelist.data.local.WatchHistorySource.stremioAddonId(task.manifestUrl)
-
                     )
-
                 }
 
             }
@@ -588,9 +550,39 @@ data class StreamSource(
     /** CloudStream content/season page and API needed to resolve a fresh link. */
     val cs3PageUrl: String? = null,
 
-    val cs3ApiName: String? = null
+    val cs3ApiName: String? = null,
+
+    /**
+     * Videoya bağlı AYRI ses parçası sayısı (CloudStream `ExtractorLink.audioTracks`).
+     * 1+ ise video en az iki ses akışı içeriyor demektir → "Çift dil" rozeti kanıta dayalı basılır.
+     */
+    val externalAudioTrackCount: Int = 0,
+
+    /**
+     * Torrent swarm bilgisi (seeder/leecher). **Yalnızca kaynak sayı verdiyse** doludur;
+     * boşsa arayüzde hiçbir seed/peer rozeti gösterilmez.
+     */
+    val swarmStats: TorrentSwarmStats = TorrentSwarmStats.NONE,
+
+    /**
+     * Kaynağın kendi dosya adı (Stremio `behaviorHints.filename`). Torrentio gibi eklentiler
+     * gerçek dosya adını burada verir; başlık metni kısaltılmış olabilir.
+     */
+    val fileName: String? = null
 
 ) : java.io.Serializable {
+
+    /**
+     * Dosya adı önceliği: kaynağın verdiği gerçek dosya adı → başlık → isim.
+     * Regex tabanlı bilgi çıkarımı (kalite, boyut, dil, codec) bu metin üzerinden yapılır;
+     * böylece kısaltılmış başlıklarda kaybolan bilgiler kurtarılır.
+     */
+    val metadataText: String
+        get() = listOfNotNull(
+            fileName?.takeIf { it.isNotBlank() } ?: subtitleFilename?.takeIf { it.isNotBlank() },
+            title.takeIf { it.isNotBlank() },
+            name.takeIf { it.isNotBlank() }
+        ).joinToString(" ")
 
     val isTorrent: Boolean
 
@@ -617,6 +609,58 @@ data class StreamSource(
 }
 
 
+
+/**
+ * Stremio stream nesnesini Kitsugi'nin tek akış modeline çevirir.
+ *
+ * TEK KAYNAK: Bu dönüşüm hem `AddonStreamRepository` hem de `StreamViewModel` tarafından
+ * kullanılır; böylece "bir yolda boyut/seed bilgisi geliyor, diğerinde gelmiyor" tutarsızlığı
+ * oluşmaz. Kalite, boyut, swarm, dosya adı ve çözünürlük TEK yerden çıkarılır.
+ */
+fun StreamResponseItem.toStreamSource(
+    addonName: String,
+    addonId: String? = null
+): StreamSource {
+    val nameText = name?.takeIf { it.isNotBlank() } ?: "Bilinmeyen Akış"
+    val titleText = title?.takeIf { it.isNotBlank() } ?: "İsimsiz Dosya"
+    val resolvedFileName = behaviorHints?.filename?.takeIf { it.isNotBlank() }
+    val metaText = listOfNotNull(
+        titleText,
+        nameText,
+        resolvedFileName,
+        description?.takeIf { it.isNotBlank() }
+    ).joinToString("\n")
+    val parsedQuality = StreamSorter.parseQualityFromTitle(metaText)
+    val parsedQualityValue = StreamSorter.parseQualityValue(parsedQuality)
+
+    val parsedSwarm = TorrentSwarmStats.parse(metaText)
+    val swarm = TorrentSwarmStats(
+        seeders = seeders ?: parsedSwarm.seeders,
+        leechers = peers ?: leechers ?: parsedSwarm.leechers,
+        providerTag = parsedSwarm.providerTag
+    )
+
+    return StreamSource(
+        addonName = addonName,
+        name = nameText,
+        title = titleText,
+        url = url,
+        infoHash = infoHash,
+        fileIndex = fileIdx ?: fileIndex,
+        trackers = trackers,
+        requestHeaders = behaviorHints?.proxyHeaders?.request,
+        subtitleFilename = behaviorHints?.filename,
+        subtitleVideoHash = behaviorHints?.videoHash,
+        subtitleVideoSize = behaviorHints?.videoSize,
+        quality = parsedQuality,
+        qualityValue = parsedQualityValue,
+        thumbnailUrl = thumbnail,
+        swarmStats = swarm,
+        videoSizeBytes = behaviorHints?.videoSize?.takeIf { it > 0 },
+        fileName = resolvedFileName,
+        addonId = addonId
+    )
+}
 
 fun String?.isMagnetLink(): Boolean =
 

@@ -108,9 +108,6 @@ fun StreamCard(
     }
 
     val qualityInfo = remember(source, measured) { resolveStreamQuality(source, measured) }
-    val langInfo = remember(source, measured) { resolveStreamLangInfo(source, measured) }
-    val size = remember(source, measured) { resolveStreamSizeLabel(source, measured) }
-    val cacheState = remember(source) { getCacheState(source) }
     // Host/dosya etiketi her zaman görünür — kullanıcı "bu hangi veriye ait" sorusunu
     // kartı açmadan yanıtlayabilsin.
     val hostLabel = remember(source.url, source.title, source.infoHash) { getCleanVideoSourceLabel(source) }
@@ -184,62 +181,14 @@ fun StreamCard(
                     )
                 }
                 Spacer(Modifier.height(5.dp))
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    // Kalite görselin üzerinde yazıyor; bilinmiyorsa burada açıkça
-                    // "bilinmiyor" olarak gösterilir (uydurma değer basılmaz).
-                    if (qualityInfo.label == null) {
-                        MetaChip(
-                            text = if (qualityInfo.isAdaptive) "HLS" else "—",
-                            color = KitsugiColors.TextMuted,
-                            bg = KitsugiColors.SurfaceStrong.copy(alpha = 0.6f)
-                        )
-                    }
-                    val langLabel = when (langInfo.kind) {
-                        StreamAudioKind.DUB -> stringResource(R.string.stream_lang_dub)
-                        StreamAudioKind.SUB -> stringResource(R.string.stream_lang_sub)
-                        StreamAudioKind.DUAL -> stringResource(R.string.stream_lang_dual)
-                        else -> null
-                    }
-                    if (langLabel != null) {
-                        MetaChip(
-                            text = langLabel,
-                            color = accentColor,
-                            bg = accentColor.copy(alpha = 0.14f)
-                        )
-                    }
-                    if (!size.isNullOrBlank()) {
-                        MetaChip(text = size, color = KitsugiColors.TextSecondary, bg = KitsugiColors.SurfaceStrong.copy(alpha = 0.6f))
-                    }
-                    if (langInfo.audioLanguages.isNotEmpty()) {
-                        MetaChip(
-                            text = "🔊 " + langInfo.audioLanguages.joinToString("/").take(18),
-                            color = accentColor,
-                            bg = accentColor.copy(alpha = 0.10f)
-                        )
-                    }
-                    if (langInfo.subtitleLanguages.isNotEmpty()) {
-                        MetaChip(
-                            text = "CC " + langInfo.subtitleLanguages.joinToString("/").take(18),
-                            color = KitsugiColors.TextSecondary,
-                            bg = KitsugiColors.SurfaceStrong.copy(alpha = 0.6f)
-                        )
-                    }
-                    if (source.isTorrent) {
-                        val cacheLabel = when (cacheState) {
-                            DebridCacheState.CACHED -> stringResource(R.string.stream_cached)
-                            DebridCacheState.NOT_CACHED -> "Debrid"
-                            DebridCacheState.P2P -> "P2P"
-                        }
-                        MetaChip(
-                            text = cacheLabel,
-                            color = if (cacheState == DebridCacheState.CACHED) KitsugiColors.AccentGreen else KitsugiColors.TextSecondary,
-                            bg = KitsugiColors.SurfaceStrong.copy(alpha = 0.6f)
-                        )
-                    }
-                }
+                // Tüm bilgi rozetleri TEK bileşenden gelir (kalite, ses, boyut, seeder/peer,
+                // altyazı dilleri, codec/HDR, önbellek). Kanıt yoksa rozet basılmaz.
+                StreamInfoChips(
+                    stream = source,
+                    measured = measured,
+                    accentColor = accentColor,
+                    showQuality = false // kalite zaten görselin üzerinde yazıyor
+                )
             }
             Spacer(Modifier.width(6.dp))
             Column(

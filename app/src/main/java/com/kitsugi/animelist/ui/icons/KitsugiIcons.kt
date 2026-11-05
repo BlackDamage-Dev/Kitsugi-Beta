@@ -639,6 +639,7 @@ object KitsugiIcons {
     val BarChart: ImageVector get() = ChartColumn
     val BlurOn: ImageVector get() = Droplets
     val Bolt: ImageVector get() = Zap
+    val FlashOn: ImageVector get() = Zap
     val Bookmark: ImageVector get() = BookmarkSolid
     val BookmarkBorder: ImageVector get() = BookmarkStroke
     val Bookmarks: ImageVector get() = BookmarkStroke

@@ -72,7 +72,8 @@ import com.kitsugi.animelist.ui.utils.tvClickable
 enum class StreamSortMode {
     SOURCE_ORDER,
     QUALITY,
-    SIZE
+    SIZE,
+    SEEDERS
 }
 
 @Composable
@@ -81,6 +82,7 @@ internal fun sortModeLabel(mode: StreamSortMode): String = stringResource(
         StreamSortMode.SOURCE_ORDER -> R.string.stream_sort_source
         StreamSortMode.QUALITY -> R.string.stream_sort_quality_short
         StreamSortMode.SIZE -> R.string.stream_sort_size
+        StreamSortMode.SEEDERS -> R.string.stream_sort_seeders
     }
 )
 
@@ -90,6 +92,7 @@ internal fun sortModeShortLabel(mode: StreamSortMode): String = stringResource(
         StreamSortMode.SOURCE_ORDER -> R.string.stream_sort_source_short
         StreamSortMode.QUALITY -> R.string.stream_sort_quality_short
         StreamSortMode.SIZE -> R.string.stream_sort_size
+        StreamSortMode.SEEDERS -> R.string.stream_badge_seeders_short
     }
 )
 
@@ -119,6 +122,12 @@ internal fun List<AddonFetchState>.sortedByStreamMode(mode: StreamSortMode): Lis
                     StreamInfoResolver.resolveSizeBytes(it, StreamProbe.cached(it))
                 }
             )
+            StreamSortMode.SEEDERS -> state.copy(
+                streams = state.streams.sortedWith(
+                    compareByDescending<StreamSource> { it.swarmStats.seeders ?: -1 }
+                        .thenByDescending { resolveStreamQuality(it, StreamProbe.cached(it)).height ?: -1 }
+                )
+            )
             StreamSortMode.SOURCE_ORDER -> state
         }
     }.sortedByDescending { state ->
@@ -128,6 +137,9 @@ internal fun List<AddonFetchState>.sortedByStreamMode(mode: StreamSortMode): Lis
             } ?: -1L
             StreamSortMode.SIZE -> state.streams.maxOfOrNull {
                 StreamInfoResolver.resolveSizeBytes(it, StreamProbe.cached(it))
+            } ?: -1L
+            StreamSortMode.SEEDERS -> state.streams.maxOfOrNull {
+                it.swarmStats.seeders?.toLong() ?: -1L
             } ?: -1L
             StreamSortMode.SOURCE_ORDER -> 0L
         }
@@ -442,19 +454,30 @@ internal fun StreamSourceSheet(
                 verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
                 item(key = "all") {
+                    val allSize = remember(allStreams) { StreamGroupSummary.totalKnownBytesLabel(allStreams) }
+                    val allStatus = buildString {
+                        append(stringResource(R.string.stream_video_count, allStreams.size))
+                        allSize?.let { append(" · ").append(it) }
+                    }
                     SourcePickerRow(
                         name = stringResource(R.string.stream_all_sources),
-                        status = stringResource(R.string.stream_video_count, allStreams.size),
+                        status = allStatus,
                         selected = selectedAddonFilter == null,
                         accentColor = accentColor
                     ) { onFilterChange(null) }
                 }
                 items(visible, key = { it.addonName }) { state ->
+                    val groupSize = remember(state.streams) { StreamGroupSummary.totalKnownBytesLabel(state.streams) }
+                    val groupSeeders = remember(state.streams) { StreamGroupSummary.maxSeeders(state.streams) }
                     val status = when {
                         state.isLoading -> stringResource(R.string.stream_source_loading)
                         state.requiresVerification -> stringResource(R.string.stream_source_verify)
                         state.error != null -> stringResource(R.string.stream_source_error)
-                        else -> stringResource(R.string.stream_video_count, state.streams.size)
+                        else -> buildString {
+                            append(stringResource(R.string.stream_video_count, state.streams.size))
+                            groupSize?.let { append(" · ").append(it) }
+                            groupSeeders?.let { append(" · ").append(formatSwarmCount(it)).append(" ").append(stringResource(R.string.stream_badge_seeders_short, "")) }
+                        }
                     }
                     SourcePickerRow(
                         name = state.addonName,

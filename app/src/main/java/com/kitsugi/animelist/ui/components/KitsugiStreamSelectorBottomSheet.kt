@@ -44,6 +44,7 @@ import java.util.Locale
 import androidx.compose.ui.res.stringResource
 import com.kitsugi.animelist.R
 import com.kitsugi.animelist.utils.KitsugiStrings
+import com.kitsugi.animelist.ui.screens.stream.StreamInfoChips
 
 enum class DebridCacheState {
     CACHED,
@@ -591,7 +592,7 @@ private fun StreamItemRow(
     stream: StreamSource,
     onClick: () -> Unit
 ) {
-    val parsedInfo = remember(stream.title) { parseStreamTitle(stream.title) }
+    val parsedInfo = remember(stream) { parseStreamTitle(stream) }
     val accentColor = LocalKitsugiAccent.current
 
     Card(
@@ -676,14 +677,15 @@ private fun StreamItemRow(
                         }
                     }
 
-                    if (parsedInfo.size.isNotBlank()) {
-                        Text(
-                            text = parsedInfo.size,
-                            color = KitsugiColors.TextMuted,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
+                    // Boyut bilinmiyorsa da açıkça yazılır — indirme kararı için kritik bilgi.
+                    Text(
+                        text = parsedInfo.size.ifBlank {
+                            KitsugiStrings.get(R.string.stream_size_unknown)
+                        },
+                        color = KitsugiColors.TextMuted,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(6.dp))
@@ -698,7 +700,16 @@ private fun StreamItemRow(
                     overflow = TextOverflow.Ellipsis
                 )
 
-                // Extra details like dual audio or seeders
+                // Seeder / peer / ses-altyazı dilleri / codec / HDR rozetleri.
+                // Mobil kart ve TV ile AYNI bileşen: kanıt yoksa rozet basılmaz.
+                StreamInfoChips(
+                    stream = stream,
+                    measured = com.kitsugi.animelist.data.repository.StreamProbe.cached(stream.url),
+                    accentColor = accentColor,
+                    modifier = Modifier.padding(top = 6.dp),
+                    gap = 4.dp
+                )
+
                 if (stream.name.isNotBlank()) {
                     Text(
                         text = stream.name.trim(),
@@ -737,18 +748,17 @@ private data class ParsedStreamInfo(
     val size: String
 )
 
-private fun parseStreamTitle(title: String): ParsedStreamInfo {
-    // Kalite yalnızca başlıkta AÇIKÇA yazıyorsa gösterilir; aksi halde boş bırakılır
-    // (eskiden varsayılan olarak "HD" yazılıyordu — bu yanlış bilgiydi).
+private fun parseStreamTitle(stream: StreamSource): ParsedStreamInfo {
+    // Kalite yalnızca AÇIKÇA yazıyorsa gösterilir; aksi halde boş bırakılır
     val quality = com.kitsugi.animelist.data.repository.StreamInfoResolver
-        .parseHeightFromText(title)
-        ?.let { com.kitsugi.animelist.data.repository.StreamInfoResolver.heightToLabel(it) }
+        .resolveQuality(stream)
+        .label
         ?: ""
 
-    // Size regex like "1.2 GB" or "750 MB" or "1.2gb"
-    val sizeRegex = Regex("""(\d+(?:\.\d+)?\s*(?:gb|mb|gib|mib))""", RegexOption.IGNORE_CASE)
-    val match = sizeRegex.find(title)
-    val size = match?.value?.uppercase(Locale.ROOT) ?: ""
+    // Boyut: kaynağın gerçek verdiği bayt bilgisi varsa o, yoksa başlıktaki açık etiket.
+    val size = com.kitsugi.animelist.data.repository.StreamInfoResolver
+        .resolveSizeLabel(stream)
+        ?: ""
 
     return ParsedStreamInfo(quality, size)
 }

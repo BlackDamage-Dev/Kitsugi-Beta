@@ -6431,6 +6431,8 @@ object CsStreamRunner {
                                     csExtractorData = link.extractorData,
 
                                     externalAudioUrl = link.audioTracks.firstOrNull()?.url?.takeIf { it.isNotBlank() },
+                                    externalAudioTrackCount = link.audioTracks.count { it.url.isNotBlank() },
+                                    providerAudioKind = if (link.audioTracks.any { it.url.isNotBlank() }) "dual" else null,
 
                                     externalAudioTracks = externalAudioTrackInputs(link),
 
@@ -7639,6 +7641,8 @@ object CsStreamRunner {
                                         },
 
                                         externalAudioUrl = link.audioTracks.firstOrNull()?.url?.takeIf { it.isNotBlank() },
+                                        externalAudioTrackCount = link.audioTracks.count { it.url.isNotBlank() },
+                                        providerAudioKind = if (link.audioTracks.any { it.url.isNotBlank() }) "dual" else null,
 
                                         externalAudioTracks = externalAudioTrackInputs(link),
 
@@ -8054,6 +8058,8 @@ object CsStreamRunner {
 
         val toCheck = mutableListOf<StreamSource>()
 
+        val measuredSizes = java.util.concurrent.ConcurrentHashMap<String, Long>()
+
         for (stream in streams) {
 
             // ÖLÜ KANAL etiketli kaynakları doğrulama yapmadan düşür
@@ -8134,6 +8140,7 @@ object CsStreamRunner {
 
                             val url = stream.url.orEmpty()
 
+                            var measuredSize: Long? = null
                             // HEAD bazı CDN'lerde desteklenmez (405) veya farklı davranır; bu durumda
 
                             // GET with Range header ile doğrulama yap (daha güvenilir).
@@ -8171,6 +8178,11 @@ object CsStreamRunner {
                                         .newCall(headRequest).execute()
 
                                     val code = response.code
+                                    if (code in 200..299) {
+                                        measuredSize = response.header("Content-Length")
+                                            ?.toLongOrNull()
+                                            ?.takeIf { it > 0 }
+                                    }
 
                                     response.close()
 
@@ -8268,7 +8280,12 @@ object CsStreamRunner {
 
                             if (isAlive) {
 
-                                verifiedStreams.add(stream)
+                                val known = stream.videoSizeBytes ?: measuredSize
+                                if (known != null) measuredSizes[url] = known
+                                val sized = if (stream.videoSizeBytes == null && known != null) {
+                                    stream.copy(videoSizeBytes = known)
+                                } else stream
+                                verifiedStreams.add(sized)
 
                             } else {
 
@@ -8324,7 +8341,14 @@ object CsStreamRunner {
 
                 Log.w(TAG, "[${api.name}] Tum streamler dead cikti - false positive olabilir, orijinaller donduruluyor.")
 
-                streams
+                if (measuredSizes.isEmpty()) {
+                    streams
+                } else {
+                    streams.map { s ->
+                        val measured = s.url?.let { measuredSizes[it] }
+                        if (s.videoSizeBytes == null && measured != null) s.copy(videoSizeBytes = measured) else s
+                    }
+                }
 
             }
 
@@ -8370,9 +8394,11 @@ object CsStreamRunner {
 
                 val originPageUrl = loadResponse.url?.takeIf { it.isNotBlank() } ?: fallbackPageUrl?.takeIf { it.isNotBlank() }
         return finalStreams.map { stream ->
+            val measured = stream.url?.let { measuredSizes[it] }
             stream.copy(
                 subtitles = subtitleList.toList(),
                 providerAudioKind = stream.providerAudioKind ?: providerAudioKind,
+                videoSizeBytes = stream.videoSizeBytes ?: measured,
                 cs3PageUrl = stream.cs3PageUrl ?: originPageUrl,
                 cs3ApiName = stream.cs3ApiName ?: api.name
             )

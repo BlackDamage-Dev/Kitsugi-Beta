@@ -9171,6 +9171,20 @@ Eklentiler ekranından eklenti etkinleştirin.</string>
     <string name="stream_sort_source_order">Kaynak sırası</string>
     <string name="stream_sort_quality_short">Kalite</string>
     <string name="stream_sort_size_short">Boyut</string>
+    <string name="stream_badge_seeders">%1$s seeder</string>
+    <string name="stream_badge_seeders_short">%1$s tohum</string>
+    <string name="stream_badge_peers">%1$s peer</string>
+    <string name="stream_badge_peers_short">%1$s eş</string>
+    <string name="stream_size_unknown">Boyut bilinmiyor</string>
+    <string name="stream_size_short">Boyut</string>
+    <string name="stream_badge_subtitle_tracks">Altyazı: %1$s</string>
+    <string name="stream_badge_audio_tracks">Ses: %1$s</string>
+    <string name="stream_badge_internal_sub">Gömülü altyazı</string>
+    <string name="stream_badge_audio_tracks_present">Ses parçası</string>
+    <string name="stream_sort_seeders">Tohum sayısı: çoktan aza</string>
+    <string name="stream_filter_download_size">İndirme boyutu</string>
+    <string name="stream_sources_found">%1$d video · %2$d kaynak</string>
+    <string name="stream_size_coverage">%1$d/%2$d boyut biliniyor</string>
     <!-- ── MAL Bildirim Filtreleri (myanimelist.net/notification sol menü) ── -->
     <string name="mal_notif_filter_all">Tümü</string>
     <string name="mal_notif_filter_related">Yeni Bağlantılı Anime</string>

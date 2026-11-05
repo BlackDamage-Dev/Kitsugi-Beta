@@ -360,7 +360,17 @@ data class StreamResponseItem(
     val sources: List<String>? = null,
     val behaviorHints: StreamBehaviorHintsDto?,
     /** Episode/stream thumbnail URL returned by some addons (e.g. Cloudstream, Torrentio) */
-    val thumbnail: String? = null
+    val thumbnail: String? = null,
+    /**
+     * Torrent swarm bilgisi — bazı eklentiler (ör. Torrentio türevleri) bu alanları doğrudan
+     * gönderir. Stremio şemasında ZORUNLU değildir; yoksa metinden ayrıştırılır.
+     */
+    val seeders: Int? = null,
+    val peers: Int? = null,
+    /** Bazı eklentiler `leechers` adını kullanır. */
+    val leechers: Int? = null,
+    /** Uzun açıklama alanı — swarm/etiket bilgisi bazen burada durur. */
+    val description: String? = null
 ) {
     /** Backward compatibility property for existing references */
     val fileIndex: Int? get() = fileIdx

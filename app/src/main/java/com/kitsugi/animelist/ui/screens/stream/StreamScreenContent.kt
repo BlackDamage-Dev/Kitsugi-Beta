@@ -69,6 +69,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -174,9 +175,12 @@ fun StreamScreenContent(
                 val langInfo = resolveStreamLangInfo(stream, StreamProbe.cached(stream))
                 val langType = langInfo.kind.toLangType()
 
+                val sizeLabel = resolveStreamSizeLabel(stream).orEmpty()
                 val matchesQuery = query.isEmpty() ||
                     stream.name.lowercase().contains(query) ||
                     stream.title.lowercase().contains(query) ||
+                    (stream.fileName?.lowercase()?.contains(query) == true) ||
+                    sizeLabel.lowercase().contains(query) ||
                     stream.addonName.lowercase().contains(query) ||
                     (stream.url != null && stream.url.lowercase().contains(query)) ||
                     qual.lowercase().contains(query) ||
@@ -191,6 +195,8 @@ fun StreamScreenContent(
                     "2160p" -> qualityInfo.height != null && qualityInfo.height >= 2160
                     "720p" -> qualityInfo.height == 720
                     "debrid" -> stream.infoHash != null || stream.url?.contains("magnet") == true
+                    // Gerçek boyutu (kaynağın bildirdiği ya da ölçülen) bilinen akışlar
+                    "boyut" -> resolveStreamSizeLabel(stream) != null
                     else -> true
                 }
 
@@ -208,11 +214,20 @@ fun StreamScreenContent(
     // Sıralama artık kaynak panelinden seçiliyor (bkz. StreamSourceSheet.kt).
     // Hiçbir filtre/sıralama seçili değilken liste kopyalanmaz.
     var sortMode by rememberSaveable { mutableStateOf(StreamSortMode.SOURCE_ORDER) }
-    val filteredAddonStates = remember(matchingAddonStates, sortMode) {
+    // Ölçüm (HEAD/HLS) sonuçları kartlara asenkron düştüğünde liste ESKİ boyut/seeder
+    // bilgisiyle donup kalmamalı. Ölçüm sayacı yalnızca yeni bir ölçüm TAMAMLANDIĞINDA artar.
+    val probeTick by com.kitsugi.animelist.data.repository.StreamProbe.completions
+        .collectAsStateWithLifecycle()
+    val filteredAddonStates = remember(matchingAddonStates, sortMode, probeTick) {
         matchingAddonStates.sortedByStreamMode(sortMode)
     }
     val totalFilteredStreamsCount = remember(filteredAddonStates) {
         filteredAddonStates.sumOf { it.streams.size }
+    }
+    val totalSizedStreamsCount = remember(filteredAddonStates, probeTick) {
+        filteredAddonStates.sumOf { state ->
+            state.streams.count { resolveStreamSizeLabel(it) != null }
+        }
     }
     val hasActiveFilter = searchQuery.isNotBlank() || selectedTagFilter != null || selectedAddonFilter != null
 
@@ -258,7 +273,7 @@ fun StreamScreenContent(
                     selectedTagFilter = selectedTagFilter, onTagSelect = { selectedTagFilter = it },
                     onAddonFilterChange = onAddonFilterChange, onBack = onBack,
                     isResolvingId = isResolvingId, idResolveFailed = idResolveFailed, isAnyLoading = isAnyLoading,
-                    filteredAddonStates = filteredAddonStates, totalFilteredStreamsCount = totalFilteredStreamsCount,
+                    filteredAddonStates = filteredAddonStates, totalFilteredStreamsCount = totalFilteredStreamsCount, totalSizedStreamsCount = totalSizedStreamsCount,
                     hasActiveFilter = hasActiveFilter, onStreamSelected = onStreamSelected,
                     onDownloadSelected = onDownloadSelected,
                     onVerifyPlugin = onVerifyPlugin, onOpenSettings = onOpenSettings,
@@ -280,7 +295,7 @@ fun StreamScreenContent(
                     selectedTagFilter = selectedTagFilter, onTagSelect = { selectedTagFilter = it },
                     onAddonFilterChange = onAddonFilterChange, onBack = onBack,
                     isResolvingId = isResolvingId, idResolveFailed = idResolveFailed, isAnyLoading = isAnyLoading,
-                    filteredAddonStates = filteredAddonStates, totalFilteredStreamsCount = totalFilteredStreamsCount,
+                    filteredAddonStates = filteredAddonStates, totalFilteredStreamsCount = totalFilteredStreamsCount, totalSizedStreamsCount = totalSizedStreamsCount,
                     hasActiveFilter = hasActiveFilter, onStreamSelected = onStreamSelected,
                     onDownloadSelected = onDownloadSelected,
                     onVerifyPlugin = onVerifyPlugin, onOpenSettings = onOpenSettings,
@@ -584,7 +599,7 @@ private fun PortraitLayout(
     selectedTagFilter: String?, onTagSelect: (String?) -> Unit,
     onAddonFilterChange: (String?) -> Unit, onBack: () -> Unit,
     isResolvingId: Boolean, idResolveFailed: Boolean, isAnyLoading: Boolean,
-    filteredAddonStates: List<AddonFetchState>, totalFilteredStreamsCount: Int, hasActiveFilter: Boolean,
+    filteredAddonStates: List<AddonFetchState>, totalFilteredStreamsCount: Int, totalSizedStreamsCount: Int = 0, hasActiveFilter: Boolean,
     onStreamSelected: (StreamSource) -> Unit, onDownloadSelected: (StreamSource) -> Unit, onVerifyPlugin: ((AddonFetchState) -> Unit)?, onOpenSettings: (() -> Unit)?,
     onRetryPlugin: ((AddonFetchState) -> Unit)? = null,
     onOpenHistory: (() -> Unit)?,
@@ -660,6 +675,7 @@ private fun PortraitLayout(
                 ResultsSummaryRow(
                     videoCount = totalFilteredStreamsCount,
                     sourceCount = filteredAddonStates.count { it.streams.isNotEmpty() },
+                    sizedCount = totalSizedStreamsCount,
                     isLoading = isAnyLoading,
                     accentColor = accentColor,
                     hasActiveFilter = hasActiveFilter,
@@ -728,7 +744,7 @@ private fun LandscapeLayout(
     selectedTagFilter: String?, onTagSelect: (String?) -> Unit,
     onAddonFilterChange: (String?) -> Unit, onBack: () -> Unit,
     isResolvingId: Boolean, idResolveFailed: Boolean, isAnyLoading: Boolean,
-    filteredAddonStates: List<AddonFetchState>, totalFilteredStreamsCount: Int, hasActiveFilter: Boolean,
+    filteredAddonStates: List<AddonFetchState>, totalFilteredStreamsCount: Int, totalSizedStreamsCount: Int = 0, hasActiveFilter: Boolean,
     onStreamSelected: (StreamSource) -> Unit, onDownloadSelected: (StreamSource) -> Unit, onVerifyPlugin: ((AddonFetchState) -> Unit)?, onOpenSettings: (() -> Unit)?,
     onRetryPlugin: ((AddonFetchState) -> Unit)? = null,
     onOpenHistory: (() -> Unit)? = null,
@@ -801,6 +817,7 @@ private fun LandscapeLayout(
                 ResultsSummaryRow(
                     videoCount = totalFilteredStreamsCount,
                     sourceCount = filteredAddonStates.count { it.streams.isNotEmpty() },
+                    sizedCount = totalSizedStreamsCount,
                     isLoading = isAnyLoading,
                     accentColor = accentColor,
                     hasActiveFilter = hasActiveFilter,
@@ -1059,7 +1076,8 @@ private fun StreamSearchBar(
             "2160p" to "4K",
             "1080p" to "1080p+",
             "720p" to "720p",
-            "debrid" to "⚡ Debrid"
+            "debrid" to "⚡ Debrid",
+            "boyut" to stringResource(R.string.stream_filter_download_size)
         )
 
         val chipContent: @Composable () -> Unit = {
@@ -1096,6 +1114,7 @@ private fun StreamSearchBar(
 private fun ResultsSummaryRow(
     videoCount: Int,
     sourceCount: Int,
+    sizedCount: Int = 0,
     isLoading: Boolean,
     accentColor: Color,
     hasActiveFilter: Boolean,
@@ -1110,7 +1129,19 @@ private fun ResultsSummaryRow(
             Spacer(Modifier.width(6.dp))
         }
         Text(
-            text = stringResource(R.string.stream_results_summary, videoCount, sourceCount),
+            text = buildString {
+                append(stringResource(R.string.stream_results_summary, videoCount, sourceCount))
+                if (videoCount > 0 && sizedCount < videoCount) {
+                    append(" · ")
+                    append(
+                        stringResource(
+                            R.string.stream_size_coverage,
+                            sizedCount,
+                            videoCount
+                        )
+                    )
+                }
+            },
             color = KitsugiColors.TextSecondary,
             style = MaterialTheme.typography.labelSmall,
             maxLines = 1,

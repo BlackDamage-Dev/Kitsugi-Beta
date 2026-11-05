@@ -23,6 +23,7 @@ import com.kitsugi.animelist.model.MediaType
 import com.kitsugi.animelist.data.repository.EpisodeStreamFilter
 import com.kitsugi.animelist.data.repository.StreamSorter
 import com.kitsugi.animelist.data.repository.StreamSource
+import com.kitsugi.animelist.data.repository.toStreamSource
 import com.kitsugi.animelist.ui.screens.fullscreen.components.MetaCastMember
 import com.lagradost.cloudstream3.Prerelease
 import com.lagradost.cloudstream3.UnsafeSSL
@@ -703,23 +704,9 @@ class StreamViewModel(application: Application) : AndroidViewModel(application) 
                     try {
                         val streams = addonClient.fetchStreams(task.manifestUrl, task.requestType, task.videoId)
                         val sources = streams.map { item ->
-                            val nameText  = item.name  ?: "Bilinmeyen Akış"
-                            val titleText = item.title ?: "İsimsiz Dosya"
-                            val parsedQuality = StreamSorter.parseQualityFromTitle("$titleText $nameText")
-                            StreamSource(
-                                addonName    = task.addonName,
-                                name         = nameText,
-                                title        = titleText,
-                                url          = item.url,
-                                infoHash     = item.infoHash,
-                                fileIndex    = item.fileIdx ?: item.fileIndex,
-                                trackers     = item.trackers,
-                                requestHeaders = item.behaviorHints?.proxyHeaders?.request,
-                                subtitleFilename = item.behaviorHints?.filename,
-                                subtitleVideoHash = item.behaviorHints?.videoHash,
-                                subtitleVideoSize = item.behaviorHints?.videoSize,
-                                quality      = parsedQuality,
-                                qualityValue = StreamSorter.parseQualityValue(parsedQuality)
+                            item.toStreamSource(
+                                addonName = task.addonName,
+                                addonId = com.kitsugi.animelist.data.local.WatchHistorySource.stremioAddonId(task.manifestUrl)
                             )
                         }
                         val filteredSources = EpisodeStreamFilter.filterForEpisode(sources, season, episode)

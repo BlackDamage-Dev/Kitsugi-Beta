@@ -9166,6 +9166,20 @@
     <string name="stream_sort_source_order">Source order</string>
     <string name="stream_sort_quality_short">Quality</string>
     <string name="stream_sort_size_short">Size</string>
+    <string name="stream_badge_seeders">%1$s seeders</string>
+    <string name="stream_badge_seeders_short">%1$s seeds</string>
+    <string name="stream_badge_peers">%1$s peers</string>
+    <string name="stream_badge_peers_short">%1$s peers</string>
+    <string name="stream_size_unknown">Size unknown</string>
+    <string name="stream_size_short">Size</string>
+    <string name="stream_badge_subtitle_tracks">Subtitles: %1$s</string>
+    <string name="stream_badge_audio_tracks">Audio: %1$s</string>
+    <string name="stream_badge_internal_sub">Embedded subtitles</string>
+    <string name="stream_badge_audio_tracks_present">Audio track</string>
+    <string name="stream_sort_seeders">Seeders: high to low</string>
+    <string name="stream_filter_download_size">Download size</string>
+    <string name="stream_sources_found">%1$d videos · %2$d sources</string>
+    <string name="stream_size_coverage">%1$d/%2$d sizes known</string>
     <!-- MAL Notification Filters (myanimelist.net/notification sidebar) -->
     <string name="mal_notif_filter_all">All</string>
     <string name="mal_notif_filter_related">New Related Anime</string>

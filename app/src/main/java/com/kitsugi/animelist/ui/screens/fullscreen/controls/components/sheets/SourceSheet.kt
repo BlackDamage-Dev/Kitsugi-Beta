@@ -24,8 +24,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import com.kitsugi.animelist.R
 import com.kitsugi.animelist.data.repository.StreamInfoResolver
+import com.kitsugi.animelist.data.repository.StreamProbe
 import com.kitsugi.animelist.data.repository.StreamSorter
 import com.kitsugi.animelist.data.repository.StreamSource
+import com.kitsugi.animelist.ui.screens.stream.StreamInfoChips
 import com.kitsugi.animelist.ui.theme.KitsugiColors
 import com.kitsugi.animelist.ui.theme.gradient.CircularProgressIndicator
 import com.kitsugi.animelist.ui.theme.gradient.Icon
@@ -139,7 +141,10 @@ fun SourceRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         RadioButton(selected = isSelected, onClick = onClick)
-        Column(modifier = Modifier.weight(1f)) {
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(3.dp),
+        ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -171,6 +176,14 @@ fun SourceRow(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
+            // Boyut + seeder/peer + dil + codec rozetleri (kanıt yoksa gizlenir).
+            StreamInfoChips(
+                stream = source,
+                measured = StreamProbe.cached(source.url),
+                accentColor = KitsugiColors.Accent,
+                compactSwarm = false,
+                gap = 4.dp
+            )
         }
     }
 }

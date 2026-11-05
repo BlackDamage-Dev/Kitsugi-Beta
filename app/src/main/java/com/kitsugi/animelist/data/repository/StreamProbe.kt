@@ -54,6 +54,16 @@ object StreamProbe {
     private val cache = BoundedCache<String, MeasuredStreamInfo>("streamProbe", 200)
 
     /**
+     * Tamamlanan ölçüm sayacı.
+     *
+     * Listede sıralama/filtreler ölçüm sonucunu (gerçek boyut, ses/altyazı dilleri, codec)
+     * kullanır. Ölçüm sonuçları asenkron geldiği için sayaç artmadıkça liste eski bilgiyle
+     * donup kalıyordu. Sayaç yalnızca GERÇEKTEN yeni bir sonuç üretildiğinde artar.
+     */
+    private val _completions = kotlinx.coroutines.flow.MutableStateFlow(0)
+    val completions: kotlinx.coroutines.flow.StateFlow<Int> = _completions
+
+    /**
      * CloudStream kaynakları için **oynatıcıyla aynı** HTTP istemcisi.
      *
      * rapidrame / closeload gibi embed'ler Referer, Cloudflare çerezi ve eklentinin
@@ -136,10 +146,17 @@ object StreamProbe {
      */
     fun isProbeNeeded(stream: StreamSource): Boolean {
         if (!isProbeable(stream)) return false
+        val url = stream.url?.trim().orEmpty()
         val qualityKnown = StreamInfoResolver.csQualityHeightOrNull(stream.qualityValue) != null
         val audioKnown = !stream.providerAudioKind.isNullOrBlank() ||
             stream.providerLanguages.isNotEmpty()
         val subtitlesKnown = stream.subtitles.isNotEmpty()
+        // v2.4.340: boyut bilgisi de ölçüm gerekçesidir. Progressive (mp4/mkv) kaynaklarda
+        // kaynak boyut bildirmediyse HEAD isteği hem canlılık hem GERÇEK boyut verir.
+        // (HLS'te ölçüm boyut üretmez; bu yüzden yalnızca progressive dosyalarda zorlanır.)
+        val sizeKnown = stream.videoSizeBytes != null
+        val sizeObtainable = mediaKind(url) == MediaKind.PROGRESSIVE
+        if (!sizeKnown && sizeObtainable && qualityKnown && audioKnown && subtitlesKnown) return true
         return !(qualityKnown && audioKnown && subtitlesKnown)
     }
 
@@ -197,6 +214,7 @@ object StreamProbe {
         }
 
         cache[key] = result
+        _completions.value += 1
         return result
     }
 
@@ -383,6 +401,8 @@ object StreamProbe {
     // ── HLS ──────────────────────────────────────────────────────────────────
 
     private val RESOLUTION_ATTR = Regex("""RESOLUTION=(\d{2,5})x(\d{2,5})""", RegexOption.IGNORE_CASE)
+    private val BANDWIDTH_ATTR = Regex("""BANDWIDTH=(\d+)""", RegexOption.IGNORE_CASE)
+    private val CODECS_ATTR = Regex("""CODECS="([^"]+)""", RegexOption.IGNORE_CASE)
     private val LANGUAGE_ATTR = Regex("LANGUAGE=\"([^\"]+)\"", RegexOption.IGNORE_CASE)
     private val TYPE_ATTR = Regex("""TYPE=([A-Z\-]+)""", RegexOption.IGNORE_CASE)
 
@@ -397,6 +417,10 @@ object StreamProbe {
         val variantHeights = mutableListOf<Int>()
         val audioLanguages = mutableListOf<String>()
         val subtitleLanguages = mutableListOf<String>()
+        // Varyant CODECS + BANDWIDTH: HLS master playlist'i indirmişken codec'i de
+        // ayrıştırıyoruz (ek istek yok). Böylece kartta "HEVC"/"AV1" gerçekten ölçülmüş olur.
+        val codecs = mutableSetOf<String>()
+        var maxBandwidth = 0L
 
         body.lineSequence().forEach { rawLine ->
             val line = rawLine.trim()
@@ -405,6 +429,14 @@ object StreamProbe {
                     RESOLUTION_ATTR.find(line)?.groupValues?.getOrNull(2)?.toIntOrNull()?.let {
                         variantHeights.add(it)
                     }
+                    BANDWIDTH_ATTR.find(line)?.groupValues?.getOrNull(1)?.toLongOrNull()?.let { bw ->
+                        if (bw > maxBandwidth) maxBandwidth = bw
+                    }
+                    CODECS_ATTR.find(line)?.groupValues?.getOrNull(1)
+                        ?.split(',')
+                        ?.map { it.trim().lowercase(Locale.ROOT) }
+                        ?.filter { it.isNotEmpty() }
+                        ?.let { codecs.addAll(it) }
                 }
                 line.startsWith("#EXT-X-MEDIA", ignoreCase = true) -> {
                     val type = TYPE_ATTR.find(line)?.groupValues?.getOrNull(1)?.uppercase(Locale.ROOT)
@@ -437,7 +469,21 @@ object StreamProbe {
             audioLanguages = audioLanguages.distinct(),
             subtitleLanguages = subtitleLanguages.distinct(),
             sizeBytes = null,
-            failed = false
+            failed = false,
+            // HLS'te toplam dosya boyutu playlist'te YOKTUR (parça parça indirilir) →
+            // uydurma boyut yazmıyoruz; yalnızca codec ve bit hızı raporlanır.
+            maxBandwidthBps = maxBandwidth.takeIf { it > 0 },
+            codec = codecs.firstNotNullOfOrNull { raw ->
+                when {
+                    raw.startsWith("hvc1") || raw.startsWith("hev1") -> "HEVC"
+                    raw.startsWith("avc1") || raw.startsWith("avc3") -> "H.264"
+                    raw.startsWith("av01") -> "AV1"
+                    raw.startsWith("vp09") -> "VP9"
+                    raw.startsWith("mp4a") || raw.startsWith("opus") || raw.startsWith("ac-3") ||
+                        raw.startsWith("ec-3") || raw.startsWith("flac") -> null // ses codec'i
+                    else -> null
+                }
+            }
         )
     }
 
