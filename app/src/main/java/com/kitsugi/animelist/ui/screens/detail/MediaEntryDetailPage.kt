@@ -38,6 +38,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -343,7 +344,13 @@ fun MediaEntryDetailPage(
     }
     val wikiPageIndex = if (wikiPrefs.enabled) tabs.size - 1 else -1
     val pagerState = rememberPagerState(initialPage = 0, pageCount = { tabs.size })
-    val selectedTab = pagerState.currentPage
+    // KASMA FIX (2026-11-05): `pagerState.currentPage` kompozisyonda okunmuyor.
+    // Okunduğunda her sekme geçişinde bu ekranın tamamı (pageContent lambda'ları dahil)
+    // yeniden kompoze oluyor, bu da pager içindeki görünür sekmeyi de yeniden
+    // kompoze etmeye zorluyordu. Sekme değişimi artık snapshotFlow ile dinleniyor.
+    val currentPageFlow = remember(pagerState) {
+        snapshotFlow { pagerState.currentPage }.distinctUntilChanged()
+    }
 
     // Yeni bir entry'ye geçildiğinde tab'ı sıfırla — geri tuşuyla dönüşlerde SIFIRLAMAZ.
     // lastProcessedTrigger, Composition'da yaşayan son işlenmiş trigger değerini saklar.
@@ -357,10 +364,12 @@ fun MediaEntryDetailPage(
     }
 
     // Call loadTab when tab changes
-    LaunchedEffect(displayEntry.id, selectedTab, detailState?.realMalId, detailState?.tmdbId, resolvedTmdbId, detailState == null) {
-        if (selectedTab == wikiPageIndex) return@LaunchedEffect
-        detailDataTabIndexForPage(selectedTab)?.let { dataTabIndex ->
-            viewModel.loadTab(dataTabIndex, displayEntry, detailState?.realMalId)
+    LaunchedEffect(displayEntry.id, detailState?.realMalId, detailState?.tmdbId, resolvedTmdbId, detailState == null, currentPageFlow) {
+        currentPageFlow.collect { page ->
+            if (page == wikiPageIndex) return@collect
+            detailDataTabIndexForPage(page)?.let { dataTabIndex ->
+                viewModel.loadTab(dataTabIndex, displayEntry, detailState?.realMalId)
+            }
         }
     }
 
@@ -602,14 +611,14 @@ fun MediaEntryDetailPage(
                         }
                     }
                     2 -> {
-                        if (selectedTab == DETAIL_VIDEO_PAGE_INDEX) {
-                            EntryVideoTabSlot(
-                                viewModel = viewModel,
-                                detail = detailState,
-                                mediaTitle = displayEntry.title,
-                                primarySource = entry.source
-                            )
-                        }
+                        // KASMA/ÇÖKME FIX (2026-11-05): gereksiz `selectedTab` kontrolü
+                        // kaldırıldı; `page == 2` zaten Videolar sekmesidir.
+                        EntryVideoTabSlot(
+                            viewModel = viewModel,
+                            detail = detailState,
+                            mediaTitle = displayEntry.title,
+                            primarySource = entry.source
+                        )
                     }
                     3 -> EntryCharactersTabSlot(
                         viewModel = viewModel,

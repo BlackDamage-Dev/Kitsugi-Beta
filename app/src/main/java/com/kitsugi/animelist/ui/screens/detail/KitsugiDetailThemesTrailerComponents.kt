@@ -840,7 +840,7 @@ fun KitsugiMediaVideosTab(
                     videoUrl = it.videoUrl,
                     sources = it.sources,
                     localPlaybackUrl = clipLocalPlaybackUrl(findClipRecord(downloads, it.videoUrl), videoDownloads[it.key]),
-                    alternateUrls = it.alternateUrls
+                    alternateUrls = it.safeAlternateUrls
                 )
             }
     }
@@ -854,7 +854,7 @@ fun KitsugiMediaVideosTab(
                     videoUrl = it.videoUrl,
                     sources = it.sources,
                     localPlaybackUrl = clipLocalPlaybackUrl(findClipRecord(downloads, it.videoUrl), videoDownloads[it.key]),
-                    alternateUrls = it.alternateUrls
+                    alternateUrls = it.safeAlternateUrls
                 )
             }
     }
@@ -868,7 +868,7 @@ fun KitsugiMediaVideosTab(
                     videoUrl = it.videoUrl,
                     sources = it.sources,
                     localPlaybackUrl = clipLocalPlaybackUrl(findClipRecord(downloads, it.videoUrl), videoDownloads[it.key]),
-                    alternateUrls = it.alternateUrls
+                    alternateUrls = it.safeAlternateUrls
                 )
             }
     }
@@ -882,7 +882,7 @@ fun KitsugiMediaVideosTab(
                     videoUrl = it.videoUrl,
                     sources = it.sources,
                     localPlaybackUrl = clipLocalPlaybackUrl(findClipRecord(downloads, it.videoUrl), videoDownloads[it.key]),
-                    alternateUrls = it.alternateUrls
+                    alternateUrls = it.safeAlternateUrls
                 )
             }
     }

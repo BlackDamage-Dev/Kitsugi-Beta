@@ -5,6 +5,10 @@
 
 package com.kitsugi.animelist.ui.screens.detail
 
+import com.kitsugi.animelist.ui.utils.detailPagerHeight
+import com.kitsugi.animelist.ui.utils.rememberDetailPagerContentHeightPx
+import com.kitsugi.animelist.ui.utils.rememberDetailPagerMinHeightPx
+
 import com.kitsugi.animelist.data.platform.PlatformErrorCode
 import com.kitsugi.animelist.ui.components.PlatformErrorExplanationBlock
 import com.kitsugi.animelist.ui.components.rememberDetailStickyHeaderVisible
@@ -514,7 +518,11 @@ fun StaffDetailPage(
                             // Tab content rendering
                             item(key = "content") {
                                 val pageHeights = remember { androidx.compose.runtime.mutableStateMapOf<Int, Int>() }
-                                val screenHeightDp = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp
+                                // ── KASMA FIX (2026-11-05) ────────────────────────────────
+                                // Yükseklik yalnızca YERLEŞİM fazında okunur; sekme
+                                // kaydırırken kompozisyon (ve sekme içerikleri) çalışmaz.
+                                val pagerHeightPx = rememberDetailPagerContentHeightPx(pagerState, pageHeights)
+                                val minPagerHeightPx = rememberDetailPagerMinHeightPx()
 
                                 @OptIn(ExperimentalFoundationApi::class)
                                 HorizontalPager(
@@ -525,35 +533,7 @@ fun StaffDetailPage(
                                     verticalAlignment = Alignment.Top,
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .layout { measurable, constraints ->
-                                            val minPagerHeightPx = (screenHeightDp - 64).dp.roundToPx().coerceAtLeast(0)
-                                            val placeable = measurable.measure(
-                                                constraints.copy(
-                                                    minHeight = minPagerHeightPx,
-                                                    maxHeight = androidx.compose.ui.unit.Constraints.Infinity
-                                                )
-                                            )
-                                            val cp = pagerState.currentPage
-                                            val offset = pagerState.currentPageOffsetFraction
-                                            val tp = when {
-                                                offset > 0f -> cp + 1
-                                                offset < 0f -> cp - 1
-                                                else -> cp
-                                            }
-                                            val curH = pageHeights[cp] ?: 0
-                                            val tgtH = pageHeights[tp] ?: curH
-                                            val interpPx = when {
-                                                curH > 0 && tgtH > 0 ->
-                                                    (curH + (tgtH - curH) * kotlin.math.abs(offset)).toInt()
-                                                curH > 0 -> curH
-                                                else -> 0
-                                            }
-                                            val height = (if (interpPx > 0) interpPx.coerceAtLeast(minPagerHeightPx) else placeable.height)
-                                                .coerceIn(minPagerHeightPx, 16_000_000)
-                                            layout(placeable.width, height) {
-                                                placeable.placeRelative(0, 0)
-                                            }
-                                        }
+                                        .detailPagerHeight(pagerHeightPx, minPagerHeightPx)
                                         .clipToBounds()
                                 ) { page ->
                                     Box(

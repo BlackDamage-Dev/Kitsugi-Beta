@@ -5,6 +5,10 @@
 
 package com.kitsugi.animelist.ui.screens.profile
 
+import com.kitsugi.animelist.ui.utils.detailPagerHeight
+import com.kitsugi.animelist.ui.utils.rememberDetailPagerContentHeightPx
+import com.kitsugi.animelist.ui.utils.rememberDetailPagerMinHeightPx
+
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import com.kitsugi.animelist.data.platform.PlatformErrorCode
 import com.kitsugi.animelist.ui.components.PlatformErrorCodeChip
@@ -317,33 +321,23 @@ fun KitsugiUserProfileScreen(
 
                     // ── Pager ─────────────────────────────────────────────
                     item(key = "user_content") {
-                        val density = androidx.compose.ui.platform.LocalDensity.current
                         val pageHeights = remember { androidx.compose.runtime.mutableStateMapOf<Int, Int>() }
-                        val currentPage = pagerState.currentPage
-                        val currentPageOffset = pagerState.currentPageOffsetFraction
-                        val targetPage = if (currentPageOffset > 0f) currentPage + 1 else if (currentPageOffset < 0f) currentPage - 1 else currentPage
-                        val currentH = pageHeights[currentPage] ?: 0
-                        val targetH = pageHeights[targetPage] ?: currentH
-                        val interpolatedH = remember(currentH, targetH, currentPageOffset) {
-                            val px = if (currentH > 0 && targetH > 0) currentH + (targetH - currentH) * kotlin.math.abs(currentPageOffset)
-                            else if (currentH > 0) currentH.toFloat() else 0f
-                            if (px > 0f) with(density) { px.toDp() } else null
-                        }
-                        val screenH = LocalConfiguration.current.screenHeightDp
+                        // ── KASMA FIX (2026-11-05) ────────────────────────────────────────────
+                        // Yükseklik interpolasyonu artık KOMPOZİSYONDA değil, yalnızca YERLEŞİM
+                        // fazında okunur (derivedStateOf + Modifier.layout). Böylece sekme
+                        // kaydırırken kompozisyon ve sekme içerikleri hiç çalışmaz.
+                        val pagerHeightPx = rememberDetailPagerContentHeightPx(pagerState, pageHeights)
+                        val minPagerHeightPx = rememberDetailPagerMinHeightPx()
 
                         androidx.compose.foundation.pager.HorizontalPager(
                             state = pagerState,
                             beyondViewportPageCount = 0,
                             pageSpacing = 12.dp,
                             verticalAlignment = Alignment.Top,
-                            modifier = Modifier.fillMaxWidth()
-                                .layout { measurable, constraints ->
-                                    val minH = with(density) { (screenH - 64).dp.roundToPx() }.coerceAtLeast(0)
-                                    val placeable = measurable.measure(constraints.copy(minHeight = minH, maxHeight = androidx.compose.ui.unit.Constraints.Infinity))
-                                    val h = (interpolatedH?.roundToPx()?.coerceAtLeast(minH) ?: placeable.height)
-                                        .coerceIn(minH, 16_000_000)
-                                    layout(placeable.width, h) { placeable.placeRelative(0, 0) }
-                                }.clipToBounds()
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .detailPagerHeight(pagerHeightPx, minPagerHeightPx)
+                                .clipToBounds()
                         ) { page ->
                             Column(
                                 modifier = Modifier.fillMaxWidth()

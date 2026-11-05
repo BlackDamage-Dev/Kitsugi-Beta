@@ -127,4 +127,30 @@ class MediaVideoItemTest {
         )
         assertTrue(items.all { it.source == "tmdb" })
     }
+
+    @Test
+    fun mediaVideoItemHandlesNullAlternateUrlsGracefully() {
+        // Crash regression test for Task A13 (2026-11-05):
+        // Ensure alternateUrls = null does not throw NPE on instantiation or merge
+        val itemWithNull = MediaVideoItem(
+            key = "test_key",
+            title = "Test Title",
+            videoUrl = "https://example.com/video.mp4",
+            category = MediaVideoCategory.OPENING,
+            source = "test",
+            alternateUrls = null
+        )
+
+        assertTrue(itemWithNull.safeAlternateUrls.isEmpty())
+
+        val merged = mergeAndOrderMediaVideos(listOf(itemWithNull))
+        assertEquals(1, merged.size)
+        assertTrue(merged.first().safeAlternateUrls.isEmpty())
+    }
+
+    @Test
+    fun seedFromDetailReturnsEmptyListOnNullGracefully() {
+        val result = KitsugiMediaVideoAggregator.seedFromDetail(null, "anilist")
+        assertTrue(result.isEmpty())
+    }
 }

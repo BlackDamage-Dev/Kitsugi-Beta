@@ -1991,12 +1991,13 @@ private fun GalleryImagePage(
         offset = Offset.Zero
     }
 
-    val pageOffset = ((pagerState.currentPage - page) + pagerState.currentPageOffsetFraction)
-    val isZoomed = zoomScale > 1f
-
-    val dominoScale = if (isZoomed) 1f else (1f - (abs(pageOffset) * 0.15f)).coerceIn(0.75f, 1f)
-    val dominoAlpha = if (isZoomed) 1f else (1f - (abs(pageOffset) * 0.45f)).coerceIn(0.35f, 1f)
-    val dominoTranslationX = if (isZoomed) 0f else (pageOffset * 60.dp.value)
+    // ── KASMA FIX (2026-11-05) ────────────────────────────────────────────────
+    // `pagerState.currentPageOffsetFraction` artık KOMPOZİSYONDA okunmuyor.
+    // Eskiden her kaydırma karesinde bu sayfanın tamamı (BoxWithConstraints →
+    // SubcomposeLayout dahil) yeniden kompoze ediliyordu; galeride sayfa
+    // geçişleri bu yüzden takılıyordu. Domino değerleri aşağıdaki `graphicsLayer`
+    // bloğunda, yani ÇİZİM fazında hesaplanıyor: kaydırma sırasında yalnızca
+    // katman yeniden çizilir.
     BoxWithConstraints(
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center

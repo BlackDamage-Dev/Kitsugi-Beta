@@ -34,8 +34,11 @@ data class MediaVideoItem(
     val category: MediaVideoCategory,
     val source: String,
     val sources: List<String> = listOf(canonicalVideoSource(source)).filter { it.isNotBlank() },
-    val alternateUrls: List<String> = emptyList()
-)
+    val alternateUrls: List<String>? = emptyList()
+) {
+    /** URL listesi: null veya boş elemanlar asla dışarı sızmaz. */
+    val safeAlternateUrls: List<String> get() = alternateUrls.orEmpty().filter { it.isNotBlank() }
+}
 
 private val RAW_YOUTUBE_ID_REGEX = Regex("^[A-Za-z0-9_-]{8,64}$")
 private val YOUTUBE_WATCH_V_REGEX = Regex("[?&]v=([A-Za-z0-9_-]{8,64})(?:[&#]|$)")
@@ -263,7 +266,7 @@ fun mergeAndOrderMediaVideos(
             val set = LinkedHashSet<String>()
             normSources.forEach { set += it }
             val altSet = LinkedHashSet<String>()
-            normalizedItem.alternateUrls.forEach { altSet += it }
+            normalizedItem.alternateUrls.orEmpty().forEach { altSet += it }
             mergedByKey[dedupKey] = Accumulator(
                 title = normalizedItem.title.trim(),
                 titleSource = normalizedItem.source,
@@ -289,7 +292,7 @@ fun mergeAndOrderMediaVideos(
             }
             existing.category = pickBetterCategory(existing.category, normalizedItem.category)
             normSources.forEach { existing.sources += it }
-            normalizedItem.alternateUrls.forEach { existing.alternateUrls += it }
+            normalizedItem.alternateUrls.orEmpty().forEach { existing.alternateUrls += it }
         }
     }
 

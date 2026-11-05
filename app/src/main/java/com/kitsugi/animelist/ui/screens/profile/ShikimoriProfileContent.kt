@@ -5,6 +5,10 @@
 
 package com.kitsugi.animelist.ui.screens.profile
 
+import com.kitsugi.animelist.ui.utils.detailPagerHeight
+import com.kitsugi.animelist.ui.utils.rememberDetailPagerContentHeightPx
+import com.kitsugi.animelist.ui.utils.rememberDetailPagerMinHeightPx
+
 import com.kitsugi.animelist.ui.theme.gradient.FilterChip
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import com.kitsugi.animelist.ui.theme.gradient.Text
@@ -254,20 +258,13 @@ fun ShikimoriProfileContent(
 
         // ── Pager Content ───────────────────────────────────────────────────
         item(key = "shiki_content") {
-            val density = androidx.compose.ui.platform.LocalDensity.current
             val pageHeights = viewModel.shikimoriPageHeights
-            val currentPage = pagerState.currentPage
-            val currentPageOffset = pagerState.currentPageOffsetFraction
-            val targetPage = if (currentPageOffset > 0f) currentPage + 1 else if (currentPageOffset < 0f) currentPage - 1 else currentPage
-            val currentHeightPx = pageHeights[currentPage] ?: 0
-            val targetHeightPx = pageHeights[targetPage] ?: currentHeightPx
-            val interpolatedHeightDp = remember(currentHeightPx, targetHeightPx, currentPageOffset) {
-                val heightPx = if (currentHeightPx > 0 && targetHeightPx > 0) {
-                    currentHeightPx + (targetHeightPx - currentHeightPx) * kotlin.math.abs(currentPageOffset)
-                } else if (currentHeightPx > 0) currentHeightPx.toFloat() else 0f
-                if (heightPx > 0f) with(density) { heightPx.toDp() } else null
-            }
-            val screenHeightDp = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp
+            // ── KASMA FIX (2026-11-05) ────────────────────────────────────────────
+            // Yükseklik interpolasyonu artık KOMPOZİSYONDA değil, yalnızca YERLEŞİM
+            // fazında okunur (derivedStateOf + Modifier.layout). Böylece sekme
+            // kaydırırken kompozisyon ve sekme içerikleri hiç çalışmaz.
+            val pagerHeightPx = rememberDetailPagerContentHeightPx(pagerState, pageHeights)
+            val minPagerHeightPx = rememberDetailPagerMinHeightPx()
 
             androidx.compose.foundation.pager.HorizontalPager(
                 state = pagerState,
@@ -277,20 +274,7 @@ fun ShikimoriProfileContent(
                 verticalAlignment = Alignment.Top,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .layout { measurable, constraints ->
-                        val minPagerHeightPx = with(density) { (screenHeightDp - 64).dp.roundToPx() }.coerceAtLeast(0)
-                        val placeable = measurable.measure(
-                            constraints.copy(
-                                minHeight = minPagerHeightPx,
-                                maxHeight = androidx.compose.ui.unit.Constraints.Infinity
-                            )
-                        )
-                        val height = (interpolatedHeightDp?.roundToPx()?.coerceAtLeast(minPagerHeightPx) ?: placeable.height)
-                            .coerceIn(minPagerHeightPx, 16_000_000)
-                        layout(placeable.width, height) {
-                            placeable.placeRelative(0, 0)
-                        }
-                    }
+                    .detailPagerHeight(pagerHeightPx, minPagerHeightPx)
                     .clipToBounds()
             ) { page ->
                 Column(

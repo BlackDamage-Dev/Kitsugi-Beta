@@ -43,6 +43,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -405,7 +406,13 @@ fun ApiResultDetailPage(
     }
     val wikiPageIndex = if (wikiPrefs.enabled) tabs.size - 1 else -1
     val pagerState = rememberPagerState(initialPage = 0, pageCount = { tabs.size })
-    val selectedTab = pagerState.currentPage
+    // KASMA FIX (2026-11-05): `pagerState.currentPage` kompozisyonda okunmuyor.
+    // Okunduğunda her sekme geçişinde bu ekranın tamamı (pageContent lambda'ları dahil)
+    // yeniden kompoze oluyor, bu da pager içindeki görünür sekmeyi de yeniden
+    // kompoze etmeye zorluyordu. Sekme değişimi artık snapshotFlow ile dinleniyor.
+    val currentPageFlow = remember(pagerState) {
+        snapshotFlow { pagerState.currentPage }.distinctUntilChanged()
+    }
 
     var activeEpisodeForOptions by remember { mutableStateOf<KitsugiStreamingEpisode?>(null) }
     var showWatchDialog by remember { mutableStateOf(false) }
@@ -463,15 +470,17 @@ fun ApiResultDetailPage(
         result.source,
         result.malId,
         result.type,
-        selectedTab,
         displayResult.realMalId,
         detailState?.tmdbId,
         resolvedTmdbId,
-        detailState == null
+        detailState == null,
+        currentPageFlow
     ) {
-        if (selectedTab != wikiPageIndex) {
-            detailDataTabIndexForPage(selectedTab)?.let { dataTabIndex ->
-                viewModel.loadTab(dataTabIndex, result, displayResult.realMalId)
+        currentPageFlow.collect { page ->
+            if (page != wikiPageIndex) {
+                detailDataTabIndexForPage(page)?.let { dataTabIndex ->
+                    viewModel.loadTab(dataTabIndex, result, displayResult.realMalId)
+                }
             }
         }
     }
@@ -733,14 +742,17 @@ fun ApiResultDetailPage(
                         }
                     }
                     2 -> {
-                        if (selectedTab == DETAIL_VIDEO_PAGE_INDEX) {
-                            ApiVideoTabSlot(
-                                viewModel = viewModel,
-                                detail = detailState,
-                                mediaTitle = displayResult.title,
-                                primarySource = result.source
-                            )
-                        }
+                        // KASMA/ÇÖKME FIX (2026-11-05): gereksiz `selectedTab` kontrolü
+                        // kaldırıldı. `page == 2` zaten Videolar sekmesidir; kontrol
+                        // yüzünden sekme geçişi sırasında içerik bir kare boyunca boş
+                        // kalıyor ve bu ekranın tamamının yeniden kompoze olmasına yol
+                        // açan bir state okuması yapılıyordu.
+                        ApiVideoTabSlot(
+                            viewModel = viewModel,
+                            detail = detailState,
+                            mediaTitle = displayResult.title,
+                            primarySource = result.source
+                        )
                     }
                     3 -> ApiCharactersTabSlot(
                         viewModel = viewModel,

@@ -70,56 +70,61 @@ object KitsugiMediaVideoAggregator {
         trailerSourceOverride: String? = null
     ): List<MediaVideoItem> {
         if (detail == null) return emptyList()
-        val primarySource = canonicalVideoSource(source)
-        val raw = mutableListOf<MediaVideoItem>()
+        return runCatching {
+            val primarySource = canonicalVideoSource(source)
+            val raw = mutableListOf<MediaVideoItem>()
 
-        detail.trailerUrl?.trim()?.takeIf { it.isNotEmpty() }?.let { tUrl ->
-            val explicitSource = canonicalVideoSource(trailerSourceOverride)
-                .ifEmpty { canonicalVideoSource(detail.trailerSource) }
-            val tSource = when {
-                explicitSource.isNotEmpty() -> explicitSource
-                primarySource in setOf("bangumi", "fandom") -> ""
-                else -> primarySource
+            detail.trailerUrl?.trim()?.takeIf { it.isNotEmpty() }?.let { tUrl ->
+                val explicitSource = canonicalVideoSource(trailerSourceOverride)
+                    .ifEmpty { canonicalVideoSource(detail.trailerSource) }
+                val tSource = when {
+                    explicitSource.isNotEmpty() -> explicitSource
+                    primarySource in setOf("bangumi", "fandom") -> ""
+                    else -> primarySource
+                }
+                raw += MediaVideoItem(
+                    key = "seed_trailer_${tSource.ifEmpty { "ext" }}",
+                    title = KitsugiStrings.get(R.string.inline_preview_c9d9dd2),
+                    videoUrl = tUrl,
+                    category = MediaVideoCategory.TRAILER,
+                    source = tSource
+                )
             }
-            raw += MediaVideoItem(
-                key = "seed_trailer_${tSource.ifEmpty { "ext" }}",
-                title = KitsugiStrings.get(R.string.inline_preview_c9d9dd2),
-                videoUrl = tUrl,
-                category = MediaVideoCategory.TRAILER,
-                source = tSource
-            )
-        }
 
-        detail.openings.forEachIndexed { idx, theme ->
-            val src = inferThemeSource(theme, primarySource)
-            val category = if (src == "tmdb") {
-                classifyTmdbSeedTheme(theme.label)
-            } else {
-                MediaVideoCategory.OPENING
+            detail.openings.forEachIndexed { idx, theme ->
+                val src = inferThemeSource(theme, primarySource)
+                val category = if (src == "tmdb") {
+                    classifyTmdbSeedTheme(theme.label)
+                } else {
+                    MediaVideoCategory.OPENING
+                }
+                raw += MediaVideoItem(
+                    key = "seed_op_${src}_$idx",
+                    title = theme.label,
+                    videoUrl = theme.videoUrl,
+                    category = category,
+                    source = src,
+                    alternateUrls = theme.alternateVideoUrls.orEmpty()
+                )
             }
-            raw += MediaVideoItem(
-                key = "seed_op_${src}_$idx",
-                title = theme.label,
-                videoUrl = theme.videoUrl,
-                category = category,
-                source = src,
-                alternateUrls = theme.alternateVideoUrls
-            )
-        }
 
-        detail.endings.forEachIndexed { idx, theme ->
-            val src = inferThemeSource(theme, primarySource)
-            raw += MediaVideoItem(
-                key = "seed_ed_${src}_$idx",
-                title = theme.label,
-                videoUrl = theme.videoUrl,
-                category = MediaVideoCategory.ENDING,
-                source = src,
-                alternateUrls = theme.alternateVideoUrls
-            )
-        }
+            detail.endings.forEachIndexed { idx, theme ->
+                val src = inferThemeSource(theme, primarySource)
+                raw += MediaVideoItem(
+                    key = "seed_ed_${src}_$idx",
+                    title = theme.label,
+                    videoUrl = theme.videoUrl,
+                    category = MediaVideoCategory.ENDING,
+                    source = src,
+                    alternateUrls = theme.alternateVideoUrls.orEmpty()
+                )
+            }
 
-        return mergeAndOrderMediaVideos(raw, preferredSource = primarySource)
+            mergeAndOrderMediaVideos(raw, preferredSource = primarySource)
+        }.getOrElse { t ->
+            Log.w(TAG, "seedFromDetail düştü: ${t.message}", t)
+            emptyList()
+        }
     }
 
     private fun inferThemeSource(theme: KitsugiTheme, fallbackSource: String): String {
@@ -691,7 +696,7 @@ object KitsugiMediaVideoAggregator {
                         videoUrl = theme.videoUrl,
                         category = MediaVideoCategory.OPENING,
                         source = "animethemes",
-                        alternateUrls = theme.alternateVideoUrls
+                        alternateUrls = theme.alternateVideoUrls.orEmpty()
                     )
                 }
                 eds.forEachIndexed { idx, theme ->
@@ -701,7 +706,7 @@ object KitsugiMediaVideoAggregator {
                         videoUrl = theme.videoUrl,
                         category = MediaVideoCategory.ENDING,
                         source = "animethemes",
-                        alternateUrls = theme.alternateVideoUrls
+                        alternateUrls = theme.alternateVideoUrls.orEmpty()
                     )
                 }
                 return items

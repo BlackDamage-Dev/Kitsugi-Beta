@@ -51,8 +51,12 @@ import com.kitsugi.animelist.ui.theme.LocalIsTv
 import com.kitsugi.animelist.ui.theme.LocalIsTvDevice
 import com.kitsugi.animelist.ui.theme.LocalKitsugiAccent
 import com.kitsugi.animelist.ui.utils.KitsugiScrollDefaults
+import com.kitsugi.animelist.ui.utils.detailPagerHeight
 import com.kitsugi.animelist.ui.utils.dpadVerticalFastScroll
+import com.kitsugi.animelist.ui.utils.rememberDetailPagerContentHeightPx
+import com.kitsugi.animelist.ui.utils.rememberDetailPagerMinHeightPx
 import com.kitsugi.animelist.ui.utils.tvClickable
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import androidx.compose.ui.res.stringResource
 import com.kitsugi.animelist.R
@@ -102,7 +106,16 @@ fun DetailPageScaffold(
 
     val leftPanelFocusRequester = remember { FocusRequester() }
     val tabBarFocusRequester = remember { FocusRequester() }
-    val selectedTab by remember(pagerState) { derivedStateOf { pagerState.currentPage } }
+    // ── KASMA FIX (2026-11-05) ────────────────────────────────────────────────
+    // `pagerState.currentPage` burada KOMPOZİSYONDA okunmaz. Eskiden okunuyordu ve
+    // her sekme geçişinde tüm detay iskeleti (sticky başlık + tab bar + HorizontalPager
+    // + görünür sayfa içeriği) yeniden kompoze ediliyordu. Bu da özellikle Resimler
+    // (yüzlerce görselli) ve Videolar sekmeleri arasında kaydırırken kare düşmesine
+    // yol açıyordu. Sekme barının otomatik kaydırması artık `snapshotFlow` ile,
+    // çip seçim durumu ise yalnızca ilgili çipin kendi kapsamında okunuyor.
+    val currentPageFlow = remember(pagerState) {
+        snapshotFlow { pagerState.currentPage }.distinctUntilChanged()
+    }
     // Dikey modda LazyColumn öğeleri: 0 = "hero", 1 = stickyHeader("tabs"), 2 = "content".
     // stickyHeader tepeye sabitlendiğinde firstVisibleItemIndex == 1 olur ve kaydırma boyunca 1 kalır;
     // bu nedenle showAtIndex = 1, hideAtIndex = 0 (88.dp histerezis ile sıfır titreşim) kullanılır.
@@ -190,8 +203,10 @@ fun DetailPageScaffold(
                                     .weight(rightPanelWeight)
                                     .fillMaxSize()
                             ) {
-                                LaunchedEffect(selectedTab) {
-                                    tabListState.animateScrollToItem(selectedTab)
+                                LaunchedEffect(currentPageFlow) {
+                                    currentPageFlow.collect { page ->
+                                        tabListState.animateScrollToItem(page)
+                                    }
                                 }
                                 LazyRow(
                                     state = tabListState,
@@ -208,7 +223,7 @@ fun DetailPageScaffold(
                                     ) { index, tabTitle ->
                                         DetailTabChip(
                                             title = tabTitle,
-                                            isSelected = selectedTab == index,
+                                            isSelected = pagerState.currentPage == index,
                                             accentColor = accentColor,
                                             onClick = { onSelectTab(index) }
                                         )
@@ -270,14 +285,16 @@ fun DetailPageScaffold(
                                 // ── Sekme Barı — STICKY HEADER ──
                                 stickyHeader(key = "tabs") {
                                     val stickyAccent = LocalKitsugiAccent.current
-                                    LaunchedEffect(selectedTab) {
-                                        val itemInfo = tabListState.layoutInfo.visibleItemsInfo
-                                            .firstOrNull { it.index == selectedTab }
-                                        if (itemInfo != null) {
-                                            val centerOffset = (tabListState.layoutInfo.viewportEndOffset - itemInfo.size) / 2
-                                            tabListState.animateScrollToItem(selectedTab, -centerOffset)
-                                        } else {
-                                            tabListState.animateScrollToItem(selectedTab)
+                                    LaunchedEffect(tabListState, currentPageFlow) {
+                                        currentPageFlow.collect { page ->
+                                            val itemInfo = tabListState.layoutInfo.visibleItemsInfo
+                                                .firstOrNull { it.index == page }
+                                            if (itemInfo != null) {
+                                                val centerOffset = (tabListState.layoutInfo.viewportEndOffset - itemInfo.size) / 2
+                                                tabListState.animateScrollToItem(page, -centerOffset)
+                                            } else {
+                                                tabListState.animateScrollToItem(page)
+                                            }
                                         }
                                     }
 
@@ -329,7 +346,7 @@ fun DetailPageScaffold(
                                             ) { index, tabTitle ->
                                                 DetailTabChip(
                                                     title = tabTitle,
-                                                    isSelected = selectedTab == index,
+                                                    isSelected = pagerState.currentPage == index,
                                                     accentColor = stickyAccent,
                                                     onClick = { onSelectTab(index) }
                                                 )
@@ -346,53 +363,40 @@ fun DetailPageScaffold(
 
                                 // ── Sekme İçerikleri ──
                                 item(key = "content") {
+                                    /**
+                                     * ── KASMA FIX (2026-11-05) ────────────────────────────────
+                                     * Eski kod `pagerState.currentPageOffsetFraction` değerini
+                                     * KOMPOZİSYONDA okuyup sayfa yüksekliğini hesaplıyordu.
+                                     * `currentPageOffsetFraction` kaydırma boyunca her karede değiştiği
+                                     * için bu, parmağı hareket ettirdiğiniz HER KAREde `item(key = "content")`
+                                     * kapsamının (yani HorizontalPager + görünür sayfanın tamamının)
+                                     * yeniden kompoze edilmesi demekti. 245 görselli Resimler sekmesi
+                                     * açıkken bu, kare süresini 300–1200 ms'ye çıkarıyordu.
+                                     *
+                                     * Yeni yaklaşım: yükseklik `derivedStateOf` içinde tutulur ve
+                                     * YALNIZCA LAYOUT fazında (`Modifier.layout` içinde) okunur.
+                                     * Snapshot sisteminde layout fazındaki okuma sadece layout'u
+                                     * geçersiz kılar; kompozisyon atlanır. Böylece kaydırma
+                                     * sırasında sayfa içerikleri hiç yeniden kompoze olmaz.
+                                     */
                                     val pageHeights = remember { mutableStateMapOf<Int, Int>() }
-                                    // PERF: pagerState.currentPageOffsetFraction ve pageHeights okumaları
-                                    // composition yerine doğrudan Modifier.layout fazına taşındı.
-                                    // Böylece yatay sekme kaydırma (60-120fps) ve sekme boyu güncellemeleri
-                                    // sıfır recomposition ile yalnızca yerleşim fazında işlenir.
-                                    val screenHeightDp = LocalConfiguration.current.screenHeightDp
+                                    val pagerHeightPxState = rememberDetailPagerContentHeightPx(pagerState, pageHeights)
+                                    val minPagerHeightPx = rememberDetailPagerMinHeightPx()
 
                                     if (!pagerBodyReady) {
                                         Spacer(modifier = Modifier.fillMaxWidth().height(600.dp))
                                     } else {
                                         HorizontalPager(
-                                        state = pagerState,
-                                        userScrollEnabled = !isTv,
-                                        beyondViewportPageCount = 0,
-                                        pageSpacing = 12.dp,
-                                        verticalAlignment = Alignment.Top,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .layout { measurable, constraints ->
-                                                val minPagerHeightPx = (screenHeightDp - 64).dp.roundToPx().coerceAtLeast(0)
-                                                val placeable = measurable.measure(
-                                                    constraints.copy(
-                                                        minHeight = minPagerHeightPx,
-                                                        maxHeight = androidx.compose.ui.unit.Constraints.Infinity
-                                                    )
-                                                )
-                                                val cp = pagerState.currentPage
-                                                val offset = pagerState.currentPageOffsetFraction
-                                                val tp = when {
-                                                    offset > 0f -> cp + 1
-                                                    offset < 0f -> cp - 1
-                                                    else -> cp
-                                                }
-                                                val curH = pageHeights[cp] ?: 0
-                                                val tgtH = pageHeights[tp] ?: curH
-                                                val interpPx = when {
-                                                    curH > 0 && tgtH > 0 ->
-                                                        (curH + (tgtH - curH) * kotlin.math.abs(offset)).toInt()
-                                                    curH > 0 -> curH
-                                                    else -> 0
-                                                }
-                                                val height = (if (interpPx > 0) interpPx.coerceAtLeast(minPagerHeightPx) else placeable.height)
-                                                    .coerceIn(minPagerHeightPx, 16_000_000)
-                                                layout(placeable.width, height) { placeable.placeRelative(0, 0) }
-                                            }
-                                            .clipToBounds()
-                                    ) { page ->
+                                            state = pagerState,
+                                            userScrollEnabled = !isTv,
+                                            beyondViewportPageCount = 0,
+                                            pageSpacing = 12.dp,
+                                            verticalAlignment = Alignment.Top,
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .detailPagerHeight(pagerHeightPxState, minPagerHeightPx)
+                                                .clipToBounds()
+                                        ) { page ->
                                         Box(
                                             modifier = Modifier
                                                 .fillMaxWidth()
