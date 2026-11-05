@@ -146,7 +146,6 @@ import com.kitsugi.animelist.ui.screens.manga.MangaBrowseScreen
 import com.kitsugi.animelist.ui.screens.manga.MangaBrowseViewModel
 import com.kitsugi.animelist.ui.screens.manga.MangaDetailScreen
 import com.kitsugi.animelist.ui.screens.manga.MangaReaderScreen
-import com.kitsugi.animelist.ui.screens.manga.MangaScreen
 import com.kitsugi.animelist.ui.screens.manga.MangaSourceHealthScreen
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -183,7 +182,7 @@ fun AppRoot(
     val addonViewModel: AddonViewModel = viewModel()
     val mangaViewModel: MangaViewModel = viewModel()
     val mangaBrowseViewModel: MangaBrowseViewModel = viewModel(
-        factory = MangaBrowseViewModel.Factory(mangaViewModel.mangaRepository)
+        factory = MangaBrowseViewModel.Factory(mangaViewModel.mangaRepository, context.applicationContext)
     )
     val updateViewModel: AppUpdateViewModel = viewModel()
     val updateUiState by updateViewModel.uiState.collectAsState()
@@ -1298,10 +1297,18 @@ private fun AppNavigationContent(
                                     )
                                 )
                             } else {
-                                navState.openMangaBrowse(entry.title, entry.id)
+                                navState.openMangaBrowse(
+                                    query = entry.title,
+                                    mediaId = entry.id,
+                                    alternates = listOfNotNull(entry.titleEnglish, entry.titleJapanese),
+                                )
                             }
                         } else {
-                            navState.openMangaBrowse(entry.title, entry.id)
+                            navState.openMangaBrowse(
+                                query = entry.title,
+                                mediaId = entry.id,
+                                alternates = listOfNotNull(entry.titleEnglish, entry.titleJapanese),
+                            )
                         }
                     },
                     triggerSearch = triggerSearch,

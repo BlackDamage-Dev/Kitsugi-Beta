@@ -147,6 +147,19 @@ fun TvMangaReaderScreen(
         screenFocusRequester.requestFocusAfterFrames(frames = 2)
     }
 
+    // Aynı bölümün birden çok çevirmeni varsa telefon okuyucusunda ayrıntılı bir
+    // seçim penceresi açılıyor. TV'de HUD'u bölmemek için ön seçili sürüm
+    // (hatırlanan çevirmen → ilerlemesi olan → en yeni) sessizce açılır.
+    LaunchedEffect(uiState.pendingChoice?.groupKey, uiState.pendingChoice?.variants?.size) {
+        val request = uiState.pendingChoice ?: return@LaunchedEffect
+        val chosen = request.preselected ?: return@LaunchedEffect
+        viewModel.confirmChapterChoice(
+            chapter = chosen.chapter,
+            rememberScanlator = true,
+            autoContinue = false,
+        )
+    }
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -293,6 +306,7 @@ fun TvMangaReaderScreen(
                     fitMode = uiState.fitMode,
                     hasNextChapter = viewModel.hasNextChapter,
                     nextChapterName = viewModel.nextChapterName,
+                    nextChapterVariantCount = viewModel.nextChapterVariantCount,
                     onGoToNextChapter = { viewModel.goToNextChapter() },
                     onCenterTap = {
                         hudVisible = !hudVisible
@@ -481,9 +495,9 @@ fun TvMangaReaderScreen(
                         // Sayfa İlerleme Metni
                         val currentText = "${currentPage + 1} / ${pages.size}"
                         val readingLabel = when (readingMode) {
-                            ReadingMode.RightToLeft -> "Sağdan Sola"
-                            ReadingMode.LeftToRight -> "Soldan Sağa"
-                            ReadingMode.Vertical -> "Dikey"
+                            ReadingMode.RightToLeft -> stringResource(R.string.manga_direction_rtl)
+                            ReadingMode.LeftToRight -> stringResource(R.string.manga_direction_ltr)
+                            ReadingMode.Vertical -> stringResource(R.string.manga_direction_vertical)
                             ReadingMode.Webtoon -> "Webtoon"
                         }
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {

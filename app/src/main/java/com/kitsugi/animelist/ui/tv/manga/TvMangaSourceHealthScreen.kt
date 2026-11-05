@@ -568,11 +568,11 @@ private fun TvHealthDetailPanel(
             }
             // Ortalama süreler
             if (stats.avgSearchMs > 0 || stats.avgDetailsMs > 0) {
-                TvHealthStatRow("Ortalama Arama", "${stats.avgSearchMs} ms")
+                TvHealthStatRow(stringResource(R.string.manga_health_metric_search), "${stats.avgSearchMs} ms")
                 TvHealthStatRow("Ortalama Detay", "${stats.avgDetailsMs} ms")
-                TvHealthStatRow("Ortalama Bölüm Listesi", "${stats.avgChapterMs} ms")
+                TvHealthStatRow(stringResource(R.string.manga_health_avg_chapter_list), "${stats.avgChapterMs} ms")
                 TvHealthStatRow("Ortalama Sayfa Listesi", "${stats.avgPageMs} ms")
-                TvHealthStatRow("Ortalama Görsel", "${stats.avgImageMs} ms")
+                TvHealthStatRow(stringResource(R.string.manga_health_avg_image), "${stats.avgImageMs} ms")
             } else {
                 Text(
                     stringResource(R.string.inline_no_statistics_yet_run_a_5ba60f7),
@@ -592,13 +592,13 @@ private fun TvHealthDetailPanel(
 
         // Sağlık durumu açıklaması
         val healthDescription = when (health) {
-            SourceHealthStatus.Healthy -> "Bu kaynak tam olarak çalışıyor. Arama, bölüm listesi ve sayfa yükleme başarılı."
-            SourceHealthStatus.Degraded -> "Kaynak yavaş ya da tutarsız yanıt veriyor. Bazı istekler zaman aşımına uğruyor olabilir."
-            SourceHealthStatus.Broken -> "Kaynak şu an erişilemiyor. URL değişmiş veya site kapalı olabilir."
-            SourceHealthStatus.CaptchaRequired -> "Kaynak CAPTCHA doğrulaması gerektiriyor. WebView ile açılması gerekebilir."
-            SourceHealthStatus.RateLimited -> "Kaynak çok fazla istek yapıldığı için geçici olarak engelledi. Birkaç dakika bekleyin."
-            SourceHealthStatus.Disabled -> "Bu kaynak devre dışı bırakılmış."
-            SourceHealthStatus.Unknown -> "Sağlık durumu henüz kontrol edilmedi. Hızlı kontrol yapın."
+            SourceHealthStatus.Healthy -> stringResource(R.string.manga_source_ok_desc)
+            SourceHealthStatus.Degraded -> stringResource(R.string.manga_source_slow_desc)
+            SourceHealthStatus.Broken -> stringResource(R.string.manga_source_broken_desc)
+            SourceHealthStatus.CaptchaRequired -> stringResource(R.string.manga_source_captcha_desc)
+            SourceHealthStatus.RateLimited -> stringResource(R.string.manga_source_rate_limited_desc)
+            SourceHealthStatus.Disabled -> stringResource(R.string.manga_source_disabled_desc)
+            SourceHealthStatus.Unknown -> stringResource(R.string.manga_source_unknown_desc)
         }
         Box(
             modifier = Modifier
@@ -700,11 +700,11 @@ private fun TvHealthStatRow(label: String, value: String) {
 
 @Composable
 private fun healthLabel(health: SourceHealthStatus): Pair<String, Color> = when (health) {
-    SourceHealthStatus.Healthy -> "Sağlıklı" to KitsugiColors.AccentGreen
-    SourceHealthStatus.Degraded -> "Yavaş" to Color(0xFFFF9800)
-    SourceHealthStatus.Broken -> "Bozuk" to KitsugiColors.AccentRed
-    SourceHealthStatus.CaptchaRequired -> "CAPTCHA" to Color(0xFFFF9800)
-    SourceHealthStatus.RateLimited -> "Limit Aşıldı" to Color(0xFFFF9800)
-    SourceHealthStatus.Disabled -> "Devre Dışı" to KitsugiColors.TextMuted
-    SourceHealthStatus.Unknown -> "Bilinmiyor" to KitsugiColors.TextMuted
+    SourceHealthStatus.Healthy -> stringResource(R.string.manga_health_healthy) to KitsugiColors.AccentGreen
+    SourceHealthStatus.Degraded -> stringResource(R.string.manga_health_degraded) to Color(0xFFFF9800)
+    SourceHealthStatus.Broken -> stringResource(R.string.manga_health_broken) to KitsugiColors.AccentRed
+    SourceHealthStatus.CaptchaRequired -> stringResource(R.string.manga_health_captcha) to Color(0xFFFF9800)
+    SourceHealthStatus.RateLimited -> stringResource(R.string.manga_health_rate_limited) to Color(0xFFFF9800)
+    SourceHealthStatus.Disabled -> stringResource(R.string.manga_health_disabled) to KitsugiColors.TextMuted
+    SourceHealthStatus.Unknown -> stringResource(R.string.manga_health_unknown) to KitsugiColors.TextMuted
 }

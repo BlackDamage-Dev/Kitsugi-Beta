@@ -377,6 +377,8 @@ object KitsugiIcons {
     val MapPin: ImageVector by lazy { build("MapPin", listOf("M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0", "M9.0 10.0a3.0 3.0 0 1 0 6.0 0a3.0 3.0 0 1 0 -6.0 0Z")) }
     /** Lucide `maximize`. */
     val Maximize: ImageVector by lazy { build("Maximize", listOf("M8 3H5a2 2 0 0 0-2 2v3", "M21 8V5a2 2 0 0 0-2-2h-3", "M3 16v3a2 2 0 0 0 2 2h3", "M16 21h3a2 2 0 0 0 2-2v-3")) }
+    /** Lucide `minimize`. */
+    val Minimize: ImageVector by lazy { build("Minimize", listOf("M8 3v3a2 2 0 0 1-2 2H3", "M21 8h-3a2 2 0 0 1-2-2V3", "M3 16h3a2 2 0 0 1 2 2v3", "M16 21v-3a2 2 0 0 1 2-2h3")) }
     /** Lucide `medal`. */
     val Medal: ImageVector by lazy { build("Medal", listOf("M7.21 15 2.66 7.14a2 2 0 0 1 .13-2.2L4.4 2.8A2 2 0 0 1 6 2h12a2 2 0 0 1 1.6.8l1.6 2.14a2 2 0 0 1 .14 2.2L16.79 15", "M11 12 5.12 2.2", "m13 12 5.88-9.8", "M8 7h8", "M7.0 17.0a5.0 5.0 0 1 0 10.0 0a5.0 5.0 0 1 0 -10.0 0Z", "M12 18v-2h-.5")) }
     /** Lucide `menu`. */
@@ -874,6 +876,11 @@ object KitsugiIcons {
     val ExitToApp: ImageVector get() = LogIn
     val HelpOutline: ImageVector get() = Help
     val SportsEsports: ImageVector get() = Gamepad2
+    val RadioButtonUnchecked: ImageVector get() = Circle
+    val CallMerge: ImageVector get() = ArrowLeftRight
+    val CallSplit: ImageVector get() = ArrowUpDown
+    val FullscreenExit: ImageVector get() = Minimize
+    val ViewAgenda: ImageVector get() = Rows3
 
     val Rounded: KitsugiIcons get() = this
     val Default: KitsugiIcons get() = this

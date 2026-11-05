@@ -38,11 +38,20 @@ class AppNavigationState(
     /** Eklenti Portalı'ndan tek kaynakla açılış: seçili kaynağın stableSourceKey'i. */
     var mangaBrowseSourceKey by mutableStateOf<String?>(null)
         private set
+    /** Aynı eserin diğer dillerdeki başlıkları (romaji / İngilizce / Japonca). */
+    var mangaBrowseAlternates by mutableStateOf<List<String>>(emptyList())
+        private set
 
-    fun openMangaBrowse(query: String? = null, mediaId: Int? = null, sourceKey: String? = null) {
+    fun openMangaBrowse(
+        query: String? = null,
+        mediaId: Int? = null,
+        sourceKey: String? = null,
+        alternates: List<String> = emptyList(),
+    ) {
         mangaBrowseQuery = query
         mangaBrowseMediaId = mediaId
         mangaBrowseSourceKey = sourceKey
+        mangaBrowseAlternates = alternates.filter { it.isNotBlank() }.distinct()
         mangaBrowseOpen = true
     }
 
@@ -51,6 +60,7 @@ class AppNavigationState(
         mangaBrowseQuery = null
         mangaBrowseMediaId = null
         mangaBrowseSourceKey = null
+        mangaBrowseAlternates = emptyList()
     }
 
     var mangaSourceHealthOpen by mutableStateOf(false)

@@ -72,6 +72,7 @@ import com.kitsugi.animelist.ui.utils.requestFocusAfterFrames
 import com.kitsugi.animelist.ui.utils.tvClickable
 import androidx.compose.ui.res.stringResource
 import com.kitsugi.animelist.R
+import com.kitsugi.animelist.ui.screens.manga.labelRes
 
 /**
  * WP-13 — TV-optimize edilmiş Manga Detail ve Bölüm listesi ekranı.
@@ -248,7 +249,7 @@ fun TvMangaDetailScreen(
                                     .padding(horizontal = 8.dp, vertical = 3.dp)
                             ) {
                                 Text(
-                                    text = details.status.label(),
+                                    text = stringResource(details.status.labelRes()),
                                     color = KitsugiColors.AccentBlue,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.SemiBold
@@ -315,7 +316,7 @@ fun TvMangaDetailScreen(
                     Text(
                         text = when {
                             resume != null -> stringResource(R.string.devam_et_x, resume.name)
-                            else -> "Baştan Oku"
+                            else -> stringResource(R.string.ui_manga_resume_from_beginning)
                         },
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Bold,
@@ -489,12 +490,3 @@ private fun TvChapterListItem(
     }
 }
 
-private fun MangaStatus.label(): String = when (this) {
-    MangaStatus.Ongoing -> "Devam Ediyor"
-    MangaStatus.Completed -> "Tamamlandı"
-    MangaStatus.Licensed -> "Lisanslı"
-    MangaStatus.PublicationComplete -> "Yayın Tamamlandı"
-    MangaStatus.Cancelled -> "İptal Edildi"
-    MangaStatus.OnHiatus -> "Ara Verildi"
-    MangaStatus.Unknown -> "Bilinmiyor"
-}

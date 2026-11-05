@@ -1273,13 +1273,13 @@ private fun TvExtSourceRow(
 @Composable
 private fun TvExtHealthBadge(health: SourceHealthStatus) {
     val (label, color) = when (health) {
-        SourceHealthStatus.Healthy -> "Sağlıklı" to KitsugiColors.AccentGreen
-        SourceHealthStatus.Degraded -> "Yavaş" to Color(0xFFFF9800)
-        SourceHealthStatus.Broken -> "Bozuk" to KitsugiColors.AccentRed
-        SourceHealthStatus.CaptchaRequired -> "CAPTCHA" to Color(0xFFFF9800)
-        SourceHealthStatus.RateLimited -> "Limit Aşıldı" to Color(0xFFFF9800)
-        SourceHealthStatus.Disabled -> "Devre Dışı" to KitsugiColors.TextMuted
-        SourceHealthStatus.Unknown -> "?" to KitsugiColors.TextMuted
+        SourceHealthStatus.Healthy -> stringResource(R.string.manga_health_healthy) to KitsugiColors.AccentGreen
+        SourceHealthStatus.Degraded -> stringResource(R.string.manga_health_degraded) to Color(0xFFFF9800)
+        SourceHealthStatus.Broken -> stringResource(R.string.manga_health_broken) to KitsugiColors.AccentRed
+        SourceHealthStatus.CaptchaRequired -> stringResource(R.string.manga_health_captcha) to Color(0xFFFF9800)
+        SourceHealthStatus.RateLimited -> stringResource(R.string.manga_health_rate_limited) to Color(0xFFFF9800)
+        SourceHealthStatus.Disabled -> stringResource(R.string.manga_health_disabled) to KitsugiColors.TextMuted
+        SourceHealthStatus.Unknown -> stringResource(R.string.manga_health_unknown) to KitsugiColors.TextMuted
     }
     Box(
         modifier = Modifier

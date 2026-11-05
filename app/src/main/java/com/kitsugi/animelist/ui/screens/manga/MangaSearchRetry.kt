@@ -14,7 +14,11 @@ data class MangaSourceFetchState(
     /** Kaynağın manga hata kodu (KTS-SRC-...); hata yoksa null. */
     val errorCode: String? = null,
     val currentPage: Int = 1,
-    val hasNextPage: Boolean = true
+    val hasNextPage: Boolean = true,
+    /** Bu kaynakta sonuç getiren sorgu (alternatif başlık olabilir) — sayfalama bunu kullanır. */
+    val resolvedQuery: String? = null,
+    /** Kaç farklı başlık denendi (çok dilli arama göstergesi). */
+    val titleAttempts: Int = 0,
 )
 
 /** Explicit retry uses the failed/visible sources, not the automatic cooldown-filtered candidates. */

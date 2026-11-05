@@ -317,8 +317,8 @@ private fun ReposTab(
                             fontWeight = FontWeight.Bold, fontSize = 14.sp)
                         Text(
                             buildString {
-                                append("1300+ built-in kaynak")
-                                if (kotatsuSourceCount > 0) append(" · $kotatsuSourceCount yüklendi")
+                                append(stringResource(R.string.manga_health_builtin_sources))
+                                if (kotatsuSourceCount > 0) append(stringResource(R.string.manga_health_loaded_count, kotatsuSourceCount))
                                 if (kotatsuCommitSha.isNotBlank()) append(" · SHA: $kotatsuCommitSha")
                             },
                             color = KitsugiColors.TextSecondary, fontSize = 11.sp
@@ -456,7 +456,7 @@ private fun ReposTab(
                             Text(ext.name, color = KitsugiColors.TextPrimary,
                                 fontSize = 13.sp, fontWeight = FontWeight.Medium,
                                 maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text("Manga,${if (ext.lang == "tr") "Türkçe" else ext.lang.uppercase()}",
+                            Text("Manga,${if (ext.lang == "tr") stringResource(R.string.manga_health_turkish) else ext.lang.uppercase()}",
                                 color = KitsugiColors.TextMuted, fontSize = 10.sp)
                         }
                         IconButton(
@@ -514,10 +514,10 @@ private fun HealthReportTab(
         item { FilterChip(selected = false, onClick = { onExportReportFile(buildReportExport(filtered)) }, label = { Text(KitsugiStrings.get(R.string.dosyaya_kaydet_934a2b4)) }) }
         item { FilterChip(selected = false, onClick = {
             val i = Intent(Intent.ACTION_SEND).apply { type = "text/plain"; putExtra(Intent.EXTRA_TEXT, buildReportExport(filtered)) }
-            context.startActivity(Intent.createChooser(i, "Paylaş"))
+            context.startActivity(Intent.createChooser(i, context.getString(R.string.paylas)))
         }, label = { Text(stringResource(R.string.paylas)) }) }
         item { FilterChip(selected = false, onClick = onClearAllSourceDiagnostics, label = { Text(stringResource(R.string.raporu_temizle)) }) }
-        item { FilterChip(selected = false, onClick = onClearAllSourceConfigs, label = { Text("Config temizle") }) }
+        item { FilterChip(selected = false, onClick = onClearAllSourceConfigs, label = { Text(stringResource(R.string.manga_health_config_clear)) }) }
     }
 
     LazyColumn(
@@ -528,17 +528,17 @@ private fun HealthReportTab(
         item {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SummaryCard("Healthy", healthyCount.toString(), Color(0xFF4CAF50), Modifier.weight(1f))
-                    SummaryCard("Degraded", degradedCount.toString(), Color(0xFFFFB300), Modifier.weight(1f))
-                    SummaryCard("Broken", brokenCount.toString(), KitsugiColors.AccentRed, Modifier.weight(1f))
+                    SummaryCard(stringResource(R.string.manga_health_healthy), healthyCount.toString(), Color(0xFF4CAF50), Modifier.weight(1f))
+                    SummaryCard(stringResource(R.string.manga_health_degraded), degradedCount.toString(), Color(0xFFFFB300), Modifier.weight(1f))
+                    SummaryCard(stringResource(R.string.manga_health_broken), brokenCount.toString(), KitsugiColors.AccentRed, Modifier.weight(1f))
                 }
-                SummaryCard("Ortalama başarı", avgSuccessRate, accent, Modifier.fillMaxWidth())
+                SummaryCard(stringResource(R.string.manga_health_avg_success), avgSuccessRate, accent, Modifier.fillMaxWidth())
             }
         }
         item {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterRow(listOf("ALL" to stringResource(R.string.notif_filter_all),"Healthy" to "Healthy","Degraded" to "Degraded","Broken" to "Broken","CaptchaRequired" to "Captcha","RateLimited" to "429"), statusFilter, accent, onStatusFilter)
-                FilterRow(listOf("UPDATED" to stringResource(R.string.guncel),"FAILURES" to stringResource(R.string.hata),"LATENCY" to "Gecikme","SUCCESS" to stringResource(R.string.basari)), sortMode, accent, onSortMode)
+                FilterRow(listOf("ALL" to stringResource(R.string.notif_filter_all),"Healthy" to stringResource(R.string.manga_health_healthy),"Degraded" to stringResource(R.string.manga_health_degraded),"Broken" to stringResource(R.string.manga_health_broken),"CaptchaRequired" to stringResource(R.string.manga_health_captcha),"RateLimited" to stringResource(R.string.manga_health_rate_limited)), statusFilter, accent, onStatusFilter)
+                FilterRow(listOf("UPDATED" to stringResource(R.string.guncel),"FAILURES" to stringResource(R.string.hata),"LATENCY" to stringResource(R.string.manga_health_latency),"SUCCESS" to stringResource(R.string.basari)), sortMode, accent, onSortMode)
                 FilterRow(listOf("ALL" to stringResource(R.string.tum_zaman),"24H" to "24s","7D" to "7g"), rangeMode, accent, onRangeMode)
             }
         }
@@ -552,7 +552,7 @@ private fun HealthReportTab(
                     Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text(item.sourceName, color = KitsugiColors.TextPrimary, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            StatusChip(item.healthStatus, trendTint(successRate(item)))
+                            StatusChip(healthStatusLabel(item.healthStatus), trendTint(successRate(item)))
                             if (source != null) {
                                 Switch(
                                     checked = onGetSourceEnabled(source),
@@ -565,14 +565,14 @@ private fun HealthReportTab(
                             SmallChip(item.lang.uppercase(), accent)
                             if (!item.activeDomain.isNullOrBlank()) SmallChip(item.activeDomain, accent.copy(0.85f))
                         }
-                        StatLine("Success / Failure", "${item.successCount} / ${item.failureCount}")
-                        StatLine("Başarı oranı", "${"%.0f".format(successRate(item))}%")
-                        StatLine("Son başarı / Son hata", "${formatTimestamp(item.lastSuccessAt)} / ${formatTimestamp(item.lastFailureAt)}")
-                        StatLine("Son kontrol", formatTimestamp(item.lastCheckedAt))
+                        StatLine(stringResource(R.string.manga_health_success_failure), "${item.successCount} / ${item.failureCount}")
+                        StatLine(stringResource(R.string.manga_health_success_rate), "${"%.0f".format(successRate(item))}%")
+                        StatLine(stringResource(R.string.manga_health_last_success_error), "${formatTimestamp(item.lastSuccessAt)} / ${formatTimestamp(item.lastFailureAt)}")
+                        StatLine(stringResource(R.string.manga_health_last_check), formatTimestamp(item.lastCheckedAt))
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            MiniMetricCard("Search", formatMs(item.avgSearchMs), Modifier.weight(1f))
-                            MiniMetricCard("Popular", formatMs(item.avgPopularMs), Modifier.weight(1f))
-                            MiniMetricCard("Image", formatMs(item.avgImageMs), Modifier.weight(1f))
+                            MiniMetricCard(stringResource(R.string.manga_health_metric_search), formatMs(item.avgSearchMs), Modifier.weight(1f))
+                            MiniMetricCard(stringResource(R.string.manga_health_metric_popular), formatMs(item.avgPopularMs), Modifier.weight(1f))
+                            MiniMetricCard(stringResource(R.string.manga_health_metric_image), formatMs(item.avgImageMs), Modifier.weight(1f))
                         }
                         val sourceErrorCode = PlatformErrorCode.fromMangaState(item.lastErrorCode, item.lastErrorType)?.id
                         if (sourceErrorCode != null) {
@@ -650,6 +650,19 @@ private fun SummaryCard(label: String, value: String, tint: Color, modifier: Mod
         Text(label, color = KitsugiColors.TextMuted, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
         Text(value, color = tint, fontSize = 16.sp, fontWeight = FontWeight.Bold)
     }
+}
+
+/** Kaynak sağlık durumunu seçili uygulama dilinde gösterir. */
+@Composable
+private fun healthStatusLabel(status: String): String = when (status.trim().lowercase()) {
+    "healthy" -> stringResource(R.string.manga_health_healthy)
+    "degraded" -> stringResource(R.string.manga_health_degraded)
+    "broken" -> stringResource(R.string.manga_health_broken)
+    "captcharequired" -> stringResource(R.string.manga_health_captcha)
+    "ratelimited" -> stringResource(R.string.manga_health_rate_limited)
+    "disabled" -> stringResource(R.string.manga_health_disabled)
+    "unknown" -> stringResource(R.string.manga_health_unknown)
+    else -> status
 }
 
 @Composable

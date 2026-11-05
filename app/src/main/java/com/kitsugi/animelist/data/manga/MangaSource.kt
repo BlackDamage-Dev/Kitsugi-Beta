@@ -146,7 +146,7 @@ data class MangaSourceResult(
 
 /**
  * F9: Captcha veya WebView doğrulaması gerektiren kaynaklarda fırlatılır.
- * MangaReaderViewModel / MangaPageLoader bu exception'ı yakalayıp
+ * MangaReaderViewModel / MangaPageLoaderV2 bu exception'ı yakalayıp
  * kullanıcıya anlamlı bir hata mesajı gösterebilir.
  */
 class CaptchaRequiredException(

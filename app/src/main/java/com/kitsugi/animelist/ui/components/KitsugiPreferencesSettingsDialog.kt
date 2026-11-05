@@ -1,5 +1,7 @@
 package com.kitsugi.animelist.ui.components
 
+import com.kitsugi.animelist.data.manga.MangaSettingIds
+
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import com.kitsugi.animelist.ui.theme.gradient.RadioButton
 import com.kitsugi.animelist.ui.theme.gradient.Text
@@ -1980,25 +1982,31 @@ private fun MangaReaderTab(
 ) {
     val KitsugiColors = LocalKitsugiColors.current
 
+    // Kimlikler tek doğruluk kaynağından (MangaSettingIds) gelir. Önceden burada
+    // "GrayScale", "Inverted", "Warm", "Cool", "WebtoonZoom" gibi farklı yazımlar
+    // vardı ve okuyucu bunları çözemediği için seçim sessizce yok sayılıyordu.
     val readingModeOptions = listOf(
-        KitsugiChoiceOption(id = "RightToLeft",  title = stringResource(R.string.manga_direction_rtl),    description = stringResource(R.string.manga_direction_rtl_desc)),
-        KitsugiChoiceOption(id = "LeftToRight",  title = stringResource(R.string.manga_direction_ltr),    description = stringResource(R.string.manga_direction_ltr_desc)),
-        KitsugiChoiceOption(id = "Vertical",     title = stringResource(R.string.manga_direction_vertical), description = stringResource(R.string.manga_direction_vertical_desc)),
-        KitsugiChoiceOption(id = "WebtoonZoom",  title = stringResource(R.string.manga_direction_webtoon_zoom),   description = stringResource(R.string.manga_direction_webtoon_zoom_desc))
+        KitsugiChoiceOption(id = MangaSettingIds.READING_RTL, title = stringResource(R.string.manga_direction_rtl), description = stringResource(R.string.manga_direction_rtl_desc)),
+        KitsugiChoiceOption(id = MangaSettingIds.READING_LTR, title = stringResource(R.string.manga_direction_ltr), description = stringResource(R.string.manga_direction_ltr_desc)),
+        KitsugiChoiceOption(id = MangaSettingIds.READING_VERTICAL, title = stringResource(R.string.manga_reader_mode_vertical), description = stringResource(R.string.manga_reader_mode_vertical_desc)),
+        KitsugiChoiceOption(id = MangaSettingIds.READING_WEBTOON, title = stringResource(R.string.manga_reader_mode_webtoon), description = stringResource(R.string.manga_reader_mode_webtoon_desc))
     )
 
     val colorFilterOptions = listOf(
-        KitsugiChoiceOption(id = "Normal",    title = stringResource(R.string.manga_filter_normal),    description = ""),
-        KitsugiChoiceOption(id = "Warm",      title = stringResource(R.string.manga_filter_warm),     description = ""),
-        KitsugiChoiceOption(id = "Cool",      title = stringResource(R.string.manga_filter_cool),     description = ""),
-        KitsugiChoiceOption(id = "GrayScale", title = stringResource(R.string.manga_filter_grayscale),   description = ""),
-        KitsugiChoiceOption(id = "Inverted",  title = stringResource(R.string.manga_filter_inverted), description = "")
+        KitsugiChoiceOption(id = MangaSettingIds.FILTER_NORMAL, title = stringResource(R.string.manga_filter_normal), description = ""),
+        KitsugiChoiceOption(id = MangaSettingIds.FILTER_WARM, title = stringResource(R.string.manga_filter_warm), description = ""),
+        KitsugiChoiceOption(id = MangaSettingIds.FILTER_COOL, title = stringResource(R.string.manga_filter_cool), description = ""),
+        KitsugiChoiceOption(id = MangaSettingIds.FILTER_GRAYSCALE, title = stringResource(R.string.manga_filter_grayscale), description = ""),
+        KitsugiChoiceOption(id = MangaSettingIds.FILTER_SEPIA, title = stringResource(R.string.manga_filter_sepia), description = ""),
+        KitsugiChoiceOption(id = MangaSettingIds.FILTER_INVERT, title = stringResource(R.string.manga_filter_inverted), description = "")
     )
 
     val fitModeOptions = listOf(
-        KitsugiChoiceOption(id = "FitScreen", title = stringResource(R.string.manga_fit_screen),      description = ""),
-        KitsugiChoiceOption(id = "FitWidth",  title = stringResource(R.string.manga_fit_width),  description = ""),
-        KitsugiChoiceOption(id = "FitHeight", title = stringResource(R.string.manga_fit_height), description = "")
+        KitsugiChoiceOption(id = MangaSettingIds.FIT_SCREEN, title = stringResource(R.string.manga_fit_screen), description = ""),
+        KitsugiChoiceOption(id = MangaSettingIds.FIT_WIDTH, title = stringResource(R.string.manga_fit_width), description = ""),
+        KitsugiChoiceOption(id = MangaSettingIds.FIT_HEIGHT, title = stringResource(R.string.manga_fit_height), description = ""),
+        KitsugiChoiceOption(id = MangaSettingIds.FIT_CROP, title = stringResource(R.string.manga_fit_crop), description = ""),
+        KitsugiChoiceOption(id = MangaSettingIds.FIT_ORIGINAL, title = stringResource(R.string.manga_fit_original), description = "")
     )
 
     var showReadingModeMenu by remember { mutableStateOf(false) }

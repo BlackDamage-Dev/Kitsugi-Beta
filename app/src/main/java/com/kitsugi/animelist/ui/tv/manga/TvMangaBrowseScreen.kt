@@ -87,7 +87,12 @@ import com.kitsugi.animelist.R
 @Composable
 fun TvMangaBrowseScreen(
     repository: MangaSourceRepository,
-    vm: MangaBrowseViewModel = viewModel(factory = MangaBrowseViewModel.Factory(repository)),
+    vm: MangaBrowseViewModel = viewModel(
+        factory = MangaBrowseViewModel.Factory(
+            repository,
+            androidx.compose.ui.platform.LocalContext.current.applicationContext,
+        )
+    ),
     onMangaClick: (MangaSource, MangaDetails) -> Unit = { _, _ -> },
     onBack: () -> Unit = {}
 ) {
@@ -110,25 +115,25 @@ fun TvMangaBrowseScreen(
     val selFilter = ui.selectedSourceFilter
     val popular   = ui.popularMangas
 
-    val mergedMangas = remember(states, selFilter, query, popular) {
+    val searchTitles = ui.searchTitles
+    val mergedMangas = remember(states, selFilter, query, popular, searchTitles) {
         val raw = if (query.isNotBlank()) {
+            // Eser, kaynağın kendi dilindeki adla gelebilir: sıralama/puanlama
+            // denenen TÜM başlıklara göre yapılır.
+            val matchTitles = searchTitles.ifEmpty { listOf(query) }
+            fun bestScore(title: String): Double = matchTitles.maxOf { candidate ->
+                com.kitsugi.animelist.data.manga.MangaTitleMatcher.getSimilarityScore(candidate, title)
+            }
             val src = selFilter
             if (src != null) {
                 (states.firstOrNull { it.source.name == src.name }?.mangas ?: emptyList())
-                    .sortedByDescending {
-                        com.kitsugi.animelist.data.manga.MangaTitleMatcher.getBestSimilarityScore(query, it)
-                    }
+                    .sortedByDescending { bestScore(it.title) }
             } else {
-                val minScore = if (query.trim().length <= 3) 0.15 else 0.30
-                states.flatMap { st ->
-                    st.mangas.map { manga ->
-                        val score = com.kitsugi.animelist.data.manga.MangaTitleMatcher.getBestSimilarityScore(query, manga)
-                        Triple(manga, score, st.source)
-                    }
-                }
-                .filter { (_, score, _) -> score >= minScore }
-                .sortedByDescending { it.second }
-                .map { it.first }
+                // Eleme ViewModel'de yapıldı (çok dilli arama sonuçları burada
+                // benzerlik eşiğine takılıp kaybolmasın) — burada yalnızca sıralanır.
+                states.flatMap { st -> st.mangas.map { manga -> manga to bestScore(manga.title) } }
+                    .sortedByDescending { it.second }
+                    .map { it.first }
             }
         } else popular
         raw.distinctBy { "${it.source}_${it.url}" }

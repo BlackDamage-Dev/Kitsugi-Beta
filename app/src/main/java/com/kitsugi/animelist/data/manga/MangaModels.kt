@@ -99,17 +99,35 @@ enum class ReadingMode {
     Webtoon        // Kesintisiz dikey kaydırma (Manhwa)
 }
 
+/**
+ * Sayfaya uygulanan renk filtresi (Mihon/Aniyomi paritesi).
+ *
+ * Not: Bu enum'un metin kimlikleri [MangaSettingIds] üzerinden çözülür; eski
+ * sürümlerde yazılmış "GrayScale", "Inverted", "Warm", "Cool" gibi değerler
+ * geriye dönük uyumlu olarak okunur.
+ */
 enum class ColorFilterType {
     Normal,
+    Warm,
+    Cool,
     Grayscale,
     Sepia,
     Invert
 }
 
+/**
+ * Sayfanın ekrana nasıl oturtulacağı.
+ *
+ * — FitScreen / FitWidth / FitHeight: kırpma yok, oran korunur
+ * — Crop:  ekranı tamamen doldurur, taşan kısım kırpılır (tam ekran hissi)
+ * — Original: hiç ölçeklenmez, sayfa gerçek piksel boyutunda çizilir
+ */
 enum class MangaFitMode {
     FitScreen,
     FitWidth,
-    FitHeight
+    FitHeight,
+    Crop,
+    Original
 }
 
 enum class MangaStatus {

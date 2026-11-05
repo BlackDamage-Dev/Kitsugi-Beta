@@ -307,7 +307,14 @@ fun AppRootDetailPages(
                         authViewModel.startExternalAuth("simkl")
                     },
                     onReadMangaClick = {
-                        navState.openMangaBrowse(key.result.title)
+                        navState.openMangaBrowse(
+                            query = key.result.title,
+                            alternates = listOfNotNull(
+                                key.result.titleRomaji,
+                                key.result.titleEnglish,
+                                key.result.titleJapanese,
+                            ),
+                        )
                     },
                     mdbListShowImdb = appSettings.mdbListShowImdb,
                     mdbListShowTomatoes = appSettings.mdbListShowTomatoes,

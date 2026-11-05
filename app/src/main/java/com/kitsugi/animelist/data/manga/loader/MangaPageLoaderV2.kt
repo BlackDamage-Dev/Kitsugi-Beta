@@ -190,19 +190,25 @@ class MangaPageLoaderV2(
                 val storedKey = cacheKey(page, archiveKey)
                 if (!cache.isImageInCache(storedKey)) {
                     val stream = ArchivePageLoader(context, archiveFile).loadPage(entry)
-                        ?: throw java.io.IOException("Arşiv sayfası okunamadı")
+                        ?: throw java.io.IOException("Arşiv sayfası okunamadı: $entry")
                     stream.use { cache.putImageToCache(storedKey, it) }
                 }
                 val file = cache.getImageFile(storedKey)
+                if (!file.exists() || file.length() <= 0L) {
+                    throw java.io.IOException("Arşiv sayfası diske yazılamadı: $entry")
+                }
                 page.aspectRatio = readAspectRatio(file)
                 page.localFile = file
                 page.cachedFile = file
                 page.stream = { file.inputStream() }
                 page.status = MangaPageStatus.Ready
+                Log.v(TAG, "Archive page ready [${page.index}]: $entry")
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
                 page.status = MangaPageStatus.Error
+                MangaLogger.logImageFetch(context, source.name, page.index,
+                    page.archivePath, success = false, error = e)
                 Log.e(TAG, "Archive page error [${page.index}]: ${page.archivePath}", e)
             }
             return
