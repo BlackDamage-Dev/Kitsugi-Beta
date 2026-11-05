@@ -108,10 +108,18 @@ class SourceHealthService(
             // hotlink denial and corrupt CDN images all occurred at this stage).
             val imageValid = withTimeoutOrNull(15_000L) {
                 val page = pages.first().apply { this.imageUrl = imageUrl }
-                source.getImage(page).use { stream ->
-                    val options = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                    android.graphics.BitmapFactory.decodeStream(stream, null, options)
-                    options.outWidth > 0 && options.outHeight > 0
+                source.getImage(page).buffered().use { stream ->
+                    // Sniff before BitmapFactory, which cannot inspect AVIF/JXL on older Android.
+                    stream.mark(64)
+                    val native = com.kitsugi.animelist.data.manga.image.MangaNativeFormats.supports(stream)
+                    stream.reset()
+                    if (native) {
+                        com.kitsugi.animelist.data.manga.image.MangaNativeFormats.dimensions(stream) != null
+                    } else {
+                        val options = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                        android.graphics.BitmapFactory.decodeStream(stream, null, options)
+                        options.outWidth > 0 && options.outHeight > 0
+                    }
                 }
             } ?: false
             if (imageValid) SourceHealthStatus.Healthy else SourceHealthStatus.Degraded

@@ -728,7 +728,7 @@ class SettingsDataStore(
                     mangaReadingMode = preferences[Keys.MangaReadingMode] ?: "RightToLeft",
                     mangaColorFilter = preferences[Keys.MangaColorFilter] ?: "Normal",
                     mangaFitMode = preferences[Keys.MangaFitMode] ?: "FitScreen",
-                    mangaBrightness = preferences[Keys.MangaBrightness] ?: 1.0f,
+                    mangaBrightness = normalizeMangaBrightness(preferences[Keys.MangaBrightness] ?: 1.0f),
                     customImageDownloadUri = preferences[Keys.CustomImageDownloadUri] ?: "",
                     videoDownloadUri = preferences[Keys.VideoDownloadUri] ?: "",
                     downloaderPreference = preferences[Keys.DownloaderPreference] ?: "INTERNAL",
@@ -1195,7 +1195,7 @@ class SettingsDataStore(
 
     suspend fun setMangaBrightness(brightness: Float) {
         context.settingsDataStore.edit { preferences ->
-            preferences[Keys.MangaBrightness] = brightness
+            preferences[Keys.MangaBrightness] = normalizeMangaBrightness(brightness)
         }
     }
 

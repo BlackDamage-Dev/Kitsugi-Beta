@@ -2,6 +2,9 @@ package com.kitsugi.animelist.data.settings
 
 import com.kitsugi.animelist.ui.screens.fullscreen.AudioChannels
 
+internal fun normalizeMangaBrightness(value: Float): Float =
+    if (value.isFinite()) value.coerceIn(0.1f, 1f) else 1f
+
 /**
  * Uygulama ayarları grup modelleri ve birleşik [AppSettings] cephesi.
  *

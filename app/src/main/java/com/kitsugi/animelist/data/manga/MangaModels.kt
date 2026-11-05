@@ -66,6 +66,12 @@ class MangaPage(
     // Compose must observe the status itself, not a shallow copy of that list.
     var status: MangaPageStatus by mutableStateOf(status)
 
+    // A URL supplied in the page list cannot necessarily be re-resolved with getImageUrl.
+    val sourceProvidedImageUrl: Boolean = !imageUrl.isNullOrBlank()
+
+    /** Chapter identity isolates source responses that depend on referer or chapter context. */
+    var cacheContext: String = ""
+
     /** Source-processed image file; the UI must never refetch imageUrl independently. */
     var localFile: java.io.File? = null
     var aspectRatio: Float? by mutableStateOf(null)

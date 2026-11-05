@@ -216,17 +216,16 @@ object MangaLogger {
         error: Throwable? = null,
         isTimeout: Boolean = false,
     ) {
-        val safeUrl = imageUrl?.take(100) ?: "null"
         if (success) {
             write(context, "INFO", "GÖRSEL",
-                "✅ Kaynak=$sourceName | Sayfa=${pageIndex + 1} | Süre=${elapsedMs}ms | URL=$safeUrl")
+                "✅ Kaynak=$sourceName | Sayfa=${pageIndex + 1} | Süre=${elapsedMs}ms")
         } else if (isTimeout) {
             write(context, "WARN", "GÖRSEL_TIMEOUT",
-                "⏱ Kaynak=$sourceName | Sayfa=${pageIndex + 1} | Zaman aşımı | URL=$safeUrl")
+                "⏱ Kaynak=$sourceName | Sayfa=${pageIndex + 1} | Zaman aşımı")
         } else {
-            val errStr = formatError(error)
+            val errStr = "Hata=${error?.javaClass?.simpleName ?: "Bilinmiyor"}"
             write(context, "ERROR", "GÖRSEL_HATA",
-                "❌ Kaynak=$sourceName | Sayfa=${pageIndex + 1} | URL=$safeUrl | $errStr")
+                "❌ Kaynak=$sourceName | Sayfa=${pageIndex + 1} | $errStr")
         }
     }
 

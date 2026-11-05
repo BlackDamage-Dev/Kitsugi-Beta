@@ -5,6 +5,12 @@ import com.kitsugi.animelist.ui.utils.uniqueItemsIndexed
 import com.kitsugi.animelist.ui.theme.gradient.background
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.runtime.produceState
+import androidx.compose.ui.platform.LocalDensity
+import com.kitsugi.animelist.data.manga.MangaPageStatus
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.getValue
 import androidx.compose.foundation.layout.Column
@@ -88,17 +94,41 @@ fun MangaWebtoonReader(
                 loader.loadPage(page)
             }
 
-            MangaPageItem(
-                page        = page,
-                loader      = loader,
-                readingMode = ReadingMode.Webtoon,
-                colorFilterType = colorFilterType,
-                fitMode     = fitMode,
-                onCenterTap = onCenterTap,
-                onNextPage   = onNextPage,
-                onPrevPage   = onPrevPage,
-                modifier    = Modifier.fillMaxWidth().aspectRatio(page.aspectRatio ?: 0.7f)
-            )
+            val imageUrl = page.imageUrl
+            val dimensions by produceState<Pair<Int, Int>?>(null, page, page.status, imageUrl) {
+                value = if (page.status == MangaPageStatus.Ready && imageUrl != null) {
+                    withContext(Dispatchers.IO) { loader.cache.getImageDimensions(loader.cacheKey(page, imageUrl)) }
+                } else {
+                    null
+                }
+            }
+            BoxWithConstraints(Modifier.fillMaxWidth()) {
+                val density = LocalDensity.current
+                // Compose cannot represent arbitrarily large layout dimensions. Preserve the
+                // whole image even for extreme strips rather than overflow the constraints.
+                val maximumHeight = with(density) { 32_000.toDp() }
+                val naturalHeight = dimensions?.let { (width, height) ->
+                    maxWidth * (height.toFloat() / width)
+                }
+                val pageHeight = naturalHeight?.coerceIn(1.dp, maximumHeight) ?: 480.dp
+                MangaPageItem(
+                    page = page,
+                    loader = loader,
+                    readingMode = ReadingMode.Webtoon,
+                    colorFilterType = colorFilterType,
+                    // On exceptionally long strips, fit the whole page into the capped
+                    // layout rather than cropping the bottom in FitWidth mode.
+                    fitMode = if (naturalHeight != null && naturalHeight > maximumHeight) {
+                        MangaFitMode.FitScreen
+                    } else {
+                        fitMode
+                    },
+                    onCenterTap = onCenterTap,
+                    onNextPage = onNextPage,
+                    onPrevPage = onPrevPage,
+                    modifier = Modifier.fillMaxWidth().height(pageHeight)
+                )
+            }
 
             // Sayfalar arası ince ayırıcı
             Spacer(

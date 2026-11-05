@@ -17,6 +17,9 @@ import com.kitsugi.animelist.ui.theme.gradient.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -29,7 +32,7 @@ import com.kitsugi.animelist.data.manga.MangaPage
 import com.kitsugi.animelist.data.manga.MangaPageStatus
 import com.kitsugi.animelist.data.manga.ReadingMode
 import com.kitsugi.animelist.data.manga.loader.MangaPageLoaderV2
-import me.saket.telephoto.zoomable.coil.ZoomableAsyncImage
+import me.saket.telephoto.zoomable.coil3.ZoomableAsyncImage
 import me.saket.telephoto.zoomable.rememberZoomableImageState
 import me.saket.telephoto.zoomable.rememberZoomableState
 
@@ -41,6 +44,7 @@ import androidx.compose.runtime.remember
 import coil3.request.ImageRequest
 import coil3.request.CachePolicy
 import coil3.request.crossfade
+import coil3.size.Scale
 import com.kitsugi.animelist.data.manga.ColorFilterType
 import com.kitsugi.animelist.data.manga.MangaFitMode
 import androidx.compose.ui.res.stringResource
@@ -73,8 +77,14 @@ fun MangaPageItem(
     // Sayfa nesnesi ilk kez görüldüğünde yüklemeyi başlat.
     // Key olarak identityHashCode kullanıyoruz: aynı sayfa nesnesi varsa yeniden tetiklenmez,
     // ama yeni bir bölüme geçildiğinde (yeni page nesneleri) effect yeniden çalışır.
-    LaunchedEffect(System.identityHashCode(page)) {
-        loader.loadPage(page)
+    LaunchedEffect(page, loader) {
+        // Cache maintenance may have evicted a page which was already marked Ready.
+        val imageUrl = page.imageUrl
+        val missing = page.status == MangaPageStatus.Ready && imageUrl != null &&
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                !loader.cache.getImageFile(loader.cacheKey(page, imageUrl)).isFile
+            }
+        if (missing) loader.retryPage(page) else loader.loadPage(page)
     }
 
     Box(
@@ -108,76 +118,93 @@ fun MangaPageItem(
     ) {
         when (page.status) {
             MangaPageStatus.Ready -> {
-                // Only render the bytes downloaded by the source's own client. Fetching
-                // the URL again via Coil would bypass source headers/interceptors.
-                val modelToLoad = page.localFile?.takeIf { it.isFile }
-                if (modelToLoad == null) {
-                    ErrorPageContent(pageIndex = page.index, onRetry = { loader.retryPage(page) })
+                val imageUrl = page.imageUrl ?: page.url
+                val cacheFile = loader.cache.getImageFile(loader.cacheKey(page, imageUrl))
+                // Never bypass the extension client for a cache miss (headers/cookies may be required).
+                val modelToLoad: Any = cacheFile
+
+                val context = LocalContext.current
+                val displayError = remember(page, modelToLoad) { mutableStateOf<Throwable?>(null) }
+                val retryGeneration = remember(page, modelToLoad) { mutableIntStateOf(0) }
+                val imageRequest = remember(modelToLoad, retryGeneration.intValue) {
+                    ImageRequest.Builder(context)
+                        .data(modelToLoad)
+                        // Telephoto's subsampling supplies detail for supported formats. Keep
+                        // Coil's preview bounded for very tall pages and older GPU canvases.
+                        .size(2048, 2048)
+                        .scale(Scale.FIT)
+                        .diskCachePolicy(CachePolicy.DISABLED)
+                        .memoryCachePolicy(CachePolicy.DISABLED)
+                        .crossfade(200)
+                        .listener(
+                            onError = { _, result -> displayError.value = result.throwable },
+                            onSuccess = { _, _ -> displayError.value = null }
+                        )
+                        .build()
+                }
+
+                val contentScale = when (fitMode) {
+                    MangaFitMode.FitScreen -> ContentScale.Fit
+                    MangaFitMode.FitWidth -> ContentScale.FillWidth
+                    MangaFitMode.FitHeight -> ContentScale.FillHeight
+                }
+
+                val composeColorFilter = when (colorFilterType) {
+                    ColorFilterType.Normal -> null
+                    ColorFilterType.Grayscale -> {
+                        val matrix = ColorMatrix(
+                            floatArrayOf(
+                                0.2126f, 0.7152f, 0.0722f, 0f, 0f,
+                                0.2126f, 0.7152f, 0.0722f, 0f, 0f,
+                                0.2126f, 0.7152f, 0.0722f, 0f, 0f,
+                                0f,      0f,      0f,      1f, 0f
+                            )
+                        )
+                        ColorFilter.colorMatrix(matrix)
+                    }
+                    ColorFilterType.Sepia -> {
+                        val matrix = ColorMatrix(
+                            floatArrayOf(
+                                0.393f, 0.769f, 0.189f, 0f, 0f,
+                                0.349f, 0.686f, 0.168f, 0f, 0f,
+                                0.272f, 0.534f, 0.131f, 0f, 0f,
+                                0f,     0f,     0f,     1f, 0f
+                            )
+                        )
+                        ColorFilter.colorMatrix(matrix)
+                    }
+                    ColorFilterType.Invert -> {
+                        val matrix = ColorMatrix(
+                            floatArrayOf(
+                                -1f,  0f,  0f, 0f, 1f,
+                                 0f, -1f,  0f, 0f, 1f,
+                                 0f,  0f, -1f, 0f, 1f,
+                                 0f,  0f,  0f, 1f, 0f
+                            )
+                        )
+                        ColorFilter.colorMatrix(matrix)
+                    }
+                }
+
+                if (displayError.value == null) {
+                    key(modelToLoad, retryGeneration.intValue) {
+                        val zoomableState = rememberZoomableState()
+                        val imageState = rememberZoomableImageState(zoomableState)
+                        ZoomableAsyncImage(
+                            model = imageRequest,
+                            contentDescription = stringResource(R.string.manga_sayfasi_x, page.index + 1),
+                            state = imageState,
+                            contentScale = contentScale,
+                            colorFilter = composeColorFilter,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
                 } else {
-                    val context = LocalContext.current
-                    val imageRequest = remember(modelToLoad) {
-                        ImageRequest.Builder(context)
-                            .data(modelToLoad)
-                            .diskCachePolicy(CachePolicy.DISABLED)
-                            .memoryCachePolicy(CachePolicy.ENABLED)
-                            .crossfade(200)
-                            .build()
-                    }
-
-                    val zoomableState = rememberZoomableState()
-                    val imageState    = rememberZoomableImageState(zoomableState)
-
-                    val contentScale = when (fitMode) {
-                        MangaFitMode.FitScreen -> ContentScale.Fit
-                        MangaFitMode.FitWidth -> ContentScale.FillWidth
-                        MangaFitMode.FitHeight -> ContentScale.FillHeight
-                    }
-
-                    val composeColorFilter = when (colorFilterType) {
-                        ColorFilterType.Normal -> null
-                        ColorFilterType.Grayscale -> {
-                            val matrix = ColorMatrix(
-                                floatArrayOf(
-                                    0.2126f, 0.7152f, 0.0722f, 0f, 0f,
-                                    0.2126f, 0.7152f, 0.0722f, 0f, 0f,
-                                    0.2126f, 0.7152f, 0.0722f, 0f, 0f,
-                                    0f,      0f,      0f,      1f, 0f
-                                )
-                            )
-                            ColorFilter.colorMatrix(matrix)
-                        }
-                        ColorFilterType.Sepia -> {
-                            val matrix = ColorMatrix(
-                                floatArrayOf(
-                                    0.393f, 0.769f, 0.189f, 0f, 0f,
-                                    0.349f, 0.686f, 0.168f, 0f, 0f,
-                                    0.272f, 0.534f, 0.131f, 0f, 0f,
-                                    0f,     0f,     0f,     1f, 0f
-                                )
-                            )
-                            ColorFilter.colorMatrix(matrix)
-                        }
-                        ColorFilterType.Invert -> {
-                            val matrix = ColorMatrix(
-                                floatArrayOf(
-                                    -1f,  0f,  0f, 0f, 1f,
-                                     0f, -1f,  0f, 0f, 1f,
-                                     0f,  0f, -1f, 0f, 1f,
-                                     0f,  0f,  0f, 1f, 0f
-                                )
-                            )
-                            ColorFilter.colorMatrix(matrix)
-                        }
-                    }
-
-                    ZoomableAsyncImage(
-                        model       = imageRequest,
-                        contentDescription = stringResource(R.string.manga_sayfasi_x, page.index + 1),
-                        state       = imageState,
-                        contentScale = contentScale,
-                        colorFilter = composeColorFilter,
-                        modifier    = Modifier.fillMaxSize()
-                    )
+                    ErrorPageContent(pageIndex = page.index, onRetry = {
+                        displayError.value = null
+                        retryGeneration.intValue++
+                        loader.retryPage(page, invalidateCache = true)
+                    })
                 }
             }
 

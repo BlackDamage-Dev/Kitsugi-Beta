@@ -11,6 +11,8 @@ import coil3.request.allowRgb565
 import coil3.request.crossfade
 import coil3.size.Precision
 import coil3.gif.AnimatedImageDecoder
+import coil3.gif.GifDecoder
+import com.kitsugi.animelist.data.manga.image.MangaNativeDecoder
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import okio.Path.Companion.toOkioPath
 import com.kitsugi.animelist.data.remote.KitsugiEpisodeRatingsRepository
@@ -705,9 +707,14 @@ class KitsugiApplication : Application(), SingletonImageLoader.Factory {
     private fun buildImageLoader(context: Context): ImageLoader {
         return ImageLoader.Builder(this)
             .components {
+                // Coil gets first choice for animated GIF/WebP/HEIF; otherwise a native
+                // single-frame decoder would silently discard supported animations.
                 if (android.os.Build.VERSION.SDK_INT >= 28) {
                     add(AnimatedImageDecoder.Factory())
+                } else {
+                    add(GifDecoder.Factory())
                 }
+                add(MangaNativeDecoder.Factory())
                 add(OkHttpNetworkFetcherFactory(callFactory = { com.kitsugi.animelist.core.network.KitsugiHttpClient.client }))
             }
             .memoryCache {

@@ -49,6 +49,11 @@ class MangaPageLoaderV2(
     private val _pages = MutableStateFlow<List<MangaPage>>(emptyList())
     val pages: StateFlow<List<MangaPage>> = _pages.asStateFlow()
 
+    /** A URL alone is not a unique image: source interceptors may transform identical URLs. */
+    fun cacheKey(page: MangaPage, imageUrl: String): String =
+        "${source.pkgName.length}:${source.pkgName}:${source.name.length}:${source.name}:" +
+            "${page.cacheContext.length}:${page.cacheContext}:${page.url.length}:${page.url}:${page.index}:$imageUrl"
+
     // ─── Sayfa listesi yükleme ────────────────────────────────────────────────
 
     suspend fun loadPageList(chapter: com.kitsugi.animelist.data.manga.MangaChapter) =
@@ -68,6 +73,7 @@ class MangaPageLoaderV2(
                             url = entryName
                         ).apply {
                             archivePath = entryName
+                            cacheContext = chapter.url
                         }
                     }
                     val elapsed = System.currentTimeMillis() - t0
@@ -83,6 +89,7 @@ class MangaPageLoaderV2(
                 } ?: throw java.io.IOException("Bölüm sayfaları alınırken zaman aşımı")
                 kotlinx.coroutines.currentCoroutineContext().ensureActive()
                 if (fetched.isEmpty()) throw java.io.IOException("Kaynak bu bölüm için sayfa döndürmedi")
+                fetched.forEach { it.cacheContext = chapter.url }
                 _pages.value = fetched
                 val elapsed = System.currentTimeMillis() - t0
                 sourceStateStore.recordOperationSuccess(source, "pages", elapsed)
@@ -148,13 +155,25 @@ class MangaPageLoaderV2(
         }
     }
 
-    fun retryPage(page: MangaPage) {
-        val previous = prefetchJobs.remove(page.index)
-        previous?.cancel()
-        scope.launch {
-            previous?.join()
+    fun retryPage(page: MangaPage, invalidateCache: Boolean = false) {
+        synchronized(prefetchJobs) {
+            val previous = prefetchJobs.remove(page.index)
+            previous?.cancel()
             page.status = MangaPageStatus.Queue
-            loadPage(page)
+            // Reserve the slot before suspension: prefetch must not reuse the bad file
+            // while a retry waits for the previous download to stop and evicts it.
+            val job = scope.launch(start = kotlinx.coroutines.CoroutineStart.LAZY) {
+                previous?.join()
+                if (invalidateCache) page.imageUrl?.let { cache.removeImage(cacheKey(page, it)) }
+                if (page.archivePath == null && !page.sourceProvidedImageUrl) {
+                    // Refresh resolved URLs (e.g. expired signed CDN addresses).
+                    page.imageUrl = null
+                }
+                loadPageInternal(page)
+            }
+            prefetchJobs[page.index] = job
+            job.invokeOnCompletion { prefetchJobs.remove(page.index, job) }
+            job.start()
         }
     }
 
@@ -165,20 +184,24 @@ class MangaPageLoaderV2(
 
         if (page.archivePath != null && archiveFile != null) {
             try {
-                val key = "archive:${archiveFile.absolutePath}:${archiveFile.lastModified()}:${archiveFile.length()}:${page.archivePath}"
-                if (!cache.isImageInCache(key)) {
-                    val stream = ArchivePageLoader(context, archiveFile).loadPage(page.archivePath!!)
+                val entry = page.archivePath!!
+                val archiveKey = "archive:${archiveFile.absolutePath}:${archiveFile.lastModified()}:$entry"
+                page.imageUrl = archiveKey
+                val storedKey = cacheKey(page, archiveKey)
+                if (!cache.isImageInCache(storedKey)) {
+                    val stream = ArchivePageLoader(context, archiveFile).loadPage(entry)
                         ?: throw java.io.IOException("Arşiv sayfası okunamadı")
-                    stream.use { cache.putImageToCache(key, it) }
+                    stream.use { cache.putImageToCache(storedKey, it) }
                 }
-                val file = cache.getImageFile(key)
+                val file = cache.getImageFile(storedKey)
                 page.aspectRatio = readAspectRatio(file)
                 page.localFile = file
                 page.cachedFile = file
                 page.stream = { file.inputStream() }
                 page.status = MangaPageStatus.Ready
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) throw e
                 page.status = MangaPageStatus.Error
                 Log.e(TAG, "Archive page error [${page.index}]: ${page.archivePath}", e)
             }
@@ -199,17 +222,16 @@ class MangaPageLoaderV2(
                     val imageUrl = page.imageUrl?.takeIf { it.isNotBlank() }
                         ?: throw java.io.IOException("Kaynak boş görsel adresi döndürdü")
 
-                    // Invalidate images cached by older readers before descrambling was supported.
-                    val cacheKey = com.kitsugi.animelist.data.manga.mangaImageCacheKey(source.pkgName, imageUrl)
+                    val storedKey = cacheKey(page, imageUrl)
                     // 2. Disk cache'te var mı kontrol et
-                    if (cache.isImageInCache(cacheKey)) {
-                        val file = cache.getImageFile(cacheKey)
+                    if (cache.isImageInCache(storedKey)) {
+                        val file = cache.getImageFile(storedKey)
                         page.aspectRatio = readAspectRatio(file)
                         page.localFile = file
                         page.cachedFile = file
                         page.stream = { file.inputStream() }
                         page.status = MangaPageStatus.Ready
-                        Log.v(TAG, "Cache hit [${page.index}]: $imageUrl")
+                        Log.v(TAG, "Cache hit [${page.index}]")
                         return@withTimeout
                     }
 
@@ -219,11 +241,11 @@ class MangaPageLoaderV2(
                     page.status = MangaPageStatus.DownloadImage
 
                     source.getImage(page).use { stream ->
-                        cache.putImageToCache(cacheKey, stream)
+                        cache.putImageToCache(storedKey, stream)
                     }
                     kotlinx.coroutines.currentCoroutineContext().ensureActive()
 
-                    val file = cache.getImageFile(cacheKey)
+                    val file = cache.getImageFile(storedKey)
                     if (file.exists() && file.length() > 0L) {
                         page.aspectRatio = readAspectRatio(file)
                         page.localFile = file
@@ -233,9 +255,9 @@ class MangaPageLoaderV2(
 
                         val elapsed = System.currentTimeMillis() - t0
                         sourceStateStore.recordOperationSuccess(source, "image", elapsed)
-                        Log.v(TAG, "Sayfa hazır [${page.index}] (${elapsed}ms): $imageUrl")
+                        Log.v(TAG, "Sayfa hazır [${page.index}] (${elapsed}ms)")
                     } else {
-                        throw java.io.IOException("Cache file not found or empty for $imageUrl")
+                        throw java.io.IOException("Cache file not found or empty")
                     }
                 }
             } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
@@ -252,10 +274,10 @@ class MangaPageLoaderV2(
                 val elapsed = System.currentTimeMillis() - t0
                 page.status = MangaPageStatus.Error
                 sourceStateStore.recordOperationFailure(source, "image",
-                    reason = e.message, statusOverride = classifyStatus(e), elapsedMs = elapsed)
+                    reason = e.javaClass.simpleName, statusOverride = classifyStatus(e), elapsedMs = elapsed)
                 MangaLogger.logImageFetch(context, source.name, page.index,
                     page.imageUrl, success = false, elapsedMs = elapsed, error = e)
-                Log.e(TAG, "Sayfa hatası [${page.index}]: ${e.message}")
+                Log.e(TAG, "Sayfa hatası [${page.index}]: ${e.javaClass.simpleName}")
             }
         }
     }
