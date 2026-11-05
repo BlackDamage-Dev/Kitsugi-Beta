@@ -218,8 +218,8 @@ internal fun StreamSourceSheet(
     selectedAddonFilter: String?,
     accentColor: Color,
     onFilterChange: (String?) -> Unit,
-    onVerifyPlugin: ((addonName: String) -> Unit)?,
-    onRetryPlugin: ((addonName: String) -> Unit)?,
+    onVerifyPlugin: ((AddonFetchState) -> Unit)? = null,
+    onRetryPlugin: ((AddonFetchState) -> Unit)? = null,
     onOpenSettings: (() -> Unit)?,
     /** Tüm kaynakları baştan arar. */
     onRefreshAll: (() -> Unit)? = null,
@@ -356,12 +356,12 @@ internal fun StreamSourceSheet(
                                 badgeColor = accentColor
                             ) {
                                 if (errorStates.isNotEmpty()) {
-                                    errorStates.forEach { onRetryPlugin?.invoke(it.addonName) }
+                                    errorStates.forEach { onRetryPlugin?.invoke(it) }
                                 } else {
                                     if (onRefreshAll != null) {
                                         onRefreshAll()
                                     } else {
-                                        addonStates.forEach { onRetryPlugin?.invoke(it.addonName) }
+                                        addonStates.forEach { onRetryPlugin?.invoke(it) }
                                     }
                                 }
                             }
@@ -466,11 +466,11 @@ internal fun StreamSourceSheet(
                             when {
                                 state.requiresVerification && onVerifyPlugin != null ->
                                     SheetRowAction(Icons.VerifiedUser, stringResource(R.string.stream_source_verify), accentColor) {
-                                        onVerifyPlugin(state.addonName)
+                                        onVerifyPlugin(state)
                                     }
                                 state.error != null && onRetryPlugin != null ->
                                     SheetRowAction(Icons.Refresh, stringResource(R.string.yenile), accentColor) {
-                                        onRetryPlugin(state.addonName)
+                                        onRetryPlugin(state)
                                     }
                             }
                         }

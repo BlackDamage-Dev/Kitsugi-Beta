@@ -18552,4 +18552,8 @@
     <string name="video_download_completed">Video downloaded: %1$s</string>
     <string name="video_download_failed">Download failed: %1$s</string>
     <string name="video_download_split_saved">Audio and video were saved as separate files.</string>
+    <!-- Watch history and resume -->
+    <string name="history_saved_source_unavailable">The saved addon or video source could not be found. Make sure the addon is installed and enabled, or choose another source from the list.</string>
+    <string name="history_next_episode_unavailable">No playable source was found for this episode.</string>
+    <string name="history_next_episode_other_addon">The same addon had no source; playing from another addon.</string>
 </resources>

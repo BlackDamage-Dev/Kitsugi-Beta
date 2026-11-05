@@ -118,6 +118,7 @@ jobs:
             --tests 'com.kitsugi.animelist.data.remote.KitsugiReviewStableKeyTest' \
             --tests 'com.kitsugi.animelist.ui.screens.offline.*' \
             --tests 'com.kitsugi.animelist.utils.StreamLabelSanitizerTest' \
+            --tests 'com.kitsugi.animelist.ui.screens.stream.*' \
             :app:assembleFossDebug :app:assembleFossRelease :app:compileFossDebugAndroidTestKotlin --stacktrace --console=plain 2>&1 | tee build.log
           python3 scripts/verify_apk_dex_bytecode.py \
             app/build/outputs/apk/foss/debug/*.apk \

@@ -25,6 +25,13 @@ class TvPlayerActivity : ComponentActivity() {
         const val EXTRA_MAL_ID = "extra_mal_id"
         const val EXTRA_ANILIST_ID = "extra_anilist_id"
         const val EXTRA_TMDB_ID = "extra_tmdb_id"
+        const val EXTRA_BANGUMI_ID = "extra_bangumi_id"
+        const val EXTRA_MEDIA_TYPE = "extra_media_type"
+        const val EXTRA_IMDB_ID = "extra_imdb_id"
+        const val EXTRA_HISTORY_ID = "extra_history_id"
+        const val EXTRA_RESUME_POSITION = "extra_resume_position"
+        const val EXTRA_CS3_URL = "extra_cs3_url"
+        const val EXTRA_CS3_API_NAME = "extra_cs3_api_name"
         const val EXTRA_SEASON = "extra_season"
         const val EXTRA_EPISODE = "extra_episode"
         const val EXTRA_ANIME_TITLE = "extra_anime_title"
@@ -65,7 +72,12 @@ class TvPlayerActivity : ComponentActivity() {
             description: String? = null,
             cast: List<MetaCastMember> = emptyList(),
             bangumiId: Int? = null,
-            imdbId: String? = null
+            mediaType: com.kitsugi.animelist.model.MediaType? = null,
+            knownImdbId: String? = null,
+            historyAnimeId: String? = null,
+            resumePositionMs: Long = 0L,
+            cs3Url: String? = null,
+            cs3ApiName: String? = null
         ) {
             context.startActivity(
                 Intent(context, TvPlayerActivity::class.java).apply {
@@ -81,8 +93,13 @@ class TvPlayerActivity : ComponentActivity() {
                     malId?.let { putExtra(EXTRA_MAL_ID, it) }
                     aniListId?.let { putExtra(EXTRA_ANILIST_ID, it) }
                     tmdbId?.let { putExtra(EXTRA_TMDB_ID, it) }
-                    bangumiId?.let { putExtra("subtitle_bangumi_id", it) }
-                    imdbId?.let { putExtra("subtitle_imdb_id", it) }
+                    bangumiId?.let { putExtra(EXTRA_BANGUMI_ID, it) }
+                    mediaType?.let { putExtra(EXTRA_MEDIA_TYPE, it.name) }
+                    knownImdbId?.let { putExtra(EXTRA_IMDB_ID, it) }
+                    historyAnimeId?.let { putExtra(EXTRA_HISTORY_ID, it) }
+                    putExtra(EXTRA_RESUME_POSITION, resumePositionMs)
+                    cs3Url?.let { putExtra(EXTRA_CS3_URL, it) }
+                    cs3ApiName?.let { putExtra(EXTRA_CS3_API_NAME, it) }
                     putExtra(EXTRA_SEASON, season)
                     putExtra(EXTRA_EPISODE, episode)
                     putExtra(EXTRA_ANIME_TITLE, animeTitle)
@@ -133,6 +150,15 @@ class TvPlayerActivity : ComponentActivity() {
         val malId = intent.getIntExtra(EXTRA_MAL_ID, -1).takeIf { it != -1 }
         val aniListId = intent.getIntExtra(EXTRA_ANILIST_ID, -1).takeIf { it != -1 }
         val tmdbId = intent.getIntExtra(EXTRA_TMDB_ID, -1).takeIf { it != -1 }
+        val bangumiId = intent.getIntExtra(EXTRA_BANGUMI_ID, -1).takeIf { it > 0 }
+        val mediaType = intent.getStringExtra(EXTRA_MEDIA_TYPE)?.let {
+            runCatching { com.kitsugi.animelist.model.MediaType.valueOf(it) }.getOrNull()
+        }
+        val knownImdbId = intent.getStringExtra(EXTRA_IMDB_ID)
+        val historyAnimeId = intent.getStringExtra(EXTRA_HISTORY_ID)
+        val resumePosition = intent.getLongExtra(EXTRA_RESUME_POSITION, 0L)
+        val cs3Url = intent.getStringExtra(EXTRA_CS3_URL)
+        val cs3ApiName = intent.getStringExtra(EXTRA_CS3_API_NAME)
         val season = intent.getIntExtra(EXTRA_SEASON, 1)
         val episode = intent.getIntExtra(EXTRA_EPISODE, 1)
         val animeTitle = intent.getStringExtra(EXTRA_ANIME_TITLE) ?: ""
@@ -163,8 +189,13 @@ class TvPlayerActivity : ComponentActivity() {
                     malId = malId,
                     aniListId = aniListId,
                     tmdbId = tmdbId,
-                    bangumiId = intent.getIntExtra("subtitle_bangumi_id", -1).takeIf { it > 0 },
-                    imdbId = intent.getStringExtra("subtitle_imdb_id"),
+                    bangumiId = bangumiId,
+                    mediaType = mediaType,
+                    knownImdbId = knownImdbId,
+                    historyAnimeId = historyAnimeId,
+                    resumePosition = resumePosition,
+                    cs3Url = cs3Url,
+                    cs3ApiName = cs3ApiName,
                     season = season,
                     episode = episode,
                     animeTitle = animeTitle,
@@ -184,6 +215,7 @@ class TvPlayerActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        com.kitsugi.animelist.data.local.WatchHistoryManager.flush()
         super.onDestroy()
         // T1.8: KeepAliveService stop
         com.kitsugi.animelist.core.player.KeepAliveService.stop(this)

@@ -250,6 +250,10 @@ class KitsugiFullscreenPlayerActivity : ComponentActivity() {
         const val EXTRA_CS3_URL     = "extra_cs3_url"
         const val EXTRA_CS3_API_NAME = "extra_cs3_api_name"
         const val EXTRA_RESUME_POSITION = "extra_resume_position"
+        const val EXTRA_HISTORY_ID = "extra_history_id"
+        const val EXTRA_AUTO_RESUME = "extra_auto_resume"
+        const val EXTRA_MEDIA_TYPE = "extra_media_type"
+        const val EXTRA_IMDB_ID = "extra_imdb_id"
 
         @Volatile
         var tempStreamSources: List<StreamSource>? = null
@@ -305,7 +309,11 @@ class KitsugiFullscreenPlayerActivity : ComponentActivity() {
             cs3ApiName: String? = null,
             resumePositionMs: Long = 0L,
             bangumiId: Int? = null,
-            imdbId: String? = null
+            imdbId: String? = null,
+            historyAnimeId: String? = null,
+            autoResume: Boolean = false,
+            mediaType: com.kitsugi.animelist.model.MediaType? = null,
+            knownImdbId: String? = null
         ): Boolean {
             tempSubtitles = subtitles
             tempStreamSources = allSources
@@ -342,6 +350,10 @@ class KitsugiFullscreenPlayerActivity : ComponentActivity() {
                         description?.let { putExtra(EXTRA_DESCRIPTION, it) }
                         putExtra(EXTRA_IS_MOVIE, isMovie)
                         putExtra(EXTRA_RESUME_POSITION, resumePositionMs)
+                        historyAnimeId?.let { putExtra(EXTRA_HISTORY_ID, it) }
+                        putExtra(EXTRA_AUTO_RESUME, autoResume)
+                        mediaType?.let { putExtra(EXTRA_MEDIA_TYPE, it.name) }
+                        knownImdbId?.let { putExtra(EXTRA_IMDB_ID, it) }
 
                         // Süreç ölümü (process death) sonrası Activity yeniden oluşturulursa
                         // static `tempSubtitles` / `tempStreamSources` kaybolur. Bu yedek
@@ -603,6 +615,10 @@ class KitsugiFullscreenPlayerActivity : ComponentActivity() {
         val cs3Url = intent.getStringExtra(EXTRA_CS3_URL)
         val cs3ApiName = intent.getStringExtra(EXTRA_CS3_API_NAME)
         val resumePosition = intent.getLongExtra(EXTRA_RESUME_POSITION, 0L)
+        val historyAnimeId = intent.getStringExtra(EXTRA_HISTORY_ID)
+        val autoResume = intent.getBooleanExtra(EXTRA_AUTO_RESUME, false)
+        val mediaType = intent.getStringExtra(EXTRA_MEDIA_TYPE)?.let { runCatching { com.kitsugi.animelist.model.MediaType.valueOf(it) }.getOrNull() }
+        val knownImdbId = intent.getStringExtra(EXTRA_IMDB_ID)
 
         val castList: List<MetaCastMember> = tempCast ?: run {
             val castJson = intent.getStringExtra(EXTRA_CAST_JSON)
@@ -746,6 +762,10 @@ class KitsugiFullscreenPlayerActivity : ComponentActivity() {
                     cs3Url           = cs3Url,
                     cs3ApiName       = cs3ApiName,
                     resumePosition   = resumePosition,
+                    historyAnimeId   = historyAnimeId,
+                    autoResume       = autoResume,
+                    mediaType        = mediaType,
+                    knownImdbId      = knownImdbId,
                     onBack           = { finish() }
                 )
               }

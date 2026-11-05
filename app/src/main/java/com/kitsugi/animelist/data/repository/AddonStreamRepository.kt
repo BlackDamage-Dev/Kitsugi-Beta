@@ -240,7 +240,8 @@ class AddonStreamRepository(private val context: Context) {
 
                         qualityValue = parsedQualityValue,
 
-                        thumbnailUrl = responseItem.thumbnail
+                        thumbnailUrl = responseItem.thumbnail,
+                        addonId = com.kitsugi.animelist.data.local.WatchHistorySource.stremioAddonId(task.manifestUrl)
 
                     )
 
@@ -579,7 +580,15 @@ data class StreamSource(
     /** CloudStream adaptive format and interceptor state; null for legacy/non-CS streams. */
     val csStreamType: String? = null,
 
-    val csExtractorData: String? = null
+    val csExtractorData: String? = null,
+
+    /** Stable addon identity; Stremio manifests are hashed so credentials are not copied into history. */
+    val addonId: String? = null,
+
+    /** CloudStream content/season page and API needed to resolve a fresh link. */
+    val cs3PageUrl: String? = null,
+
+    val cs3ApiName: String? = null
 
 ) : java.io.Serializable {
 

@@ -146,9 +146,10 @@ class StreamViewModel(application: Application) : AndroidViewModel(application) 
         isMovie: Boolean = false,
         mediaType: MediaType? = null,
         knownImdbId: String? = null,
+        preferredCsPluginId: String? = null,
         allSources: Boolean = false
     ) {
-        val newKey = "$malId:$aniListId:$tmdbId:$bangumiId:$simklId:$kitsuId:$isMovie:${mediaType?.name}:$season:$episode:$startYear:$cs3ApiName:$cs3Url:${title.hashCode()}:${alternativeTitles.hashCode()}:$knownImdbId:$allSources"
+        val newKey = "$malId:$aniListId:$tmdbId:$bangumiId:$simklId:$kitsuId:$isMovie:${mediaType?.name}:$season:$episode:$startYear:$cs3ApiName:$cs3Url:$preferredCsPluginId:${title.hashCode()}:${alternativeTitles.hashCode()}:$knownImdbId:$allSources"
 
         lastFetchParams = LastFetchParams(
             malId = malId, aniListId = aniListId, tmdbId = tmdbId, bangumiId = bangumiId, simklId = simklId, kitsuId = kitsuId,
@@ -331,17 +332,22 @@ class StreamViewModel(application: Application) : AndroidViewModel(application) 
      * Bu metot eklentinin tracker kaydını (blok, hata mesajı, hata kodu) siler ve son
      * [startFetch] parametreleriyle yalnızca o eklentiyi baştan dener.
      */
-    fun retryPlugin(addonDisplayName: String) {
+    fun retryPlugin(addonDisplayName: String, addonId: String? = null) {
         val params = lastFetchParams ?: run {
-            Log.w(TAG, "retryPlugin: Önceki fetch parametresi yok — yeniden deneme atlandı ($addonDisplayName)")
+            Log.w(TAG, "retryPlugin: Önceki fetch parametresi yok → yeniden deneme atlandı ($addonDisplayName)")
             return
         }
         val pluginName = addonDisplayName.removePrefix("⚡ ").trim()
         CsTrace.info(pluginName, "retry", "Kullanıcı yeniden deneme istedi")
+        val pluginId = addonId?.takeIf { it.startsWith("cs:") }?.removePrefix("cs:")
         rerunCsPlugin(
-            pluginMatcher = { it.name.equals(pluginName, ignoreCase = true) },
+            pluginMatcher = { plugin ->
+                if (pluginId != null) plugin.id.equals(pluginId, ignoreCase = true)
+                else plugin.name.equals(pluginName, ignoreCase = true)
+            },
             displayName = addonDisplayName,
             params = params,
+            addonId = addonId,
         )
     }
 
@@ -358,6 +364,7 @@ class StreamViewModel(application: Application) : AndroidViewModel(application) 
         pluginMatcher: (com.kitsugi.animelist.data.local.CsPluginEntity) -> Boolean,
         displayName: String,
         params: LastFetchParams,
+        addonId: String? = null,
     ) {
         val dismissedDisplayName = displayName
         val title = params.title
@@ -498,12 +505,16 @@ class StreamViewModel(application: Application) : AndroidViewModel(application) 
     /**
      * Resolves the Cloudflare-gated plugin URL and signals the UI to open a WebView.
      */
-    fun onVerifyPlugin(addonDisplayName: String) {
+    fun onVerifyPlugin(addonDisplayName: String, addonId: String? = null) {
         viewModelScope.launch(Dispatchers.IO) {
             val db = KitsugiDatabase.getDatabase(context)
             val allCsPlugins = db.csPluginDao().getEnabledPlugins()
             val pluginName = addonDisplayName.removePrefix("⚡ ").trim()
-            val plugin = allCsPlugins.firstOrNull { it.name.equals(pluginName, ignoreCase = true) }
+            val pluginId = addonId?.takeIf { it.startsWith("cs:") }?.removePrefix("cs:")
+            val plugin = allCsPlugins.firstOrNull { p ->
+                if (pluginId != null) p.id.equals(pluginId, ignoreCase = true)
+                else p.name.equals(pluginName, ignoreCase = true)
+            }
                 ?: return@launch
 
             val cs3File = java.io.File(context.filesDir, "cs_extensions/${plugin.id}.cs3")
@@ -675,7 +686,12 @@ class StreamViewModel(application: Application) : AndroidViewModel(application) 
         if (tasks.isNotEmpty()) {
             val uniqueAddons = tasks.map { it.addonName }.distinct()
             _addonStates.value = uniqueAddons.map { name ->
-                AddonFetchState(addonName = name, manifestUrl = "")
+                val singleManifest = tasks.firstOrNull { it.addonName == name }?.manifestUrl
+                AddonFetchState(
+                    addonName = name,
+                    manifestUrl = singleManifest.orEmpty(),
+                    addonId = singleManifest?.let(com.kitsugi.animelist.data.local.WatchHistorySource::stremioAddonId)
+                )
             }
         }
 
@@ -770,7 +786,8 @@ class StreamViewModel(application: Application) : AndroidViewModel(application) 
                     AddonFetchState(
                         addonName   = "⚡ ${plugin.name}",
                         manifestUrl = plugin.downloadUrl,
-                        isLoading   = true
+                        isLoading   = true,
+                        addonId     = com.kitsugi.animelist.data.local.WatchHistorySource.cloudStreamAddonId(plugin.id)
                     )
                 }
                 stateUpdateMutex.withLock {
@@ -999,6 +1016,7 @@ class StreamViewModel(application: Application) : AndroidViewModel(application) 
         }
 
         val displayName = "⚡ ${plugin.name}"
+        val addonId = com.kitsugi.animelist.data.local.WatchHistorySource.cloudStreamAddonId(plugin.id)
         _scopedSourceName.value = plugin.name
         _addonStates.value = listOf(
             AddonFetchState(addonName = displayName, manifestUrl = plugin.downloadUrl, isLoading = true)
@@ -1031,7 +1049,7 @@ class StreamViewModel(application: Application) : AndroidViewModel(application) 
                 val message = mediaType?.let {
                     "Bu eklenti ${CsPluginTypeCompatibility.description(it)} içeriklerini desteklemiyor."
                 } ?: "Bu eklenti bu içerik türünü desteklemiyor."
-                updateAddonStateSync(displayName, isLoading = false, error = message)
+                updateAddonStateSync(displayName, isLoading = false, error = message, addonId = addonId)
                 return false
             }
 
@@ -1200,6 +1218,7 @@ class StreamViewModel(application: Application) : AndroidViewModel(application) 
         error: String? = null,
         requiresVerification: Boolean = false,
         errorCode: String? = null,
+        addonId: String? = null,
     ) {
         val resolvedError = if (error == null && streams.isEmpty() && !isLoading) {
             "Bu içerik için akış bulunamadı"
@@ -1214,7 +1233,7 @@ class StreamViewModel(application: Application) : AndroidViewModel(application) 
         stateUpdateMutex.withLock {
             withContext(Dispatchers.Main) {
                 _addonStates.value = _addonStates.value.toMutableList().also { list ->
-                    val i = list.indexOfFirst { it.addonName == addonName }
+                    val i = list.indexForAddon(addonName, addonId)
                     if (i >= 0) {
                         list[i] = list[i].copy(
                             isLoading = isLoading,
@@ -1236,6 +1255,7 @@ class StreamViewModel(application: Application) : AndroidViewModel(application) 
         error: String? = null,
         requiresVerification: Boolean = false,
         errorCode: String? = null,
+        addonId: String? = null,
     ) {
         val resolvedError = if (error == null && streams.isEmpty() && !isLoading) {
             "Bu içerik için akış bulunamadı"
@@ -1248,7 +1268,7 @@ class StreamViewModel(application: Application) : AndroidViewModel(application) 
             ).id
         }
         val current = _addonStates.value.toMutableList()
-        val i = current.indexOfFirst { it.addonName == addonName }
+        val i = current.indexForAddon(addonName, addonId)
         if (i >= 0) {
             current[i] = current[i].copy(
                 isLoading = isLoading,

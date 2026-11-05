@@ -40,10 +40,10 @@ fun LazyListScope.renderStreamResultsItems(
     accentColor: Color,
     onStreamSelected: (StreamSource) -> Unit,
     onDownloadSelected: (StreamSource) -> Unit,
-    onVerifyPlugin: ((addonName: String) -> Unit)? = null,
+    onVerifyPlugin: ((AddonFetchState) -> Unit)? = null,
     onOpenSettings: (() -> Unit)? = null,
     /** v2.4.256: CloudStream eklentisini yalnızca o eklenti için yeniden çalıştırır. */
-    onRetryPlugin: ((addonName: String) -> Unit)? = null,
+    onRetryPlugin: ((AddonFetchState) -> Unit)? = null,
     /** v2.4.319: Eklenti kapağı yoksa kart görseli olarak kullanılacak medya posteri. */
     posterFallbackUrl: String? = null,
     /**
@@ -58,7 +58,7 @@ fun LazyListScope.renderStreamResultsItems(
                 StreamSkeletonCard(addonName = addonState.addonName)
             }
         } else if (addonState.streams.isNotEmpty()) {
-            item(key = "group_${addonState.addonName}") {
+            item(key = "group_${addonIdx}_${addonState.addonName}") {
                 StreamGroupHeader(
                     addonName = addonState.addonName,
                     streamCount = addonState.streams.size,
@@ -97,10 +97,10 @@ fun LazyListScope.renderStreamResultsItems(
                     addonState = addonState,
                     accentColor = accentColor,
                     onVerify = if (addonState.requiresVerification) {
-                        onVerifyPlugin?.let { callback -> { callback(addonState.addonName) } }
+                        onVerifyPlugin?.let { callback -> { callback(addonState) } }
                     } else null,
                     onRetry = if (addonState.addonName.startsWith("⚡ ")) {
-                        onRetryPlugin?.let { callback -> { callback(addonState.addonName) } }
+                        onRetryPlugin?.let { callback -> { callback(addonState) } }
                     } else null
                 )
             }
@@ -123,9 +123,9 @@ fun StreamResultsList(
     accentColor: Color,
     onStreamSelected: (StreamSource) -> Unit,
     onDownloadSelected: (StreamSource) -> Unit,
-    onVerifyPlugin: ((addonName: String) -> Unit)? = null,
+    onVerifyPlugin: ((AddonFetchState) -> Unit)? = null,
     onOpenSettings: (() -> Unit)? = null,
-    onRetryPlugin: ((addonName: String) -> Unit)? = null,
+    onRetryPlugin: ((AddonFetchState) -> Unit)? = null,
     posterFallbackUrl: String? = null
 ) {
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()

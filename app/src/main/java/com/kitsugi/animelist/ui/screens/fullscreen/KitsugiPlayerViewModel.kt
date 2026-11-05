@@ -1610,6 +1610,13 @@ class KitsugiPlayerViewModel(application: Application) : AndroidViewModel(applic
 
     private var cs3ApiName: String? = null
 
+    private var cs3PluginId: String? = null
+
+    private var historyAnimeId: String? = null
+
+    private var historyEngineEpisode: Int? = null
+    private var mediaType: com.kitsugi.animelist.model.MediaType? = null
+
 
 
     private val _isInitialized = MutableStateFlow(false)
@@ -1672,11 +1679,21 @@ class KitsugiPlayerViewModel(application: Application) : AndroidViewModel(applic
 
         bangumiId: Int? = null,
 
-        imdbId: String? = null
+        imdbId: String? = null,
+
+        historyAnimeId: String? = null,
+
+        autoResume: Boolean = false,
+
+        resumePositionMs: Long = 0L,
+
+        mediaType: com.kitsugi.animelist.model.MediaType? = null,
+
+        knownImdbId: String? = null
 
     ) {
 
-        val initKey = "${videoId ?: ""}_${videoUrl ?: ""}_${episode}_${aniListId ?: 0}_${malId ?: 0}_${tmdbId ?: 0}_${isMovie}_${synonyms.hashCode()}_${bangumiId}_${imdbId}"
+        val initKey = "${videoId ?: ""}_${videoUrl ?: ""}_${season}_${episode}_${aniListId ?: 0}_${malId ?: 0}_${tmdbId ?: 0}_${bangumiId ?: 0}_${mediaType?.name}_${knownImdbId ?: imdbId}_${isMovie}_${synonyms.hashCode()}_$historyAnimeId"
 
         if (_isInitialized.value && lastInitializedKey == initKey) return
 
@@ -1715,6 +1732,21 @@ class KitsugiPlayerViewModel(application: Application) : AndroidViewModel(applic
         this.cs3Url = cs3Url
 
         this.cs3ApiName = cs3ApiName
+
+        this.historyAnimeId = historyAnimeId
+
+        this.historyEngineEpisode = null
+
+        this.mediaType = mediaType
+
+        if (knownImdbId != null) {
+            this.knownImdbId = knownImdbId.trim().takeIf { Regex("tt[0-9]{5,12}").matches(it) }
+        }
+
+        this.cs3PluginId = com.kitsugi.animelist.data.local.WatchHistorySource.cloudStreamPluginId(
+            streamSources.getOrNull(initialIndex)?.addonId
+                ?: historyAnimeId?.let { com.kitsugi.animelist.data.local.WatchHistoryManager.find(it, season, episode)?.addonId }
+        )
 
         _animeTitleFlow.value = animeTitle
 
@@ -2648,7 +2680,7 @@ class KitsugiPlayerViewModel(application: Application) : AndroidViewModel(applic
 
                         )
 
-                        return@withContext StreamSorter.sort(resolved)
+                        return@withContext StreamSorter.sort(resolved.map { it.copy(addonId = csPlugin?.let { p -> com.kitsugi.animelist.data.local.WatchHistorySource.cloudStreamAddonId(p.id) }) })
 
                     }
 
@@ -2870,7 +2902,7 @@ class KitsugiPlayerViewModel(application: Application) : AndroidViewModel(applic
 
                         )
 
-                        csStreams.addAll(streams)
+                        csStreams.addAll(streams.map { it.copy(addonId = com.kitsugi.animelist.data.local.WatchHistorySource.cloudStreamAddonId(plugin.id)) })
 
                     }
 
@@ -2995,6 +3027,12 @@ class KitsugiPlayerViewModel(application: Application) : AndroidViewModel(applic
                 if (resolvedUrl != null) {
 
                     if (requestGeneration != episodeRequestGeneration) return@launch
+
+                    activeEngine?.let { engine ->
+                        saveHistoryProgress(engine.currentPosition, engine.duration)
+                    }
+                    pendingSourceSwitchResumeMs = null
+                    recordHistorySource(targetStream, resolvedUrl, targetEp)
 
                     _currentStreamSources.value = streams
 
@@ -3163,6 +3201,10 @@ class KitsugiPlayerViewModel(application: Application) : AndroidViewModel(applic
         )
 
         pendingSourceSwitchResumeMs = activeEngine?.currentPosition?.takeIf { it > 0L }
+        activeEngine?.let { engine ->
+            if (engine.currentPosition > 0L) saveHistoryProgress(engine.currentPosition, engine.duration)
+        }
+        recordHistorySource(stream, resolvedUrl, _currentEpisode.value)
 
         _currentVideoUrl.value = resolvedUrl
 
@@ -3471,6 +3513,10 @@ class KitsugiPlayerViewModel(application: Application) : AndroidViewModel(applic
                 if (resolvedUrl != null) {
 
                     pendingSourceSwitchResumeMs = activeEngine?.currentPosition?.takeIf { it > 0L }
+                    activeEngine?.let { engine ->
+                        if (engine.currentPosition > 0L) saveHistoryProgress(engine.currentPosition, engine.duration)
+                    }
+                    recordHistorySource(target, resolvedUrl, _currentEpisode.value)
 
                     _currentVideoUrl.value = resolvedUrl
 
@@ -4023,12 +4069,23 @@ class KitsugiPlayerViewModel(application: Application) : AndroidViewModel(applic
 
 
     fun onEpisodeEnded(durationMs: Long, positionMs: Long) {
+        val endedEpisode = _currentEpisode.value
+        val historyId = historyAnimeId
+        if (historyId != null && historyEngineEpisode != endedEpisode) return
+        if (historyId != null && durationMs > 0L) {
+            com.kitsugi.animelist.data.local.WatchHistoryManager.updateProgress(
+                animeId = historyId, season = seasonNum, episode = endedEpisode,
+                positionMs = durationMs, durationMs = durationMs
+            )
+            com.kitsugi.animelist.data.local.WatchHistoryManager.flush()
+        }
 
         viewModelScope.launch {
 
             try {
-
-                historyRepository.deleteProgress(getResolveMediaId(), _currentEpisode.value)
+                if (historyId == null) {
+                    historyRepository.deleteProgress(getResolveMediaId(), endedEpisode)
+                }
 
             } catch (e: Exception) {
 
@@ -4101,6 +4158,15 @@ class KitsugiPlayerViewModel(application: Application) : AndroidViewModel(applic
     override fun onCleared() {
 
         super.onCleared()
+
+        activeEngine?.let { engine ->
+            val pos = engine.currentPosition
+            val dur = engine.duration
+            if (pos > 0L) {
+                saveHistoryProgress(pos, dur)
+            }
+        }
+        com.kitsugi.animelist.data.local.WatchHistoryManager.flush()
 
         orchestrator.stop()
 
@@ -4552,6 +4618,41 @@ class KitsugiPlayerViewModel(application: Application) : AndroidViewModel(applic
 
 
 
+    fun onHistoryEnginePrepared(episode: Int) {
+        historyEngineEpisode = episode
+    }
+
+    fun saveHistoryProgress(positionMs: Long, durationMs: Long) {
+        if (historyEngineEpisode != _currentEpisode.value || positionMs < 0L) return
+        historyAnimeId?.let { id ->
+            com.kitsugi.animelist.data.local.WatchHistoryManager.updateProgress(
+                animeId = id,
+                season = seasonNum,
+                episode = _currentEpisode.value,
+                positionMs = positionMs,
+                durationMs = durationMs
+            )
+        }
+    }
+
+    private fun recordHistorySource(source: StreamSource, resolvedUrl: String, episode: Int) {
+        historyAnimeId?.let { id ->
+            runCatching {
+                com.kitsugi.animelist.data.local.WatchHistoryManager.recordSource(
+                    animeId = id, season = seasonNum, previousEpisode = _currentEpisode.value,
+                    episode = episode, source = source, resolvedUrl = resolvedUrl
+                )
+            }.onFailure { Log.w("KitsugiPlayerViewModel", "Could not update history source", it) }
+        }
+        val nextPluginId = com.kitsugi.animelist.data.local.WatchHistorySource.cloudStreamPluginId(source.addonId)
+        val nextApi = source.cs3ApiName ?: source.addonName
+        if (source.isCS && !source.cs3PageUrl.isNullOrBlank()) {
+            cs3Url = source.cs3PageUrl
+        }
+        cs3PluginId = nextPluginId.takeIf { source.isCS }
+        cs3ApiName = nextApi.takeIf { source.isCS }
+    }
+
     fun saveProgress(
 
         mediaId: Int,
@@ -4612,11 +4713,14 @@ class KitsugiPlayerViewModel(application: Application) : AndroidViewModel(applic
 
         val effectiveDuration = (durationMs?.takeIf { it > 0L } ?: _duration.value).coerceAtLeast(positionMs)
 
-        if (positionMs > 0L) {
+        if (positionMs >= 0L) {
 
             seekTo(positionMs)
 
-            if (effectiveDuration > 0L) {
+            if (historyAnimeId != null) {
+                saveHistoryProgress(positionMs, effectiveDuration)
+                com.kitsugi.animelist.data.local.WatchHistoryManager.flush()
+            } else if (effectiveDuration > 0L) {
 
                 val mediaId = getResolveMediaId()
 
@@ -4648,8 +4752,9 @@ class KitsugiPlayerViewModel(application: Application) : AndroidViewModel(applic
 
                 )
 
+            }
+            if (effectiveDuration > 0L) {
                 orchestrator.scrobble.onPositionUpdate(positionMs, effectiveDuration)
-
             }
 
         }

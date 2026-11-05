@@ -18560,4 +18560,8 @@ Eklentiler ekranından eklenti etkinleştirin.</string>
     <string name="video_download_completed">Video indirildi: %1$s</string>
     <string name="video_download_failed">İndirme başarısız: %1$s</string>
     <string name="video_download_split_saved">Ses ve görüntü ayrı dosyalar olarak kaydedildi.</string>
+    <!-- İzleme geçmişi ve kaldığı yerden devam -->
+    <string name="history_saved_source_unavailable">Kaydedilen eklenti veya video kaynağı bulunamadı. Eklentinin yüklü ve etkin olduğundan emin olun ya da listeden başka bir kaynak seçin.</string>
+    <string name="history_next_episode_unavailable">Bu bölüm için oynatılabilir kaynak bulunamadı.</string>
+    <string name="history_next_episode_other_addon">Aynı eklentide kaynak bulunamadı; başka bir eklentiden oynatılıyor.</string>
 </resources>

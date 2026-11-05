@@ -107,9 +107,11 @@ fun KitsugiStreamScreen(
     isDownloadMode: Boolean = false,
     cs3Url: String? = null,
     cs3ApiName: String? = null,
+    cs3PluginId: String? = null,
     knownImdbId: String? = null,
+    resumeEntry: com.kitsugi.animelist.data.model.WatchHistoryEntry? = null,
     onBack: () -> Unit,
-    onLaunchExternalPlayer: ((input: ExternalPlayerInput, streamKey: String) -> Unit)? = null,
+    onLaunchExternalPlayer: ((input: ExternalPlayerInput, streamKey: String, historyId: String) -> Unit)? = null,
     onOpenHistory: (() -> Unit)? = null,
     onOpenDownloads: (() -> Unit)? = null
 ) {
@@ -165,6 +167,7 @@ fun KitsugiStreamScreen(
     val isAnyLoading = addonStates.any { it.isLoading }
 
     var isAutoplayAttempted by remember { mutableStateOf(false) }
+    var isAutoplayResolving by remember { mutableStateOf(false) }
 
     LaunchedEffect(reposList) {
         addonViewModel.syncRepos(reposList)
@@ -190,7 +193,7 @@ fun KitsugiStreamScreen(
     }
 
     // ── Trigger fetch — ViewModel guards against duplicate/redundant calls ────
-    LaunchedEffect(malId, aniListId, tmdbId, bangumiId, episode, season, cs3Url, cs3ApiName, isMovie, mediaType, title, startYear, alternativeTitles, knownImdbId) {
+    LaunchedEffect(malId, aniListId, tmdbId, bangumiId, episode, season, cs3Url, cs3ApiName, cs3PluginId, isMovie, mediaType, title, startYear, alternativeTitles, knownImdbId) {
         viewModel.startFetch(
             malId             = malId,
             aniListId         = aniListId,
@@ -205,67 +208,67 @@ fun KitsugiStreamScreen(
             cs3ApiName        = cs3ApiName,
             isMovie           = isMovie,
             mediaType         = mediaType,
-            knownImdbId       = knownImdbId
+            knownImdbId       = knownImdbId,
+            preferredCsPluginId = cs3PluginId ?: com.kitsugi.animelist.data.local.WatchHistorySource.cloudStreamPluginId(resumeEntry?.addonId)
         )
     }
 
     // ── Player launcher ───────────────────────────────────────────────────────
-    val launchPlayer = remember(context, allStreams, streamPrefs, onLaunchExternalPlayer, description, castList, synonyms) {
+    val launchPlayer = remember(context, allStreams, streamPrefs, onLaunchExternalPlayer, description, castList, synonyms, cs3PluginId, resumeEntry) {
         { source: StreamSource, resolvedUrl: String, engine: String ->
-            val watchHistoryAnimeId = if (aniListId != null) aniListId.toString()
-                                      else if (malId != null) malId.toString()
-                                      else if (!cs3Url.isNullOrBlank()) cs3Url.hashCode().toString()
-                                      else title.hashCode().toString()
-
-            val historyEntry = com.kitsugi.animelist.data.local.WatchHistoryManager.history.value.find {
-                it.animeId == watchHistoryAnimeId && it.episode == episode
+            if (isAutoplayResolving) {
+                isAutoplayAttempted = true
+                isAutoplayResolving = false
             }
-            val resumePositionMs = historyEntry?.positionMs ?: 0L
+            val sourceApi = source.cs3ApiName ?: source.addonName
+            val selectedPluginId = com.kitsugi.animelist.data.local.WatchHistorySource.cloudStreamPluginId(source.addonId)
+            val originalPluginId = cs3PluginId ?: com.kitsugi.animelist.data.local.WatchHistorySource.cloudStreamPluginId(resumeEntry?.addonId)
+            val sameProvider = !selectedPluginId.isNullOrBlank() && selectedPluginId.equals(originalPluginId, ignoreCase = true) &&
+                cs3ApiName.equals(sourceApi, ignoreCase = true)
+            val sourcePage = if (source.isCS) source.cs3PageUrl ?: cs3Url.takeIf { sameProvider } else null
+            val probe = com.kitsugi.animelist.data.model.WatchHistoryEntry(
+                animeId = resumeEntry?.animeId ?: com.kitsugi.animelist.data.local.WatchHistoryRules.mediaId(
+                    aniListId = aniListId, malId = malId, tmdbId = tmdbId, bangumiId = bangumiId,
+                    title = title, isMovie = isMovie, cs3Url = sourcePage, cs3ApiName = sourceApi,
+                    startYear = startYear
+                ),
+                animeTitle = title,
+                posterUrl = source.thumbnailUrl.takeIf { !it.isNullOrBlank() } ?: posterUrl,
+                episode = episode,
+                season = season,
+                isMovie = isMovie,
+                malId = malId,
+                aniListId = aniListId,
+                tmdbId = tmdbId,
+                bangumiId = bangumiId,
+                imdbId = imdbId ?: knownImdbId,
+                mediaType = mediaType?.name,
+                titleEnglish = titleEnglish,
+                titleRomaji = titleRomaji,
+                titleNative = titleNative,
+                synonyms = synonyms.takeIf { it.isNotEmpty() },
+                startYear = startYear,
+                cs3Url = sourcePage,
+                cs3ApiName = sourceApi.takeIf { source.isCS },
+                addonId = source.addonId
+            )
+            val historyEntry = runCatching {
+                com.kitsugi.animelist.data.local.WatchHistoryManager.record(com.kitsugi.animelist.data.local.WatchHistorySource.withSource(probe, source, resolvedUrl))
+            }.onFailure { e ->
+                Log.w("KitsugiStreamScreen", "İzleme geçmişi yazılamadı (oynatma devam ediyor): ${e.message}", e)
+            }.getOrNull()
+            val historyId = historyEntry?.animeId ?: probe.animeId
+            val resumePositionMs = if (appSettings.preserveWatchingPosition) {
+                (historyEntry ?: resumeEntry)?.let(com.kitsugi.animelist.data.local.WatchHistoryRules::resumePosition) ?: 0L
+            } else 0L
             val streamKey = (source.infoHash ?: resolvedUrl).hashCode().toString()
-            // `indexOf` referans eşitliğine dayanır. Kaynak listesi filtre/sıralama sonrası
-            // yeniden üretildiğinde -1 dönebiliyor; bu durumda oynatıcıda kaynak indeksi -1
-            // kalıyor ve "kaynak değiştir" çalışmıyordu. İçerik eşleşmesiyle yedekle.
             val resolvedSourceIndex = allStreams.indexOf(source).takeIf { it >= 0 }
                 ?: allStreams.indexOfFirst {
                     it.addonName == source.addonName && it.url == source.url
                 }
 
-            // ── İzleme geçmişine kaydet ─────────────────────────────────────
-            // Geçmiş yazımı oynatmayı ASLA engellemez: disk/veri hatası fırlatırsa
-            // yutulur, video yine açılır. (Önceden bu çağrı try bloğunun DIŞINDAYDI;
-            // burada fırlayan bir istisna "izle'ye basınca uygulama kapanıyor"
-            // şikâyetinin doğrudan sebebi olabiliyordu.)
-            runCatching {
-                com.kitsugi.animelist.data.local.WatchHistoryManager.record(
-                    com.kitsugi.animelist.data.model.WatchHistoryEntry(
-                        animeId = watchHistoryAnimeId,
-                        animeTitle = title,
-                        posterUrl = source.thumbnailUrl.takeIf { !it.isNullOrBlank() } ?: posterUrl,
-                        episode = episode,
-                        season = season,
-                        isMovie = isMovie,
-                        quality = source.quality,
-                        source = source.addonName,
-                        malId = malId,
-                        aniListId = aniListId,
-                        tmdbId = tmdbId,
-                        streamUrl = resolvedUrl,
-                        streamHeaders = source.requestHeaders,
-                        // Eklenti metinleri HTML/CSS artığı içerebiliyor ("… .fa-secondary{opacity:.4} DUAL").
-                        // Geçmişe temiz hâli yazılır; aksi hâlde oynatıcı ve izleme geçmişi
-                        // bozuk metin gösteriyordu (2026-11-01).
-                        streamTitle = com.kitsugi.animelist.utils.StreamLabelSanitizer.sanitize(source.title),
-                        streamName = com.kitsugi.animelist.utils.StreamLabelSanitizer.sanitize(source.name),
-                        cs3Url = cs3Url,
-                        cs3ApiName = cs3ApiName
-                    )
-                )
-            }.onFailure { e ->
-                Log.w("KitsugiStreamScreen", "İzleme geçmişi yazılamadı (oynatma devam ediyor): ${e.message}", e)
-            }
-
             try {
-                if (engine == "exoplayer") {
+                if (engine == "exoplayer" || onLaunchExternalPlayer == null) {
                     val started = KitsugiFullscreenPlayerActivity.startWithStreamUrls(
                         context = context, videoUrl = resolvedUrl,
                         audioUrl = source.externalAudioUrl,
@@ -278,38 +281,20 @@ fun KitsugiStreamScreen(
                         synonyms = synonyms,
                         startYear = startYear, description = description, cast = castList,
                         isMovie = isMovie,
-                        cs3Url = cs3Url,
-                        cs3ApiName = cs3ApiName,
-                        resumePositionMs = resumePositionMs
+                        cs3Url = historyEntry?.cs3Url ?: sourcePage,
+                        cs3ApiName = historyEntry?.cs3ApiName ?: sourceApi.takeIf { source.isCS },
+                        resumePositionMs = resumePositionMs,
+                        historyAnimeId = historyId,
+                        autoResume = resumeEntry != null
                     )
                     if (!started) playbackStartError = KitsugiStrings.get(R.string.stream_play_failed_generic)
                 } else {
-                    if (onLaunchExternalPlayer != null) {
-                        val input = ExternalPlayerLauncher.createInput(
-                            url = resolvedUrl, title = context.getString(R.string.title_bolum_episode, title, episode),
-                            headers = source.requestHeaders, resumePositionMs = resumePositionMs,
-                            subtitles = source.subtitles
-                        )
-                        onLaunchExternalPlayer(input, streamKey)
-                    } else {
-                        val started = KitsugiFullscreenPlayerActivity.startWithStreamUrls(
-                            context = context, videoUrl = resolvedUrl,
-                            audioUrl = source.externalAudioUrl,
-                            title = context.getString(R.string.title_bolum_episode, title, episode), headers = source.requestHeaders,
-                            subtitles = source.subtitles, allSources = allStreams,
-                            currentSourceIndex = resolvedSourceIndex,
-                            malId = malId, aniListId = aniListId, tmdbId = tmdbId, bangumiId = bangumiId, imdbId = imdbId ?: knownImdbId, season = season, episode = episode,
-                            animeTitle = title, posterUrl = posterUrl,
-                            titleEnglish = titleEnglish, titleRomaji = titleRomaji, titleNative = titleNative,
-                            synonyms = synonyms,
-                            startYear = startYear, description = description, cast = castList,
-                            isMovie = isMovie,
-                            cs3Url = cs3Url,
-                            cs3ApiName = cs3ApiName,
-                            resumePositionMs = resumePositionMs
-                        )
-                        if (!started) playbackStartError = KitsugiStrings.get(R.string.stream_play_failed_generic)
-                    }
+                    val input = ExternalPlayerLauncher.createInput(
+                        url = resolvedUrl, title = context.getString(R.string.title_bolum_episode, title, episode),
+                        headers = source.requestHeaders, resumePositionMs = resumePositionMs,
+                        subtitles = source.subtitles
+                    )
+                    onLaunchExternalPlayer(input, streamKey, historyId)
                 }
             } catch (e: Throwable) {
                 Log.e("KitsugiStreamScreen", "Oynatıcı başlatılamadı: ${e.message}", e)
@@ -382,6 +367,10 @@ fun KitsugiStreamScreen(
 
                 resolvingSource = null
                 if (resolvedUrl == null || resolvedUrl.startsWith("magnet:", ignoreCase = true) || resolvedUrl.startsWith("torrent://", ignoreCase = true)) {
+                    if (isAutoplayResolving) {
+                        isAutoplayAttempted = true
+                        isAutoplayResolving = false
+                    }
                     resolvingError = if (isTorrent) "P2P akış motoru başlatılamadı veya torrent çözümlenemedi." else "Akış linki çözümlenemedi."
                     return@launch
                 }
@@ -430,24 +419,49 @@ fun KitsugiStreamScreen(
         }
     }
 
-    // T1.8 – Autoplay Selection Logic (with Consent Guard)
-    LaunchedEffect(allStreams, isAnyLoading) {
-        if (isAutoplay && !isAnyLoading && allStreams.isNotEmpty() && !isAutoplayAttempted) {
-            isAutoplayAttempted = true
-            val lastAddonName = streamPrefs.getString("last_addon_name", null)
-            val bestSource = com.kitsugi.animelist.core.player.StreamAutoPlaySelector.selectBestStream(
-                currentAddonName = lastAddonName,
-                currentStreamSource = null,
-                nextEpisodeStreams = allStreams
-            )
-            if (bestSource != null) {
-                val isTorrent = bestSource.isTorrent
-                val hasDebrid = !DebridResolver(context).getApiKey().isNullOrBlank()
-                val p2pAllowed = com.kitsugi.animelist.core.p2p.P2pSettingsRepository.isP2pEnabled() &&
-                    com.kitsugi.animelist.core.p2p.P2pSettingsRepository.isConsentGranted()
+    // T1.8 – Autoplay Selection Logic (with Consent Guard & History Resume)
+    LaunchedEffect(addonStates, isAnyLoading, isResolvingId, isAutoplay, resumeEntry) {
+        if (isAutoplay && !isAutoplayAttempted && !isAutoplayResolving && !isDownloadMode) {
+            if (resumeEntry != null) {
+                val stillLoading = isAnyLoading || isResolvingId
+                val savedSource = com.kitsugi.animelist.data.local.WatchHistorySource.findSavedStream(resumeEntry, addonStates.flatMap { it.streams })
+                val savedProviderReady = resumeEntry.addonId?.let { id ->
+                    addonStates.singleOrNull { it.addonId == id }?.isLoading == false
+                } == true
+                val safeToStart = savedSource != null && (!stillLoading || savedProviderReady)
+                if (safeToStart && savedSource != null) {
+                    val isTorrent = savedSource.isTorrent
+                    val hasDebrid = !DebridResolver(context).getApiKey().isNullOrBlank()
+                    val p2pAllowed = com.kitsugi.animelist.core.p2p.P2pSettingsRepository.isP2pEnabled() &&
+                        com.kitsugi.animelist.core.p2p.P2pSettingsRepository.isConsentGranted()
 
-                if (!isTorrent || hasDebrid || p2pAllowed) {
-                    executeStreamResolution(bestSource, false)
+                    if (!isTorrent || hasDebrid || p2pAllowed) {
+                        isAutoplayResolving = true
+                        executeStreamResolution(savedSource, false)
+                    }
+                } else if (!stillLoading) {
+                    isAutoplayAttempted = true
+                    resolvingError = context.getString(R.string.history_saved_source_unavailable)
+                }
+            } else if (!isAnyLoading && allStreams.isNotEmpty()) {
+                val lastAddonName = streamPrefs.getString("last_addon_name", null)
+                val bestSource = com.kitsugi.animelist.core.player.StreamAutoPlaySelector.selectBestStream(
+                    currentAddonName = lastAddonName,
+                    currentStreamSource = null,
+                    nextEpisodeStreams = allStreams
+                )
+                if (bestSource != null) {
+                    val isTorrent = bestSource.isTorrent
+                    val hasDebrid = !DebridResolver(context).getApiKey().isNullOrBlank()
+                    val p2pAllowed = com.kitsugi.animelist.core.p2p.P2pSettingsRepository.isP2pEnabled() &&
+                        com.kitsugi.animelist.core.p2p.P2pSettingsRepository.isConsentGranted()
+
+                    if (!isTorrent || hasDebrid || p2pAllowed) {
+                        isAutoplayResolving = true
+                        executeStreamResolution(bestSource, false)
+                    }
+                } else {
+                    isAutoplayAttempted = true
                 }
             }
         }
@@ -510,10 +524,14 @@ fun KitsugiStreamScreen(
         isAnyLoading = isAnyLoading, selectedAddonFilter = selectedAddonFilter,
         onAddonFilterChange = { selectedAddonFilter = it },
         onStreamSelected = { source ->
+            isAutoplayAttempted = true
+            isAutoplayResolving = false
             streamPrefs.edit().putString("last_addon_name", source.addonName).apply()
             executeStreamResolution(source, isDownloadMode)
         },
         onDownloadSelected = { source ->
+            isAutoplayAttempted = true
+            isAutoplayResolving = false
             streamPrefs.edit().putString("last_addon_name", source.addonName).apply()
             executeStreamResolution(source, true)
         },
@@ -532,11 +550,11 @@ fun KitsugiStreamScreen(
             }
             playerPrefs.edit().putString("default_player_engine", engine).apply()
         },
-        onVerifyPlugin = { addonDisplayName ->
-            viewModel.onVerifyPlugin(addonDisplayName)
+        onVerifyPlugin = { addonState ->
+            viewModel.onVerifyPlugin(addonState.addonName, addonState.addonId)
         },
-        onRetryPlugin = { addonDisplayName ->
-            viewModel.retryPlugin(addonDisplayName)
+        onRetryPlugin = { addonState ->
+            viewModel.retryPlugin(addonState.addonName, addonState.addonId)
         },
         onOpenSettings = { showSettingsDialog = true },
         onOpenHistory = onOpenHistory,

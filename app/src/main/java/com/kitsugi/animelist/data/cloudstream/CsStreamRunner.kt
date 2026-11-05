@@ -7394,16 +7394,12 @@ object CsStreamRunner {
 
 
 
-    private suspend fun extractStreamsFromEpisode(
-
+        private suspend fun extractStreamsFromEpisode(
         api: MainAPI,
-
         loadResponse: LoadResponse,
-
         episodeData: String,
-
-        partialSink: MutableList<StreamSource>? = null
-
+        partialSink: MutableList<StreamSource>? = null,
+        fallbackPageUrl: String? = null
     ): List<StreamSource> {
 
         // Kaynağa özgü kapak görseli — LoadResponse.posterUrl varsa StreamSource'a aktarılır
@@ -8372,16 +8368,14 @@ object CsStreamRunner {
 
         )
 
+                val originPageUrl = loadResponse.url?.takeIf { it.isNotBlank() } ?: fallbackPageUrl?.takeIf { it.isNotBlank() }
         return finalStreams.map { stream ->
-
             stream.copy(
-
                 subtitles = subtitleList.toList(),
-
-                providerAudioKind = stream.providerAudioKind ?: providerAudioKind
-
+                providerAudioKind = stream.providerAudioKind ?: providerAudioKind,
+                cs3PageUrl = stream.cs3PageUrl ?: originPageUrl,
+                cs3ApiName = stream.cs3ApiName ?: api.name
             )
-
         }
 
     }

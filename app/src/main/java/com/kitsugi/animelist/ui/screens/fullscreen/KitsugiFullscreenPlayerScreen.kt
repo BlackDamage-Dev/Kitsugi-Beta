@@ -150,6 +150,10 @@ fun KitsugiFullscreenPlayerScreen(
     cs3Url: String? = null,
     cs3ApiName: String? = null,
     resumePosition: Long = 0L,
+    historyAnimeId: String? = null,
+    autoResume: Boolean = false,
+    mediaType: com.kitsugi.animelist.model.MediaType? = null,
+    knownImdbId: String? = null,
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
@@ -281,7 +285,7 @@ fun KitsugiFullscreenPlayerScreen(
         }
     }
 
-    LaunchedEffect(videoId, videoUrl, audioUrl, title, initialIndex, episode, tmdbId, isMovie, synonyms, bangumiId, imdbId) {
+    LaunchedEffect(videoId, videoUrl, audioUrl, title, initialIndex, episode, tmdbId, isMovie, synonyms, bangumiId, imdbId, historyAnimeId, autoResume) {
         viewModel.initialize(
             videoId = videoId,
             videoUrl = videoUrl,
@@ -307,7 +311,12 @@ fun KitsugiFullscreenPlayerScreen(
             isMovie = isMovie,
             activity = activity,
             cs3Url = cs3Url,
-            cs3ApiName = cs3ApiName
+            cs3ApiName = cs3ApiName,
+            historyAnimeId = historyAnimeId,
+            autoResume = autoResume,
+            resumePositionMs = resumePosition,
+            mediaType = mediaType,
+            knownImdbId = knownImdbId ?: imdbId
         )
     }
 
@@ -918,8 +927,9 @@ fun KitsugiFullscreenPlayerScreen(
                                     durationMs = duration,
                                     addonName = currentAddonName
                                 )
+                                val targetHistoryId = historyAnimeId ?: mediaIdForHistory.toString()
                                 com.kitsugi.animelist.data.local.WatchHistoryManager.updateProgress(
-                                    animeId = mediaIdForHistory.toString(),
+                                    animeId = targetHistoryId,
                                     episode = currentEpisode,
                                     positionMs = currentPosition,
                                     durationMs = duration
@@ -1095,12 +1105,14 @@ fun KitsugiFullscreenPlayerScreen(
                                 durationMs = duration,
                                 addonName = currentAddonName
                             )
+                            val targetHistoryId = historyAnimeId ?: mediaIdForHistory.toString()
                             com.kitsugi.animelist.data.local.WatchHistoryManager.updateProgress(
-                                animeId = mediaIdForHistory.toString(),
+                                animeId = targetHistoryId,
                                 episode = currentEpisode,
                                 positionMs = finalPos,
                                 durationMs = duration
                             )
+                            com.kitsugi.animelist.data.local.WatchHistoryManager.flush()
                         }
                         playerEngine.release()
 
@@ -1183,6 +1195,7 @@ fun KitsugiFullscreenPlayerScreen(
                     lastPreparedUrl = safeVideoUrl
                     lastPreparedResumeIdentity = resumeIdentity
                     lastPreparedStream.set(streamIdentity)
+                    viewModel.onHistoryEnginePrepared(currentEpisode)
 
                     playerEngine.prepare(
                         videoUrl = safeVideoUrl,
@@ -1601,12 +1614,14 @@ fun KitsugiFullscreenPlayerScreen(
                                         durationMs = duration,
                                         addonName = currentAddonName
                                     )
+                                    val targetHistoryId = historyAnimeId ?: mediaIdForHistory.toString()
                                     com.kitsugi.animelist.data.local.WatchHistoryManager.updateProgress(
-                                        animeId = mediaIdForHistory.toString(),
+                                        animeId = targetHistoryId,
                                         episode = currentEpisode,
                                         positionMs = resumeMs,
                                         durationMs = duration
                                     )
+                                    com.kitsugi.animelist.data.local.WatchHistoryManager.flush()
                                 }
                                 PlayerLogger.logExternalPlayerLaunch(
                                     context   = context,

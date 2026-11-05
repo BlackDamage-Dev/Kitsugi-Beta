@@ -651,6 +651,7 @@ fun TvRootScreen(
                             showAdultContent = settingsState.showAdultContent,
                             selectedHomeLayoutId = settingsState.selectedHomeLayoutId,
                             onNavigateToDetail = { navigationState.navigateToDetail(it) },
+                            onNavigateToWatchHistory = { navigationState.navigateToWatchHistory() },
                             onSeeAllClick = { title, results ->
                                 mediaGridDialogTitle = title
                                 mediaGridDialogResults = results
@@ -835,6 +836,13 @@ fun TvRootScreen(
                 sessionManager = companionSession,
                 companionServer = companionServer,
                 onRefreshToken = { companionSession.rotateToken() },
+                onBack = { navigationState.pop() }
+            )
+        }
+
+        if (navigationState.isWatchHistoryActive) {
+            BackHandler(enabled = true) { navigationState.pop() }
+            com.kitsugi.animelist.ui.screens.history.WatchHistoryScreen(
                 onBack = { navigationState.pop() }
             )
         }
