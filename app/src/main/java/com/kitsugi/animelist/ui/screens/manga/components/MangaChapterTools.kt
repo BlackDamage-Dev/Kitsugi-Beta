@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
@@ -288,7 +289,9 @@ fun MangaChaptersHeader(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 2.dp),
+            .padding(horizontal = 16.dp, vertical = 6.dp)
+            .background(KitsugiColors.SurfaceSoft, RoundedCornerShape(14.dp))
+            .padding(horizontal = 14.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
@@ -421,13 +424,20 @@ fun MangaChaptersHeader(
                 onClick = onToggleAllRead
             )
         }
-        MangaHeaderIconButton(
-            icon = Icons.Rounded.Refresh,
-            contentDescription = stringResource(R.string.yenile),
-            active = false,
-            accentColor = accentColor,
-            onClick = onRefresh
-        )
+        IconButton(
+            onClick = onRefresh,
+            modifier = Modifier
+                .size(34.dp)
+                .clip(CircleShape)
+                .background(KitsugiColors.SurfaceStrong)
+        ) {
+            Icon(
+                Icons.Rounded.Refresh,
+                contentDescription = stringResource(R.string.yenile),
+                tint = accentColor,
+                modifier = Modifier.size(18.dp)
+            )
+        }
     }
 
     // Görünüm menüsü — sıralama menüsünden ayrı açılır (iç içe menü Popup'ta açılmaz).

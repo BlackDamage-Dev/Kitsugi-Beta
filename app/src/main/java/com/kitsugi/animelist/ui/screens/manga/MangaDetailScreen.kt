@@ -1024,12 +1024,17 @@ private fun ChapterGroupListItem(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp)
+            .background(
+                if (inProgressRow != null) accent.copy(alpha = 0.14f) else KitsugiColors.SurfaceSoft,
+                RoundedCornerShape(14.dp)
+            )
             .tvClickable(
-                shape = RoundedCornerShape(8.dp),
+                shape = RoundedCornerShape(14.dp),
                 onLongClick = onLongPress,
                 onClick = onClick
             )
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
@@ -1112,12 +1117,17 @@ private fun ChapterListItem(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp)
+            .background(
+                if (row.isInProgress) accent.copy(alpha = 0.14f) else KitsugiColors.SurfaceSoft,
+                RoundedCornerShape(14.dp)
+            )
             .tvClickable(
-                shape = RoundedCornerShape(8.dp),
+                shape = RoundedCornerShape(14.dp),
                 onLongClick = onLongPress,
                 onClick = onClick
             )
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {

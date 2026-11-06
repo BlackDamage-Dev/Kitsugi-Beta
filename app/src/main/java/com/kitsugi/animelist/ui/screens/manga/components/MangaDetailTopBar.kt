@@ -153,12 +153,12 @@ fun MangaFloatingBackButton(
                 .padding(4.dp)
                 .size(40.dp)
                 .clip(CircleShape)
-                .background(Color.Black.copy(alpha = 0.35f))
+                .background(KitsugiColors.SurfaceStrong.copy(alpha = 0.75f))
         ) {
             Icon(
                 Icons.AutoMirrored.Rounded.ArrowBack,
                 contentDescription = stringResource(R.string.geri),
-                tint = Color.White
+                tint = KitsugiColors.TextPrimary
             )
         }
     }

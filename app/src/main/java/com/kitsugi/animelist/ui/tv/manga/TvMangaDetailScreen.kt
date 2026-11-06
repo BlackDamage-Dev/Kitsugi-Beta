@@ -201,7 +201,7 @@ fun TvMangaDetailScreen(
                         modifier = Modifier
                             .size(36.dp)
                             .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.1f))
+                            .background(KitsugiColors.SurfaceStrong)
                             .tvClickable(shape = CircleShape) { onBack() }
                             .focusRequester(backButtonFocusRequester),
                         contentAlignment = Alignment.Center
@@ -209,7 +209,7 @@ fun TvMangaDetailScreen(
                         Icon(
                             Icons.AutoMirrored.Rounded.ArrowBack,
                             contentDescription = stringResource(R.string.geri),
-                            tint = Color.White,
+                            tint = KitsugiColors.TextPrimary,
                             modifier = Modifier.size(18.dp)
                         )
                     }
@@ -364,7 +364,10 @@ fun TvMangaDetailScreen(
                 item(key = "chapter_header") {
                     Column {
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(KitsugiColors.SurfaceSoft, RoundedCornerShape(12.dp))
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
@@ -444,12 +447,15 @@ fun TvMangaDetailScreen(
                                 }
                                 IconButton(
                                     onClick = { viewModel.loadChapters() },
-                                    modifier = Modifier.size(36.dp)
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(CircleShape)
+                                        .background(KitsugiColors.SurfaceStrong)
                                 ) {
                                     Icon(
                                         Icons.Rounded.Refresh,
                                         contentDescription = stringResource(R.string.yenile),
-                                        tint = KitsugiColors.TextSecondary,
+                                        tint = KitsugiColors.AccentBlue,
                                         modifier = Modifier.size(18.dp)
                                     )
                                 }
@@ -535,11 +541,15 @@ private fun TvChapterListItem(
     row: MangaDetailViewModel.ChapterRow,
     onClick: () -> Unit
 ) {
-    val cardShape = RoundedCornerShape(8.dp)
+    val cardShape = RoundedCornerShape(12.dp)
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .background(
+                if (row.isInProgress) KitsugiColors.AccentBlue.copy(0.14f) else KitsugiColors.SurfaceSoft,
+                cardShape
+            )
             .tvClickable(shape = cardShape) { onClick() }
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
