@@ -234,6 +234,17 @@ class MangaSourceRepository(private val context: Context) {
     ): List<MangaDetails> = searchCoordinator.postProcess(source, query, mangas, relaxScoring)
 
     /**
+     * Çok adlı arama sonrası eleme (yerel ad + orijinal ad). [queries] kabul edilen
+     * adların tamamıdır; bir sonuç bunlardan **herhangi biriyle** eşleşirse tutulur.
+     */
+    fun postProcessSearchResults(
+        source: MangaSource,
+        queries: List<String>,
+        mangas: List<MangaDetails>,
+        relaxScoring: Boolean = false
+    ): List<MangaDetails> = searchCoordinator.postProcess(source, queries, mangas, relaxScoring)
+
+    /**
      * Verilen [extensionId] eklentisini diskten yükler ve kullanıma hazır hale getirir.
      * Başarısız olursa null döner.
      */

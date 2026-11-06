@@ -18976,4 +18976,28 @@ Eklentiler ekranından eklenti etkinleştirin.</string>
     <string name="manga_source_login_required_message">%1$s isteği hesap girişi olmadan tamamlayamadı. Kaynağın kendi oturumunu açıp yeniden deneyebilirsin.</string>
     <string name="manga_source_login_action">Oturum aç</string>
 
+    <!-- ── Manga Keşfet: başlık modu / sıralama / kompakt üst bar (2026-11-06) ── -->
+    <string name="manga_discover_title_placeholder">Manga, manhwa veya manhua ara…</string>
+    <string name="manga_discover_mode_localized">Arama: Yerel / çevrilmiş ad</string>
+    <string name="manga_discover_mode_original">Arama: Orijinal ad (Japonca/Çince/Korece)</string>
+    <string name="manga_discover_mode_localized_hint">Eklentiler Türkçe ad tutar; bu mod İngilizce/Romaji adı eklentinin diline çevirip arar.</string>
+    <string name="manga_discover_mode_original_hint">Bu mod eserin orijinal (Japonca/Çince/Korece/Romaji) adıyla arar.</string>
+    <string name="manga_discover_resolving_titles">Başlık adları çözümleniyor…</string>
+    <string name="manga_discover_summary">%1$d sonuç · %2$d kaynak · %3$d başlık denendi</string>
+    <string name="manga_discover_popular_summary">%1$d manga · %2$s</string>
+    <string name="manga_discover_sort_relevance">İlgi</string>
+    <string name="manga_discover_sort_title">A-Z</string>
+    <string name="manga_discover_sort_label">Sırala:</string>
+    <string name="manga_discover_all">Tümü</string>
+    <string name="manga_discover_mode_resolved">"Bu adlar denendi: %1$s"</string>
+    <string name="manga_discover_mode_chip_hint">Arama adını değiştir</string>
+    <string name="manga_discover_no_extensions_title">Yüklü manga eklentisi yok</string>
+    <string name="manga_discover_no_result">Sonuç bulunamadı</string>
+    <string name="manga_discover_no_result_hint">Farklı bir adla veya \"Orijinal ad\" moduyla deneyin.</string>
+    <string name="manga_discover_source_missing_plural">Bu filtre için sonuç yok</string>
+    <string name="manga_discover_managed_in_settings">Eklentileri Ayarlar → Manga Kaynakları\'ndan yönetebilirsin.</string>
+    <string name="manga_discover_more_info">Arama ayrıntıları</string>
+    <string name="manga_discover_tried_titles">Denenen adlar</string>
+    <string name="manga_discover_using_title">Aranan: %1$s</string>
+    <string name="manga_discover_tried_count">%1$d başlık denendi</string>
 </resources>

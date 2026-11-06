@@ -355,10 +355,19 @@ fun TvMangaBrowseScreen(
                             )
                         }
                     } else {
+                        item {
+                            TvMangaSourceChip(
+                                label      = stringResource(R.string.tumu),
+                                count      = popular.size,
+                                isLoading  = ui.isLoadingPopular && selFilter == null,
+                                isSelected = selFilter == null,
+                                onClick    = { vm.selectSourceFilter(null) }
+                            )
+                        }
                         items(ui.sources) { src ->
                             TvMangaSourceChip(
                                 label      = "${src.name}  [${src.lang.uppercase()}]",
-                                count      = if (selFilter?.name == src.name) popular.size else 0,
+                                count      = popular.count { it.source.equals(src.name, ignoreCase = true) },
                                 isLoading  = selFilter?.name == src.name && ui.isLoadingPopular,
                                 isSelected = selFilter?.name == src.name,
                                 onClick    = { vm.selectSourceFilter(src) }

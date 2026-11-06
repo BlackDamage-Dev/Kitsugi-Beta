@@ -19,6 +19,10 @@ data class MangaSourceFetchState(
     val resolvedQuery: String? = null,
     /** Kaç farklı başlık denendi (çok dilli arama göstergesi). */
     val titleAttempts: Int = 0,
+    /** Bu kaynak için kullanılan arama adı (yerel/orijinal varyant). */
+    val usedTitle: String? = null,
+    /** Bu kaynak için denenen ad sayısı. */
+    val triedTitleCount: Int = 0,
 )
 
 /** Explicit retry uses the failed/visible sources, not the automatic cooldown-filtered candidates. */

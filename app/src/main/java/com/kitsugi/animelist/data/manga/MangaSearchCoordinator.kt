@@ -54,11 +54,42 @@ class MangaSearchCoordinator(
         return available
     }
 
-    fun postProcess(source: MangaSource, query: String, mangas: List<MangaDetails>, relaxScoring: Boolean = false): List<MangaDetails> {
-        val canonicalQuery = CanonicalMangaResolver.resolve(query)
-        val minScore = if (relaxScoring) 0.05 else SearchResultScorer.minAcceptedScore(source, canonicalQuery)
+    fun postProcess(
+        source: MangaSource,
+        query: String,
+        mangas: List<MangaDetails>,
+        relaxScoring: Boolean = false
+    ): List<MangaDetails> = postProcess(source, listOf(query), mangas, relaxScoring)
+
+    /**
+     * Çok adlı (yerel + orijinal) arama sonrası eleme.
+     *
+     * Kaynak "역대급 영지 설계사" ile arandığında dönen kart "The Greatest Estate Developer"
+     * olabilir (veya tersi). Tek sorguya göre eleme yapılırsa bu kartlar düşüyordu; burada
+     * KABUL EDİLEN ad listesinin **herhangi biriyle** eşleşen sonuç tutulur ve en iyi skor
+     * kullanılır. Böylece "Yerel ad" ile arayıp orijinal adla dönen sonuç kaybolmaz.
+     */
+    fun postProcess(
+        source: MangaSource,
+        queries: List<String>,
+        mangas: List<MangaDetails>,
+        relaxScoring: Boolean = false,
+    ): List<MangaDetails> {
+        val canonicalQueries = queries
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .distinctBy { it.lowercase() }
+            .map { CanonicalMangaResolver.resolve(it) }
+        if (canonicalQueries.isEmpty()) return emptyList()
+
+        val strictMin = canonicalQueries.maxOf { SearchResultScorer.minAcceptedScore(source, it) }
+        val minScore = if (relaxScoring) 0.05 else strictMin
+
         return mangas
-            .map { SearchResultScorer.asScored(source, canonicalQuery, it) }
+            .map { manga ->
+                val best = canonicalQueries.maxOf { query -> SearchResultScorer.score(source, query, manga) }
+                ScoredSearchResult(source = source, manga = manga, score = best)
+            }
             .filter { it.score >= minScore }
             .sortedWith(
                 compareByDescending<ScoredSearchResult> { it.score }

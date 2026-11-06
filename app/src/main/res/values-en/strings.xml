@@ -18969,4 +18969,28 @@
     <string name="manga_source_login_required_message">%1$s could not complete the request without an account session. Open the source\’s own login and try again.</string>
     <string name="manga_source_login_action">Sign in</string>
 
+    <!-- ── Manga Discover: title mode / sorting / compact top bar (2026-11-06) ── -->
+    <string name="manga_discover_title_placeholder">Search manga, manhwa or manhua…</string>
+    <string name="manga_discover_mode_localized">Search: Local / translated title</string>
+    <string name="manga_discover_mode_original">Search: Original title (Japanese/Chinese/Korean)</string>
+    <string name="manga_discover_mode_localized_hint">Extensions index Turkish titles; this mode translates the English/Romaji title into the extension language before searching.</string>
+    <string name="manga_discover_mode_original_hint">This mode searches with the original (Japanese/Chinese/Korean/Romaji) title.</string>
+    <string name="manga_discover_resolving_titles">Resolving titles…</string>
+    <string name="manga_discover_summary">%1$d results · %2$d sources · %3$d titles tried</string>
+    <string name="manga_discover_popular_summary">%1$d manga · %2$s</string>
+    <string name="manga_discover_sort_relevance">Relevance</string>
+    <string name="manga_discover_sort_title">A-Z</string>
+    <string name="manga_discover_sort_label">Sort:</string>
+    <string name="manga_discover_all">All</string>
+    <string name="manga_discover_mode_resolved">"Titles tried: %1$s"</string>
+    <string name="manga_discover_mode_chip_hint">Change search title</string>
+    <string name="manga_discover_no_extensions_title">No manga extensions installed</string>
+    <string name="manga_discover_no_result">No results</string>
+    <string name="manga_discover_no_result_hint">Try a different title or the \"Original title\" mode.</string>
+    <string name="manga_discover_source_missing_plural">No results for this filter</string>
+    <string name="manga_discover_managed_in_settings">Manage extensions in Settings → Manga Sources.</string>
+    <string name="manga_discover_more_info">Search details</string>
+    <string name="manga_discover_tried_titles">Titles tried</string>
+    <string name="manga_discover_using_title">Searching: %1$s</string>
+    <string name="manga_discover_tried_count">%1$d titles tried</string>
 </resources>
