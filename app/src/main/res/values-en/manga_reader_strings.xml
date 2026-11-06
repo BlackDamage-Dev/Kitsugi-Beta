@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="manga_direction_webtoon">Continuous vertical (Webtoon)</string>
+    <string name="manga_auto_fullscreen">Start reader in fullscreen</string>
+    <string name="manga_enter_fullscreen">Enter fullscreen</string>
+    <string name="manga_exit_fullscreen">Exit fullscreen</string>
+    <string name="manga_chapter_search">Search chapters (e.g. 42)</string>
+    <string name="manga_clear_search">Clear search</string>
+    <string name="manga_sort_oldest">Oldest → Newest (1 → N)</string>
+    <string name="manga_sort_newest">Newest → Oldest (N → 1)</string>
+    <string name="manga_sort_updated">Recently updated</string>
+    <string name="manga_compact_chapters">Compact chapter layout</string>
+    <string name="manga_filter_read">Read</string>
+    <string name="manga_chapter_no_results">No chapters match these filters.</string>
+</resources>

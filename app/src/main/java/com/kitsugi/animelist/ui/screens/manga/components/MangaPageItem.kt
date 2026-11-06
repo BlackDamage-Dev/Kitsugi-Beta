@@ -143,7 +143,8 @@ fun MangaPageItem(
             MangaPageStatus.Ready -> {
                 val imageUrl = page.imageUrl ?: page.url
                 val cacheFile = loader.cache.getImageFile(loader.cacheKey(page, imageUrl))
-                val modelToLoad: Any = cacheFile
+                val modelToLoad: Any = page.localUri?.let(android.net.Uri::parse)
+                    ?: if (cacheFile.exists()) cacheFile else (page.cachedFile ?: imageUrl)
 
                 val context = LocalContext.current
                 val displayError = remember(page, modelToLoad) { mutableStateOf<Throwable?>(null) }

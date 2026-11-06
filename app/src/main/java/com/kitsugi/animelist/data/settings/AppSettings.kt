@@ -303,6 +303,8 @@ data class DownloadAndMangaSettings(
     val mangaBrightness: Float = 1.0f,
     /** Okurken ekranın kapanmasını engelle (webtoon okurken çok işe yarar). */
     val mangaKeepScreenOn: Boolean = true,
+    /** Okuyucu açıldığında sistem barlarını (durum/gezinme) otomatik gizle. */
+    val mangaAutoFullscreen: Boolean = true,
     /**
      * Bölüm listesi sıralaması — `ChapterSortMode` adı.
      *
@@ -471,6 +473,7 @@ data class AppSettings(
     val mangaFitMode: String get() = downloads.mangaFitMode
     val mangaBrightness: Float get() = downloads.mangaBrightness
     val mangaKeepScreenOn: Boolean get() = downloads.mangaKeepScreenOn
+    val mangaAutoFullscreen: Boolean get() = downloads.mangaAutoFullscreen
     val mangaChapterSort: String get() = downloads.mangaChapterSort
     val mangaChapterDisplayMode: String get() = downloads.mangaChapterDisplayMode
     val mangaSkipReadChapters: Boolean get() = downloads.mangaSkipReadChapters

@@ -77,6 +77,9 @@ import com.kitsugi.animelist.core.storage.DownloadStorage
 import com.kitsugi.animelist.data.local.AnimeDownloadManager
 import com.kitsugi.animelist.data.model.AnimeDownload
 import com.kitsugi.animelist.ui.components.KitsugiSettingsSegmentedTabs
+import com.kitsugi.animelist.data.manga.download.MangaDownloadManager
+import com.kitsugi.animelist.data.manga.download.DownloadedMangaSource
+import com.kitsugi.animelist.ui.screens.manga.MangaReaderScreen
 import com.kitsugi.animelist.ui.components.KitsugiSettingsTabOption
 import com.kitsugi.animelist.ui.components.KitsugiAnimatedDeleteButton
 import com.kitsugi.animelist.ui.screens.audio.KitsugiAudioPlayerHost
@@ -281,22 +284,41 @@ fun DownloadsScreen(
     val audioManager = remember(context) { KitsugiAudioPlayerManager.getInstance(context) }
     val audioPlayerState by audioManager.state.collectAsState()
 
-    val pagerState = rememberPagerState(initialPage = initialTab.coerceIn(0, 3), pageCount = { 4 })
+    val mangaManager = remember(context) { MangaDownloadManager.get(context) }
+    val mangaDownloads by mangaManager.store.downloads.collectAsState()
+    LaunchedEffect(mangaManager) { mangaManager.store.load() }
+    var offlineChapterId by rememberSaveable { mutableStateOf<String?>(null) }
+
+    val offlineChapter = mangaDownloads.firstOrNull { it.id == offlineChapterId }
+    if (offlineChapter != null) {
+        val offlineSource = remember(offlineChapter.id) { DownloadedMangaSource(context, offlineChapter) }
+        BackHandler { offlineChapterId = null }
+        MangaReaderScreen(
+            chapter = offlineChapter.chapter(),
+            mangaDetails = offlineChapter.details(),
+            source = offlineSource,
+            onBack = { offlineChapterId = null }
+        )
+        return
+    }
+
+    val pagerState = rememberPagerState(initialPage = initialTab.coerceIn(0, 4), pageCount = { 5 })
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(initialTab) {
-        val safePage = initialTab.coerceIn(0, 3)
+        val safePage = initialTab.coerceIn(0, 4)
         if (pagerState.currentPage != safePage) {
             pagerState.scrollToPage(safePage)
         }
     }
 
-    // Keep all four scroll positions across tab changes and configuration changes.
+    // Keep all five scroll positions across tab changes and configuration changes.
     // The shared overview observes only the active page, never an off-screen page.
     val videoListState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
     val audioListState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
     val subtitleListState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
     val imageGridState = rememberSaveable(saver = LazyGridState.Saver) { LazyGridState() }
+    val mangaListState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
     var refreshAudiosTrigger by remember { mutableIntStateOf(0) }
     var refreshSubsTrigger by remember { mutableIntStateOf(0) }
     var refreshImagesTrigger by remember { mutableIntStateOf(0) }
@@ -422,10 +444,12 @@ fun DownloadsScreen(
         subtitleListState = subtitleListState,
         imageGridState = imageGridState,
         audioListState = audioListState,
+        mangaListState = mangaListState,
         // A new search/filter/sort is a new browsing context: show storage info
         // again instead of leaving the user with a hidden header over new data.
         contentRevision = listOf(
             downloads.size, allAudios.size, activeAudioExports.size, allSubtitles.size, allImages.size,
+            mangaDownloads.size,
             searchOpen, searchQuery, videoFilter, subtitleSort, videoSort, videoGrouped,
             audioSort, audioGrouped, selectedAudioFormat
         )
@@ -847,6 +871,9 @@ fun DownloadsScreen(
         FlowRow(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             DownloadsFilterChip(label = stringResource(R.string.downloads_search_open), selected = searchOpen, accentColor = accentColor, leadingIcon = Icons.Search, onClick = { searchOpen = !searchOpen; if (!searchOpen) searchQuery = ""; menuOpen = false })
             DownloadsFilterChip(label = stringResource(R.string.page_open_folder), selected = false, accentColor = accentColor, leadingIcon = Icons.Folder, onClick = {
+                if (pagerState.currentPage == 4) {
+                    openMangaDownloadFolder(context)
+                } else {
                     val rootDir = when (pagerState.currentPage) {
                         1 -> DownloadExportNaming.publicAudioDir().also { runCatching { it.mkdirs() } }
                         2 -> File(
@@ -863,6 +890,7 @@ fun DownloadsScreen(
                         ).also { it.mkdirs() }
                     }
                     openFolderInFileManager(context, rootDir)
+                }
                 menuOpen = false
             })
             if (downloads.any { it.status == AnimeDownload.Status.DOWNLOADING || it.status == AnimeDownload.Status.QUEUE }) {
@@ -944,7 +972,7 @@ fun DownloadsScreen(
                             onRefresh = { refreshAudiosTrigger++ }
                         )
                     }
-                    else -> {
+                    2 -> {
                                 FlowRow(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -1040,6 +1068,7 @@ fun DownloadsScreen(
             visible = overviewScrollState.isVisible,
             modifier = Modifier.fillMaxWidth().testTag("downloads_overview_reveal")
         ) {
+            val mangaBytes = remember(mangaDownloads) { mangaDownloads.sumOf { it.sizeBytes.coerceAtLeast(0L) } }
             DownloadsOverviewCard(
                 downloads = downloads,
                 audioCount = allAudios.size,
@@ -1049,6 +1078,8 @@ fun DownloadsScreen(
                 subtitleBytes = subtitleBytes,
                 imageCount = allImages.size,
                 imageBytes = imageBytes,
+                mangaCount = mangaDownloads.size,
+                mangaBytes = mangaBytes,
                 accentColor = accentColor,
                 onPauseAll = pauseAllActive,
                 onResumeAll = resumeAllPaused,
@@ -1056,8 +1087,7 @@ fun DownloadsScreen(
             )
         }
 
-        // Sekme bandı: Videolar | Sesler | Altyazılar | Resimler — "Görünüm & Tercihler" bandıyla aynı
-        // (geniş ekranlarda eşit bölünür, dar ekranlarda sıkışmadan yatay kaydırılabilir)
+        // Sekme bandı: Videolar | Sesler | Altyazılar | Resimler | Manga
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1070,9 +1100,10 @@ fun DownloadsScreen(
                 stringResource(R.string.downloads_videos_count, downloads.size),
                 stringResource(R.string.downloads_audios_count, allAudios.size + activeAudioExports.size),
                 stringResource(R.string.inline_subtitles_1_s_b81ee5c, allSubtitles.size),
-                stringResource(R.string.downloads_images_count, allImages.size)
+                stringResource(R.string.downloads_images_count, allImages.size),
+                stringResource(R.string.manga_download_tab_count, mangaDownloads.size)
             )
-            val useEqualWeights = maxWidth >= 380.dp
+            val useEqualWeights = maxWidth >= 480.dp
             Row(
                 modifier = if (useEqualWeights) {
                     Modifier.fillMaxWidth()
@@ -1445,7 +1476,7 @@ fun DownloadsScreen(
                     }
                 }
 
-                else -> {
+                3 -> {
                     // ── RESİMLER (ekran boyutuna göre otomatik ızgara) ───────
                     DownloadedImagesTab(
                         images = allImages,
@@ -1457,6 +1488,15 @@ fun DownloadsScreen(
                         menuOpen = menuOpen && pagerState.currentPage == 3,
                         onDismissMenu = { menuOpen = false },
                         commonMenu = commonMenu
+                    )
+                }
+
+                4 -> {
+                    // ── MANGA ────────────────────────────────────────────────
+                    MangaDownloadsTab(
+                        downloads = mangaDownloads,
+                        onOpen = { offlineChapterId = it.id },
+                        listState = mangaListState
                     )
                 }
             }
@@ -2133,6 +2173,8 @@ private fun DownloadsOverviewCard(
     subtitleBytes: Long,
     imageCount: Int,
     imageBytes: Long,
+    mangaCount: Int = 0,
+    mangaBytes: Long = 0L,
     accentColor: Color,
     onPauseAll: () -> Unit,
     onResumeAll: () -> Unit,
@@ -2148,8 +2190,8 @@ private fun DownloadsOverviewCard(
         downloads.count { it.status == AnimeDownload.Status.PAUSED || it.status == AnimeDownload.Status.ERROR }
     }
 
-    val totalBytes = videoBytes + audioBytes + subtitleBytes + imageBytes
-    if (totalBytes <= 0L && downloads.isEmpty() && audioCount == 0 && activeAudioExportCount == 0 && subtitleCount == 0 && imageCount == 0) return
+    val totalBytes = videoBytes + audioBytes + subtitleBytes + imageBytes + mangaBytes
+    if (totalBytes <= 0L && downloads.isEmpty() && audioCount == 0 && activeAudioExportCount == 0 && subtitleCount == 0 && imageCount == 0 && mangaCount == 0) return
 
     val activeBytes = activeDownloads.sumOf { it.downloadedBytes.coerceAtLeast(0L) }
     val activeTotalBytes = activeDownloads.sumOf { it.totalBytes.coerceAtLeast(0L) }
@@ -2167,7 +2209,7 @@ private fun DownloadsOverviewCard(
     val completedCount = remember(downloads) { downloads.count { it.status == AnimeDownload.Status.COMPLETED } }
     val hasActiveDownloads = activeDownloads.isNotEmpty() || activeAudioExportCount > 0
     var freeSpaceBytes by remember { mutableLongStateOf(0L) }
-    LaunchedEffect(downloads.size, completedCount, audioCount, subtitleCount, imageCount, hasActiveDownloads) {
+    LaunchedEffect(downloads.size, completedCount, audioCount, subtitleCount, imageCount, mangaCount, hasActiveDownloads) {
         suspend fun readFreeSpace(): Long = withContext(Dispatchers.IO) {
             runCatching {
                 android.os.StatFs(Environment.getExternalStorageDirectory().absolutePath).availableBytes
@@ -2245,6 +2287,9 @@ private fun DownloadsOverviewCard(
             }
             if (imageCount > 0) {
                 OverviewStatPill(Icons.Image, imageCount, imageBytes, KitsugiColors.AccentPurple)
+            }
+            if (mangaCount > 0) {
+                OverviewStatPill(Icons.MenuBook, mangaCount, mangaBytes, KitsugiColors.AccentPink)
             }
             if (freeSpaceBytes > 0L) {
                 OverviewFreeSpacePill(freeSpaceBytes)

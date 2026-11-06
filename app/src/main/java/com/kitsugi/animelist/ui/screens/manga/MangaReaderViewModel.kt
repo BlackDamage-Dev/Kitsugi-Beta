@@ -154,7 +154,9 @@ class MangaReaderViewModel(
         /** Okundu olarak işaretlenmiş bölüm URL'leri — atlama için. */
         val readChapterUrls: Set<String> = emptySet(),
         /** Sayfa kenarlarını kırp (Mihon "crop borders"). */
-        val cropBorders: Boolean = false
+        val cropBorders: Boolean = false,
+        val autoFullscreen: Boolean = true,
+        val settingsLoaded: Boolean = false
     )
 
     private val _uiState = MutableStateFlow(UiState(currentChapter = initialChapter))
@@ -196,11 +198,19 @@ class MangaReaderViewModel(
                             keepScreenOn = settings.mangaKeepScreenOn,
                             skipReadChapters = settings.mangaSkipReadChapters,
                             autoAdvanceChapter = settings.mangaAutoAdvanceChapter,
-                            cropBorders = settings.mangaCropBorders
+                            cropBorders = settings.mangaCropBorders,
+                            autoFullscreen = settings.mangaAutoFullscreen,
+                            settingsLoaded = true
                         )
                     }
                 }
             }
+        }
+    }
+
+    fun setAutoFullscreen(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsDataStore.setMangaAutoFullscreen(enabled)
         }
     }
 

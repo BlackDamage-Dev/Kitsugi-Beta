@@ -48,6 +48,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -156,6 +157,10 @@ fun MangaReaderScreen(
     }
 
     var galleryInitialIndex by remember { mutableStateOf(currentPage) }
+
+    var fullscreenOverride by rememberSaveable { mutableStateOf<Boolean?>(null) }
+    val fullscreen = fullscreenOverride ?: (uiState.settingsLoaded && uiState.autoFullscreen)
+    MangaReaderSystemBars(fullscreen = fullscreen)
 
     val pagerState = rememberPagerState(initialPage = currentPage) { pages.size }
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = currentPage)
@@ -517,6 +522,13 @@ fun MangaReaderScreen(
                             )
                         }
                     }
+                    IconButton(onClick = { fullscreenOverride = !fullscreen }) {
+                        Icon(
+                            if (fullscreen) Icons.Rounded.FullscreenExit else Icons.Rounded.Fullscreen,
+                            contentDescription = stringResource(if (fullscreen) R.string.manga_exit_fullscreen else R.string.manga_enter_fullscreen),
+                            tint = Color.White
+                        )
+                    }
                     IconButton(onClick = { showSettings = true }) {
                         Icon(
                             Icons.AutoMirrored.Filled.MenuBook,
@@ -775,6 +787,13 @@ fun MangaReaderScreen(
                     }
 
                     // Settings Dialog Trigger
+                    IconButton(onClick = { fullscreenOverride = !fullscreen }) {
+                        Icon(
+                            if (fullscreen) Icons.Rounded.FullscreenExit else Icons.Rounded.Fullscreen,
+                            contentDescription = stringResource(if (fullscreen) R.string.manga_exit_fullscreen else R.string.manga_enter_fullscreen),
+                            tint = Color.White
+                        )
+                    }
                     IconButton(onClick = { showSettings = true }) {
                         Icon(
                             imageVector = Icons.Default.Settings,
@@ -1033,6 +1052,19 @@ fun MangaReaderScreen(
                     selected = uiState.autoAdvanceChapter,
                     accent = Color(0xFF7C4DFF),
                     onClick = { viewModel.setAutoAdvanceChapter(!uiState.autoAdvanceChapter) }
+                )
+                Spacer(Modifier.height(8.dp))
+
+                // ── Otomatik tam ekran ─────────────────────────────────────────
+                ReaderSettingChip(
+                    label = stringResource(R.string.manga_auto_fullscreen),
+                    selected = uiState.autoFullscreen,
+                    accent = Color(0xFF7C4DFF),
+                    onClick = {
+                        val next = !uiState.autoFullscreen
+                        viewModel.setAutoFullscreen(next)
+                        fullscreenOverride = next
+                    }
                 )
                 Spacer(Modifier.height(24.dp))
             }

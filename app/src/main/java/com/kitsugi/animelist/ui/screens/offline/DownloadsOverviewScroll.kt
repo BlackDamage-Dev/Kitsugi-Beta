@@ -107,6 +107,7 @@ internal fun rememberDownloadsOverviewScrollState(
     subtitleListState: LazyListState,
     imageGridState: LazyGridState,
     audioListState: LazyListState? = null,
+    mangaListState: LazyListState? = null,
     contentRevision: Any? = Unit
 ): DownloadsOverviewScrollState {
     val density = LocalDensity.current
@@ -138,11 +139,17 @@ internal fun rememberDownloadsOverviewScrollState(
                     subtitleListState.firstVisibleItemScrollOffset == 0,
                 hasItems = subtitleListState.layoutInfo.totalItemsCount > 0
             )
-            else -> DownloadsScrollSnapshot(
+            3 -> DownloadsScrollSnapshot(
                 atTop = imageGridState.firstVisibleItemIndex == 0 &&
                     imageGridState.firstVisibleItemScrollOffset == 0,
                 hasItems = imageGridState.layoutInfo.totalItemsCount > 0
             )
+            4 -> if (mangaListState != null) DownloadsScrollSnapshot(
+                atTop = mangaListState.firstVisibleItemIndex == 0 &&
+                    mangaListState.firstVisibleItemScrollOffset == 0,
+                hasItems = mangaListState.layoutInfo.totalItemsCount > 0
+            ) else DownloadsScrollSnapshot(atTop = true, hasItems = false)
+            else -> DownloadsScrollSnapshot(atTop = true, hasItems = false)
         }
     } else {
         when (currentPage) {

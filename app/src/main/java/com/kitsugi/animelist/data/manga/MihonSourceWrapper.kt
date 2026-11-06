@@ -307,12 +307,7 @@ class MihonSourceWrapper(
     // CatalogueSource.getPageList() → fetchPageList().awaitSingle() köprüsü devreye girer,
     // bu da HttpSource.fetchPageList() → HTTP isteği + pageListParse() zincirini tetikler.
     override suspend fun fetchPageList(chapter: MangaChapter): List<MangaPage> {
-        val sChapter = SChapter.create().apply {
-            url = chapter.url
-            name = chapter.name
-            chapter_number = chapter.chapterNumber
-            scanlator = chapter.scanlator
-        }
+        val sChapter = chapter.toExtensionChapter()
         val t0 = System.currentTimeMillis()
         return try {
             withRecovery {
@@ -443,6 +438,6 @@ class MihonSourceWrapper(
             scanlator = scanlator,
             uploadDate = date_upload,
             mangaUrl = mangaUrl
-        )
+        ).apply { extensionMemo = this@toMangaChapter.memo }
     }
 }

@@ -28,7 +28,10 @@ class DownloadsActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
-        requestedTabState.intValue = intent?.getIntExtra(EXTRA_INITIAL_TAB, TAB_VIDEOS) ?: TAB_VIDEOS
+        requestedTabState.intValue = when {
+            intent?.getBooleanExtra("manga_tab", false) == true -> TAB_MANGA
+            else -> intent?.getIntExtra(EXTRA_INITIAL_TAB, TAB_VIDEOS) ?: TAB_VIDEOS
+        }
 
         val isTv = DeviceProfile.detect(this) == DeviceFormFactor.TV
         setContent {
@@ -60,9 +63,12 @@ class DownloadsActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        if (intent.hasExtra(EXTRA_INITIAL_TAB)) {
-            requestedTabState.intValue = intent.getIntExtra(EXTRA_INITIAL_TAB, TAB_VIDEOS)
+        val requestedTab = when {
+            intent.getBooleanExtra("manga_tab", false) -> TAB_MANGA
+            intent.hasExtra(EXTRA_INITIAL_TAB) -> intent.getIntExtra(EXTRA_INITIAL_TAB, TAB_VIDEOS)
+            else -> null
         }
+        if (requestedTab != null) requestedTabState.intValue = requestedTab
     }
 
     companion object {
@@ -71,5 +77,6 @@ class DownloadsActivity : ComponentActivity() {
         const val TAB_AUDIOS = 1
         const val TAB_SUBTITLES = 2
         const val TAB_IMAGES = 3
+        const val TAB_MANGA = 4
     }
 }

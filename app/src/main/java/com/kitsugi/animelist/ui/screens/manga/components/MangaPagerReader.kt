@@ -71,35 +71,52 @@ fun MangaPagerReader(
 
     CompositionLocalProvider(LocalLayoutDirection provides direction) {
         val pageKeys = remember(pages) { pages.uniqueLazyKeys { it.index } }
-        HorizontalPager(
-            state = pagerState,
-            modifier = modifier.fillMaxSize(),
-            key = { index -> pageKeys.getOrNull(index) ?: "page_$index" },
-            beyondViewportPageCount = 2, // Yan sayfaları belleğe al
-        ) { pageIndex ->
-            val page = pages.getOrNull(pageIndex) ?: return@HorizontalPager
-            // Sayfa içeriği her zaman LTR çizilir: RTL yalnızca kaydırma yönünü
-            // belirler, görselin kendisini aynalamaz.
-            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-                MangaPageItem(
-                    page = page,
-                    loader = loader,
-                    readingMode = readingMode,
-                    colorFilterType = colorFilterType,
-                    fitMode = fitMode,
-                    cropBorders = cropBorders,
-                    mirrorPages = mirrorPages,
-                    showPageNumber = showPageNumber,
-                    tapZonesEnabled = tapZonesEnabled,
-                    invertTapZones = invertTapZones,
-                    onCenterTap = onCenterTap,
-                    onLongPress = onLongPress,
-                    onLongPressPage = onLongPressPage,
-                    onNextPage = onNextPage,
-                    onPrevPage = onPrevPage,
-                    onSourceLogin = onSourceLogin,
-                    modifier = Modifier.fillMaxSize(),
-                )
+        val pageContent: @Composable (Int) -> Unit = { pageIndex ->
+            val page = pages.getOrNull(pageIndex)
+            if (page != null) {
+                // Sayfa içeriği her zaman LTR çizilir: RTL yalnızca kaydırma yönünü
+                // belirler, görselin kendisini aynalamaz.
+                CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                    MangaPageItem(
+                        page = page,
+                        loader = loader,
+                        readingMode = readingMode,
+                        colorFilterType = colorFilterType,
+                        fitMode = fitMode,
+                        cropBorders = cropBorders,
+                        mirrorPages = mirrorPages,
+                        showPageNumber = showPageNumber,
+                        tapZonesEnabled = tapZonesEnabled,
+                        invertTapZones = invertTapZones,
+                        onCenterTap = onCenterTap,
+                        onLongPress = onLongPress,
+                        onLongPressPage = onLongPressPage,
+                        onNextPage = onNextPage,
+                        onPrevPage = onPrevPage,
+                        onSourceLogin = onSourceLogin,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
+            }
+        }
+
+        if (readingMode == ReadingMode.Vertical) {
+            VerticalPager(
+                state = pagerState,
+                modifier = modifier.fillMaxSize(),
+                key = { index -> pageKeys.getOrNull(index) ?: "page_$index" },
+                beyondViewportPageCount = 2,
+            ) { pageIndex ->
+                pageContent(pageIndex)
+            }
+        } else {
+            HorizontalPager(
+                state = pagerState,
+                modifier = modifier.fillMaxSize(),
+                key = { index -> pageKeys.getOrNull(index) ?: "page_$index" },
+                beyondViewportPageCount = 2,
+            ) { pageIndex ->
+                pageContent(pageIndex)
             }
         }
     }

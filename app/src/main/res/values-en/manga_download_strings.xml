@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="manga_download_tab_count">Manga (%1$d)</string>
+    <string name="manga_download_channel">Manga chapter downloads</string>
+    <string name="manga_download_show_downloads">Show downloaded manga chapters</string>
+    <string name="manga_download_pause">Pause</string>
+    <string name="manga_download_resume">Resume / redownload missing pages</string>
+    <string name="manga_download_read_offline">Read offline</string>
+    <string name="manga_download_open_folder">Show manga folder</string>
+    <string name="manga_download_delete_confirm">Delete all downloaded pages of %1$s — %2$s?</string>
+    <string name="manga_download_storage_permission">Storage permission is required to save manga pages to your gallery.</string>
+    <string name="manga_download_queued">Chapter added to the manga download queue.</string>
+    <string name="manga_download_storage_summary">%1$d chapters · %2$s MB</string>
+    <string name="manga_download_folder_hint">Pictures/Kitsugi/Manga · Manga and chapter folders · Ordered pages</string>
+    <string name="manga_download_empty">Use the download button next to a chapter to save manga for offline reading.</string>
+    <string name="manga_download_status_queued">Queued / waiting for network</string>
+    <string name="manga_download_status_downloading">Downloading</string>
+    <string name="manga_download_status_paused">Paused</string>
+    <string name="manga_download_status_error">Download failed</string>
+    <string name="manga_download_status_complete">Ready offline</string>
+</resources>

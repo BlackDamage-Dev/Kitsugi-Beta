@@ -157,6 +157,7 @@ class SettingsDataStore(
         val MangaFitMode = stringPreferencesKey("manga_fit_mode")
         val MangaBrightness = floatPreferencesKey("manga_brightness")
         val MangaKeepScreenOn = booleanPreferencesKey("manga_keep_screen_on")
+        val MangaAutoFullscreen = booleanPreferencesKey("manga_auto_fullscreen")
         // Bölüm listesi sıralaması: "OldestFirst" (varsayılan, 1 → N), "NewestFirst",
         // "RecentlyUpdated". Ayrıca manga bazında ezme: MangaSortOverride_<mangaUrl>
         val MangaChapterSort = stringPreferencesKey("manga_chapter_sort")
@@ -771,6 +772,7 @@ class SettingsDataStore(
                     mangaFitMode = preferences[Keys.MangaFitMode] ?: "FitScreen",
                     mangaBrightness = normalizeMangaBrightness(preferences[Keys.MangaBrightness] ?: 1.0f),
                     mangaKeepScreenOn = preferences[Keys.MangaKeepScreenOn] ?: true,
+                    mangaAutoFullscreen = preferences[Keys.MangaAutoFullscreen] ?: true,
                     mangaChapterSort = preferences[Keys.MangaChapterSort] ?: "OldestFirst",
                     mangaChapterDisplayMode = preferences[Keys.MangaChapterDisplayMode] ?: "Number",
                     mangaSkipReadChapters = preferences[Keys.MangaSkipReadChapters] ?: false,
@@ -1247,6 +1249,12 @@ class SettingsDataStore(
     suspend fun setMangaKeepScreenOn(enabled: Boolean) {
         context.settingsDataStore.edit { preferences ->
             preferences[Keys.MangaKeepScreenOn] = enabled
+        }
+    }
+
+    suspend fun setMangaAutoFullscreen(enabled: Boolean) {
+        context.settingsDataStore.edit { preferences ->
+            preferences[Keys.MangaAutoFullscreen] = enabled
         }
     }
 

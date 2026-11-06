@@ -12,6 +12,7 @@ import com.kitsugi.animelist.data.manga.MangaChapter
 import com.kitsugi.animelist.data.manga.MangaDetails
 import com.kitsugi.animelist.data.manga.MangaSource
 import com.kitsugi.animelist.data.manga.MangaStatus
+import com.kitsugi.animelist.data.manga.stableSourceKey
 import com.kitsugi.animelist.data.manga.sortedForMode
 import com.kitsugi.animelist.ui.components.KitsugiButton
 import com.kitsugi.animelist.ui.components.KitsugiDetailActionButton
@@ -127,6 +128,50 @@ fun MangaDetailScreen(
     val downloadStates by viewModel.downloadStates.collectAsState()
     val downloadedUrls by viewModel.downloadedUrls.collectAsState()
     val details = uiState.details
+
+    val downloadManager = remember(context) { com.kitsugi.animelist.data.manga.download.MangaDownloadManager.get(context) }
+    val mangaDownloads by downloadManager.store.downloads.collectAsState()
+    LaunchedEffect(downloadManager) { downloadManager.store.load() }
+    val currentSourceKey = source.stableSourceKey()
+    val chapterDownloads = remember(mangaDownloads, source.lang, details.url, currentSourceKey) {
+        mangaDownloads.filter {
+            it.sourceKey == currentSourceKey &&
+            it.sourceLang == source.lang &&
+            it.mangaUrl == details.url
+        }.associateBy { it.chapterUrl }
+    }
+    val downloadScope = rememberCoroutineScope()
+    val permissionGate = com.kitsugi.animelist.ui.screens.manga.components.rememberMangaDownloadPermissionGate()
+    val downloadChapter: (MangaChapter) -> Unit = { chapter ->
+        val record = chapterDownloads[chapter.url]
+        if (record?.status == com.kitsugi.animelist.data.manga.download.MangaDownloadStatus.Complete) {
+            context.startActivity(
+                android.content.Intent(context, com.kitsugi.animelist.ui.screens.offline.DownloadsActivity::class.java)
+                    .putExtra("manga_tab", true)
+            )
+        } else {
+            val active = record != null && record.status in setOf(
+                com.kitsugi.animelist.data.manga.download.MangaDownloadStatus.Downloading,
+                com.kitsugi.animelist.data.manga.download.MangaDownloadStatus.Queued
+            )
+            val action: () -> Unit = {
+                downloadScope.launch {
+                    try {
+                        if (active && record != null) {
+                            downloadManager.pause(record.id)
+                        } else {
+                            downloadManager.enqueue(source, details, chapter)
+                            android.widget.Toast.makeText(context, R.string.manga_download_queued, android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                    } catch (e: Exception) {
+                        if (e is kotlinx.coroutines.CancellationException) throw e
+                        android.widget.Toast.makeText(context, e.message ?: context.getString(R.string.manga_download_failed), android.widget.Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
+            if (active) action() else permissionGate(action)
+        }
+    }
 
     // Fandom Wiki: eklenti kaynağında kimlik yoktur; seri başlığıyla (isim yolu) çözülür.
     val wikiViewModel: FandomMediaWikiViewModel = viewModel(
@@ -655,6 +700,13 @@ fun MangaDetailScreen(
                 ) { chapter ->
                     val row = rowByUrl[chapter.url]
                     if (row != null) {
+                        val record = chapterDownloads[chapter.url]
+                        val isDownloaded = record?.status == com.kitsugi.animelist.data.manga.download.MangaDownloadStatus.Complete || chapter.url in downloadedUrls
+                        val isDownloading = record?.status == com.kitsugi.animelist.data.manga.download.MangaDownloadStatus.Downloading ||
+                            record?.status == com.kitsugi.animelist.data.manga.download.MangaDownloadStatus.Queued
+                        val downloadProgress = if (isDownloading) {
+                            if (record != null && record.totalPages > 0) record.completedPages.toFloat() / record.totalPages else 0f
+                        } else downloadStates[chapter.url]?.progress
                         ChapterListItem(
                             row = row,
                             accent = accent,
@@ -666,15 +718,9 @@ fun MangaDetailScreen(
                             displayMode = displayMode,
                             isBookmarked = row.chapter.url in uiState.bookmarked,
                             onToggleBookmark = { viewModel.toggleBookmark(row.chapter) },
-                            isDownloaded = row.chapter.url in downloadedUrls,
-                            downloadProgress = downloadStates[row.chapter.url]?.progress,
-                            onDownload = {
-                                if (row.chapter.url in downloadedUrls) {
-                                    viewModel.deleteDownload(row.chapter)
-                                } else {
-                                    viewModel.downloadChapter(row.chapter)
-                                }
-                            }
+                            isDownloaded = isDownloaded,
+                            downloadProgress = downloadProgress,
+                            onDownload = { downloadChapter(row.chapter) }
                         )
                     }
                 }

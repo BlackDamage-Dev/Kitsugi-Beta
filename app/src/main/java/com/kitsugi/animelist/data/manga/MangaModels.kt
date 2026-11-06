@@ -42,7 +42,10 @@ data class MangaChapter(
     val scanlator: String? = null,
     val uploadDate: Long = 0L,
     val mangaUrl: String = ""
-)
+) {
+    /** Opaque source metadata (e.g. Mangitto mangaSlug). Not a signed page URL. */
+    var extensionMemo: kotlinx.serialization.json.JsonObject = kotlinx.serialization.json.JsonObject(emptyMap())
+}
 
 /** Search the fully loaded extension list without collapsing translations with equal numbers. */
 fun MangaChapter.matchesChapterQuery(query: String): Boolean {
@@ -88,6 +91,9 @@ class MangaPage(
      * UI bu dosyayı doğrudan kullanmalı, URL'den yeniden türetmemelidir.
      */
     var cachedFile: java.io.File? = null
+
+    /** Durable downloaded page (content/file URI), outside the evictable reader cache. */
+    var localUri: String? = null
 }
 
 /**
