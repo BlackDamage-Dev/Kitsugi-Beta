@@ -1,11 +1,12 @@
 package com.kitsugi.animelist.ui.screens.manga.components
 
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
-import com.kitsugi.animelist.ui.utils.uniqueLazyKeys
-import androidx.compose.runtime.remember
 import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.VerticalPager
 import androidx.compose.foundation.pager.PagerState
+import androidx.compose.foundation.pager.VerticalPager
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -13,6 +14,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
 import com.kitsugi.animelist.data.manga.ColorFilterType
@@ -23,18 +26,14 @@ import com.kitsugi.animelist.data.manga.loader.MangaPageLoaderV2
 import kotlinx.coroutines.flow.distinctUntilChanged
 
 /**
- * Yatay sayfa çevirmeli okuma modu (LTR / RTL).
+ * Yatay sayfa çevirmeli okuma modu (LTR / RTL) ve dikey pager.
  *
  * — LTR (Soldan Sağa): Manhua, Batı çizgi romanları için
  * — RTL (Sağdan Sola): Japonca manga için (pager `LayoutDirection.Rtl` ile
  *   çizilir, böylece sayfa 1 sağda başlar)
  *
- * Her sayfa [MangaPageItem] bileşeni ile çizilir:
- *   • Telephoto ZoomableAsyncImage → pinch-to-zoom, çift dokunma
- *   • MangaPageLoaderV2 ile çift yönlü prefetch + Coil disk önbelleği
- *
- * NOT: "Dikey" okuma modu artık burada değil, [MangaVerticalPagerReader]
- * içinde çizilir (önceden buraya düşüp yatay çalışıyordu).
+ * Her sayfa [MangaPageItem] bileşeni ile çizilir.
+ * Çift sayfa modu (`doublePage`) açıkken iki sayfa yan yana birleşik yayılım olarak gösterilir.
  */
 @Composable
 fun MangaPagerReader(
@@ -43,12 +42,24 @@ fun MangaPagerReader(
     loader: MangaPageLoaderV2,
     readingMode: ReadingMode = ReadingMode.RightToLeft,
     colorFilterType: ColorFilterType = ColorFilterType.Normal,
+    saturation: Int = 100,
+    contrast: Int = 100,
+    hue: Int = 0,
     fitMode: MangaFitMode = MangaFitMode.FitScreen,
+    pageBackground: Color = Color.Black,
+    autoBackground: Boolean = false,
     cropBorders: Boolean = false,
     mirrorPages: Boolean = false,
     showPageNumber: Boolean = true,
     tapZonesEnabled: Boolean = true,
     invertTapZones: Boolean = false,
+    tapLayout: String = "Default",
+    tapGrid: String = DEFAULT_READER_TAP_GRID,
+    longTapGrid: String = DEFAULT_READER_LONG_TAP_GRID,
+    doublePage: Boolean = false,
+    coverAlone: Boolean = false,
+    prefetchPages: Int = 2,
+    wideRotation: String = "Off",
     onCenterTap: () -> Unit = {},
     onLongPress: () -> Unit = {},
     /** Uzun basınca galeriyi aç (sayfa indeksi ile). */
@@ -69,25 +80,38 @@ fun MangaPagerReader(
             .collect { index -> reportPageChanged(index) }
     }
 
-    CompositionLocalProvider(LocalLayoutDirection provides direction) {
-        val pageKeys = remember(pages) { pages.uniqueLazyKeys { it.index } }
-        val pageContent: @Composable (Int) -> Unit = { pageIndex ->
-            val page = pages.getOrNull(pageIndex)
-            if (page != null) {
-                // Sayfa içeriği her zaman LTR çizilir: RTL yalnızca kaydırma yönünü
-                // belirler, görselin kendisini aynalamaz.
+    val centerTap by rememberUpdatedState(onCenterTap)
+    val nextPage by rememberUpdatedState(onNextPage)
+    val prevPage by rememberUpdatedState(onPrevPage)
+
+    val pageContent: @Composable (Int) -> Unit = { spreadIndex ->
+        val firstIndex = readerSpreadFirst(spreadIndex, doublePage, coverAlone)
+        val firstPage = pages.getOrNull(firstIndex)
+        val lastIndex = readerSpreadLast(spreadIndex, pages.size, doublePage, coverAlone)
+        val secondPage = if (lastIndex > firstIndex) pages.getOrNull(lastIndex) else null
+        if (firstPage != null) {
+            if (secondPage == null) {
                 CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
                     MangaPageItem(
-                        page = page,
+                        page = firstPage,
                         loader = loader,
                         readingMode = readingMode,
                         colorFilterType = colorFilterType,
+                        saturation = saturation,
+                        contrast = contrast,
+                        hue = hue,
                         fitMode = fitMode,
+                        pageBackground = pageBackground,
+                        autoBackground = autoBackground,
                         cropBorders = cropBorders,
                         mirrorPages = mirrorPages,
                         showPageNumber = showPageNumber,
                         tapZonesEnabled = tapZonesEnabled,
                         invertTapZones = invertTapZones,
+                        tapLayout = tapLayout,
+                        tapGrid = tapGrid,
+                        longTapGrid = longTapGrid,
+                        wideRotation = wideRotation,
                         onCenterTap = onCenterTap,
                         onLongPress = onLongPress,
                         onLongPressPage = onLongPressPage,
@@ -97,15 +121,75 @@ fun MangaPagerReader(
                         modifier = Modifier.fillMaxSize(),
                     )
                 }
+            } else {
+                CompositionLocalProvider(LocalLayoutDirection provides direction) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .pointerInput(readingMode, invertTapZones, tapLayout, tapGrid, longTapGrid) {
+                                fun dispatch(offset: androidx.compose.ui.geometry.Offset, grid: String) {
+                                    when (readerTapAction(tapLayout, isRtl, invertTapZones,
+                                        offset.x / size.width.coerceAtLeast(1), offset.y / size.height.coerceAtLeast(1), grid)) {
+                                        ReaderTapAction.MENU -> centerTap()
+                                        ReaderTapAction.NEXT -> nextPage()
+                                        ReaderTapAction.PREVIOUS -> prevPage()
+                                        ReaderTapAction.NONE -> Unit
+                                    }
+                                }
+                                detectTapGestures(
+                                    onTap = { dispatch(it, tapGrid) },
+                                    onLongPress = if (tapLayout == "Custom" && longTapGrid.any { it != 'X' }) ({ dispatch(it, longTapGrid) }) else null
+                                )
+                            }
+                    ) {
+                        listOf(firstPage, secondPage).forEach { page ->
+                            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                                MangaPageItem(
+                                    page = page,
+                                    loader = loader,
+                                    readingMode = readingMode,
+                                    colorFilterType = colorFilterType,
+                                    saturation = saturation,
+                                    contrast = contrast,
+                                    hue = hue,
+                                    fitMode = fitMode,
+                                    pageBackground = pageBackground,
+                                    autoBackground = autoBackground,
+                                    cropBorders = cropBorders,
+                                    mirrorPages = mirrorPages,
+                                    showPageNumber = showPageNumber,
+                                    tapZonesEnabled = tapZonesEnabled,
+                                    invertTapZones = invertTapZones,
+                                    tapLayout = tapLayout,
+                                    tapGrid = tapGrid,
+                                    longTapGrid = longTapGrid,
+                                    wideRotation = wideRotation,
+                                    tapsEnabled = false,
+                                    onCenterTap = onCenterTap,
+                                    onLongPress = onLongPress,
+                                    onLongPressPage = onLongPressPage,
+                                    onNextPage = onNextPage,
+                                    onPrevPage = onPrevPage,
+                                    onSourceLogin = onSourceLogin,
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxHeight(),
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
+    }
 
+    CompositionLocalProvider(LocalLayoutDirection provides direction) {
         if (readingMode == ReadingMode.Vertical) {
             VerticalPager(
                 state = pagerState,
                 modifier = modifier.fillMaxSize(),
-                key = { index -> pageKeys.getOrNull(index) ?: "page_$index" },
-                beyondViewportPageCount = 2,
+                key = { index -> pages.getOrNull(readerSpreadFirst(index, doublePage, coverAlone))?.index ?: index },
+                beyondViewportPageCount = prefetchPages.coerceIn(0, 2)
             ) { pageIndex ->
                 pageContent(pageIndex)
             }
@@ -113,8 +197,8 @@ fun MangaPagerReader(
             HorizontalPager(
                 state = pagerState,
                 modifier = modifier.fillMaxSize(),
-                key = { index -> pageKeys.getOrNull(index) ?: "page_$index" },
-                beyondViewportPageCount = 2,
+                key = { index -> pages.getOrNull(readerSpreadFirst(index, doublePage, coverAlone))?.index ?: index },
+                beyondViewportPageCount = prefetchPages.coerceIn(0, 2)
             ) { pageIndex ->
                 pageContent(pageIndex)
             }

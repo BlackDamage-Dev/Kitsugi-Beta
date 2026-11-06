@@ -60,6 +60,7 @@ class MangaReaderViewModel(
     private val cache = MangaCache(context)
     private val settingsDataStore = SettingsDataStore(context)
     private val sourceStateStore = MangaSourceStateStore(context)
+    private val seriesId = readerSeriesId(source.pkgName, source.originalBaseUrl, source.lang, source.name, mangaDetails.url)
     private val scanlatorPrefs = com.kitsugi.animelist.data.manga.MangaScanlatorPreferences.get(context)
     private val downloader = com.kitsugi.animelist.data.manga.download.MangaChapterDownloader(context)
 
@@ -106,16 +107,11 @@ class MangaReaderViewModel(
     }
 
     // F5: Debounce için Job referansı — hızlı swipe'ta Room IO flood önler
-    private var progressSaveJob: kotlinx.coroutines.Job? = null
+    private val progressSaveJobs = mutableMapOf<String, kotlinx.coroutines.Job>()
+    private val pendingProgress = mutableMapOf<String, MangaChapterProgressEntity>()
+    private val completedChapterUrls = mutableSetOf<String>()
+    private val sessionOnlyCompletedUrls = mutableSetOf<String>()
 
-    /**
-     * Henüz diske yazılmamış ilerleme.
-     *
-     * Debounce 500 ms olduğu için kullanıcı son sayfada okuyucudan hızlıca
-     * çıkarsa kayıt kayboluyordu ("son kaldığım sayfayı hatırlamıyor").
-     * [onCleared] bu son değeri ayrı bir IO kapsamında yazar.
-     */
-    private var pendingProgress: MangaChapterProgressEntity? = null
     private val flushScope = kotlinx.coroutines.CoroutineScope(
         kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO
     )
@@ -127,9 +123,40 @@ class MangaReaderViewModel(
         val chapterList: List<MangaChapter> = emptyList(),
         val currentPageIndex: Int = 0,
         val readingMode: ReadingMode = ReadingMode.RightToLeft,
+        val seriesModeOverride: Boolean = false,
         val colorFilterType: ColorFilterType = ColorFilterType.Normal,
+        val saturation: Int = 100,
+        val contrast: Int = 100,
+        val hue: Int = 0,
         val fitMode: MangaFitMode = MangaFitMode.FitScreen,
         val customBrightness: Float = 1.0f,
+        val webtoonPadding: Int = 0,
+        val webtoonGap: Int = 4,
+        val showPageNumber: Boolean = true,
+        val keepScreenOn: Boolean = true,
+        val immersive: Boolean = false,
+        val cropBorders: Boolean = false,
+        val cropBordersWebtoon: Boolean = false,
+        val webtoonZoom: Boolean = true,
+        val wideRotation: String = "Off",
+        val wideRotationWebtoon: String = "Off",
+        val invertTapZones: Boolean = false,
+        val tapLayout: String = "Default",
+        val tapGrid: String = "PMNPMNPMN",
+        val longTapGrid: String = "XXXXXXXXX",
+        val webtoonTapScroll: Boolean = false,
+        val skipReadChapters: Boolean = false,
+        val autoAdvanceChapter: Boolean = false,
+        val pauseProgressSaving: Boolean = false,
+        val webtoonAutoNext: Boolean = false,
+        val readerBackground: String = "Black",
+        val doublePage: Boolean = false,
+        val coverAlone: Boolean = false,
+        val webtoonAutoScrollSpeed: Int = 40,
+        val webtoonScrollPercent: Int = 80,
+        val preloadAhead: Int = -1,
+        val volumeKeys: Boolean = false,
+        val invertVolumeKeys: Boolean = false,
         val isLoadingChapters: Boolean = false,
         val error: String? = null,
         val isLoadingPages: Boolean = false,
@@ -145,16 +172,8 @@ class MangaReaderViewModel(
         val preferredScanlator: String? = null,
         /** Aynı bölümün birden çok çevirmeni varsa açılacak seçim penceresi. */
         val pendingChoice: com.kitsugi.animelist.data.manga.ChapterChoiceRequest? = null,
-        /** Okurken ekran kapanmasın (Ayarlar > Okuyucu). */
-        val keepScreenOn: Boolean = true,
-        /** Bölüm geçişinde okunmuş bölümleri atla (Ayarlar > Okuyucu). */
-        val skipReadChapters: Boolean = false,
-        /** Bölüm bitince otomatik sonraki bölüme geç (Ayarlar > Okuyucu). */
-        val autoAdvanceChapter: Boolean = false,
         /** Okundu olarak işaretlenmiş bölüm URL'leri — atlama için. */
         val readChapterUrls: Set<String> = emptySet(),
-        /** Sayfa kenarlarını kırp (Mihon "crop borders"). */
-        val cropBorders: Boolean = false,
         val autoFullscreen: Boolean = true,
         val settingsLoaded: Boolean = false
     )
@@ -173,6 +192,12 @@ class MangaReaderViewModel(
         }
     }
 
+    private fun updatePreload(count: Int) {
+        if (loader.preloadAhead == count) return
+        loader.preloadAhead = count
+        if (!_uiState.value.isLoadingPages && loader.pages.value.isNotEmpty()) loader.onPageChanged(_uiState.value.currentPageIndex)
+    }
+
     private fun observeSettings() {
         viewModelScope.launch {
             settingsDataStore.settingsFlow.collect { settings ->
@@ -182,9 +207,8 @@ class MangaReaderViewModel(
                 val mode = MangaSettingIds.readingMode(settings.mangaReadingMode)
                 val filter = MangaSettingIds.colorFilter(settings.mangaColorFilter)
                 val fit = MangaSettingIds.fitMode(settings.mangaFitMode)
-                // R2: Webtoon modunda 3+1 keep, pager modunda 2+1 keep preload
-                loader.preloadAhead = if (mode == ReadingMode.Webtoon) 3 else 2
-                loader.keepBehind   = 1
+                updatePreload(readerPreloadCount(settings.mangaPreloadAhead, mode == ReadingMode.Webtoon))
+                loader.keepBehind = 1
                 // Kullanıcı az önce okuyucudan bir ayar değiştirdiyse, DataStore'dan
                 // gelen (henüz güncellenmemiş) değer ekranı geri sıçratmasın.
                 val keepLocal = System.currentTimeMillis() - lastLocalPrefChangeAt < 800L
@@ -193,17 +217,51 @@ class MangaReaderViewModel(
                         it.copy(
                             readingMode = mode,
                             colorFilterType = filter,
+                            saturation = settings.mangaSaturation,
+                            contrast = settings.mangaContrast,
+                            hue = settings.mangaHue,
                             fitMode = fit,
                             customBrightness = settings.mangaBrightness,
+                            webtoonPadding = settings.mangaWebtoonPadding,
+                            webtoonGap = settings.mangaWebtoonGap,
+                            showPageNumber = settings.mangaShowPageNumber,
                             keepScreenOn = settings.mangaKeepScreenOn,
+                            immersive = settings.mangaImmersive,
+                            cropBorders = settings.mangaCropBorders,
+                            cropBordersWebtoon = settings.mangaCropBordersWebtoon,
+                            webtoonZoom = settings.mangaWebtoonZoom,
+                            wideRotation = settings.mangaWideRotation,
+                            wideRotationWebtoon = settings.mangaWideRotationWebtoon,
+                            invertTapZones = settings.mangaInvertTapZones,
+                            tapLayout = settings.mangaTapLayout,
+                            tapGrid = settings.mangaTapGrid,
+                            longTapGrid = settings.mangaLongTapGrid,
+                            webtoonTapScroll = settings.mangaWebtoonTapScroll,
                             skipReadChapters = settings.mangaSkipReadChapters,
                             autoAdvanceChapter = settings.mangaAutoAdvanceChapter,
-                            cropBorders = settings.mangaCropBorders,
+                            webtoonAutoNext = settings.mangaWebtoonAutoNext,
+                            readerBackground = settings.mangaReaderBackground,
+                            doublePage = settings.mangaDoublePage,
+                            coverAlone = settings.mangaCoverAlone,
+                            webtoonAutoScrollSpeed = settings.mangaWebtoonAutoScrollSpeed,
+                            webtoonScrollPercent = settings.mangaWebtoonScrollPercent,
+                            preloadAhead = settings.mangaPreloadAhead,
+                            volumeKeys = settings.mangaVolumeKeys,
+                            invertVolumeKeys = settings.mangaInvertVolumeKeys,
                             autoFullscreen = settings.mangaAutoFullscreen,
                             settingsLoaded = true
                         )
                     }
                 }
+            }
+        }
+        viewModelScope.launch {
+            settingsDataStore.mangaReadingModeForSeries(seriesId).collect { (globalMode, seriesMode) ->
+                val mode = ReadingMode.values().firstOrNull { it.name == (seriesMode ?: globalMode) }
+                    ?: ReadingMode.RightToLeft
+                updatePreload(readerPreloadCount(_uiState.value.preloadAhead, mode == ReadingMode.Webtoon))
+                loader.keepBehind = 1
+                _uiState.update { it.copy(readingMode = mode, seriesModeOverride = seriesMode != null) }
             }
         }
     }
@@ -267,24 +325,27 @@ class MangaReaderViewModel(
      * sayfadan çıkıp geri döndüğünde "son okunan sayfa" bir önceki sayfada kalıyordu.
      */
     fun flushProgress() {
-        val pending = pendingProgress ?: return
-        pendingProgress = null
-        progressSaveJob?.cancel()
-        progressSaveJob = null
+        if (pendingProgress.isEmpty()) return
+        val unsaved = pendingProgress.values.toList()
+        pendingProgress.clear()
+        progressSaveJobs.values.forEach { it.cancel() }
+        progressSaveJobs.clear()
         flushScope.launch {
-            runCatching {
-                dao.upsert(pending)
-                com.kitsugi.animelist.data.local.MangaReadHistoryManager.record(
-                    sourceName = source.name,
-                    mangaUrl = mangaDetails.url,
-                    mangaTitle = mangaDetails.title,
-                    thumbnailUrl = mangaDetails.thumbnailUrl,
-                    chapterUrl = pending.chapterUrl,
-                    chapterName = pending.chapterName,
-                    lastPageIndex = pending.lastPageIndex,
-                    totalPages = pending.totalPages,
-                    isCompleted = pending.isCompleted
-                )
+            unsaved.forEach { progress ->
+                runCatching {
+                    dao.upsertIfNewer(progress)
+                    com.kitsugi.animelist.data.local.MangaReadHistoryManager.record(
+                        sourceName = source.name,
+                        mangaUrl = mangaDetails.url,
+                        mangaTitle = mangaDetails.title,
+                        thumbnailUrl = mangaDetails.thumbnailUrl,
+                        chapterUrl = progress.chapterUrl,
+                        chapterName = progress.chapterName,
+                        lastPageIndex = progress.lastPageIndex,
+                        totalPages = progress.totalPages,
+                        isCompleted = progress.isCompleted
+                    )
+                }
             }
         }
     }
@@ -295,41 +356,77 @@ class MangaReaderViewModel(
      */
     // F5: Progress debounce — 500ms bekle, hızlı swipe'ta tekrar tetiklenirse iptal et
     fun onPageChanged(chapterUrl: String, pageIndex: Int, totalPages: Int) {
-        _uiState.update { it.copy(currentPageIndex = pageIndex) }
-        val isCompleted = totalPages > 0 && pageIndex >= totalPages - 1
+        if (totalPages <= 0 || chapterUrl != _uiState.value.currentChapter.url) return
+        val safePageIndex = pageIndex.coerceIn(0, totalPages - 1)
+        val chapterName = _uiState.value.currentChapter.name
+        val paused = _uiState.value.pauseProgressSaving
+        val decision = readerProgressDecision(paused, chapterUrl in completedChapterUrls,
+            chapterUrl in sessionOnlyCompletedUrls, _uiState.value.readingMode == ReadingMode.Webtoon,
+            safePageIndex, totalPages)
+        val isCompleted = decision.completed
         if (isCompleted) {
-            _uiState.update { it.copy(readChapterUrls = it.readChapterUrls + chapterUrl) }
-        }
-        val entity = MangaChapterProgressEntity(
-            chapterUrl    = chapterUrl,
-            mangaUrl      = mangaDetails.url,
-            chapterName   = _uiState.value.currentChapter.name,
-            lastPageIndex = pageIndex,
-            totalPages    = totalPages,
-            isCompleted   = isCompleted,
-            updatedAt     = System.currentTimeMillis()
-        )
-        pendingProgress = entity
-        progressSaveJob?.cancel()
-        progressSaveJob = viewModelScope.launch {
-            kotlinx.coroutines.delay(500L)
-            val toSave = pendingProgress ?: return@launch
-            pendingProgress = null
-            dao.upsert(toSave)
-            runCatching {
-                com.kitsugi.animelist.data.local.MangaReadHistoryManager.record(
-                    sourceName = source.name,
-                    mangaUrl = mangaDetails.url,
-                    mangaTitle = mangaDetails.title,
-                    thumbnailUrl = mangaDetails.thumbnailUrl,
-                    chapterUrl = toSave.chapterUrl,
-                    chapterName = toSave.chapterName,
-                    lastPageIndex = toSave.lastPageIndex,
-                    totalPages = toSave.totalPages,
-                    isCompleted = toSave.isCompleted
-                )
+            if (paused) sessionOnlyCompletedUrls.add(chapterUrl) else {
+                completedChapterUrls.add(chapterUrl)
+                _uiState.update { it.copy(readChapterUrls = it.readChapterUrls + chapterUrl) }
             }
         }
+        _uiState.update { it.copy(currentPageIndex = safePageIndex) }
+        if (!decision.persist) return
+        progressSaveJobs[chapterUrl]?.cancel()
+        val progress = MangaChapterProgressEntity(
+            chapterUrl = chapterUrl,
+            mangaUrl = mangaDetails.url,
+            chapterName = chapterName,
+            lastPageIndex = safePageIndex,
+            totalPages = totalPages,
+            isCompleted = isCompleted,
+            updatedAt = nextReaderProgressTimestamp()
+        )
+        pendingProgress[chapterUrl] = progress
+        val job = viewModelScope.launch(start = kotlinx.coroutines.CoroutineStart.LAZY) {
+            try {
+                kotlinx.coroutines.delay(500L)
+                dao.upsertIfNewer(progress)
+                runCatching {
+                    com.kitsugi.animelist.data.local.MangaReadHistoryManager.record(
+                        sourceName = source.name,
+                        mangaUrl = mangaDetails.url,
+                        mangaTitle = mangaDetails.title,
+                        thumbnailUrl = mangaDetails.thumbnailUrl,
+                        chapterUrl = progress.chapterUrl,
+                        chapterName = progress.chapterName,
+                        lastPageIndex = progress.lastPageIndex,
+                        totalPages = progress.totalPages,
+                        isCompleted = progress.isCompleted
+                    )
+                }
+                if (pendingProgress[chapterUrl] === progress) pendingProgress.remove(chapterUrl)
+            } finally {
+                if (progressSaveJobs[chapterUrl] === kotlin.coroutines.coroutineContext[kotlinx.coroutines.Job]) {
+                    progressSaveJobs.remove(chapterUrl)
+                }
+            }
+        }
+        progressSaveJobs[chapterUrl] = job
+        job.start()
+    }
+
+    fun onWebtoonChapterEnd(chapterUrl: String, totalPages: Int) {
+        if (chapterUrl != _uiState.value.currentChapter.url || totalPages <= 0) return
+        if (_uiState.value.pauseProgressSaving) sessionOnlyCompletedUrls.add(chapterUrl)
+        else completedChapterUrls.add(chapterUrl)
+        onPageChanged(chapterUrl, totalPages - 1, totalPages)
+    }
+
+    /** Session-only progress suppression; this is not an anonymous browsing mode. */
+    fun setPauseProgressSaving(value: Boolean) {
+        if (_uiState.value.pauseProgressSaving == value) return
+        if (value) {
+            progressSaveJobs.values.toList().forEach { it.cancel() }
+            progressSaveJobs.clear()
+            pendingProgress.clear()
+        } else sessionOnlyCompletedUrls.clear()
+        _uiState.update { it.copy(pauseProgressSaving = value) }
     }
 
     // ─── Okuma modu değiştirme ────────────────────────────────────────────────
@@ -341,8 +438,17 @@ class MangaReaderViewModel(
         _uiState.update { it.copy(readingMode = mode) }
         viewModelScope.launch {
             settingsDataStore.setMangaReadingMode(MangaSettingIds.readingModeId(mode))
+            settingsDataStore.setMangaReadingModeForSeries(seriesId, mode.name)
         }
     }
+
+    fun setSeriesModeOverride(enabled: Boolean) {
+        viewModelScope.launch { settingsDataStore.setMangaSeriesModeEnabled(seriesId, enabled) }
+    }
+
+    fun setSaturation(value: Int) { viewModelScope.launch { settingsDataStore.setMangaSaturation(value) } }
+    fun setHue(value: Int) { viewModelScope.launch { settingsDataStore.setMangaHue(value) } }
+    fun setContrast(value: Int) { viewModelScope.launch { settingsDataStore.setMangaContrast(value) } }
 
     fun setColorFilter(filter: ColorFilterType) {
         lastLocalPrefChangeAt = System.currentTimeMillis()
@@ -375,19 +481,111 @@ class MangaReaderViewModel(
         }
     }
 
-    /** Okunmuş bölümleri atla tercihi — kalıcı (Ayarlar > Okuyucu ile aynı anahtar). */
-    fun setSkipReadChapters(enabled: Boolean) {
-        viewModelScope.launch { settingsDataStore.setMangaSkipReadChapters(enabled) }
-    }
-
-    /** Kenarlık kırpma tercihi — kalıcı. */
-    fun setCropBorders(enabled: Boolean) {
-        viewModelScope.launch { settingsDataStore.setMangaCropBorders(enabled) }
-    }
-
     /** Bölüm bitince otomatik geçiş tercihi — kalıcı. */
     fun setAutoAdvanceChapter(enabled: Boolean) {
         viewModelScope.launch { settingsDataStore.setMangaAutoAdvanceChapter(enabled) }
+    }
+    fun setWebtoonPadding(value: Int) {
+        viewModelScope.launch { settingsDataStore.setMangaWebtoonPadding(value) }
+    }
+
+    fun setWebtoonGap(value: Int) {
+        viewModelScope.launch { settingsDataStore.setMangaWebtoonGap(value) }
+    }
+
+    fun setShowPageNumber(value: Boolean) {
+        viewModelScope.launch { settingsDataStore.setMangaShowPageNumber(value) }
+    }
+
+    fun setWideRotation(value: String, webtoon: Boolean) {
+        viewModelScope.launch { settingsDataStore.setMangaWideRotation(value, webtoon) }
+    }
+
+    fun setWebtoonZoom(value: Boolean) {
+        viewModelScope.launch { settingsDataStore.setMangaWebtoonZoom(value) }
+    }
+
+    fun setCropBordersWebtoon(value: Boolean) {
+        viewModelScope.launch { settingsDataStore.setMangaCropBordersWebtoon(value) }
+    }
+
+    fun setCropBorders(value: Boolean) {
+        viewModelScope.launch { settingsDataStore.setMangaCropBorders(value) }
+    }
+
+    fun setImmersive(value: Boolean) { viewModelScope.launch { settingsDataStore.setMangaImmersive(value) } }
+
+    fun setKeepScreenOn(value: Boolean) {
+        viewModelScope.launch { settingsDataStore.setMangaKeepScreenOn(value) }
+    }
+
+    fun cycleTapGridCell(index: Int, longPress: Boolean, direction: Int = 1) {
+        val grid = if (longPress) _uiState.value.longTapGrid else _uiState.value.tapGrid
+        val updated = com.kitsugi.animelist.ui.screens.manga.components.cycleReaderTapGrid(grid, index, direction)
+        val tap = if (longPress) _uiState.value.tapGrid else updated
+        val held = if (longPress) updated else _uiState.value.longTapGrid
+        if (!com.kitsugi.animelist.ui.screens.manga.components.readerTapGridsKeepMenu(tap, held)) return
+        _uiState.update { if (longPress) it.copy(longTapGrid = updated) else it.copy(tapGrid = updated) }
+        viewModelScope.launch { settingsDataStore.setMangaTapGrid(updated, longPress) }
+    }
+
+    fun resetTapGrids() {
+        _uiState.update { it.copy(tapGrid = "PMNPMNPMN", longTapGrid = "XXXXXXXXX") }
+        viewModelScope.launch { settingsDataStore.resetMangaTapGrids() }
+    }
+
+    fun setTapLayout(value: String) {
+        viewModelScope.launch { settingsDataStore.setMangaTapLayout(value) }
+    }
+
+    fun setInvertTapZones(value: Boolean) {
+        viewModelScope.launch { settingsDataStore.setMangaInvertTapZones(value) }
+    }
+
+    fun setWebtoonTapScroll(value: Boolean) {
+        viewModelScope.launch { settingsDataStore.setMangaWebtoonTapScroll(value) }
+    }
+
+    fun setSkipReadChapters(value: Boolean) {
+        viewModelScope.launch { settingsDataStore.setMangaSkipReadChapters(value) }
+    }
+
+    fun setVolumeKeys(value: Boolean) {
+        viewModelScope.launch { settingsDataStore.setMangaVolumeKeys(value) }
+    }
+
+    fun setInvertVolumeKeys(value: Boolean) {
+        viewModelScope.launch { settingsDataStore.setMangaInvertVolumeKeys(value) }
+    }
+
+    fun setWebtoonScrollPercent(value: Int) {
+        viewModelScope.launch { settingsDataStore.setMangaWebtoonScrollPercent(value) }
+    }
+
+    fun setPreloadAhead(value: Int) {
+        viewModelScope.launch { settingsDataStore.setMangaPreloadAhead(value) }
+    }
+
+    fun setWebtoonAutoScrollSpeed(value: Int) {
+        viewModelScope.launch { settingsDataStore.setMangaWebtoonAutoScrollSpeed(value) }
+    }
+
+    fun setDoublePage(value: Boolean) {
+        viewModelScope.launch { settingsDataStore.setMangaDoublePage(value) }
+    }
+
+    fun setCoverAlone(value: Boolean) {
+        viewModelScope.launch { settingsDataStore.setMangaCoverAlone(value) }
+    }
+
+    fun setReaderBackground(value: String) {
+        if (value in listOf("Black", "DarkGray", "White", "Auto")) {
+            viewModelScope.launch { settingsDataStore.setMangaReaderBackground(value) }
+        }
+    }
+
+    fun setWebtoonAutoNext(value: Boolean) {
+        viewModelScope.launch { settingsDataStore.setMangaWebtoonAutoNext(value) }
     }
 
     // ─── Bölüm gezinme ───────────────────────────────────────────────────────
@@ -610,6 +808,7 @@ class MangaReaderViewModel(
                 )
             }
             val saved = dao.getProgress(chapter.url)
+            if (saved?.isCompleted == true) completedChapterUrls.add(chapter.url)
             val pageIndex = if (saved != null && !saved.isCompleted) saved.lastPageIndex else 0
             _uiState.update { it.copy(currentPageIndex = pageIndex) }
             try {
@@ -670,10 +869,22 @@ class MangaReaderViewModel(
     }
 
     override fun onCleared() {
-        super.onCleared()
-        // Son ilerlemeyi kaçırmamak için bekleyen (debounce edilmiş) kaydı yaz.
-        flushProgress()
+        val unsaved = pendingProgress.values.toList()
+        progressSaveJobs.values.forEach { it.cancel() }
+        progressSaveJobs.clear()
+        if (unsaved.isNotEmpty()) {
+            flushScope.launch {
+                unsaved.forEach { progress ->
+                    try {
+                        dao.upsertIfNewer(progress)
+                    } catch (e: Exception) {
+                        android.util.Log.e("MangaReader", "Unable to save pending progress", e)
+                    }
+                }
+            }
+        }
         loader.recycle()
+        super.onCleared()
     }
 
     // ─── Factory ─────────────────────────────────────────────────────────────
@@ -689,4 +900,23 @@ class MangaReaderViewModel(
         override fun <T : ViewModel> create(modelClass: Class<T>): T =
             MangaReaderViewModel(context, source, mangaDetails, initialChapter, archiveFile) as T
     }
+}
+
+/** The source list is ordered newest first; step selects either neighbouring direction. */
+internal fun findUnreadChapterIndex(urls: List<String>, current: Int, step: Int, completed: Set<String>): Int? {
+    if (step != -1 && step != 1 || current !in urls.indices) return null
+    var index = current + step
+    while (index in urls.indices) {
+        if (urls[index] !in completed) return index
+        index += step
+    }
+    return null
+}
+
+/** Stable, unambiguous identity without storing source URLs in preference names. */
+internal fun readerSeriesId(vararg parts: String): String {
+    val input = parts.joinToString("") { "${it.length}:$it" }
+    return java.security.MessageDigest.getInstance("SHA-256")
+        .digest(input.toByteArray(Charsets.UTF_8))
+        .joinToString("") { "%02x".format(it.toInt() and 0xff) }
 }

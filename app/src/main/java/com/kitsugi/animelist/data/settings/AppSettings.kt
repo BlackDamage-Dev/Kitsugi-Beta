@@ -337,12 +337,19 @@ data class IntegrationsAndNotificationsSettings(
 data class DownloadAndMangaSettings(
     val mangaReadingMode: String = "RightToLeft",
     val mangaColorFilter: String = "Normal",
+    val mangaSaturation: Int = 100,
+    val mangaContrast: Int = 100,
+    val mangaHue: Int = 0,
     val mangaFitMode: String = "FitScreen",
     val mangaBrightness: Float = 1.0f,
     /** Okurken ekranın kapanmasını engelle (webtoon okurken çok işe yarar). */
     val mangaKeepScreenOn: Boolean = true,
     /** Okuyucu açıldığında sistem barlarını (durum/gezinme) otomatik gizle. */
     val mangaAutoFullscreen: Boolean = true,
+    val mangaImmersive: Boolean = false,
+    val mangaWebtoonPadding: Int = 0,
+    val mangaWebtoonGap: Int = 4,
+    val mangaShowPageNumber: Boolean = true,
     /**
      * Bölüm listesi sıralaması — `ChapterSortMode` adı.
      *
@@ -356,6 +363,7 @@ data class DownloadAndMangaSettings(
     val mangaSkipReadChapters: Boolean = false,
     /** Bölüm bitince otomatik olarak sonraki bölüme geç. */
     val mangaAutoAdvanceChapter: Boolean = false,
+    val mangaWebtoonAutoNext: Boolean = false,
     /** Yer imli (★) bölümlerin URL listesi — virgülle ayrılmış. */
     val mangaBookmarkedChapters: String = "",
     /**
@@ -365,6 +373,23 @@ data class DownloadAndMangaSettings(
      * sayfayı ekrana daha büyük sığdırır.
      */
     val mangaCropBorders: Boolean = false,
+    val mangaCropBordersWebtoon: Boolean = false,
+    val mangaWebtoonZoom: Boolean = true,
+    val mangaWideRotation: String = "Off",
+    val mangaWideRotationWebtoon: String = "Off",
+    val mangaInvertTapZones: Boolean = false,
+    val mangaTapLayout: String = "Default",
+    val mangaTapGrid: String = "PMNPMNPMN",
+    val mangaLongTapGrid: String = "XXXXXXXXX",
+    val mangaWebtoonTapScroll: Boolean = false,
+    val mangaReaderBackground: String = "Black",
+    val mangaDoublePage: Boolean = false,
+    val mangaCoverAlone: Boolean = false,
+    val mangaWebtoonAutoScrollSpeed: Int = 40,
+    val mangaWebtoonScrollPercent: Int = 80,
+    val mangaPreloadAhead: Int = -1,
+    val mangaVolumeKeys: Boolean = false,
+    val mangaInvertVolumeKeys: Boolean = false,
     // ─── Kaynak arama dili ────────────────────────────────────────────────────
     /**
      * Manga/manhwa/manhua kaynaklarında arama hangi adla yapılsın:
@@ -508,16 +533,41 @@ data class AppSettings(
     val backBufferDurationMs: Int get() = playback.backBufferDurationMs
     val mangaReadingMode: String get() = downloads.mangaReadingMode
     val mangaColorFilter: String get() = downloads.mangaColorFilter
+    val mangaSaturation: Int get() = downloads.mangaSaturation
+    val mangaContrast: Int get() = downloads.mangaContrast
+    val mangaHue: Int get() = downloads.mangaHue
     val mangaFitMode: String get() = downloads.mangaFitMode
     val mangaBrightness: Float get() = downloads.mangaBrightness
     val mangaKeepScreenOn: Boolean get() = downloads.mangaKeepScreenOn
     val mangaAutoFullscreen: Boolean get() = downloads.mangaAutoFullscreen
+    val mangaImmersive: Boolean get() = downloads.mangaImmersive
     val mangaChapterSort: String get() = downloads.mangaChapterSort
     val mangaChapterDisplayMode: String get() = downloads.mangaChapterDisplayMode
     val mangaSkipReadChapters: Boolean get() = downloads.mangaSkipReadChapters
     val mangaAutoAdvanceChapter: Boolean get() = downloads.mangaAutoAdvanceChapter
+    val mangaWebtoonAutoNext: Boolean get() = downloads.mangaWebtoonAutoNext
     val mangaBookmarkedChapters: String get() = downloads.mangaBookmarkedChapters
     val mangaCropBorders: Boolean get() = downloads.mangaCropBorders
+    val mangaCropBordersWebtoon: Boolean get() = downloads.mangaCropBordersWebtoon
+    val mangaWebtoonZoom: Boolean get() = downloads.mangaWebtoonZoom
+    val mangaWideRotation: String get() = downloads.mangaWideRotation
+    val mangaWideRotationWebtoon: String get() = downloads.mangaWideRotationWebtoon
+    val mangaInvertTapZones: Boolean get() = downloads.mangaInvertTapZones
+    val mangaTapLayout: String get() = downloads.mangaTapLayout
+    val mangaTapGrid: String get() = downloads.mangaTapGrid
+    val mangaLongTapGrid: String get() = downloads.mangaLongTapGrid
+    val mangaWebtoonTapScroll: Boolean get() = downloads.mangaWebtoonTapScroll
+    val mangaReaderBackground: String get() = downloads.mangaReaderBackground
+    val mangaDoublePage: Boolean get() = downloads.mangaDoublePage
+    val mangaCoverAlone: Boolean get() = downloads.mangaCoverAlone
+    val mangaWebtoonAutoScrollSpeed: Int get() = downloads.mangaWebtoonAutoScrollSpeed
+    val mangaWebtoonScrollPercent: Int get() = downloads.mangaWebtoonScrollPercent
+    val mangaPreloadAhead: Int get() = downloads.mangaPreloadAhead
+    val mangaVolumeKeys: Boolean get() = downloads.mangaVolumeKeys
+    val mangaInvertVolumeKeys: Boolean get() = downloads.mangaInvertVolumeKeys
+    val mangaWebtoonPadding: Int get() = downloads.mangaWebtoonPadding
+    val mangaWebtoonGap: Int get() = downloads.mangaWebtoonGap
+    val mangaShowPageNumber: Boolean get() = downloads.mangaShowPageNumber
     val mangaSearchTitleLanguage: String get() = downloads.mangaSearchTitleLanguage
     val mangaSearchFollowTitleLanguage: Boolean get() = downloads.mangaSearchFollowTitleLanguage
     val dnsChoice: Int get() = integrations.dnsChoice

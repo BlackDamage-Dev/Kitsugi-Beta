@@ -1,6 +1,11 @@
 package com.kitsugi.animelist.ui.tv.manga
 
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
+import com.kitsugi.animelist.ui.screens.manga.LocalComicReader
+import com.kitsugi.animelist.ui.screens.manga.LocalPdfReader
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import com.kitsugi.animelist.ui.theme.gradient.background
@@ -111,6 +116,25 @@ fun TvMangaBrowseScreen(
             vm.search(initialQuery, initialQueryVariants)
         }
     }
+    val context = LocalContext.current
+    var localComic by remember { mutableStateOf<android.net.Uri?>(null) }
+    var localPdf by remember { mutableStateOf<android.net.Uri?>(null) }
+    val openComic = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            try { context.contentResolver.takePersistableUriPermission(uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+            catch (_: SecurityException) { }
+            localComic = uri
+        }
+    }
+    val openPdf = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            try { context.contentResolver.takePersistableUriPermission(uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+            catch (_: SecurityException) { }
+            localPdf = uri
+        }
+    }
+    localComic?.let { uri -> LocalComicReader(uri, onDismiss = { localComic = null }, tv = true) }
+    localPdf?.let { uri -> LocalPdfReader(uri, onDismiss = { localPdf = null }, tv = true) }
     val ui by vm.ui.collectAsState()
     val gridState = rememberLazyGridState()
 
@@ -257,6 +281,22 @@ fun TvMangaBrowseScreen(
             }
 
             Spacer(Modifier.height(16.dp))
+
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                TvLocalDocumentButton(stringResource(R.string.reader_comic_open)) {
+                    try { openComic.launch(arrayOf("application/vnd.comicbook+zip", "application/zip", "application/x-cbz", "application/vnd.comicbook-rar", "application/vnd.rar", "application/x-rar-compressed", "application/octet-stream")) }
+                    catch (_: android.content.ActivityNotFoundException) {
+                        android.widget.Toast.makeText(context, R.string.reader_document_picker_unavailable, android.widget.Toast.LENGTH_LONG).show()
+                    }
+                }
+                TvLocalDocumentButton(stringResource(R.string.reader_pdf_open)) {
+                    try { openPdf.launch(arrayOf("application/pdf")) }
+                    catch (_: android.content.ActivityNotFoundException) {
+                        android.widget.Toast.makeText(context, R.string.reader_document_picker_unavailable, android.widget.Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
+            Spacer(Modifier.height(12.dp))
 
             // ── Arama alanı ──────────────────────────────────────────────────
             val searchBorderAlpha by animateFloatAsState(
@@ -617,5 +657,14 @@ private fun TvMangaSourceChip(
             style = MaterialTheme.typography.labelMedium,
             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
         )
+    }
+}
+
+@Composable
+private fun TvLocalDocumentButton(label: String, onClick: () -> Unit) {
+    Box(Modifier.clip(RoundedCornerShape(8.dp)).background(KitsugiColors.SurfaceStrong)
+        .tvClickable(shape = RoundedCornerShape(8.dp), onClick = onClick)
+        .padding(horizontal = 16.dp, vertical = 10.dp)) {
+        Text(label, color = KitsugiColors.TextPrimary, style = MaterialTheme.typography.bodyMedium)
     }
 }

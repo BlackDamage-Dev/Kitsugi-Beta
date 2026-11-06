@@ -203,9 +203,13 @@ class MainActivity : AppCompatActivity() {
         super.onDestroy()
     }
 
+    // Installed only while the optional reader volume-key setting is active.
+    var readerVolumeKeyHandler: ((KeyEvent) -> Boolean)? = null
+
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         return try {
-            super.dispatchKeyEvent(event)
+            if (readerVolumeKeyHandler?.invoke(event) == true) true
+            else super.dispatchKeyEvent(event)
         } catch (e: IllegalStateException) {
             if (e.message?.contains("FocusRequester is not initialized", ignoreCase = true) == true) {
                 android.util.Log.w("MainActivity", "Bypassed uninitialized FocusRequester crash during key event dispatch", e)

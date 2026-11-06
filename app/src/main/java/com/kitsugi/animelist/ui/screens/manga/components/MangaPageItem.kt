@@ -2,11 +2,13 @@ package com.kitsugi.animelist.ui.screens.manga.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentHeight
@@ -16,9 +18,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -34,7 +38,9 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
@@ -59,6 +65,7 @@ import com.kitsugi.animelist.ui.theme.KitsugiColors
 import com.kitsugi.animelist.ui.theme.gradient.CircularProgressIndicator
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import com.kitsugi.animelist.ui.theme.gradient.Text
+import me.saket.telephoto.zoomable.ZoomSpec
 import me.saket.telephoto.zoomable.coil3.ZoomableAsyncImage
 import me.saket.telephoto.zoomable.rememberZoomableImageState
 import me.saket.telephoto.zoomable.rememberZoomableState
@@ -70,12 +77,12 @@ import me.saket.telephoto.zoomable.rememberZoomableState
  * ----------
  *  • Telephoto `ZoomableAsyncImage`: pinch-to-zoom, çift dokunma ile yakınlaştırma,
  *    dev görsellerde kiremit (subsampling) çizim → OOM riski yok.
- *  • Dokunma bölgeleri (Mihon paritesi): sol/orta/sağ. Yön okuma moduna göre
- *    otomatik: RTL'de sol = ileri, LTR'de sağ = ileri. `invertTapZones` ile ters çevrilebilir.
+ *  • Dokunma bölgeleri (Mihon paritesi): sol/orta/sağ veya 3×3 ızgara.
  *  • Uzun basma → okuyucu menüsü/ayarları (Mihon "show on long tap").
  *  • Yatay aynalama (`mirrorPages`): aynalanmış servis edilen sayfaları düzeltir.
  *  • Sığdırma modları: FitScreen / FitWidth / FitHeight / Crop / Original.
- *  • Renk filtreleri: Normal / Warm / Cool / Grayscale / Sepia / Invert.
+ *  • Renk filtreleri: Normal / Warm / Cool / Grayscale / Sepia / Invert + Saturation / Contrast / Hue.
+ *  • Otomatik arkaplan rengi ve kenar boşluğu kırpma desteği.
  *  • Sağ altta sayfa numarası rozeti (kapatılabilir).
  */
 @Composable
@@ -84,15 +91,28 @@ fun MangaPageItem(
     loader: MangaPageLoaderV2,
     readingMode: ReadingMode = ReadingMode.RightToLeft,
     colorFilterType: ColorFilterType = ColorFilterType.Normal,
+    saturation: Int = 100,
+    contrast: Int = 100,
+    hue: Int = 0,
     fitMode: MangaFitMode = MangaFitMode.FitScreen,
+    pageBackground: Color = Color.Black,
+    autoBackground: Boolean = false,
     cropBorders: Boolean = false,
     mirrorPages: Boolean = false,
     showPageNumber: Boolean = true,
     tapZonesEnabled: Boolean = true,
     invertTapZones: Boolean = false,
+    tapLayout: String = "Default",
+    tapGrid: String = DEFAULT_READER_TAP_GRID,
+    longTapGrid: String = DEFAULT_READER_LONG_TAP_GRID,
+    tapViewport: ReaderTapViewport? = null,
+    zoomEnabled: Boolean = true,
+    wideRotation: String = "Off",
+    imageOverride: java.io.File? = null,
+    tapsEnabled: Boolean = true,
     onCenterTap: () -> Unit = {},
     onLongPress: () -> Unit = {},
-    /** Sayfaya uzun basınca (kullanıcı isteği: "resimler tıklanabilir olsun") galeri açılır. */
+    /** Sayfaya uzun basınca galeri açılır. */
     onLongPressPage: ((Int) -> Unit)? = null,
     onNextPage: () -> Unit = {},
     onPrevPage: () -> Unit = {},
@@ -103,10 +123,14 @@ fun MangaPageItem(
 ) {
     val isScrollMode = readingMode == ReadingMode.Webtoon
     val haptics = LocalHapticFeedback.current
+    val currentCenterTap by rememberUpdatedState(onCenterTap)
+    val currentNextPage by rememberUpdatedState(onNextPage)
+    val currentPrevPage by rememberUpdatedState(onPrevPage)
+    var itemTop by remember(page) { mutableFloatStateOf(0f) }
+    val currentViewport by rememberUpdatedState(tapViewport)
 
     // Sayfa nesnesi ilk kez görüldüğünde yüklemeyi başlat.
     LaunchedEffect(page, loader) {
-        // Cache maintenance may have evicted a page which was already marked Ready.
         val imageUrl = page.imageUrl
         val missing = page.status == MangaPageStatus.Ready && imageUrl != null &&
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -121,29 +145,66 @@ fun MangaPageItem(
         modifier.fillMaxSize()
     }
 
+    val backgroundFile = if (autoBackground && page.status == MangaPageStatus.Ready) {
+        loader.cache.getImageFile(page.imageUrl ?: page.url)
+    } else null
+    val actualBackground = rememberReaderAutoBackground(backgroundFile, autoBackground, pageBackground)
+
+    val tapModifier = if (!tapsEnabled) {
+        Modifier
+    } else if (tapLayout != "Default" && tapLayout.isNotBlank()) {
+        Modifier
+            .then(if (tapViewport != null) Modifier.onGloballyPositioned { itemTop = it.positionInWindow().y } else Modifier)
+            .pointerInput(readingMode, invertTapZones, tapLayout, tapGrid, longTapGrid) {
+                fun dispatch(offset: Offset, grid: String) {
+                    val y = readerTapY(offset.y, itemTop, currentViewport, size.height)
+                    when (readerTapAction(tapLayout, readingMode == ReadingMode.RightToLeft, invertTapZones,
+                        offset.x / size.width.coerceAtLeast(1), y, grid)) {
+                        ReaderTapAction.MENU -> currentCenterTap()
+                        ReaderTapAction.NEXT -> currentNextPage()
+                        ReaderTapAction.PREVIOUS -> currentPrevPage()
+                        ReaderTapAction.NONE -> Unit
+                    }
+                }
+                detectTapGestures(
+                    onTap = { dispatch(it, tapGrid) },
+                    onLongPress = if (tapLayout == "Custom" && longTapGrid.any { it != 'X' }) ({ dispatch(it, longTapGrid) }) else null
+                )
+            }
+    } else {
+        Modifier.readerTapZones(
+            readingMode = readingMode,
+            tapZonesEnabled = tapZonesEnabled,
+            invertTapZones = invertTapZones,
+            haptics = haptics,
+            onCenterTap = onCenterTap,
+            onLongPress = {
+                onLongPress()
+                onLongPressPage?.invoke(page.index)
+            },
+            onNextPage = onNextPage,
+            onPrevPage = onPrevPage,
+        )
+    }
+
     Box(
         modifier = rootModifier
-            .background(Color.Black)
-            .readerTapZones(
-                readingMode = readingMode,
-                tapZonesEnabled = tapZonesEnabled,
-                invertTapZones = invertTapZones,
-                haptics = haptics,
-                onCenterTap = onCenterTap,
-                onLongPress = {
-                    onLongPress()
-                    onLongPressPage?.invoke(page.index)
-                },
-                onNextPage = onNextPage,
-                onPrevPage = onPrevPage,
-            ),
+            .background(actualBackground)
+            .then(tapModifier),
         contentAlignment = Alignment.Center,
     ) {
         when (page.status) {
             MangaPageStatus.Ready -> {
                 val imageUrl = page.imageUrl ?: page.url
                 val cacheFile = loader.cache.getImageFile(loader.cacheKey(page, imageUrl))
-                val modelToLoad: Any = page.localUri?.let(android.net.Uri::parse)
+                val croppedFile = rememberReaderCrop(
+                    source = cacheFile,
+                    enabled = cropBorders && imageOverride == null,
+                    rotation = if (imageOverride == null) wideRotation else "Off"
+                )?.file
+                val modelToLoad: Any = imageOverride
+                    ?: croppedFile
+                    ?: page.localUri?.let(android.net.Uri::parse)
                     ?: if (cacheFile.exists()) cacheFile else (page.cachedFile ?: imageUrl)
 
                 val context = LocalContext.current
@@ -152,8 +213,6 @@ fun MangaPageItem(
                 val imageRequest = remember(modelToLoad, retryGeneration.intValue) {
                     ImageRequest.Builder(context)
                         .data(modelToLoad)
-                        // Telephoto's subsampling supplies detail for supported formats. Keep
-                        // Coil's preview bounded for very tall pages and older GPU canvases.
                         .size(2048, 2048)
                         .scale(Scale.FIT)
                         .diskCachePolicy(CachePolicy.DISABLED)
@@ -167,11 +226,17 @@ fun MangaPageItem(
                 }
 
                 val contentScale = fitMode.toContentScale()
-                val composeColorFilter = colorFilterType.toComposeColorFilter()
+                val composeColorFilter = remember(colorFilterType, saturation, contrast, hue) {
+                    readerColorMatrix(colorFilterType.name, saturation, contrast, hue)?.let {
+                        ColorFilter.colorMatrix(ColorMatrix(it))
+                    } ?: colorFilterType.toComposeColorFilter()
+                }
 
                 if (displayError.value == null) {
-                    key(modelToLoad, retryGeneration.intValue) {
-                        val zoomableState = rememberZoomableState()
+                    key(modelToLoad, retryGeneration.intValue, zoomEnabled) {
+                        val zoomableState = rememberZoomableState(
+                            zoomSpec = ZoomSpec(maxZoomFactor = if (zoomEnabled) 2f else 1f)
+                        )
                         val imageState = rememberZoomableImageState(zoomableState)
 
                         val imageModifier = (if (isScrollMode) {
@@ -184,7 +249,7 @@ fun MangaPageItem(
                         }).then(
                             if (mirrorPages) Modifier.graphicsLayer { scaleX = -1f } else Modifier
                         ).then(
-                            if (cropBorders) {
+                            if (cropBorders && croppedFile == null) {
                                 Modifier
                                     .graphicsLayer {
                                         scaleX = 1.04f
@@ -261,25 +326,8 @@ fun MangaPageItem(
     }
 }
 
-
 /**
  * Dokunma bölgeleri (Mihon "tap zones" paritesi).
- *
- * NEDEN `detectTapGestures` DEĞİL?
- * --------------------------------
- * Sayfa görseli Telephoto'nun çizdiği `ZoomableAsyncImage`'dır ve kendi
- * dokunma işleyicisi vardır. Üst katman (görsel) bir dokunuşu "tükettiğinde"
- * alttaki/üstteki ebeveynin `detectTapGestures` çağrısı o dokunuşu hiç görmez
- * — bu yüzden merkeze dokunarak menüyü açma/kapatma güvenilir çalışmıyordu.
- *
- * Bu yardımcı, olayları **Initial** geçişte (çocuklardan önce) yalnızca
- * *gözlemler* ve hiçbir olayı tüketmez:
- *  • tek parmak + kaymama + uzun basmama → dokunma bölgesi eylemi,
- *  • uzun basma → ayarlar,
- *  • iki parmak / kaydırma → hiçbir şey (pinch-zoom ve pan bozulmaz).
- *
- * Olaylar tüketilmediği için çift dokunarak zoom gibi Telephoto özellikleri
- * aynen çalışmaya devam eder.
  */
 private fun Modifier.readerTapZones(
     readingMode: ReadingMode,
@@ -324,10 +372,8 @@ private fun Modifier.readerTapZones(
                 }
             }
 
-            // Çoklu dokunma (pinch zoom) veya kaydırma (pan) yapıldıysa tıklama sayma
             if (multiTouch || moved || longPressFired) continue
 
-            // Dokunma bölgeleri devre dışıysa yalnızca merkez dokunuşunu bildir
             val width = size.width.toFloat()
             if (!tapZonesEnabled || width <= 0f) {
                 onCenterTap()
@@ -336,7 +382,6 @@ private fun Modifier.readerTapZones(
 
             val leftEdge = width * 0.33f
             val rightEdge = width * 0.66f
-            // İleri yön: RTL'de sol taraf, LTR/dikey/webtoon'da sağ taraf.
             val forwardOnLeft = (readingMode == ReadingMode.RightToLeft) != invertTapZones
             when {
                 upPosition.x < leftEdge -> if (forwardOnLeft) onNextPage() else onPrevPage()
@@ -349,21 +394,14 @@ private fun Modifier.readerTapZones(
 
 /**
  * Webtoon modunda yer tutucu boyutu için "son bilinen en-boy oranı" hafızası.
- *
- * Webtoon sayfasının yüksekliği görsel inmeden bilinemediği için önceden sabit
- * 480.dp kullanılıyordu; bu, uzun şerit sayfalarda kaydırma sıçramasına yol
- * açıyordu. Yüklenen her sayfanın oranı burada hatırlanır ve sonraki yer
- * tutucular bu orana göre çizilir → liste yüksekliği daha kararlı.
  */
 class MangaPageSizeMemory {
-    /** Genişlik / yükseklik oranı (varsayılan: dikey manga sayfası ~0.7). */
     var aspectRatio by mutableStateOf(0.7f)
         private set
 
     fun record(widthPx: Int, heightPx: Int) {
         if (widthPx <= 0 || heightPx <= 0) return
         val ratio = widthPx.toFloat() / heightPx.toFloat()
-        // Aşırı uç değerleri (bozuk ölçüm / tek piksellik şerit) yok say.
         if (ratio.isFinite() && ratio > 0.08f && ratio < 4f) aspectRatio = ratio
     }
 }
@@ -381,8 +419,6 @@ internal fun MangaFitMode.toContentScale(): ContentScale = when (this) {
 
 /**
  * [ColorFilterType] → Compose [ColorFilter].
- *
- * Renk matrisleri Android'in 0..255 aralıklı kanal ofsetini kullanır.
  */
 internal fun ColorFilterType.toComposeColorFilter(): ColorFilter? = when (this) {
     ColorFilterType.Normal -> null
@@ -453,8 +489,6 @@ private fun LoadingPageContent(
 ) {
     Box(
         modifier = if (isScrollMode) {
-            // Webtoon'da sayfa yüklenene kadar boyut bilinmiyor; son bilinen
-            // sayfa oranına göre yer tutulur (sabit 480.dp yerine).
             Modifier.fillMaxWidth().aspectRatio(placeholderAspect ?: 0.7f)
         } else {
             Modifier.fillMaxSize()
@@ -522,4 +556,10 @@ private fun ErrorPageContent(
             }
         }
     }
+}
+
+fun readerBackgroundColor(value: String): Color = when (value) {
+    "White" -> Color.White
+    "DarkGray" -> Color(0xFF303030)
+    else -> Color.Black
 }

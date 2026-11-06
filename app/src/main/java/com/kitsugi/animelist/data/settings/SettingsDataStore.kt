@@ -154,10 +154,14 @@ class SettingsDataStore(
         val BackBufferDurationMs = intPreferencesKey("back_buffer_duration_ms")
         val MangaReadingMode = stringPreferencesKey("manga_reading_mode")
         val MangaColorFilter = stringPreferencesKey("manga_color_filter")
+        val MangaSaturation = intPreferencesKey("manga_saturation")
+        val MangaContrast = intPreferencesKey("manga_contrast")
+        val MangaHue = intPreferencesKey("manga_hue")
         val MangaFitMode = stringPreferencesKey("manga_fit_mode")
         val MangaBrightness = floatPreferencesKey("manga_brightness")
         val MangaKeepScreenOn = booleanPreferencesKey("manga_keep_screen_on")
         val MangaAutoFullscreen = booleanPreferencesKey("manga_auto_fullscreen")
+        val MangaImmersive = booleanPreferencesKey("manga_immersive")
         // Bölüm listesi sıralaması: "OldestFirst" (varsayılan, 1 → N), "NewestFirst",
         // "RecentlyUpdated". Ayrıca manga bazında ezme: MangaSortOverride_<mangaUrl>
         val MangaChapterSort = stringPreferencesKey("manga_chapter_sort")
@@ -165,10 +169,31 @@ class SettingsDataStore(
         // Okuyucu ekstra: bölüm sonunda otomatik sonraki bölüme geçiş, okunanı atla.
         val MangaSkipReadChapters = booleanPreferencesKey("manga_skip_read_chapters")
         val MangaAutoAdvanceChapter = booleanPreferencesKey("manga_auto_advance_chapter")
+        val MangaWebtoonAutoNext = booleanPreferencesKey("manga_webtoon_auto_next")
         // Bölüm yer imleri (bookmark) — Mihon'daki ★ davranışı.
         val MangaBookmarkedChapters = stringPreferencesKey("manga_bookmarked_chapters")
         // Mihon "crop borders": sayfa kenarındaki beyaz/siyah boşluğu kırp.
         val MangaCropBorders = booleanPreferencesKey("manga_crop_borders")
+        val MangaCropBordersWebtoon = booleanPreferencesKey("manga_crop_borders_webtoon")
+        val MangaWebtoonPadding = intPreferencesKey("manga_webtoon_padding")
+        val MangaWebtoonGap = intPreferencesKey("manga_webtoon_gap")
+        val MangaShowPageNumber = booleanPreferencesKey("manga_show_page_number")
+        val MangaWebtoonZoom = booleanPreferencesKey("manga_webtoon_zoom")
+        val MangaWideRotation = stringPreferencesKey("manga_wide_rotation")
+        val MangaWideRotationWebtoon = stringPreferencesKey("manga_wide_rotation_webtoon")
+        val MangaInvertTapZones = booleanPreferencesKey("manga_invert_tap_zones")
+        val MangaTapLayout = stringPreferencesKey("manga_tap_layout")
+        val MangaTapGrid = stringPreferencesKey("manga_tap_grid")
+        val MangaLongTapGrid = stringPreferencesKey("manga_long_tap_grid")
+        val MangaWebtoonTapScroll = booleanPreferencesKey("manga_webtoon_tap_scroll")
+        val MangaReaderBackground = stringPreferencesKey("manga_reader_background")
+        val MangaDoublePage = booleanPreferencesKey("manga_double_page")
+        val MangaCoverAlone = booleanPreferencesKey("manga_cover_alone")
+        val MangaWebtoonAutoScrollSpeed = intPreferencesKey("manga_webtoon_auto_scroll_speed")
+        val MangaWebtoonScrollPercent = intPreferencesKey("manga_webtoon_scroll_percent")
+        val MangaPreloadAhead = intPreferencesKey("manga_preload_ahead")
+        val MangaVolumeKeys = booleanPreferencesKey("manga_volume_keys")
+        val MangaInvertVolumeKeys = booleanPreferencesKey("manga_invert_volume_keys")
         /** Kaynak arama dili: ENGLISH / ROMAJI / NATIVE / LOCAL. */
         val MangaSearchTitleLanguage = stringPreferencesKey("manga_search_title_language")
         /** Arama dili genel başlık dilini takip etsin mi. */
@@ -809,16 +834,41 @@ class SettingsDataStore(
                 downloads = DownloadAndMangaSettings(
                     mangaReadingMode = preferences[Keys.MangaReadingMode] ?: "RightToLeft",
                     mangaColorFilter = preferences[Keys.MangaColorFilter] ?: "Normal",
+                    mangaSaturation = (preferences[Keys.MangaSaturation] ?: 100).coerceIn(0, 200),
+                    mangaContrast = (preferences[Keys.MangaContrast] ?: 100).coerceIn(50, 200),
+                    mangaHue = (preferences[Keys.MangaHue] ?: 0).coerceIn(-180, 180),
                     mangaFitMode = preferences[Keys.MangaFitMode] ?: "FitScreen",
                     mangaBrightness = normalizeMangaBrightness(preferences[Keys.MangaBrightness] ?: 1.0f),
                     mangaKeepScreenOn = preferences[Keys.MangaKeepScreenOn] ?: true,
                     mangaAutoFullscreen = preferences[Keys.MangaAutoFullscreen] ?: true,
+                    mangaImmersive = preferences[Keys.MangaImmersive] ?: false,
                     mangaChapterSort = preferences[Keys.MangaChapterSort] ?: "OldestFirst",
                     mangaChapterDisplayMode = preferences[Keys.MangaChapterDisplayMode] ?: "Number",
                     mangaSkipReadChapters = preferences[Keys.MangaSkipReadChapters] ?: false,
                     mangaAutoAdvanceChapter = preferences[Keys.MangaAutoAdvanceChapter] ?: false,
+                    mangaWebtoonAutoNext = preferences[Keys.MangaWebtoonAutoNext] ?: false,
                     mangaBookmarkedChapters = preferences[Keys.MangaBookmarkedChapters] ?: "",
                     mangaCropBorders = preferences[Keys.MangaCropBorders] ?: false,
+                    mangaCropBordersWebtoon = preferences[Keys.MangaCropBordersWebtoon] ?: false,
+                    mangaWebtoonPadding = (preferences[Keys.MangaWebtoonPadding] ?: 0).coerceIn(0, 64),
+                    mangaWebtoonGap = (preferences[Keys.MangaWebtoonGap] ?: 4).coerceIn(0, 32),
+                    mangaShowPageNumber = preferences[Keys.MangaShowPageNumber] ?: true,
+                    mangaWebtoonZoom = preferences[Keys.MangaWebtoonZoom] ?: true,
+                    mangaWideRotation = (preferences[Keys.MangaWideRotation] ?: "Off").takeIf { it in setOf("Off", "Clockwise", "CounterClockwise") } ?: "Off",
+                    mangaWideRotationWebtoon = (preferences[Keys.MangaWideRotationWebtoon] ?: "Off").takeIf { it in setOf("Off", "Clockwise", "CounterClockwise") } ?: "Off",
+                    mangaInvertTapZones = preferences[Keys.MangaInvertTapZones] ?: false,
+                    mangaTapLayout = (preferences[Keys.MangaTapLayout] ?: "Default").takeIf { it in setOf("Default", "LeftHand", "RightHand", "Custom") } ?: "Default",
+                    mangaTapGrid = (preferences[Keys.MangaTapGrid] ?: "PMNPMNPMN").takeIf { it.length == 9 && it.all { c -> c in "PMNX" } } ?: "PMNPMNPMN",
+                    mangaLongTapGrid = (preferences[Keys.MangaLongTapGrid] ?: "XXXXXXXXX").takeIf { it.length == 9 && it.all { c -> c in "PMNX" } } ?: "XXXXXXXXX",
+                    mangaWebtoonTapScroll = preferences[Keys.MangaWebtoonTapScroll] ?: false,
+                    mangaReaderBackground = preferences[Keys.MangaReaderBackground] ?: "Black",
+                    mangaDoublePage = preferences[Keys.MangaDoublePage] ?: false,
+                    mangaCoverAlone = preferences[Keys.MangaCoverAlone] ?: false,
+                    mangaWebtoonAutoScrollSpeed = (preferences[Keys.MangaWebtoonAutoScrollSpeed] ?: 40).coerceIn(10, 160),
+                    mangaWebtoonScrollPercent = (preferences[Keys.MangaWebtoonScrollPercent] ?: 80).coerceIn(25, 100),
+                    mangaPreloadAhead = (preferences[Keys.MangaPreloadAhead] ?: -1).coerceIn(-1, 5),
+                    mangaVolumeKeys = preferences[Keys.MangaVolumeKeys] ?: false,
+                    mangaInvertVolumeKeys = preferences[Keys.MangaInvertVolumeKeys] ?: false,
                     mangaSearchTitleLanguage = preferences[Keys.MangaSearchTitleLanguage] ?: "ENGLISH",
                     mangaSearchFollowTitleLanguage =
                         preferences[Keys.MangaSearchFollowTitleLanguage] ?: true,
@@ -1268,11 +1318,40 @@ class SettingsDataStore(
         }
     }
 
+    /** Global and series modes come from one snapshot so switching scope is atomic. */
+    fun mangaReadingModeForSeries(seriesId: String): Flow<Pair<String, String?>> {
+        val key = stringPreferencesKey("manga_series_mode_" + seriesId)
+        return context.settingsDataStore.data.map { preferences ->
+            (preferences[Keys.MangaReadingMode] ?: "RightToLeft") to preferences[key]
+        }
+    }
+
+    suspend fun setMangaSeriesModeEnabled(seriesId: String, enabled: Boolean) {
+        val key = stringPreferencesKey("manga_series_mode_" + seriesId)
+        context.settingsDataStore.edit { preferences ->
+            if (enabled) preferences[key] = preferences[Keys.MangaReadingMode] ?: "RightToLeft"
+            else preferences.remove(key)
+        }
+    }
+
+    /** Changes the active scope without modifying the other scope. */
+    suspend fun setMangaReadingModeForSeries(seriesId: String, mode: String) {
+        val key = stringPreferencesKey("manga_series_mode_" + seriesId)
+        context.settingsDataStore.edit { preferences ->
+            if (preferences[key] != null) preferences[key] = mode
+            else preferences[Keys.MangaReadingMode] = mode
+        }
+    }
+
     suspend fun setMangaReadingMode(mode: String) {
         context.settingsDataStore.edit { preferences ->
             preferences[Keys.MangaReadingMode] = mode
         }
     }
+
+    suspend fun setMangaSaturation(value: Int) { context.settingsDataStore.edit { it[Keys.MangaSaturation] = value.coerceIn(0, 200) } }
+    suspend fun setMangaHue(value: Int) { context.settingsDataStore.edit { it[Keys.MangaHue] = value.coerceIn(-180, 180) } }
+    suspend fun setMangaContrast(value: Int) { context.settingsDataStore.edit { it[Keys.MangaContrast] = value.coerceIn(50, 200) } }
 
     suspend fun setMangaColorFilter(filter: String) {
         context.settingsDataStore.edit { preferences ->
@@ -1388,6 +1467,68 @@ class SettingsDataStore(
         context.settingsDataStore.edit { it[Keys.MangaSearchFollowTitleLanguage] = follow }
     }
 
+    suspend fun setMangaWebtoonPadding(value: Int) {
+        context.settingsDataStore.edit { it[Keys.MangaWebtoonPadding] = value.coerceIn(0, 64) }
+    }
+
+    suspend fun setMangaWebtoonGap(value: Int) {
+        context.settingsDataStore.edit { it[Keys.MangaWebtoonGap] = value.coerceIn(0, 32) }
+    }
+
+    suspend fun setMangaShowPageNumber(value: Boolean) {
+        context.settingsDataStore.edit { it[Keys.MangaShowPageNumber] = value }
+    }
+
+    suspend fun setMangaWideRotation(value: String, webtoon: Boolean) {
+        val safe = value.takeIf { it in setOf("Off", "Clockwise", "CounterClockwise") } ?: "Off"
+        context.settingsDataStore.edit { it[if (webtoon) Keys.MangaWideRotationWebtoon else Keys.MangaWideRotation] = safe }
+    }
+    suspend fun setMangaWebtoonZoom(value: Boolean) { context.settingsDataStore.edit { it[Keys.MangaWebtoonZoom] = value } }
+
+    suspend fun setMangaCropBordersWebtoon(value: Boolean) { context.settingsDataStore.edit { it[Keys.MangaCropBordersWebtoon] = value } }
+
+    suspend fun setMangaImmersive(value: Boolean) { context.settingsDataStore.edit { it[Keys.MangaImmersive] = value } }
+
+    suspend fun resetMangaTapGrids() {
+        context.settingsDataStore.edit { it[Keys.MangaTapGrid] = "PMNPMNPMN"; it[Keys.MangaLongTapGrid] = "XXXXXXXXX" }
+    }
+
+    suspend fun setMangaTapGrid(value: String, longPress: Boolean) {
+        if (value.length != 9 || value.any { it !in "PMNX" }) return
+        context.settingsDataStore.edit { it[if (longPress) Keys.MangaLongTapGrid else Keys.MangaTapGrid] = value }
+    }
+
+    suspend fun setMangaTapLayout(value: String) {
+        context.settingsDataStore.edit { it[Keys.MangaTapLayout] = value.takeIf { layout -> layout in setOf("Default", "LeftHand", "RightHand", "Custom") } ?: "Default" }
+    }
+    suspend fun setMangaInvertTapZones(value: Boolean) {
+        context.settingsDataStore.edit { it[Keys.MangaInvertTapZones] = value }
+    }
+
+    suspend fun setMangaWebtoonTapScroll(value: Boolean) {
+        context.settingsDataStore.edit { it[Keys.MangaWebtoonTapScroll] = value }
+    }
+
+    suspend fun setMangaWebtoonAutoNext(value: Boolean) {
+        context.settingsDataStore.edit { it[Keys.MangaWebtoonAutoNext] = value }
+    }
+
+    suspend fun setMangaReaderBackground(value: String) {
+        context.settingsDataStore.edit { it[Keys.MangaReaderBackground] = value }
+    }
+
+    suspend fun setMangaDoublePage(value: Boolean) { context.settingsDataStore.edit { it[Keys.MangaDoublePage] = value } }
+    suspend fun setMangaCoverAlone(value: Boolean) { context.settingsDataStore.edit { it[Keys.MangaCoverAlone] = value } }
+
+    suspend fun setMangaWebtoonScrollPercent(value: Int) { context.settingsDataStore.edit { it[Keys.MangaWebtoonScrollPercent] = value.coerceIn(25, 100) } }
+    suspend fun setMangaPreloadAhead(value: Int) { context.settingsDataStore.edit { it[Keys.MangaPreloadAhead] = value.coerceIn(-1, 5) } }
+
+    suspend fun setMangaWebtoonAutoScrollSpeed(value: Int) {
+        context.settingsDataStore.edit { it[Keys.MangaWebtoonAutoScrollSpeed] = value.coerceIn(10, 160) }
+    }
+
+    suspend fun setMangaVolumeKeys(value: Boolean) { context.settingsDataStore.edit { it[Keys.MangaVolumeKeys] = value } }
+    suspend fun setMangaInvertVolumeKeys(value: Boolean) { context.settingsDataStore.edit { it[Keys.MangaInvertVolumeKeys] = value } }
     // ─── Harici API Entegrasyonları set fonksiyonları ─────────────────────────────────────
 
     suspend fun setTmdbUserApiKey(key: String) {
