@@ -271,6 +271,44 @@ data class IntegrationsAndNotificationsSettings(
     val mdbListShowTrakt: Boolean = false,
     val fanartTvApiKey: String = "",
     val fanartTvEnabled: Boolean = true,
+    // ─── Okuyucu Ortam Sesi (Ambient) ───────────────────────────────────────
+    val musicEnabled: Boolean = true,
+    val musicAutoRecommend: Boolean = true,
+    val musicMasterVolume: Float = 0.8f,
+    val musicChannelVolume: Float = 0.5f,
+    val musicAmbientVolume: Float = 0.6f,
+    /** Okuyucudan çıkınca ses devam etsin (ön plan servisi). Varsayılan: açık. */
+    val musicContinueOnExit: Boolean = true,
+    val musicJamendoEnabled: Boolean = false,
+    val musicJamendoClientId: String = "",
+    val musicFreesoundEnabled: Boolean = false,
+    val musicFreesoundApiKey: String = "",
+    val musicOpenverseEnabled: Boolean = true,
+    val musicOpenverseToken: String = "",
+    val musicArchiveEnabled: Boolean = true,
+    /** Audius anahtarsız da çalışır; anahtar girilirse kota yükselir. */
+    val musicAudiusEnabled: Boolean = true,
+    val musicAudiusApiKey: String = "",
+    val musicLastPresetId: String = "",
+
+    // ─── Otomatik çalma davranışı ────────────────────────────────────────
+    /**
+     * Okuyucu açılınca içeriğe uygun ses otomatik başlasın mı.
+     *
+     * `musicEnabled` + `musicAutoRecommend` ile birlikte üçlü bir kapı:
+     *  - musicEnabled = false        → hiçbir şey çalmaz
+     *  - musicAutoRecommend = false  → öneri hesaplanmaz
+     *  - musicAutoPlay = true        → hesaplanan öneri otomatik başlar
+     */
+    val musicAutoPlay: Boolean = false,
+    /** Okuyucu açıldıktan sonra sesin başlaması için gecikme (saniye). */
+    val musicAutoPlayDelaySeconds: Int = 3,
+    /** Otomatik başlatılan sesin seviyesi (0.05..1.0). */
+    val musicAutoPlayVolume: Float = 0.6f,
+    /** Yalnızca kablolu kulaklık / Bluetooth bağlıyken otomatik çal. */
+    val musicAutoPlayHeadphonesOnly: Boolean = false,
+    /** Cihaz sessiz / titreşim modundayken otomatik çalmayı engelle. */
+    val musicAutoPlayMuteOnSilentDevice: Boolean = true,
     val wikiPageTheme: String = "APP",
     val wikiTextZoom: Int = 100,
     /** Wiki açılır sayfası son seçilen düzeni hatırlar; varsayılan MOBİL düzendir. */
@@ -708,6 +746,29 @@ data class AppSettings(
     val keyboardPreciseSeekSeconds: Int get() = keyboard.keyboardPreciseSeekSeconds
     val keyboardLargeSeekSeconds: Int get() = keyboard.keyboardLargeSeekSeconds
     val keyboardHoldToAccelerate: Boolean get() = keyboard.keyboardHoldToAccelerate
+
+    // ─── Okuyucu Ortam Sesi (Ambient) delegasyonları ─────────────────────────
+    val musicEnabled: Boolean get() = integrations.musicEnabled
+    val musicAutoRecommend: Boolean get() = integrations.musicAutoRecommend
+    val musicMasterVolume: Float get() = integrations.musicMasterVolume
+    val musicChannelVolume: Float get() = integrations.musicChannelVolume
+    val musicAmbientVolume: Float get() = integrations.musicAmbientVolume
+    val musicContinueOnExit: Boolean get() = integrations.musicContinueOnExit
+    val musicAutoPlay: Boolean get() = integrations.musicAutoPlay
+    val musicAutoPlayDelaySeconds: Int get() = integrations.musicAutoPlayDelaySeconds
+    val musicAutoPlayVolume: Float get() = integrations.musicAutoPlayVolume
+    val musicAutoPlayHeadphonesOnly: Boolean get() = integrations.musicAutoPlayHeadphonesOnly
+    val musicAutoPlayMuteOnSilentDevice: Boolean get() = integrations.musicAutoPlayMuteOnSilentDevice
+    val musicJamendoEnabled: Boolean get() = integrations.musicJamendoEnabled
+    val musicJamendoClientId: String get() = integrations.musicJamendoClientId
+    val musicFreesoundEnabled: Boolean get() = integrations.musicFreesoundEnabled
+    val musicFreesoundApiKey: String get() = integrations.musicFreesoundApiKey
+    val musicOpenverseEnabled: Boolean get() = integrations.musicOpenverseEnabled
+    val musicOpenverseToken: String get() = integrations.musicOpenverseToken
+    val musicArchiveEnabled: Boolean get() = integrations.musicArchiveEnabled
+    val musicAudiusEnabled: Boolean get() = integrations.musicAudiusEnabled
+    val musicAudiusApiKey: String get() = integrations.musicAudiusApiKey
+    val musicLastPresetId: String get() = integrations.musicLastPresetId
 }
 
 enum class FrameRateMatchingMode {

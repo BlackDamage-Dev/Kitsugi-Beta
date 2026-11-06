@@ -14,6 +14,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -113,12 +114,47 @@ fun KitsugiIntegrationsSettingsDialog(
     onFanartTvEnabledChanged: (Boolean) -> Unit,
     fanartTvApiKey: String,
     onFanartTvApiKeyChanged: (String) -> Unit,
+    // ─── Okuyucu Ortam Sesi (Ambient) ───────────────────────────────────────
+    musicEnabled: Boolean = true,
+    onMusicEnabledChanged: (Boolean) -> Unit = {},
+    musicAutoRecommend: Boolean = true,
+    onMusicAutoRecommendChanged: (Boolean) -> Unit = {},
+    musicAutoPlay: Boolean = false,
+    onMusicAutoPlayChanged: (Boolean) -> Unit = {},
+    musicAutoPlayDelay: Int = 3,
+    onAutoPlayDelayChanged: (Int) -> Unit = {},
+    musicContinueOnExit: Boolean = false,
+    onMusicContinueOnExitChanged: (Boolean) -> Unit = {},
+    musicMasterVolume: Float = 0.8f,
+    onMusicMasterVolumeChanged: (Float) -> Unit = {},
+    musicChannelVolume: Float = 0.5f,
+    onMusicChannelVolumeChanged: (Float) -> Unit = {},
+    musicAmbientVolume: Float = 0.6f,
+    onMusicAmbientVolumeChanged: (Float) -> Unit = {},
+    musicJamendoEnabled: Boolean = false,
+    onMusicJamendoEnabledChanged: (Boolean) -> Unit = {},
+    musicJamendoClientId: String = "",
+    onMusicJamendoClientIdChanged: (String) -> Unit = {},
+    musicFreesoundEnabled: Boolean = false,
+    onMusicFreesoundEnabledChanged: (Boolean) -> Unit = {},
+    musicFreesoundApiKey: String = "",
+    onMusicFreesoundApiKeyChanged: (String) -> Unit = {},
+    musicOpenverseEnabled: Boolean = true,
+    onMusicOpenverseEnabledChanged: (Boolean) -> Unit = {},
+    musicOpenverseToken: String = "",
+    onMusicOpenverseTokenChanged: (String) -> Unit = {},
+    musicArchiveEnabled: Boolean = true,
+    onMusicArchiveEnabledChanged: (Boolean) -> Unit = {},
+    musicAudiusEnabled: Boolean = false,
+    onMusicAudiusEnabledChanged: (Boolean) -> Unit = {},
+    musicAudiusApiKey: String = "",
+    onMusicAudiusApiKeyChanged: (String) -> Unit = {},
     embeddedMode: Boolean = false,
     initialPage: Int = 0,
     onDismiss: () -> Unit
 ) {
     val accentColor = LocalKitsugiAccent.current
-    val pagerState = rememberPagerState(initialPage = initialPage.coerceIn(0, 3), pageCount = { 4 })
+    val pagerState = rememberPagerState(initialPage = initialPage.coerceIn(0, 4), pageCount = { 5 })
     val scope = rememberCoroutineScope()
     LaunchedEffect(initialPage) {
         val targetPage = initialPage.coerceIn(0, 3)
@@ -172,7 +208,8 @@ fun KitsugiIntegrationsSettingsDialog(
                         KitsugiSettingsTabOption(stringResource(R.string.integrations_tab_tmdb), Icons.Movie),
                         KitsugiSettingsTabOption(stringResource(R.string.integrations_tab_mdblist), Icons.Star),
                         KitsugiSettingsTabOption(stringResource(R.string.integrations_tab_skip), Icons.SkipNext),
-                        KitsugiSettingsTabOption("Fanart.tv", Icons.Image)
+                        KitsugiSettingsTabOption("Fanart.tv", Icons.Image),
+                        KitsugiSettingsTabOption(stringResource(R.string.integrations_tab_music), Icons.MusicNote)
                     ),
                     selectedIndex = pagerState.currentPage,
                     accentColor = accentColor,
@@ -1540,3 +1577,754 @@ private fun FanartTvSettingsTab(
     }
 }
 
+
+
+@Composable
+private fun MusicSettingsTab(
+    enabled: Boolean,
+    onEnabledChanged: (Boolean) -> Unit,
+    autoRecommend: Boolean,
+    onAutoRecommendChanged: (Boolean) -> Unit,
+    autoPlay: Boolean = false,
+    onAutoPlayChanged: (Boolean) -> Unit = {},
+    autoPlayDelay: Int = 3,
+    onAutoPlayDelayChanged: (Int) -> Unit = {},
+    continueOnExit: Boolean,
+    onContinueOnExitChanged: (Boolean) -> Unit,
+    masterVolume: Float,
+    onMasterVolumeChanged: (Float) -> Unit,
+    channelVolume: Float,
+    onChannelVolumeChanged: (Float) -> Unit,
+    ambientVolume: Float,
+    onAmbientVolumeChanged: (Float) -> Unit,
+    jamendoEnabled: Boolean,
+    onJamendoEnabledChanged: (Boolean) -> Unit,
+    jamendoClientId: String,
+    onJamendoClientIdChanged: (String) -> Unit,
+    freesoundEnabled: Boolean,
+    onFreesoundEnabledChanged: (Boolean) -> Unit,
+    freesoundApiKey: String,
+    onFreesoundApiKeyChanged: (String) -> Unit,
+    openverseEnabled: Boolean,
+    onOpenverseEnabledChanged: (Boolean) -> Unit,
+    openverseToken: String,
+    onOpenverseTokenChanged: (String) -> Unit,
+    archiveEnabled: Boolean,
+    onArchiveEnabledChanged: (Boolean) -> Unit,
+    audiusEnabled: Boolean,
+    onAudiusEnabledChanged: (Boolean) -> Unit,
+    audiusApiKey: String,
+    onAudiusApiKeyChanged: (String) -> Unit,
+    accentColor: Color,
+    scrollState: ScrollState = rememberScrollState()
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(scrollState)
+            .padding(vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp)
+    ) {
+        // ── Bölüm 1: Yerleşik motor ─────────────────────────────────────
+        KitsugiSettingsSection(
+            title = stringResource(R.string.music_panel_title),
+            subtitle = stringResource(R.string.music_panel_subtitle)
+        ) {
+            KitsugiSettingsSwitchItem(
+                title = stringResource(R.string.music_settings_enabled),
+                description = stringResource(R.string.music_settings_enabled_desc),
+                icon = Icons.Rounded.MusicNote,
+                iconColor = accentColor,
+                checked = enabled,
+                onCheckedChange = onEnabledChanged
+            )
+
+            if (enabled) {
+                KitsugiSettingsDivider()
+                KitsugiSettingsSwitchItem(
+                    title = stringResource(R.string.music_settings_auto_recommend),
+                    description = stringResource(R.string.music_settings_auto_recommend_desc),
+                    icon = Icons.Rounded.AutoAwesome,
+                    iconColor = KitsugiColors.AccentPurple,
+                    checked = autoRecommend,
+                    onCheckedChange = onAutoRecommendChanged
+                )
+
+                KitsugiSettingsDivider()
+                KitsugiSettingsSwitchItem(
+                    title = "Otomatik başlat",
+                    description = "Okuyucu açılınca içeriğe uygun ses kendiliğinden " +
+                        "başlasın. Kapalıysa sen dokunana kadar sessiz kalır.",
+                    icon = Icons.Rounded.PlayArrow,
+                    iconColor = KitsugiColors.AccentTeal,
+                    checked = autoPlay,
+                    onCheckedChange = onAutoPlayChanged
+                )
+
+                if (autoPlay) {
+                    KitsugiSettingsDivider()
+                    // Bekleme süresi — 0..30 sn
+                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                        Text(
+                            text = "Başlama gecikmesi: ${autoPlayDelay} sn",
+                            color = KitsugiColors.TextPrimary,
+                            fontSize = 13.sp
+                        )
+                        Text(
+                            text = "Okumaya başladıktan sonra ses bu kadar sonra gelir",
+                            color = KitsugiColors.TextMuted,
+                            fontSize = 11.sp
+                        )
+                        androidx.compose.material3.Slider(
+                            value = autoPlayDelay.toFloat(),
+                            onValueChange = { onAutoPlayDelayChanged(it.toInt()) },
+                            valueRange = 0f..30f,
+                            steps = 29,
+                            colors = androidx.compose.material3.SliderDefaults.colors(
+                                thumbColor = accentColor,
+                                activeTrackColor = accentColor
+                            )
+                        )
+                    }
+                }
+
+                KitsugiSettingsDivider()
+                KitsugiSettingsSwitchItem(
+                    title = stringResource(R.string.music_settings_continue_on_exit),
+                    description = stringResource(R.string.music_settings_continue_on_exit_desc),
+                    icon = Icons.Rounded.PlayCircle,
+                    iconColor = KitsugiColors.AccentTeal,
+                    checked = continueOnExit,
+                    onCheckedChange = onContinueOnExitChanged
+                )
+
+                KitsugiSettingsDivider()
+
+                // Ses seviyeleri
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = stringResource(R.string.music_volume_title),
+                        color = KitsugiColors.TextPrimary,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    MusicVolumeSlider(
+                        label = stringResource(R.string.music_mixer_master),
+                        value = masterVolume,
+                        onValueChange = onMasterVolumeChanged,
+                        accentColor = accentColor
+                    )
+                    MusicVolumeSlider(
+                        label = stringResource(R.string.music_mixer_music),
+                        value = channelVolume,
+                        onValueChange = onChannelVolumeChanged,
+                        accentColor = accentColor
+                    )
+                    MusicVolumeSlider(
+                        label = stringResource(R.string.music_mixer_ambient),
+                        value = ambientVolume,
+                        onValueChange = onAmbientVolumeChanged,
+                        accentColor = accentColor
+                    )
+                }
+            }
+        }
+
+        // ── Bölüm 2: Kişisel API anahtarları ────────────────────────────
+        if (enabled) {
+            KitsugiSettingsSection(
+                title = stringResource(R.string.music_source_section_keys),
+                subtitle = stringResource(R.string.music_source_desc)
+            ) {
+                // Jamendo
+                MusicSourceKeyItem(
+                    sourceId = com.kitsugi.animelist.data.music.MusicSourceId.JAMENDO,
+                    enabled = jamendoEnabled,
+                    onEnabledChanged = onJamendoEnabledChanged,
+                    currentKey = jamendoClientId,
+                    onKeyChanged = onJamendoClientIdChanged,
+                    accentColor = accentColor
+                )
+                KitsugiSettingsDivider()
+                // Freesound
+                MusicSourceKeyItem(
+                    sourceId = com.kitsugi.animelist.data.music.MusicSourceId.FREESOUND,
+                    enabled = freesoundEnabled,
+                    onEnabledChanged = onFreesoundEnabledChanged,
+                    currentKey = freesoundApiKey,
+                    onKeyChanged = onFreesoundApiKeyChanged,
+                    accentColor = accentColor
+                )
+                KitsugiSettingsDivider()
+                // Openverse (anahtarsız çalışır, token opsiyonel)
+                MusicSourceKeyItem(
+                    sourceId = com.kitsugi.animelist.data.music.MusicSourceId.OPENVERSE,
+                    enabled = openverseEnabled,
+                    onEnabledChanged = onOpenverseEnabledChanged,
+                    currentKey = openverseToken,
+                    onKeyChanged = onOpenverseTokenChanged,
+                    accentColor = accentColor
+                )
+                KitsugiSettingsDivider()
+                // Audius
+                MusicSourceKeyItem(
+                    sourceId = com.kitsugi.animelist.data.music.MusicSourceId.AUDIUS,
+                    enabled = audiusEnabled,
+                    onEnabledChanged = onAudiusEnabledChanged,
+                    currentKey = audiusApiKey,
+                    onKeyChanged = onAudiusApiKeyChanged,
+                    accentColor = accentColor
+                )
+                KitsugiSettingsDivider()
+                // Internet Archive (anahtarsız)
+                MusicKeylessSourceItem(
+                    sourceId = com.kitsugi.animelist.data.music.MusicSourceId.ARCHIVE,
+                    enabled = archiveEnabled,
+                    onEnabledChanged = onArchiveEnabledChanged,
+                    accentColor = accentColor
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Ses seviyesi kaydırıcısı — etiket + yüzde göstergesi ile.
+ */
+@Composable
+private fun MusicVolumeSlider(
+    label: String,
+    value: Float,
+    onValueChange: (Float) -> Unit,
+    accentColor: Color
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = label,
+            color = KitsugiColors.TextSecondary,
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.width(76.dp)
+        )
+        Slider(
+            value = value,
+            onValueChange = onValueChange,
+            modifier = Modifier.weight(1f),
+            colors = SliderDefaults.colors(
+                thumbColor = accentColor,
+                activeTrackColor = accentColor,
+                inactiveTrackColor = KitsugiColors.Border
+            )
+        )
+        Text(
+            text = "${(value * 100).toInt()}%",
+            color = KitsugiColors.TextMuted,
+            style = MaterialTheme.typography.labelSmall,
+            modifier = Modifier.width(40.dp)
+        )
+    }
+}
+
+/**
+ * Anahtar gerektiren bir kaynak kartı: anahtar alanı + doğrula + lisans notu.
+ */
+@Composable
+private fun MusicSourceKeyItem(
+    sourceId: com.kitsugi.animelist.data.music.MusicSourceId,
+    enabled: Boolean,
+    onEnabledChanged: (Boolean) -> Unit,
+    currentKey: String,
+    onKeyChanged: (String) -> Unit,
+    accentColor: Color
+) {
+    val def = com.kitsugi.animelist.data.music.MusicSources.byId(sourceId) ?: return
+    var tempKey by remember(currentKey) { mutableStateOf(currentKey) }
+    var keyVisible by remember { mutableStateOf(false) }
+    var validating by remember { mutableStateOf(false) }
+    var result by remember(currentKey) { mutableStateOf<Boolean?>(null) }
+    val scope = rememberCoroutineScope()
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        KitsugiSettingsSwitchItem(
+            title = def.displayName,
+            description = when {
+                def.optionalKey -> "İsteğe bağlı — anahtarsız da çalışır, anahtar limiti artırır"
+                def.keyless -> stringResource(R.string.music_source_keyless_note)
+                else -> stringResource(R.string.music_source_key_hint)
+            },
+            icon = Icons.Rounded.Key,
+            iconColor = accentColor,
+            checked = enabled,
+            onCheckedChange = onEnabledChanged
+        )
+
+        // Anahtar alanı: zorunlu VEYA opsiyonel kaynaklarda gösterilir.
+        // Yalnızca gerçekten anahtarsız kaynaklarda (Archive) gizlenir.
+        if (enabled && (!def.keyless || def.optionalKey)) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            ) {
+                OutlinedTextField(
+                    value = tempKey,
+                    onValueChange = {
+                        tempKey = it
+                        result = null
+                    },
+                    label = {
+                        Text(
+                            when {
+                                def.requiresClientId -> "Client ID"
+                                def.optionalKey -> "API Key (isteğe bağlı)"
+                                else -> "API Key"
+                            }
+                        )
+                    },
+                    placeholder = { Text(def.keyHint) },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !validating,
+                    singleLine = true,
+                    visualTransformation = if (keyVisible) VisualTransformation.None
+                    else PasswordVisualTransformation(),
+                    trailingIcon = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(onClick = { keyVisible = !keyVisible }) {
+                                Icon(
+                                    imageVector = if (keyVisible) Icons.Rounded.VisibilityOff
+                                    else Icons.Rounded.Visibility,
+                                    contentDescription = stringResource(
+                                        if (keyVisible) R.string.integration_hide_key
+                                        else R.string.integration_show_key
+                                    ),
+                                    tint = KitsugiColors.TextSecondary
+                                )
+                            }
+                            if (tempKey.isNotEmpty()) {
+                                IconButton(
+                                    onClick = {
+                                        tempKey = ""
+                                        result = null
+                                        onKeyChanged("")
+                                    },
+                                    enabled = !validating
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Close,
+                                        contentDescription = stringResource(R.string.music_source_clear),
+                                        tint = KitsugiColors.TextSecondary
+                                    )
+                                }
+                            }
+                        }
+                    },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = accentColor,
+                        unfocusedBorderColor = KitsugiColors.Border,
+                        cursorColor = accentColor,
+                        focusedTextColor = KitsugiColors.TextPrimary,
+                        unfocusedTextColor = KitsugiColors.TextPrimary,
+                        focusedLabelColor = accentColor,
+                        unfocusedLabelColor = KitsugiColors.TextSecondary
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                // ── Anahtar edinme yardımı ──────────────────────────────
+                // "API Key nedir, nereden alınır?" sorusunu yanıtlar.
+                // Kullanıcı uygulamadan çıkmadan siteye gider.
+                // Anahtar alanı olan her kaynakta yardım kartı gösterilir
+                if (!def.keyless || def.optionalKey) {
+                    ApiKeyHelpCard(
+                        def = def,
+                        accentColor = accentColor
+                    )
+                    Spacer(Modifier.height(8.dp))
+                }
+
+                OutlinedButton(
+                    onClick = {
+                        validating = true
+                        result = null
+                        scope.launch {
+                            val ok = com.kitsugi.animelist.data.music.MusicSourceValidator
+                                .validate(sourceId, tempKey)
+                            if (ok) onKeyChanged(tempKey.trim())
+                            result = ok
+                            validating = false
+                        }
+                    },
+                    enabled = !validating && tempKey.isNotBlank(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = accentColor)
+                ) {
+                    if (validating) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            color = accentColor,
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(Modifier.width(8.dp))
+                    }
+                    Text(stringResource(R.string.music_source_validate))
+                }
+
+                result?.let { ok ->
+                    Text(
+                        text = stringResource(
+                            if (ok) R.string.music_source_validated
+                            else R.string.music_source_failed
+                        ),
+                        color = if (ok) Color(0xFF76D49B) else KitsugiColors.TextSecondary,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
+
+                // Lisans notu — şeffaflık için her zaman gösterilir
+                if (def.notes.isNotBlank()) {
+                    Text(
+                        text = stringResource(R.string.music_source_license_note) + ": " + def.notes,
+                        color = KitsugiColors.TextMuted,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(top = 6.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Anahtar gerektirmeyen kaynak kartı (Internet Archive).
+ */
+@Composable
+private fun MusicKeylessSourceItem(
+    sourceId: com.kitsugi.animelist.data.music.MusicSourceId,
+    enabled: Boolean,
+    onEnabledChanged: (Boolean) -> Unit,
+    accentColor: Color
+) {
+    val def = com.kitsugi.animelist.data.music.MusicSources.byId(sourceId) ?: return
+    Column(modifier = Modifier.fillMaxWidth()) {
+        KitsugiSettingsSwitchItem(
+            title = def.displayName,
+            description = def.notes,
+            icon = Icons.Rounded.Public,
+            iconColor = accentColor,
+            checked = enabled,
+            onCheckedChange = onEnabledChanged
+        )
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+//  API ANAHTARI EDİNME YARDIMI
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * 🔑 "Anahtarım yok, nereden alacağım?"
+ *
+ * Sorun: kullanıcı ekranda "API Key" alanı görüyor ama anahtarı yok.
+ * Önceden yalnızca ham bir URL metni vardı — kopyalamak/taramak
+ * gerekiyordu ve çoğu kişi bu adımda vazgeçiyordu.
+ *
+ * Çözüm: üç katmanlı yardım
+ *  1. **"Anahtar al" butonu** → tarayıcıda doğrudan ilgili sayfa açılır
+ *  2. **Adım adım talimat** → 1-2-3 numaralı, o kaynağa özel
+ *  3. **Nasıl görünür** → anahtarın biçimi (uzunluk/ön ek) ki kullanıcı
+ *     yanlış şeyi kopyalamadığını anlasın
+ *
+ * Ayrıca "anahtar gerekmez" durumu ve süre/limit bilgisi de burada.
+ */
+@Composable
+private fun ApiKeyHelpCard(
+    def: com.kitsugi.animelist.data.music.MusicSourceDef,
+    accentColor: Color
+) {
+    // Kullanıcı adımları isterse açar — varsayılan kapalı, yer kaplamasın
+    var expanded by remember { mutableStateOf(false) }
+    val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    val guide = remember(def.id) { ApiKeyGuide.of(def.id) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(accentColor.copy(alpha = 0.08f))
+            .padding(12.dp)
+    ) {
+        // ── Başlık + ana buton ──────────────────────────────────────────
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = Icons.Rounded.Key,
+                contentDescription = null,
+                tint = accentColor,
+                modifier = Modifier.size(16.dp)
+            )
+            Spacer(Modifier.width(8.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Anahtarın yok mu?",
+                    color = KitsugiColors.TextPrimary,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium
+                )
+                Text(
+                    text = guide.freeNote,
+                    color = KitsugiColors.TextMuted,
+                    fontSize = 9.sp,
+                    lineHeight = 12.sp
+                )
+            }
+        }
+
+        Spacer(Modifier.height(9.dp))
+
+        // ── Butonlar ────────────────────────────────────────────────────
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            if (def.signupUrl.isNotBlank()) {
+                // ANA BUTON: siteye git
+                Row(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(9.dp))
+                        .background(accentColor)
+                        .clickable {
+                            runCatching { uriHandler.openUri(def.signupUrl) }
+                                .onFailure {
+                                    // Tarayıcı yoksa panoya kopyala
+                                    val clipboard = context.getSystemService(
+                                        android.content.Context.CLIPBOARD_SERVICE
+                                    ) as? android.content.ClipboardManager
+                                    clipboard?.setPrimaryClip(
+                                        android.content.ClipData.newPlainText(
+                                            "Kitsugi anahtar adresi",
+                                            def.signupUrl
+                                        )
+                                    )
+                                    android.widget.Toast.makeText(
+                                        context,
+                                        "Adres panoya kopyalandı",
+                                        android.widget.Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                        }
+                        .padding(vertical = 9.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.OpenInNew,
+                        contentDescription = null,
+                        tint = Color.Black,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        text = guide.actionLabel,
+                        color = Color.Black,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
+            // İkincil: adım adım anlat
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(9.dp))
+                    .background(accentColor.copy(alpha = 0.16f))
+                    .clickable { expanded = !expanded }
+                    .padding(horizontal = 10.dp, vertical = 9.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = if (expanded) Icons.Rounded.ExpandLess
+                    else Icons.Rounded.ExpandMore,
+                    contentDescription = null,
+                    tint = accentColor,
+                    modifier = Modifier.size(14.dp)
+                )
+                Spacer(Modifier.width(5.dp))
+                Text(
+                    text = "Nasıl?",
+                    color = accentColor,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+        }
+
+        // ── Adım adım talimat ───────────────────────────────────────────
+        if (expanded) {
+            Spacer(Modifier.height(10.dp))
+            guide.steps.forEachIndexed { index, step ->
+                Row(
+                    modifier = Modifier.padding(vertical = 2.dp),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .padding(top = 1.dp)
+                            .size(15.dp)
+                            .clip(CircleShape)
+                            .background(accentColor.copy(alpha = 0.22f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "${index + 1}",
+                            color = accentColor,
+                            fontSize = 8.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = step,
+                        color = KitsugiColors.TextSecondary,
+                        fontSize = 10.sp,
+                        lineHeight = 14.sp
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+            // Anahtar biçimi — yanlış şeyi kopyalamayı önler
+            Text(
+                text = "Biçim: ${guide.formatHint}",
+                color = KitsugiColors.TextMuted,
+                fontSize = 9.sp
+            )
+            Spacer(Modifier.height(4.dp))
+            // Adresi elle kopyalamak isteyenler için (düşük kontrast, küçük)
+            Text(
+                text = def.signupUrl,
+                color = KitsugiColors.TextMuted.copy(alpha = 0.6f),
+                fontSize = 8.sp,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(4.dp))
+                    .clickable {
+                        val clipboard = context.getSystemService(
+                            android.content.Context.CLIPBOARD_SERVICE
+                        ) as? android.content.ClipboardManager
+                        clipboard?.setPrimaryClip(
+                            android.content.ClipData.newPlainText("adres", def.signupUrl)
+                        )
+                        android.widget.Toast.makeText(
+                            context, "Adres kopyalandı", android.widget.Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                    .padding(vertical = 2.dp)
+            )
+        }
+    }
+}
+
+/**
+ * Kaynağa özel anahtar edinme rehberi.
+ *
+ * Her kaynağın arayüzü farklı olduğu için talimatlar ayrı yazılmalı.
+ * Genel bir "siteye git, kayıt ol" metni işe yaramaz.
+ */
+private object ApiKeyGuide {
+
+    data class Guide(
+        val actionLabel: String,
+        val freeNote: String,
+        val steps: List<String>,
+        val formatHint: String
+    )
+
+    fun of(sourceId: com.kitsugi.animelist.data.music.MusicSourceId): Guide =
+        when (sourceId) {
+
+            // ── Jamendo ─────────────────────────────────────────────────
+            // Doğrulandı: devportal.jamendo.com/signup → Create App →
+            // "Client ID" (Client Secret DEĞİL — o OAuth2 için)
+            com.kitsugi.animelist.data.music.MusicSourceId.JAMENDO -> Guide(
+                actionLabel = "Jamendo'da anahtar al",
+                freeNote = "Ücretsiz · ayda 35.000 istek · ticari olmayan",
+                steps = listOf(
+                    "Butona dokun → Jamendo geliştirici portalı açılır",
+                    "Hesabınla giriş yap (yoksa 'Sign up')",
+                    "Jamendo API Kullanım Şartları'nı kabul et",
+                    "'Create App' → ad: Kitsugi, açıklama: kişisel kullanım",
+                    "Uygulama sayfasında **Client ID**'yi kopyala",
+                    "Buraya yapıştır → 'Doğrula'"
+                ),
+                formatHint = "32 karakter sayı-harf. Client Secret DEĞİL, Client ID."
+            )
+
+            // ── Freesound ───────────────────────────────────────────────
+            // Doğrulandı: freesound.org/apiv2/apply → form → anahtar
+            // ANINDA görünür, onay beklemesi YOK
+            com.kitsugi.animelist.data.music.MusicSourceId.FREESOUND -> Guide(
+                actionLabel = "Freesound'da anahtar al",
+                freeNote = "Ücretsiz · günde 2.000 istek · anahtar anında verilir",
+                steps = listOf(
+                    "Butona dokun → freesound.org API sayfası açılır",
+                    "Ücretsiz hesap aç veya giriş yap (hesap yoksa önce kayıt)",
+                    "Formu doldur: uygulama adı 'Kitsugi', kısa açıklama",
+                    "Kullanım şartlarını işaretle",
+                    "'Apply for a new credential' düğmesine bas",
+                    "Sayfada tablo çıkar — 'Client secret / API key' sütunundaki değeri kopyala",
+                    "Buraya yapıştır → 'Doğrula'"
+                ),
+                formatHint = "~24 karakter harf-rakam. Onay beklemez, anında oluşur."
+            )
+
+            // ── Audius ──────────────────────────────────────────────────
+            // Doğrulandı: audius.co/settings → Developer Apps
+            // Anahtarsız da çalışır, sadece limit artar
+            com.kitsugi.animelist.data.music.MusicSourceId.AUDIUS -> Guide(
+                actionLabel = "Audius'ta anahtar al",
+                freeNote = "Anahtar OPSİYONEL — anahtarsız da çalışır",
+                steps = listOf(
+                    "⚠️ Anahtar gerekmiyor: Audius anahtarsız çalışır",
+                    "Daha yüksek limit için butona dokun",
+                    "Audius hesabına giriş yap (yoksa kayıt ol)",
+                    "Ayarlar → **Developer Apps** bölümüne in",
+                    "'Create new app' → ad: Kitsugi",
+                    "Oluşan **API Key**'i kopyala (API Secret'ı değil)",
+                    "Buraya yapıştır → 'Doğrula'"
+                ),
+                formatHint = "uzun harf-rakam dizisi. Yalnızca API Key; Secret'ı verme."
+            )
+
+            // ── Openverse ───────────────────────────────────────────────
+            // Doğrulandı: OAuth2 client_id + client_secret → Bearer token
+            // Anahtarsız: 20/dk, 200/gün. Kayıtlı: 100/dk, 10.000/gün
+            com.kitsugi.animelist.data.music.MusicSourceId.OPENVERSE -> Guide(
+                actionLabel = "Openverse'da uygulama kaydet",
+                freeNote = "Anahtarsız çalışır · kayıtla limit 500 kat artar",
+                steps = listOf(
+                    "⚠️ Anahtar gerekmiyor: günde 200 istek ücretsiz",
+                    "Daha yüksek limit (10.000/gün) için butona dokun",
+                    "Formu doldur: ad, açıklama, e-posta",
+                    "Kayıt sonrası **client_id** ve **client_secret** verilir",
+                    "E-postanı doğrula (yoksa anonim limit geçerli kalır)",
+                    "Buraya client_id'yi yapıştır → 'Doğrula'"
+                ),
+                formatHint = "OAuth2 client_id. Token değil — kalıcı kimlik."
+            )
+
+            else -> Guide(
+                actionLabel = "Siteye git",
+                freeNote = "Anahtar gerekmez",
+                steps = listOf("Bu kaynak için anahtar gerekmiyor."),
+                formatHint = "—"
+            )
+        }
+}

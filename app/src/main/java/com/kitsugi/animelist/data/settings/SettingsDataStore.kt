@@ -431,6 +431,27 @@ class SettingsDataStore(
         // ── Altyazı İndirme Dil Filtresi ──────────────────────────────────────
         val SubtitleDownloadLanguages = stringPreferencesKey("subtitle_download_languages")
 
+        // ─── Okuyucu Ortam Sesi (Ambient) ───────────────────────────────────
+        val MusicEnabled = booleanPreferencesKey("music_enabled")
+        val MusicAutoRecommend = booleanPreferencesKey("music_auto_recommend")
+        val MusicAutoPlay = booleanPreferencesKey("music_auto_play")
+        val MusicAutoPlayVolume = floatPreferencesKey("music_auto_play_volume")
+        val MusicAutoPlayDelay = intPreferencesKey("music_auto_play_delay")
+        val MusicMasterVolume = floatPreferencesKey("music_master_volume")
+        val MusicChannelVolume = floatPreferencesKey("music_channel_volume")
+        val MusicAmbientVolume = floatPreferencesKey("music_ambient_volume")
+        val MusicContinueOnExit = booleanPreferencesKey("music_continue_on_exit")
+        val MusicJamendoEnabled = booleanPreferencesKey("music_jamendo_enabled")
+        val MusicJamendoClientId = stringPreferencesKey("music_jamendo_client_id")
+        val MusicFreesoundEnabled = booleanPreferencesKey("music_freesound_enabled")
+        val MusicFreesoundApiKey = stringPreferencesKey("music_freesound_api_key")
+        val MusicOpenverseEnabled = booleanPreferencesKey("music_openverse_enabled")
+        val MusicOpenverseToken = stringPreferencesKey("music_openverse_token")
+        val MusicArchiveEnabled = booleanPreferencesKey("music_archive_enabled")
+        val MusicAudiusEnabled = booleanPreferencesKey("music_audius_enabled")
+        val MusicAudiusApiKey = stringPreferencesKey("music_audius_api_key")
+        val MusicLastPresetId = stringPreferencesKey("music_last_preset_id")
+
         // ─── Kaynak Seçimi Kalıcılığı (Keşfet / Arama / Listem) ───────────────────
         // Kullanıcının bir ekranda seçtiği kaynak, uygulama kapatılıp açıldığında
         // yeniden kaybolmasın diye saklanır.
@@ -746,6 +767,25 @@ class SettingsDataStore(
                     mdbListShowTrakt = preferences[Keys.MdbListShowTrakt] ?: false,
                     fanartTvApiKey = preferences[Keys.FanartTvApiKey] ?: "",
                     fanartTvEnabled = preferences[Keys.FanartTvEnabled] ?: true,
+                    musicEnabled = preferences[Keys.MusicEnabled] ?: true,
+                    musicAutoRecommend = preferences[Keys.MusicAutoRecommend] ?: true,
+                    musicAutoPlay = preferences[Keys.MusicAutoPlay] ?: false,
+                    musicAutoPlayVolume = preferences[Keys.MusicAutoPlayVolume] ?: 0.6f,
+                    musicAutoPlayDelaySeconds = preferences[Keys.MusicAutoPlayDelay] ?: 3,
+                    musicMasterVolume = preferences[Keys.MusicMasterVolume] ?: 0.8f,
+                    musicChannelVolume = preferences[Keys.MusicChannelVolume] ?: 0.5f,
+                    musicAmbientVolume = preferences[Keys.MusicAmbientVolume] ?: 0.6f,
+                    musicContinueOnExit = preferences[Keys.MusicContinueOnExit] ?: true,
+                    musicJamendoEnabled = preferences[Keys.MusicJamendoEnabled] ?: false,
+                    musicJamendoClientId = preferences[Keys.MusicJamendoClientId] ?: "",
+                    musicFreesoundEnabled = preferences[Keys.MusicFreesoundEnabled] ?: false,
+                    musicFreesoundApiKey = preferences[Keys.MusicFreesoundApiKey] ?: "",
+                    musicOpenverseEnabled = preferences[Keys.MusicOpenverseEnabled] ?: true,
+                    musicOpenverseToken = preferences[Keys.MusicOpenverseToken] ?: "",
+                    musicArchiveEnabled = preferences[Keys.MusicArchiveEnabled] ?: true,
+                    musicAudiusEnabled = preferences[Keys.MusicAudiusEnabled] ?: true,
+                    musicAudiusApiKey = preferences[Keys.MusicAudiusApiKey] ?: "",
+                    musicLastPresetId = preferences[Keys.MusicLastPresetId] ?: "",
                     wikiPageTheme = preferences[Keys.WikiPageTheme] ?: "APP",
                     wikiTextZoom = preferences[Keys.WikiTextZoom] ?: 100,
                     wikiDesktopLayout = preferences[Keys.WikiDesktopLayout] ?: false,
@@ -2373,5 +2413,64 @@ class SettingsDataStore(
 
     suspend fun setDefaultIntroLength(value: Int) {
         context.settingsDataStore.edit { it[Keys.DefaultIntroLength] = value.coerceIn(5, 300) }
+    }
+
+    // ─── Okuyucu Ortam Sesi (Ambient) Setters ───────────────────────────────
+    suspend fun setMusicEnabled(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.MusicEnabled] = enabled }
+    }
+    suspend fun setMusicAutoRecommend(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.MusicAutoRecommend] = enabled }
+    }
+    suspend fun setMusicAutoPlay(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.MusicAutoPlay] = enabled }
+    }
+    suspend fun setMusicAutoPlayVolume(value: Float) {
+        context.settingsDataStore.edit { it[Keys.MusicAutoPlayVolume] = value.coerceIn(0f, 1f) }
+    }
+    suspend fun setMusicAutoPlayDelay(seconds: Int) {
+        context.settingsDataStore.edit { it[Keys.MusicAutoPlayDelay] = seconds.coerceIn(0, 30) }
+    }
+    suspend fun setMusicMasterVolume(value: Float) {
+        context.settingsDataStore.edit { it[Keys.MusicMasterVolume] = value.coerceIn(0f, 1f) }
+    }
+    suspend fun setMusicChannelVolume(value: Float) {
+        context.settingsDataStore.edit { it[Keys.MusicChannelVolume] = value.coerceIn(0f, 1f) }
+    }
+    suspend fun setMusicAmbientVolume(value: Float) {
+        context.settingsDataStore.edit { it[Keys.MusicAmbientVolume] = value.coerceIn(0f, 1f) }
+    }
+    suspend fun setMusicContinueOnExit(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.MusicContinueOnExit] = enabled }
+    }
+    suspend fun setMusicJamendoEnabled(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.MusicJamendoEnabled] = enabled }
+    }
+    suspend fun setMusicJamendoClientId(clientId: String) {
+        context.settingsDataStore.edit { it[Keys.MusicJamendoClientId] = clientId.trim() }
+    }
+    suspend fun setMusicFreesoundEnabled(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.MusicFreesoundEnabled] = enabled }
+    }
+    suspend fun setMusicFreesoundApiKey(key: String) {
+        context.settingsDataStore.edit { it[Keys.MusicFreesoundApiKey] = key.trim() }
+    }
+    suspend fun setMusicOpenverseEnabled(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.MusicOpenverseEnabled] = enabled }
+    }
+    suspend fun setMusicOpenverseToken(token: String) {
+        context.settingsDataStore.edit { it[Keys.MusicOpenverseToken] = token.trim() }
+    }
+    suspend fun setMusicArchiveEnabled(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.MusicArchiveEnabled] = enabled }
+    }
+    suspend fun setMusicAudiusEnabled(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.MusicAudiusEnabled] = enabled }
+    }
+    suspend fun setMusicAudiusApiKey(key: String) {
+        context.settingsDataStore.edit { it[Keys.MusicAudiusApiKey] = key.trim() }
+    }
+    suspend fun setMusicLastPresetId(presetId: String) {
+        context.settingsDataStore.edit { it[Keys.MusicLastPresetId] = presetId }
     }
 }

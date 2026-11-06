@@ -694,6 +694,8 @@ object KitsugiIcons {
     val EditNote: ImageVector get() = NotebookPen
     val EmojiEvents: ImageVector get() = Trophy
     val Equalizer: ImageVector get() = AudioLines
+    val GraphicEq: ImageVector get() = AudioLines
+    val CloudDone: ImageVector get() = CloudDownload
     val Error: ImageVector get() = CircleAlert
     val ErrorOutline: ImageVector get() = CircleAlert
     val Event: ImageVector get() = Calendar

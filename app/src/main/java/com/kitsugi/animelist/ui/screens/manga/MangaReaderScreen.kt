@@ -83,8 +83,18 @@ import com.kitsugi.animelist.ui.theme.gradient.CircularProgressIndicator
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import com.kitsugi.animelist.ui.theme.gradient.Slider
 import com.kitsugi.animelist.ui.theme.gradient.Text
+import com.kitsugi.animelist.core.music.AmbientAudioEngine
+import com.kitsugi.animelist.data.music.AtmospherePresets
+import com.kitsugi.animelist.data.music.MusicCatalogRepository
+import com.kitsugi.animelist.data.music.MusicRecommendationEngine
+import com.kitsugi.animelist.data.music.ProceduralSoundCatalog
+import com.kitsugi.animelist.data.music.MusicStateStore
+import com.kitsugi.animelist.data.settings.AppSettings
+import com.kitsugi.animelist.data.settings.SettingsDataStore
+import com.kitsugi.animelist.ui.screens.manga.components.MangaAmbientPanel
 import com.kitsugi.animelist.ui.screens.manga.components.MangaPagerReader
 import com.kitsugi.animelist.ui.screens.manga.components.MangaWebtoonReader
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /**
@@ -134,6 +144,147 @@ fun MangaReaderScreen(
     val scope = rememberCoroutineScope()
     var menuVisible by remember { mutableStateOf(true) }
     var showSettings by remember { mutableStateOf(false) }
+    var showMusicPanel by remember { mutableStateOf(false) }
+
+    // ─── Ortam Sesi (Ambient) motoru ──────────────────────────────────────
+    val musicEngine = remember { AmbientAudioEngine.get(context.applicationContext) }
+    val readerSettingsStore = remember { SettingsDataStore(context.applicationContext) }
+    val readerAppSettings by readerSettingsStore.settingsFlow.collectAsState(
+        initial = AppSettings()
+    )
+    val musicIsPlaying by musicEngine.isPlaying.collectAsState()
+    val musicActiveTitle by musicEngine.activeTitle.collectAsState()
+    val musicActivePreset by musicEngine.activePresetId.collectAsState()
+    val musicMasterVol by musicEngine.masterVolume.collectAsState()
+    val musicChannels by musicEngine.channels.collectAsState()
+
+    // ─── Çevrimiçi katalog deposu ──────────────────────────────────────────
+    // Singleton: kaynak aç/kapa tercihleri sayfalar arasında korunur
+    val musicCatalog = remember { MusicCatalogRepository.get() }
+    val readerScope = scope
+    val onlineResults by musicCatalog.results.collectAsState()
+    val onlineSearching by musicCatalog.isSearching.collectAsState()
+    val onlineError by musicCatalog.searchError.collectAsState()
+    val onlineQuery by musicCatalog.query.collectAsState()
+    val onlineSources by musicCatalog.sources.collectAsState()
+
+    // ─── Zamanlayıcı / profil / favori ───────────────────────────────────────
+    val sleepTimer by musicEngine.sleepTimer.collectAsState()
+    val mixProfiles by musicEngine.profiles.collectAsState()
+    val musicFavorites by musicEngine.favorites.collectAsState()
+    val musicRecentIds by musicEngine.recentIds.collectAsState()
+
+    // ─── Çevrimdışı / indirme ────────────────────────────────────────────
+    val ambientDownloads by musicEngine.downloadManager.downloaded.collectAsState()
+    val ambientActive by musicEngine.downloadManager.active.collectAsState()
+
+    val downloadedIds = remember(ambientDownloads) { ambientDownloads.keys }
+    val downloadProgress = remember(ambientActive) {
+        ambientActive
+            .filterValues { it.downloading }
+            .mapValues { it.value.progress }
+    }
+
+    // Kalıcı müzik durumu (favoriler, son çalınanlar, profiller)
+    val musicStateStore = remember(context.applicationContext) {
+        MusicStateStore(context.applicationContext)
+    }
+
+    var musicHydrated by remember { mutableStateOf(false) }
+
+    LaunchedEffect(musicStateStore) {
+        val storedFavorites = musicStateStore.favorites.first()
+        if (storedFavorites.isNotEmpty()) musicEngine.setFavorites(storedFavorites)
+
+        val storedProfiles = musicStateStore.profiles.first()
+        if (storedProfiles.isNotEmpty()) musicEngine.setProfiles(storedProfiles)
+
+        val storedRecent = musicStateStore.recent.first()
+        if (storedRecent.isNotEmpty()) musicEngine.setRecentIds(storedRecent)
+
+        musicHydrated = true
+    }
+
+    LaunchedEffect(musicHydrated) {
+        if (!musicHydrated) return@LaunchedEffect
+        musicEngine.favorites.collect { musicStateStore.saveFavorites(it) }
+    }
+    LaunchedEffect(musicHydrated) {
+        if (!musicHydrated) return@LaunchedEffect
+        musicEngine.profiles.collect { musicStateStore.saveProfiles(it) }
+    }
+    LaunchedEffect(musicHydrated) {
+        if (!musicHydrated) return@LaunchedEffect
+        musicEngine.recentIds.collect { musicStateStore.saveRecent(it) }
+    }
+
+    LaunchedEffect(readerAppSettings) {
+        musicCatalog.syncSettings(readerAppSettings)
+    }
+
+    var autoPlayHandled by remember(mangaDetails.url) { mutableStateOf(false) }
+
+    LaunchedEffect(readerAppSettings.musicAutoPlay) {
+        if (!readerAppSettings.musicAutoPlay) autoPlayHandled = false
+    }
+
+    LaunchedEffect(
+        mangaDetails.url,
+        readerAppSettings.musicEnabled,
+        readerAppSettings.musicAutoPlay
+    ) {
+        if (autoPlayHandled) return@LaunchedEffect
+        if (!readerAppSettings.musicEnabled) return@LaunchedEffect
+        if (!readerAppSettings.musicAutoPlay) return@LaunchedEffect
+        if (musicEngine.channels.value.isNotEmpty()) return@LaunchedEffect
+
+        val delaySec = readerAppSettings.musicAutoPlayDelaySeconds.coerceIn(0, 30)
+        if (delaySec > 0) kotlinx.coroutines.delay(delaySec * 1000L)
+
+        if (musicEngine.channels.value.isNotEmpty()) {
+            autoPlayHandled = true
+            return@LaunchedEffect
+        }
+
+        val recommendation = MusicRecommendationEngine.recommend(
+            genres = mangaDetails.genre,
+            pool = ProceduralSoundCatalog.sounds,
+            title = mangaDetails.title,
+            description = mangaDetails.description
+        )
+
+        val targetVolume = readerAppSettings.musicAutoPlayVolume.coerceIn(0.05f, 1f)
+
+        val preset = recommendation.presets.firstOrNull()?.sound?.id
+            ?.let { AtmospherePresets.byId(it) }
+
+        if (preset != null) {
+            musicEngine.playPreset(preset)
+            musicEngine.setMasterVolume(targetVolume)
+        } else {
+            recommendation.sounds.firstOrNull()?.let { rec ->
+                musicEngine.addChannel(rec.sound, targetVolume)
+            }
+        }
+        autoPlayHandled = true
+    }
+
+    val musicRecommendations = remember(mangaDetails.genre, mangaDetails.description) {
+        MusicRecommendationEngine.recommend(
+            genres = mangaDetails.genre,
+            pool = ProceduralSoundCatalog.sounds,
+            title = mangaDetails.title,
+            description = mangaDetails.description
+        )
+    }
+
+    LaunchedEffect(readerAppSettings.musicMasterVolume) {
+        musicEngine.setMasterVolume(readerAppSettings.musicMasterVolume)
+    }
+
+    LaunchedEffect(readerAppSettings.musicContinueOnExit) {
+        musicEngine.continueInBackground = readerAppSettings.musicContinueOnExit
+    }
     var showGallery by remember { mutableStateOf(false) }
     var showChapterPicker by remember { mutableStateOf(false) }
     var showSourceLogin by remember { mutableStateOf(false) }
@@ -529,6 +680,13 @@ fun MangaReaderScreen(
                             tint = Color.White
                         )
                     }
+                    if (readerAppSettings.musicEnabled) IconButton(onClick = { showMusicPanel = true }) {
+                        Icon(
+                            Icons.Rounded.MusicNote,
+                            contentDescription = stringResource(R.string.music_panel_title),
+                            tint = if (musicIsPlaying) Color(0xFF9D7CFF) else Color.White
+                        )
+                    }
                     IconButton(onClick = { showSettings = true }) {
                         Icon(
                             Icons.AutoMirrored.Filled.MenuBook,
@@ -792,6 +950,13 @@ fun MangaReaderScreen(
                             if (fullscreen) Icons.Rounded.FullscreenExit else Icons.Rounded.Fullscreen,
                             contentDescription = stringResource(if (fullscreen) R.string.manga_exit_fullscreen else R.string.manga_enter_fullscreen),
                             tint = Color.White
+                        )
+                    }
+                    if (readerAppSettings.musicEnabled) IconButton(onClick = { showMusicPanel = true }) {
+                        Icon(
+                            Icons.Rounded.MusicNote,
+                            contentDescription = stringResource(R.string.music_panel_title),
+                            tint = if (musicIsPlaying) Color(0xFF9D7CFF) else Color.White
                         )
                     }
                     IconButton(onClick = { showSettings = true }) {
@@ -1068,6 +1233,164 @@ fun MangaReaderScreen(
                 )
                 Spacer(Modifier.height(24.dp))
             }
+        }
+    }
+
+    // ─── Ortam Sesi Paneli ────────────────────────────────────────────────────
+    if (showMusicPanel) {
+        KitsugiSheetOrDialog(
+            onDismiss = { showMusicPanel = false },
+            heightFraction = 0.78f
+        ) {
+            MangaAmbientPanel(
+                recommendations = musicRecommendations,
+                isPlaying = musicIsPlaying,
+                activeTitle = musicActiveTitle,
+                activePresetId = musicActivePreset,
+                masterVolume = musicMasterVol,
+                channels = musicChannels,
+                maxChannels = com.kitsugi.animelist.data.music.MAX_AMBIENT_CHANNELS,
+                onMasterVolumeChanged = { musicEngine.setMasterVolume(it) },
+                onPlayPreset = { preset -> musicEngine.playPreset(preset) },
+                onPlaySound = { sound -> musicEngine.addChannel(sound) },
+                onChannelVolumeChanged = { index, v -> musicEngine.setChannelVolume(index, v) },
+                onChannelMuteToggle = { index -> musicEngine.toggleMute(index) },
+                onChannelRemove = { index -> musicEngine.stopChannel(index) },
+                onTogglePlay = { musicEngine.togglePlayPause() },
+                onStopAll = { musicEngine.stopAllChannels() },
+                onDismiss = { showMusicPanel = false },
+                onlineResults = onlineResults,
+                isSearching = onlineSearching,
+                searchError = onlineError,
+                searchQuery = onlineQuery,
+                sourceStates = onlineSources,
+                onSearchQueryChanged = { musicCatalog.setQuery(it) },
+                onSearch = {
+                    readerScope.launch {
+                        musicCatalog.search(onlineQuery, readerAppSettings)
+                    }
+                },
+                onPlayOnline = { sound ->
+                    readerScope.launch {
+                        val resolved = musicCatalog.resolveUrl(sound)
+                        val playable = if (resolved != null && resolved != sound.streamUrl) {
+                            sound.copy(streamUrl = resolved)
+                        } else sound
+                        musicEngine.addChannel(playable)
+                    }
+                },
+                sleepTimer = sleepTimer,
+                onStartTimer = { minutes -> musicEngine.startSleepTimer(minutes) },
+                onCancelTimer = { musicEngine.cancelSleepTimer() },
+                onPauseTimer = { musicEngine.pauseSleepTimer() },
+                onResumeTimer = { musicEngine.resumeSleepTimer() },
+                onExtendTimer = { extra -> musicEngine.extendSleepTimer(extra) },
+                profiles = mixProfiles,
+                favorites = musicFavorites,
+                recentIds = musicRecentIds,
+                onSaveProfile = { name -> musicEngine.saveCurrentAsProfile(name) },
+                onApplyProfile = { profile -> musicEngine.applyProfile(profile) },
+                onDeleteProfile = { id -> musicEngine.deleteProfile(id) },
+                onToggleFavorite = { id -> musicEngine.toggleFavorite(id) },
+                musicEnabled = readerAppSettings.musicEnabled,
+                onMusicEnabledChanged = { enabled ->
+                    readerScope.launch { readerSettingsStore.setMusicEnabled(enabled) }
+                    if (!enabled) musicEngine.stopAllChannels()
+                },
+                autoPlay = readerAppSettings.musicAutoPlay,
+                onAutoPlayChanged = { enabled ->
+                    readerScope.launch { readerSettingsStore.setMusicAutoPlay(enabled) }
+                },
+                autoPlayDelaySeconds = readerAppSettings.musicAutoPlayDelaySeconds,
+                onToggleSource = { sourceId ->
+                    musicCatalog.toggleSource(sourceId)
+                    val nowEnabled = musicCatalog.enabledOverride(sourceId) ?: true
+                    readerScope.launch {
+                        when (sourceId) {
+                            com.kitsugi.animelist.data.music.MusicSourceId.JAMENDO ->
+                                readerSettingsStore.setMusicJamendoEnabled(nowEnabled)
+                            com.kitsugi.animelist.data.music.MusicSourceId.FREESOUND ->
+                                readerSettingsStore.setMusicFreesoundEnabled(nowEnabled)
+                            com.kitsugi.animelist.data.music.MusicSourceId.OPENVERSE ->
+                                readerSettingsStore.setMusicOpenverseEnabled(nowEnabled)
+                            com.kitsugi.animelist.data.music.MusicSourceId.ARCHIVE ->
+                                readerSettingsStore.setMusicArchiveEnabled(nowEnabled)
+                            com.kitsugi.animelist.data.music.MusicSourceId.AUDIUS ->
+                                readerSettingsStore.setMusicAudiusEnabled(nowEnabled)
+                            else -> Unit
+                        }
+                    }
+                },
+                downloadedIds = downloadedIds,
+                downloadProgress = downloadProgress,
+                onDownloadSound = { sound ->
+                    readerScope.launch {
+                        val file = musicEngine.downloadManager.download(
+                            sound = sound,
+                            repository = musicCatalog
+                        )
+                        android.widget.Toast.makeText(
+                            context,
+                            if (file != null) "${sound.title} indirildi — artık çevrimdışı çalınabilir"
+                            else "İndirilemedi",
+                            android.widget.Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                },
+                downloadedBytes = remember(ambientDownloads) {
+                    ambientDownloads.values.sumOf { it.length() }
+                },
+                onClearDownloads = {
+                    val count = musicEngine.downloadManager.clearAll()
+                    android.widget.Toast.makeText(
+                        context,
+                        "$count ses indirmesi silindi",
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                },
+                onExportProfile = { profile ->
+                    val json = musicEngine.exportProfile(profile)
+                    val clipboard = context.getSystemService(
+                        android.content.Context.CLIPBOARD_SERVICE
+                    ) as? android.content.ClipboardManager
+                    clipboard?.setPrimaryClip(
+                        android.content.ClipData.newPlainText("Kitsugi karışım", json)
+                    )
+                    readerScope.launch {
+                        android.widget.Toast.makeText(
+                            context, "Karışım panoya kopyalandı", android.widget.Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                },
+                onImportProfile = {
+                    val clipboard = context.getSystemService(
+                        android.content.Context.CLIPBOARD_SERVICE
+                    ) as? android.content.ClipboardManager
+                    val text = clipboard?.primaryClip
+                        ?.takeIf { it.itemCount > 0 }
+                        ?.getItemAt(0)
+                        ?.coerceToText(context)
+                        ?.toString()
+                        .orEmpty()
+                    val imported = musicEngine.importProfile(text)
+                    if (imported != null) {
+                        musicEngine.setProfiles(musicEngine.profiles.value + imported)
+                        readerScope.launch {
+                            android.widget.Toast.makeText(
+                                context, "Karışım içe aktarıldı: ${imported.name}",
+                                android.widget.Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    } else {
+                        readerScope.launch {
+                            android.widget.Toast.makeText(
+                                context, "Panoda geçerli bir karışım yok",
+                                android.widget.Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    }
+                }
+            )
         }
     }
 
