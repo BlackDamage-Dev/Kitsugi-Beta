@@ -10,6 +10,7 @@ import com.kitsugi.animelist.ui.theme.gradient.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
@@ -19,6 +20,9 @@ import androidx.compose.material.icons.automirrored.filled.NavigateBefore
 import androidx.compose.material.icons.automirrored.filled.NavigateNext
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.runtime.*
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -49,8 +53,16 @@ import com.kitsugi.animelist.data.manga.MangaDetails
 import com.kitsugi.animelist.data.manga.MangaSource
 import com.kitsugi.animelist.data.manga.ReadingMode
 import com.kitsugi.animelist.ui.screens.manga.MangaReaderViewModel
+import com.kitsugi.animelist.ui.screens.manga.readerScrollFraction
+import com.kitsugi.animelist.ui.screens.manga.readerPreloadCount
 import com.kitsugi.animelist.ui.screens.manga.components.MangaPagerReader
+import com.kitsugi.animelist.ui.screens.manga.components.readerSpreadCount
+import com.kitsugi.animelist.ui.screens.manga.components.readerSpreadForPage
+import com.kitsugi.animelist.ui.screens.manga.components.readerSpreadLast
 import com.kitsugi.animelist.ui.screens.manga.components.MangaWebtoonReader
+import com.kitsugi.animelist.ui.screens.manga.components.WebtoonAutoScroll
+import com.kitsugi.animelist.ui.screens.manga.components.ReaderVolumeKeys
+import com.kitsugi.animelist.ui.screens.manga.components.readerBackgroundColor
 import com.kitsugi.animelist.ui.utils.requestFocusAfterFrames
 import com.kitsugi.animelist.ui.utils.tvClickable
 import kotlinx.coroutines.launch
@@ -87,6 +99,8 @@ fun TvMangaReaderScreen(
 
     val uiState by viewModel.uiState.collectAsState()
     val pages by viewModel.pages.collectAsState()
+    com.kitsugi.animelist.ui.screens.manga.components.ReaderKeepScreenOn(uiState.keepScreenOn)
+    com.kitsugi.animelist.ui.screens.manga.components.ReaderImmersiveMode(uiState.immersive)
 
     val currentChapter = uiState.currentChapter
     val readingMode = uiState.readingMode
@@ -96,36 +110,113 @@ fun TvMangaReaderScreen(
     val scope = rememberCoroutineScope()
     var hudVisible by remember { mutableStateOf(true) }
     var showSettingsPanel by remember { mutableStateOf(false) }
+    var autoScrollEnabled by remember { mutableStateOf(false) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) autoScrollEnabled = false
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    LaunchedEffect(readingMode) {
+        if (readingMode != ReadingMode.Webtoon) autoScrollEnabled = false
+    }
 
-    val pagerState = rememberPagerState(initialPage = currentPage) { pages.size }
+    val useSpreads = uiState.doublePage && (readingMode == ReadingMode.LeftToRight || readingMode == ReadingMode.RightToLeft)
+    val coverAlone = useSpreads && uiState.coverAlone
+    val pagerState = rememberPagerState(initialPage = 0) { readerSpreadCount(pages.size, useSpreads, coverAlone) }
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = currentPage)
 
     var hasRestoredProgress by remember(currentChapter.url) { mutableStateOf(false) }
+    WebtoonAutoScroll(
+        enabled = autoScrollEnabled && readingMode == ReadingMode.Webtoon && !showSettingsPanel &&
+            !uiState.isLoadingPages && hasRestoredProgress && pages.isNotEmpty(),
+        listState = listState,
+        speedDpPerSecond = uiState.webtoonAutoScrollSpeed,
+        onEnd = {
+            autoScrollEnabled = false
+            viewModel.onWebtoonChapterEnd(currentChapter.url, pages.size)
+            if (uiState.webtoonAutoNext && viewModel.hasNextChapter) viewModel.goToNextChapter()
+        }
+    )
 
     // Focus yönetimi
     val screenFocusRequester = remember { FocusRequester() }
     val backButtonFocusRequester = remember { FocusRequester() }
 
-    LaunchedEffect(currentChapter.url) {
-        hasRestoredProgress = false
+    ReaderVolumeKeys(
+        enabled = uiState.volumeKeys && !showSettingsPanel && hasRestoredProgress && !uiState.isLoadingPages && pages.isNotEmpty(),
+        inverted = uiState.invertVolumeKeys,
+        onNext = {
+            autoScrollEnabled = false
+            if (readingMode == ReadingMode.Webtoon) {
+                if (listState.canScrollForward) scope.launch {
+                    listState.animateScrollBy((listState.layoutInfo.viewportEndOffset - listState.layoutInfo.viewportStartOffset) * readerScrollFraction(uiState.webtoonScrollPercent))
+                } else {
+                    viewModel.onWebtoonChapterEnd(currentChapter.url, pages.size)
+                    viewModel.goToNextChapter()
+                }
+            } else if (pagerState.currentPage < pagerState.pageCount - 1) {
+                scope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) }
+            } else viewModel.goToNextChapter()
+        },
+        onPrevious = {
+            autoScrollEnabled = false
+            if (readingMode == ReadingMode.Webtoon) {
+                if (listState.canScrollBackward) scope.launch {
+                    listState.animateScrollBy((listState.layoutInfo.viewportEndOffset - listState.layoutInfo.viewportStartOffset) * -readerScrollFraction(uiState.webtoonScrollPercent))
+                } else viewModel.goToPreviousChapter()
+            } else if (pagerState.currentPage > 0) {
+                scope.launch { pagerState.animateScrollToPage(pagerState.currentPage - 1) }
+            } else viewModel.goToPreviousChapter()
+        }
+    )
+
+    var previousReadingMode by remember(currentChapter.url) { mutableStateOf(readingMode) }
+    var previousSpread by remember(currentChapter.url) { mutableStateOf(useSpreads to coverAlone) }
+    var synchronizingMode by remember(currentChapter.url) { mutableStateOf(false) }
+
+    LaunchedEffect(readingMode, useSpreads, coverAlone) {
+        if (previousReadingMode != readingMode || previousSpread != (useSpreads to coverAlone)) {
+            previousReadingMode = readingMode
+            previousSpread = useSpreads to coverAlone
+            if (hasRestoredProgress && !uiState.isLoadingPages && pages.isNotEmpty()) {
+                synchronizingMode = true
+                try {
+                    val target = currentPage.coerceIn(0, pages.lastIndex)
+                    if (readingMode == ReadingMode.Webtoon) listState.scrollToItem(target)
+                    else pagerState.scrollToPage(readerSpreadForPage(target, useSpreads, coverAlone))
+                } finally {
+                    synchronizingMode = false
+                }
+            }
+        }
     }
 
-    LaunchedEffect(pages, currentPage) {
-        if (pages.isNotEmpty() && !hasRestoredProgress) {
-            hasRestoredProgress = true
-            val targetPage = currentPage.coerceIn(0, pages.size - 1)
-            if (readingMode == ReadingMode.Webtoon) {
-                listState.scrollToItem(targetPage)
-            } else {
-                pagerState.scrollToPage(targetPage)
+    LaunchedEffect(pages, currentPage, uiState.isLoadingPages) {
+        if (!uiState.isLoadingPages && pages.isNotEmpty() && !hasRestoredProgress) {
+            synchronizingMode = true
+            try {
+                val targetPage = currentPage.coerceIn(0, pages.size - 1)
+                if (readingMode == ReadingMode.Webtoon) {
+                    listState.scrollToItem(targetPage)
+                } else {
+                    pagerState.scrollToPage(readerSpreadForPage(targetPage, useSpreads, coverAlone))
+                }
+                hasRestoredProgress = true
+            } finally {
+                synchronizingMode = false
             }
         }
     }
 
     // Pager sayfa değişimi progress kaydetme
-    LaunchedEffect(pagerState.currentPage) {
-        if (hasRestoredProgress && pages.isNotEmpty()) {
-            viewModel.onPageChanged(currentChapter.url, pagerState.currentPage, pages.size)
+    LaunchedEffect(pagerState.currentPage, synchronizingMode, hasRestoredProgress, readingMode, useSpreads, coverAlone) {
+        if (hasRestoredProgress && !synchronizingMode && previousReadingMode == readingMode &&
+            previousSpread == (useSpreads to coverAlone) && !uiState.isLoadingPages && readingMode != ReadingMode.Webtoon && pages.isNotEmpty()) {
+            val pageIndex = readerSpreadLast(pagerState.currentPage, pages.size, useSpreads, coverAlone).coerceIn(0, pages.lastIndex)
+            viewModel.onPageChanged(currentChapter.url, pageIndex, pages.size)
         }
     }
 
@@ -144,9 +235,11 @@ fun TvMangaReaderScreen(
             .background(Color.Black)
             .focusRequester(screenFocusRequester)
             .onPreviewKeyEvent { event ->
+                if (showSettingsPanel) return@onPreviewKeyEvent false
                 if (event.type == KeyEventType.KeyDown) {
                     when (event.nativeKeyEvent.keyCode) {
                         KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
+                            if (autoScrollEnabled) autoScrollEnabled = false
                             // HUD menüsünü aç/kapat
                             hudVisible = !hudVisible
                             if (hudVisible) {
@@ -184,7 +277,7 @@ fun TvMangaReaderScreen(
                                 val isRtl = readingMode == ReadingMode.RightToLeft
                                 if (isRtl) {
                                     // RTL modunda sol basıldığında sonraki sayfaya (index + 1)
-                                    if (pagerState.currentPage < pages.size - 1) {
+                                    if (pagerState.currentPage < pagerState.pageCount - 1) {
                                         scope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) }
                                     } else {
                                         viewModel.goToNextChapter()
@@ -212,7 +305,7 @@ fun TvMangaReaderScreen(
                                     }
                                 } else {
                                     // LTR modunda sağ basıldığında sonraki sayfaya
-                                    if (pagerState.currentPage < pages.size - 1) {
+                                    if (pagerState.currentPage < pagerState.pageCount - 1) {
                                         scope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) }
                                     } else {
                                         viewModel.goToNextChapter()
@@ -275,11 +368,29 @@ fun TvMangaReaderScreen(
                     listState = listState,
                     loader = loader,
                     colorFilterType = uiState.colorFilterType,
+                    saturation = uiState.saturation,
+                    contrast = uiState.contrast,
+                    hue = uiState.hue,
                     fitMode = uiState.fitMode,
+                    pageBackground = readerBackgroundColor(uiState.readerBackground),
+                    autoBackground = uiState.readerBackground == "Auto",
+                    showPageNumber = uiState.showPageNumber,
+                    invertTapZones = uiState.invertTapZones,
+                    tapLayout = uiState.tapLayout,
+                    tapGrid = uiState.tapGrid,
+                    longTapGrid = uiState.longTapGrid,
+                    sidePadding = uiState.webtoonPadding,
+                    pageGap = uiState.webtoonGap,
+                    cropBorders = uiState.cropBordersWebtoon,
+                    zoomEnabled = uiState.webtoonZoom,
+                    wideRotation = uiState.wideRotationWebtoon,
+                    autoNext = uiState.webtoonAutoNext && !autoScrollEnabled,
                     hasNextChapter = viewModel.hasNextChapter,
-                    nextChapterName = viewModel.nextChapterName,
+                    nextChapterName = if (uiState.skipReadChapters) null else viewModel.nextChapterName,
                     onGoToNextChapter = { viewModel.goToNextChapter() },
+                    onChapterEnd = { if (hasRestoredProgress && !uiState.isLoadingPages) viewModel.onWebtoonChapterEnd(currentChapter.url, pages.size) },
                     onCenterTap = {
+                        if (autoScrollEnabled) autoScrollEnabled = false
                         hudVisible = !hudVisible
                         if (hudVisible) {
                             scope.launch {
@@ -288,13 +399,15 @@ fun TvMangaReaderScreen(
                         }
                     },
                     onPageChanged = { idx ->
-                        if (hasRestoredProgress) {
+                        if (hasRestoredProgress && !synchronizingMode && !uiState.isLoadingPages) {
                             viewModel.onPageChanged(currentChapter.url, idx, pages.size)
                         }
                     },
                     onNextPage = {
                         val current = listState.firstVisibleItemIndex
-                        if (current < pages.size - 1) {
+                        if (uiState.webtoonTapScroll) {
+                            scope.launch { listState.animateScrollBy((listState.layoutInfo.viewportEndOffset - listState.layoutInfo.viewportStartOffset) * readerScrollFraction(uiState.webtoonScrollPercent)) }
+                        } else if (current < pages.size - 1) {
                             scope.launch { listState.animateScrollToItem(current + 1) }
                         } else {
                             viewModel.goToNextChapter()
@@ -302,7 +415,9 @@ fun TvMangaReaderScreen(
                     },
                     onPrevPage = {
                         val current = listState.firstVisibleItemIndex
-                        if (current > 0) {
+                        if (uiState.webtoonTapScroll) {
+                            scope.launch { listState.animateScrollBy((listState.layoutInfo.viewportEndOffset - listState.layoutInfo.viewportStartOffset) * -readerScrollFraction(uiState.webtoonScrollPercent)) }
+                        } else if (current > 0) {
                             scope.launch { listState.animateScrollToItem(current - 1) }
                         } else {
                             viewModel.goToPreviousChapter()
@@ -315,7 +430,22 @@ fun TvMangaReaderScreen(
                     loader = loader,
                     readingMode = readingMode,
                     colorFilterType = uiState.colorFilterType,
+                    saturation = uiState.saturation,
+                    contrast = uiState.contrast,
+                    hue = uiState.hue,
                     fitMode = uiState.fitMode,
+                    pageBackground = readerBackgroundColor(uiState.readerBackground),
+                    autoBackground = uiState.readerBackground == "Auto",
+                    showPageNumber = uiState.showPageNumber,
+                    invertTapZones = uiState.invertTapZones,
+                    tapLayout = uiState.tapLayout,
+                    tapGrid = uiState.tapGrid,
+                    longTapGrid = uiState.longTapGrid,
+                    doublePage = useSpreads,
+                    coverAlone = coverAlone,
+                    prefetchPages = readerPreloadCount(uiState.preloadAhead, webtoon = false),
+                    cropBorders = uiState.cropBorders,
+                    wideRotation = uiState.wideRotation,
                     onCenterTap = {
                         hudVisible = !hudVisible
                         if (hudVisible) {
@@ -325,7 +455,7 @@ fun TvMangaReaderScreen(
                         }
                     },
                     onNextPage = {
-                        if (pagerState.currentPage < pages.size - 1) {
+                        if (pagerState.currentPage < pagerState.pageCount - 1) {
                             scope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) }
                         } else {
                             viewModel.goToNextChapter()
@@ -509,6 +639,8 @@ fun TvMangaReaderScreen(
         if (showSettingsPanel) {
             TvMangaReaderControls(
                 viewModel = viewModel,
+                autoScrollEnabled = autoScrollEnabled,
+                onAutoScrollChange = { autoScrollEnabled = it },
                 onDismiss = {
                     showSettingsPanel = false
                     scope.launch {

@@ -7,6 +7,9 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import com.kitsugi.animelist.ui.theme.gradient.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,6 +23,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
@@ -43,6 +47,7 @@ import com.kitsugi.animelist.ui.theme.gradient.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.TextButton
 import com.kitsugi.animelist.ui.theme.gradient.LinearProgressIndicator
 import com.kitsugi.animelist.ui.theme.gradient.Text
 import com.kitsugi.animelist.ui.theme.gradient.Slider
@@ -54,6 +59,10 @@ import com.kitsugi.animelist.ui.theme.gradient.CircularProgressIndicator
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.DisposableEffect
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -62,6 +71,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -74,7 +85,13 @@ import com.kitsugi.animelist.data.manga.ReadingMode
 import com.kitsugi.animelist.data.manga.ColorFilterType
 import com.kitsugi.animelist.data.manga.MangaFitMode
 import com.kitsugi.animelist.ui.screens.manga.components.MangaPagerReader
+import com.kitsugi.animelist.ui.screens.manga.components.readerSpreadCount
+import com.kitsugi.animelist.ui.screens.manga.components.readerSpreadForPage
+import com.kitsugi.animelist.ui.screens.manga.components.readerSpreadLast
 import com.kitsugi.animelist.ui.screens.manga.components.MangaWebtoonReader
+import com.kitsugi.animelist.ui.screens.manga.components.WebtoonAutoScroll
+import com.kitsugi.animelist.ui.screens.manga.components.ReaderVolumeKeys
+import com.kitsugi.animelist.ui.screens.manga.components.readerBackgroundColor
 import kotlinx.coroutines.launch
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.platform.LocalContext
@@ -99,6 +116,17 @@ fun MangaReaderScreen(
     onBack: () -> Unit = {}
 ) {
     val context = LocalContext.current
+    val readerActivity = remember(context) { context.findActivity() }
+    var orientationSetByReader by remember(readerActivity) { mutableStateOf<Int?>(null) }
+    DisposableEffect(readerActivity) {
+        val originalOrientation = readerActivity?.requestedOrientation
+        onDispose {
+            if (readerActivity != null && !readerActivity.isFinishing && !readerActivity.isChangingConfigurations && originalOrientation != null &&
+                orientationSetByReader != null && readerActivity.requestedOrientation == orientationSetByReader) {
+                readerActivity.requestedOrientation = originalOrientation
+            }
+        }
+    }
     val viewModel: MangaReaderViewModel = viewModel(
         key = "${source.name}_${mangaDetails.url}_${chapter.url}",
         factory = MangaReaderViewModel.Factory(
@@ -111,6 +139,8 @@ fun MangaReaderScreen(
 
     val uiState by viewModel.uiState.collectAsState()
     val pages by viewModel.pages.collectAsState()
+    com.kitsugi.animelist.ui.screens.manga.components.ReaderKeepScreenOn(uiState.keepScreenOn)
+    com.kitsugi.animelist.ui.screens.manga.components.ReaderImmersiveMode(uiState.immersive)
 
     val currentChapter = uiState.currentChapter
     val readingMode = uiState.readingMode
@@ -120,34 +150,112 @@ fun MangaReaderScreen(
     val scope      = rememberCoroutineScope()
     var menuVisible     by remember { mutableStateOf(true) }
     var showSettings    by remember { mutableStateOf(false) }
+    var editLongTapGrid by remember { mutableStateOf(false) }
+    var autoScrollEnabled by remember { mutableStateOf(false) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) autoScrollEnabled = false
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    LaunchedEffect(readingMode) {
+        if (readingMode != ReadingMode.Webtoon) autoScrollEnabled = false
+    }
 
-    val pagerState    = rememberPagerState(initialPage = currentPage) { pages.size }
+    val useSpreads = uiState.doublePage && (readingMode == ReadingMode.LeftToRight || readingMode == ReadingMode.RightToLeft)
+    val coverAlone = useSpreads && uiState.coverAlone
+    val pagerState = rememberPagerState(initialPage = 0) { readerSpreadCount(pages.size, useSpreads, coverAlone) }
     val listState     = rememberLazyListState(initialFirstVisibleItemIndex = currentPage)
 
     var hasRestoredProgress by remember(currentChapter.url) { mutableStateOf(false) }
+    WebtoonAutoScroll(
+        enabled = autoScrollEnabled && readingMode == ReadingMode.Webtoon && !showSettings &&
+            !uiState.isLoadingPages && hasRestoredProgress && pages.isNotEmpty(),
+        listState = listState,
+        speedDpPerSecond = uiState.webtoonAutoScrollSpeed,
+        onEnd = {
+            autoScrollEnabled = false
+            viewModel.onWebtoonChapterEnd(currentChapter.url, pages.size)
+            if (uiState.webtoonAutoNext && viewModel.hasNextChapter) viewModel.goToNextChapter()
+        }
+    )
 
-    LaunchedEffect(currentChapter.url) {
-        hasRestoredProgress = false
+    ReaderVolumeKeys(
+        enabled = uiState.volumeKeys && !showSettings && hasRestoredProgress && !uiState.isLoadingPages && pages.isNotEmpty(),
+        inverted = uiState.invertVolumeKeys,
+        onNext = {
+            autoScrollEnabled = false
+            if (readingMode == ReadingMode.Webtoon) {
+                if (listState.canScrollForward) scope.launch {
+                    listState.animateScrollBy((listState.layoutInfo.viewportEndOffset - listState.layoutInfo.viewportStartOffset) * readerScrollFraction(uiState.webtoonScrollPercent))
+                } else {
+                    viewModel.onWebtoonChapterEnd(currentChapter.url, pages.size)
+                    viewModel.goToNextChapter()
+                }
+            } else if (pagerState.currentPage < pagerState.pageCount - 1) {
+                scope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) }
+            } else viewModel.goToNextChapter()
+        },
+        onPrevious = {
+            autoScrollEnabled = false
+            if (readingMode == ReadingMode.Webtoon) {
+                if (listState.canScrollBackward) scope.launch {
+                    listState.animateScrollBy((listState.layoutInfo.viewportEndOffset - listState.layoutInfo.viewportStartOffset) * -readerScrollFraction(uiState.webtoonScrollPercent))
+                } else viewModel.goToPreviousChapter()
+            } else if (pagerState.currentPage > 0) {
+                scope.launch { pagerState.animateScrollToPage(pagerState.currentPage - 1) }
+            } else viewModel.goToPreviousChapter()
+        }
+    )
+
+    var previousReadingMode by remember(currentChapter.url) { mutableStateOf(readingMode) }
+    var previousSpread by remember(currentChapter.url) { mutableStateOf(useSpreads to coverAlone) }
+    var synchronizingMode by remember(currentChapter.url) { mutableStateOf(false) }
+
+    LaunchedEffect(readingMode, useSpreads, coverAlone) {
+        if (previousReadingMode != readingMode || previousSpread != (useSpreads to coverAlone)) {
+            previousReadingMode = readingMode
+            previousSpread = useSpreads to coverAlone
+            if (hasRestoredProgress && !uiState.isLoadingPages && pages.isNotEmpty()) {
+                synchronizingMode = true
+                try {
+                    val target = currentPage.coerceIn(0, pages.lastIndex)
+                    if (readingMode == ReadingMode.Webtoon) listState.scrollToItem(target)
+                    else pagerState.scrollToPage(readerSpreadForPage(target, useSpreads, coverAlone))
+                } finally {
+                    synchronizingMode = false
+                }
+            }
+        }
     }
 
-    LaunchedEffect(pages, currentPage) {
-        if (pages.isNotEmpty() && !hasRestoredProgress) {
-            hasRestoredProgress = true
-            val targetPage = currentPage.coerceIn(0, pages.size - 1)
-            if (readingMode == ReadingMode.Webtoon) {
-                listState.scrollToItem(targetPage)
-            } else {
-                pagerState.scrollToPage(targetPage)
+    LaunchedEffect(pages, currentPage, uiState.isLoadingPages) {
+        if (!uiState.isLoadingPages && pages.isNotEmpty() && !hasRestoredProgress) {
+            synchronizingMode = true
+            try {
+                val targetPage = currentPage.coerceIn(0, pages.size - 1)
+                if (readingMode == ReadingMode.Webtoon) {
+                    listState.scrollToItem(targetPage)
+                } else {
+                    pagerState.scrollToPage(readerSpreadForPage(targetPage, useSpreads, coverAlone))
+                }
+                hasRestoredProgress = true
+            } finally {
+                synchronizingMode = false
             }
         }
     }
 
     // Pager'daki sayfa değişimini takip et — V2 prefetch tetikle
-    LaunchedEffect(pagerState.currentPage) {
-        if (hasRestoredProgress && pages.isNotEmpty()) {
-            viewModel.onPageChanged(currentChapter.url, pagerState.currentPage, pages.size)
+    LaunchedEffect(pagerState.currentPage, synchronizingMode, hasRestoredProgress, readingMode, useSpreads, coverAlone) {
+        if (hasRestoredProgress && !synchronizingMode && previousReadingMode == readingMode &&
+            previousSpread == (useSpreads to coverAlone) && !uiState.isLoadingPages && readingMode != ReadingMode.Webtoon && pages.isNotEmpty()) {
+            val pageIndex = readerSpreadLast(pagerState.currentPage, pages.size, useSpreads, coverAlone).coerceIn(0, pages.lastIndex)
+            viewModel.onPageChanged(currentChapter.url, pageIndex, pages.size)
             // R2: Sayfa değiştikçe V2 loader'da 3 ileri prefetch'i başlat
-            loader.onPageChanged(pagerState.currentPage)
+            loader.onPageChanged(pageIndex)
         }
     }
 
@@ -208,13 +316,30 @@ fun MangaReaderScreen(
                     listState    = listState,
                     loader       = loader,
                     colorFilterType = uiState.colorFilterType,
+                    saturation = uiState.saturation,
+                    contrast = uiState.contrast,
+                    hue = uiState.hue,
                     fitMode      = uiState.fitMode,
+                    pageBackground = readerBackgroundColor(uiState.readerBackground),
+                    autoBackground = uiState.readerBackground == "Auto",
+                    showPageNumber = uiState.showPageNumber,
+                    invertTapZones = uiState.invertTapZones,
+                    tapLayout = uiState.tapLayout,
+                    tapGrid = uiState.tapGrid,
+                    longTapGrid = uiState.longTapGrid,
+                    sidePadding = uiState.webtoonPadding,
+                    pageGap = uiState.webtoonGap,
+                    cropBorders = uiState.cropBordersWebtoon,
+                    zoomEnabled = uiState.webtoonZoom,
+                    wideRotation = uiState.wideRotationWebtoon,
+                    autoNext = uiState.webtoonAutoNext && !autoScrollEnabled,
                     hasNextChapter = viewModel.hasNextChapter,
-                    nextChapterName = viewModel.nextChapterName,
+                    nextChapterName = if (uiState.skipReadChapters) null else viewModel.nextChapterName,
                     onGoToNextChapter = { viewModel.goToNextChapter() },
-                    onCenterTap  = { menuVisible = !menuVisible },
+                    onChapterEnd = { if (hasRestoredProgress && !uiState.isLoadingPages) viewModel.onWebtoonChapterEnd(currentChapter.url, pages.size) },
+                    onCenterTap  = { if (autoScrollEnabled) autoScrollEnabled = false else menuVisible = !menuVisible },
                     onPageChanged = { idx ->
-                        if (hasRestoredProgress) {
+                        if (hasRestoredProgress && !synchronizingMode && !uiState.isLoadingPages) {
                             viewModel.onPageChanged(currentChapter.url, idx, pages.size)
                             // R2: Webtoon scroll'da V2 prefetch tetikle
                             loader.onPageChanged(idx)
@@ -222,7 +347,9 @@ fun MangaReaderScreen(
                     },
                     onNextPage   = {
                         val current = listState.firstVisibleItemIndex
-                        if (current < pages.size - 1) {
+                        if (uiState.webtoonTapScroll) {
+                            scope.launch { listState.animateScrollBy((listState.layoutInfo.viewportEndOffset - listState.layoutInfo.viewportStartOffset) * readerScrollFraction(uiState.webtoonScrollPercent)) }
+                        } else if (current < pages.size - 1) {
                             scope.launch {
                                 listState.animateScrollToItem(current + 1)
                             }
@@ -232,7 +359,9 @@ fun MangaReaderScreen(
                     },
                     onPrevPage   = {
                         val current = listState.firstVisibleItemIndex
-                        if (current > 0) {
+                        if (uiState.webtoonTapScroll) {
+                            scope.launch { listState.animateScrollBy((listState.layoutInfo.viewportEndOffset - listState.layoutInfo.viewportStartOffset) * -readerScrollFraction(uiState.webtoonScrollPercent)) }
+                        } else if (current > 0) {
                             scope.launch {
                                 listState.animateScrollToItem(current - 1)
                             }
@@ -247,10 +376,25 @@ fun MangaReaderScreen(
                     loader       = loader,
                     readingMode  = readingMode,
                     colorFilterType = uiState.colorFilterType,
+                    saturation = uiState.saturation,
+                    contrast = uiState.contrast,
+                    hue = uiState.hue,
                     fitMode      = uiState.fitMode,
+                    pageBackground = readerBackgroundColor(uiState.readerBackground),
+                    autoBackground = uiState.readerBackground == "Auto",
+                    showPageNumber = uiState.showPageNumber,
+                    invertTapZones = uiState.invertTapZones,
+                    tapLayout = uiState.tapLayout,
+                    tapGrid = uiState.tapGrid,
+                    longTapGrid = uiState.longTapGrid,
+                    doublePage = useSpreads,
+                    coverAlone = coverAlone,
+                    prefetchPages = readerPreloadCount(uiState.preloadAhead, webtoon = false),
+                    cropBorders = uiState.cropBorders,
+                    wideRotation = uiState.wideRotation,
                     onCenterTap  = { menuVisible = !menuVisible },
                     onNextPage   = {
-                        if (pagerState.currentPage < pages.size - 1) {
+                        if (pagerState.currentPage < pagerState.pageCount - 1) {
                             scope.launch {
                                 pagerState.animateScrollToPage(pagerState.currentPage + 1)
                             }
@@ -392,7 +536,7 @@ fun MangaReaderScreen(
                                         if (readingMode == ReadingMode.Webtoon) {
                                             listState.scrollToItem(targetPage.coerceIn(0, pages.size - 1))
                                         } else {
-                                            pagerState.scrollToPage(targetPage.coerceIn(0, pages.size - 1))
+                                            pagerState.scrollToPage(readerSpreadForPage(targetPage.coerceIn(0, pages.size - 1), useSpreads, coverAlone))
                                         }
                                     }
                                 },
@@ -461,14 +605,13 @@ fun MangaReaderScreen(
 
                     // Quick Orientation cycle
                     IconButton(onClick = {
-                        val activity = context.findActivity()
+                        val activity = readerActivity
                         if (activity != null) {
-                            val currentOrientation = activity.requestedOrientation
-                            if (currentOrientation == android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE) {
-                                activity.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-                            } else {
-                                activity.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-                            }
+                            val next = if (activity.requestedOrientation == android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE)
+                                android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                            else android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+                            orientationSetByReader = next
+                            activity.requestedOrientation = next
                         }
                     }) {
                         Icon(
@@ -509,12 +652,15 @@ fun MangaReaderScreen(
 
     // ─── Okuma Modu Ayarlar Paneli ────────────────────────────────────────────
     if (showSettings) {
+        val settingsScroll = rememberScrollState()
         KitsugiSheetOrDialog(
-            onDismiss = { showSettings = false }
+            onDismiss = { showSettings = false },
+            innerColumnScrollState = settingsScroll
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .verticalScroll(settingsScroll)
                     .padding(horizontal = 16.dp, vertical = 8.dp)
             ) {
                 Text(
@@ -525,6 +671,7 @@ fun MangaReaderScreen(
                     modifier  = Modifier.padding(bottom = 16.dp)
                 )
 
+                ReaderSwitch(stringResource(R.string.reader_series_mode), uiState.seriesModeOverride, viewModel::setSeriesModeOverride)
                 // Okuma Yönü
                 Text(
                     stringResource(R.string.manga_reading_direction),
@@ -534,7 +681,7 @@ fun MangaReaderScreen(
                     modifier = Modifier.padding(vertical = 4.dp)
                 )
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     val modes = listOf(
@@ -557,6 +704,10 @@ fun MangaReaderScreen(
                         )
                     }
                 }
+                if (readingMode == ReadingMode.LeftToRight || readingMode == ReadingMode.RightToLeft) {
+                    ReaderSwitch(stringResource(R.string.reader_double_page), uiState.doublePage, viewModel::setDoublePage)
+                    if (uiState.doublePage) ReaderSwitch(stringResource(R.string.reader_cover_alone), uiState.coverAlone, viewModel::setCoverAlone)
+                }
                 Spacer(Modifier.height(12.dp))
 
                 // Görsel Sığdırma Modu
@@ -568,7 +719,7 @@ fun MangaReaderScreen(
                     modifier = Modifier.padding(vertical = 4.dp)
                 )
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     val fits = listOf(
@@ -592,6 +743,14 @@ fun MangaReaderScreen(
                 }
                 Spacer(Modifier.height(12.dp))
 
+                Text(stringResource(R.string.reader_background), color = Color.White.copy(0.7f), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("Black" to R.string.reader_background_black, "DarkGray" to R.string.reader_background_gray, "White" to R.string.reader_background_white, "Auto" to R.string.reader_background_auto).forEach { (value, label) ->
+                        FilterChip(selected = uiState.readerBackground == value, onClick = { viewModel.setReaderBackground(value) }, label = { Text(stringResource(label)) })
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+
                 // Renk Filtresi
                 Text(
                     "Renk Filtresi",
@@ -601,7 +760,7 @@ fun MangaReaderScreen(
                     modifier = Modifier.padding(vertical = 4.dp)
                 )
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     val filters = listOf(
@@ -624,6 +783,116 @@ fun MangaReaderScreen(
                         )
                     }
                 }
+                Spacer(Modifier.height(16.dp))
+
+                Text(stringResource(R.string.reader_saturation), color = Color.White.copy(0.7f), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(0, 50, 100, 150, 200).forEach { value ->
+                        FilterChip(selected = uiState.saturation == value, onClick = { viewModel.setSaturation(value) }, label = { Text("$value%") })
+                    }
+                }
+                Text(stringResource(R.string.reader_contrast), color = Color.White.copy(0.7f), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(50, 75, 100, 125, 150, 200).forEach { value ->
+                        FilterChip(selected = uiState.contrast == value, onClick = { viewModel.setContrast(value) }, label = { Text("$value%") })
+                    }
+                }
+                Spacer(Modifier.height(16.dp))
+
+                Text(stringResource(R.string.reader_hue), color = Color.White.copy(0.7f), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(-180, -90, 0, 90, 180).forEach { value ->
+                        FilterChip(selected = uiState.hue == value, onClick = { viewModel.setHue(value) }, label = { Text("$value°") })
+                    }
+                }
+                Spacer(Modifier.height(16.dp))
+                if (readingMode == ReadingMode.Webtoon) {
+                    Text(stringResource(R.string.reader_webtoon_padding), color = Color.White.copy(0.7f), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(0, 16, 32, 64).forEach { value ->
+                            FilterChip(selected = uiState.webtoonPadding == value, onClick = { viewModel.setWebtoonPadding(value) }, label = { Text("$value dp") })
+                        }
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    Text(stringResource(R.string.reader_webtoon_gap), color = Color.White.copy(0.7f), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(0, 4, 16, 32).forEach { value ->
+                            FilterChip(selected = uiState.webtoonGap == value, onClick = { viewModel.setWebtoonGap(value) }, label = { Text("$value dp") })
+                        }
+                    }
+                    ReaderSwitch(stringResource(R.string.reader_webtoon_tap_scroll), uiState.webtoonTapScroll, viewModel::setWebtoonTapScroll)
+                    Text(stringResource(R.string.reader_webtoon_scroll_amount), color = Color.White.copy(0.7f), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(50, 80, 100).forEach { percent ->
+                            FilterChip(selected = uiState.webtoonScrollPercent == percent, onClick = { viewModel.setWebtoonScrollPercent(percent) }, label = { Text("$percent%") })
+                        }
+                    }
+                    ReaderSwitch(stringResource(R.string.reader_webtoon_auto_next), uiState.webtoonAutoNext, viewModel::setWebtoonAutoNext)
+                    ReaderSwitch(stringResource(R.string.reader_webtoon_auto_scroll), autoScrollEnabled) { autoScrollEnabled = it }
+                    Text(stringResource(R.string.reader_auto_scroll_hint), color = Color.White.copy(0.6f), fontSize = 11.sp)
+                    Text(stringResource(R.string.reader_auto_scroll_speed), color = Color.White.copy(0.7f), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(20, 40, 80, 120).forEach { speed ->
+                            FilterChip(selected = uiState.webtoonAutoScrollSpeed == speed, onClick = { viewModel.setWebtoonAutoScrollSpeed(speed) }, label = { Text(stringResource(R.string.reader_scroll_speed_value, speed)) })
+                        }
+                    }
+                    Spacer(Modifier.height(16.dp))
+                }
+
+                Text(stringResource(R.string.reader_preload_ahead), color = Color.White.copy(0.7f), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(-1, 0, 1, 2, 3, 5).forEach { count ->
+                        FilterChip(selected = uiState.preloadAhead == count, onClick = { viewModel.setPreloadAhead(count) }, label = {
+                            Text(if (count < 0) stringResource(R.string.reader_preload_auto) else count.toString())
+                        })
+                    }
+                }
+                ReaderSwitch(stringResource(R.string.reader_skip_read_chapters), uiState.skipReadChapters, viewModel::setSkipReadChapters)
+                ReaderSwitch(stringResource(R.string.reader_pause_progress), uiState.pauseProgressSaving, viewModel::setPauseProgressSaving)
+                if (uiState.pauseProgressSaving) Text(stringResource(R.string.reader_pause_progress_hint), color = Color.White.copy(0.6f), fontSize = 11.sp)
+                ReaderSwitch(stringResource(R.string.reader_show_page_number), uiState.showPageNumber, viewModel::setShowPageNumber)
+                ReaderSwitch(stringResource(R.string.reader_keep_screen_on), uiState.keepScreenOn, viewModel::setKeepScreenOn)
+                ReaderSwitch(stringResource(R.string.reader_immersive), uiState.immersive, viewModel::setImmersive)
+                ReaderSwitch(stringResource(R.string.reader_crop_borders), uiState.cropBorders, viewModel::setCropBorders)
+                ReaderSwitch(stringResource(R.string.reader_crop_borders_webtoon), uiState.cropBordersWebtoon, viewModel::setCropBordersWebtoon)
+                ReaderSwitch(stringResource(R.string.reader_webtoon_zoom), uiState.webtoonZoom, viewModel::setWebtoonZoom)
+                if (uiState.cropBorders || uiState.cropBordersWebtoon) Text(stringResource(R.string.reader_crop_borders_hint), color = Color.White.copy(0.6f), fontSize = 11.sp)
+                for (webtoon in listOf(false, true)) {
+                    Text(stringResource(if (webtoon) R.string.reader_wide_rotation_webtoon else R.string.reader_wide_rotation), color = Color.White.copy(0.7f), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    val selected = if (webtoon) uiState.wideRotationWebtoon else uiState.wideRotation
+                    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf("Off" to R.string.reader_wide_off, "Clockwise" to R.string.reader_wide_clockwise, "CounterClockwise" to R.string.reader_wide_counterclockwise).forEach { (value, label) ->
+                            FilterChip(selected = selected == value, onClick = { viewModel.setWideRotation(value, webtoon) }, label = { Text(stringResource(label)) })
+                        }
+                    }
+                }
+                if (uiState.wideRotation != "Off" || uiState.wideRotationWebtoon != "Off") Text(stringResource(R.string.reader_wide_rotation_hint), color = Color.White.copy(0.6f), fontSize = 11.sp)
+                Text(stringResource(R.string.reader_tap_layout), color = Color.White.copy(0.7f), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("Default" to R.string.reader_tap_default, "LeftHand" to R.string.reader_tap_left_hand, "RightHand" to R.string.reader_tap_right_hand, "Custom" to R.string.reader_tap_custom).forEach { (layout, label) ->
+                        FilterChip(selected = uiState.tapLayout == layout, onClick = { viewModel.setTapLayout(layout) }, label = { Text(stringResource(label)) })
+                    }
+                }
+                if (uiState.tapLayout == "LeftHand" || uiState.tapLayout == "RightHand") Text(stringResource(R.string.reader_tap_one_hand_hint), color = Color.White.copy(0.6f), fontSize = 11.sp)
+                if (uiState.tapLayout == "Custom") {
+                    ReaderSwitch(stringResource(R.string.reader_tap_edit_long), editLongTapGrid) { editLongTapGrid = it }
+                    Text(stringResource(R.string.reader_tap_grid_hint), color = Color.White.copy(0.6f), fontSize = 11.sp)
+                    val grid = if (editLongTapGrid) uiState.longTapGrid else uiState.tapGrid
+                    for (row in 0..2) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            for (column in 0..2) {
+                                val index = row * 3 + column
+                                val action = when (grid[index]) { 'P' -> R.string.reader_tap_previous; 'N' -> R.string.reader_tap_next; 'M' -> R.string.reader_tap_menu; else -> R.string.reader_tap_none }
+                                FilterChip(selected = false, modifier = Modifier.weight(1f), onClick = { viewModel.cycleTapGridCell(index, editLongTapGrid) },
+                                    label = { Text(stringResource(action), fontSize = 11.sp) })
+                            }
+                        }
+                    }
+                    TextButton(onClick = viewModel::resetTapGrids) { Text(stringResource(R.string.reader_tap_reset), color = Color.White) }
+                }
+                ReaderSwitch(stringResource(R.string.reader_invert_taps), uiState.invertTapZones, viewModel::setInvertTapZones)
+                ReaderSwitch(stringResource(R.string.reader_volume_keys), uiState.volumeKeys, viewModel::setVolumeKeys)
+                if (uiState.volumeKeys) ReaderSwitch(stringResource(R.string.reader_invert_volume_keys), uiState.invertVolumeKeys, viewModel::setInvertVolumeKeys)
                 Spacer(Modifier.height(16.dp))
 
                 // Özel Parlaklık Sürgüsü
@@ -693,4 +962,12 @@ private fun android.content.Context.findActivity(): android.app.Activity? {
         context = context.baseContext
     }
     return null
+}
+
+@Composable
+private fun ReaderSwitch(label: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, color = Color.White, fontSize = 13.sp, modifier = Modifier.weight(1f))
+        com.kitsugi.animelist.ui.theme.gradient.Switch(checked = checked, onCheckedChange = onCheckedChange, modifier = Modifier.semantics { contentDescription = label })
+    }
 }

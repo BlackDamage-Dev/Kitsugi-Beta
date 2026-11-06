@@ -23,6 +23,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -40,6 +44,8 @@ import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.getValue
 import coil3.request.ImageRequest
 import coil3.request.CachePolicy
 import coil3.request.crossfade
@@ -66,12 +72,34 @@ fun MangaPageItem(
     loader: MangaPageLoaderV2,
     readingMode: ReadingMode = ReadingMode.RightToLeft,
     colorFilterType: ColorFilterType = ColorFilterType.Normal,
+    saturation: Int = 100,
+    contrast: Int = 100,
+    hue: Int = 0,
     fitMode: MangaFitMode = MangaFitMode.FitScreen,
+    pageBackground: Color = Color.Black,
+    autoBackground: Boolean = false,
+    showPageNumber: Boolean = true,
+    invertTapZones: Boolean = false,
+    tapLayout: String = "Default",
+    tapGrid: String = DEFAULT_READER_TAP_GRID,
+    longTapGrid: String = DEFAULT_READER_LONG_TAP_GRID,
+    tapViewport: ReaderTapViewport? = null,
+    cropBorders: Boolean = false,
+    zoomEnabled: Boolean = true,
+    wideRotation: String = "Off",
+    imageOverride: java.io.File? = null,
+    tapsEnabled: Boolean = true,
     onCenterTap: () -> Unit = {},
     onNextPage: () -> Unit = {},
     onPrevPage: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val currentCenterTap by rememberUpdatedState(onCenterTap)
+    val currentNextPage by rememberUpdatedState(onNextPage)
+    val currentPrevPage by rememberUpdatedState(onPrevPage)
+    var itemTop by remember(page) { mutableFloatStateOf(0f) }
+    val currentViewport by rememberUpdatedState(tapViewport)
+
     // Sayfa nesnesi ilk kez görüldüğünde yüklemeyi başlat.
     // Key olarak identityHashCode kullanıyoruz: aynı sayfa nesnesi varsa yeniden tetiklenmez,
     // ama yeni bir bölüme geçildiğinde (yeni page nesneleri) effect yeniden çalışır.
@@ -79,42 +107,36 @@ fun MangaPageItem(
         loader.loadPage(page)
     }
 
+    val backgroundFile = if (autoBackground && page.status == MangaPageStatus.Ready) loader.cache.getImageFile(page.imageUrl ?: page.url) else null
+    val actualBackground = rememberReaderAutoBackground(backgroundFile, autoBackground, pageBackground)
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color.Black)
-            .pointerInput(readingMode) {
-                detectTapGestures { offset ->
-                    val width = size.width.toFloat()
-                    val leftEdge = width * 0.33f
-                    val rightEdge = width * 0.66f
-
-                    if (offset.x < leftEdge) {
-                        if (readingMode == ReadingMode.RightToLeft) {
-                            onNextPage()
-                        } else {
-                            onPrevPage()
-                        }
-                    } else if (offset.x > rightEdge) {
-                        if (readingMode == ReadingMode.RightToLeft) {
-                            onPrevPage()
-                        } else {
-                            onNextPage()
-                        }
-                    } else {
-                        onCenterTap()
+            .background(actualBackground)
+            .then(if (tapLayout != "Default" && tapViewport != null) Modifier.onGloballyPositioned { itemTop = it.positionInWindow().y } else Modifier)
+            .then(if (tapsEnabled) Modifier.pointerInput(readingMode, invertTapZones, tapLayout, tapGrid, longTapGrid) {
+                fun dispatch(offset: androidx.compose.ui.geometry.Offset, grid: String) {
+                    val y = readerTapY(offset.y, itemTop, currentViewport, size.height)
+                    when (readerTapAction(tapLayout, readingMode == ReadingMode.RightToLeft, invertTapZones,
+                        offset.x / size.width.coerceAtLeast(1), y, grid)) {
+                        ReaderTapAction.MENU -> currentCenterTap()
+                        ReaderTapAction.NEXT -> currentNextPage()
+                        ReaderTapAction.PREVIOUS -> currentPrevPage()
+                        ReaderTapAction.NONE -> Unit
                     }
                 }
-            },
+                detectTapGestures(onTap = { dispatch(it, tapGrid) },
+                    onLongPress = if (tapLayout == "Custom" && longTapGrid.any { it != 'X' }) ({ dispatch(it, longTapGrid) }) else null)
+            } else Modifier),
         contentAlignment = Alignment.Center
     ) {
         when (page.status) {
             MangaPageStatus.Ready -> {
                 val imageUrl = page.imageUrl ?: page.url
                 val cacheFile = loader.cache.getImageFile(imageUrl)
-                val modelToLoad: Any = if (cacheFile.exists()) cacheFile else imageUrl
-
                 val context = LocalContext.current
+                val croppedFile = rememberReaderCrop(cacheFile, cropBorders && imageOverride == null, if (imageOverride == null) wideRotation else "Off")?.file
+                val modelToLoad: Any = imageOverride ?: croppedFile ?: if (cacheFile.exists()) cacheFile else imageUrl
                 val imageRequest = remember(modelToLoad) {
                     ImageRequest.Builder(context)
                         .data(modelToLoad)
@@ -124,60 +146,30 @@ fun MangaPageItem(
                         .build()
                 }
 
-                val zoomableState = rememberZoomableState()
-                val imageState    = rememberZoomableImageState(zoomableState)
-
                 val contentScale = when (fitMode) {
                     MangaFitMode.FitScreen -> ContentScale.Fit
                     MangaFitMode.FitWidth -> ContentScale.FillWidth
                     MangaFitMode.FitHeight -> ContentScale.FillHeight
                 }
 
-                val composeColorFilter = when (colorFilterType) {
-                    ColorFilterType.Normal -> null
-                    ColorFilterType.Grayscale -> {
-                        val matrix = ColorMatrix(
-                            floatArrayOf(
-                                0.2126f, 0.7152f, 0.0722f, 0f, 0f,
-                                0.2126f, 0.7152f, 0.0722f, 0f, 0f,
-                                0.2126f, 0.7152f, 0.0722f, 0f, 0f,
-                                0f,      0f,      0f,      1f, 0f
-                            )
-                        )
-                        ColorFilter.colorMatrix(matrix)
-                    }
-                    ColorFilterType.Sepia -> {
-                        val matrix = ColorMatrix(
-                            floatArrayOf(
-                                0.393f, 0.769f, 0.189f, 0f, 0f,
-                                0.349f, 0.686f, 0.168f, 0f, 0f,
-                                0.272f, 0.534f, 0.131f, 0f, 0f,
-                                0f,     0f,     0f,     1f, 0f
-                            )
-                        )
-                        ColorFilter.colorMatrix(matrix)
-                    }
-                    ColorFilterType.Invert -> {
-                        val matrix = ColorMatrix(
-                            floatArrayOf(
-                                -1f,  0f,  0f, 0f, 1f,
-                                 0f, -1f,  0f, 0f, 1f,
-                                 0f,  0f, -1f, 0f, 1f,
-                                 0f,  0f,  0f, 1f, 0f
-                            )
-                        )
-                        ColorFilter.colorMatrix(matrix)
-                    }
+                val composeColorFilter = remember(colorFilterType, saturation, contrast, hue) {
+                    readerColorMatrix(colorFilterType.name, saturation, contrast, hue)?.let { ColorFilter.colorMatrix(ColorMatrix(it)) }
                 }
 
-                ZoomableAsyncImage(
-                    model       = imageRequest,
-                    contentDescription = stringResource(R.string.manga_sayfasi_x, page.index + 1),
-                    state       = imageState,
-                    contentScale = contentScale,
-                    colorFilter = composeColorFilter,
-                    modifier    = Modifier.fillMaxSize()
-                )
+                androidx.compose.runtime.key(zoomEnabled) {
+                    val zoomableState = rememberZoomableState(
+                        zoomSpec = me.saket.telephoto.zoomable.ZoomSpec(maxZoomFactor = if (zoomEnabled) 2f else 1f)
+                    )
+                    val imageState = rememberZoomableImageState(zoomableState)
+                    ZoomableAsyncImage(
+                        model       = imageRequest,
+                        contentDescription = stringResource(R.string.manga_sayfasi_x, page.index + 1),
+                        state       = imageState,
+                        contentScale = contentScale,
+                        colorFilter = composeColorFilter,
+                        modifier    = Modifier.fillMaxSize()
+                    )
+                }
             }
 
             MangaPageStatus.Error -> {
@@ -193,13 +185,15 @@ fun MangaPageItem(
         }
 
         // Sol alt köşede sayfa numarası
-        Text(
+        if (showPageNumber) Text(
             text     = "${page.index + 1}",
             color    = Color.White.copy(alpha = 0.5f),
             fontSize = 11.sp,
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(8.dp)
+                .background(Color.Black.copy(alpha = 0.6f))
+                .padding(horizontal = 4.dp, vertical = 2.dp)
         )
     }
 }
@@ -261,4 +255,11 @@ private fun ErrorPageContent(pageIndex: Int, onRetry: () -> Unit) {
             }
         }
     }
+}
+
+
+fun readerBackgroundColor(value: String): Color = when (value) {
+    "White" -> Color.White
+    "DarkGray" -> Color(0xFF303030)
+    else -> Color.Black
 }

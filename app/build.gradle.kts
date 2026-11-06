@@ -340,6 +340,7 @@ dependencies {
         exclude(group = "com.fasterxml.jackson.module")
     }
     implementation("org.jsoup:jsoup:1.17.2")
+    implementation("com.github.junrar:junrar:8.1.2")
     // Jackson 2.18.3: first version with full Kotlin 2.0.x support.
     // Previous 2.13.1 compiled against Kotlin 1.6 â†’ AssertionError: Built-in class kotlin.Any is not found
     implementation("com.fasterxml.jackson.core:jackson-core:2.18.3")
