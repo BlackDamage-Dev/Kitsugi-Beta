@@ -74,6 +74,7 @@ fun MangaWebtoonReader(
     onPageChanged: (Int) -> Unit = {},
     onNextPage: () -> Unit = {},
     onPrevPage: () -> Unit = {},
+    onSourceLogin: (() -> Unit)? = null,
     hasNextChapter: Boolean = false,
     nextChapterName: String? = null,
     /** Hedef bölümün çevirmen sürümü sayısı (>1 ise rozet gösterilir). */
@@ -133,6 +134,7 @@ fun MangaWebtoonReader(
                     onLongPressPage = onLongPressPage,
                     onNextPage = onNextPage,
                     onPrevPage = onPrevPage,
+                    onSourceLogin = onSourceLogin,
                     sizeMemory = pageSizeMemory,
                     modifier = if (isExtremeStrip) Modifier.fillMaxWidth().height(maximumHeight) else Modifier.fillMaxWidth(),
                 )

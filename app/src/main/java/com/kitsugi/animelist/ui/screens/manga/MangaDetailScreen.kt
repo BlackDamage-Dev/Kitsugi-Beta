@@ -75,6 +75,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.kitsugi.animelist.data.diagnostics.PlatformErrorCode
+import com.kitsugi.animelist.ui.components.MangaSourceAuthBanner
+import com.kitsugi.animelist.ui.components.MangaSourceLoginDialog
 import com.kitsugi.animelist.ui.components.rememberDetailStickyHeaderVisible
 
 /**
@@ -159,6 +162,7 @@ fun MangaDetailScreen(
 
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
+    var showSourceLogin by remember { mutableStateOf(false) }
 
     // ── Kitaplık durumu ──────────────────────────────────────────────────────
     // Detay ekranı kitaplığa ekleme/çıkarma için ayrı bir ViewModel kullanır: kitaplık
@@ -627,8 +631,16 @@ fun MangaDetailScreen(
                             com.kitsugi.animelist.ui.components.errors.PlatformErrorExplanationBlock(code = code)
                         }
                         Spacer(Modifier.height(12.dp))
-                        KitsugiButton(onClick = { viewModel.loadChapters() }) {
-                            Text(stringResource(R.string.manga_retry), fontWeight = FontWeight.Bold)
+                        if (PlatformErrorCode.fromId(uiState.errorCode) == PlatformErrorCode.MangaAuth) {
+                            MangaSourceAuthBanner(
+                                source = source,
+                                onLogin = { showSourceLogin = true },
+                                onRetry = { viewModel.loadChapters() },
+                            )
+                        } else {
+                            KitsugiButton(onClick = { viewModel.loadChapters() }) {
+                                Text(stringResource(R.string.manga_retry), fontWeight = FontWeight.Bold)
+                            }
                         }
                     }
                 }
@@ -714,6 +726,14 @@ fun MangaDetailScreen(
             onBack = onBack,
             modifier = Modifier.align(Alignment.TopStart)
         )
+
+        if (showSourceLogin) {
+            MangaSourceLoginDialog(
+                source = source,
+                onSessionUpdated = { viewModel.loadChapters() },
+                onDismiss = { showSourceLogin = false },
+            )
+        }
     }
 }
 

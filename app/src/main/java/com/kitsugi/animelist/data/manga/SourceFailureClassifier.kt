@@ -53,14 +53,17 @@ object SourceFailureClassifier {
 
             containsAny(
                 message,
-                "401", "403", "unauthorized", "forbidden", "authentication required", "login required",
+                "401", "403", "unauthorized", "forbidden", "authentication required", "authorization required",
+                "login required",
                 "giriş gerekli", "giris gerekli", "oturum aç", "oturum ac", "kimlik doğrulama gerekli",
                 // Manga-TR 1.6.24 üye/bot kapısı: eklenti bu metinlerle IOException atar.
                 // Genel "Broken/Unknown" yerine Auth olarak sınıflansın ki kullanıcıya
                 // WebView doğrulaması önerilebilsin.
                 "üye girişi", "uye girisi", "üye ol", "uye ol", "bot korumasını", "bot korumasini",
                 "bot koruması", "bot korumasi", "verify.php", "oturum açmanız", "oturum acmaniz",
-            ) ->
+            ) || classes.any {
+                it == "org.koitharu.kotatsu.parsers.exception.AuthRequiredException"
+            } ->
                 SourceErrorCategory.Auth
 
             containsAny(

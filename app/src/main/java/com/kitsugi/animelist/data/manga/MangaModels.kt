@@ -66,6 +66,9 @@ class MangaPage(
     // Compose must observe the status itself, not a shallow copy of that list.
     var status: MangaPageStatus by mutableStateOf(status)
 
+    /** Stable source error for page-level actions such as re-authentication. */
+    var errorCode: String? by mutableStateOf(null)
+
     // A URL supplied in the page list cannot necessarily be re-resolved with getImageUrl.
     val sourceProvidedImageUrl: Boolean = !imageUrl.isNullOrBlank()
 

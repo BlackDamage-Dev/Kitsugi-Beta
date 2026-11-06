@@ -67,6 +67,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import coil3.compose.AsyncImage
 import com.kitsugi.animelist.R
 import com.kitsugi.animelist.data.manga.ColorFilterType
+import com.kitsugi.animelist.data.diagnostics.PlatformErrorCode
 import com.kitsugi.animelist.data.manga.MangaChapter
 import com.kitsugi.animelist.data.manga.MangaFitMode
 import com.kitsugi.animelist.data.manga.MangaPageStatus
@@ -75,6 +76,8 @@ import com.kitsugi.animelist.data.manga.ReadingMode
 import com.kitsugi.animelist.ui.components.KitsugiButton
 import com.kitsugi.animelist.ui.components.KitsugiScrollToTopFab
 import com.kitsugi.animelist.ui.components.KitsugiSheetOrDialog
+import com.kitsugi.animelist.ui.components.MangaSourceAuthBanner
+import com.kitsugi.animelist.ui.components.MangaSourceLoginDialog
 import com.kitsugi.animelist.ui.theme.gradient.CircularProgressIndicator
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import com.kitsugi.animelist.ui.theme.gradient.Slider
@@ -132,6 +135,7 @@ fun MangaReaderScreen(
     var showSettings by remember { mutableStateOf(false) }
     var showGallery by remember { mutableStateOf(false) }
     var showChapterPicker by remember { mutableStateOf(false) }
+    var showSourceLogin by remember { mutableStateOf(false) }
     var showMangaTrLogin by remember { mutableStateOf(false) }
     if (showMangaTrLogin) {
         MangaTrLoginDialog(onDismiss = {
@@ -305,11 +309,19 @@ fun MangaReaderScreen(
                         }
                     }
                     Spacer(Modifier.height(24.dp))
-                    KitsugiButton(
-                        onClick = { viewModel.retryLoadPages() },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7C4DFF))
-                    ) {
-                        Text(stringResource(R.string.manga_retry), color = Color.White)
+                    if (PlatformErrorCode.fromId(uiState.pagesErrorCode) == PlatformErrorCode.MangaAuth) {
+                        MangaSourceAuthBanner(
+                            source = source,
+                            onLogin = { showSourceLogin = true },
+                            onRetry = { viewModel.retryLoadPages() },
+                        )
+                    } else {
+                        KitsugiButton(
+                            onClick = { viewModel.retryLoadPages() },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7C4DFF))
+                        ) {
+                            Text(stringResource(R.string.manga_retry), color = Color.White)
+                        }
                     }
                 }
             }
@@ -333,6 +345,7 @@ fun MangaReaderScreen(
                     nextChapterName = viewModel.nextChapterName,
                     onGoToNextChapter = { viewModel.goToNextChapter() },
                     onCenterTap = { menuVisible = !menuVisible },
+                    onSourceLogin = { showSourceLogin = true },
                     onPageChanged = { index ->
                         if (hasRestoredProgress) {
                             viewModel.onPageChanged(currentChapter.url, index, pages.size)
@@ -370,6 +383,7 @@ fun MangaReaderScreen(
                     fitMode = uiState.fitMode,
                     cropBorders = uiState.cropBorders,
                     onCenterTap = { menuVisible = !menuVisible },
+                    onSourceLogin = { showSourceLogin = true },
                     onLongPressPage = { pageIndex ->
                         galleryInitialIndex = pageIndex
                         showGallery = true
@@ -1023,6 +1037,14 @@ fun MangaReaderScreen(
                 Spacer(Modifier.height(24.dp))
             }
         }
+    }
+
+    if (showSourceLogin) {
+        MangaSourceLoginDialog(
+            source = source,
+            onSessionUpdated = { viewModel.retryLoadPages() },
+            onDismiss = { showSourceLogin = false },
+        )
     }
 }
 

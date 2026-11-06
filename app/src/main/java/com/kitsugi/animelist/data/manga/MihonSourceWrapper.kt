@@ -146,6 +146,22 @@ class MihonSourceWrapper(
         }
     }
 
+    override suspend fun authentication(): MangaSourceAuthentication? =
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val configurable = mihonSource as? eu.kanade.tachiyomi.source.ConfigurableSource
+                ?: return@withContext null
+            val fields = MihonSourceAuthentication.fields(context, configurable)
+            if (fields.isEmpty()) null else MangaSourceAuthentication(credentialFields = fields)
+        }
+
+    override suspend fun saveCredentials(values: Map<String, String>) {
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val configurable = mihonSource as? eu.kanade.tachiyomi.source.ConfigurableSource
+                ?: throw UnsupportedOperationException("${mihonSource.name} hesap tercihlerini desteklemiyor")
+            MihonSourceAuthentication.save(context, configurable, values)
+        }
+    }
+
     // ── Arama ────────────────────────────────────────────────────────────────
 
     override suspend fun fetchSearchManga(page: Int, query: String): MangaSourceResult = withRecovery {

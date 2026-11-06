@@ -32,6 +32,7 @@ import com.kitsugi.animelist.data.local.MangaSourceStateEntity
 import com.kitsugi.animelist.data.diagnostics.PlatformErrorCode
 import com.kitsugi.animelist.data.manga.MangaSource
 import com.kitsugi.animelist.ui.components.errors.PlatformErrorExplanationBlock
+import com.kitsugi.animelist.ui.components.MangaSourceLoginDialog
 import com.kitsugi.animelist.data.manga.stableSourceKey
 import com.kitsugi.animelist.ui.theme.LocalKitsugiAccent
 import com.kitsugi.animelist.ui.theme.KitsugiColors
@@ -78,6 +79,7 @@ fun MangaSourceHealthScreen(
     var sortMode by remember { mutableStateOf("UPDATED") }
     var rangeMode by remember { mutableStateOf("ALL") }
     var editingDomainSource by remember { mutableStateOf<MangaSource?>(null) }
+    var loginSource by remember { mutableStateOf<MangaSource?>(null) }
     var domainInputText by remember { mutableStateOf("") }
 
     val sourceMap = remember(installedSources) { installedSources.associateBy { it.stableSourceKey() } }
@@ -167,6 +169,27 @@ fun MangaSourceHealthScreen(
                 }
             }
 
+            if (selectedTab == 1) {
+                val loginSources = installedSources.filter { it.webSessionUrl != null }
+                if (loginSources.isNotEmpty()) {
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        items(loginSources, key = { it.stableSourceKey() }) { source ->
+                            FilterChip(
+                                selected = false,
+                                onClick = { loginSource = source },
+                                leadingIcon = {
+                                    Icon(Icons.AccountCircle, null, modifier = Modifier.size(18.dp))
+                                },
+                                label = { Text("${source.name} · ${stringResource(R.string.manga_source_login_action)}") },
+                            )
+                        }
+                    }
+                }
+            }
+
             // ── Tab Content ───────────────────────────────────────────────────
             when (selectedTab) {
                 0 -> ReposTab(
@@ -221,6 +244,14 @@ fun MangaSourceHealthScreen(
                 )
             }
         }
+    }
+
+    loginSource?.let { source ->
+        MangaSourceLoginDialog(
+            source = source,
+            onDismiss = { loginSource = null },
+            onSuccess = { loginSource = null },
+        )
     }
 }
 

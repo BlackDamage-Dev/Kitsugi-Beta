@@ -43,6 +43,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import coil3.compose.AsyncImage
 import com.kitsugi.animelist.data.manga.MangaDetails
 import com.kitsugi.animelist.data.manga.MangaSource
+import com.kitsugi.animelist.ui.components.MangaSourceAuthBanner
+import com.kitsugi.animelist.ui.components.MangaSourceLoginDialog
 import com.kitsugi.animelist.data.manga.MangaSearchHistory
 import com.kitsugi.animelist.data.manga.MangaSourceRepository
 import com.kitsugi.animelist.data.settings.SettingsDataStore
@@ -97,6 +99,7 @@ fun MangaBrowseScreen(
     val context = LocalContext.current
     var showSettingsDialog by remember { mutableStateOf(false) }
     var showSourceFilters by remember { mutableStateOf(false) }
+    var loginSource by remember { mutableStateOf<MangaSource?>(null) }
 
     // ── Arama geçmişi + sıralama (aklına gelmeyen küçük kolaylıklar) ─────────
     val searchHistory = remember(context) { MangaSearchHistory.get(context) }
@@ -209,6 +212,16 @@ fun MangaBrowseScreen(
     val selFilter      = ui.selectedSourceFilter
     val popular        = ui.popularMangas
     val hasNext        = ui.hasNextPage
+    val authFailureSource = if (query.isBlank()) {
+        selFilter?.takeIf {
+            com.kitsugi.animelist.data.diagnostics.PlatformErrorCode.fromId(ui.popularErrorCode) == com.kitsugi.animelist.data.diagnostics.PlatformErrorCode.MangaAuth
+        }
+    } else {
+        states.firstOrNull { state ->
+            (selFilter == null || state.source.stableSourceKey() == selFilter.stableSourceKey()) &&
+                com.kitsugi.animelist.data.diagnostics.PlatformErrorCode.fromId(state.errorCode) == com.kitsugi.animelist.data.diagnostics.PlatformErrorCode.MangaAuth
+        }?.source
+    }
 
     // Arama sonuçlandığında sorguyu geçmişe yaz (aynı sorgu tekrar eklenmez).
     val totalResults = states.sumOf { it.mangas.size }
@@ -287,6 +300,21 @@ fun MangaBrowseScreen(
                 Spacer(Modifier.width(12.dp))
                 Text(stringResource(R.string.inline_discover_manga_eb24f62), color = KitsugiColors.TextPrimary, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.weight(1f))
+                if (selFilter != null) {
+                    IconButton(
+                        onClick = { loginSource = selFilter },
+                        colors  = IconButtonDefaults.iconButtonColors(containerColor = KitsugiColors.SurfaceStrong.copy(0.5f)),
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            Icons.AccountCircle,
+                            contentDescription = stringResource(R.string.manga_source_login_action),
+                            tint = accentColor,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                    Spacer(Modifier.width(8.dp))
+                }
                 IconButton(
                     onClick = onOpenMangaLibrary,
                     colors  = IconButtonDefaults.iconButtonColors(containerColor = KitsugiColors.SurfaceStrong.copy(0.5f)),
@@ -571,7 +599,8 @@ fun MangaBrowseScreen(
                                 label      = "${src.name}  [${src.lang.uppercase()}]",
                                 count      = if (selFilter?.stableSourceKey() == src.stableSourceKey()) popular.size else 0,
                                 isLoading  = selFilter?.stableSourceKey() == src.stableSourceKey() && ui.isLoadingPopular,
-                                error      = null,
+                                error      = if (selFilter?.stableSourceKey() == src.stableSourceKey()) ui.popularError else null,
+                                errorCode  = if (selFilter?.stableSourceKey() == src.stableSourceKey()) ui.popularErrorCode else null,
                                 isSelected = selFilter?.stableSourceKey() == src.stableSourceKey(),
                                 accent     = accentColor,
                                 isAll      = false,
@@ -581,6 +610,15 @@ fun MangaBrowseScreen(
                     }
                 }
                 HorizontalDivider(modifier = Modifier.padding(top = 10.dp, bottom = 4.dp), color = KitsugiColors.SurfaceStrong.copy(0.5f))
+
+                authFailureSource?.let { source ->
+                    MangaSourceAuthBanner(
+                        source = source,
+                        onLogin = { loginSource = source },
+                        onRetry = { vm.retrySource(source) },
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                    )
+                }
 
                 // ── Sıralama (yalnızca sonuç varken) ──
                 if (visibleMangas.size > 1) {
@@ -750,6 +788,14 @@ fun MangaBrowseScreen(
                 }
             }
         }
+    }
+
+    loginSource?.let { source ->
+        MangaSourceLoginDialog(
+            source = source,
+            onSessionUpdated = { vm.retrySource(source) },
+            onDismiss = { loginSource = null },
+        )
     }
 
     if (showSettingsDialog) {

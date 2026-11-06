@@ -44,6 +44,7 @@ class MangaBrowseViewModel(
         val popularMangas: List<MangaDetails> = emptyList(),
         val isLoadingPopular: Boolean = false,
         val popularError: String? = null,
+        val popularErrorCode: String? = null,
         val hasNextPage: Boolean = false,
         val sourceFilterSelections: Map<Int, Int>? = null,
         val currentPage: Int = 1,
@@ -132,7 +133,7 @@ class MangaBrowseViewModel(
         val src = _ui.value.selectedSourceFilter ?: _ui.value.sources.firstOrNull() ?: return
         loadJob?.cancel()
         loadJob = viewModelScope.launch {
-            _ui.update { it.copy(isLoadingPopular = true, popularError = null) }
+            _ui.update { it.copy(isLoadingPopular = true, popularError = null, popularErrorCode = null) }
             try {
                 val selections = _ui.value.sourceFilterSelections
                 val result = repository.fetchBrowsePage(src, page, selections)
@@ -141,6 +142,7 @@ class MangaBrowseViewModel(
                         popularMangas = if (page == 1) result.mangas else s.popularMangas + result.mangas,
                         isLoadingPopular = false,
                         popularError = null,
+                        popularErrorCode = null,
                         hasNextPage = result.hasNextPage,
                         currentPage = page
                     )
@@ -148,7 +150,12 @@ class MangaBrowseViewModel(
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
                 _ui.update {
-                    it.copy(isLoadingPopular = false, popularError = e.localizedMessage ?: e.message ?: "Liste yüklenemedi")
+                    it.copy(
+                        isLoadingPopular = false,
+                        popularError = e.localizedMessage ?: e.message ?: "Liste yüklenemedi",
+                        popularErrorCode = SourceFailureClassifier.classifyCode(e),
+                        hasNextPage = false
+                    )
                 }
             }
         }
@@ -412,6 +419,26 @@ class MangaBrowseViewModel(
         val state = _ui.value
         if (state.searchQuery.isBlank() && !state.isLoadingPopular) {
             fetchPopularMangas(if (state.popularMangas.isEmpty()) 1 else state.currentPage + 1)
+        }
+    }
+
+    /** Retries only the source whose session was updated, not every installed extension. */
+    fun retrySource(source: MangaSource) {
+        val query = _ui.value.searchQuery
+        if (query.isBlank()) {
+            selectSourceFilter(source)
+            return
+        }
+        paginationJobs.removeAll { it.isCompleted }
+        paginationJobs += viewModelScope.launch {
+            _ui.update { state ->
+                state.copy(sourceStates = state.sourceStates.map {
+                    if (it.source.stableSourceKey() == source.stableSourceKey()) {
+                        it.copy(isLoading = true, error = null, errorCode = null)
+                    } else it
+                })
+            }
+            searchOneSource(source, query)
         }
     }
 

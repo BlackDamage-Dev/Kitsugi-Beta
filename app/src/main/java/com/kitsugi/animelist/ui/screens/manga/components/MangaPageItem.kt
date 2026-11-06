@@ -46,6 +46,7 @@ import coil3.request.ImageRequest
 import coil3.request.crossfade
 import coil3.size.Scale
 import com.kitsugi.animelist.R
+import com.kitsugi.animelist.data.diagnostics.PlatformErrorCode
 import com.kitsugi.animelist.data.manga.ColorFilterType
 import com.kitsugi.animelist.data.manga.MangaFitMode
 import com.kitsugi.animelist.data.manga.MangaPage
@@ -95,6 +96,7 @@ fun MangaPageItem(
     onLongPressPage: ((Int) -> Unit)? = null,
     onNextPage: () -> Unit = {},
     onPrevPage: () -> Unit = {},
+    onSourceLogin: (() -> Unit)? = null,
     /** Webtoon'da yer tutucu boyutu için paylaşılan oran hafızası. */
     sizeMemory: MangaPageSizeMemory? = null,
     modifier: Modifier = Modifier,
@@ -207,6 +209,8 @@ fun MangaPageItem(
                         pageIndex = page.index,
                         isScrollMode = isScrollMode,
                         placeholderAspect = sizeMemory?.aspectRatio,
+                        errorCode = page.errorCode,
+                        onSourceLogin = onSourceLogin,
                         onRetry = {
                             displayError.value = null
                             retryGeneration.intValue++
@@ -221,6 +225,8 @@ fun MangaPageItem(
                     pageIndex = page.index,
                     isScrollMode = isScrollMode,
                     placeholderAspect = sizeMemory?.aspectRatio,
+                    errorCode = page.errorCode,
+                    onSourceLogin = onSourceLogin,
                     onRetry = { loader.retryPage(page, invalidateCache = true) },
                 )
             }
@@ -479,6 +485,8 @@ private fun ErrorPageContent(
     pageIndex: Int,
     isScrollMode: Boolean,
     placeholderAspect: Float?,
+    errorCode: String? = null,
+    onSourceLogin: (() -> Unit)? = null,
     onRetry: () -> Unit,
 ) {
     Box(
@@ -503,6 +511,11 @@ private fun ErrorPageContent(
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(top = 8.dp, start = 16.dp, end = 16.dp),
             )
+            if (PlatformErrorCode.fromId(errorCode) == PlatformErrorCode.MangaAuth && onSourceLogin != null) {
+                TextButton(onClick = onSourceLogin) {
+                    Text(stringResource(R.string.manga_source_login_action), color = Color(0xFFEF5350))
+                }
+            }
             TextButton(onClick = onRetry) {
                 Text(stringResource(R.string.manga_reader_retry), color = KitsugiColors.Accent)
             }

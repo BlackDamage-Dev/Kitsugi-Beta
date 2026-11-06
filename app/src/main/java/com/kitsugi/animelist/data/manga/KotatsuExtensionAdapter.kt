@@ -310,7 +310,11 @@ class KitsugiKotatsuContext(private val context: Context) : MangaLoaderContext()
     private val parsers = java.util.concurrent.ConcurrentHashMap<org.koitharu.kotatsu.parsers.model.MangaSource, MangaParser>()
     fun register(parser: MangaParser) { parsers[parser.source] = parser }
 
-    private val network = eu.kanade.tachiyomi.network.NetworkHelper(context)
+    private val network = try {
+        uy.kohesive.injekt.Injekt.get(eu.kanade.tachiyomi.network.NetworkHelper::class.java)
+    } catch (_: Exception) {
+        eu.kanade.tachiyomi.network.NetworkHelper(context)
+    }
     private val client = network.client.newBuilder()
         .addInterceptor { chain ->
             val parser = chain.request().tag(org.koitharu.kotatsu.parsers.model.MangaSource::class.java)?.let { parsers[it] }
@@ -409,6 +413,17 @@ class KotatsuMangaSource(
     override val lang: String get() = parserSource.locale ?: "unknown"
     override val pkgName: String get() = "kotatsu.${parserSource.name.lowercase()}"
     override val baseUrl: String get() = parser.domain.let { if (it.startsWith("http")) it else "https://$it" }
+
+    override suspend fun authentication(): MangaSourceAuthentication? =
+        parser.authorizationProvider?.let { provider ->
+            MangaSourceAuthentication(loginUrl = provider.authUrl)
+        }
+
+    override suspend fun isAuthenticated(): Boolean? =
+        parser.authorizationProvider?.isAuthorized()
+
+    override suspend fun authenticatedUsername(): String? =
+        parser.authorizationProvider?.getUsername()
 
     override suspend fun fetchPopularManga(page: Int): MangaSourceResult = withContext(Dispatchers.IO) {
         try {

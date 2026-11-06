@@ -55,6 +55,7 @@ fun MangaPagerReader(
     onLongPressPage: ((Int) -> Unit)? = null,
     onNextPage: () -> Unit = {},
     onPrevPage: () -> Unit = {},
+    onSourceLogin: (() -> Unit)? = null,
     onPageChanged: (Int) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -96,6 +97,7 @@ fun MangaPagerReader(
                     onLongPressPage = onLongPressPage,
                     onNextPage = onNextPage,
                     onPrevPage = onPrevPage,
+                    onSourceLogin = onSourceLogin,
                     modifier = Modifier.fillMaxSize(),
                 )
             }
