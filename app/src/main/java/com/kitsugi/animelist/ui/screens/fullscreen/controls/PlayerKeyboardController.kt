@@ -136,6 +136,22 @@ class PlayerKeyboardController(
     }
 
     /**
+     * Doğrudan Android KeyEvent'i kabul eden köprü.
+     */
+    fun onKeyEvent(event: android.view.KeyEvent): Boolean {
+        val info = PlayerKeyRouter.KeyInfo(
+            keyCode = event.keyCode,
+            shift = event.isShiftPressed,
+            ctrl = event.isCtrlPressed,
+            alt = event.isAltPressed,
+            repeatCount = event.repeatCount,
+            source = event.source,
+            deviceId = event.deviceId
+        )
+        return onKey(info, isKeyDown = event.action == android.view.KeyEvent.ACTION_DOWN)
+    }
+
+    /**
      * Bir tuş olayını işler.
      *
      * @param info ham tuş bilgisi (Compose `KeyEvent` veya `android.view.KeyEvent`'ten)

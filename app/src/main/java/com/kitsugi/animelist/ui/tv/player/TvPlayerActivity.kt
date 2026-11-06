@@ -16,6 +16,22 @@ import com.kitsugi.animelist.ui.theme.KitsugiAnimeListTheme
 
 class TvPlayerActivity : ComponentActivity() {
 
+    private var playerKeyEventHandler: ((android.view.KeyEvent) -> Boolean)? = null
+
+    fun setPlayerKeyEventHandler(handler: ((android.view.KeyEvent) -> Boolean)?) {
+        playerKeyEventHandler = handler
+    }
+
+    override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+        if (window?.currentFocus !is android.widget.EditText) {
+            val handler = playerKeyEventHandler
+            if (handler != null && handler(event)) {
+                return true
+            }
+        }
+        return super.dispatchKeyEvent(event)
+    }
+
     companion object {
         const val EXTRA_VIDEO_URL = "extra_video_url"
         const val EXTRA_AUDIO_URL = "extra_audio_url"
@@ -46,6 +62,12 @@ class TvPlayerActivity : ComponentActivity() {
         const val EXTRA_STREAM_SOURCES = "extra_stream_sources"
         const val EXTRA_CAST = "extra_cast"
         const val EXTRA_SUBTITLES = "extra_subtitles"
+
+        @Volatile
+        private var tempSubtitles: List<SubtitleInput>? = null
+
+        @Volatile
+        private var tempStreamSources: List<StreamSource>? = null
 
         fun start(
             context: Context,
@@ -79,7 +101,10 @@ class TvPlayerActivity : ComponentActivity() {
             cs3Url: String? = null,
             cs3ApiName: String? = null
         ) {
-            context.startActivity(
+            tempSubtitles = subtitles
+            tempStreamSources = allSources
+
+            fun buildIntent(includeLargeCollections: Boolean): Intent =
                 Intent(context, TvPlayerActivity::class.java).apply {
                     putExtra(EXTRA_VIDEO_URL, videoUrl)
                     putExtra(EXTRA_AUDIO_URL, audioUrl)
@@ -110,13 +135,26 @@ class TvPlayerActivity : ComponentActivity() {
                     if (synonyms.isNotEmpty()) putStringArrayListExtra(EXTRA_SYNONYMS, ArrayList(synonyms))
                     putExtra(EXTRA_IS_MOVIE, isMovie)
                     startYear?.let { putExtra(EXTRA_START_YEAR, it) }
-                    putExtra(EXTRA_DESCRIPTION, description)
-                    putExtra(EXTRA_SUBTITLES, ArrayList(subtitles))
-                    putExtra(EXTRA_STREAM_SOURCES, ArrayList(allSources))
-                    putExtra(EXTRA_CAST, ArrayList(cast))
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    if (includeLargeCollections) {
+                        putExtra(EXTRA_DESCRIPTION, description)
+                        if (subtitles.size <= 30) putExtra(EXTRA_SUBTITLES, ArrayList(subtitles))
+                        if (allSources.size <= 30) putExtra(EXTRA_STREAM_SOURCES, ArrayList(allSources))
+                        if (cast.size <= 30) putExtra(EXTRA_CAST, ArrayList(cast))
+                    }
+                    if (context !is android.app.Activity) {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
                 }
-            )
+
+            try {
+                context.startActivity(buildIntent(includeLargeCollections = true))
+            } catch (e: RuntimeException) {
+                if (e.cause is android.os.TransactionTooLargeException || e is android.os.TransactionTooLargeException) {
+                    context.startActivity(buildIntent(includeLargeCollections = false))
+                } else {
+                    throw e
+                }
+            }
         }
     }
 
@@ -141,10 +179,16 @@ class TvPlayerActivity : ComponentActivity() {
         } else emptyMap()
 
         @Suppress("UNCHECKED_CAST")
-        val initialSubtitles = (intent.getSerializableExtra(EXTRA_SUBTITLES) as? ArrayList<SubtitleInput>) ?: emptyList()
+        val initialSubtitles = tempSubtitles
+            ?: (intent.getSerializableExtra(EXTRA_SUBTITLES) as? ArrayList<SubtitleInput>)
+            ?: emptyList()
+        tempSubtitles = null
 
         @Suppress("UNCHECKED_CAST")
-        val streamSources = (intent.getSerializableExtra(EXTRA_STREAM_SOURCES) as? ArrayList<StreamSource>) ?: emptyList()
+        val streamSources = tempStreamSources
+            ?: (intent.getSerializableExtra(EXTRA_STREAM_SOURCES) as? ArrayList<StreamSource>)
+            ?: emptyList()
+        tempStreamSources = null
 
         val currentIndex = intent.getIntExtra(EXTRA_CURRENT_INDEX, -1)
         val malId = intent.getIntExtra(EXTRA_MAL_ID, -1).takeIf { it != -1 }

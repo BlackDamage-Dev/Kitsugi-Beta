@@ -93,6 +93,15 @@ interface PlayerEngine {
     /** İkincil altyazı gecikmesi (ms). Yalnızca destekleyen motorlarda anlamlıdır. */
     val secondarySubtitleDelayMs: Long get() = 0L
 
+    /**
+     * Oynatmanın arabelleğe alma (seek/buffering) yüzünden değil, gerçekten duraklatılmış
+     * durumda olup olmadığını bildirir. Media3'te `isPlaying` her seek/buffering anında
+     * geçici olarak `false` olurken `playWhenReady` `true` kalır; OSD'nin seek sırasında
+     * kendiliğinden açılıp kapanmaması için bu özellik kullanılır.
+     */
+    val isPausedByUser: Boolean
+        get() = !isPlaying && currentState == State.READY
+
     fun addListener(listener: Listener)
     fun removeListener(listener: Listener)
 

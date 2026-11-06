@@ -374,6 +374,9 @@ class MpvPlayerEngine(
 
         private set
 
+    override val isPausedByUser: Boolean
+        get() = fileLoaded && !isPlaying
+
 
 
     private var _currentSpeed: Float = settings.playerSpeed

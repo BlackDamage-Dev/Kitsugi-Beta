@@ -275,7 +275,7 @@ fun KitsugiStreamScreen(
                         title = context.getString(R.string.title_bolum_episode, title, episode), headers = source.requestHeaders,
                         subtitles = source.subtitles, allSources = allStreams,
                         currentSourceIndex = resolvedSourceIndex,
-                        malId = malId, aniListId = aniListId, tmdbId = tmdbId, bangumiId = bangumiId, imdbId = imdbId ?: knownImdbId, season = season, episode = episode,
+                        malId = malId, aniListId = aniListId, tmdbId = tmdbId, bangumiId = bangumiId, mediaType = mediaType, imdbId = imdbId ?: knownImdbId, season = season, episode = episode,
                         animeTitle = title, posterUrl = posterUrl,
                         titleEnglish = titleEnglish, titleRomaji = titleRomaji, titleNative = titleNative,
                         synonyms = synonyms,

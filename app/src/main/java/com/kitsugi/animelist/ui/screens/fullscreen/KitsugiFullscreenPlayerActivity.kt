@@ -89,6 +89,21 @@ class KitsugiFullscreenPlayerActivity : ComponentActivity() {
     private var lastKnownHasNext = false
     private var lastKnownHasPrevious = false
     private var pipEngine: com.kitsugi.animelist.core.player.engine.PlayerEngine? = null
+    private var playerKeyEventHandler: ((android.view.KeyEvent) -> Boolean)? = null
+
+    fun setPlayerKeyEventHandler(handler: ((android.view.KeyEvent) -> Boolean)?) {
+        playerKeyEventHandler = handler
+    }
+
+    override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+        if (window?.currentFocus !is android.widget.EditText) {
+            val handler = playerKeyEventHandler
+            if (handler != null && handler(event)) {
+                return true
+            }
+        }
+        return super.dispatchKeyEvent(event)
+    }
 
     interface PipPlayerCallback {
         fun onPipPlay()
@@ -403,6 +418,21 @@ class KitsugiFullscreenPlayerActivity : ComponentActivity() {
                             putExtra(EXTRA_AUDIO_URL, audioUrl)
                             putExtra(EXTRA_TITLE, title)
                             putExtra(EXTRA_CURRENT_INDEX, -1)
+                            malId?.let { putExtra(EXTRA_MAL_ID, it) }
+                            aniListId?.let { putExtra(EXTRA_ANILIST_ID, it) }
+                            tmdbId?.let { putExtra(EXTRA_TMDB_ID, it) }
+                            bangumiId?.let {
+                                putExtra(EXTRA_BANGUMI_ID, it)
+                                putExtra("subtitle_bangumi_id", it)
+                            }
+                            imdbId?.let { putExtra("subtitle_imdb_id", it) }
+                            knownImdbId?.let { putExtra(EXTRA_IMDB_ID, it) }
+                            mediaType?.let { putExtra(EXTRA_MEDIA_TYPE, it.name) }
+                            titleEnglish?.let { putExtra(EXTRA_TITLE_ENGLISH, it) }
+                            titleRomaji?.let { putExtra(EXTRA_TITLE_ROMAJI, it) }
+                            titleNative?.let { putExtra(EXTRA_TITLE_NATIVE, it) }
+                            startYear?.let { putExtra(EXTRA_START_YEAR, it) }
+                            historyAnimeId?.let { putExtra(EXTRA_HISTORY_ID, it) }
                             putExtra(EXTRA_SEASON, season)
                             putExtra(EXTRA_EPISODE, episode)
                             putExtra(EXTRA_ANIME_TITLE, animeTitle)

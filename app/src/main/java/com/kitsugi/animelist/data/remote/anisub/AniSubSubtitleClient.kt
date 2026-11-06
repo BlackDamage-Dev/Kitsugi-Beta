@@ -84,9 +84,18 @@ object AniSubSubtitleClient {
         aniListId: Int?,
         animeTitle: String?,
         episode: Int?,
-        filenameHint: String? = null
+        filenameHint: String? = null,
+        animeTitles: List<String> = emptyList()
     ): List<SubtitleResponseItem> {
-        val request = ParsedRequest.parse(type, id, aniListId, animeTitle, episode, filenameHint)
+        val request = ParsedRequest.parse(
+            type = type,
+            id = id,
+            aniListId = aniListId,
+            animeTitle = animeTitle,
+            episodeParam = episode,
+            filenameHint = filenameHint,
+            extraTitles = animeTitles
+        )
         val key = request.cacheKey()
 
         resultCache[key]?.let { cached ->
@@ -106,9 +115,14 @@ object AniSubSubtitleClient {
 
         return try {
             val result = withContext(Dispatchers.IO) { doFetch(context.applicationContext, request) }
-            resultCache[key] = CachedResult(System.currentTimeMillis(), result)
+            if (result.isNotEmpty()) {
+                resultCache[key] = CachedResult(System.currentTimeMillis(), result)
+            }
             mine.complete(result)
             result
+        } catch (cancel: kotlinx.coroutines.CancellationException) {
+            mine.cancel(cancel)
+            throw cancel
         } catch (e: Exception) {
             Log.e(TAG, "AniSub altyazı akışı başarısız: ${e.message}", e)
             mine.complete(emptyList())
@@ -138,7 +152,7 @@ object AniSubSubtitleClient {
 
         // 1b) Başlıkla API araması (Stremio yalnızca tt tanır; kitsu/anilist
         //     yolundan oynatılan animeler için zorunlu)
-        if (!request.title.isNullOrBlank()) {
+        if (request.candidateTitles.isNotEmpty()) {
             discoverViaApiSearch(request).forEach { candidate ->
                 byId.merge(candidate)
             }
@@ -170,15 +184,19 @@ object AniSubSubtitleClient {
             val exact = candidates.filter { it.anilistId == request.aniListId }
             if (exact.isNotEmpty()) {
                 candidates = exact
-            } else if (!request.title.isNullOrBlank()) {
-                val byTitle = candidates.filter {
-                    AniSubEpisodeMatcher.titleMatches(request.title, it.romaji, it.english)
+            } else if (request.candidateTitles.isNotEmpty()) {
+                val byTitle = candidates.filter { cand ->
+                    request.candidateTitles.any { t ->
+                        AniSubEpisodeMatcher.titleMatches(t, cand.romaji, cand.english)
+                    }
                 }
                 if (byTitle.isNotEmpty()) candidates = byTitle
             }
-        } else if (!request.title.isNullOrBlank()) {
-            val byTitle = candidates.filter {
-                AniSubEpisodeMatcher.titleMatches(request.title, it.romaji, it.english)
+        } else if (request.candidateTitles.isNotEmpty()) {
+            val byTitle = candidates.filter { cand ->
+                request.candidateTitles.any { t ->
+                    AniSubEpisodeMatcher.titleMatches(t, cand.romaji, cand.english)
+                }
             }
             // Başlık bilgisi eksik adaylar (Stremio) başlıktan elenemez; bilgi
             // taşıyan ve tutmayanları ele, taşımayanları tut.
@@ -275,7 +293,11 @@ object AniSubSubtitleClient {
 
     private fun discoverViaApiSearch(request: ParsedRequest): List<Candidate> {
         val titleHits = LinkedHashMap<Long, Candidate>()
-        for (variant in AniSubEpisodeMatcher.searchQueryVariants(request.title)) {
+        val variants = request.candidateTitles
+            .flatMap { AniSubEpisodeMatcher.searchQueryVariants(it) }
+            .distinctBy { it.lowercase(Locale.ROOT) }
+            .take(4)
+        for (variant in variants) {
             val items = searchApi(variant, request)
             if (items.isEmpty()) continue
 
@@ -850,7 +872,8 @@ object AniSubSubtitleClient {
         val aniListId: Int?,
         val title: String?,
         val movieIntent: Boolean,
-        val filenameHint: String?
+        val filenameHint: String?,
+        val candidateTitles: List<String> = emptyList()
     ) {
         /** Film kayıtlarında bölüm hedeflemek anlamsızdır; dizi kayıtlarında kesindir. */
         fun effectiveEpisodeFor(candidate: Candidate): Int? {
@@ -865,12 +888,13 @@ object AniSubSubtitleClient {
          * Oyuncu aynı bölüm için tt / kitsu / başlık ve movie / series
          * varyantlarıyla paralel sorgular atar; hepsinde AniList kimliği ile
          * başlık ve bölüm aynı taşınır. Anahtar bu yüzden sorgu kimliğine
-         * değil içeriğin kanonik kimliğine kurulur: AniList > başlık > IMDb.
+         * değil içeriğin kanonik kimliğine kurulur: AniList > IMDb > başlık.
          */
         fun cacheKey(): String {
             val episodePart = episode?.toString() ?: "-"
             return when {
-                aniListId != null -> "al:$aniListId|e:$episodePart"
+                aniListId != null -> "al:$aniListId|i:${imdbId ?: "-"}|e:$episodePart"
+                !imdbId.isNullOrBlank() -> "tt:$imdbId|s:${season ?: "-"}|e:$episodePart"
                 !title.isNullOrBlank() ->
                     "t:${AniSubEpisodeMatcher.normalizeTitle(title)}|e:$episodePart"
                 else -> listOf(
@@ -889,7 +913,8 @@ object AniSubSubtitleClient {
                 aniListId: Int?,
                 animeTitle: String?,
                 episodeParam: Int?,
-                filenameHint: String?
+                filenameHint: String?,
+                extraTitles: List<String> = emptyList()
             ): ParsedRequest {
                 val rawId = id.trim()
                 val imdb = Regex("""(tt\d{5,})""").find(rawId)?.groupValues?.get(1)
@@ -926,7 +951,12 @@ object AniSubSubtitleClient {
                 // "tmdb:12345" / "anilist:12345" gibi önekli kimlikler başlık değildir.
                 val usableTitleFromId = titleFromId
                     ?.takeUnless { Regex("""^[a-z]{2,}:\d+$""").matches(it.trim()) }
-                val title = animeTitle?.trim()?.takeIf { it.isNotBlank() }
+                val allTitles = (extraTitles + listOfNotNull(animeTitle, usableTitleFromId))
+                    .map { it.trim() }
+                    .filter { it.isNotBlank() && it.any { ch -> ch in 'A'..'Z' || ch in 'a'..'z' || ch.isDigit() } }
+                    .distinctBy { it.lowercase(Locale.ROOT) }
+                val title = allTitles.firstOrNull()
+                    ?: animeTitle?.trim()?.takeIf { it.isNotBlank() }
                     ?: usableTitleFromId?.takeIf { it.isNotBlank() }
 
                 val episode = episodeFromId ?: episodeParam?.takeIf { it > 0 }
@@ -946,7 +976,8 @@ object AniSubSubtitleClient {
                     aniListId = aniListId,
                     title = title,
                     movieIntent = movieIntent,
-                    filenameHint = filenameHint
+                    filenameHint = filenameHint,
+                    candidateTitles = if (allTitles.isNotEmpty()) allTitles else listOfNotNull(title)
                 )
             }
         }

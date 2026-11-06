@@ -56,11 +56,20 @@ object ExternalInputDetector {
         if (isKeyboardSource && !isDpadSource && !isTouchSource) return true
 
         // 3) Cihazın kendi raporuna bak: tuş takımı olmayan cihaz (TV kumandası) klavye değildir.
-        val device = runCatching { InputDevice.getDevice(deviceId) }.getOrNull() ?: return false
+        // NOT: Gerçek USB ve Bluetooth HID klavyeler ok tuşlarını barındırdığı için Android
+        // InputReader tarafından hem SOURCE_KEYBOARD hem SOURCE_DPAD ile etiketlenir; bu yüzden
+        // KEYBOARD_TYPE_ALPHABETIC cihazlarda isDpadSource nedeniyle reddetme YAPILMAMALIDIR.
+        val device = runCatching { InputDevice.getDevice(deviceId) }.getOrNull()
+        if (device == null) {
+            return isKeyboardSource && !isTouchSource && deviceId != android.view.KeyCharacterMap.VIRTUAL_KEYBOARD
+        }
         if (device.isVirtual) {
             // Sanal klavyeler (erişilebilirlik, test otomasyonu) oynatıcıda gerçek
             // kısayol kullanımına işaret etmez; D-pad davranışını bozmayalım.
             return false
+        }
+        if (device.keyboardType == InputDevice.KEYBOARD_TYPE_ALPHABETIC) {
+            return true
         }
         val hasRealKeypad = device.keyboardType != InputDevice.KEYBOARD_TYPE_NONE
         return hasRealKeypad && !isDpadSource

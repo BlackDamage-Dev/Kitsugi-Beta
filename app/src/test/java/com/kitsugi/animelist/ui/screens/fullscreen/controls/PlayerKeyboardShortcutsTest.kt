@@ -68,6 +68,18 @@ class PlayerKeyboardShortcutsTest {
         assertFalse(PlayerKeyboardShortcuts.isRepeatable(PlayerKeyAction.ShowKeyboardShortcuts))
     }
 
+    @Test
+    fun `space k and enter map to play pause while arrows map to seek and volume`() {
+        assertEquals(PlayerKeyAction.TogglePlayPause, action(KeyEvent.KEYCODE_SPACE))
+        assertEquals(PlayerKeyAction.TogglePlayPause, action(KeyEvent.KEYCODE_K))
+        assertEquals(PlayerKeyAction.TogglePlayPause, action(KeyEvent.KEYCODE_ENTER))
+        assertEquals(PlayerKeyAction.TogglePlayPause, action(KeyEvent.KEYCODE_NUMPAD_ENTER))
+        assertEquals(PlayerKeyAction.SeekBackward, action(KeyEvent.KEYCODE_DPAD_LEFT))
+        assertEquals(PlayerKeyAction.SeekForward, action(KeyEvent.KEYCODE_DPAD_RIGHT))
+        assertEquals(PlayerKeyAction.VolumeUp, action(KeyEvent.KEYCODE_DPAD_UP))
+        assertEquals(PlayerKeyAction.VolumeDown, action(KeyEvent.KEYCODE_DPAD_DOWN))
+    }
+
     private fun action(
         keyCode: Int,
         shift: Boolean = false,

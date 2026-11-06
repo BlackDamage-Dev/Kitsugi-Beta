@@ -807,6 +807,7 @@ fun KitsugiFullscreenPlayerScreen(
                 // PiP penceresindeki Oynat/Duraklat/Sonraki tuşları ve Activity durdurma
                 // olayları bu köprü üzerinden oynatıcıya iletilir.
                 val fullscreenActivity = activity as? KitsugiFullscreenPlayerActivity
+                val tvActivity = activity as? com.kitsugi.animelist.ui.tv.player.TvPlayerActivity
                 DisposableEffect(playerEngine, fullscreenActivity) {
                     val bridge = object : KitsugiFullscreenPlayerActivity.PipPlayerCallback {
                         override fun onPipPlay() { viewModel.play() }
@@ -857,6 +858,8 @@ fun KitsugiFullscreenPlayerScreen(
                 // bildirilebiliyordu.
                 var isPlayingState by remember { mutableStateOf(false) }
                 var isBufferingState by remember { mutableStateOf(false) }
+                var isUserPausedState by remember { mutableStateOf(false) }
+                var suppressPauseOsdUntilMs by remember { mutableStateOf(0L) }
                 var isPlaybackEnded by remember { mutableStateOf(false) }
 
                 // PiP RemoteAction ikonlarının (Oynat/Duraklat) ve medya bildiriminin
@@ -921,6 +924,7 @@ fun KitsugiFullscreenPlayerScreen(
                             currentPosition = playerEngine.currentPosition
                             duration = playerEngine.duration.coerceAtLeast(0L)
                             isPlayingState = playerEngine.isPlaying
+                            isUserPausedState = playerEngine.isPausedByUser
                             viewModel.updateReadAhead(playerEngine.bufferedPosition / 1000)
                             videoQualityTracks = playerEngine.videoQualityTracks
                             isVideoQualityAuto = playerEngine.isVideoQualityAuto
@@ -998,6 +1002,8 @@ fun KitsugiFullscreenPlayerScreen(
                     val listener = object : PlayerEngine.Listener {
                         override fun onPlayingChanged(isPlaying: Boolean) {
                             isPlayingState = isPlaying
+                            isBufferingState = playerEngine.currentState == PlayerEngine.State.BUFFERING
+                            isUserPausedState = playerEngine.isPausedByUser
                             viewModel.updatePlayerState(playerEngine.currentState, isPlaying)
                         }
                         override fun onPositionChanged(positionMs: Long, durationMs: Long) {
@@ -1018,6 +1024,7 @@ fun KitsugiFullscreenPlayerScreen(
                             Log.d("KitsugiPlayerDebug", "onStateChanged: state=$state, isPlaying=${playerEngine.isPlaying}")
                             isPlayingState = playerEngine.isPlaying
                             isBufferingState = state == PlayerEngine.State.BUFFERING
+                            isUserPausedState = playerEngine.isPausedByUser
                             // TASK_042 — PlaybackState StateFlow güncelle
                             viewModel.updatePlayerState(state, playerEngine.isPlaying)
                             if (state == PlayerEngine.State.READY) {
@@ -1282,8 +1289,8 @@ fun KitsugiFullscreenPlayerScreen(
                                 indicatorDurationScale = cfg.keyboardOsdDurationScale,
                                 autoDetectExternalKeyboard = cfg.autoDetectExternalKeyboard,
                                 gamepadEnabled = cfg.gamepadEnabled,
-                                opensFullOsd = cfg.keyboardOpensFullOsd,
-                                onRefreshFullOsd = { viewModel.showControls() },
+                                opensFullOsd = false,
+                                onRefreshFullOsd = {},
                                 holdToAccelerate = cfg.keyboardHoldToAccelerate,
                                 seekStepMs = cfg.keyboardSeekStepSeconds * 1000L,
                                 largeSeekStepMs = cfg.keyboardLargeSeekSeconds * 1000L,
@@ -1296,8 +1303,16 @@ fun KitsugiFullscreenPlayerScreen(
                                     engine.seekTo((pos + delta).coerceIn(0L, if (dur > 0L) dur else Long.MAX_VALUE))
                                 },
                                 onSeekTo = { target -> engine.seekTo(target.coerceAtLeast(0L)) },
-                                isPlaying = { engine.isPlaying },
-                                onPlayPause = { viewModel.togglePlay() },
+                                isPlaying = { !engine.isPausedByUser },
+                                onPlayPause = {
+                                    if (engine.isPausedByUser) {
+                                        viewModel.play()
+                                        viewModel.hideControls()
+                                    } else {
+                                        viewModel.pause()
+                                        viewModel.showControls()
+                                    }
+                                },
                                 maxVolume = { viewModel.maxVolume },
                                 volume = { viewModel.currentVolume.value },
                                 mpvVolume = { viewModel.currentMPVVolume.value },
@@ -1462,8 +1477,10 @@ fun KitsugiFullscreenPlayerScreen(
                     }
                 }
 
-                LaunchedEffect(isPlayingState) {
-                    if (!isPlayingState) viewModel.showControls()
+                LaunchedEffect(isUserPausedState) {
+                    if (isUserPausedState && android.os.SystemClock.uptimeMillis() >= suppressPauseOsdUntilMs) {
+                        viewModel.showControls()
+                    }
                 }
 
                 LaunchedEffect(seekFeedback) {
@@ -1505,27 +1522,43 @@ fun KitsugiFullscreenPlayerScreen(
                 fun executePlayerKeyAction(action: PlayerKeyAction): Boolean {
                     when (action) {
                         PlayerKeyAction.TogglePlayPause -> {
-                            viewModel.togglePlay()
-                            viewModel.showControls()
+                            val currentlyPaused = playerEngine.isPausedByUser ||
+                                (!isPlayingState && !isBufferingState && isEngineReady)
+                            if (currentlyPaused) {
+                                viewModel.play()
+                                viewModel.hideControls()
+                            } else {
+                                viewModel.pause()
+                                viewModel.showControls()
+                            }
                         }
-                        PlayerKeyAction.Play -> viewModel.play()
+                        PlayerKeyAction.Play -> {
+                            viewModel.play()
+                            viewModel.hideControls()
+                        }
                         PlayerKeyAction.Pause -> {
                             viewModel.pause()
                             viewModel.showControls()
                         }
                         PlayerKeyAction.SeekBackward, PlayerKeyAction.SeekBackwardLarge -> {
-                            val amount = if (action == PlayerKeyAction.SeekBackwardLarge) 60 else 10
+                            val amount = if (action == PlayerKeyAction.SeekBackwardLarge) {
+                                safeSettings.keyboardLargeSeekSeconds.coerceAtLeast(5)
+                            } else {
+                                safeSettings.keyboardSeekStepSeconds.takeIf { it > 0 } ?: 10
+                            }
                             viewModel.seekBy(-amount * 1000L)
                             seekFeedback = "-${amount}s"
                             seekFeedbackOnRightSide = false
-                            viewModel.showControls()
                         }
                         PlayerKeyAction.SeekForward, PlayerKeyAction.SeekForwardLarge -> {
-                            val amount = if (action == PlayerKeyAction.SeekForwardLarge) 60 else 10
+                            val amount = if (action == PlayerKeyAction.SeekForwardLarge) {
+                                safeSettings.keyboardLargeSeekSeconds.coerceAtLeast(5)
+                            } else {
+                                safeSettings.keyboardSeekStepSeconds.takeIf { it > 0 } ?: 10
+                            }
                             viewModel.seekBy(amount * 1000L)
                             seekFeedback = "+${amount}s"
                             seekFeedbackOnRightSide = true
-                            viewModel.showControls()
                         }
                         PlayerKeyAction.PreviousEpisode -> viewModel.changeEpisode(previous = true)
                         PlayerKeyAction.NextEpisode -> playNextEpisode()
@@ -1590,8 +1623,9 @@ fun KitsugiFullscreenPlayerScreen(
                         PlayerKeyAction.CycleAspectRatio -> cycleAspectMode()
                         PlayerKeyAction.RotateScreen -> cycleScreenOrientation()
                         PlayerKeyAction.ToggleControlsLock -> {
+                            val willLock = !areControlsLocked
                             if (areControlsLocked) viewModel.unlockControls() else viewModel.lockControls()
-                            viewModel.showControls()
+                            aspectFeedback = if (willLock) "Kontroller kilitlendi" else "Kontrol kilidi açıldı"
                         }
                         PlayerKeyAction.ToggleControls -> {
                             if (controlsShown) viewModel.hideControls() else viewModel.showControls()
@@ -1608,81 +1642,202 @@ fun KitsugiFullscreenPlayerScreen(
                                 )
                             }
                         }
-                        PlayerKeyAction.ShowKeyboardShortcuts -> viewModel.showDialog(KitsugiDialogs.KeyboardShortcuts)
+                        PlayerKeyAction.ShowKeyboardShortcuts -> {
+                            if (safeSettings.keyboardHelpEnabled) {
+                                viewModel.showDialog(KitsugiDialogs.KeyboardShortcuts)
+                            }
+                        }
                     }
                     return true
+                }
+
+                // Aynı donanım tuşunun hem Activity.dispatchKeyEvent hem Compose onPreviewKeyEvent
+                // tarafından iki kez işlenmesini ve tüketilen KeyDown'un KeyUp aşamasında OSD
+                // butonlarına veya geri tuşu zincirine sızmasını önleyen durum.
+                val keyDispatchTracker = remember {
+                    object {
+                        var lastSeenEventHash: Long = Long.MIN_VALUE
+                        var lastSeenResult: Boolean = false
+                        var consumedKeyCode: Int = -1
+                    }
+                }
+
+                fun handlePlayerHardwareKeyEvent(nativeEvent: android.view.KeyEvent): Boolean {
+                    val eventHash = (((nativeEvent.downTime xor nativeEvent.eventTime) shl 16) xor
+                        ((nativeEvent.action.toLong() and 0xFF) shl 8) xor
+                        (nativeEvent.keyCode.toLong() and 0xFFFF))
+                    if (eventHash == keyDispatchTracker.lastSeenEventHash) {
+                        return keyDispatchTracker.lastSeenResult
+                    }
+
+                    fun finish(consumed: Boolean): Boolean {
+                        keyDispatchTracker.lastSeenEventHash = eventHash
+                        keyDispatchTracker.lastSeenResult = consumed
+                        if (nativeEvent.action == android.view.KeyEvent.ACTION_DOWN) {
+                            keyDispatchTracker.consumedKeyCode = if (consumed) nativeEvent.keyCode else -1
+                        } else if (nativeEvent.action == android.view.KeyEvent.ACTION_UP &&
+                            keyDispatchTracker.consumedKeyCode == nativeEvent.keyCode
+                        ) {
+                            keyDispatchTracker.consumedKeyCode = -1
+                        }
+                        return consumed
+                    }
+
+                    // KeyDown aşamasında tükettiğimiz tuşun KeyUp'ı da kesinlikle tüketilmeli
+                    // (aksi halde odaklanmış bir OSD ikonu KeyUp'ta yanlışlıkla tetiklenebilir).
+                    if (nativeEvent.action == android.view.KeyEvent.ACTION_UP &&
+                        keyDispatchTracker.consumedKeyCode == nativeEvent.keyCode
+                    ) {
+                        return finish(true)
+                    }
+
+                    val keyCode = nativeEvent.keyCode
+                    val isBackOrEscape = keyCode == android.view.KeyEvent.KEYCODE_ESCAPE ||
+                        keyCode == android.view.KeyEvent.KEYCODE_BACK
+
+                    if (isBackOrEscape) {
+                        // Cihazın sistem geri tuşu (KEYCODE_BACK) KitsugiFullscreenPlayerActivity'de
+                        // OnBackPressedDispatcher tarafından yönetilir; Escape ise klavye tuşudur.
+                        if (keyCode == android.view.KeyEvent.KEYCODE_BACK && fullscreenActivity != null &&
+                            !showResumeDialog
+                        ) {
+                            return finish(false)
+                        }
+                        if (nativeEvent.action != android.view.KeyEvent.ACTION_DOWN) return finish(true)
+                        return finish(
+                            when {
+                                showResumeDialog -> {
+                                    showResumeDialog = false
+                                    true
+                                }
+                                panelShown != KitsugiPanels.None || sheetShown != KitsugiSheets.None || dialogShown != KitsugiDialogs.None -> {
+                                    viewModel.showPanel(KitsugiPanels.None)
+                                    viewModel.showSheet(KitsugiSheets.None)
+                                    viewModel.showDialog(KitsugiDialogs.None)
+                                    if (isFocusTargetAttached) runCatching { mainFocusRequester.requestFocus() }
+                                    true
+                                }
+                                controlsShown -> {
+                                    viewModel.hideControls()
+                                    if (isFocusTargetAttached) runCatching { mainFocusRequester.requestFocus() }
+                                    true
+                                }
+                                else -> {
+                                    onBack()
+                                    true
+                                }
+                            }
+                        )
+                    }
+
+                    val action = PlayerKeyboardShortcuts.actionFor(nativeEvent)
+
+                    // Açık bir alt sayfa / panel / diyalog varken: aynı kısayol tuşuna tekrar
+                    // basılırsa ilgili pencereyi kapat; diğer tuşları modal içindeki gezintiye bırak.
+                    if (showResumeDialog || panelShown != KitsugiPanels.None ||
+                        sheetShown != KitsugiSheets.None || dialogShown != KitsugiDialogs.None
+                    ) {
+                        if (action != null) {
+                            val closesCurrentModal =
+                                (dialogShown == KitsugiDialogs.KeyboardShortcuts && action == PlayerKeyAction.ShowKeyboardShortcuts) ||
+                                    (dialogShown == KitsugiDialogs.EpisodeList && action == PlayerKeyAction.EpisodeList) ||
+                                    (sheetShown == KitsugiSheets.SubtitleTracks && action == PlayerKeyAction.SubtitleTracks) ||
+                                    (sheetShown == KitsugiSheets.AudioTracks && action == PlayerKeyAction.AudioTracks) ||
+                                    (sheetShown == KitsugiSheets.QualityTracks && action == PlayerKeyAction.QualityTracks) ||
+                                    (sheetShown == KitsugiSheets.Chapters && action == PlayerKeyAction.Chapters) ||
+                                    (sheetShown == KitsugiSheets.PlaybackSpeed && action == PlayerKeyAction.PlaybackSpeed) ||
+                                    (sheetShown == KitsugiSheets.Screenshot && action == PlayerKeyAction.Screenshot) ||
+                                    (sheetShown == KitsugiSheets.More && action == PlayerKeyAction.More) ||
+                                    (panelShown == KitsugiPanels.VideoFilters && action == PlayerKeyAction.VideoFilters)
+                            if (closesCurrentModal) {
+                                if (nativeEvent.action == android.view.KeyEvent.ACTION_DOWN && nativeEvent.repeatCount == 0) {
+                                    viewModel.showPanel(KitsugiPanels.None)
+                                    viewModel.showSheet(KitsugiSheets.None)
+                                    viewModel.showDialog(KitsugiDialogs.None)
+                                    if (isFocusTargetAttached) runCatching { mainFocusRequester.requestFocus() }
+                                }
+                                return finish(true)
+                            }
+                        }
+                        return finish(false)
+                    }
+
+                    val inputClass = com.kitsugi.animelist.core.player.input.ExternalInputDetector.classify(nativeEvent)
+                    if (!shortcutsEnabled && inputClass == com.kitsugi.animelist.core.player.input.ExternalInputDetector.Class.KEYBOARD) {
+                        return finish(false)
+                    }
+
+                    val isOsdNavigationKey = when (keyCode) {
+                        android.view.KeyEvent.KEYCODE_DPAD_CENTER,
+                        android.view.KeyEvent.KEYCODE_ENTER,
+                        android.view.KeyEvent.KEYCODE_NUMPAD_ENTER,
+                        android.view.KeyEvent.KEYCODE_DPAD_LEFT,
+                        android.view.KeyEvent.KEYCODE_DPAD_RIGHT,
+                        android.view.KeyEvent.KEYCODE_DPAD_UP,
+                        android.view.KeyEvent.KEYCODE_DPAD_DOWN -> true
+                        else -> false
+                    }
+                    val isExplicitBrightnessShortcut = nativeEvent.isCtrlPressed &&
+                        (keyCode == android.view.KeyEvent.KEYCODE_DPAD_UP ||
+                            keyCode == android.view.KeyEvent.KEYCODE_DPAD_DOWN)
+
+                    // YALNIZCA gerçek Android TV kumandasında (fiziksel klavye ve gamepad DEĞİL)
+                    // OSD açıkken yön tuşlarını buton gezintisine bırak. Fiziksel klavyede ise
+                    // oynatıcı arayüzü görünürken bile tüm kısayollar kesintisiz çalışmalıdır.
+                    val isTvDevice = tvActivity != null ||
+                        com.kitsugi.animelist.DeviceProfile.detect(context) == com.kitsugi.animelist.DeviceFormFactor.TV
+                    val isTvRemoteDpad = isTvDevice &&
+                        inputClass == com.kitsugi.animelist.core.player.input.ExternalInputDetector.Class.OTHER
+                    if (controlsShown && isTvRemoteDpad && isOsdNavigationKey && !isExplicitBrightnessShortcut) {
+                        return finish(false)
+                    }
+
+                    // Kullanıcının Ayarlar > Klavye sekmesinde özel atadığı kısayollar veya
+                    // gamepad / kare adımlama (',' / '.') eylemleri için denetleyiciyi kontrol et.
+                    if (action == null) {
+                        val isFrameStepKey = keyCode == android.view.KeyEvent.KEYCODE_PERIOD ||
+                            keyCode == android.view.KeyEvent.KEYCODE_COMMA
+                        if (isFrameStepKey) {
+                            suppressPauseOsdUntilMs = android.os.SystemClock.uptimeMillis() + 900L
+                        }
+                        if (keyboardController.onKeyEvent(nativeEvent)) {
+                            return finish(true)
+                        }
+                        if (controlsShown) {
+                            return finish(false)
+                        }
+                        // Eşlenmemiş tuşlar MPV input.conf özel kısayollarına gider (OSD açılmaz).
+                        return finish(playerEngine.handleKey(nativeEvent))
+                    }
+
+                    // KeyDown'da yapılan eylemin KeyUp'ta MPV'ye veya OSD butonlarına gitmesini engelle.
+                    if (nativeEvent.action != android.view.KeyEvent.ACTION_DOWN) return finish(true)
+                    if (nativeEvent.repeatCount > 0 && !PlayerKeyboardShortcuts.isRepeatable(action)) {
+                        return finish(true)
+                    }
+                    return finish(executePlayerKeyAction(action))
+                }
+
+                val latestKeyHandler by rememberUpdatedState(::handlePlayerHardwareKeyEvent)
+                DisposableEffect(fullscreenActivity, tvActivity) {
+                    val bridge: (android.view.KeyEvent) -> Boolean = { ev -> latestKeyHandler(ev) }
+                    fullscreenActivity?.setPlayerKeyEventHandler(bridge)
+                    tvActivity?.setPlayerKeyEventHandler(bridge)
+                    onDispose {
+                        fullscreenActivity?.setPlayerKeyEventHandler(null)
+                        tvActivity?.setPlayerKeyEventHandler(null)
+                    }
                 }
 
 
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
+                        .onPreviewKeyEvent { event ->
+                            handlePlayerHardwareKeyEvent(event.nativeKeyEvent)
+                        }
                         .focusRequester(mainFocusRequester)
                         .focusable()
-                        .onPreviewKeyEvent { event ->
-                            if (event.key == Key.Back || event.key == Key.Escape) {
-                                if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent true
-                                return@onPreviewKeyEvent when {
-                                    panelShown != KitsugiPanels.None || sheetShown != KitsugiSheets.None || dialogShown != KitsugiDialogs.None -> {
-                                        viewModel.showPanel(KitsugiPanels.None)
-                                        viewModel.showSheet(KitsugiSheets.None)
-                                        viewModel.showDialog(KitsugiDialogs.None)
-                                        mainFocusRequester.requestFocus()
-                                        true
-                                    }
-                                    controlsShown -> {
-                                        viewModel.hideControls()
-                                        mainFocusRequester.requestFocus()
-                                        true
-                                    }
-                                    else -> {
-                                        onBack()
-                                        true
-                                    }
-                                }
-                            }
-
-                            if (panelShown != KitsugiPanels.None || sheetShown != KitsugiSheets.None || dialogShown != KitsugiDialogs.None) return@onPreviewKeyEvent false
-
-                            val nativeEvent = event.nativeKeyEvent
-                            val action = PlayerKeyboardShortcuts.actionFor(nativeEvent)
-                            val isOsdNavigationKey = when (nativeEvent.keyCode) {
-                                android.view.KeyEvent.KEYCODE_DPAD_CENTER,
-                                android.view.KeyEvent.KEYCODE_ENTER,
-                                android.view.KeyEvent.KEYCODE_NUMPAD_ENTER,
-                                android.view.KeyEvent.KEYCODE_DPAD_LEFT,
-                                android.view.KeyEvent.KEYCODE_DPAD_RIGHT,
-                                android.view.KeyEvent.KEYCODE_DPAD_UP,
-                                android.view.KeyEvent.KEYCODE_DPAD_DOWN -> true
-                                else -> false
-                            }
-                            val isExplicitBrightnessShortcut = nativeEvent.isCtrlPressed &&
-                                (nativeEvent.keyCode == android.view.KeyEvent.KEYCODE_DPAD_UP ||
-                                    nativeEvent.keyCode == android.view.KeyEvent.KEYCODE_DPAD_DOWN)
-
-                            // OSD açıkken D-pad/Enter odak gezintisinin ve buton aktivasyonunun
-                            // önüne geçme. Ctrl+Yukarı/Aşağı ise bilinçli bir global kısayoldur.
-                            if (controlsShown && isOsdNavigationKey && !isExplicitBrightnessShortcut) {
-                                if (event.type == KeyEventType.KeyDown) viewModel.showControls()
-                                return@onPreviewKeyEvent false
-                            }
-
-                            if (action == null) {
-                                if (controlsShown) {
-                                    if (event.type == KeyEventType.KeyDown) viewModel.showControls()
-                                    return@onPreviewKeyEvent false
-                                }
-                                // Eşlenmemiş tuşlar MPV input.conf özel kısayollarına gider.
-                                return@onPreviewKeyEvent playerEngine.handleKey(nativeEvent)
-                            }
-
-                            // KeyDown'da yapılan eylemin KeyUp'ta MPV'ye ikinci kez gitmesini engelle.
-                            if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent true
-                            if (nativeEvent.repeatCount > 0 && !PlayerKeyboardShortcuts.isRepeatable(action)) {
-                                return@onPreviewKeyEvent true
-                            }
-                            return@onPreviewKeyEvent executePlayerKeyAction(action)
-                        }
                         .pointerInput(playerEngine, safeSettings, isInPipMode) {
                             if (isInPipMode || !safeSettings.gestureZoomEnabled) return@pointerInput
                             detectTransformGestures { _, _, zoom, _ ->

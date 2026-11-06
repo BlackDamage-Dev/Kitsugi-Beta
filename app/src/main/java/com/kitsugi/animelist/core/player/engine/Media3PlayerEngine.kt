@@ -460,6 +460,14 @@ class Media3PlayerEngine(
 
         get() = exoPlayer?.isPlaying ?: false
 
+    override val isPausedByUser: Boolean
+        get() {
+            val p = exoPlayer ?: return false
+            return !p.playWhenReady &&
+                p.playbackState != Player.STATE_IDLE &&
+                p.playbackState != Player.STATE_ENDED
+        }
+
 
 
     /**

@@ -484,6 +484,7 @@ private fun DetailContent(
                                     mediaType = streamMediaType,
                                     title = loadResponse.name,
                                     posterUrl = loadResponse.posterUrl,
+                                    startYear = loadResponse.year,
                                     cs3Url = loadResponse.url,
                                     cs3ApiName = api.name
                                 )
@@ -550,6 +551,7 @@ private fun DetailContent(
                                         mediaType = streamMediaType,
                                         title = loadResponse.name,
                                         posterUrl = loadResponse.posterUrl,
+                                        startYear = loadResponse.year,
                                         cs3Url = loadResponse.url,
                                         cs3ApiName = api.name
                                     )

@@ -9,20 +9,49 @@ import java.nio.ByteOrder
 object OpenSubtitlesHasher {
     private const val HASH_CHUNK_SIZE = 65536 // 64 KB
 
+    private val sharedClient: OkHttpClient by lazy {
+        OkHttpClient.Builder()
+            .dns(com.kitsugi.animelist.core.network.IPv4FirstDns())
+            .connectTimeout(3, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(4, java.util.concurrent.TimeUnit.SECONDS)
+            .callTimeout(6, java.util.concurrent.TimeUnit.SECONDS)
+            .followRedirects(true)
+            .followSslRedirects(true)
+            .build()
+    }
+
     data class HashResult(val hash: String, val size: Long)
 
     internal fun validRange(code: Int, contentRange: String?, start: Long, end: Long, size: Long): Boolean =
         code == 206 && contentRange?.trim()?.equals("bytes $start-$end/$size", ignoreCase = true) == true
 
+    /**
+     * HLS/DASH adaptif manifestleri ve yerel P2P/torrent proxy adresleri OpenSubtitles hash'i
+     * üretmeye uygun değildir (yerel P2P'de son 64 KB parça henüz inmemiş olduğundan isteği
+     * bloklar ve tüm altyazı eklentilerini bekletir).
+     */
+    internal fun canProbeUrl(url: String): Boolean {
+        val trimmed = url.trim()
+        if (!trimmed.startsWith("http://", ignoreCase = true) &&
+            !trimmed.startsWith("https://", ignoreCase = true)
+        ) return false
+        val lower = trimmed.lowercase(java.util.Locale.ROOT)
+        if (lower.contains("://127.0.0.1") || lower.contains("://localhost") || lower.contains("://[::1]")) {
+            return false
+        }
+        val path = lower.substringBefore('?').substringBefore('#')
+        if (path.endsWith(".m3u8") || path.endsWith(".mpd") || path.endsWith(".ism")) {
+            return false
+        }
+        return true
+    }
+
     fun compute(url: String, headers: Map<String, String>? = null): HashResult? {
-        if (!url.startsWith("http://") && !url.startsWith("https://")) {
+        if (!canProbeUrl(url)) {
             return null
         }
         try {
-            val client = OkHttpClient.Builder()
-                .connectTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
-                .readTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
-                .build()
+            val client = sharedClient
 
             // 1. Get content length (size)
             val headRequest = Request.Builder()

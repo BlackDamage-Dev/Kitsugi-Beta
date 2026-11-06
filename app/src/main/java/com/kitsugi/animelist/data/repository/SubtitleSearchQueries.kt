@@ -59,3 +59,22 @@ internal fun subtitleSeasonMatches(name: String, season: Int?): Boolean {
     val found = patterns.firstNotNullOfOrNull { it.find(name)?.groupValues?.get(1)?.toIntOrNull() }
     return found == null || found == season
 }
+
+object SubtitleSearchQueries {
+    fun latinQueries(titles: List<String>): List<String> {
+        val nonCjk = titles.filter { t ->
+            t.isNotBlank() &&
+                t.any { ch -> ch in 'A'..'Z' || ch in 'a'..'z' } &&
+                !t.any { ch ->
+                    val block = Character.UnicodeBlock.of(ch)
+                    block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS ||
+                        block == Character.UnicodeBlock.HIRAGANA ||
+                        block == Character.UnicodeBlock.KATAKANA ||
+                        block == Character.UnicodeBlock.HANGUL_SYLLABLES
+                }
+        }
+        return nonCjk.ifEmpty {
+            titles.filter { t -> t.isNotBlank() && t.any { ch -> ch in 'A'..'Z' || ch in 'a'..'z' } }
+        }
+    }
+}

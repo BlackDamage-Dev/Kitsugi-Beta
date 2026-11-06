@@ -2,6 +2,7 @@ package com.kitsugi.animelist.data.remote
 
 import android.util.Log
 import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import com.kitsugi.animelist.core.network.IPv4FirstDns
 import com.kitsugi.animelist.data.local.ManagedAddonEntity
 import kotlinx.coroutines.Dispatchers
@@ -27,6 +28,13 @@ class AddonStreamClient {
 
     companion object {
         private const val DEFAULT_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+
+        private val subtitleResourceSpecCache =
+            java.util.concurrent.ConcurrentHashMap<String, StremioSubtitleResourceSpec>()
+
+        fun cachedSubtitleSpec(manifestUrl: String): StremioSubtitleResourceSpec? {
+            return subtitleResourceSpecCache[manifestUrl.trim()]
+        }
     }
 
     /**
@@ -119,21 +127,27 @@ class AddonStreamClient {
                 // Stream için geçerli prefix'ler: stream resource'a özgü değer varsa o, yoksa top-level.
                 val streamIdPrefixList = streamSpec?.idPrefixes ?: idPrefixList
 
-                val subtitleTypes = resourcesList?.mapNotNull { res ->
-                    when (res) {
-                        is String -> if (res == "subtitles") "movie,series" else null
-                        is Map<*, *> -> {
-                            val resName = res["name"] as? String ?: return@mapNotNull null
-                            if (resName != "subtitles") return@mapNotNull null
-                            @Suppress("UNCHECKED_CAST")
-                            val types = (res["types"] as? List<*>)?.filterIsInstance<String>()
-                            val typesStr = types?.joinToString(",")
-                            if (typesStr.isNullOrBlank()) "movie,series" else typesStr
-                        }
-                        else -> null
-                    }
-                }?.firstOrNull() ?: run {
-                    if (resourcesList?.contains("subtitles") == true) "movie,series" else null
+                val subtitleSpec = StremioSubtitleRouting.parseSubtitleResource(
+                    resources = resourcesList,
+                    manifestTypes = manifestTypes,
+                    manifestIdPrefixes = idPrefixList
+                )
+                if (subtitleSpec != null) {
+                    subtitleResourceSpecCache[normalizedUrl] = subtitleSpec
+                } else {
+                    subtitleResourceSpecCache.remove(normalizedUrl)
+                }
+                val subtitleTypes = when {
+                    subtitleSpec == null -> null
+                    subtitleSpec.types == null -> StremioStreamRouting.ANY_TYPE
+                    else -> subtitleSpec.types.joinToString(",")
+                }
+                // Stream kaynağı olmayan salt-altyazı eklentilerinde idPrefixes alanına
+                // altyazı kaynağının kendi prefix listesini kaydet.
+                val persistedPrefixes = if (streamSpec != null) {
+                    streamIdPrefixList
+                } else {
+                    subtitleSpec?.idPrefixes.orEmpty()
                 }
 
                 return@withContext ManagedAddonEntity(
@@ -143,8 +157,7 @@ class AddonStreamClient {
                     icon = icon,
                     isEnabled = true,
                     orderIndex = 0,
-                    // Stream prefix'leri (stream resource'a özgü ya da top-level). Altyazı kodu bu alanı kullanmaz.
-                    idPrefixes = if (streamIdPrefixList.isEmpty()) null else gson.toJson(streamIdPrefixList),
+                    idPrefixes = if (persistedPrefixes.isEmpty()) null else gson.toJson(persistedPrefixes),
                     streamTypes = streamTypes,
                     subtitleTypes = if (subtitleTypes == null) null else subtitleTypes.ifBlank { null }
                 )
@@ -227,9 +240,10 @@ class AddonStreamClient {
         aniListId: Int? = null,
         animeTitle: String? = null,
         episode: Int? = null,
-        season: Int? = null
+        season: Int? = null,
+        animeTitles: List<String> = emptyList()
     ): List<SubtitleResponseItem> = withContext(Dispatchers.IO) {
-        if (manifestUrl.contains("anisub.co")) {
+        if (manifestUrl.contains("anisub.co", ignoreCase = true)) {
             // AniSub paket mantığı (bölüm seçimi / ZIP+RAR açma) standart Stremio
             // akışıyla karşılanamadığı için özel istemciye devredilir.
             // Bkz. AniSubSubtitleClient.
@@ -240,7 +254,8 @@ class AddonStreamClient {
                 aniListId = aniListId,
                 animeTitle = animeTitle,
                 episode = episode,
-                filenameHint = extraParams?.get("filename")
+                filenameHint = extraParams?.get("filename"),
+                animeTitles = animeTitles
             )
         }
 
@@ -248,46 +263,134 @@ class AddonStreamClient {
         if (normalizedManifest.isBlank()) return@withContext emptyList()
 
         val withoutFragment = normalizedManifest.substringBefore("#")
-        val query = withoutFragment.substringAfter("?", "")
         val path = withoutFragment.substringBefore("?").trimEnd('/')
         val baseUrl = path.removeSuffix("/manifest.json").trimEnd('/')
 
-        // Stremio subtitle URL formatı (NuvioTV SubtitleRepositoryImpl referansı):
-        // {baseUrl}/subtitles/{type}/{id}/{videoHash=x&videoSize=y&filename=z}.json
-        // NOT: id segmenti URL-encode edilmelidir çünkü ':' gibi karakterler yönlendirmeyi bozabilir.
-        // NOT: extraParams path segment içine eklenir, query string'e değil
+        val candidateUrls = buildStremioSubtitleUrls(
+            normalizedManifest = normalizedManifest,
+            type = type,
+            id = id,
+            extraParams = extraParams
+        )
+        if (candidateUrls.isEmpty()) return@withContext emptyList()
+
+        for ((attemptIdx, finalUrl) in candidateUrls.withIndex()) {
+            Log.d("AddonStreamClient", "fetchSubtitles URL[${attemptIdx + 1}/${candidateUrls.size}]: $finalUrl")
+            val request = Request.Builder()
+                .url(finalUrl)
+                .header("User-Agent", DEFAULT_USER_AGENT)
+                .header("Accept", "application/json")
+                .get()
+                .build()
+
+            try {
+                val parsed = client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) {
+                        Log.w(
+                            "AddonStreamClient",
+                            "HTTP ${response.code} fetching subtitles from $finalUrl" +
+                                if (attemptIdx + 1 < candidateUrls.size) " -> trying canonical 3-segment fallback" else ""
+                        )
+                        null
+                    } else {
+                        val bodyString = response.body?.string()
+                        if (bodyString.isNullOrBlank()) emptyList()
+                        else parseSubtitlePayload(bodyString, baseUrl)
+                    }
+                }
+                if (!parsed.isNullOrEmpty()) {
+                    return@withContext parsed
+                }
+            } catch (cancel: kotlinx.coroutines.CancellationException) {
+                throw cancel
+            } catch (e: java.lang.Exception) {
+                Log.w("AddonStreamClient", "Error fetching subtitles from $finalUrl: ${e.message}")
+            }
+        }
+        emptyList()
+    }
+
+    /**
+     * Stremio ortaklık protokolüne uygun altyazı URL adaylarını sırayla üretir:
+     * 1) Gerçek extra ipuçları (`videoHash` / `videoSize` / `filename`) varsa önce
+     *    4-parçalı `/subtitles/{type}/{id}/{extra}.json` denenir (OpenSubtitles v3 hash eşleşmesi için).
+     * 2) 4-parçalı uç 404/hata veya boş liste döndürürse (ya da hiç extra yoksa) kanonik
+     *    3-parçalı `/subtitles/{type}/{id}.json` ucu çağrılır (TurkceAltyazi, AltyaziDB, YTS vb.).
+     */
+    internal fun buildStremioSubtitleUrls(
+        normalizedManifest: String,
+        type: String,
+        id: String,
+        extraParams: Map<String, String>?
+    ): List<String> {
+        val clean = normalizedManifest.trim()
+        if (clean.isBlank()) return emptyList()
+        val withoutFragment = clean.substringBefore("#")
+        val query = withoutFragment.substringAfter("?", "")
+        val path = withoutFragment.substringBefore("?").trimEnd('/')
+        val baseUrl = path.removeSuffix("/manifest.json").trimEnd('/')
+        if (baseUrl.isBlank()) return emptyList()
+
         val encodedType = encodePathSegment(type)
-        val encodedId = id.split(':').map { encodePathSegment(it) }.joinToString(":")
+        val encodedId = id.split(':').joinToString(":") { encodePathSegment(it) }
         val extraParamStr = buildSubtitleExtraParams(extraParams)
 
-        val resourceUrl = if (extraParamStr.isNotBlank()) {
-            "$baseUrl/subtitles/$encodedType/$encodedId/$extraParamStr.json"
+        fun withQuery(resourceUrl: String): String =
+            if (query.isEmpty()) resourceUrl else "$resourceUrl?$query"
+
+        val canonicalUrl = withQuery("$baseUrl/subtitles/$encodedType/$encodedId.json")
+        return if (extraParamStr.isNotBlank()) {
+            val extraUrl = withQuery("$baseUrl/subtitles/$encodedType/$encodedId/$extraParamStr.json")
+            if (extraUrl != canonicalUrl) listOf(extraUrl, canonicalUrl) else listOf(canonicalUrl)
         } else {
-            "$baseUrl/subtitles/$encodedType/$encodedId.json"
+            listOf(canonicalUrl)
         }
-        val finalUrl = if (query.isEmpty()) resourceUrl else "$resourceUrl?$query"
-        Log.d("AddonStreamClient", "fetchSubtitles URL: $finalUrl")
+    }
 
-        val request = Request.Builder()
-            .url(finalUrl)
-            .header("User-Agent", DEFAULT_USER_AGENT)
-            .header("Accept", "application/json")
-            .get()
-            .build()
-
-        try {
-            client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) {
-                    Log.e("AddonStreamClient", "HTTP error ${response.code} fetching subtitles from $finalUrl")
-                    return@withContext emptyList()
+    internal fun parseSubtitlePayload(bodyString: String, addonBaseUrl: String): List<SubtitleResponseItem> {
+        val trimmed = bodyString.trim()
+        if (trimmed.isEmpty()) return emptyList()
+        val rawItems: List<SubtitleResponseItem> = try {
+            when {
+                trimmed.startsWith("{") -> {
+                    gson.fromJson(trimmed, SubtitleResponseWrapper::class.java)?.subtitles.orEmpty()
                 }
-                val bodyString = response.body?.string() ?: return@withContext emptyList()
-                val subResult = gson.fromJson(bodyString, SubtitleResponseWrapper::class.java)
-                return@withContext subResult?.subtitles ?: emptyList()
+                trimmed.startsWith("[") -> {
+                    val listType = object : TypeToken<List<SubtitleResponseItem>>() {}.type
+                    gson.fromJson<List<SubtitleResponseItem>>(trimmed, listType).orEmpty()
+                }
+                else -> emptyList()
             }
-        } catch (e: java.lang.Exception) {
-            Log.e("AddonStreamClient", "Error fetching subtitles from $finalUrl", e)
+        } catch (e: Exception) {
+            Log.w("AddonStreamClient", "Failed to parse subtitle JSON from $addonBaseUrl: ${e.message}")
             emptyList()
+        }
+
+        return rawItems.mapNotNull { item ->
+            val resolvedUrl = resolveSubtitleDownloadUrl(addonBaseUrl, item.url) ?: return@mapNotNull null
+            item.copy(
+                url = resolvedUrl,
+                lang = item.lang?.trim()?.ifBlank { "und" } ?: "und"
+            )
+        }
+    }
+
+    internal fun resolveSubtitleDownloadUrl(addonBaseUrl: String, rawUrl: String?): String? {
+        val trimmed = rawUrl?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        return when {
+            trimmed.startsWith("http://", ignoreCase = true) ||
+                trimmed.startsWith("https://", ignoreCase = true) ||
+                trimmed.startsWith("file://", ignoreCase = true) -> trimmed
+            trimmed.startsWith("//") -> "https:$trimmed"
+            trimmed.startsWith("/") -> {
+                val origin = runCatching {
+                    val uri = java.net.URI(addonBaseUrl)
+                    val portPart = if (uri.port != -1) ":${uri.port}" else ""
+                    "${uri.scheme}://${uri.host}$portPart"
+                }.getOrDefault(addonBaseUrl.trimEnd('/'))
+                "$origin$trimmed"
+            }
+            else -> "${addonBaseUrl.trimEnd('/')}/$trimmed"
         }
     }
 
@@ -309,9 +412,9 @@ class AddonStreamClient {
     private fun buildSubtitleExtraParams(params: Map<String, String>?): String {
         if (params.isNullOrEmpty()) return ""
         val parts = mutableListOf<String>()
-        params["videoHash"]?.let { parts.add("videoHash=$it") }
-        params["videoSize"]?.let { parts.add("videoSize=$it") }
-        params["filename"]?.let {
+        params["videoHash"]?.trim()?.takeIf { it.isNotEmpty() }?.let { parts.add("videoHash=${encodePathSegment(it)}") }
+        params["videoSize"]?.trim()?.takeIf { it.isNotEmpty() }?.let { parts.add("videoSize=${encodePathSegment(it)}") }
+        params["filename"]?.trim()?.takeIf { it.isNotEmpty() }?.let {
             // filename değeri URL encode edilmeli (boşluk, Türkçe karakter vb. için)
             parts.add("filename=${encodePathSegment(it)}")
         }
@@ -326,6 +429,10 @@ data class SubtitleResponseWrapper(
 data class SubtitleResponseItem(
     val id: String?,
     val url: String?,
+    @com.google.gson.annotations.SerializedName(
+        value = "lang",
+        alternate = ["language", "SubLanguageID", "iso639", "langCode"]
+    )
     val lang: String?,
     /**
      * Addon'un beyan ettiği altyazı biçimi ("ass", "srt", "vtt" ...).

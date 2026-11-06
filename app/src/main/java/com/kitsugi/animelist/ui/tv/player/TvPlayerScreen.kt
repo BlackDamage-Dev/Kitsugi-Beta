@@ -80,19 +80,11 @@ fun TvPlayerScreen(
     onBack: () -> Unit
 ) {
     // TV activity immersive mod sayesinde sistem barlar zaten gizli;
-    // tüm focus'u player'ın kendi focusRequester'ına bırakıyoruz.
-    val tvRootFocus = remember { FocusRequester() }
-
-    LaunchedEffect(Unit) {
-        tvRootFocus.requestFocusAfterFrames(frames = 2)
-    }
-
+    // tüm focus'u KitsugiFullscreenPlayerScreen'in kendi kök focus hedefine bırakıyoruz.
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
-            .focusRequester(tvRootFocus)
-            .focusTarget()
     ) {
         com.kitsugi.animelist.ui.screens.fullscreen.PlayerAccentTheme {
         KitsugiFullscreenPlayerScreen(
@@ -108,6 +100,7 @@ fun TvPlayerScreen(
             aniListId        = aniListId,
             tmdbId           = tmdbId,
             bangumiId        = bangumiId,
+            imdbId           = knownImdbId,
             mediaType        = mediaType,
             knownImdbId      = knownImdbId,
             historyAnimeId   = historyAnimeId,
