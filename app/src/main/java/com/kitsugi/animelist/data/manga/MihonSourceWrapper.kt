@@ -308,9 +308,7 @@ class MihonSourceWrapper(
     // bu da HttpSource.fetchPageList() → HTTP isteği + pageListParse() zincirini tetikler.
     override suspend fun fetchPageList(chapter: MangaChapter): List<MangaPage> {
         val sChapter = SChapter.create().apply {
-            // Legacy Mangitto records only stored a number. The parent is
-            // available on MangaChapter but memo is not persisted by this host.
-            url = restoreMangittoChapterUrl(pkgName, chapter.url, chapter.mangaUrl)
+            url = chapter.url
             name = chapter.name
             chapter_number = chapter.chapterNumber
             scanlator = chapter.scanlator
