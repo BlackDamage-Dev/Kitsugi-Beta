@@ -198,6 +198,9 @@
 
     <string name="manga_brightness">Brightness</string>
     <string name="manga_brightness_desc">Adjust screen brightness during reading</string>
+    <string name="manga_translator_count">%1$d translations</string>
+    <string name="manga_translator_picker_title">%1$d translators — choose which to read</string>
+    <string name="manga_scanlator_unknown">Unknown</string>
 
     <!-- Integrations Settings (T4-01) -->
     <string name="integrations_title">API Integrations</string>

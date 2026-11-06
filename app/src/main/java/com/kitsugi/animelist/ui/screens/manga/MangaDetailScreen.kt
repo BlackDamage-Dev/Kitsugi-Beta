@@ -15,6 +15,7 @@ import com.kitsugi.animelist.data.manga.MangaStatus
 import com.kitsugi.animelist.data.manga.stableSourceKey
 import com.kitsugi.animelist.data.manga.sortedForMode
 import com.kitsugi.animelist.ui.components.KitsugiButton
+import com.kitsugi.animelist.ui.components.KitsugiSheetOrDialog
 import com.kitsugi.animelist.ui.components.KitsugiDetailActionButton
 import com.kitsugi.animelist.ui.components.KitsugiPlasmaLoader
 import com.kitsugi.animelist.ui.components.safeBlur
@@ -34,6 +35,8 @@ import com.kitsugi.animelist.ui.theme.gradient.Icon
 import com.kitsugi.animelist.ui.theme.gradient.Text
 import com.kitsugi.animelist.ui.utils.tvClickable
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -208,6 +211,7 @@ fun MangaDetailScreen(
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
     var showSourceLogin by remember { mutableStateOf(false) }
+    var pickerGroup by remember { mutableStateOf<MangaDetailViewModel.ChapterGroup?>(null) }
 
     // ── Kitaplık durumu ──────────────────────────────────────────────────────
     // Detay ekranı kitaplığa ekleme/çıkarma için ayrı bir ViewModel kullanır: kitaplık
@@ -302,6 +306,11 @@ fun MangaDetailScreen(
             .map { it.chapter }
             .toList()
             .sortedForMode(sortMode)
+    }
+
+    val visibleGroups = remember(visibleChapters, rowByUrl, details.title) {
+        val rows = visibleChapters.mapNotNull { rowByUrl[it.url] }
+        MangaDetailViewModel.groupChapterRows(rows, details.title)
     }
 
     // Kitaplık kartındaki ilerleme: bölüm listesi yüklendiğinde bir kez yazılır.
@@ -690,30 +699,38 @@ fun MangaDetailScreen(
                     }
                 }
 
-                visibleChapters.isEmpty() -> item(key = "chapters_empty") {
+                visibleGroups.isEmpty() -> item(key = "chapters_empty") {
                     MangaEmptyChapters(message = stringResource(R.string.manga_no_chapters_found))
                 }
 
                 else -> items(
-                    items = visibleChapters,
-                    key = { it.url }
-                ) { chapter ->
-                    val row = rowByUrl[chapter.url]
-                    if (row != null) {
-                        val record = chapterDownloads[chapter.url]
-                        val isDownloaded = record?.status == com.kitsugi.animelist.data.manga.download.MangaDownloadStatus.Complete || chapter.url in downloadedUrls
+                    items = visibleGroups,
+                    key = { it.key }
+                ) { group ->
+                    if (group.isMultiple) {
+                        ChapterGroupListItem(
+                            group = group,
+                            accent = accent,
+                            onClick = { pickerGroup = group },
+                            onLongPress = {
+                                val firstChapter = group.variants.firstOrNull()?.chapter
+                                if (firstChapter != null) viewModel.markPreviousRead(firstChapter)
+                            }
+                        )
+                    } else {
+                        val row = group.variants.first()
+                        val record = chapterDownloads[row.chapter.url]
+                        val isDownloaded = record?.status == com.kitsugi.animelist.data.manga.download.MangaDownloadStatus.Complete || row.chapter.url in downloadedUrls
                         val isDownloading = record?.status == com.kitsugi.animelist.data.manga.download.MangaDownloadStatus.Downloading ||
                             record?.status == com.kitsugi.animelist.data.manga.download.MangaDownloadStatus.Queued
                         val downloadProgress = if (isDownloading) {
                             if (record != null && record.totalPages > 0) record.completedPages.toFloat() / record.totalPages else 0f
-                        } else downloadStates[chapter.url]?.progress
+                        } else downloadStates[row.chapter.url]?.progress
                         ChapterListItem(
                             row = row,
                             accent = accent,
                             onClick = { onOpenChapter(row.chapter) },
                             onToggleRead = { viewModel.setChapterRead(row.chapter, !row.isCompleted) },
-                            // Uzun basış: bu bölümden öncekileri okundu işaretle
-                            // (Mihon "mark previous as read" davranışı).
                             onLongPress = { viewModel.markPreviousRead(row.chapter) },
                             displayMode = displayMode,
                             isBookmarked = row.chapter.url in uiState.bookmarked,
@@ -778,6 +795,28 @@ fun MangaDetailScreen(
                 source = source,
                 onSessionUpdated = { viewModel.loadChapters() },
                 onDismiss = { showSourceLogin = false },
+            )
+        }
+
+        // ─── Çevirmen Seçim Penceresi ──────────────────────────────────────────
+        pickerGroup?.let { group ->
+            ChapterTranslatorPickerSheet(
+                group = group,
+                accent = accent,
+                displayMode = displayMode,
+                uiState = uiState,
+                chapterDownloads = chapterDownloads,
+                downloadedUrls = downloadedUrls,
+                downloadStates = downloadStates,
+                onDismiss = { pickerGroup = null },
+                onPick = { row ->
+                    pickerGroup = null
+                    onOpenChapter(row.chapter)
+                },
+                onToggleRead = { row -> viewModel.setChapterRead(row.chapter, !row.isCompleted) },
+                onLongPress = { row -> viewModel.markPreviousRead(row.chapter) },
+                onToggleBookmark = { row -> viewModel.toggleBookmark(row.chapter) },
+                onDownload = { row -> downloadChapter(row.chapter) }
             )
         }
     }
@@ -896,6 +935,147 @@ private fun MangaDetailHeader(details: MangaDetails, accent: Color) {
                     )
                 }
             }
+        }
+    }
+}
+
+/** Aynı bölüm numarasının tüm çevirmenlerini listeler; birini seçince okuyucu açılır. */
+@Composable
+private fun ChapterTranslatorPickerSheet(
+    group: MangaDetailViewModel.ChapterGroup,
+    accent: Color,
+    displayMode: ChapterDisplayMode,
+    uiState: MangaDetailViewModel.UiState,
+    chapterDownloads: Map<String, com.kitsugi.animelist.data.manga.download.MangaDownload>,
+    downloadedUrls: Set<String>,
+    downloadStates: Map<String, com.kitsugi.animelist.data.manga.download.MangaChapterDownloader.DownloadState>,
+    onDismiss: () -> Unit,
+    onPick: (MangaDetailViewModel.ChapterRow) -> Unit,
+    onToggleRead: (MangaDetailViewModel.ChapterRow) -> Unit,
+    onLongPress: (MangaDetailViewModel.ChapterRow) -> Unit,
+    onToggleBookmark: (MangaDetailViewModel.ChapterRow) -> Unit,
+    onDownload: (MangaDetailViewModel.ChapterRow) -> Unit
+) {
+    val sheetScroll = rememberScrollState()
+    KitsugiSheetOrDialog(onDismiss = onDismiss, innerColumnScrollState = sheetScroll) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(sheetScroll)
+                .padding(horizontal = 16.dp)
+                .padding(bottom = 24.dp)
+        ) {
+            Text(
+                text = group.title,
+                color = KitsugiColors.TextPrimary,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = stringResource(R.string.manga_translator_picker_title, group.variants.size),
+                color = KitsugiColors.TextMuted,
+                fontSize = 12.sp
+            )
+            Spacer(Modifier.height(8.dp))
+            group.variants.forEach { row ->
+                val record = chapterDownloads[row.chapter.url]
+                val isDownloaded = record?.status == com.kitsugi.animelist.data.manga.download.MangaDownloadStatus.Complete || row.chapter.url in downloadedUrls
+                val isDownloading = record?.status == com.kitsugi.animelist.data.manga.download.MangaDownloadStatus.Downloading ||
+                    record?.status == com.kitsugi.animelist.data.manga.download.MangaDownloadStatus.Queued
+                val downloadProgress = if (isDownloading) {
+                    if (record != null && record.totalPages > 0) record.completedPages.toFloat() / record.totalPages else 0f
+                } else downloadStates[row.chapter.url]?.progress
+                ChapterListItem(
+                    row = row,
+                    accent = accent,
+                    onClick = { onPick(row) },
+                    onToggleRead = { onToggleRead(row) },
+                    onLongPress = { onLongPress(row) },
+                    displayMode = displayMode,
+                    isBookmarked = row.chapter.url in uiState.bookmarked,
+                    onToggleBookmark = { onToggleBookmark(row) },
+                    isDownloaded = isDownloaded,
+                    downloadProgress = downloadProgress,
+                    onDownload = { onDownload(row) }
+                )
+            }
+        }
+    }
+}
+
+/** Bölüm numarasına göre gruplanmış satır. Birden fazla çevirmen varsa bunu belirtir. */
+@Composable
+private fun ChapterGroupListItem(
+    group: MangaDetailViewModel.ChapterGroup,
+    accent: Color,
+    onClick: () -> Unit,
+    onLongPress: (() -> Unit)? = null
+) {
+    val unknownStr = stringResource(R.string.manga_scanlator_unknown)
+    val inProgressRow = group.variants.firstOrNull { it.isInProgress }
+    val translators = group.variants
+        .map { it.chapter.scanlator?.takeIf { s -> s.isNotBlank() } ?: unknownStr }
+        .distinct()
+        .joinToString(", ")
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .tvClickable(
+                shape = RoundedCornerShape(8.dp),
+                onLongClick = onLongPress,
+                onClick = onClick
+            )
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = group.title,
+                color = if (group.isCompleted) KitsugiColors.TextMuted else KitsugiColors.TextPrimary,
+                fontSize = 14.sp,
+                fontWeight = if (inProgressRow != null) FontWeight.SemiBold else FontWeight.Normal,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            val subtitle = when {
+                inProgressRow != null && inProgressRow.totalPages > 0 ->
+                    stringResource(R.string.manga_page_of_total, inProgressRow.lastPageIndex + 1, inProgressRow.totalPages) +
+                        (inProgressRow.chapter.scanlator?.takeIf { it.isNotBlank() }?.let { " · $it" } ?: "")
+                group.isMultiple -> translators
+                else -> group.variants.first().chapter.scanlator ?: ""
+            }
+            if (subtitle.isNotBlank()) {
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = subtitle,
+                    color = if (inProgressRow != null) accent else KitsugiColors.TextMuted,
+                    fontSize = 11.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+        if (group.isMultiple) {
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = stringResource(R.string.manga_translator_count, group.variants.size),
+                color = accent,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+        if (group.isCompleted) {
+            Spacer(Modifier.width(8.dp))
+            Icon(
+                Icons.Rounded.CheckCircle,
+                contentDescription = stringResource(R.string.okundu),
+                tint = KitsugiColors.AccentGreen.copy(0.85f),
+                modifier = Modifier.size(18.dp)
+            )
         }
     }
 }

@@ -198,6 +198,9 @@
 
     <string name="manga_brightness">Parlaklık</string>
     <string name="manga_brightness_desc">Okuma sırasında ekran parlaklığını ayarlayın</string>
+    <string name="manga_translator_count">%1$d çeviri</string>
+    <string name="manga_translator_picker_title">%1$d çevirmen — okumak istediğini seç</string>
+    <string name="manga_scanlator_unknown">Bilinmeyen</string>
 
     <!-- Integrations Settings (T4-01) -->
     <string name="integrations_title">API Entegrasyonları</string>
