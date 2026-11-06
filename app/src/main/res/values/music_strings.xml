@@ -50,4 +50,8 @@
     <string name="music_timer_15">15 dakika</string>
     <string name="music_timer_30">30 dakika</string>
     <string name="music_timer_60">60 dakika</string>
+    <string name="music_settings_auto_play">Otomatik başlat</string>
+    <string name="music_settings_auto_play_desc">Okuyucu açılınca içeriğe uygun ses kendiliğinden başlasın. Kapalıysa sen dokunana kadar sessiz kalır.</string>
+    <string name="music_settings_auto_play_delay">Başlama gecikmesi: %1$d sn</string>
+    <string name="music_settings_auto_play_delay_desc">Okumaya başladıktan sonra ses bu kadar sonra gelir</string>
 </resources>

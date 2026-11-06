@@ -50,4 +50,8 @@
     <string name="music_timer_15">15 minutes</string>
     <string name="music_timer_30">30 minutes</string>
     <string name="music_timer_60">60 minutes</string>
+    <string name="music_settings_auto_play">Auto-play</string>
+    <string name="music_settings_auto_play_desc">Automatically start matching sound when the reader opens. If off, stays silent until tapped.</string>
+    <string name="music_settings_auto_play_delay">Start delay: %1$d sec</string>
+    <string name="music_settings_auto_play_delay_desc">Sound starts this long after you start reading</string>
 </resources>

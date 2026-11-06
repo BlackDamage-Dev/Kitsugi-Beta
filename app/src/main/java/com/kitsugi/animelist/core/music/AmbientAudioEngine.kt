@@ -247,7 +247,9 @@ class AmbientAudioEngine(
         fadeVoice(slot, 0f, state.effectiveVolume(_masterVol.value))
         updateChannel(slot) { it.copy(state = ChannelPlayState.PLAYING) }
         rememberRecent(sound.id)
-        _activeTitle.value = state.displayLabel
+        if (_activePresetId.value == null) {
+            _activeTitle.value = state.displayLabel
+        }
         _isPlaying.value = true
 
         // Arka planda çalmaya devam edebilmek için ön plan servisi
@@ -280,7 +282,7 @@ class AmbientAudioEngine(
         scope.launch {
             // Adres yoksa (Internet Archive) çalma anında çöz
             val resolved = withContext(Dispatchers.IO) { topUpStreamUrl(sound) }
-            val voice = withContext(Dispatchers.IO) { createVoice(resolved) }
+            val voice = createVoice(resolved)
             if (voice == null) {
                 voices[slot] = null
                 _channels.update { list ->
@@ -295,10 +297,8 @@ class AmbientAudioEngine(
                 return@launch
             }
 
-            val started = withContext(Dispatchers.IO) {
-                voice.setVolume(0f)
-                voice.start()
-            }
+            voice.setVolume(0f)
+            val started = runCatching { voice.start() }.getOrElse { false }
 
             if (!started) {
                 voice.release()
@@ -319,7 +319,9 @@ class AmbientAudioEngine(
             fadeVoice(slot, 0f, safeVolume * _masterVol.value)
             updateChannel(slot) { it.copy(state = ChannelPlayState.PLAYING, errorMessage = null) }
             rememberRecent(sound.id)
-            _activeTitle.value = placeholder.displayLabel
+            if (_activePresetId.value == null) {
+                _activeTitle.value = placeholder.displayLabel
+            }
             _isPlaying.value = true
             ensureForegroundService()
         }
@@ -892,7 +894,6 @@ internal class ProceduralVoice(
     override fun start(): Boolean {
         return runCatching {
             player.start()
-            true
         }.getOrElse {
             Log.w("ProceduralVoice", "Başlatılamadı: ${sound.id}", it)
             false
@@ -900,7 +901,7 @@ internal class ProceduralVoice(
     }
 
     override fun pause() = player.pause()
-    override fun resume() = player.resume()
+    override fun resume() { player.resume() }
     override fun currentVolume(): Float = volume
 
     override fun setVolume(value: Float) {
@@ -1051,26 +1052,36 @@ internal class StreamVoice(
             return
         }
         val startVolume = volume
-        Thread {
-            runCatching {
-                val steps = (durationMs / 40L).coerceAtLeast(1L)
-                var i = 0L
-                while (i < steps) {
-                    val factor = 1f - (i + 1).toFloat() / steps.toFloat()
-                    player.volume = (startVolume * factor).coerceIn(0f, 1f)
-                    Thread.sleep(40L)
-                    i++
+        val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+        val steps = (durationMs / 40L).coerceAtLeast(1L)
+        var i = 0L
+        val runnable = object : Runnable {
+            override fun run() {
+                if (i >= steps) {
+                    release()
+                    return
                 }
+                i++
+                val factor = 1f - i.toFloat() / steps.toFloat()
+                runCatching { player.volume = (startVolume * factor).coerceIn(0f, 1f) }
+                mainHandler.postDelayed(this, 40L)
             }
-            release()
-        }.start()
+        }
+        mainHandler.post(runnable)
     }
 
     override fun release() {
-        runCatching {
-            player.stop()
-            player.release()
+        val doRelease = {
+            runCatching {
+                player.stop()
+                player.release()
+            }
+            playing = false
         }
-        playing = false
+        if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
+            doRelease()
+        } else {
+            android.os.Handler(android.os.Looper.getMainLooper()).post { doRelease() }
+        }
     }
 }

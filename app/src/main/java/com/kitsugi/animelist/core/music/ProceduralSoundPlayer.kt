@@ -45,7 +45,7 @@ class ProceduralSoundPlayer(
         private const val BLOCK_FRAMES = 1024
 
         private const val CHANNEL_OUT = AudioFormat.CHANNEL_OUT_STEREO
-        private const val ENCODING = AudioFormat.ENCODING_PCM_FLOAT
+        private const val ENCODING = AudioFormat.ENCODING_PCM_16BIT
 
         /** Limiter eşiği — altında hiçbir renklendirme yok. */
         private const val LIMITER_KNEE = 0.7f
@@ -102,17 +102,17 @@ class ProceduralSoundPlayer(
      * Belirtilen ses tanımını çalmaya başlar.
      * Önceden çalan varsa önce durdurulur.
      */
-    fun play(id: String) {
-        if (playing && soundId == id) return
+    fun play(id: String): Boolean {
+        if (playing && soundId == id) return true
         stopInternal(immediate = true)
         soundId = id
-        startInternal()
+        return startInternal()
     }
 
     /** Mevcut sesi (veya [play] ile atanan sesi) başlatır. */
-    fun start() {
-        if (playing) return
-        startInternal()
+    fun start(): Boolean {
+        if (playing) return true
+        return startInternal()
     }
 
     fun pause() {
@@ -123,15 +123,24 @@ class ProceduralSoundPlayer(
         runCatching { audioTrack?.pause() }
     }
 
-    fun resume() {
-        if (playing) return
-        if (audioTrack == null) {
+    fun resume(): Boolean {
+        if (playing) return true
+        val track = audioTrack
+        return if (track == null || track.state != AudioTrack.STATE_INITIALIZED) {
             startInternal()
         } else {
-            runCatching { audioTrack?.play() }
-            playing = true
-            renderJob?.cancel()
-            renderJob = launchRenderLoop()
+            val ok = runCatching {
+                track.play()
+                track.playState == AudioTrack.PLAYSTATE_PLAYING
+            }.getOrElse { false }
+            if (ok) {
+                playing = true
+                renderJob?.cancel()
+                renderJob = launchRenderLoop()
+                true
+            } else {
+                startInternal()
+            }
         }
     }
 
@@ -163,12 +172,14 @@ class ProceduralSoundPlayer(
 
     /**
      * Ses seviyesini ayarlar (0..1). Çalma sırasında güvenlidir.
+     * Ses kontrolü tamamen DSP yazılım katmanında örnek bazlı yapıldığı için
+     * donanım DAC / mikser kısma hatalarından bağımsızdır.
      */
     fun setVolume(value: Float) {
         val v = value.coerceIn(0f, 1f)
         volume = v
         baseVolume = v
-        runCatching { audioTrack?.setVolume(v) }
+        runCatching { audioTrack?.setVolume(1.0f) }
     }
 
     /** Fade sırasında track'e dokunmadan yalnızca hedef değeri günceller. */
@@ -186,23 +197,23 @@ class ProceduralSoundPlayer(
     //  Dahili
     // ─────────────────────────────────────────────────────────────────────
 
-    private fun startInternal() {
+    private fun startInternal(): Boolean {
         val id = soundId ?: run {
             Log.w(TAG, "Ses kimliği yok — play(id) çağırın")
-            return
+            return false
         }
 
         val newSynth = SynthFactory.create(id)
         if (newSynth == null) {
             Log.w(TAG, "Bilinmeyen prosedürel ses kimliği: $id")
-            return
+            return false
         }
         synth = newSynth
         synth?.reset()
 
         val minBuffer = AudioTrack.getMinBufferSize(SAMPLE_RATE, CHANNEL_OUT, ENCODING)
-            .let { if (it > 0) it else BLOCK_FRAMES * 2 * 4 }
-        val bufferSize = max(minBuffer * 2, BLOCK_FRAMES * 2 * 4 * 4)
+        val safeMin = if (minBuffer > 0) minBuffer else BLOCK_FRAMES * 2 * 2
+        val bufferSize = max(safeMin * 2, BLOCK_FRAMES * 2 * 2 * 4)
 
         val track = runCatching {
             AudioTrack.Builder()
@@ -225,16 +236,33 @@ class ProceduralSoundPlayer(
         }.getOrElse { error ->
             Log.e(TAG, "AudioTrack oluşturulamadı", error)
             null
-        } ?: return
+        }
+
+        if (track == null || track.state != AudioTrack.STATE_INITIALIZED) {
+            Log.e(TAG, "AudioTrack initialize edilemedi: state=${track?.state}")
+            runCatching { track?.release() }
+            return false
+        }
 
         audioTrack = track
         stopRequested = false
-        // Sesi 0'dan başlat — çağıran taraf fade ile yükseltir.
-        // Doğrudan `volume` ile başlatmak "pat" sesine yol açar.
-        runCatching { track.setVolume(0f) }
-        runCatching { track.play() }
+        runCatching { track.setVolume(1.0f) }
+
+        val playOk = runCatching {
+            track.play()
+            track.playState == AudioTrack.PLAYSTATE_PLAYING
+        }.getOrElse { false }
+
+        if (!playOk) {
+            Log.e(TAG, "AudioTrack play durumuna geçemedi: playState=${track.playState}")
+            runCatching { track.release() }
+            audioTrack = null
+            return false
+        }
+
         playing = true
         renderJob = launchRenderLoop()
+        return true
     }
 
     private fun launchRenderLoop(): Job = scope.launch {
@@ -242,27 +270,36 @@ class ProceduralSoundPlayer(
         val activeSynth = synth ?: return@launch
         val left = FloatArray(BLOCK_FRAMES)
         val right = FloatArray(BLOCK_FRAMES)
+        val pcmShort = ShortArray(BLOCK_FRAMES * 2)
 
         try {
             while (playing && !stopRequested) {
                 // Stereo üret
                 activeSynth.render(left, right, BLOCK_FRAMES)
+                val curVol = volume
 
-                // Float dizisini interleaved hale getir
-                val interleaved = FloatArray(BLOCK_FRAMES * 2)
                 var i = 0
                 while (i < BLOCK_FRAMES) {
-                    interleaved[i * 2] = clampSample(left[i])
-                    interleaved[i * 2 + 1] = clampSample(right[i])
+                    val sL = clampSample(left[i] * curVol)
+                    val sR = clampSample(right[i] * curVol)
+                    pcmShort[i * 2] = (sL * 32767f).toInt().coerceIn(-32768, 32767).toShort()
+                    pcmShort[i * 2 + 1] = (sR * 32767f).toInt().coerceIn(-32768, 32767).toShort()
                     i++
                 }
 
                 var written = 0
-                while (written < interleaved.size && playing && !stopRequested) {
+                while (written < pcmShort.size && playing && !stopRequested) {
                     val n = runCatching {
-                        track.write(interleaved, written, interleaved.size - written, AudioTrack.WRITE_BLOCKING)
+                        track.write(pcmShort, written, pcmShort.size - written)
                     }.getOrElse { -1 }
-                    if (n <= 0) break
+                    if (n < 0) {
+                        Log.e(TAG, "AudioTrack yazma hatası: $n")
+                        break
+                    }
+                    if (n == 0) {
+                        delay(5L)
+                        continue
+                    }
                     written += n
                 }
             }

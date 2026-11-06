@@ -157,7 +157,7 @@ fun KitsugiIntegrationsSettingsDialog(
     val pagerState = rememberPagerState(initialPage = initialPage.coerceIn(0, 4), pageCount = { 5 })
     val scope = rememberCoroutineScope()
     LaunchedEffect(initialPage) {
-        val targetPage = initialPage.coerceIn(0, 3)
+        val targetPage = initialPage.coerceIn(0, 4)
         if (pagerState.currentPage != targetPage) pagerState.animateScrollToPage(targetPage)
     }
 
@@ -165,12 +165,14 @@ fun KitsugiIntegrationsSettingsDialog(
     val mdbListScrollState = rememberScrollState()
     val aniSkipScrollState = rememberScrollState()
     val fanartTvScrollState = rememberScrollState()
+    val musicScrollState = rememberScrollState()
 
     val activeScrollState = when (pagerState.currentPage) {
         0 -> tmdbScrollState
         1 -> mdbListScrollState
         2 -> aniSkipScrollState
-        else -> fanartTvScrollState
+        3 -> fanartTvScrollState
+        else -> musicScrollState
     }
 
     KitsugiSheetOrDialog(
@@ -301,6 +303,44 @@ fun KitsugiIntegrationsSettingsDialog(
                         onApiKeyChanged = onFanartTvApiKeyChanged,
                         accentColor = accentColor,
                         scrollState = fanartTvScrollState
+                    )
+                    4 -> MusicSettingsTab(
+                        enabled = musicEnabled,
+                        onEnabledChanged = onMusicEnabledChanged,
+                        autoRecommend = musicAutoRecommend,
+                        onAutoRecommendChanged = onMusicAutoRecommendChanged,
+                        autoPlay = musicAutoPlay,
+                        onAutoPlayChanged = onMusicAutoPlayChanged,
+                        autoPlayDelay = musicAutoPlayDelay,
+                        onAutoPlayDelayChanged = onAutoPlayDelayChanged,
+                        continueOnExit = musicContinueOnExit,
+                        onContinueOnExitChanged = onMusicContinueOnExitChanged,
+                        masterVolume = musicMasterVolume,
+                        onMasterVolumeChanged = onMusicMasterVolumeChanged,
+                        channelVolume = musicChannelVolume,
+                        onChannelVolumeChanged = onMusicChannelVolumeChanged,
+                        ambientVolume = musicAmbientVolume,
+                        onAmbientVolumeChanged = onMusicAmbientVolumeChanged,
+                        jamendoEnabled = musicJamendoEnabled,
+                        onJamendoEnabledChanged = onMusicJamendoEnabledChanged,
+                        jamendoClientId = musicJamendoClientId,
+                        onJamendoClientIdChanged = onMusicJamendoClientIdChanged,
+                        freesoundEnabled = musicFreesoundEnabled,
+                        onFreesoundEnabledChanged = onMusicFreesoundEnabledChanged,
+                        freesoundApiKey = musicFreesoundApiKey,
+                        onFreesoundApiKeyChanged = onMusicFreesoundApiKeyChanged,
+                        openverseEnabled = musicOpenverseEnabled,
+                        onOpenverseEnabledChanged = onMusicOpenverseEnabledChanged,
+                        openverseToken = musicOpenverseToken,
+                        onOpenverseTokenChanged = onMusicOpenverseTokenChanged,
+                        archiveEnabled = musicArchiveEnabled,
+                        onArchiveEnabledChanged = onMusicArchiveEnabledChanged,
+                        audiusEnabled = musicAudiusEnabled,
+                        onAudiusEnabledChanged = onMusicAudiusEnabledChanged,
+                        audiusApiKey = musicAudiusApiKey,
+                        onAudiusApiKeyChanged = onMusicAudiusApiKeyChanged,
+                        accentColor = accentColor,
+                        scrollState = musicScrollState
                     )
                 }
             }
@@ -1652,9 +1692,8 @@ private fun MusicSettingsTab(
 
                 KitsugiSettingsDivider()
                 KitsugiSettingsSwitchItem(
-                    title = "Otomatik başlat",
-                    description = "Okuyucu açılınca içeriğe uygun ses kendiliğinden " +
-                        "başlasın. Kapalıysa sen dokunana kadar sessiz kalır.",
+                    title = stringResource(R.string.music_settings_auto_play),
+                    description = stringResource(R.string.music_settings_auto_play_desc),
                     icon = Icons.Rounded.PlayArrow,
                     iconColor = KitsugiColors.AccentTeal,
                     checked = autoPlay,
@@ -1666,12 +1705,12 @@ private fun MusicSettingsTab(
                     // Bekleme süresi — 0..30 sn
                     Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                         Text(
-                            text = "Başlama gecikmesi: ${autoPlayDelay} sn",
+                            text = stringResource(R.string.music_settings_auto_play_delay, autoPlayDelay),
                             color = KitsugiColors.TextPrimary,
                             fontSize = 13.sp
                         )
                         Text(
-                            text = "Okumaya başladıktan sonra ses bu kadar sonra gelir",
+                            text = stringResource(R.string.music_settings_auto_play_delay_desc),
                             color = KitsugiColors.TextMuted,
                             fontSize = 11.sp
                         )
