@@ -121,6 +121,8 @@ fun MangaReaderScreen(
 
     var showGallery by remember { mutableStateOf(false) }
     var galleryInitialIndex by remember { mutableStateOf(ui.currentPageIndex) }
+    var showAmbientAudio by rememberSaveable { mutableStateOf(false) }
+    val ambientPlayback = rememberMangaAmbientAudioPlayback()
     var showMusicPanel by remember { mutableStateOf(false) }
     // Alt çubuktan açılan hızlı parlaklık paneli (ayarlardaki sürgü de durur).
     var showBrightnessQuick by remember { mutableStateOf(false) }
@@ -130,6 +132,7 @@ fun MangaReaderScreen(
 
     val overlayOpen = overlay != ReaderOverlay.None ||
         showGallery ||
+        showAmbientAudio ||
         showMusicPanel ||
         showSourceLogin ||
         showMangaTrLogin ||
@@ -155,6 +158,7 @@ fun MangaReaderScreen(
         when {
             overlay != ReaderOverlay.None -> overlay = ReaderOverlay.None
             showGallery -> showGallery = false
+            showAmbientAudio -> showAmbientAudio = false
             showMusicPanel -> showMusicPanel = false
             showSourceLogin -> showSourceLogin = false
             showMangaTrLogin -> showMangaTrLogin = false
@@ -457,17 +461,15 @@ fun MangaReaderScreen(
                         )
                     }
                 }
-                if (readerAppSettings.musicEnabled) {
-                    IconButton(onClick = {
-                        session.stop()
-                        showMusicPanel = true
-                    }) {
-                        Icon(
-                            Icons.Rounded.MusicNote,
-                            contentDescription = stringResource(R.string.music_panel_title),
-                            tint = if (musicIsPlaying) Color(0xFF9D7CFF) else Color.White,
-                        )
-                    }
+                IconButton(onClick = {
+                    session.stop()
+                    showAmbientAudio = true
+                }) {
+                    Icon(
+                        imageVector = Icons.Rounded.MusicNote,
+                        contentDescription = stringResource(R.string.ambient_audio_title),
+                        tint = if (ambientPlayback.isPlaying) Color(0xFF9BE7D2) else Color.White,
+                    )
                 }
                 // Settings used to have a second identical trigger here. It now exists only below.
             }
@@ -665,6 +667,15 @@ fun MangaReaderScreen(
         showMusicPanel = showMusicPanel,
         onDismissMusicPanel = { showMusicPanel = false },
     )
+
+    if (showAmbientAudio) {
+        MangaAmbientAudioSheet(
+            manga = mangaDetails,
+            chapter = ui.currentChapter,
+            playback = ambientPlayback,
+            onDismiss = { showAmbientAudio = false },
+        )
+    }
 
     if (showMangaTrLogin) {
         MangaTrLoginDialog(onDismiss = {

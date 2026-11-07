@@ -354,6 +354,7 @@ dependencies {
     ))
     implementation(libs.media3.ui)
     implementation("androidx.media3:media3-session:1.8.0")
+    implementation("androidx.media3:media3-transformer:1.8.0")
     // T2.3: MediaSessionCompat + PlaybackStateCompat + MediaStyle (notification)
     implementation("androidx.media:media:1.7.0")
 
