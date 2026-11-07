@@ -22,12 +22,20 @@ enum class ChapterSortMode {
     NewestFirst,
 
     /** Yükleme tarihine göre azalan; tarih yoksa bölüm numarasına düşer. */
-    RecentlyUpdated;
+    RecentlyUpdated,
+
+    /** Bölüm adına göre artan (A → Z). */
+    NameAscending,
+
+    /** Bölüm adına göre azalan (Z → A). */
+    NameDescending;
 
     fun next(): ChapterSortMode = when (this) {
         OldestFirst -> NewestFirst
         NewestFirst -> RecentlyUpdated
-        RecentlyUpdated -> OldestFirst
+        RecentlyUpdated -> NameAscending
+        NameAscending -> NameDescending
+        NameDescending -> OldestFirst
     }
 
     /** Arayüzde "varsayılan" sayılan mod — kullanıcı tercihini sıfırlarken de bu kullanılır. */
@@ -90,6 +98,10 @@ fun List<MangaChapter>.sortedForMode(mode: ChapterSortMode): List<MangaChapter> 
     ChapterSortMode.RecentlyUpdated -> sortedWith(
         compareByDescending<MangaChapter> { it.uploadDate }.thenByDescending { it.chapterNumber }
     )
+
+    ChapterSortMode.NameAscending -> sortedBy { it.name.lowercase() }
+
+    ChapterSortMode.NameDescending -> sortedByDescending { it.name.lowercase() }
 }
 
 /**

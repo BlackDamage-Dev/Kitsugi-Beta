@@ -391,6 +391,10 @@ fun TvMangaDetailScreen(
                                                     KitsugiStrings.get(R.string.manga_sort_label_newest)
                                                 ChapterSortMode.RecentlyUpdated ->
                                                     KitsugiStrings.get(R.string.manga_sort_label_recent)
+                                                ChapterSortMode.NameAscending ->
+                                                    "İsim · A’dan Z’ye"
+                                                ChapterSortMode.NameDescending ->
+                                                    "İsim · Z’den A’ya"
                                             }
                                         )
                                         if (unread > 0) {
