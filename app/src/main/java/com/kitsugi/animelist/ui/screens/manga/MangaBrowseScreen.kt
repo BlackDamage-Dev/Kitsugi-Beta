@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -80,8 +82,16 @@ import com.kitsugi.animelist.data.settings.SettingsDataStore
 import com.kitsugi.animelist.ui.app.AddonViewModel
 import com.kitsugi.animelist.ui.app.MangaViewModel
 import com.kitsugi.animelist.ui.components.KitsugiAddonsSettingsDialog
+import com.kitsugi.animelist.ui.components.KitsugiButton
+import com.kitsugi.animelist.ui.components.KitsugiEmptyState
 import com.kitsugi.animelist.ui.components.KitsugiNsfwImage
 import com.kitsugi.animelist.ui.components.KitsugiPlasmaLoader
+import com.kitsugi.animelist.ui.components.KitsugiShimmerBlock
+import com.kitsugi.animelist.ui.components.KitsugiShimmerProvider
+import com.kitsugi.animelist.ui.components.LocalShimmerBrush
+import com.kitsugi.animelist.ui.components.rememberKitsugiShimmerBrush
+import com.kitsugi.animelist.ui.components.kitsugiCardFrame
+import com.kitsugi.animelist.ui.components.kitsugiNeonGlow
 import com.kitsugi.animelist.ui.components.MangaSourceAuthBanner
 import com.kitsugi.animelist.ui.components.MangaSourceLoginDialog
 import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
@@ -92,13 +102,35 @@ import com.kitsugi.animelist.ui.screens.manga.components.MangaDiscoverTopBar
 import com.kitsugi.animelist.ui.screens.manga.components.MangaTitleModeChip
 import com.kitsugi.animelist.ui.theme.KitsugiColors
 import com.kitsugi.animelist.ui.theme.LocalKitsugiAccent
+import com.kitsugi.animelist.ui.theme.LocalKitsugiAccentBrush
+import com.kitsugi.animelist.ui.theme.LocalKitsugiOnAccent
 import com.kitsugi.animelist.ui.theme.LocalShowAdultContent
+import com.kitsugi.animelist.ui.theme.gradient.border
 import com.kitsugi.animelist.ui.theme.gradient.CircularProgressIndicator
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import com.kitsugi.animelist.ui.theme.gradient.Text
 import com.kitsugi.animelist.ui.utils.rememberKitsugiGridColumns
 import com.kitsugi.animelist.ui.utils.tvClickable
 import kotlinx.coroutines.launch
+
+// ─── Kaynak renk paleti ───────────────────────────────────────────────────────
+private val MANGA_SOURCE_TINTS = listOf(
+    KitsugiColors.AccentPurple,
+    KitsugiColors.AccentBlue,
+    KitsugiColors.AccentTeal,
+    KitsugiColors.AccentGreen,
+    KitsugiColors.AccentYellow,
+    KitsugiColors.AccentOrange,
+    KitsugiColors.AccentPink,
+    KitsugiColors.AccentIndigo,
+    KitsugiColors.AccentSky
+)
+
+internal fun mangaSourceTint(key: String): Color {
+    var hash = 0
+    for (c in key) hash = hash * 31 + c.code
+    return MANGA_SOURCE_TINTS[(hash and Int.MAX_VALUE) % MANGA_SOURCE_TINTS.size]
+}
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
@@ -298,17 +330,23 @@ fun MangaBrowseScreen(
 
     Box(Modifier.fillMaxSize().background(KitsugiColors.Background)) {
 
-        // ── Backdrop ──
+        // ── Backdrop: ilk sonucun kapağı + tema vurgulu aurora ──
         if (!backdropUrl.isNullOrBlank()) {
             KitsugiNsfwImage(
                 model = backdropUrl, contentDescription = null, contentScale = ContentScale.Crop,
                 isAdult = visibleMangas.firstOrNull()?.second?.isAdultContent == true,
-                modifier = Modifier.fillMaxSize().graphicsLayer { alpha = 0.16f }
+                modifier = Modifier.fillMaxSize().graphicsLayer { alpha = 0.10f }
             )
         }
-        Box(Modifier.fillMaxSize().background(
-            Brush.verticalGradient(listOf(KitsugiColors.Background.copy(alpha = 0.55f), KitsugiColors.Background))
-        ))
+        Box(
+            Modifier.fillMaxSize().background(
+                Brush.verticalGradient(
+                    0f to accentColor.copy(alpha = 0.10f),
+                    0.34f to KitsugiColors.Background.copy(alpha = 0.92f),
+                    1f to KitsugiColors.Background
+                )
+            )
+        )
 
         Column(
             Modifier
@@ -404,6 +442,7 @@ fun MangaBrowseScreen(
                                     isSelected = selFilter?.stableSourceKey() == st.source.stableSourceKey(),
                                     accent = accentColor,
                                     isAll = false,
+                                    sourceTint = mangaSourceTint(st.source.stableSourceKey()),
                                     onClick = {
                                         vm.selectSourceFilter(
                                             if (selFilter?.stableSourceKey() == st.source.stableSourceKey()) null else st.source
@@ -436,6 +475,7 @@ fun MangaBrowseScreen(
                                     isSelected = selFilter?.stableSourceKey() == src.stableSourceKey(),
                                     accent = accentColor,
                                     isAll = false,
+                                    sourceTint = mangaSourceTint(src.stableSourceKey()),
                                     onClick = { vm.selectSourceFilter(src) }
                                 )
                             }
@@ -483,83 +523,89 @@ fun MangaBrowseScreen(
             // ── Grid ──
             Box(Modifier.weight(1f)) {
                 val loading = if (query.isNotBlank()) states.any { it.isLoading } else ui.isLoadingPopular
-                when {
-                    loading && mergedMangas.isEmpty() -> {
-                        LazyVerticalGrid(
-                            columns = GridCells.Fixed(cols),
-                            verticalArrangement   = Arrangement.spacedBy(10.dp),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                            contentPadding = PaddingValues(start = 10.dp, end = 10.dp, top = 10.dp, bottom = 24.dp),
-                            modifier = Modifier.fillMaxSize()
-                        ) {
-                            items(if (isLandscape) cols * 2 else 8) {
-                                MangaCardShimmer(compact = isLandscape)
+                KitsugiShimmerProvider(active = loading) {
+                    when {
+                        loading && mergedMangas.isEmpty() -> {
+                            LazyVerticalGrid(
+                                columns = GridCells.Fixed(cols),
+                                verticalArrangement   = Arrangement.spacedBy(14.dp),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 24.dp),
+                                modifier = Modifier.fillMaxSize()
+                            ) {
+                                items(if (isLandscape) cols * 2 else 8) {
+                                    MangaCardShimmer(compact = isLandscape)
+                                }
                             }
                         }
-                    }
-                    !loading && visibleMangas.isEmpty() ->
-                        Box(Modifier.fillMaxSize(), Alignment.Center) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(6.dp),
-                                modifier = Modifier.padding(horizontal = 24.dp)
-                            ) {
-                                Icon(Icons.Rounded.SearchOff, null, tint = KitsugiColors.TextMuted, modifier = Modifier.size(44.dp))
-                                Text(
-                                    stringResource(R.string.manga_discover_no_result),
-                                    color = KitsugiColors.TextSecondary,
-                                    fontWeight = FontWeight.Medium
-                                )
-                                Text(
-                                    stringResource(R.string.manga_discover_no_result_hint),
-                                    color = KitsugiColors.TextMuted,
-                                    fontSize = 11.sp,
-                                    style = androidx.compose.ui.text.TextStyle(textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-                                )
-                                Spacer(Modifier.height(4.dp))
-                                MangaTitleModeChip(
-                                    mode = if (titleMode == MangaSearchTitleMode.LOCALIZED)
-                                        MangaSearchTitleMode.ORIGINAL else MangaSearchTitleMode.LOCALIZED,
-                                    accent = accentColor,
-                                    enabled = query.isNotBlank(),
-                                    onClick = {
-                                        vm.setTitleMode(
-                                            if (titleMode == MangaSearchTitleMode.LOCALIZED)
-                                                MangaSearchTitleMode.ORIGINAL else MangaSearchTitleMode.LOCALIZED
+                        !loading && visibleMangas.isEmpty() ->
+                            Box(Modifier.fillMaxSize(), Alignment.Center) {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                                    modifier = Modifier.padding(horizontal = 24.dp)
+                                ) {
+                                    KitsugiEmptyState(
+                                        title = stringResource(R.string.sonuc_bulunamadi),
+                                        subtitle = stringResource(R.string.manga_browse_ui_empty_subtitle),
+                                        icon = Icons.Rounded.SearchOff,
+                                        modifier = Modifier.padding(horizontal = 16.dp)
+                                    )
+                                    if (query.isNotBlank()) {
+                                        MangaTitleModeChip(
+                                            mode = if (titleMode == MangaSearchTitleMode.LOCALIZED)
+                                                MangaSearchTitleMode.ORIGINAL else MangaSearchTitleMode.LOCALIZED,
+                                            accent = accentColor,
+                                            enabled = true,
+                                            onClick = {
+                                                vm.setTitleMode(
+                                                    if (titleMode == MangaSearchTitleMode.LOCALIZED)
+                                                        MangaSearchTitleMode.ORIGINAL else MangaSearchTitleMode.LOCALIZED
+                                                )
+                                            }
                                         )
                                     }
-                                )
+                                }
                             }
-                        }
-                    else -> LazyVerticalGrid(
-                        columns = GridCells.Fixed(cols),
-                        verticalArrangement   = Arrangement.spacedBy(10.dp),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        contentPadding = PaddingValues(start = 10.dp, end = 10.dp, top = 10.dp, bottom = 24.dp),
-                        modifier = Modifier.fillMaxSize()
-                    ) {
-                        // 1) ÖNCE başarıyla veri gelen kaynakların mangaları (en üstte).
-                        items(visibleMangas, key = { "${it.first.stableSourceKey()}|${it.second.url}" }) { (source, manga) ->
-                            MangaCard(manga, accentColor, compact = isLandscape) { onMangaClick(source, manga) }
-                        }
-                        // 2) SONRA hâlâ yüklenen kaynakların iskelet kartları — EN ALTTA.
-                        if (query.isNotBlank()) {
-                            val loadingStates = states.filter {
-                                it.isLoading && (selFilter == null || selFilter.stableSourceKey() == it.source.stableSourceKey())
+                        else -> LazyVerticalGrid(
+                            columns = GridCells.Fixed(cols),
+                            verticalArrangement   = Arrangement.spacedBy(14.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 24.dp),
+                            modifier = Modifier.fillMaxSize()
+                        ) {
+                            // 1) ÖNCE başarıyla veri gelen kaynakların mangaları (en üstte).
+                            items(visibleMangas, key = { "${it.first.stableSourceKey()}|${it.second.url}" }) { (source, manga) ->
+                                MangaCard(
+                                    manga = manga,
+                                    sourceName = source.name,
+                                    sourceTint = mangaSourceTint(source.stableSourceKey()),
+                                    compact = isLandscape
+                                ) { onMangaClick(source, manga) }
                             }
-                            items(loadingStates, key = { "sk_${it.source.stableSourceKey()}" }) {
-                                SkeletonCard(it.source.name, accentColor, compact = isLandscape)
+                            // 2) SONRA hâlâ yüklenen kaynakların iskelet kartları — EN ALTTA.
+                            if (query.isNotBlank()) {
+                                val loadingStates = states.filter {
+                                    it.isLoading && (selFilter == null || selFilter.stableSourceKey() == it.source.stableSourceKey())
+                                }
+                                items(loadingStates, key = { "sk_${it.source.stableSourceKey()}" }) {
+                                    SkeletonCard(
+                                        sourceName = it.source.name,
+                                        sourceTint = mangaSourceTint(it.source.stableSourceKey()),
+                                        compact = isLandscape
+                                    )
+                                }
                             }
-                        }
-                        val hasNextPageToShow = if (query.isBlank()) hasNext
-                            else (selFilter != null && (states.firstOrNull { it.source.stableSourceKey() == selFilter.stableSourceKey() }?.hasNextPage == true))
+                            val hasNextPageToShow = if (query.isBlank()) hasNext
+                                else (selFilter != null && (states.firstOrNull { it.source.stableSourceKey() == selFilter.stableSourceKey() }?.hasNextPage == true))
 
-                        if (query.isBlank() || selFilter != null) {
-                            item(span = { GridItemSpan(cols) }) {
-                                LaunchedEffect(mergedMangas.size) { vm.loadNextPage() }
-                                if (hasNextPageToShow) {
-                                    Box(Modifier.fillMaxWidth().height(64.dp), Alignment.Center) {
-                                        KitsugiPlasmaLoader(size = 32.dp)
+                            if (query.isBlank() || selFilter != null) {
+                                item(span = { GridItemSpan(cols) }) {
+                                    LaunchedEffect(mergedMangas.size) { vm.loadNextPage() }
+                                    if (hasNextPageToShow) {
+                                        Box(Modifier.fillMaxWidth().height(64.dp), Alignment.Center) {
+                                            KitsugiPlasmaLoader(size = 32.dp)
+                                        }
                                     }
                                 }
                             }
@@ -682,171 +728,464 @@ fun MangaBrowseScreen(
     }
 }
 
-// ─── Premium capsule chip ─────────────────────────────────────────────────────
+// ─── Kaynak çipi ─────────────────────────────────────────────────────────────
 
+/**
+ * Uygulamanın ortak çip dili: 16 dp köşe, `Surface` zemin, seçiliyken vurgu
+ * kenarlığı, durum noktası ve ayrı sayı/hata kodu rozeti.
+ */
 @Composable
 fun MangaChip(
     label: String, count: Int, isLoading: Boolean, error: String?,
     isSelected: Boolean, accent: Color, isAll: Boolean, onClick: () -> Unit,
-    errorCode: String? = null
+    errorCode: String? = null,
+    sourceTint: Color = accent
 ) {
-    val inf = rememberInfiniteTransition(label = "p")
-    val pulse by inf.animateFloat(
-        0.4f, 1f,
-        infiniteRepeatable(tween(800, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-        label = "a"
-    )
-    val bg = when {
-        isSelected  -> accent.copy(alpha = 0.35f)
-        isLoading   -> accent.copy(alpha = pulse * 0.22f)
-        count > 0   -> accent.copy(alpha = 0.12f)
-        error != null -> Color.Red.copy(alpha = 0.15f)
-        else        -> Color.White.copy(alpha = 0.07f)
+    val shape = RoundedCornerShape(16.dp)
+    val errorTint = KitsugiColors.AccentRed
+    val statusTint = when {
+        error != null -> errorTint
+        isSelected -> accent
+        count > 0 -> sourceTint
+        else -> KitsugiColors.TextMuted
     }
+    val chipBackground = when {
+        isSelected -> accent.copy(alpha = 0.16f)
+        error != null -> errorTint.copy(alpha = 0.10f)
+        else -> KitsugiColors.Surface.copy(alpha = 0.94f)
+    }
+    val outline = when {
+        isSelected -> accent.copy(alpha = 0.55f)
+        error != null -> errorTint.copy(alpha = 0.38f)
+        else -> KitsugiColors.Border
+    }
+
     Row(
-        Modifier.clip(RoundedCornerShape(999.dp)).background(bg).tvClickable(shape = RoundedCornerShape(999.dp)) { onClick() }.padding(horizontal = 14.dp, vertical = 8.dp),
+        Modifier
+            .clip(shape)
+            .background(chipBackground, shape)
+            .border(1.dp, outline, shape)
+            .tvClickable(shape = shape) { onClick() }
+            .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
+        horizontalArrangement = Arrangement.spacedBy(7.dp)
     ) {
         when {
-            isLoading -> CircularProgressIndicator(Modifier.size(10.dp), color = accent, strokeWidth = 1.5.dp)
-            isAll     -> Icon(Icons.Rounded.Extension, null, tint = if (isSelected) accent else KitsugiColors.TextSecondary, modifier = Modifier.size(13.dp))
-            count > 0 -> Box(Modifier.size(7.dp).clip(CircleShape).background(accent))
-            error != null -> Box(Modifier.size(7.dp).clip(CircleShape).background(Color.Red.copy(0.7f)))
-            else      -> Box(Modifier.size(7.dp).clip(CircleShape).background(KitsugiColors.TextMuted.copy(0.5f)))
+            isLoading -> androidx.compose.material3.CircularProgressIndicator(
+                Modifier.size(11.dp), color = accent, strokeWidth = 1.5.dp
+            )
+            isAll -> Icon(
+                Icons.Rounded.Extension,
+                contentDescription = null,
+                tint = if (isSelected) accent else KitsugiColors.TextSecondary,
+                modifier = Modifier.size(14.dp)
+            )
+            else -> Box(
+                Modifier.size(7.dp).clip(CircleShape).background(statusTint.copy(alpha = 0.9f))
+            )
         }
         Text(
-            buildString {
-                append(label)
-                if (count > 0 && !isAll) append("  $count")
-            },
-            color = if (isSelected || count > 0) KitsugiColors.TextPrimary else KitsugiColors.TextSecondary,
+            label,
+            color = if (isSelected) KitsugiColors.TextPrimary else KitsugiColors.TextSecondary,
             style = MaterialTheme.typography.labelMedium,
-            fontWeight = if (isSelected || count > 0) FontWeight.Bold else FontWeight.Normal
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.widthIn(max = 132.dp)
         )
+        if (count > 0 && !isAll) {
+            MangaChipBadge(
+                text = count.toString(),
+                tint = statusTint,
+                chipBackground = statusTint.copy(alpha = 0.16f)
+            )
+        }
         if (error != null && errorCode != null) {
-            Text(
-                errorCode,
-                color = Color.Red.copy(alpha = 0.8f),
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.Bold
+            MangaChipBadge(
+                text = errorCode,
+                tint = errorTint,
+                chipBackground = errorTint.copy(alpha = 0.14f),
+                outlined = true
             )
         }
     }
 }
 
-// ─── Skeleton card ────────────────────────────────────────────────────────────
-
 @Composable
-private fun SkeletonCard(sourceName: String, accent: Color, compact: Boolean = false) {
-    val inf = rememberInfiniteTransition(label = "sk")
-    val sh by inf.animateFloat(0.25f, 0.07f, infiniteRepeatable(tween(900), RepeatMode.Reverse), label = "sh")
-    Card(
-        Modifier.fillMaxWidth().height(if (compact) 168.dp else 210.dp).clip(RoundedCornerShape(12.dp)),
-        colors = CardDefaults.cardColors(containerColor = KitsugiColors.SurfaceSoft.copy(0.6f)),
-        elevation = CardDefaults.cardElevation(2.dp)
+private fun MangaChipBadge(
+    text: String,
+    tint: Color,
+    chipBackground: Color,
+    outlined: Boolean = false
+) {
+    val shape = RoundedCornerShape(999.dp)
+    Box(
+        Modifier
+            .clip(shape)
+            .background(chipBackground, shape)
+            .then(
+                if (outlined) Modifier.border(1.dp, tint.copy(alpha = 0.35f), shape)
+                else Modifier
+            )
+            .padding(horizontal = 6.dp, vertical = 2.dp)
     ) {
-        Box(Modifier.fillMaxSize()) {
-            Box(Modifier.fillMaxSize().background(Color.White.copy(sh)))
-            Box(
-                Modifier.fillMaxWidth().align(Alignment.BottomCenter)
-                    .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(0.85f)))).padding(8.dp)
-            ) {
-                Column {
-                    Text(stringResource(R.string.araniyor), color = KitsugiColors.TextSecondary, fontSize = 11.sp)
-                    Text(sourceName, color = accent, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
-            }
-        }
+        Text(
+            text,
+            color = tint,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1
+        )
     }
 }
 
-// ─── Manga card ───────────────────────────────────────────────────────────────
+// ─── Kaynak rozeti (kart / iskelet kart) ─────────────────────────────────────
 
+@Composable
+private fun MangaSourceBadge(
+    sourceName: String,
+    tint: Color,
+    modifier: Modifier = Modifier
+) {
+    val shape = RoundedCornerShape(999.dp)
+    Row(
+        modifier
+            .widthIn(max = 150.dp)
+            .clip(shape)
+            .background(KitsugiColors.Scrim.copy(alpha = 0.82f), shape)
+            .border(1.dp, tint.copy(alpha = 0.5f), shape)
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(5.dp)
+    ) {
+        Icon(
+            Icons.Rounded.Extension,
+            contentDescription = null,
+            tint = tint,
+            modifier = Modifier.size(11.dp)
+        )
+        Text(
+            sourceName,
+            color = Color.White,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
+private fun MangaSourceRow(sourceName: String, sourceTint: Color) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(6.dp).clip(CircleShape).background(sourceTint))
+        Spacer(Modifier.width(6.dp))
+        Text(
+            sourceName,
+            color = KitsugiColors.TextSecondary,
+            style = MaterialTheme.typography.labelSmall,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+// ─── Manga sonuç kartı ───────────────────────────────────────────────────────
+
+/**
+ * Uygulamanın medya kartı dili: 2:3 poster, 20 dp yuvarlak köşe,
+ * `kitsugiNeonGlow` çerçevesi, tema `Surface` zemini, kaynak rozeti ve
+ * kartın altında sabit yükseklikte başlık + kaynak satırı.
+ */
 @Composable
 private fun MangaCard(
     manga: MangaDetails,
-    accent: Color,
+    sourceName: String,
+    sourceTint: Color,
     compact: Boolean = false,
     onClick: () -> Unit
 ) {
+    val shape = RoundedCornerShape(20.dp)
     Card(
-        Modifier.fillMaxWidth().height(if (compact) 168.dp else 210.dp).clip(RoundedCornerShape(12.dp))
-            .tvClickable(shape = RoundedCornerShape(12.dp)) { onClick() },
-        colors = CardDefaults.cardColors(containerColor = KitsugiColors.SurfaceSoft),
-        elevation = CardDefaults.cardElevation(4.dp)
+        Modifier
+            .fillMaxWidth()
+            .kitsugiNeonGlow(shape)
+            .tvClickable(shape = shape) { onClick() },
+        shape = shape,
+        colors = CardDefaults.cardColors(containerColor = KitsugiColors.Surface),
+        elevation = CardDefaults.cardElevation(0.dp)
     ) {
-        Box(Modifier.fillMaxSize()) {
-            KitsugiNsfwImage(
-                model = manga.thumbnailUrl,
-                contentDescription = manga.title,
-                isAdult = manga.isAdultContent,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
-            )
-            Box(
-                Modifier.fillMaxWidth().align(Alignment.BottomCenter)
-                    .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(0.93f)))).padding(8.dp)
+        if (compact) {
+            val screenWidthDp = LocalConfiguration.current.screenWidthDp
+            val rowHeight = when {
+                screenWidthDp >= 1200 -> 160.dp
+                screenWidthDp >= 800 -> 145.dp
+                else -> 130.dp
+            }
+            val posterWidth = rowHeight * 0.62f
+            Row(
+                Modifier.fillMaxWidth().height(rowHeight).padding(10.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
-                    Text(manga.title, color = KitsugiColors.TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    if (!manga.source.isNullOrBlank())
-                        Text(manga.source, color = accent, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                Box(
+                    Modifier
+                        .width(posterWidth)
+                        .fillMaxHeight()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(KitsugiColors.SurfaceSoft, RoundedCornerShape(14.dp))
+                ) {
+                    KitsugiNsfwImage(
+                        model = manga.thumbnailUrl,
+                        contentDescription = manga.title,
+                        isAdult = manga.isAdultContent,
+                        contentScale = ContentScale.Crop,
+                        initials = manga.title,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        manga.title,
+                        color = KitsugiColors.TextPrimary,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    MangaSourceRow(sourceName, sourceTint)
+                    Spacer(Modifier.height(10.dp))
+                    Box(
+                        Modifier
+                            .width(28.dp)
+                            .height(3.dp)
+                            .clip(RoundedCornerShape(999.dp))
+                            .background(sourceTint.copy(alpha = 0.8f))
+                    )
+                }
+            }
+        } else {
+            Column {
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(2f / 3f)
+                        .clip(shape)
+                        .background(KitsugiColors.SurfaceSoft, shape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    KitsugiNsfwImage(
+                        model = manga.thumbnailUrl,
+                        contentDescription = manga.title,
+                        isAdult = manga.isAdultContent,
+                        contentScale = ContentScale.Crop,
+                        initials = manga.title,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .height(64.dp)
+                            .align(Alignment.BottomCenter)
+                            .background(
+                                Brush.verticalGradient(
+                                    listOf(Color.Transparent, KitsugiColors.Scrim.copy(alpha = 0.55f))
+                                )
+                            )
+                    )
+                    MangaSourceBadge(
+                        sourceName = sourceName,
+                        tint = sourceTint,
+                        modifier = Modifier.align(Alignment.TopStart).padding(10.dp)
+                    )
+                }
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(66.dp)
+                        .padding(horizontal = 12.dp, vertical = 9.dp)
+                ) {
+                    Text(
+                        manga.title,
+                        color = KitsugiColors.TextPrimary,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    MangaSourceRow(sourceName, sourceTint)
                 }
             }
         }
     }
 }
 
-// ─── Manga card shimmer ───────────────────────────────────────────────────────
+// ─── İskelet kartlar ─────────────────────────────────────────────────────────
+
+@Composable
+private fun SkeletonCard(sourceName: String, sourceTint: Color, compact: Boolean = false) {
+    MangaCardPlaceholder(sourceName = sourceName, sourceTint = sourceTint, compact = compact)
+}
 
 @Composable
 private fun MangaCardShimmer(compact: Boolean = false) {
-    val inf = rememberInfiniteTransition(label = "shimmer")
-    val alpha by inf.animateFloat(
-        initialValue = 0.2f,
-        targetValue = 0.6f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 800, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "alpha"
-    )
+    MangaCardPlaceholder(compact = compact)
+}
+
+@Composable
+private fun MangaCardPlaceholder(
+    sourceName: String? = null,
+    sourceTint: Color = KitsugiColors.AccentIndigo,
+    compact: Boolean = false
+) {
+    val shape = RoundedCornerShape(20.dp)
+    val posterShape = RoundedCornerShape(14.dp)
+    val fallbackBrush = rememberKitsugiShimmerBrush()
+    val brush = LocalShimmerBrush.current ?: fallbackBrush
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(if (compact) 168.dp else 210.dp)
-            .clip(RoundedCornerShape(12.dp)),
-        colors = CardDefaults.cardColors(containerColor = KitsugiColors.SurfaceSoft),
-        elevation = CardDefaults.cardElevation(4.dp)
+        Modifier.fillMaxWidth().kitsugiNeonGlow(shape),
+        shape = shape,
+        colors = CardDefaults.cardColors(containerColor = KitsugiColors.Surface),
+        elevation = CardDefaults.cardElevation(0.dp)
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.White.copy(alpha = alpha * 0.1f))
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .align(Alignment.BottomCenter)
-                    .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(0.9f))))
-                    .padding(8.dp)
+        if (compact) {
+            val screenWidthDp = LocalConfiguration.current.screenWidthDp
+            val rowHeight = when {
+                screenWidthDp >= 1200 -> 160.dp
+                screenWidthDp >= 800 -> 145.dp
+                else -> 130.dp
+            }
+            Row(
+                Modifier.fillMaxWidth().height(rowHeight).padding(10.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth(0.7f)
-                        .height(12.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(Color.White.copy(alpha = alpha * 0.15f))
+                KitsugiShimmerBlock(
+                    brush = brush,
+                    modifier = Modifier.width(rowHeight * 0.62f).fillMaxHeight().clip(posterShape),
+                    cornerRadius = 14.dp
                 )
-                Spacer(modifier = Modifier.height(6.dp))
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth(0.4f)
-                        .height(10.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(Color.White.copy(alpha = alpha * 0.15f))
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    KitsugiShimmerBlock(
+                        brush = brush,
+                        modifier = Modifier.fillMaxWidth(0.9f).height(13.dp),
+                        cornerRadius = 999.dp
+                    )
+                    Spacer(Modifier.height(9.dp))
+                    KitsugiShimmerBlock(
+                        brush = brush,
+                        modifier = Modifier.fillMaxWidth(0.6f).height(10.dp),
+                        cornerRadius = 999.dp
+                    )
+                    if (sourceName != null) {
+                        Spacer(Modifier.height(10.dp))
+                        Text(
+                            stringResource(R.string.araniyor),
+                            color = KitsugiColors.TextSecondary,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+        } else {
+            Column {
+                Box(Modifier.fillMaxWidth().aspectRatio(2f / 3f)) {
+                    KitsugiShimmerBlock(
+                        brush = brush,
+                        modifier = Modifier.fillMaxSize().clip(shape),
+                        cornerRadius = 20.dp
+                    )
+                    if (sourceName != null) {
+                        MangaSourceBadge(
+                            sourceName = sourceName,
+                            tint = sourceTint,
+                            modifier = Modifier.align(Alignment.TopStart).padding(10.dp)
+                        )
+                        Text(
+                            stringResource(R.string.araniyor),
+                            color = KitsugiColors.TextSecondary,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.align(Alignment.BottomStart).padding(12.dp)
+                        )
+                    }
+                }
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(66.dp)
+                        .padding(horizontal = 12.dp, vertical = 9.dp)
+                ) {
+                    KitsugiShimmerBlock(
+                        brush = brush,
+                        modifier = Modifier.fillMaxWidth(0.85f).height(12.dp),
+                        cornerRadius = 999.dp
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    KitsugiShimmerBlock(
+                        brush = brush,
+                        modifier = Modifier.fillMaxWidth(0.5f).height(10.dp),
+                        cornerRadius = 999.dp
+                    )
+                }
+            }
+        }
+    }
+}
+
+// ─── Kaynak yok durumunda premium boş kart ───────────────────────────────────
+
+@Composable
+private fun EmptySourcesHint(onOpenSettings: () -> Unit) {
+    val accentBrush = LocalKitsugiAccentBrush.current
+    val onAccent = LocalKitsugiOnAccent.current
+    val shape = RoundedCornerShape(24.dp)
+    Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .clip(shape)
+                .background(KitsugiColors.Surface, shape)
+                .kitsugiCardFrame(shape)
+                .padding(28.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Box(
+                Modifier
+                    .size(64.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(accentBrush, RoundedCornerShape(20.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Rounded.Extension,
+                    contentDescription = null,
+                    tint = onAccent,
+                    modifier = Modifier.size(30.dp)
                 )
+            }
+            Text(
+                stringResource(R.string.inline_no_manga_extensions_have_been_e92d6be),
+                color = KitsugiColors.TextPrimary,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+            Text(
+                stringResource(R.string.ui2_manga_builtin_sources),
+                color = KitsugiColors.TextSecondary,
+                style = MaterialTheme.typography.bodySmall,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+            KitsugiButton(
+                onClick = onOpenSettings,
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Text(stringResource(R.string.inline_edit_extensions_134b588), fontWeight = FontWeight.Bold)
             }
         }
     }

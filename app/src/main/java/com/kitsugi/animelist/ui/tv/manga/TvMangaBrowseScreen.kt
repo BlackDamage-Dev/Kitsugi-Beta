@@ -260,7 +260,7 @@ fun TvMangaBrowseScreen(
                     Icon(
                         Icons.CollectionsBookmark,
                         contentDescription = null,
-                        tint = KitsugiColors.AccentBlue,
+                        tint = KitsugiColors.Accent,
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(Modifier.width(6.dp))
@@ -275,7 +275,7 @@ fun TvMangaBrowseScreen(
                 Icon(
                     Icons.TravelExplore,
                     contentDescription = null,
-                    tint = KitsugiColors.AccentBlue,
+                    tint = KitsugiColors.Accent,
                     modifier = Modifier.size(24.dp)
                 )
             }
@@ -316,7 +316,7 @@ fun TvMangaBrowseScreen(
                 }
                 com.kitsugi.animelist.ui.theme.gradient.Text(
                     text = stringResource(R.string.manga_search_language_chip, languageText),
-                    color = KitsugiColors.AccentBlue,
+                    color = KitsugiColors.Accent,
                     style = MaterialTheme.typography.labelSmall,
                     modifier = Modifier.padding(bottom = 6.dp)
                 )
@@ -329,9 +329,9 @@ fun TvMangaBrowseScreen(
                 singleLine   = true,
                 shape        = RoundedCornerShape(10.dp),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor    = KitsugiColors.AccentBlue.copy(alpha = searchBorderAlpha),
+                    focusedBorderColor    = KitsugiColors.Accent.copy(alpha = searchBorderAlpha),
                     unfocusedBorderColor  = KitsugiColors.Border.copy(alpha = searchBorderAlpha),
-                    cursorColor           = KitsugiColors.AccentBlue,
+                    cursorColor           = KitsugiColors.Accent,
                     focusedTextColor      = KitsugiColors.TextPrimary,
                     unfocusedTextColor    = KitsugiColors.TextPrimary,
                     focusedContainerColor    = KitsugiColors.Surface.copy(0.6f),
@@ -552,7 +552,7 @@ private fun TvMangaCard(
                 .align(Alignment.BottomCenter)
                 .background(
                     Brush.verticalGradient(
-                        listOf(Color.Transparent, Color.Black.copy(0.92f))
+                        listOf(Color.Transparent, KitsugiColors.Scrim.copy(alpha = 0.92f))
                     )
                 )
                 .padding(8.dp)
@@ -560,7 +560,7 @@ private fun TvMangaCard(
             Column {
                 Text(
                     manga.title,
-                    color = Color.White,
+                    color = KitsugiColors.TextPrimary,
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 2,
@@ -569,7 +569,7 @@ private fun TvMangaCard(
                 if (!manga.source.isNullOrBlank()) {
                     Text(
                         manga.source,
-                        color = KitsugiColors.AccentBlue,
+                        color = KitsugiColors.Accent,
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
@@ -622,9 +622,9 @@ private fun TvMangaSourceChip(
 ) {
     val chipShape = RoundedCornerShape(999.dp)
     val bg = when {
-        isSelected -> KitsugiColors.AccentBlue.copy(0.35f)
-        count > 0  -> KitsugiColors.AccentBlue.copy(0.12f)
-        else       -> Color.White.copy(0.08f)
+        isSelected -> KitsugiColors.Accent.copy(0.35f)
+        count > 0  -> KitsugiColors.Accent.copy(0.12f)
+        else       -> KitsugiColors.Surface.copy(0.92f)
     }
 
     Row(
@@ -642,7 +642,7 @@ private fun TvMangaSourceChip(
                 Modifier
                     .size(7.dp)
                     .clip(RoundedCornerShape(999.dp))
-                    .background(KitsugiColors.AccentBlue)
+                    .background(KitsugiColors.Accent)
             )
             else -> Box(
                 Modifier

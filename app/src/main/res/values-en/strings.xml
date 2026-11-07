@@ -19162,4 +19162,15 @@
     <string name="reader_novel_volume_normal">Volume keys: normal</string>
     <string name="reader_epub_auto_next_on">Auto-scroll next chapter: on</string>
     <string name="reader_epub_auto_next_off">Auto-scroll next chapter: off</string>
+
+    <!-- Manga discover theme harmony and sort labels -->
+    <string name="manga_browse_ui_manage_sources">Manage sources</string>
+    <string name="manga_browse_ui_sources">Sources</string>
+    <string name="manga_browse_ui_source_count">%1$d sources</string>
+    <string name="manga_browse_ui_result_count">%1$d results</string>
+    <string name="manga_browse_ui_query_label">Query: %1$s</string>
+    <string name="manga_browse_ui_sort">Sort</string>
+    <string name="manga_browse_ui_sort_relevance">Relevance</string>
+    <string name="manga_browse_ui_sort_az">A-Z</string>
+    <string name="manga_browse_ui_empty_subtitle">Try another title or check your manga sources.</string>
 </resources>

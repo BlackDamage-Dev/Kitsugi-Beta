@@ -19168,4 +19168,15 @@ Eklentiler ekranından eklenti etkinleştirin.</string>
     <string name="reader_novel_volume_normal">Ses tuşları: normal</string>
     <string name="reader_epub_auto_next_on">Kaydırmada sonraki bölüm: açık</string>
     <string name="reader_epub_auto_next_off">Kaydırmada sonraki bölüm: kapalı</string>
+
+    <!-- Manga Keşfet tema uyumu ve sıralama etiketleri -->
+    <string name="manga_browse_ui_manage_sources">Kaynakları yönet</string>
+    <string name="manga_browse_ui_sources">Kaynaklar</string>
+    <string name="manga_browse_ui_source_count">%1$d kaynak</string>
+    <string name="manga_browse_ui_result_count">%1$d sonuç</string>
+    <string name="manga_browse_ui_query_label">Aranan: %1$s</string>
+    <string name="manga_browse_ui_sort">Sırala</string>
+    <string name="manga_browse_ui_sort_relevance">İlgi</string>
+    <string name="manga_browse_ui_sort_az">A-Z</string>
+    <string name="manga_browse_ui_empty_subtitle">Farklı bir başlık deneyin veya manga kaynaklarınızı kontrol edin.</string>
 </resources>
