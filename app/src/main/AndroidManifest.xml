@@ -12,6 +12,11 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <!--
+        Ortam sesi akışları: ekran kapanınca ağdan tampon indirmeye devam
+        edebilmek için kısmi uyandırma kilidi (ExoPlayer `setWakeMode`).
+    -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
     <!-- Cihaz medya sesini uygulamadan ayarlayabilmek için -->
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />

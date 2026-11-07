@@ -118,7 +118,8 @@ fun MangaDetailScreen(
      * Okuyucudan dönüşte artan sayaç. Değiştiğinde bölüm listesi yeniden çekilmez;
      * yalnızca Room'daki okuma ilerlemesi tazelenir (bkz. [MangaDetailViewModel.refreshProgress]).
      */
-    refreshTick: Int = 0
+    refreshTick: Int = 0,
+    onDetailsUpdated: (MangaDetails) -> Unit = {}
 ) {
     val context = LocalContext.current
     val accent = LocalKitsugiAccent.current
@@ -131,6 +132,11 @@ fun MangaDetailScreen(
     val downloadStates by viewModel.downloadStates.collectAsState()
     val downloadedUrls by viewModel.downloadedUrls.collectAsState()
     val details = uiState.details
+    LaunchedEffect(details) {
+        if (details.genre.isNotEmpty() || !details.description.isNullOrBlank()) {
+            onDetailsUpdated(details)
+        }
+    }
 
     val downloadManager = remember(context) { com.kitsugi.animelist.data.manga.download.MangaDownloadManager.get(context) }
     val mangaDownloads by downloadManager.store.downloads.collectAsState()

@@ -308,6 +308,8 @@ internal fun settingsSearchEntries(): List<SettingsSearchEntry> {
         entry(stringResource(R.string.aniskip_auto_skip), path(integrationBase, stringResource(R.string.integrations_tab_skip)), "otomatik atlama otomatik geçiş auto skip intro ending jenerik", Icons.SkipNext, KitsugiColors.AccentOrange, route = SettingsRoute.Integrations, pageIndex = 2),
         entry(stringResource(R.string.fanart_settings_title), path(integrationBase, "Fanart.tv"), "fanart logo karakter tasarım arka plan poster artwork api key", Icons.Image, KitsugiColors.AccentPink, route = SettingsRoute.Integrations, pageIndex = 3),
         entry(stringResource(R.string.fanart_api_key), path(integrationBase, "Fanart.tv"), "fanart api key anahtar kişisel doğrulama", Icons.Key, KitsugiColors.AccentPink, route = SettingsRoute.Integrations, pageIndex = 3),
+        entry(stringResource(R.string.music_panel_title), path(integrationBase, stringResource(R.string.integrations_tab_music)), "müzik ortam sesi ambient melodi jamendo freesound openverse audius internet archive ses kaynakları", Icons.MusicNote, KitsugiColors.AccentTeal, route = SettingsRoute.Integrations, pageIndex = 4),
+        entry(stringResource(R.string.music_source_section_keys), path(integrationBase, stringResource(R.string.integrations_tab_music)), "müzik api key client id anahtar jamendo freesound openverse audius archive ses kaynakları bağlantı", Icons.Key, KitsugiColors.AccentTeal, route = SettingsRoute.Integrations, pageIndex = 4),
 
         // Data, backup, network, downloads and storage
         entry(backupTitle, backupBase, "veri yedekleme backup geri yükle içe aktar dışa aktar json dns doh", Icons.Storage, KitsugiColors.AccentGreen, route = SettingsRoute.DataBackup, pageIndex = 0),

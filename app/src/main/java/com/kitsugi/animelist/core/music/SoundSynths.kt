@@ -1222,9 +1222,9 @@ class BinauralSynth(
     private val stepL = TWO_PI_F * baseHz / sampleRate
     private val stepR = TWO_PI_F * (baseHz + beatHz) / sampleRate
 
-    /** Yumuşak başlangıç — aniden girmesin. */
+    /** Yumuşak başlangıç — aniden girmesin ama duyulabilir seviyeye hızlı ulaşsın. */
     private var gain = 0f
-    private val gainStep = 1f / (sampleRate * 3f) // 3 saniyede tam seviye
+    private val gainStep = 0.35f / (sampleRate * 1.0f) // 1 saniyede tam seviye (0.35)
 
     companion object {
         /** Bant adı → vuruş frekansı. */
@@ -1245,7 +1245,7 @@ class BinauralSynth(
 
     override fun render(left: FloatArray, right: FloatArray, frames: Int) {
         for (i in 0 until frames) {
-            if (gain < 0.12f) gain = (gain + gainStep).coerceAtMost(0.12f)
+            if (gain < 0.35f) gain = (gain + gainStep).coerceAtMost(0.35f)
             left[i] = (kotlin.math.sin(phaseL).toFloat() * gain)
             right[i] = (kotlin.math.sin(phaseR).toFloat() * gain)
             phaseL += stepL

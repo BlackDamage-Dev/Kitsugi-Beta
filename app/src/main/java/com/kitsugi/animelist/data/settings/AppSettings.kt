@@ -307,8 +307,24 @@ data class IntegrationsAndNotificationsSettings(
     val musicAutoPlayVolume: Float = 0.6f,
     /** Yalnızca kablolu kulaklık / Bluetooth bağlıyken otomatik çal. */
     val musicAutoPlayHeadphonesOnly: Boolean = false,
-    /** Cihaz sessiz / titreşim modundayken otomatik çalmayı engelle. */
-    val musicAutoPlayMuteOnSilentDevice: Boolean = true,
+    /**
+     * Cihaz sessiz / titreşim modundayken otomatik çalmayı engelle.
+     *
+     * ⚠️ Varsayılan **false**: telefon sessizdeyken medya sesi zaten
+     * kısılmaz; bu kapı açık olsaydı kullanıcı "otomatik başlat açık ama
+     * ses yok" durumuyla karşılaşırdı. İsteyen panelden açar.
+     */
+    val musicAutoPlayMuteOnSilentDevice: Boolean = false,
+    /**
+     * Otomatik başlatmada **çevrimiçi kaynaklar** da kullanılsın mı.
+     *
+     * `false` (varsayılan): yalnızca cihaz içi prosedürel sesler — anında,
+     * çevrimdışı, veri harcamaz.
+     * `true`: içerik duygusuna uygun parça, etkin çevrimiçi kaynaklarda
+     * (Openverse/Archive/Audius/Jamendo/Freesound) aranır; sonuç gelmezse
+     * sessizce prosedürel karışıma düşülür.
+     */
+    val musicAutoPlayIncludeOnline: Boolean = false,
     val wikiPageTheme: String = "APP",
     val wikiTextZoom: Int = 100,
     /** Wiki açılır sayfası son seçilen düzeni hatırlar; varsayılan MOBİL düzendir. */
@@ -809,6 +825,7 @@ data class AppSettings(
     val musicAutoPlayVolume: Float get() = integrations.musicAutoPlayVolume
     val musicAutoPlayHeadphonesOnly: Boolean get() = integrations.musicAutoPlayHeadphonesOnly
     val musicAutoPlayMuteOnSilentDevice: Boolean get() = integrations.musicAutoPlayMuteOnSilentDevice
+    val musicAutoPlayIncludeOnline: Boolean get() = integrations.musicAutoPlayIncludeOnline
     val musicJamendoEnabled: Boolean get() = integrations.musicJamendoEnabled
     val musicJamendoClientId: String get() = integrations.musicJamendoClientId
     val musicFreesoundEnabled: Boolean get() = integrations.musicFreesoundEnabled

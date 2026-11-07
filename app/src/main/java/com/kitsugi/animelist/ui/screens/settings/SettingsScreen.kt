@@ -134,7 +134,7 @@ fun SettingsScreen(
                 playerCurrentSubScreen = playerTarget
             }
             SettingsRoute.AddonsExtensions -> addonsInitialTab = pageIndex.coerceIn(0, 2)
-            SettingsRoute.Integrations -> integrationsInitialPage = pageIndex.coerceIn(0, 3)
+            SettingsRoute.Integrations -> integrationsInitialPage = pageIndex.coerceIn(0, 4)
             SettingsRoute.DataBackup -> systemSettingsInitialPage = pageIndex.coerceIn(0, 1)
             SettingsRoute.PluginDiagnostic -> pluginDiagnosticBackRoute = SettingsRoute.Main
             SettingsRoute.PlatformErrorCodes -> errorCatalogBackRoute = SettingsRoute.Main

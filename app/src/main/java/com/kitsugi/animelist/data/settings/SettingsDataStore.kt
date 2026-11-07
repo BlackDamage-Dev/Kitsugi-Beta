@@ -462,6 +462,9 @@ class SettingsDataStore(
         val MusicAutoPlay = booleanPreferencesKey("music_auto_play")
         val MusicAutoPlayVolume = floatPreferencesKey("music_auto_play_volume")
         val MusicAutoPlayDelay = intPreferencesKey("music_auto_play_delay")
+        val MusicAutoPlayHeadphonesOnly = booleanPreferencesKey("music_auto_play_headphones_only")
+        val MusicAutoPlayMuteOnSilent = booleanPreferencesKey("music_auto_play_mute_on_silent")
+        val MusicAutoPlayIncludeOnline = booleanPreferencesKey("music_auto_play_include_online")
         val MusicMasterVolume = floatPreferencesKey("music_master_volume")
         val MusicChannelVolume = floatPreferencesKey("music_channel_volume")
         val MusicAmbientVolume = floatPreferencesKey("music_ambient_volume")
@@ -797,6 +800,12 @@ class SettingsDataStore(
                     musicAutoPlay = preferences[Keys.MusicAutoPlay] ?: false,
                     musicAutoPlayVolume = preferences[Keys.MusicAutoPlayVolume] ?: 0.6f,
                     musicAutoPlayDelaySeconds = preferences[Keys.MusicAutoPlayDelay] ?: 3,
+                    musicAutoPlayHeadphonesOnly =
+                        preferences[Keys.MusicAutoPlayHeadphonesOnly] ?: false,
+                    musicAutoPlayMuteOnSilentDevice =
+                        preferences[Keys.MusicAutoPlayMuteOnSilent] ?: false,
+                    musicAutoPlayIncludeOnline =
+                        preferences[Keys.MusicAutoPlayIncludeOnline] ?: false,
                     musicMasterVolume = preferences[Keys.MusicMasterVolume] ?: 0.8f,
                     musicChannelVolume = preferences[Keys.MusicChannelVolume] ?: 0.5f,
                     musicAmbientVolume = preferences[Keys.MusicAmbientVolume] ?: 0.6f,
@@ -2571,6 +2580,15 @@ class SettingsDataStore(
     }
     suspend fun setMusicAutoPlayDelay(seconds: Int) {
         context.settingsDataStore.edit { it[Keys.MusicAutoPlayDelay] = seconds.coerceIn(0, 30) }
+    }
+    suspend fun setMusicAutoPlayHeadphonesOnly(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.MusicAutoPlayHeadphonesOnly] = enabled }
+    }
+    suspend fun setMusicAutoPlayMuteOnSilent(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.MusicAutoPlayMuteOnSilent] = enabled }
+    }
+    suspend fun setMusicAutoPlayIncludeOnline(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.MusicAutoPlayIncludeOnline] = enabled }
     }
     suspend fun setMusicMasterVolume(value: Float) {
         context.settingsDataStore.edit { it[Keys.MusicMasterVolume] = value.coerceIn(0f, 1f) }

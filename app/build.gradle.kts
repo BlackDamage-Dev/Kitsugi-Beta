@@ -257,6 +257,12 @@ android {
     }
 }
 
+androidComponents {
+    beforeVariants(selector().withFlavor("version" to "gms")) {
+        it.enable = false
+    }
+}
+
 // â”€â”€ T3-03 / TASK-106: Room schema export â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // KSP'ye schema JSON'larÄ±nÄ±n yazÄ±lacaÄŸÄ± dizini bildir.
 // KitsugiDatabase'deki exportSchema = true ile birlikte Ã§alÄ±ÅŸÄ±r.

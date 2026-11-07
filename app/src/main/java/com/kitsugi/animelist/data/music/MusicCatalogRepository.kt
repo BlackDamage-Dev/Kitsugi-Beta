@@ -1,14 +1,17 @@
 package com.kitsugi.animelist.data.music
 
 import android.util.Log
+import com.kitsugi.animelist.core.network.KitsugiHttpClient
 import com.kitsugi.animelist.data.music.remote.MusicCatalogClient
 import com.kitsugi.animelist.data.settings.AppSettings
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.withContext
 
 /**
  * 🌐 Birleşik Ses Kataloğu Deposu
@@ -47,6 +50,9 @@ class MusicCatalogRepository(
             instance ?: synchronized(this) {
                 instance ?: MusicCatalogRepository().also { instance = it }
             }
+
+        /** Tek kaynaktan listeye girecek en fazla sonuç. */
+        private const val PER_SOURCE_CAP = 12
 
         /** Günlük istek sayacı — kota takibi için. */
         private const val QUOTA_OPENVERSE = 200
@@ -235,9 +241,17 @@ class MusicCatalogRepository(
             }.map { it.await() }
         }
 
-        val flattened = collected.flatten()
-            .filter { it.isPlayable }
-            .distinctBy { it.id }
+        // Her kaynak en fazla PER_SOURCE_CAP sonuç verir; ardından kaynaklar
+        // **sırayla harmanlanır**. Böylece tek bir kaynak (ör. Openverse'ün
+        // 20 sonucu) diğerlerini listeden silmiyor — "7 kaynak" gerçekten
+        // listede görünüyor.
+        val perSource = collected.map { list ->
+            list.filter { it.isPlayable }
+                .distinctBy { it.id }
+                .take(PER_SOURCE_CAP)
+        }
+        val flattened = interleave(perSource)
+            .distinctBy { "${it.title.lowercase().trim()}|${it.subtitle.lowercase().trim()}" }
 
         _results.value = flattened
         markAllValid(usable.map { it.def.id })
@@ -278,12 +292,129 @@ class MusicCatalogRepository(
         return ok
     }
 
-    /** Internet Archive öğesinin gerçek dosya adresini çözer. */
+    /**
+     * Çalma adresini çözer.
+     *
+     * - **Internet Archive:** arama API'si yalnızca öğe kimliği verir; gerçek
+     *   dosya adı `/metadata/<id>`'den gelir.
+     * - **Çalma listeleri** (`.m3u`, `.m3u8`, `.pls`): bazı arşiv öğeleri
+     *   tek tek ses dosyası değil çalma listesi yayınlar; ilk geçerli
+     *   adres çıkarılır.
+     * - **Audius:** doğrudan akış ucu (`/stream`) 302 ile CDN'e gider;
+     *   oynatıcı yönlendirmeyi izler, ek çözümleme gerekmez.
+     *
+     * @return Oynatılabilir adres; çözülemezse sesin mevcut adresi
+     */
     suspend fun resolveUrl(sound: AmbientSound): String? {
-        if (sound.sourceId != MusicSourceId.ARCHIVE) return sound.streamUrl
-        val identifier = sound.id.removePrefix("archive_")
-        return runCatching { client.resolveArchiveTrackUrl(identifier) }.getOrNull()
-            ?: sound.streamUrl
+        val raw: String? = when (sound.sourceId) {
+            MusicSourceId.ARCHIVE -> {
+                val identifier = sound.id.removePrefix("archive_")
+                runCatching { client.resolveArchiveTrackUrl(identifier) }.getOrNull()
+                    ?: sound.streamUrl
+            }
+            else -> sound.streamUrl
+        }
+
+        val url = raw?.takeIf { it.isNotBlank() } ?: return sound.streamUrl
+        return expandPlaylist(url) ?: url
+    }
+
+    /**
+     * Çalma listesi adresini ilk gerçek medya adresine açar.
+     *
+     * `.m3u` / `.pls` içerikleri birkaç yüz bayttır; bu yüzden indirme
+     * maliyeti yoktur. Liste değilse `null` döner (çağıran özgün adresi
+     * kullanır).
+     */
+    private suspend fun expandPlaylist(url: String): String? {
+        val lower = url.lowercase()
+        val looksLikePlaylist = lower.endsWith(".m3u") || lower.endsWith(".m3u8") ||
+            lower.endsWith(".pls") || lower.contains("format=m3u")
+        if (!looksLikePlaylist) return null
+
+        val text = runCatching { fetchPlaylistText(url) }.getOrNull() ?: return null
+        // ⚠️ `#EXTM3U` = HLS manifestosu. Bu bir çalma listesi değil,
+        // parçalı akış; parçayı kendimiz çözmeye çalışırsak ilk .ts
+        // segmentine bağlanırız ve ses çalmaz. ExoPlayer'ın HLS
+        // kaynağına bırakılır.
+        if (text.trimStart().startsWith("#EXTM3U")) return null
+        return parsePlaylistEntry(text)
+    }
+
+    /**
+     * Çalma listesi içeriğini indirir.
+     *
+     * ⚠️ `withContext(Dispatchers.IO)` şart: bu fonksiyon panelden
+     * (ana thread) çağrılabiliyor; bloklayan okuma olmadan UI donardı.
+     */
+    private suspend fun fetchPlaylistText(url: String): String? = withContext(Dispatchers.IO) {
+        runCatching {
+            val request = okhttp3.Request.Builder()
+                .url(url)
+                .header("User-Agent", "Kitsugi/AmbientStream")
+                .build()
+            KitsugiHttpClient.metadataClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@use null
+                response.body?.string()?.take(64 * 1024)
+            }
+        }.getOrNull()
+    }
+
+    /** `.m3u` / `.pls` içeriğinden ilk http(s) adresi çıkarır. */
+    private fun parsePlaylistEntry(text: String): String? = text.lineSequence()
+        .map { it.trim() }
+        .map { line ->
+            when {
+                line.startsWith("File", ignoreCase = true) && line.contains('=') ->
+                    line.substringAfter('=')
+                line.startsWith("http://", ignoreCase = true) ||
+                    line.startsWith("https://", ignoreCase = true) -> line
+                else -> ""
+            }
+        }
+        .firstOrNull { it.startsWith("http", ignoreCase = true) }
+        ?.trim()
+
+    /**
+     * İçeriğin duygusuna uygun **çevrimiçi** parça arar.
+     *
+     * Otomatik başlatma ve "Senin İçin" sekmesinin çevrimiçi önerisi bu
+     * metodu kullanır. Sonuçlar duygu benzerliğine göre sıralanır.
+     *
+     * @return En uygun [limit] parça (boş liste = bulunamadı)
+     */
+    suspend fun searchForMood(
+        mood: MoodProfile,
+        genres: List<String> = emptyList(),
+        settings: AppSettings,
+        limit: Int = 6
+    ): List<AmbientSound> {
+        if (usableSources().none { it.def.id != MusicSourceId.BUILTIN }) return emptyList()
+
+        val primary = MoodSearchQuery.withGenreHint(MoodSearchQuery.forMood(mood), genres)
+        search(primary, settings)
+        var results = _results.value
+        if (results.isEmpty()) {
+            search(MoodSearchQuery.fallbackForMood(mood), settings)
+            results = _results.value
+        }
+
+        return results
+            .sortedByDescending { sound -> mood.similarityTo(sound.mood) }
+            .take(limit)
+    }
+
+    /** Kaynak listelerini sırayla harmanlar (round-robin). */
+    private fun interleave(lists: List<List<AmbientSound>>): List<AmbientSound> {
+        if (lists.isEmpty()) return emptyList()
+        val maxSize = lists.maxOf { it.size }
+        val out = ArrayList<AmbientSound>(lists.sumOf { it.size })
+        for (index in 0 until maxSize) {
+            lists.forEach { list ->
+                if (index < list.size) out += list[index]
+            }
+        }
+        return out
     }
 
     // ── Dahili ──────────────────────────────────────────────────────────

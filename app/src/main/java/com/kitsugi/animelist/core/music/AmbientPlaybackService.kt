@@ -96,7 +96,15 @@ class AmbientPlaybackService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_STOP -> {
-                engine.stopAllChannels()
+                // ⚠️ `fromService = true` ŞART.
+                //
+                // Eski hâli `engine.stopAllChannels()` çağırıyordu; o da
+                // sonunda servise yeniden `ACTION_STOP` yolluyordu →
+                // "servis → motor → servis" sonsuz döngüsü. Her turda
+                // `startForeground` + `onCreate` çalıştığı için ana thread
+                // sürekli meşgul kalıyor, uygulama kilitleniyor ve bir daha
+                // ses çalmıyordu.
+                engine.stopAllChannels(fromService = true)
                 engine.cancelSleepTimer()
                 stopSelf()
                 return START_NOT_STICKY

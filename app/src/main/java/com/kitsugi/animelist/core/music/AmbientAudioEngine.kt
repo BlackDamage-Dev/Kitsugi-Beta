@@ -1,6 +1,9 @@
 package com.kitsugi.animelist.core.music
 
 import android.content.Context
+import android.media.AudioFocusRequest
+import android.media.AudioManager
+import android.os.Build
 import android.util.Log
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
@@ -10,6 +13,8 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.datasource.okhttp.OkHttpDataSource
+import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import com.kitsugi.animelist.data.music.AmbientOrigin
@@ -19,6 +24,7 @@ import com.kitsugi.animelist.data.music.AtmospherePresets
 import com.kitsugi.animelist.data.music.ChannelPlayState
 import com.kitsugi.animelist.data.music.ChannelState
 import com.kitsugi.animelist.data.music.MAX_AMBIENT_CHANNELS
+import com.kitsugi.animelist.core.network.KitsugiHttpClient
 import com.kitsugi.animelist.data.music.MixChannel
 import com.kitsugi.animelist.data.music.MixCodecPayload
 import com.kitsugi.animelist.data.music.MixProfile
@@ -36,7 +42,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.coroutines.resume
 
 /**
  * 🎚️ Kitsugi Birleşik Ortam Sesi Motoru
@@ -80,6 +89,16 @@ class AmbientAudioEngine(
         private const val FADE_STEP_MS = 40L
 
         /**
+         * Aynı anda çalabilecek **çevrimiçi** kanal sayısı.
+         *
+         * Prosedürel sesler cihazda üretildiği için sınır yoktur (yuva
+         * sayısına kadar); ağ tabanlı akışlar ise bant genişliği ve
+         * çözücü kaynağı tüketir. 6 uzak akış aynı anda açıldığında zayıf
+         * cihazlarda ses kesiliyor ve arayüz donuyordu.
+         */
+        const val MAX_REMOTE_CHANNELS = 3
+
+        /**
          * Süreç genelinde **tek** motor.
          *
          * Neden singleton: okuyucudan çıkınca ses devam etsin, arka plandan
@@ -115,6 +134,101 @@ class AmbientAudioEngine(
     /** Yuva → aktif ses sesi. `null` = yuva boş. */
     private val voices = arrayOfNulls<ChannelVoice>(MAX_AMBIENT_CHANNELS)
 
+    /**
+     * Yuva **nesil sayacı**.
+     *
+     * Bir yuva için başlatılan asenkron hazırlık (ağ çözümlemesi + `start()`)
+     * tamamlandığında, yuva bu arada kullanıcı tarafından boşaltılmış veya
+     * başka bir sesle yeniden rezerve edilmiş olabilir. Eskiden bu kontrol
+     * yoktu: geç biten hazırlık, artık başka bir sese ait olan yuvaya kendi
+     * sesini yazıyor ve **hiçbir zaman serbest bırakılmayan** bir çalar
+     * bırakıyordu (asıl semptom: "durdurduğum ses çalmaya devam ediyor,
+     * sonra hiçbir ses çalmıyor").
+     *
+     * Her rezervasyon sayacı artırır; hazırlık bitince sayaç değişmişse
+     * çalar derhal serbest bırakılır.
+     */
+    private val slotGeneration = IntArray(MAX_AMBIENT_CHANNELS)
+
+    /**
+     * Kanal eklenemediğinde panelin göstereceği mesaj.
+     *
+     * Sessiz `-1` dönüşü kullanıcıya "dokundum ama hiçbir şey olmadı"
+     * hissi veriyordu. Panel bu akışı dinleyip snackbar gösterir.
+     */
+    private val _lastRejection = MutableStateFlow<String?>(null)
+    val lastRejection: StateFlow<String?> = _lastRejection.asStateFlow()
+
+    fun clearRejection() {
+        _lastRejection.value = null
+    }
+
+    /** Yuva → süren fade işi. Aynı kanala yeni fade başlarken eskisi iptal edilir. */
+    private val fadeJobs = arrayOfNulls<Job>(MAX_AMBIENT_CHANNELS)
+
+    // ─────────────────────────────────────────────────────────────────────
+    //  Ses odağı (AudioFocus)
+    // ─────────────────────────────────────────────────────────────────────
+
+    private val audioManager: AudioManager? =
+        context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+
+    /**
+     * Uygulama **tek** ses odağı ister; her kanal ayrı ayrı istemez.
+     *
+     * Eskiden her `ExoPlayer` `setAudioAttributes(..., handleAudioFocus = true)`
+     * ile kuruluyordu. Altı kanal aynı anda çalarken her yeni kanal odak
+     * isteyip diğerlerini `LOSS_TRANSIENT`'a düşürüyor, kanallar birbirini
+     * duraklatıp duruyordu (semptom: preset açılınca sesler birbirine
+     * giriyor / "zortluyor" ve sonra hiç ses gelmiyor).
+     */
+    @Volatile
+    private var focusGranted = false
+
+    /** Odak geçici kaybı yüzünden mi duraklattık? (Kazanınca devam edelim.) */
+    @Volatile
+    private var pausedByFocusLoss = false
+
+    private var focusRequest: AudioFocusRequest? = null
+
+    private val focusChangeListener = AudioManager.OnAudioFocusChangeListener { change ->
+        when (change) {
+            AudioManager.AUDIOFOCUS_LOSS -> {
+                focusGranted = false
+                pausedByFocusLoss = false
+                runCatching { pause() }
+            }
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
+                focusGranted = false
+                if (_isPlaying.value) {
+                    pausedByFocusLoss = true
+                    runCatching { pause() }
+                }
+            }
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
+                // Kısa bildirim/konuşma: duraklatmak yerine kıs.
+                _channels.value.forEach { state ->
+                    voices.getOrNull(state.index)?.setVolume(
+                        (state.effectiveVolume(_masterVol.value) * 0.25f).coerceIn(0f, 1f)
+                    )
+                }
+            }
+            AudioManager.AUDIOFOCUS_GAIN -> {
+                focusGranted = true
+                if (pausedByFocusLoss) {
+                    pausedByFocusLoss = false
+                    runCatching { resume() }
+                } else {
+                    // Kısılmış kanalları eski seviyesine döndür.
+                    _channels.value.forEach { state ->
+                        voices.getOrNull(state.index)
+                            ?.setVolume(state.effectiveVolume(_masterVol.value))
+                    }
+                }
+            }
+        }
+    }
+
     private val _channels = MutableStateFlow<List<ChannelState>>(emptyList())
     /** Aktif kanalların anlık durumu — UI bunu dinler. */
     val channels: StateFlow<List<ChannelState>> = _channels.asStateFlow()
@@ -143,6 +257,10 @@ class AmbientAudioEngine(
      * beklenmez. Ayarlardan kapatılabilir.
      */
     var continueInBackground: Boolean = true
+
+    /** Ön plan servisini biz mi başlattık? (Gereksiz start/stop churn'ünü önler.) */
+    @Volatile
+    private var serviceStarted = false
 
     private val presetJobs = mutableListOf<Job>()
 
@@ -192,6 +310,14 @@ class AmbientAudioEngine(
      * Aynı ses zaten çalıyorsa ikinci kopya açılmaz; mevcut kanal
      * kaldırılır (toggle davranışı).
      *
+     * ⚠️ **Ana thread'i bloklamaz.** Yuva anında `BUFFERING` olarak
+     * rezerve edilir; adres çözümlemesi, `AudioTrack`/`ExoPlayer` kurulumu
+     * ve `start()` arka planda yapılır. Eskiden prosedürel sesler ana
+     * thread'de başlatılıyor, uzak sesler ise `StreamVoice.start()` içinde
+     * `Thread.sleep` ile **ana thread'de 4 saniye** bekletiliyordu —
+     * çevrimiçi bir parçaya dokunulduğunda uygulamanın donmasının nedeni
+     * buydu.
+     *
      * @param sound Eklenecek ses (prosedürel veya uzak)
      * @param volume Başlangıç ses seviyesi
      * @return Oluşturulan kanalın yuvası, başarısızsa `-1`
@@ -204,129 +330,127 @@ class AmbientAudioEngine(
             return existing.index
         }
 
+        // 🌐 Uzak akış sınırı: 6 kanalın hepsi çevrimiçi parça olursa
+        // cihazda 6 ExoPlayer + 6 HTTP bağlantısı aynı anda çalışır. Zayıf
+        // cihazlarda ve yavaş ağda bu, sesin kesilmesine (underrun) ve
+        // arayüzde donmaya yol açıyordu. En fazla MAX_REMOTE_CHANNELS
+        // çevrimiçi kanal; kalanlar prosedürel (cihaz içi, sıfır ağ).
+        if (sound.origin == AmbientOrigin.REMOTE) {
+            val remoteCount = _channels.value.count {
+                it.sound.origin == AmbientOrigin.REMOTE && it.state != ChannelPlayState.ERROR
+            }
+            if (remoteCount >= MAX_REMOTE_CHANNELS) {
+                _lastRejection.value =
+                    "Aynı anda en fazla $MAX_REMOTE_CHANNELS çevrimiçi ses çalabilir. " +
+                        "Önce birini kaldır ya da cihaz içi ses ekle."
+                Log.w(TAG, "Uzak kanal sınırı dolu ($MAX_REMOTE_CHANNELS)")
+                return -1
+            }
+        }
+
         // Boş yuva bul
         val slot = voices.indexOfFirst { it == null }
         if (slot < 0) {
+            _lastRejection.value = "En fazla $MAX_AMBIENT_CHANNELS ses aynı anda çalabilir."
             Log.w(TAG, "Kanal sınırı dolu ($MAX_AMBIENT_CHANNELS)")
             return -1
         }
 
-        // ⚠️ StreamVoice.start() akış hazır olana kadar bekler (en çok 4 sn).
-        // Ana thread'de çağrılırsa arayüz donar. Uzak sesler için işi
-        // arka plana atıp hemen yuvayı rezerve ediyoruz.
-        // Uzak sesler HER ZAMAN arka planda hazırlanır — `streamUrl` null
-        // olsa bile. (Internet Archive'da null olur ve adres çalma anında
-        // çözülür; eskiden bu durumda ana thread'de ağ beklenebiliyordu.)
-        if (sound.origin != AmbientOrigin.PROCEDURAL) {
-            return addChannelAsync(sound, slot, volume)
+        return reserveChannel(sound, slot, volume)
+    }
+
+    /**
+     * Yuvayı rezerve eder ve hazırlığı arka planda başlatır.
+     *
+     * @return Rezerve edilen yuva (hazırlık başarısız olursa kanal
+     *         `ERROR` durumunda kalır ve panelden kaldırılabilir).
+     */
+    private fun reserveChannel(sound: AmbientSound, slot: Int, volume: Float): Int {
+        val safeVolume = volume.coerceIn(0f, 1f)
+        val generation = ++slotGeneration[slot]
+
+        voices[slot] = BufferingVoice
+        _channels.update { list ->
+            list.filterNot { it.index == slot } + ChannelState(
+                index = slot,
+                sound = sound,
+                volume = safeVolume,
+                state = ChannelPlayState.BUFFERING
+            )
         }
-
-        val voice = createVoice(sound) ?: return -1
-        voices[slot] = voice
-
-        val state = ChannelState(
-            index = slot,
-            sound = sound,
-            volume = volume.coerceIn(0f, 1f),
-            state = ChannelPlayState.BUFFERING
-        )
-        _channels.update { it + state }
         syncActiveFlags()
 
-        // Yükle ve çal
-        voice.setVolume(0f)
-        val started = voice.start()
-        if (!started) {
-            voices[slot]?.release()
-            voices[slot] = null
-            _channels.update { list -> list.filterNot { it.index == slot } }
-            syncActiveFlags()
-            return -1
-        }
-
-        fadeVoice(slot, 0f, state.effectiveVolume(_masterVol.value))
-        updateChannel(slot) { it.copy(state = ChannelPlayState.PLAYING) }
-        rememberRecent(sound.id)
-        if (_activePresetId.value == null) {
-            _activeTitle.value = state.displayLabel
-        }
-        _isPlaying.value = true
-
-        // Arka planda çalmaya devam edebilmek için ön plan servisi
-        ensureForegroundService()
-
+        scope.launch { prepareAndStart(slot, generation, sound, safeVolume) }
         return slot
     }
 
     /**
-     * Uzak sesi **bloklamadan** ekler.
-     *
-     * Yuva hemen `BUFFERING` durumuyla rezerve edilir — kullanıcı anında
-     * geri bildirim görür ("yükleniyor…"). Arka planda akış hazırlanır;
-     * başarılıysa `PLAYING`, değilse yuva boşaltılıp hata gösterilir.
+     * Kanalı hazırlar ve çalar. **Her adım iptal edilebilir:** yuva bu
+     * arada boşaltıldıysa (kullanıcı sesi kaldırdı) hazırlık sonucu
+     * çöpe atılır ve çalar serbest bırakılır.
      */
-    private fun addChannelAsync(sound: AmbientSound, slot: Int, volume: Float): Int {
-        val safeVolume = volume.coerceIn(0f, 1f)
+    private suspend fun prepareAndStart(
+        slot: Int,
+        generation: Int,
+        sound: AmbientSound,
+        volume: Float
+    ) {
+        // Adres yoksa (Internet Archive) çalma anında çöz — ağ işi IO'da.
+        val resolved = withContext(Dispatchers.IO) {
+            runCatching { topUpStreamUrl(sound) }.getOrDefault(sound)
+        }
+        if (slotGeneration[slot] != generation) return
 
-        val placeholder = ChannelState(
-            index = slot,
-            sound = sound,
-            volume = safeVolume,
-            state = ChannelPlayState.BUFFERING
-        )
-        // Rezervasyon: aynı anda ikinci bir dokunuş aynı yuvayı seçmesin
-        voices[slot] = BufferingVoice
-        _channels.update { it + placeholder }
-        syncActiveFlags()
-
-        scope.launch {
-            // Adres yoksa (Internet Archive) çalma anında çöz
-            val resolved = withContext(Dispatchers.IO) { topUpStreamUrl(sound) }
-            val voice = createVoice(resolved)
-            if (voice == null) {
-                voices[slot] = null
-                _channels.update { list ->
-                    list.map {
-                        if (it.index == slot) it.copy(
-                            state = ChannelPlayState.ERROR,
-                            errorMessage = "Ses yüklenemedi — kaynak yanıt vermedi"
-                        ) else it
-                    }
-                }
-                syncActiveFlags()
-                return@launch
-            }
-
-            voice.setVolume(0f)
-            val started = runCatching { voice.start() }.getOrElse { false }
-
-            if (!started) {
-                voice.release()
-                voices[slot] = null
-                _channels.update { list ->
-                    list.map {
-                        if (it.index == slot) it.copy(
-                            state = ChannelPlayState.ERROR,
-                            errorMessage = "Akış açılamadı — internet veya kaynak sorunu"
-                        ) else it
-                    }
-                }
-                syncActiveFlags()
-                return@launch
-            }
-
-            voices[slot] = voice
-            fadeVoice(slot, 0f, safeVolume * _masterVol.value)
-            updateChannel(slot) { it.copy(state = ChannelPlayState.PLAYING, errorMessage = null) }
-            rememberRecent(sound.id)
-            if (_activePresetId.value == null) {
-                _activeTitle.value = placeholder.displayLabel
-            }
-            _isPlaying.value = true
-            ensureForegroundService()
+        val voice = createVoice(resolved)
+        if (voice == null) {
+            failSlot(slot, generation, "Ses yüklenemedi — kaynak yanıt vermedi")
+            return
         }
 
-        return slot
+        voice.setVolume(0f)
+        // `start()` suspend: uzak akışta hazır olmayı bekleme (bloklamadan),
+        // prosedürel seste AudioTrack kurulumu IO/Default üzerinde yapılır.
+        val started = runCatching { voice.start() }.getOrElse { error ->
+            Log.w(TAG, "Kanal başlatılamadı: ${sound.id}", error)
+            false
+        }
+
+        // Bu arada yuva başkasına verildiyse → kendi çalarımızı kapat.
+        if (slotGeneration[slot] != generation) {
+            runCatching { voice.release() }
+            return
+        }
+
+        if (!started) {
+            val hint = runCatching { voice.errorHint() }.getOrNull()
+            runCatching { voice.release() }
+            failSlot(
+                slot,
+                generation,
+                hint ?: "Akış açılamadı — internet veya kaynak sorunu"
+            )
+            return
+        }
+
+        voices[slot] = voice
+        ensureAudioFocus()
+
+        fadeVoice(slot, 0f, volume * _masterVol.value)
+        updateChannel(slot) { it.copy(state = ChannelPlayState.PLAYING, errorMessage = null) }
+        rememberRecent(sound.id)
+        if (_activePresetId.value == null) {
+            _activeTitle.value = _channels.value.firstOrNull { it.index == slot }?.displayLabel
+        }
+        _isPlaying.value = true
+        ensureForegroundService()
+    }
+
+    /** Hazırlık başarısız olduğunda yuvayı `ERROR` durumuna düşürür. */
+    private fun failSlot(slot: Int, generation: Int, message: String) {
+        if (slotGeneration[slot] != generation) return
+        voices[slot] = null
+        updateChannel(slot) { it.copy(state = ChannelPlayState.ERROR, errorMessage = message) }
+        syncActiveFlags()
     }
 
     /**
@@ -338,26 +462,93 @@ class AmbientAudioEngine(
         addChannel(sound, volume)
     }
 
-    /** Bir yuvayı durdurur ve serbest bırakır. */
+    /**
+     * Bir yuvayı durdurur ve serbest bırakır.
+     *
+     * Hata durumunda kalmış (çaları olmayan) bir kanal da bu çağrıyla
+     * listeden düşer — eskiden `voice == null` erken dönüşü yüzünden
+     * "yüklenemedi" kartları panelden **hiç** kaldırılamıyordu.
+     */
     fun stopChannel(index: Int) {
-        val voice = voices.getOrNull(index) ?: return
+        if (index !in 0 until MAX_AMBIENT_CHANNELS) return
+
+        // Bekleyen hazırlık varsa iptal et (geç biten hazırlık yuvaya yazmasın).
+        slotGeneration[index]++
+        fadeJobs[index]?.cancel()
+        fadeJobs[index] = null
+
+        val voice = voices.getOrNull(index)
         voices[index] = null
-        voice.fadeOutAndRelease(FADE_MS)
+        runCatching { voice?.fadeOutAndRelease(FADE_MS) }
+
         _channels.update { list -> list.filterNot { it.index == index } }
         syncActiveFlags()
+
         if (_channels.value.isEmpty()) {
             _activeTitle.value = null
             _activePresetId.value = null
+            _isPlaying.value = false
+            abandonAudioFocus()
+            stopForegroundService()
         } else {
             _activeTitle.value = _channels.value.firstOrNull()?.displayLabel
         }
     }
 
-    /** Tüm kanalları durdurur. */
-    fun stopAllChannels() {
+    /**
+     * `ERROR` durumundaki bir kanalı **aynı seste** yeniden dener.
+     *
+     * Kanal kaldırılmaz: yuva korunur, dolayısıyla karışımdaki yer ve ses
+     * seviyesi değişmez. Yalnızca hazırlık yeniden başlatılır.
+     */
+    fun retryChannel(index: Int) {
+        if (index !in 0 until MAX_AMBIENT_CHANNELS) return
+        val channel = _channels.value.firstOrNull { it.index == index } ?: return
+        if (channel.state != ChannelPlayState.ERROR) return
+
+        Log.i(TAG, "Kanal yeniden deneniyor: ${channel.sound.title}")
+        slotGeneration[index]++
+        voices[index] = null
+        _lastRejection.value = null
+        reserveChannel(channel.sound, index, channel.volume)
+    }
+
+    /**
+     * Tüm kanalları durdurur.
+     *
+     * @param fromService `true` ise çağrı [AmbientPlaybackService]'in kendi
+     *        `ACTION_STOP` komutundan geliyordur; bu durumda servise tekrar
+     *        `stop` gönderilmez.
+     *
+     * ⚠️ **Eskiden sonsuz döngü vardı:** `stopAllChannels()` servise
+     * `ACTION_STOP` yolluyor, servis `onStartCommand` içinde yeniden
+     * `engine.stopAllChannels()` çağırıyor, o da tekrar servise `ACTION_STOP`
+     * yolluyordu. Servis her turda yeniden başlatılıp `startForeground`
+     * yapılıyordu → ana thread sürekli meşgul, uygulama kilitleniyor ve
+     * bir daha ses çalmıyordu. `fromService` bu zinciri keser.
+     */
+    fun stopAllChannels(fromService: Boolean = false) {
+        stopAllVoices()
+        pausedByFocusLoss = false
+        abandonAudioFocus()
+        if (!fromService) stopForegroundService()
+    }
+
+    /**
+     * Çalan tüm sesleri susturur **ama** ön plan servisini ve ses odağını
+     * kapatmaz.
+     *
+     * `playPreset` bunu kullanır: preset değiştirirken servisi durdurup
+     * hemen yeniden başlatmak (her katman için ayrı `startForegroundService`)
+     * hem gereksiz hem de Android 12+ arka plan kısıtlarında hataya açıktı.
+     */
+    private fun stopAllVoices() {
         voices.forEachIndexed { i, v ->
+            slotGeneration[i]++
+            fadeJobs[i]?.cancel()
+            fadeJobs[i] = null
             if (v != null) {
-                v.fadeOutAndRelease(FADE_MS)
+                runCatching { v.fadeOutAndRelease(FADE_MS) }
                 voices[i] = null
             }
         }
@@ -367,7 +558,6 @@ class AmbientAudioEngine(
         _isPlaying.value = false
         presetJobs.forEach { it.cancel() }
         presetJobs.clear()
-        runCatching { AmbientPlaybackService.stop(context) }
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -413,12 +603,18 @@ class AmbientAudioEngine(
     // ─────────────────────────────────────────────────────────────────────
 
     fun pause() {
+        fadeJobs.forEachIndexed { i, job ->
+            job?.cancel()
+            fadeJobs[i] = null
+        }
         voices.forEach { it?.pause() }
         _isPlaying.value = false
         _channels.update { list -> list.map { it.copy(state = ChannelPlayState.PAUSED) } }
     }
 
     fun resume() {
+        if (_channels.value.isEmpty()) return
+        ensureAudioFocus()
         voices.forEach { it?.resume() }
         _isPlaying.value = true
         _channels.update { list -> list.map { it.copy(state = ChannelPlayState.PLAYING) } }
@@ -436,7 +632,8 @@ class AmbientAudioEngine(
      * Bir atmosfer presetini yükler. Katmanlar gecikmeli olarak havuza eklenir.
      */
     fun playPreset(preset: AtmospherePreset) {
-        stopAllChannels()
+        // Ses odağı ve ön plan servisi korunur (bkz. stopAllVoices).
+        stopAllVoices()
         _activePresetId.value = preset.id
         _activeTitle.value = "${preset.emoji} ${preset.name}"
         _isPlaying.value = true
@@ -739,13 +936,17 @@ class AmbientAudioEngine(
     fun release() {
         cancelSleepTimer()
         voices.forEachIndexed { i, v ->
-            v?.release()
+            slotGeneration[i]++
+            fadeJobs[i]?.cancel()
+            fadeJobs[i] = null
+            runCatching { v?.release() }
             voices[i] = null
         }
         _channels.value = emptyList()
         _isPlaying.value = false
         _activeTitle.value = null
         _activePresetId.value = null
+        abandonAudioFocus()
         scope.cancel()
     }
 
@@ -757,7 +958,79 @@ class AmbientAudioEngine(
     private fun ensureForegroundService() {
         if (!continueInBackground) return
         runCatching { AmbientPlaybackService.start(context) }
+            .onSuccess { serviceStarted = true }
             .onFailure { Log.w(TAG, "Ön plan servisi başlatılamadı", it) }
+    }
+
+    /**
+     * Ön plan servisini durdurur.
+     *
+     * Yalnızca gerçekten kanal varken (yani servis ayakta olabilecekken)
+     * çağrılır. Servis `ACTION_STOP` aldığında kendisi de bu metodu
+     * tetikleyebileceği için [stopAllChannels] `fromService = true` ile
+     * korunur — aksi hâlde servis ↔ motor arasında sonsuz döngü oluşur.
+     */
+    private fun stopForegroundService() {
+        if (!serviceStarted) return
+        serviceStarted = false
+        runCatching { AmbientPlaybackService.stop(context) }
+            .onFailure { Log.w(TAG, "Ön plan servisi durdurulamadı", it) }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    //  Ses odağı yardımcıları
+    // ─────────────────────────────────────────────────────────────────────
+
+    /**
+     * Ses odağını **bir kez** ister (kanal başına değil).
+     *
+     * Odak alınamazsa (ör. başka bir uygulama konuşuyor) ses yine çalar;
+     * Android bu durumda kısılmış çalmaya izin verir. Sessizce hiç
+     * çalmamak daha kötü bir davranış olurdu.
+     */
+    private fun ensureAudioFocus() {
+        val manager = audioManager ?: return
+        if (focusGranted) return
+        focusGranted = runCatching {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val request = focusRequest ?: AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+                    .setAudioAttributes(
+                        android.media.AudioAttributes.Builder()
+                            .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
+                            .setContentType(android.media.AudioAttributes.CONTENT_TYPE_MUSIC)
+                            .build()
+                    )
+                    .setWillPauseWhenDucked(false)
+                    .setOnAudioFocusChangeListener(focusChangeListener)
+                    .build()
+                    .also { focusRequest = it }
+                manager.requestAudioFocus(request) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+            } else {
+                @Suppress("DEPRECATION")
+                manager.requestAudioFocus(
+                    focusChangeListener,
+                    AudioManager.STREAM_MUSIC,
+                    AudioManager.AUDIOFOCUS_GAIN
+                ) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+            }
+        }.getOrDefault(false)
+    }
+
+    /** Ses odağını bırakır (başka uygulamaların sesi kısılmasın). */
+    private fun abandonAudioFocus() {
+        if (!focusGranted && focusRequest == null) return
+        focusGranted = false
+        val manager = audioManager
+        runCatching {
+            if (manager != null) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    focusRequest?.let { manager.abandonAudioFocusRequest(it) }
+                } else {
+                    @Suppress("DEPRECATION")
+                    manager.abandonAudioFocus(focusChangeListener)
+                }
+            }
+        }
     }
 
     private fun updateChannel(index: Int, transform: (ChannelState) -> ChannelState) {
@@ -806,7 +1079,25 @@ class AmbientAudioEngine(
     }
 
     private fun createVoice(sound: AmbientSound): ChannelVoice? = when {
-        sound.origin == AmbientOrigin.PROCEDURAL -> ProceduralVoice(context, sound)
+        sound.origin == AmbientOrigin.PROCEDURAL -> ProceduralVoice(
+            context = context,
+            sound = sound,
+            // AudioTrack kendiliğinden ölürse kanal "çalıyor" görünmesin:
+            // yuvayı boşalt, durumu ERROR'a çek (kullanıcı tekrar deneyebilsin).
+            onFailed = {
+                val slot = _channels.value.firstOrNull { it.sound.id == sound.id }?.index
+                if (slot != null) {
+                    voices[slot] = null
+                    updateChannel(slot) {
+                        it.copy(
+                            state = ChannelPlayState.ERROR,
+                            errorMessage = "Ses motoru durdu — tekrar dene"
+                        )
+                    }
+                    syncActiveFlags()
+                }
+            }
+        )
         else -> {
             // ÇEVRİMDIŞI ÖNCELİĞİ: indirilmiş dosya varsa ağa hiç çıkma.
             // Bu kontrol olmadan çevrimdışı çalma çalışmazdı — indirilen
@@ -822,10 +1113,20 @@ class AmbientAudioEngine(
         }
     }
 
-    /** Bir kanalın ses seviyesini kademeli değiştirir. */
+    /**
+     * Bir kanalın ses seviyesini kademeli değiştirir.
+     *
+     * ⚠️ Aynı yuvada **tek** fade çalışır. Eskiden ana ses kaydırıcısı her
+     * hareketinde yeni bir fade başlatılıyor, onlarca eşzamanlı fade aynı
+     * çaların sesini ileri geri çekiyordu — duyulan şey "zortlama" ve
+     * tıklama sesiydi. Önceki fade iptal edilir.
+     */
     private fun fadeVoice(index: Int, from: Float, to: Float) {
         val voice = voices.getOrNull(index) ?: return
-        scope.launch {
+        if (index in fadeJobs.indices) {
+            fadeJobs[index]?.cancel()
+        }
+        val job = scope.launch {
             val start = if (from < 0f) voice.currentVolume() else from
             val steps = (FADE_MS / FADE_STEP_MS).coerceAtLeast(1).toInt()
             val delta = (to - start) / steps
@@ -837,6 +1138,7 @@ class AmbientAudioEngine(
             }
             voice.setVolume(to.coerceIn(0f, 1f))
         }
+        if (index in fadeJobs.indices) fadeJobs[index] = job
     }
 }
 
@@ -844,13 +1146,15 @@ class AmbientAudioEngine(
 //  KANAL SESİ SOYUTLAMASI
 // ═════════════════════════════════════════════════════════════════════════
 
-/**
- * Bir kanalın ses arka ucu. Motor bu arayüz üzerinden konuşur — altta
- * `AudioTrack` mi `ExoPlayer` mı olduğunu bilmez.
- */
 internal interface ChannelVoice {
-    /** Çalmaya başlar. Başarılıysa `true`. */
-    fun start(): Boolean
+    /**
+     * Çalmaya başlar. Başarılıysa `true`.
+     *
+     * **`suspend` olması şart:** uzak akışlarda hazır olmayı beklemek
+     * gerekir. Eskiden bu bekleme `Thread.sleep` ile yapılıyordu ve
+     * çağıran taraf ana thread olduğunda arayüz 4 saniye donuyordu.
+     */
+    suspend fun start(): Boolean
     fun pause()
     fun resume()
     /** Anlık ses seviyesi (fade başlangıcı için). */
@@ -860,6 +1164,15 @@ internal interface ChannelVoice {
     fun fadeOutAndRelease(durationMs: Long)
     /** Anında serbest bırakma. */
     fun release()
+
+    /**
+     * Başarısız başlatmada kullanıcıya gösterilecek **somut** neden.
+     *
+     * Eskiden her hata "Akış açılamadı — internet veya kaynak sorunu"
+     * olarak gösteriliyordu; kullanıcı parçanın mı, kaynağın mı yoksa
+     * bağlantının mı bozuk olduğunu ayırt edemiyordu.
+     */
+    fun errorHint(): String? = null
 }
 
 /**
@@ -870,7 +1183,7 @@ internal interface ChannelVoice {
  * Hiçbir metodu gerçek iş yapmaz.
  */
 private object BufferingVoice : ChannelVoice {
-    override fun start(): Boolean = false
+    override suspend fun start(): Boolean = false
     override fun pause() = Unit
     override fun resume() = Unit
     override fun currentVolume(): Float = 0f
@@ -884,15 +1197,31 @@ private object BufferingVoice : ChannelVoice {
  */
 internal class ProceduralVoice(
     private val context: Context,
-    private val sound: AmbientSound
+    private val sound: AmbientSound,
+    /** Çalar kendi kendine öldüğünde (AudioTrack hatası) motoru haberdar eder. */
+    private val onFailed: (() -> Unit)? = null
 ) : ChannelVoice {
 
     private val player = ProceduralSoundPlayer(context, sound.id)
     @Volatile
     private var volume = 0f
 
-    override fun start(): Boolean {
-        return runCatching {
+    init {
+        player.onRenderFailure = {
+            Log.w("ProceduralVoice", "Sentez çaları durdu: ${sound.id}")
+            onFailed?.invoke()
+        }
+    }
+
+    /**
+     * `AudioTrack` kurulumu ve ilk `play()` **ana thread dışında** yapılır.
+     *
+     * Altı kanal aynı anda açılırken AudioTrack oluşturma + ilk buffer
+     * yazımı ana thread'de onlarca milisaniye sürüyor, kaydırma ve
+     * dokunma tepkileri düşüyordu.
+     */
+    override suspend fun start(): Boolean = withContext(Dispatchers.Default) {
+        runCatching {
             player.start()
         }.getOrElse {
             Log.w("ProceduralVoice", "Başlatılamadı: ${sound.id}", it)
@@ -922,13 +1251,42 @@ internal class ProceduralVoice(
  * Ses tanımında `streamUrl` varsa doğrudan kullanılır. Internet Archive
  * gibi dosya adının çözülmesi gereken kaynaklarda çağıran taraf önce
  * `MusicCatalogClient.resolveArchiveTrackUrl()` ile adresi almalıdır.
+ *
+ * ## Neden bu sınıf yeniden yazıldı
+ *  - **Ana thread bloklaması:** eski `start()` "hazır olana kadar bekle"
+ *    döngüsünü `Thread.sleep(20)` ile yapıyordu. Çağıran motor ana
+ *    thread olduğu için çevrimiçi bir parçaya dokunmak uygulamayı 4
+ *    saniyeye kadar donduruyordu. Artık `suspendCancellableCoroutine`
+ *    ile dinleyici tabanlı bekleme var.
+ *  - **Ses odağı kavgası:** `handleAudioFocus = true` her kanalın ayrı
+ *    odak istemesi demekti; altı kanal birbirini duraklatıyordu.
+ *    Odak artık motorda tek merkezden yönetilir.
+ *  - **Yönlendirme/timeout:** CC arşivleri sık sık http→https yönlendirmesi
+ *    yapıyor. Varsayılan HTTP veri kaynağı yönlendirmeyi izlemediğinde
+ *    akış hiç hazır olmuyordu ("müzik çalmıyor").
  */
 @UnstableApi
 internal class StreamVoice(
-    context: Context,
+    private val context: Context,
     private val sound: AmbientSound,
     url: String?
 ) : ChannelVoice {
+
+    companion object {
+        private const val TAG = "StreamVoice"
+
+        /** Hazır olma beklemesi — ağ yavaşsa kanal hata olarak işaretlenir. */
+        private const val READY_TIMEOUT_MS = 10_000L
+
+        /** Toplam deneme sayısı (ilk deneme dahil). */
+        private const val MAX_ATTEMPTS = 3
+
+        /** Denemeler arası bekleme (her denemede artar: 400ms → 800ms). */
+        private const val RETRY_DELAY_MS = 400L
+
+        /** Bazı CDN'ler boş UA'yı engelliyor. */
+        private const val USER_AGENT = "Kitsugi/AmbientStream"
+    }
 
     /**
      * Oynatılacak adres.
@@ -942,7 +1300,14 @@ internal class StreamVoice(
     var sourceUrl: String? = url
         internal set
 
-    private val player: ExoPlayer
+    /**
+     * Çalar **`start()` anında** kurulur.
+     *
+     * Sebep: veri kaynağı fabrikası adrese göre seçilir. Uzak akışta
+     * zaman aşımı + yönlendirme izleyen HTTP kaynağı, yerel indirilmiş
+     * dosyada (`file:`) ise dosya kaynağı kullanılır.
+     */
+    private var player: ExoPlayer? = null
 
     @Volatile
     private var volume = 0f
@@ -950,82 +1315,252 @@ internal class StreamVoice(
     @Volatile
     private var playing = false
 
-    init {
-        val dataSourceFactory: DataSource.Factory = DefaultDataSource.Factory(context)
+    /** Sadece tanılama için: son hata adı. */
+    @Volatile
+    private var lastErrorName: String? = null
+
+    /**
+     * Akışı hazırlar ve **bloklamadan** bekler.
+     *
+     * `prepare()` asenkron. Eskiden hemen `true` dönüyordu, dolayısıyla
+     * HTTP 404 / ağ hatası olsa bile kanal "çalıyor" görünüyor ve kullanıcı
+     * sessiz bir kanal görüyordu. Ayrıca eski sürüm "hazır olana kadar
+     * bekle" döngüsünü `Thread.sleep(20)` ile yapıyordu; çağıran motor ana
+     * thread olduğu için çevrimiçi bir parçaya dokunmak uygulamayı 4
+     * saniyeye kadar donduruyordu. Artık bekleme tamamen askıya alınmış
+     * (suspending) durumda.
+     */
+    override suspend fun start(): Boolean {
+        val raw = sourceUrl
+        if (raw.isNullOrBlank()) {
+            Log.w(TAG, "Adres çözülemedi: ${sound.id}")
+            return false
+        }
+        // ⚠️ Uygulama `usesCleartextTraffic=false` ile derleniyor. CC
+        // arşivleri (Internet Archive, Openverse) sık sık `http://` adres
+        // döndürüyor; bu adresler sessizce çalınmıyordu. Aynı sunucular
+        // https'i desteklediği için şemayı yükseltiyoruz.
+        val target = if (raw.startsWith("http://", ignoreCase = true)) {
+            "https://" + raw.substring("http://".length)
+        } else {
+            raw
+        }
+
+        // 🔁 Yeniden deneme: ağ hatası / zaman aşımı / 5xx geçici olabilir.
+        // Eskiden tek denemeydi; yavaş bir bağlantıda ilk paket geciktiğinde
+        // kanal kalıcı olarak "hata" durumunda kalıyordu.
+        var lastFailure: String? = null
+        for (attempt in 1..MAX_ATTEMPTS) {
+            val outcome = startOnce(target)
+            if (outcome == null) {
+                playing = true
+                return true
+            }
+            lastFailure = outcome
+            releasePlayer()
+            if (!isRetryable(outcome) || attempt == MAX_ATTEMPTS) break
+            Log.i(TAG, "Yeniden denenecek (${attempt + 1}/$MAX_ATTEMPTS): $target — $outcome")
+            delay(RETRY_DELAY_MS * attempt)
+        }
+
+        Log.w(TAG, "Akış başlatılamadı: $target — ${lastFailure ?: "bilinmeyen hata"}")
+        return false
+    }
+
+    /**
+     * Tek bir oynatma denemesi.
+     *
+     * @return `null` başarı, aksi hâlde hata kodu adı
+     */
+    private suspend fun startOnce(target: String): String? {
+        val exo = runCatching { buildPlayer(target) }.getOrElse { error ->
+            Log.w(TAG, "Çalar kurulamadı: $target", error)
+            null
+        } ?: return "PlayerError"
+
+        val prepared = runCatching {
+            exo.setMediaItem(MediaItem.fromUri(target))
+            exo.volume = 0f
+            exo.playWhenReady = true
+            exo.prepare()
+            true
+        }.getOrElse {
+            Log.w(TAG, "Hazırlanamadı: $target", it)
+            false
+        }
+        if (!prepared) {
+            runCatching { exo.release() }
+            return "PlayerError"
+        }
+        // Çaları sahaya al: `releasePlayer()` ve `release()` bunu kapatır.
+        player = exo
+
+        val ready = withTimeoutOrNull(READY_TIMEOUT_MS) {
+            awaitReadyOrError(exo)
+        } ?: false
+
+        if (!ready) {
+            Log.w(
+                TAG,
+                "Akış hazır olmadı (${READY_TIMEOUT_MS}ms): $target" +
+                    (lastErrorName?.let { " — $it" } ?: "")
+            )
+            return lastErrorName ?: "Timeout"
+        }
+
+        runCatching { exo.play() }
+        return null
+    }
+
+    /** Bu hata yeniden denemeye değer mi? */
+    private fun isRetryable(error: String): Boolean = error in setOf(
+        "Timeout",
+        "ERROR_CODE_IO_NETWORK_CONNECTION_FAILED",
+        "ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT",
+        "ERROR_CODE_IO_UNSPECIFIED",
+        "ERROR_CODE_IO_READ_POSITION_OUT_OF_RANGE",
+        "ERROR_CODE_UNSPECIFIED",
+        "PlayerError"
+    )
+
+    private fun releasePlayer() {
+        val exo = player
+        player = null
+        runCatching { exo?.release() }
+    }
+
+    override fun errorHint(): String? = when (lastErrorName) {
+        null -> null
+        "Timeout" -> "Kaynak zamanında yanıt vermedi — bağlantı yavaş olabilir."
+        "ERROR_CODE_IO_BAD_HTTP_STATUS" ->
+            "Kaynak dosyayı vermedi (404/403) — parça kaldırılmış olabilir."
+        "ERROR_CODE_IO_NETWORK_CONNECTION_FAILED",
+        "ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT" ->
+            "Ağa ulaşılamadı — internet bağlantısını kontrol et."
+        "ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED",
+        "ERROR_CODE_PARSING_MANIFEST_UNSUPPORTED",
+        "ERROR_CODE_PARSING_CONTAINER_MALFORMED" ->
+            "Ses biçimi çözülemedi — farklı bir parça dene."
+        "ERROR_CODE_DECODING_FORMAT_UNSUPPORTED" ->
+            "Bu ses kodeği cihazda desteklenmiyor."
+        else -> "Akış açılamadı — kaynak sorunu ($lastErrorName)."
+    }
+
+    /**
+     * Adrese uygun çaları kurar.
+     *
+     * Ses odağı **motorda** tek merkezden yönetilir; bu yüzden
+     * `handleAudioFocus = false`. Eskiden her kanal kendi odağını istiyor
+     * ve kanallar birbirini duraklatıyordu.
+     */
+    private fun buildPlayer(target: String): ExoPlayer {
+        val dataSourceFactory: DataSource.Factory = if (target.startsWith("http", ignoreCase = true)) {
+            // 🌐 Uygulamanın **paylaşılan** OkHttp istemcisi kullanılır:
+            //  - IPv4-öncelikli DNS (bazı sağlayıcılarda IPv6 AAAA kaydı
+            //    dönüyor ama yol yok → akış hiç başlamıyordu)
+            //  - bağlantı havuzu + HTTP/2 (6 kanal 6 TLS el sıkışması yapmaz)
+            //  - yeniden deneme ve ağ günlüğü tek yerden
+            //  - `usesCleartextTraffic=false` olduğu için http→https
+            //    yönlendirmesi serbest bırakılır (Archive/Openverse CC
+            //    adresleri sık sık http döner)
+            //
+            // `DefaultDataSource` sarmalayıcısı şart: HLS manifestosu,
+            // `file:`/`content:` yönlendirmeleri ve indirilmiş dosyalar aynı
+            // fabrikadan geçsin diye.
+            val httpFactory = OkHttpDataSource.Factory(KitsugiHttpClient.streamClient)
+                .setUserAgent(USER_AGENT)
+                .setDefaultRequestProperties(
+                    mapOf(
+                        "Accept" to "*/*",
+                        "Accept-Encoding" to "identity"
+                    )
+                )
+            DefaultDataSource.Factory(context, httpFactory)
+        } else {
+            // İndirilmiş dosya (file:) veya content: URI'leri.
+            DefaultDataSource.Factory(context)
+        }
+
         val audioAttributes = AudioAttributes.Builder()
             .setUsage(C.USAGE_MEDIA)
             .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
             .build()
 
-        player = ExoPlayer.Builder(context)
+        return ExoPlayer.Builder(context)
             .setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
-            // true → kulaklık çıkarılınca otomatik duraklat
-            .setAudioAttributes(audioAttributes, true)
+            .setAudioAttributes(audioAttributes, false)
+            // Kulaklık çıkarılınca yalnızca bu kanal duraklar.
+            .setHandleAudioBecomingNoisy(true)
+            // 📶 Tampon ayarları: varsayılan `bufferForPlayback` 2,5 sn;
+            // yavaş ağda ilk saniyelerde sürekli "buffering" olup ses
+            // kesiliyordu. 4 sn ön tampon + 12 sn yeniden-tampon + 120 sn
+            // ileri tampon, dalgalanmaları yutuyor.
+            .setLoadControl(
+                DefaultLoadControl.Builder()
+                    .setBufferDurationsMs(
+                        /* minBufferMs = */ 30_000,
+                        /* maxBufferMs = */ 120_000,
+                        /* bufferForPlaybackMs = */ 4_000,
+                        /* bufferForPlaybackAfterRebufferMs = */ 12_000
+                    )
+                    .setPrioritizeTimeOverSizeThresholds(true)
+                    .build()
+            )
+            // Ekran kapanınca ağ akışı devam etsin (kısmi uyandırma kilidi).
+            .setWakeMode(C.WAKE_MODE_NETWORK)
             .build()
-
-        player.repeatMode = Player.REPEAT_MODE_ONE
-        player.addListener(object : Player.Listener {
-            override fun onPlayerError(error: PlaybackException) {
-                Log.w("StreamVoice", "Akış hatası: ${sound.id} — ${error.errorCodeName}", error)
+            .also { exo ->
+                exo.repeatMode = Player.REPEAT_MODE_ONE
+                exo.addListener(object : Player.Listener {
+                    override fun onPlayerError(error: PlaybackException) {
+                        lastErrorName = error.errorCodeName
+                        Log.w(TAG, "Akış hatası: ${sound.id} — ${error.errorCodeName}", error)
+                    }
+                })
             }
-        })
     }
 
     /**
-     * Akışı hazırlar ve bekler.
+     * `STATE_READY` gelince `true`, hata/bitiş gelince `false` döner.
      *
-     * **Neden bekliyoruz:** `prepare()` asenkron. Eskiden hemen `true`
-     * dönüyordu, dolayısıyla HTTP 404 / ağ hatası olsa bile kanal
-     * "çalıyor" görünüyor ve kullanıcı sessiz bir kanal görüyordu.
-     * Artık en fazla 4 saniye hazır olmayı bekliyoruz; olmazsa kanal
-     * oluşturulmuyor ve hata kullanıcıya gösteriliyor.
+     * Dinleyici kaydı iptalde (timeout) kaldırılır; aksi hâlde her
+     * başarısız denemede player'a bir dinleyici daha eklenirdi.
      */
-    override fun start(): Boolean {
-        val target = sourceUrl
-        if (target.isNullOrBlank()) {
-            Log.w("StreamVoice", "Adres çözülemedi: ${sound.id}")
-            return false
-        }
-        val ok = runCatching {
-            player.setMediaItem(MediaItem.fromUri(target))
-            player.volume = 0f
-            player.prepare()
-            true
-        }.getOrElse {
-            Log.w("StreamVoice", "Hazırlanamadı: $target", it)
-            false
-        }
-        if (!ok) return false
+    private suspend fun awaitReadyOrError(exo: ExoPlayer): Boolean =
+        suspendCancellableCoroutine { cont ->
+            val listener = object : Player.Listener {
+                override fun onPlaybackStateChanged(playbackState: Int) {
+                    when (playbackState) {
+                        Player.STATE_READY -> if (cont.isActive) cont.resume(true)
+                        Player.STATE_ENDED -> if (cont.isActive) cont.resume(false)
+                        else -> Unit
+                    }
+                }
 
-        // Hazır olana kadar bekle (en çok 4 sn)
-        val deadline = System.currentTimeMillis() + 4_000L
-        while (System.currentTimeMillis() < deadline) {
-            val state = player.playbackState
-            if (state == Player.STATE_READY) {
-                player.playWhenReady = true
-                player.play()
-                playing = true
-                return true
+                override fun onPlayerError(error: PlaybackException) {
+                    lastErrorName = error.errorCodeName
+                    if (cont.isActive) cont.resume(false)
+                }
             }
-            if (state == Player.STATE_ENDED || player.playerError != null) {
-                Log.w("StreamVoice", "Akış hatası: $target — ${player.playerError?.errorCodeName}")
-                return false
-            }
-            // Yerel dosyalar neredeyse anında hazır olur; 20 ms yeterli
-            runCatching { Thread.sleep(20L) }
-        }
+            exo.addListener(listener)
+            cont.invokeOnCancellation { runCatching { exo.removeListener(listener) } }
 
-        Log.w("StreamVoice", "Zaman aşımı: akış 4 sn içinde hazır olmadı — $target")
-        return false
-    }
+            // Yarış durumu: durum zaten hazırsa/hatalıysa dinleyici hiç
+            // tetiklenmez — burada hemen kontrol et.
+            when {
+                exo.playerError != null -> if (cont.isActive) cont.resume(false)
+                exo.playbackState == Player.STATE_READY -> if (cont.isActive) cont.resume(true)
+                exo.playbackState == Player.STATE_ENDED -> if (cont.isActive) cont.resume(false)
+            }
+        }
 
     override fun pause() {
-        player.pause()
+        runCatching { player?.pause() }
         playing = false
     }
 
     override fun resume() {
-        player.play()
+        runCatching { player?.play() }
         playing = true
     }
 
@@ -1033,7 +1568,7 @@ internal class StreamVoice(
 
     override fun setVolume(value: Float) {
         volume = value
-        runCatching { player.volume = value }
+        runCatching { player?.volume = value }
     }
 
     /**
@@ -1042,12 +1577,10 @@ internal class StreamVoice(
      * **Neden fade şart:** anında `stop()` çağrısı hoparlörde "pat" sesi
      * üretir. Uyku zamanlayıcısı gece yarısı kanalları kapatırken bu
      * duyulursa kullanıcıyı uyandırır — özelliğin amacına aykırı.
-     *
-     * Fade adımları ana thread'i bloklamamak için `Thread` üzerinde;
-     * süre genelde 900 ms, en kötü 12 sn (uyku fade'i) olur.
      */
     override fun fadeOutAndRelease(durationMs: Long) {
-        if (durationMs <= 0L) {
+        val exo = player
+        if (exo == null || durationMs <= 0L) {
             release()
             return
         }
@@ -1063,7 +1596,7 @@ internal class StreamVoice(
                 }
                 i++
                 val factor = 1f - i.toFloat() / steps.toFloat()
-                runCatching { player.volume = (startVolume * factor).coerceIn(0f, 1f) }
+                runCatching { exo.volume = (startVolume * factor).coerceIn(0f, 1f) }
                 mainHandler.postDelayed(this, 40L)
             }
         }
@@ -1071,10 +1604,14 @@ internal class StreamVoice(
     }
 
     override fun release() {
+        val exo = player
+        player = null
         val doRelease = {
-            runCatching {
-                player.stop()
-                player.release()
+            if (exo != null) {
+                runCatching {
+                    exo.stop()
+                    exo.release()
+                }
             }
             playing = false
         }

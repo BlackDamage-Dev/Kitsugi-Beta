@@ -58,12 +58,15 @@ jobs:
           sudo swapon /swapfile || echo "swapon atlandı"
           mkdir -p ~/.gradle
           cat > ~/.gradle/gradle.properties << 'EOP'
-          org.gradle.jvmargs=-Xmx4g -Xms1g -Xss16m -XX:+UseG1GC -Dfile.encoding=UTF-8
+          org.gradle.jvmargs=-Xmx5g -Xms1g -Xss16m -XX:+UseG1GC -Dfile.encoding=UTF-8
           org.gradle.workers.max=1
           org.gradle.parallel=true
           org.gradle.daemon=true
           org.gradle.caching=true
-          kotlin.daemon.jvmargs=-Xmx4g -Xms1g -Xss16m -XX:+UseG1GC
+          # Kotlin derleyicisi büyük Compose dosyalarında 4 GB ile
+          # "Couldn't transform method node / OutOfMemoryError" veriyordu.
+          # Runner 16 GB RAM; 6 GB güvenli.
+          kotlin.daemon.jvmargs=-Xmx6g -Xms1g -Xss16m -XX:+UseG1GC
           kotlin.compiler.execution.strategy=daemon
           EOP
 
@@ -165,7 +168,7 @@ jobs:
         # GitHub API'sinden okunabilir).
         if: failure()
         run: |
-          LINE=$(grep -nE "StackOverflowError|Internal compiler error|e: java\.lang\." build.log 2>/dev/null | head -1 | cut -d: -f1)
+          LINE=$(grep -nE "StackOverflowError|Internal compiler error|Couldn't transform method node|OutOfMemoryError|e: java\.lang\." build.log 2>/dev/null | head -1 | cut -d: -f1)
           if [ -z "$LINE" ]; then LINE=1; fi
           DETAIL=$(sed -n "${LINE},$((LINE+70))p" build.log 2>/dev/null | cut -c1-320 | tr '\n' '|')
           if [ -z "$DETAIL" ]; then DETAIL="iz bulunamadi"; fi

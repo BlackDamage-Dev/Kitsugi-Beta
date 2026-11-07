@@ -65,6 +65,7 @@ import com.kitsugi.animelist.data.music.RecommendationResult
 import com.kitsugi.animelist.data.music.SoundFamily
 import com.kitsugi.animelist.ui.theme.KitsugiColors
 import com.kitsugi.animelist.ui.theme.LocalKitsugiAccent
+import kotlinx.coroutines.launch
 
 /**
  * 🎵 Okuyucu Müzik Paneli — Birleşik Sürüm
@@ -92,6 +93,12 @@ import com.kitsugi.animelist.ui.theme.LocalKitsugiAccent
 @Composable
 fun MangaAmbientPanel(
     recommendations: RecommendationResult,
+    /**
+     * Yedi kaynaklı tür zenginleştirmesinin kısa durum notu
+     * ("7 kaynak tarandı · 18 tür/etiket" / "Kaynaklar taranıyor…").
+     * `null` ise yalnızca yerel türler kullanılıyor demektir.
+     */
+    matchNote: String? = null,
     isPlaying: Boolean,
     activeTitle: String?,
     activePresetId: String?,
@@ -104,6 +111,8 @@ fun MangaAmbientPanel(
     onChannelVolumeChanged: (Int, Float) -> Unit,
     onChannelMuteToggle: (Int) -> Unit,
     onChannelRemove: (Int) -> Unit,
+    /** Hatalı kanalı aynı yuva ve sesle yeniden dener. */
+    onRetryChannel: (Int) -> Unit = {},
     onTogglePlay: () -> Unit,
     onStopAll: () -> Unit,
     onDismiss: () -> Unit,
@@ -142,6 +151,15 @@ fun MangaAmbientPanel(
     autoPlay: Boolean = false,
     onAutoPlayChanged: (Boolean) -> Unit = {},
     autoPlayDelaySeconds: Int = 3,
+    /** Otomatik başlatma yalnızca kulaklık takılıyken çalışsın. */
+    autoPlayHeadphonesOnly: Boolean = false,
+    onAutoPlayHeadphonesOnlyChanged: (Boolean) -> Unit = {},
+    /** Cihaz sessiz/titreşim modundayken otomatik başlatma yapılmasın. */
+    autoPlayMuteOnSilent: Boolean = false,
+    onAutoPlayMuteOnSilentChanged: (Boolean) -> Unit = {},
+    /** Otomatik başlatmada çevrimiçi kaynaklar da kullanılsın. */
+    autoPlayIncludeOnline: Boolean = false,
+    onAutoPlayIncludeOnlineChanged: (Boolean) -> Unit = {},
     /** Kaynak aç/kapa — kullanıcı hangi kaynakların aranacağını seçer. */
     onToggleSource: (com.kitsugi.animelist.data.music.MusicSourceId) -> Unit = {},
     // ── Çevrimdışı / indirme ───────────────────────────────────────────
@@ -214,11 +232,17 @@ fun MangaAmbientPanel(
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold
                 )
+                // Başlık asla "null" basmaz: aktif başlık yoksa (ör. ön plan
+                // servisinden veya preset geçişinden sonra) kanalların kendi
+                // etiketi kullanılır.
+                val headerTitle = activeTitle?.takeIf { it.isNotBlank() }
+                    ?: channels.firstOrNull()?.displayLabel
                 Text(
                     text = when {
                         channels.isEmpty() -> "Okuduğun içeriğe uygun ses"
-                        channels.size == 1 -> activeTitle ?: channels.first().displayLabel
-                        else -> "${channels.size} ses çalıyor · $activeTitle"
+                        channels.size == 1 -> headerTitle ?: "Ortam sesi çalıyor"
+                        else -> "${channels.size} ses çalıyor · " +
+                            (headerTitle ?: "karışım")
                     },
                     color = KitsugiColors.TextSecondary,
                     fontSize = 12.sp,
@@ -256,7 +280,13 @@ fun MangaAmbientPanel(
                 autoPlay = autoPlay,
                 delaySeconds = autoPlayDelaySeconds,
                 onMusicEnabledChanged = onMusicEnabledChanged,
-                onAutoPlayChanged = onAutoPlayChanged
+                onAutoPlayChanged = onAutoPlayChanged,
+                headphonesOnly = autoPlayHeadphonesOnly,
+                onHeadphonesOnlyChanged = onAutoPlayHeadphonesOnlyChanged,
+                muteOnSilent = autoPlayMuteOnSilent,
+                onMuteOnSilentChanged = onAutoPlayMuteOnSilentChanged,
+                includeOnline = autoPlayIncludeOnline,
+                onIncludeOnlineChanged = onAutoPlayIncludeOnlineChanged
             )
             Spacer(Modifier.height(8.dp))
         }
@@ -329,6 +359,7 @@ fun MangaAmbientPanel(
             0 -> ForYouTab(
                 modifier = Modifier.weight(1f),
                 recommendations = recommendations,
+                matchNote = matchNote,
                 channels = channels,
                 activePresetId = activePresetId,
                 accent = accent,
@@ -383,6 +414,7 @@ fun MangaAmbientPanel(
                 onChannelVolumeChanged = onChannelVolumeChanged,
                 onChannelMuteToggle = onChannelMuteToggle,
                 onChannelRemove = onChannelRemove,
+                onRetryChannel = onRetryChannel,
                 onStopAll = onStopAll,
                 accent = accent,
                 sleepTimer = sleepTimer,
@@ -425,6 +457,7 @@ fun MangaAmbientPanel(
 private fun ForYouTab(
     modifier: Modifier = Modifier,
     recommendations: RecommendationResult,
+    matchNote: String? = null,
     channels: List<ChannelState>,
     activePresetId: String?,
     accent: Color,
@@ -486,9 +519,18 @@ private fun ForYouTab(
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = "eşleşme: $confLabel",
+                    text = buildString {
+                        append("eşleşme: ")
+                        append(confLabel)
+                        if (!matchNote.isNullOrBlank()) {
+                            append(" · ")
+                            append(matchNote)
+                        }
+                    },
                     color = KitsugiColors.TextMuted,
-                    fontSize = 9.sp
+                    fontSize = 9.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         }
@@ -794,6 +836,7 @@ private fun MixerTab(
     onChannelVolumeChanged: (Int, Float) -> Unit,
     onChannelMuteToggle: (Int) -> Unit,
     onChannelRemove: (Int) -> Unit,
+    onRetryChannel: (Int) -> Unit = {},
     onStopAll: () -> Unit,
     accent: Color,
     sleepTimer: com.kitsugi.animelist.data.music.SleepTimerState =
@@ -965,7 +1008,8 @@ private fun MixerTab(
                     accent = accent,
                     onVolumeChanged = { onChannelVolumeChanged(channel.index, it) },
                     onMuteToggle = { onChannelMuteToggle(channel.index) },
-                    onRemove = { onChannelRemove(channel.index) }
+                    onRemove = { onChannelRemove(channel.index) },
+                    onRetry = { onRetryChannel(channel.index) }
                 )
                 Spacer(Modifier.height(6.dp))
             }
@@ -1056,7 +1100,8 @@ private fun ChannelRow(
     accent: Color,
     onVolumeChanged: (Float) -> Unit,
     onMuteToggle: () -> Unit,
-    onRemove: () -> Unit
+    onRemove: () -> Unit,
+    onRetry: (() -> Unit)? = null
 ) {
     val stateColor = when (channel.state) {
         ChannelPlayState.PLAYING -> Color(0xFF34D399)
@@ -1151,15 +1196,34 @@ private fun ChannelRow(
             )
         }
 
-        // Hata mesajı
+        // Hata mesajı + yeniden deneme
+        //
+        // Eskiden hatalı kanal yalnızca kırmızı nokta gösteriyordu;
+        // kullanıcının tek çıkışı kanalı kaldırıp yeniden eklemekti.
         channel.errorMessage?.let { msg ->
-            Text(
-                text = msg,
-                color = KitsugiColors.AccentRed,
-                fontSize = 9.sp,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = msg,
+                    color = KitsugiColors.AccentRed,
+                    fontSize = 9.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                if (channel.state == ChannelPlayState.ERROR && onRetry != null) {
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        text = "Yeniden dene",
+                        color = accent,
+                        fontSize = 9.5.sp,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .clickable { onRetry() }
+                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                    )
+                }
+            }
         }
     }
 }
@@ -1573,6 +1637,18 @@ private fun SourceStatusRow(
     state: com.kitsugi.animelist.data.music.MusicSourceState,
     onToggle: () -> Unit = {}
 ) {
+    val accent = LocalKitsugiAccent.current
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val settingsStore = remember(context.applicationContext) {
+        com.kitsugi.animelist.data.settings.SettingsDataStore(context.applicationContext)
+    }
+    val supportsKey = !state.def.keyless || state.def.optionalKey
+    var showKeyEditor by remember { mutableStateOf(false) }
+    var keyInput by remember { mutableStateOf("") }
+    var validating by remember { mutableStateOf(false) }
+    var validationResult by remember { mutableStateOf<Boolean?>(null) }
+
     val dotColor = when (state.status) {
         com.kitsugi.animelist.data.music.SourceStatus.READY -> Color(0xFF34D399)
         com.kitsugi.animelist.data.music.SourceStatus.UNCHECKED -> Color(0xFF60A5FA)
@@ -1589,71 +1665,199 @@ private fun SourceStatusRow(
         com.kitsugi.animelist.data.music.SourceStatus.DISABLED -> "kapalı"
     }
 
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
             .background(KitsugiColors.SurfaceSoft.copy(alpha = 0.6f))
-            .clickable(onClick = onToggle)
-            .padding(horizontal = 10.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(
+        Row(
             modifier = Modifier
-                .size(7.dp)
-                .clip(CircleShape)
-                .background(dotColor)
-        )
-        Spacer(Modifier.width(8.dp))
-        Text(
-            text = state.def.displayName,
-            color = if (state.enabled) KitsugiColors.TextPrimary else KitsugiColors.TextMuted,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Medium
-        )
-        Spacer(Modifier.width(6.dp))
-        Text(
-            text = "· $label",
-            color = KitsugiColors.TextMuted,
-            fontSize = 10.sp,
-            modifier = Modifier.weight(1f),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-        if (state.def.nonCommercialOnly) {
-            Text(
-                text = "NC",
-                color = Color(0xFFFBBF24),
-                fontSize = 8.sp,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(Modifier.width(6.dp))
-        }
-        // Anahtar gerekiyor ama yok → doğrudan edinme sayfasına git
-        if (state.status == com.kitsugi.animelist.data.music.SourceStatus.NO_KEY &&
-            state.def.signupUrl.isNotBlank()
+                .fillMaxWidth()
+                .clickable(onClick = onToggle)
+                .padding(horizontal = 10.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
-            Text(
-                text = "Anahtar al →",
-                color = Color(0xFF60A5FA),
-                fontSize = 9.sp,
-                fontWeight = FontWeight.Medium,
+            Box(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(Color(0xFF60A5FA).copy(alpha = 0.15f))
-                    .clickable {
-                        runCatching { uriHandler.openUri(state.def.signupUrl) }
-                    }
-                    .padding(horizontal = 6.dp, vertical = 3.dp)
+                    .size(7.dp)
+                    .clip(CircleShape)
+                    .background(dotColor)
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = state.def.displayName,
+                color = if (state.enabled) KitsugiColors.TextPrimary else KitsugiColors.TextMuted,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium
             )
             Spacer(Modifier.width(6.dp))
+            Text(
+                text = "· $label",
+                color = KitsugiColors.TextMuted,
+                fontSize = 10.sp,
+                modifier = Modifier.weight(1f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            if (state.def.nonCommercialOnly) {
+                Text(
+                    text = "NC",
+                    color = Color(0xFFFBBF24),
+                    fontSize = 8.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(Modifier.width(6.dp))
+            }
+            if (supportsKey) {
+                Text(
+                    text = if (state.keyConfigured) "Anahtar ✎" else "Anahtar gir",
+                    color = accent,
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(accent.copy(alpha = 0.15f))
+                        .clickable { showKeyEditor = !showKeyEditor }
+                        .padding(horizontal = 6.dp, vertical = 3.dp)
+                )
+                Spacer(Modifier.width(6.dp))
+            }
+            // Anahtar gerekiyor ama yok → doğrudan edinme sayfasına git
+            if (state.status == com.kitsugi.animelist.data.music.SourceStatus.NO_KEY &&
+                state.def.signupUrl.isNotBlank()
+            ) {
+                val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+                Text(
+                    text = "Anahtar al →",
+                    color = Color(0xFF60A5FA),
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(Color(0xFF60A5FA).copy(alpha = 0.15f))
+                        .clickable {
+                            runCatching { uriHandler.openUri(state.def.signupUrl) }
+                        }
+                        .padding(horizontal = 6.dp, vertical = 3.dp)
+                )
+                Spacer(Modifier.width(6.dp))
+            }
+            KitsugiSwitch(
+                checked = state.enabled,
+                onCheckedChange = { onToggle() },
+                accent = Color(0xFF34D399)
+            )
         }
-        KitsugiSwitch(
-            checked = state.enabled,
-            onCheckedChange = { onToggle() },
-            accent = Color(0xFF34D399)
-        )
+
+        if (showKeyEditor && supportsKey) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 10.dp, vertical = 8.dp)
+            ) {
+                OutlinedTextField(
+                    value = keyInput,
+                    onValueChange = {
+                        keyInput = it
+                        validationResult = null
+                    },
+                    placeholder = {
+                        Text(
+                            text = state.def.keyHint.ifBlank { "API Anahtarı / Client ID" },
+                            fontSize = 11.sp
+                        )
+                    },
+                    singleLine = true,
+                    enabled = !validating,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = accent,
+                        unfocusedBorderColor = KitsugiColors.Border,
+                        cursorColor = accent,
+                        focusedTextColor = KitsugiColors.TextPrimary,
+                        unfocusedTextColor = KitsugiColors.TextPrimary
+                    ),
+                    shape = RoundedCornerShape(10.dp)
+                )
+                Spacer(Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(
+                                if (!validating && keyInput.isNotBlank()) accent
+                                else KitsugiColors.SurfaceSoft
+                            )
+                            .clickable(enabled = !validating && keyInput.isNotBlank()) {
+                                val trimmed = keyInput.trim()
+                                validating = true
+                                validationResult = null
+                                scope.launch {
+                                    val ok = com.kitsugi.animelist.data.music.MusicSourceValidator
+                                        .validate(state.def.id, trimmed)
+                                    if (ok) {
+                                        when (state.def.id) {
+                                            com.kitsugi.animelist.data.music.MusicSourceId.JAMENDO -> {
+                                                settingsStore.setMusicJamendoClientId(trimmed)
+                                                settingsStore.setMusicJamendoEnabled(true)
+                                            }
+                                            com.kitsugi.animelist.data.music.MusicSourceId.FREESOUND -> {
+                                                settingsStore.setMusicFreesoundApiKey(trimmed)
+                                                settingsStore.setMusicFreesoundEnabled(true)
+                                            }
+                                            com.kitsugi.animelist.data.music.MusicSourceId.OPENVERSE -> {
+                                                settingsStore.setMusicOpenverseToken(trimmed)
+                                                settingsStore.setMusicOpenverseEnabled(true)
+                                            }
+                                            com.kitsugi.animelist.data.music.MusicSourceId.AUDIUS -> {
+                                                settingsStore.setMusicAudiusApiKey(trimmed)
+                                                settingsStore.setMusicAudiusEnabled(true)
+                                            }
+                                            else -> Unit
+                                        }
+                                    }
+                                    validationResult = ok
+                                    validating = false
+                                }
+                            }
+                            .padding(vertical = 8.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (validating) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(14.dp),
+                                color = Color.Black,
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(Modifier.width(6.dp))
+                        }
+                        Text(
+                            text = "Doğrula ve Kaydet",
+                            color = if (!validating && keyInput.isNotBlank()) Color.Black
+                            else KitsugiColors.TextMuted,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+                validationResult?.let { ok ->
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = if (ok) "✓ Anahtar doğrulandı ve kaydedildi"
+                        else "✗ Anahtar doğrulanamadı — bilgiyi kontrol et",
+                        color = if (ok) Color(0xFF34D399) else KitsugiColors.AccentRed,
+                        fontSize = 10.sp
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -2781,7 +2985,13 @@ private fun AutoPlayCard(
     autoPlay: Boolean,
     delaySeconds: Int,
     onMusicEnabledChanged: (Boolean) -> Unit,
-    onAutoPlayChanged: (Boolean) -> Unit
+    onAutoPlayChanged: (Boolean) -> Unit,
+    headphonesOnly: Boolean = false,
+    onHeadphonesOnlyChanged: (Boolean) -> Unit = {},
+    muteOnSilent: Boolean = false,
+    onMuteOnSilentChanged: (Boolean) -> Unit = {},
+    includeOnline: Boolean = false,
+    onIncludeOnlineChanged: (Boolean) -> Unit = {}
 ) {
     Column(
         modifier = Modifier
@@ -2851,6 +3061,85 @@ private fun AutoPlayCard(
                 enabled = musicEnabled
             )
         }
+
+        // ── Otomatik başlatma ayrıntıları ───────────────────────────────
+        //
+        // Bu üç anahtar **daha önce yoktu**: ilk ikisi `AppSettings`
+        // içinde tanımlıydı ama hiçbir ekrandan değiştirilemiyor ve
+        // hiçbir yerde okunmuyordu (ölü ayar). Üçüncüsü ise otomatik
+        // başlatmanın çevrimiçi kaynakları hiç kullanmaması sorununu
+        // çözüyor.
+        val detailsEnabled = musicEnabled && autoPlay
+        androidx.compose.animation.AnimatedVisibility(visible = detailsEnabled) {
+            Column(modifier = Modifier.padding(top = 6.dp)) {
+                AutoPlayDetailRow(
+                    title = "Sadece kulaklıkta",
+                    subtitle = "Kulaklık takılı değilse otomatik başlamaz",
+                    checked = headphonesOnly,
+                    accent = accent,
+                    onCheckedChange = onHeadphonesOnlyChanged
+                )
+                AutoPlayDetailRow(
+                    title = "Sessiz modda çalma",
+                    subtitle = "Cihaz sessiz/titreşimdeyken bekle",
+                    checked = muteOnSilent,
+                    accent = accent,
+                    onCheckedChange = onMuteOnSilentChanged
+                )
+                AutoPlayDetailRow(
+                    title = "Çevrimiçi kaynakları kullan",
+                    subtitle = if (includeOnline)
+                        "İçeriğe uygun gerçek parça aranır (veri kullanır)"
+                    else
+                        "Yalnızca cihaz içi sesler — anında ve çevrimdışı",
+                    checked = includeOnline,
+                    accent = accent,
+                    onCheckedChange = onIncludeOnlineChanged
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Otomatik başlatma ayrıntı satırı — başlık + kısa açıklama + anahtar.
+ *
+ * `AutoPlayCard` içindeki ana satırlardan daha küçük (11sp) çünkü bunlar
+ * ikincil ayarlar.
+ */
+@Composable
+private fun AutoPlayDetailRow(
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    accent: Color,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                color = KitsugiColors.TextPrimary,
+                fontSize = 11.5.sp,
+                fontWeight = FontWeight.Medium
+            )
+            Text(
+                text = subtitle,
+                color = KitsugiColors.TextMuted,
+                fontSize = 9.5.sp
+            )
+        }
+        Spacer(Modifier.width(8.dp))
+        KitsugiSwitch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            accent = accent
+        )
     }
 }
 

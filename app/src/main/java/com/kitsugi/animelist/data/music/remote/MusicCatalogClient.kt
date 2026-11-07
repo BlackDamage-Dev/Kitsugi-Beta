@@ -262,9 +262,19 @@ class MusicCatalogClient(
                     val tagList = mutableListOf<String>()
                     item.optJSONArray("tags")?.let { arr ->
                         for (j in 0 until arr.length()) {
-                            arr.optJSONObject(j)?.optString("name")?.let { tagList += it }
+                            // Openverse `tags` alanı sürüme göre nesne
+                            // ({name, accuracy}) ya da düz metin döndürür.
+                            val entry = arr.opt(j)
+                            when (entry) {
+                                is JSONObject -> entry.optString("name")
+                                    .takeIf { it.isNotBlank() }?.let { tagList += it }
+                                is String -> entry.takeIf { it.isNotBlank() }?.let { tagList += it }
+                            }
                         }
                     }
+                    // Tür ipucu olarak başlığı da ekle: etiketsiz kayıtlarda
+                    // duygu profili nötr kalmasın.
+                    item.optString("title").takeIf { it.isNotBlank() }?.let { tagList += it }
 
                     add(
                         AmbientSound(
@@ -324,8 +334,10 @@ class MusicCatalogClient(
             ?.build() ?: return@withContext emptyList()
 
         val requestBuilder = Request.Builder().url(url).get()
+        // Audius anahtarı `x-api-key` başlığıyla gönderilir (Bearer değil).
+        // Anahtarsız da çalışır; yalnızca kota yükselir.
         if (apiKey.isNotBlank()) {
-            requestBuilder.header("Authorization", "Bearer $apiKey")
+            requestBuilder.header("x-api-key", apiKey)
         }
 
         val body = execute(requestBuilder.build()) ?: return@withContext emptyList()
@@ -337,6 +349,21 @@ class MusicCatalogClient(
                     val track = data.optJSONObject(i) ?: continue
                     val id = track.optString("id")
                     if (id.isBlank()) continue
+
+                    // 🔇 Çalınamayan parçaları listeye hiç almayalım.
+                    //
+                    // Audius'ta `track_cid` boş olan ya da `is_streamable`
+                    // false olan parçalar `/stream` ucundan 302 yerine
+                    // `{"code":404,"error":"track audio is unavailable"}`
+                    // döndürür. Kullanıcı parçaya dokunup sessiz bir hata
+                    // görüyordu. Silinmiş/gizlenmiş (is_delete,
+                    // is_available) ve akışa kapalı (access.stream) kayıtlar
+                    // da aynı sonucu verir.
+                    if (!track.optBoolean("is_streamable", true)) continue
+                    if (track.optBoolean("is_delete", false)) continue
+                    if (!track.optBoolean("is_available", true)) continue
+                    if (track.optJSONObject("access")?.optBoolean("stream", true) == false) continue
+                    if (track.optString("track_cid").isBlank()) continue
 
                     val title = track.optString("title").ifBlank { "Audius parçası" }
                     val artist = track.optJSONObject("user")?.optString("name").orEmpty()
@@ -357,6 +384,10 @@ class MusicCatalogClient(
                             origin = AmbientOrigin.REMOTE,
                             mood = moodFromTags(listOf(genre, moodTag)),
                             streamUrl = streamUrl,
+                            // ✅ Audius v1 `duration` alanı **saniye**
+                            // döndürür (ör. 509 → 8:29). Milisaniyeye
+                            // çevrilmesi şart; `/v1/tracks/search`
+                            // yanıtıyla doğrulandı.
                             durationMs = track.optLong("duration", 0L) * 1000L,
                             attribution = "Audius · $artist",
                             licenseUrl = "https://audius.co/",
@@ -377,7 +408,53 @@ class MusicCatalogClient(
         query: String = "rain ambience",
         limit: Int = PAGE_SIZE
     ): List<AmbientSound> = withContext(Dispatchers.IO) {
-        val fullQuery = "mediatype:(audio) AND licenseurl:*publicdomain* AND ($query)"
+        // Kademeli daralma — her adım bir öncekinden daha gevşek:
+        //   1) ses + topluluk ses arşivi + public domain (en güvenli)
+        //   2) ses + topluluk ses arşivi (lisans alanı boş olan CC
+        //      kayıtlarını da yakalar)
+        //   3) yalnızca ses (niş sorgularda sonuç bırakmamak için)
+        // Gerçek API yanıtıyla doğrulandı: 1. adım "rain ambience" için
+        // 57 sonuç veriyor.
+        archiveQuery(query, limit, scope = ArchiveScope.PUBLIC_DOMAIN).ifEmpty {
+            archiveQuery(query, limit, scope = ArchiveScope.OPEN_AUDIO_COLLECTION).ifEmpty {
+                archiveQuery(query, limit, scope = ArchiveScope.AUDIO_ONLY)
+            }
+        }
+    }
+
+    /** Archive sorgusunun daralma kademesi. */
+    private enum class ArchiveScope {
+        PUBLIC_DOMAIN,
+        OPEN_AUDIO_COLLECTION,
+        AUDIO_ONLY
+    }
+
+    /**
+     * Archive advancedsearch sorgusu.
+     *
+     * Önemli ayrıntılar:
+     *  - `mediatype:(audio)` → video/PDF sonuçları elenir
+     *  - `sort[]=downloads+desc` → dinlenme sayısı yüksek, gerçekten
+     *    çalınabilir öğeler önce gelir (varsayılan sıralama neredeyse
+     *    rastgeleydi ve çoğu zaman sessiz/bozuk dosyalar geliyordu)
+     *  - `collection:opensource_audio` → topluluk ses arşivi; kapalı
+     *    (dark) öğelerin çıkma olasılığı düşer
+     */
+    private suspend fun archiveQuery(
+        query: String,
+        limit: Int,
+        scope: ArchiveScope
+    ): List<AmbientSound> {
+        val fullQuery = buildString {
+            append("mediatype:(audio)")
+            when (scope) {
+                ArchiveScope.PUBLIC_DOMAIN -> append(" AND collection:(opensource_audio)")
+                    .append(" AND licenseurl:*publicdomain*")
+                ArchiveScope.OPEN_AUDIO_COLLECTION -> append(" AND collection:(opensource_audio)")
+                ArchiveScope.AUDIO_ONLY -> Unit
+            }
+            append(" AND (").append(query).append(")")
+        }
         val url = "https://archive.org/advancedsearch.php".toHttpUrlOrNull()
             ?.newBuilder()
             ?.addQueryParameter("q", fullQuery)
@@ -385,15 +462,18 @@ class MusicCatalogClient(
             ?.addQueryParameter("fl[]", "title")
             ?.addQueryParameter("fl[]", "licenseurl")
             ?.addQueryParameter("fl[]", "creator")
-            ?.addQueryParameter("rows", limit.toString())
+            ?.addQueryParameter("fl[]", "subject")
+            ?.addQueryParameter("fl[]", "downloads")
+            ?.addQueryParameter("rows", limit.coerceIn(1, 50).toString())
+            ?.addQueryParameter("sort[]", "downloads desc")
             ?.addQueryParameter("output", "json")
             ?.build()
-            ?: return@withContext emptyList()
+            ?: return emptyList()
 
         val body = execute(Request.Builder().url(url).get().build())
-            ?: return@withContext emptyList()
+            ?: return emptyList()
 
-        runCatching {
+        return runCatching {
             val root = JSONObject(body)
             val docs = root.optJSONObject("response")?.optJSONArray("docs") ?: JSONArray()
             buildList {
@@ -401,6 +481,19 @@ class MusicCatalogClient(
                     val item = docs.optJSONObject(i) ?: continue
                     val identifier = item.optString("identifier")
                     if (identifier.isBlank()) continue
+
+                    // `subject` alanı dizi ya da metin olabilir. Dizi hâlinde
+                    // `optString` JSON metnini ("[\"rain\",\"nature\"]")
+                    // döndürürdü; etiketleri düzgün birleştiriyoruz.
+                    val subjectText = when (val rawSubject = item.opt("subject")) {
+                        is JSONArray -> buildList {
+                            for (j in 0 until rawSubject.length()) {
+                                rawSubject.optString(j).takeIf { it.isNotBlank() }?.let { add(it) }
+                            }
+                        }.joinToString(" ")
+                        is String -> rawSubject
+                        else -> ""
+                    }
 
                     // Akış adresi: /download/<id>/ üzerinden ilk dosya
                     // Not: kesin dosya adı metadata çağrısı gerektirir;
@@ -410,9 +503,11 @@ class MusicCatalogClient(
                             id = "archive_$identifier",
                             title = item.optString("title", identifier),
                             subtitle = item.optString("creator", "Internet Archive"),
-                            family = familyFromTags(listOf(identifier, item.optString("title"))),
+                            family = familyFromTags(
+                                listOf(identifier, item.optString("title"), subjectText)
+                            ),
                             origin = AmbientOrigin.REMOTE,
-                            mood = MoodProfile.Neutral,
+                            mood = moodFromTags(listOf(item.optString("title"), subjectText)),
                             // Not: kesin dosya adı metadata çağrısı gerektirir.
                             // resolveArchiveTrackUrl() çalma anında çözer.
                             streamUrl = null,

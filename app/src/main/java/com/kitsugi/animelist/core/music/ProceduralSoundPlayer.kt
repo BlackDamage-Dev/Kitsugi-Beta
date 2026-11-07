@@ -87,6 +87,17 @@ class ProceduralSoundPlayer(
     @Volatile
     private var stopRequested = false
 
+    /**
+     * Çalar kendi kendine öldüğünde (AudioTrack `DEAD_OBJECT`, tampon taşması,
+     * sentez istisnası) çağrılır.
+     *
+     * Motor bu geri çağırımı kanalı `ERROR` durumuna almak için kullanır.
+     * Bu olmadan kanal sonsuza kadar "çalıyor" görünüyor, kullanıcı ses
+     * duymuyor ve panelden hiçbir şey yapamıyordu.
+     */
+    @Volatile
+    var onRenderFailure: (() -> Unit)? = null
+
     init {
         if (initialSoundId != null) {
             // Henüz start() çağrılmadı; sadece tanımı hazırla.
@@ -131,7 +142,7 @@ class ProceduralSoundPlayer(
         } else {
             val ok = runCatching {
                 track.play()
-                track.playState == AudioTrack.PLAYSTATE_PLAYING
+                track.state == AudioTrack.STATE_INITIALIZED
             }.getOrElse { false }
             if (ok) {
                 playing = true
@@ -250,7 +261,7 @@ class ProceduralSoundPlayer(
 
         val playOk = runCatching {
             track.play()
-            track.playState == AudioTrack.PLAYSTATE_PLAYING
+            track.state == AudioTrack.STATE_INITIALIZED
         }.getOrElse { false }
 
         if (!playOk) {
@@ -271,6 +282,8 @@ class ProceduralSoundPlayer(
         val left = FloatArray(BLOCK_FRAMES)
         val right = FloatArray(BLOCK_FRAMES)
         val pcmShort = ShortArray(BLOCK_FRAMES * 2)
+
+        var failed = false
 
         try {
             while (playing && !stopRequested) {
@@ -293,7 +306,13 @@ class ProceduralSoundPlayer(
                         track.write(pcmShort, written, pcmShort.size - written)
                     }.getOrElse { -1 }
                     if (n < 0) {
-                        Log.e(TAG, "AudioTrack yazma hatası: $n")
+                        // ⚠️ Eskiden burada yalnızca `break` vardı: dış döngü
+                        // dönmeye devam ediyor, her turda yeniden sentez yapıp
+                        // yine hata alıyordu. Altı kanalda bu, tüm çekirdekleri
+                        // %100'de tutup arayüzü kilitliyordu ("uygulama kafayı
+                        // yiyor"). Artık çalar kapanır ve motor haberdar edilir.
+                        Log.e(TAG, "AudioTrack yazma hatası: $n — çalar kapatılıyor")
+                        failed = true
                         break
                     }
                     if (n == 0) {
@@ -302,9 +321,32 @@ class ProceduralSoundPlayer(
                     }
                     written += n
                 }
+
+                if (failed) break
+
+                // Track sistem tarafından öldürüldüyse (ör. başka bir uygulama
+                // ses donanımını sıfırladı) döngüyü bitir.
+                if (track.state != AudioTrack.STATE_INITIALIZED) {
+                    Log.e(TAG, "AudioTrack durumu bozuldu: ${track.state} — çalar kapatılıyor")
+                    failed = true
+                    break
+                }
             }
+        } catch (c: kotlinx.coroutines.CancellationException) {
+            // pause()/stop() render işini iptal eder — bu bir HATA değil.
+            // Eskiden burada `failed = true` yapılsaydı her duraklatma
+            // kanalı "hata" durumuna düşürürdü.
+            return@launch
         } catch (t: Throwable) {
             Log.w(TAG, "Sentez döngüsü kesintiye uğradı", t)
+            failed = true
+        }
+
+        if (failed) {
+            // Kaynağı bırak, sonra motoru uyar. `stopInternal` içinde
+            // `onRenderFailure` çağrılmaz → döngü yok.
+            stopInternal(immediate = true)
+            onRenderFailure?.invoke()
         }
     }
 

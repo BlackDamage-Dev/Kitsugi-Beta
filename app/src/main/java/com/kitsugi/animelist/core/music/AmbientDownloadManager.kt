@@ -144,8 +144,17 @@ class AmbientDownloadManager(
         val temp = File(dir, "${safeName(sound.id)}.part")
 
         try {
+            // ⚠️ Uygulama `usesCleartextTraffic=false`; CC arşivleri
+            // (Internet Archive, Openverse) `http://` adres döndürebiliyor.
+            // Aynı sunucular https'i destekliyor → şemayı yükselt.
+            val safeUrl = if (url.startsWith("http://", ignoreCase = true)) {
+                "https://" + url.substring("http://".length)
+            } else {
+                url
+            }
+
             val request = Request.Builder()
-                .url(url)
+                .url(safeUrl)
                 .header("User-Agent", USER_AGENT)
                 .header("Accept", "audio/*,*/*;q=0.8")
                 .build()

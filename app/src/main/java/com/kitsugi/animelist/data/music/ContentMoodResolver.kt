@@ -130,7 +130,57 @@ object ContentMoodResolver {
         // ── Komedi ───────────────────────────────────────────────────────
         "komik" to MoodProfile(0.55f, 0.85f, 0.15f, 0.72f, 0.55f),
         "eğlence" to MoodProfile(0.60f, 0.85f, 0.15f, 0.70f, 0.55f),
-        "parodi" to MoodProfile(0.58f, 0.88f, 0.12f, 0.68f, 0.52f)
+        "parodi" to MoodProfile(0.58f, 0.88f, 0.12f, 0.68f, 0.52f),
+
+        // ── İngilizce / ek Türkçe manga anahtar kelimeleri (Başlık + Açıklama) ──
+        "chainsaw" to MoodProfile(0.92f, 0.20f, 0.90f, 0.25f, 0.72f),
+        "devil" to MoodProfile(0.78f, 0.20f, 0.88f, 0.25f, 0.68f),
+        "demon" to MoodProfile(0.80f, 0.22f, 0.85f, 0.28f, 0.70f),
+        "iblis" to MoodProfile(0.80f, 0.22f, 0.85f, 0.28f, 0.70f),
+        "şeytan" to MoodProfile(0.75f, 0.18f, 0.88f, 0.25f, 0.68f),
+        "fiend" to MoodProfile(0.78f, 0.20f, 0.86f, 0.25f, 0.68f),
+        "hunter" to MoodProfile(0.82f, 0.35f, 0.72f, 0.32f, 0.78f),
+        "action" to MoodProfile(0.88f, 0.42f, 0.75f, 0.35f, 0.75f),
+        "horror" to MoodProfile(0.55f, 0.12f, 0.92f, 0.20f, 0.60f),
+        "gore" to MoodProfile(0.75f, 0.12f, 0.92f, 0.20f, 0.62f),
+        "blood" to MoodProfile(0.65f, 0.15f, 0.88f, 0.25f, 0.60f),
+        "supernatural" to MoodProfile(0.60f, 0.32f, 0.78f, 0.35f, 0.72f),
+        "shounen" to MoodProfile(0.82f, 0.55f, 0.65f, 0.45f, 0.75f),
+        "shonen" to MoodProfile(0.82f, 0.55f, 0.65f, 0.45f, 0.75f),
+        "seinen" to MoodProfile(0.65f, 0.32f, 0.75f, 0.35f, 0.78f),
+        "dark fantasy" to MoodProfile(0.75f, 0.22f, 0.88f, 0.28f, 0.72f),
+        "monster" to MoodProfile(0.80f, 0.28f, 0.78f, 0.28f, 0.72f),
+        "fight" to MoodProfile(0.88f, 0.38f, 0.75f, 0.35f, 0.78f),
+        "battle" to MoodProfile(0.90f, 0.35f, 0.80f, 0.35f, 0.75f),
+        "war" to MoodProfile(0.88f, 0.28f, 0.85f, 0.30f, 0.72f),
+        "death" to MoodProfile(0.50f, 0.15f, 0.86f, 0.25f, 0.62f),
+        "revenge" to MoodProfile(0.72f, 0.18f, 0.86f, 0.28f, 0.68f),
+        "murder" to MoodProfile(0.52f, 0.15f, 0.88f, 0.25f, 0.65f),
+        "mystery" to MoodProfile(0.45f, 0.32f, 0.76f, 0.35f, 0.75f),
+        "thriller" to MoodProfile(0.65f, 0.22f, 0.88f, 0.28f, 0.70f),
+        "psychological" to MoodProfile(0.48f, 0.20f, 0.86f, 0.28f, 0.75f),
+        "zombie" to MoodProfile(0.68f, 0.12f, 0.90f, 0.20f, 0.60f),
+        "vampire" to MoodProfile(0.58f, 0.25f, 0.78f, 0.35f, 0.62f),
+        "ghost" to MoodProfile(0.38f, 0.18f, 0.85f, 0.30f, 0.58f),
+        "curse" to MoodProfile(0.52f, 0.18f, 0.84f, 0.28f, 0.62f),
+        "apocalypse" to MoodProfile(0.62f, 0.15f, 0.88f, 0.22f, 0.62f),
+        "dungeon" to MoodProfile(0.85f, 0.35f, 0.75f, 0.30f, 0.80f),
+        "magic" to MoodProfile(0.62f, 0.70f, 0.42f, 0.55f, 0.82f),
+        "dragon" to MoodProfile(0.78f, 0.58f, 0.58f, 0.45f, 0.75f),
+        "fantasy" to MoodProfile(0.65f, 0.68f, 0.45f, 0.55f, 0.78f),
+        "adventure" to MoodProfile(0.70f, 0.70f, 0.42f, 0.52f, 0.78f),
+        "isekai" to MoodProfile(0.65f, 0.65f, 0.45f, 0.52f, 0.76f),
+        "reincarnat" to MoodProfile(0.58f, 0.58f, 0.45f, 0.55f, 0.78f),
+        "romance" to MoodProfile(0.35f, 0.80f, 0.25f, 0.75f, 0.58f),
+        "love" to MoodProfile(0.35f, 0.80f, 0.25f, 0.75f, 0.58f),
+        "comedy" to MoodProfile(0.58f, 0.85f, 0.15f, 0.72f, 0.55f),
+        "school" to MoodProfile(0.38f, 0.70f, 0.28f, 0.70f, 0.78f),
+        "slice of life" to MoodProfile(0.22f, 0.75f, 0.12f, 0.75f, 0.75f),
+        "drama" to MoodProfile(0.42f, 0.35f, 0.62f, 0.58f, 0.65f),
+        "cyberpunk" to MoodProfile(0.75f, 0.30f, 0.78f, 0.28f, 0.82f),
+        "samurai" to MoodProfile(0.78f, 0.40f, 0.72f, 0.38f, 0.82f),
+        "ninja" to MoodProfile(0.82f, 0.42f, 0.72f, 0.35f, 0.80f),
+        "martial arts" to MoodProfile(0.88f, 0.45f, 0.72f, 0.38f, 0.80f)
     )
 
     // ─────────────────────────────────────────────────────────────────────
@@ -606,7 +656,12 @@ object ContentMoodResolver {
         // Böylece Türkçe/İngilizce/Çince (Bangumi) tür adlarının hepsi
         // tek bir İngilizce anahtara düşer ve GenreMoodMapper tablosu
         // YALNIZCA İngilizce tutabilir. Ayrı bir Türkçe tablo yok.
-        genres.take(6).forEachIndexed { index, raw ->
+        val expandedGenres = genres
+            .flatMap { it.split(',', ';', '/', '|', '\n') }
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+
+        expandedGenres.take(8).forEachIndexed { index, raw ->
             if (raw.isBlank()) return@forEachIndexed
 
             // ── Tür adını İngilizceye çevir (4 kademeli) ────────────────

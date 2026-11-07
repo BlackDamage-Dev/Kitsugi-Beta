@@ -25,6 +25,27 @@ object KitsugiHttpClient {
     }
 
     /**
+     * 🎧 Ortam sesi **akışları** için istemci (ExoPlayer `OkHttpDataSource`).
+     *
+     * Neden ayrı istemci:
+     *  - `callTimeout` **yok**: bir parça dakikalarca çalabilir; meta veri
+     *    istemcisindeki 20 sn'lik toplam tavan akışı ortasında keserdi.
+     *  - Bağlantı/kurulum hatalarında hızlı düş: 15 sn bağlan, 20 sn oku.
+     *    Böylece bozuk bir parça 25+30 sn boyunca "yükleniyor" göstermez.
+     *  - `RetryInterceptor` kaldırıldı: `StreamVoice` zaten kendi deneme
+     *    döngüsünü yönetiyor; iki katman üst üste binince tek parça için
+     *    6 istek atılıyordu.
+     */
+    val streamClient: OkHttpClient by lazy {
+        client.newBuilder()
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(20, TimeUnit.SECONDS)
+            .writeTimeout(15, TimeUnit.SECONDS)
+            .apply { interceptors().removeAll { it is RetryInterceptor } }
+            .build()
+    }
+
+    /**
      * Jikan istemcisi: [metadataClient] ile aynı, ancak [RetryInterceptor] YOK.
      *
      * Neden: RetryInterceptor 429/5xx/ağ hatasında isteği kota kapısı (JikanGateway) dışında

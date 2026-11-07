@@ -49,14 +49,20 @@ fun AppRootMangaPages(
                     source        = detailState.source,
                     mangaDetails  = detailState.mangaDetails,
                     onOpenChapter = { chapter ->
+                        val latestDetails = navState.mangaDetailNavState?.mangaDetails ?: detailState.mangaDetails
                         navState.mangaReaderNavState = MangaReaderNavState(
                             source       = detailState.source,
-                            mangaDetails = detailState.mangaDetails,
+                            mangaDetails = latestDetails,
                             chapter      = chapter
                         )
                     },
                     onBack        = { navState.mangaDetailNavState = null },
-                    refreshTick   = navState.mangaDetailRefreshTick
+                    refreshTick   = navState.mangaDetailRefreshTick,
+                    onDetailsUpdated = { updated ->
+                        if (navState.mangaDetailNavState?.mangaDetails?.url == updated.url) {
+                            navState.mangaDetailNavState = detailState.copy(mangaDetails = updated)
+                        }
+                    }
                 )
             }
         }
