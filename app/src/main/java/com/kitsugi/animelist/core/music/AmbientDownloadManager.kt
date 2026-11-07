@@ -229,6 +229,13 @@ class AmbientDownloadManager(
                 _active.update { it - sound.id }
                 writeManifest(sound.id to finalTarget.nameWithoutExtension)
 
+                // 📂 İndirmeler > Sesler görünürlüğü: iç kopya (filesDir,
+                // hash'li ad) tarayıcının baktığı yerde DEĞİL. Anlamlı adlı
+                // bir kopya da Download/Kitsugi/Audio'ya yazılır; sekme
+                // oradan listeler/oynatır. Başarısız olursa indirme yine de
+                // başarılı sayılır (çevrimdışı çalma iç kopyadan sürer).
+                exportPublicCopy(sound, finalTarget)
+
                 Log.i(TAG, "İndirildi: ${sound.title} → ${finalTarget.name} (${written / 1024} KB)")
                 finalTarget
             }
@@ -240,7 +247,7 @@ class AmbientDownloadManager(
         }
     }
 
-    /** İndirilen sesi siler. */
+    /** İndirilen sesi siler (iç kopya + İndirmeler > Sesler kopyası). */
     fun delete(soundId: String): Boolean {
         val file = localFile(soundId) ?: return false
         val ok = runCatching { file.delete() }.getOrDefault(false)
@@ -248,6 +255,7 @@ class AmbientDownloadManager(
             _downloaded.update { it - soundId }
             _active.update { it - soundId }
             writeManifest()
+            deletePublicCopy(soundId)
         }
         return ok
     }
@@ -261,6 +269,16 @@ class AmbientDownloadManager(
         _downloaded.value = emptyMap()
         _active.value = emptyMap()
         runCatching { manifestFile().delete() }
+        // İndirmeler > Sesler'deki açık kopyalar da temizlenir.
+        readExports().values.forEach { name ->
+            runCatching {
+                java.io.File(
+                    com.kitsugi.animelist.core.download.DownloadExportNaming.publicAudioDir(),
+                    name
+                ).delete()
+            }
+        }
+        runCatching { exportsFile().delete() }
         return count
     }
 
@@ -362,6 +380,81 @@ class AmbientDownloadManager(
     }
 
     private fun manifestFile(): File = File(ambientDir(), "manifest.json")
+
+    // ─── İndirmeler > Sesler köprüsü ─────────────────────────────────────
+    //
+    // ⚠️ KÖK NEDEN (kullanıcı şikâyeti: "ortam seslerinden indirdiklerim
+    // İndirmeler > Sesler'de görünmüyor"): indirmeler yalnızca
+    // `filesDir/ambient/` altında, SHA-1 hash'li adlarla duruyordu.
+    // Sesler sekmesinin tarayıcısı ise `DownloadStorage.audioRoots`
+    // (Download/Kitsugi/Audio vb.) + MediaStore'a bakar — ikisi hiç
+    // kesişmiyordu. Artık her indirme, anlamlı adlı bir kopyayla genel
+    // ses klasörüne de yazılıyor; `exports.json` hangi kopyanın hangi
+    // sese ait olduğunu tutar (silmede birlikte kaldırılır).
+
+    private fun exportsFile(): File = File(ambientDir(), "exports.json")
+
+    private fun readExports(): Map<String, String> {
+        val file = exportsFile()
+        if (!file.isFile) return emptyMap()
+        return runCatching {
+            val root = org.json.JSONObject(file.readText())
+            val out = mutableMapOf<String, String>()
+            root.keys().forEach { soundId -> out[soundId] = root.optString(soundId) }
+            out
+        }.getOrDefault(emptyMap())
+    }
+
+    private fun writeExports(map: Map<String, String>) {
+        runCatching {
+            val json = org.json.JSONObject()
+            map.forEach { (k, v) -> json.put(k, v) }
+            exportsFile().writeText(json.toString())
+        }
+    }
+
+    /** İndirilen sesi `Download/Kitsugi/Audio` altına anlamlı adla kopyalar. */
+    private fun exportPublicCopy(sound: AmbientSound, source: File) {
+        runCatching {
+            val naming = com.kitsugi.animelist.core.download.DownloadExportNaming
+            val dir = naming.publicAudioDir()
+            dir.mkdirs()
+            val ext = source.extension.ifBlank { DEFAULT_EXT }
+            val base = naming.sanitizeTitle(sound.title)
+            val subtitle = naming.sanitizeTitle(sound.subtitle)
+            val fileName = if (subtitle.isNotBlank() && subtitle != "Video" &&
+                !base.contains(subtitle, ignoreCase = true)
+            ) {
+                "Kitsugi_Ortam_${base} - $subtitle.$ext"
+            } else {
+                "Kitsugi_Ortam_$base.$ext"
+            }
+            val target = File(dir, fileName)
+            if (!target.exists() || target.length() != source.length()) {
+                source.copyTo(target, overwrite = true)
+            }
+            android.media.MediaScannerConnection.scanFile(
+                context, arrayOf(target.absolutePath), null, null
+            )
+            writeExports(readExports() + (sound.id to target.name))
+            Log.i(TAG, "Sesler klasörüne kopyalandı: ${target.name}")
+        }.onFailure {
+            Log.w(TAG, "Sesler klasörüne kopyalanamadı (iç kopya duruyor)", it)
+        }
+    }
+
+    /** Açık kopyayı siler (tekli silmede çağrılır). */
+    private fun deletePublicCopy(soundId: String) {
+        val exports = readExports()
+        val name = exports[soundId] ?: return
+        runCatching {
+            java.io.File(
+                com.kitsugi.animelist.core.download.DownloadExportNaming.publicAudioDir(),
+                name
+            ).delete()
+        }
+        writeExports(exports - soundId)
+    }
 
     private fun setActive(soundId: String, state: DownloadState) {
         _active.update { it + (soundId to state) }

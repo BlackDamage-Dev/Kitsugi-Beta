@@ -40,6 +40,7 @@ import coil3.compose.AsyncImage
 import com.kitsugi.animelist.R
 import com.kitsugi.animelist.core.music.AmbientAudioEngine
 import com.kitsugi.animelist.core.music.AmbientAutoplayStarter
+import com.kitsugi.animelist.core.music.AmbientPlaybackService
 import com.kitsugi.animelist.core.music.AutoplayGate
 import com.kitsugi.animelist.data.diagnostics.PlatformErrorCode
 import com.kitsugi.animelist.data.manga.*
@@ -900,10 +901,27 @@ private fun MangaReaderAmbientOrchestrator(
         musicEngine.continueInBackground = readerAppSettings.musicContinueOnExit
     }
 
+    // ── Okuyucudan çıkınca ortam sesi KESİN durur ────────────────────────
+    // ⚠️ KÖK NEDEN (kullanıcı şikâyeti: "okuma sayfasından çıkınca, geri
+    // gidince veya kapatınca müzik durmalı"): motor + ön plan servisi
+    // okuyucu kapansa da çalmaya devam ediyordu; `musicContinueOnExit`
+    // açıkken bu tasarlanmış davranıştı ama kullanıcı okumayı bırakınca
+    // sesin sürmesini istemiyor. Kompozisyon kapanırken (geri tuşu /
+    // kapatma / başka ekrana geçiş) kanallar ve servis her durumda
+    // durdurulur. Bölüm geçişleri aynı kompozisyonda kaldığı için
+    // etkilenmez.
+    DisposableEffect(Unit) {
+        onDispose {
+            musicEngine.stopAllChannels()
+            AmbientPlaybackService.stop(context)
+        }
+    }
+
     if (showMusicPanel) {
         KitsugiSheetOrDialog(
             onDismiss = onDismissMusicPanel,
             heightFraction = 0.78f,
+            sheetGesturesEnabled = false,
         ) {
             MangaAmbientPanel(
                 recommendations = musicRecommendations,

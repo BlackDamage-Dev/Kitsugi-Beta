@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -21,6 +22,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -42,6 +46,9 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -65,7 +72,6 @@ import com.kitsugi.animelist.data.music.RecommendationResult
 import com.kitsugi.animelist.data.music.SoundFamily
 import com.kitsugi.animelist.ui.theme.KitsugiColors
 import com.kitsugi.animelist.ui.theme.LocalKitsugiAccent
-import kotlinx.coroutines.launch
 
 /**
  * 🎵 Okuyucu Müzik Paneli — Birleşik Sürüm
@@ -173,7 +179,21 @@ fun MangaAmbientPanel(
     onClearDownloads: () -> Unit = {}
 ) {
     val accent = LocalKitsugiAccent.current
-    var selectedTab by remember { mutableStateOf(0) }
+
+    // ── Sayfa gezinme: sağa-sola kaydırma (kullanıcı isteği) ────────────
+    // Sekme bandı + içerik tek HorizontalPager'a bağlı: banttan dokunmak
+    // sayfayı kaydırır, sayfayı kaydırmak bandı senkronlar. "Ayarlar"
+    // (açma/kapama anahtarları) artık ayrı bir sayfa; çalma çubuğu
+    // (başlık + kısayol şeridi) her zaman üstte sabit durur.
+    val tabs = remember {
+        listOf("Senin İçin", "Ambiyans", "Müzik", "Çevrimiçi", "Karışım", "Profil", "Süre", "Ayarlar")
+    }
+    val pagerState = rememberPagerState(initialPage = 0, pageCount = { tabs.size })
+    val selectedTab = pagerState.currentPage
+    val panelScope = rememberCoroutineScope()
+    val jumpToTab: (Int) -> Unit = { index ->
+        panelScope.launch { pagerState.animateScrollToPage(index) }
+    }
 
     // Uzun basılan ses → detay sayfası (Chiarella'nın kart detayı karşılığı)
     var detailSound by remember { mutableStateOf<AmbientSound?>(null) }
@@ -270,27 +290,6 @@ fun MangaAmbientPanel(
 
         Spacer(Modifier.height(10.dp))
 
-        // ── Aç / kapa anahtarları ───────────────────────────────────────
-        // Yalnızca "Senin İçin" sekmesinde: diğer sekmelerde zaten
-        // kullanıcı bir şey seçiyor, anahtar gereksiz yer kaplar.
-        if (selectedTab == 0) {
-            AutoPlayCard(
-                accent = accent,
-                musicEnabled = musicEnabled,
-                autoPlay = autoPlay,
-                delaySeconds = autoPlayDelaySeconds,
-                onMusicEnabledChanged = onMusicEnabledChanged,
-                onAutoPlayChanged = onAutoPlayChanged,
-                headphonesOnly = autoPlayHeadphonesOnly,
-                onHeadphonesOnlyChanged = onAutoPlayHeadphonesOnlyChanged,
-                muteOnSilent = autoPlayMuteOnSilent,
-                onMuteOnSilentChanged = onAutoPlayMuteOnSilentChanged,
-                includeOnline = autoPlayIncludeOnline,
-                onIncludeOnlineChanged = onAutoPlayIncludeOnlineChanged
-            )
-            Spacer(Modifier.height(8.dp))
-        }
-
         // ══════════════════════════════════════════════════════════════
         //  KISAYOL ŞERİDİ — sayfayı kaplamadan tek dokunuş
         // ══════════════════════════════════════════════════════════════
@@ -318,20 +317,24 @@ fun MangaAmbientPanel(
                 if (sleepTimer.running) onCancelTimer() else onStartTimer(minutes)
             },
             onStopAll = onStopAll,
-            onJumpTo = { tab -> selectedTab = tab }
+            onJumpTo = { tab -> jumpToTab(tab) }
         )
 
         Spacer(Modifier.height(8.dp))
 
-        // ── Sekmeler ────────────────────────────────────────────────────
-        val tabs = remember {
-            listOf("Senin İçin", "Ambiyans", "Müzik", "Çevrimiçi", "Karışım", "Profil", "Süre")
+        // ── Sekmeler (üstte sabit; sayfayla senkron) ─────────────────────
+        val tabListState = rememberLazyListState()
+        LaunchedEffect(selectedTab) {
+            tabListState.animateScrollToItem(selectedTab)
         }
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        LazyRow(
+            state = tabListState,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
             items(tabs.size) { index ->
                 FilterChip(
                     selected = selectedTab == index,
-                    onClick = { selectedTab = index },
+                    onClick = { jumpToTab(index) },
                     label = {
                         Text(
                             text = when {
@@ -354,97 +357,145 @@ fun MangaAmbientPanel(
 
         Spacer(Modifier.height(4.dp))
 
-        // ── İçerik ──────────────────────────────────────────────────────
-        when (selectedTab) {
-            0 -> ForYouTab(
-                modifier = Modifier.weight(1f),
-                recommendations = recommendations,
-                matchNote = matchNote,
-                channels = channels,
-                activePresetId = activePresetId,
-                accent = accent,
-                favorites = favorites,
-                recentIds = recentIds,
-                onPlayPreset = onPlayPreset,
-                onPlaySound = onPlaySound,
-                onToggleFavorite = onToggleFavorite,
-                onLongClickSound = openDetail
-            )
-            1 -> SoundListTab(
-                modifier = Modifier.weight(1f),
-                familyFilter = { it != SoundFamily.INSTRUMENTAL },
-                channels = channels,
-                favorites = favorites,
-                onPlaySound = onPlaySound,
-                onToggleFavorite = onToggleFavorite,
-                onLongClickSound = openDetail
-            )
-            2 -> SoundListTab(
-                modifier = Modifier.weight(1f),
-                familyFilter = { it == SoundFamily.INSTRUMENTAL },
-                channels = channels,
-                favorites = favorites,
-                onPlaySound = onPlaySound,
-                onToggleFavorite = onToggleFavorite,
-                onLongClickSound = openDetail
-            )
-            3 -> OnlineTab(
-                modifier = Modifier.weight(1f),
-                results = onlineResults,
-                isSearching = isSearching,
-                error = searchError,
-                query = searchQuery,
-                sourceStates = sourceStates,
-                playingIds = channels.map { it.sound.id }.toSet(),
-                accent = accent,
-                onQueryChanged = onSearchQueryChanged,
-                onSearch = onSearch,
-                onPlay = onPlayOnline,
-                onToggleSource = onToggleSource,
-                downloadedIds = downloadedIds,
-                downloadProgress = downloadProgress,
-                onDownload = onDownloadSound
-            )
-            4 -> MixerTab(
-                modifier = Modifier.weight(1f),
-                channels = channels,
-                maxChannels = maxChannels,
-                masterVolume = masterVolume,
-                onMasterVolumeChanged = onMasterVolumeChanged,
-                onChannelVolumeChanged = onChannelVolumeChanged,
-                onChannelMuteToggle = onChannelMuteToggle,
-                onChannelRemove = onChannelRemove,
-                onRetryChannel = onRetryChannel,
-                onStopAll = onStopAll,
-                accent = accent,
-                sleepTimer = sleepTimer,
-                onStartTimer = onStartTimer,
-                onCancelTimer = onCancelTimer,
-                downloadedCount = downloadedIds.size,
-                downloadedBytes = downloadedBytes,
-                onClearDownloads = onClearDownloads
-            )
-            5 -> ProfileTab(
-                modifier = Modifier.weight(1f),
-                profiles = profiles,
-                channels = channels,
-                accent = accent,
-                onSave = onSaveProfile,
-                onApply = onApplyProfile,
-                onDelete = onDeleteProfile,
-                onExport = onExportProfile,
-                onImport = onImportProfile
-            )
-            else -> TimerTab(
-                modifier = Modifier.weight(1f),
-                timer = sleepTimer,
-                accent = accent,
-                onStart = onStartTimer,
-                onCancel = onCancelTimer,
-                onPause = onPauseTimer,
-                onResume = onResumeTimer,
-                onExtend = onExtendTimer
-            )
+        // ── İçerik: kaydırılabilir sayfalar ─────────────────────────────
+        // Çalma çubuğu (başlık + kısayol şeridi) ve sekme bandı bu alanın
+        // DIŞINDA, her zaman üstte sabit. Sayfalar sağa-sola kaydırılır.
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+        ) { page ->
+            when (page) {
+                0 -> ForYouTab(
+                    modifier = Modifier.fillMaxSize(),
+                    recommendations = recommendations,
+                    matchNote = matchNote,
+                    channels = channels,
+                    activePresetId = activePresetId,
+                    accent = accent,
+                    favorites = favorites,
+                    recentIds = recentIds,
+                    onPlayPreset = onPlayPreset,
+                    onPlaySound = onPlaySound,
+                    onToggleFavorite = onToggleFavorite,
+                    onLongClickSound = openDetail
+                )
+                1 -> SoundListTab(
+                    modifier = Modifier.fillMaxSize(),
+                    familyFilter = { it != SoundFamily.INSTRUMENTAL },
+                    channels = channels,
+                    favorites = favorites,
+                    onPlaySound = onPlaySound,
+                    onToggleFavorite = onToggleFavorite,
+                    onLongClickSound = openDetail
+                )
+                2 -> SoundListTab(
+                    modifier = Modifier.fillMaxSize(),
+                    familyFilter = { it == SoundFamily.INSTRUMENTAL },
+                    channels = channels,
+                    favorites = favorites,
+                    onPlaySound = onPlaySound,
+                    onToggleFavorite = onToggleFavorite,
+                    onLongClickSound = openDetail
+                )
+                3 -> OnlineTab(
+                    modifier = Modifier.fillMaxSize(),
+                    results = onlineResults,
+                    isSearching = isSearching,
+                    error = searchError,
+                    query = searchQuery,
+                    sourceStates = sourceStates,
+                    playingIds = channels.map { it.sound.id }.toSet(),
+                    accent = accent,
+                    onQueryChanged = onSearchQueryChanged,
+                    onSearch = onSearch,
+                    onPlay = onPlayOnline,
+                    onToggleSource = onToggleSource,
+                    downloadedIds = downloadedIds,
+                    downloadProgress = downloadProgress,
+                    onDownload = onDownloadSound
+                )
+                4 -> MixerTab(
+                    modifier = Modifier.fillMaxSize(),
+                    channels = channels,
+                    maxChannels = maxChannels,
+                    masterVolume = masterVolume,
+                    onMasterVolumeChanged = onMasterVolumeChanged,
+                    onChannelVolumeChanged = onChannelVolumeChanged,
+                    onChannelMuteToggle = onChannelMuteToggle,
+                    onChannelRemove = onChannelRemove,
+                    onRetryChannel = onRetryChannel,
+                    onStopAll = onStopAll,
+                    accent = accent,
+                    sleepTimer = sleepTimer,
+                    onStartTimer = onStartTimer,
+                    onCancelTimer = onCancelTimer,
+                    downloadedCount = downloadedIds.size,
+                    downloadedBytes = downloadedBytes,
+                    onClearDownloads = onClearDownloads
+                )
+                5 -> ProfileTab(
+                    modifier = Modifier.fillMaxSize(),
+                    profiles = profiles,
+                    channels = channels,
+                    accent = accent,
+                    onSave = onSaveProfile,
+                    onApply = onApplyProfile,
+                    onDelete = onDeleteProfile,
+                    onExport = onExportProfile,
+                    onImport = onImportProfile
+                )
+                6 -> TimerTab(
+                    modifier = Modifier.fillMaxSize(),
+                    timer = sleepTimer,
+                    accent = accent,
+                    onStart = onStartTimer,
+                    onCancel = onCancelTimer,
+                    onPause = onPauseTimer,
+                    onResume = onResumeTimer,
+                    onExtend = onExtendTimer
+                )
+                else -> {
+                    // ── SEKME 8 — AYARLAR (açma/kapama anahtarları) ──────
+                    // Anahtarlar eskiden yalnızca "Senin İçin" sekmesinin
+                    // üstünde duruyordu; artık sekme bandındaki kendi
+                    // sayfasında (kullanıcı isteği).
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(rememberScrollState())
+                            .padding(vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        AutoPlayCard(
+                            accent = accent,
+                            musicEnabled = musicEnabled,
+                            autoPlay = autoPlay,
+                            delaySeconds = autoPlayDelaySeconds,
+                            onMusicEnabledChanged = onMusicEnabledChanged,
+                            onAutoPlayChanged = onAutoPlayChanged,
+                            headphonesOnly = autoPlayHeadphonesOnly,
+                            onHeadphonesOnlyChanged = onAutoPlayHeadphonesOnlyChanged,
+                            muteOnSilent = autoPlayMuteOnSilent,
+                            onMuteOnSilentChanged = onAutoPlayMuteOnSilentChanged,
+                            includeOnline = autoPlayIncludeOnline,
+                            onIncludeOnlineChanged = onAutoPlayIncludeOnlineChanged
+                        )
+                        Text(
+                            text = "Çevrimiçi parça bulunamazsa veya açılamazsa cihaz içi ses " +
+                                "kesintisiz devam eder; okuyucudan çıkınca müzik her durumda durur.",
+                            color = KitsugiColors.TextMuted,
+                            fontSize = 11.sp,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(KitsugiColors.SurfaceSoft.copy(alpha = 0.7f))
+                                .padding(12.dp)
+                        )
+                    }
+                }
+            }
         }
     }
 }
@@ -1637,18 +1688,6 @@ private fun SourceStatusRow(
     state: com.kitsugi.animelist.data.music.MusicSourceState,
     onToggle: () -> Unit = {}
 ) {
-    val accent = LocalKitsugiAccent.current
-    val context = androidx.compose.ui.platform.LocalContext.current
-    val scope = androidx.compose.runtime.rememberCoroutineScope()
-    val settingsStore = remember(context.applicationContext) {
-        com.kitsugi.animelist.data.settings.SettingsDataStore(context.applicationContext)
-    }
-    val supportsKey = !state.def.keyless || state.def.optionalKey
-    var showKeyEditor by remember { mutableStateOf(false) }
-    var keyInput by remember { mutableStateOf("") }
-    var validating by remember { mutableStateOf(false) }
-    var validationResult by remember { mutableStateOf<Boolean?>(null) }
-
     val dotColor = when (state.status) {
         com.kitsugi.animelist.data.music.SourceStatus.READY -> Color(0xFF34D399)
         com.kitsugi.animelist.data.music.SourceStatus.UNCHECKED -> Color(0xFF60A5FA)
@@ -1665,199 +1704,71 @@ private fun SourceStatusRow(
         com.kitsugi.animelist.data.music.SourceStatus.DISABLED -> "kapalı"
     }
 
-    Column(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
             .background(KitsugiColors.SurfaceSoft.copy(alpha = 0.6f))
+            .clickable(onClick = onToggle)
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
+        Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .clickable(onClick = onToggle)
-                .padding(horizontal = 10.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(7.dp)
-                    .clip(CircleShape)
-                    .background(dotColor)
-            )
-            Spacer(Modifier.width(8.dp))
+                .size(7.dp)
+                .clip(CircleShape)
+                .background(dotColor)
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(
+            text = state.def.displayName,
+            color = if (state.enabled) KitsugiColors.TextPrimary else KitsugiColors.TextMuted,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Medium
+        )
+        Spacer(Modifier.width(6.dp))
+        Text(
+            text = "· $label",
+            color = KitsugiColors.TextMuted,
+            fontSize = 10.sp,
+            modifier = Modifier.weight(1f),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        if (state.def.nonCommercialOnly) {
             Text(
-                text = state.def.displayName,
-                color = if (state.enabled) KitsugiColors.TextPrimary else KitsugiColors.TextMuted,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Medium
+                text = "NC",
+                color = Color(0xFFFBBF24),
+                fontSize = 8.sp,
+                fontWeight = FontWeight.Bold
             )
             Spacer(Modifier.width(6.dp))
+        }
+        // Anahtar gerekiyor ama yok → doğrudan edinme sayfasına git
+        if (state.status == com.kitsugi.animelist.data.music.SourceStatus.NO_KEY &&
+            state.def.signupUrl.isNotBlank()
+        ) {
+            val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
             Text(
-                text = "· $label",
-                color = KitsugiColors.TextMuted,
-                fontSize = 10.sp,
-                modifier = Modifier.weight(1f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            if (state.def.nonCommercialOnly) {
-                Text(
-                    text = "NC",
-                    color = Color(0xFFFBBF24),
-                    fontSize = 8.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(Modifier.width(6.dp))
-            }
-            if (supportsKey) {
-                Text(
-                    text = if (state.keyConfigured) "Anahtar ✎" else "Anahtar gir",
-                    color = accent,
-                    fontSize = 9.sp,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(accent.copy(alpha = 0.15f))
-                        .clickable { showKeyEditor = !showKeyEditor }
-                        .padding(horizontal = 6.dp, vertical = 3.dp)
-                )
-                Spacer(Modifier.width(6.dp))
-            }
-            // Anahtar gerekiyor ama yok → doğrudan edinme sayfasına git
-            if (state.status == com.kitsugi.animelist.data.music.SourceStatus.NO_KEY &&
-                state.def.signupUrl.isNotBlank()
-            ) {
-                val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
-                Text(
-                    text = "Anahtar al →",
-                    color = Color(0xFF60A5FA),
-                    fontSize = 9.sp,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(Color(0xFF60A5FA).copy(alpha = 0.15f))
-                        .clickable {
-                            runCatching { uriHandler.openUri(state.def.signupUrl) }
-                        }
-                        .padding(horizontal = 6.dp, vertical = 3.dp)
-                )
-                Spacer(Modifier.width(6.dp))
-            }
-            KitsugiSwitch(
-                checked = state.enabled,
-                onCheckedChange = { onToggle() },
-                accent = Color(0xFF34D399)
-            )
-        }
-
-        if (showKeyEditor && supportsKey) {
-            Column(
+                text = "Anahtar al →",
+                color = Color(0xFF60A5FA),
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Medium,
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 10.dp, vertical = 8.dp)
-            ) {
-                OutlinedTextField(
-                    value = keyInput,
-                    onValueChange = {
-                        keyInput = it
-                        validationResult = null
-                    },
-                    placeholder = {
-                        Text(
-                            text = state.def.keyHint.ifBlank { "API Anahtarı / Client ID" },
-                            fontSize = 11.sp
-                        )
-                    },
-                    singleLine = true,
-                    enabled = !validating,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = accent,
-                        unfocusedBorderColor = KitsugiColors.Border,
-                        cursorColor = accent,
-                        focusedTextColor = KitsugiColors.TextPrimary,
-                        unfocusedTextColor = KitsugiColors.TextPrimary
-                    ),
-                    shape = RoundedCornerShape(10.dp)
-                )
-                Spacer(Modifier.height(6.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(
-                                if (!validating && keyInput.isNotBlank()) accent
-                                else KitsugiColors.SurfaceSoft
-                            )
-                            .clickable(enabled = !validating && keyInput.isNotBlank()) {
-                                val trimmed = keyInput.trim()
-                                validating = true
-                                validationResult = null
-                                scope.launch {
-                                    val ok = com.kitsugi.animelist.data.music.MusicSourceValidator
-                                        .validate(state.def.id, trimmed)
-                                    if (ok) {
-                                        when (state.def.id) {
-                                            com.kitsugi.animelist.data.music.MusicSourceId.JAMENDO -> {
-                                                settingsStore.setMusicJamendoClientId(trimmed)
-                                                settingsStore.setMusicJamendoEnabled(true)
-                                            }
-                                            com.kitsugi.animelist.data.music.MusicSourceId.FREESOUND -> {
-                                                settingsStore.setMusicFreesoundApiKey(trimmed)
-                                                settingsStore.setMusicFreesoundEnabled(true)
-                                            }
-                                            com.kitsugi.animelist.data.music.MusicSourceId.OPENVERSE -> {
-                                                settingsStore.setMusicOpenverseToken(trimmed)
-                                                settingsStore.setMusicOpenverseEnabled(true)
-                                            }
-                                            com.kitsugi.animelist.data.music.MusicSourceId.AUDIUS -> {
-                                                settingsStore.setMusicAudiusApiKey(trimmed)
-                                                settingsStore.setMusicAudiusEnabled(true)
-                                            }
-                                            else -> Unit
-                                        }
-                                    }
-                                    validationResult = ok
-                                    validating = false
-                                }
-                            }
-                            .padding(vertical = 8.dp),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        if (validating) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(14.dp),
-                                color = Color.Black,
-                                strokeWidth = 2.dp
-                            )
-                            Spacer(Modifier.width(6.dp))
-                        }
-                        Text(
-                            text = "Doğrula ve Kaydet",
-                            color = if (!validating && keyInput.isNotBlank()) Color.Black
-                            else KitsugiColors.TextMuted,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(Color(0xFF60A5FA).copy(alpha = 0.15f))
+                    .clickable {
+                        runCatching { uriHandler.openUri(state.def.signupUrl) }
                     }
-                }
-                validationResult?.let { ok ->
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = if (ok) "✓ Anahtar doğrulandı ve kaydedildi"
-                        else "✗ Anahtar doğrulanamadı — bilgiyi kontrol et",
-                        color = if (ok) Color(0xFF34D399) else KitsugiColors.AccentRed,
-                        fontSize = 10.sp
-                    )
-                }
-            }
+                    .padding(horizontal = 6.dp, vertical = 3.dp)
+            )
+            Spacer(Modifier.width(6.dp))
         }
+        KitsugiSwitch(
+            checked = state.enabled,
+            onCheckedChange = { onToggle() },
+            accent = Color(0xFF34D399)
+        )
     }
 }
 

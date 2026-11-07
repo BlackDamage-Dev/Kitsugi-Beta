@@ -6,8 +6,10 @@ import com.kitsugi.animelist.data.music.AtmospherePreset
 import com.kitsugi.animelist.data.music.AtmospherePresets
 import com.kitsugi.animelist.data.music.MoodProfile
 import com.kitsugi.animelist.data.music.MusicCatalogRepository
+import com.kitsugi.animelist.data.music.ChannelPlayState
 import com.kitsugi.animelist.data.music.MusicSources
 import com.kitsugi.animelist.data.settings.AppSettings
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeoutOrNull
 
 /**
@@ -30,6 +32,15 @@ object AmbientAutoplayStarter {
 
     /** Çevrimiçi aramanın üst sınırı — otomatik başlatma UI'ı bekletmemeli. */
     const val ONLINE_TIMEOUT_MS = 8_000L
+
+    /** Bir çevrimiçi adayın gerçekten çalmaya başlaması için beklenecek süre. */
+    const val ONLINE_READY_TIMEOUT_MS = 12_000L
+
+    /** Açılamazsa denenecek en fazla çevrimiçi aday sayısı. */
+    const val MAX_ONLINE_CANDIDATES = 3
+
+    /** Kanal durumu yoklama aralığı. */
+    private const val READY_POLL_MS = 150L
 
     /**
      * Otomatik başlatmayı uygular.
@@ -65,52 +76,107 @@ object AmbientAutoplayStarter {
             return Result(startedOnline = false, note = null)
         }
 
-        // ── 2) Çevrimiçi eşleşme ────────────────────────────────────────
+        // ── 2) Çevrimiçi eşleşme: ÖNCE hazırla, HAZIR olunca değiştir ─────
+        // ⚠️ KÖK NEDEN (kullanıcı şikâyeti: "yerel çalıyor, sonra duruyor,
+        // içeriğe uygun parça bir türlü başlamıyor"): eski akış önce
+        // `stopAllChannels()` ile yereli öldürüyor, sonra çevrimiçi kanalı
+        // ekliyordu. Kanal hazırlığı ASENKRON olduğu için `addChannel`
+        // başarıyla dönse bile akış açılamazsa (403, yanlış Archive dosyası,
+        // kota, zaman aşımı) kanal ERROR'da kalıyor ve ortada çalan hiçbir
+        // şey olmuyordu.
+        //
+        // Yeni akış: çevrimiçi aday, yerel çalmaya devam ederken SESSİZ (0f)
+        // eklenir; durumu PLAYING olursa yereller bırakılır ve sesi açılır.
+        // Açılamazsa aday kaldırılır, sıradaki aday denenir; hiçbiri
+        // açılmazsa yerel KESİNTİSİZ devam eder ve neden nota yazılır.
         val online = runCatching {
             withTimeoutOrNull(ONLINE_TIMEOUT_MS) {
                 catalog.searchForMood(
                     mood = mood,
                     genres = detectedGenres.ifEmpty { fallbackGenres },
                     settings = settings,
-                    limit = 4
+                    limit = 6
                 )
             }
         }.getOrNull().orEmpty()
 
-        val pick = online.firstOrNull { it.isPlayable }
-        if (pick == null) {
+        val candidates = online.filter { it.isPlayable }.take(MAX_ONLINE_CANDIDATES)
+        if (candidates.isEmpty()) {
             Log.i(TAG, "Otomatik başlatma: çevrimiçi eşleşme bulunamadı, cihaz içi devam")
-            return Result(startedOnline = false, note = null)
+            return Result(
+                startedOnline = false,
+                note = "Çevrimiçi parça bulunamadı — cihaz içi ses devam ediyor"
+            )
         }
 
-        // Archive satırlarında adres arama anında bilinmez; çözülür.
-        val resolved = runCatching { catalog.resolveUrl(pick) }.getOrNull()
-        val playable = if (!resolved.isNullOrBlank() && resolved != pick.streamUrl) {
-            pick.copy(streamUrl = resolved)
-        } else {
-            pick
-        }
-        if (!playable.isPlayable) {
-            return Result(startedOnline = false, note = null)
-        }
+        // Geçişte bırakılacak yerel kanallar (çevrimiçi aday hariç hepsi).
+        val localIndices = engine.channels.value.map { it.index }
 
-        engine.stopAllChannels()
-        if (engine.addChannel(playable, volume) < 0) {
-            // Yuva/uzak sınırı dolduysa sessiz kalma: cihaz içi sesi geri koy.
-            if (preset != null) engine.playPreset(preset) else firstSound?.let {
-                engine.addChannel(it, volume)
+        for (candidate in candidates) {
+            // Archive satırlarında adres arama anında bilinmez; çözülür.
+            val resolved = runCatching { catalog.resolveUrl(candidate) }.getOrNull()
+            val playable = if (!resolved.isNullOrBlank() && resolved != candidate.streamUrl) {
+                candidate.copy(streamUrl = resolved)
+            } else {
+                candidate
             }
-            return Result(startedOnline = false, note = null)
-        }
-        engine.setMasterVolume(volume)
+            if (!playable.isPlayable) continue
 
-        val sourceName = MusicSources.byId(pick.sourceId)?.displayName ?: pick.sourceId.name
-        val note = buildString {
-            append("Çevrimiçi eşleşme: ").append(sourceName)
-            pick.subtitle.takeIf { it.isNotBlank() }?.let { append(" · ").append(it) }
+            // Sessiz ekle: hazırlık bitene kadar kullanıcı yereli duymaya devam eder.
+            val slot = engine.addChannel(playable, 0f)
+            if (slot < 0) continue
+
+            if (awaitChannelPlaying(engine, slot, ONLINE_READY_TIMEOUT_MS)) {
+                // ✅ Çevrimiçi gerçekten çalıyor — şimdi yerelleri bırak.
+                localIndices.forEach { index ->
+                    if (index != slot) engine.stopChannel(index)
+                }
+                engine.setChannelVolume(slot, volume)
+                engine.setMasterVolume(volume)
+
+                val sourceName = MusicSources.byId(playable.sourceId)?.displayName
+                    ?: playable.sourceId.name
+                val note = buildString {
+                    append("Çevrimiçi eşleşme: ").append(sourceName)
+                    playable.subtitle.takeIf { it.isNotBlank() }?.let { append(" · ").append(it) }
+                }
+                Log.i(TAG, "Otomatik başlatma: çevrimiçi parça — ${playable.title} ($sourceName)")
+                return Result(startedOnline = true, note = note)
+            }
+
+            // Açılamadı: adayı temizle, yerel hâlâ çalıyor — sıradakini dene.
+            Log.i(TAG, "Otomatik başlatma: aday açılamadı (${playable.title}), cihaz içi devam")
+            engine.stopChannel(slot)
         }
-        Log.i(TAG, "Otomatik başlatma: çevrimiçi parça — ${pick.title} ($sourceName)")
-        return Result(startedOnline = true, note = note)
+
+        return Result(
+            startedOnline = false,
+            note = "Çevrimiçi parça açılamadı — cihaz içi ses devam ediyor"
+        )
+    }
+
+    /**
+     * Bir kanalın gerçekten çalmaya başlamasını bekler.
+     *
+     * `addChannel` yalnızca yuvayı ayırır; hazırlık arka planda sürer.
+     * Kanal `PLAYING` olana kadar (ya da `ERROR`/zaman aşımı) bekler.
+     */
+    private suspend fun awaitChannelPlaying(
+        engine: AmbientAudioEngine,
+        slot: Int,
+        timeoutMs: Long
+    ): Boolean {
+        val deadline = android.os.SystemClock.elapsedRealtime() + timeoutMs
+        while (android.os.SystemClock.elapsedRealtime() < deadline) {
+            val channel = engine.channels.value.firstOrNull { it.index == slot }
+                ?: return false
+            when (channel.state) {
+                ChannelPlayState.PLAYING -> return true
+                ChannelPlayState.ERROR -> return false
+                else -> delay(READY_POLL_MS)
+            }
+        }
+        return false
     }
 
     data class Result(
