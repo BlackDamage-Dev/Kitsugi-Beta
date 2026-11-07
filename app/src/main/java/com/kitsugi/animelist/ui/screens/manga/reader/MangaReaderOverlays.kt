@@ -41,10 +41,11 @@ internal fun MangaReaderOverlayHost(
     onDismiss: () -> Unit,
     onSeek: (Int) -> Unit,
     onRotate: () -> Unit,
+    onOpenOverlay: (ReaderOverlay) -> Unit = {},
 ) {
     when (overlay) {
         ReaderOverlay.None -> Unit
-        ReaderOverlay.Settings -> ReaderSettings(model, ui, onRotate, onDismiss)
+        ReaderOverlay.Settings -> ReaderSettings(model, ui, onRotate, onDismiss, onOpenShortcuts = { onOpenOverlay(ReaderOverlay.Shortcuts) })
         ReaderOverlay.Chapters -> {
             val current = ui.chapterList.indexOfFirst { it.url == ui.currentChapter.url }.coerceAtLeast(0)
             val list = rememberLazyListState(initialFirstVisibleItemIndex = (current - 2).coerceAtLeast(0))
@@ -82,6 +83,7 @@ private fun ReaderSettings(
     ui: MangaReaderViewModel.UiState,
     onRotate: () -> Unit,
     onDismiss: () -> Unit,
+    onOpenShortcuts: () -> Unit = {},
 ) {
     val scroll = rememberScrollState()
     var editLongTapGrid by remember { mutableStateOf(false) }
@@ -103,7 +105,10 @@ private fun ReaderSettings(
             )
             if (ui.readingMode == ReadingMode.LeftToRight || ui.readingMode == ReadingMode.RightToLeft) {
                 ReaderToggle(stringResource(R.string.reader_double_page), ui.doublePage, model::setDoublePage)
-                if (ui.doublePage) ReaderToggle(stringResource(R.string.reader_cover_alone), ui.coverAlone, model::setCoverAlone)
+                if (ui.doublePage) {
+                    ReaderToggle(stringResource(R.string.reader_cover_alone), ui.coverAlone, model::setCoverAlone)
+                    ReaderToggle("Sayfaları birleştir (kitap görünümü)", ui.stitchDualPages, model::setStitchDualPages)
+                }
             }
             if (ui.readingMode == ReadingMode.Webtoon) {
                 Text(stringResource(R.string.reader_webtoon_hint), color = Color.White.copy(.65f), fontSize = 12.sp)
@@ -122,14 +127,17 @@ private fun ReaderSettings(
                 ReaderToggle(stringResource(R.string.reader_tap_scroll), ui.webtoon.tapToScroll) {
                     model.setWebtoonPreferences(ui.webtoon.copy(tapToScroll = it))
                 }
-                var speed by remember(ui.webtoon.autoScrollDpPerSecond) { mutableFloatStateOf(ui.webtoon.autoScrollDpPerSecond.toFloat()) }
-                ReaderSettingTitle(stringResource(R.string.reader_auto_scroll_speed, speed.toInt()))
+                var speed by remember(ui.autoScrollSpeed) { mutableFloatStateOf(ui.autoScrollSpeed.toFloat()) }
+                ReaderSettingTitle("Otomatik kaydırma hızı: ${speed.toInt()} dp/sn")
                 Slider(
-                    value = speed, valueRange = 8f..160f,
+                    value = speed, valueRange = 20f..500f,
                     onValueChange = { speed = it },
-                    onValueChangeFinished = { model.setWebtoonPreferences(ui.webtoon.copy(autoScrollDpPerSecond = speed.toInt())) },
+                    onValueChangeFinished = {
+                        model.setAutoScrollSpeed(speed.toInt())
+                        model.setWebtoonPreferences(ui.webtoon.copy(autoScrollDpPerSecond = speed.toInt()))
+                    },
                 )
-                ReaderToggle(stringResource(R.string.reader_webtoon_zoom), ui.webtoonZoom, model::setWebtoonZoom)
+                ReaderToggle("Webtoon yakınlaştırma", ui.webtoonZoom, model::setWebtoonZoom)
             } else {
                 ReaderSettingTitle(stringResource(R.string.inline_image_fit_mode_3eed46c))
                 ReaderChoices(
@@ -139,6 +147,10 @@ private fun ReaderSettings(
                         MangaFitMode.FitHeight to stringResource(R.string.manga_fit_height),
                     ), ui.fitMode, model::setFitMode,
                 )
+            }
+            ReaderToggle("Kontroller gizliyken sayfa sayacı", ui.hiddenPageCounter, model::setHiddenPageCounter)
+            TextButton(onClick = { onDismiss(); onOpenShortcuts() }) {
+                Text("Klavye Kısayolları", color = Color(0xFFB39DFF))
             }
             ReaderSettingTitle(stringResource(R.string.manga_color_filter))
             ReaderChoices(

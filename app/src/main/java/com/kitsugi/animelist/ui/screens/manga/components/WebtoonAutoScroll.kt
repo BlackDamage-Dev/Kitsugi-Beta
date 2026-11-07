@@ -81,7 +81,7 @@ internal fun WebtoonAutoScroll(
 
 /** Ekran yoğunluğundan bağımsız, sınırlanmış hız (piksel/sn). */
 internal fun autoScrollPixelsPerSecond(speedDpPerSecond: Int, density: Float): Float =
-    speedDpPerSecond.coerceIn(10, 160) * density.coerceAtLeast(0f)
+    speedDpPerSecond.coerceIn(10, 500) * density.coerceAtLeast(0f)
 
 /**
  * Bir karede ilerlenecek piksel: hız × geçen süre. Süre [0, 100 ms] aralığına

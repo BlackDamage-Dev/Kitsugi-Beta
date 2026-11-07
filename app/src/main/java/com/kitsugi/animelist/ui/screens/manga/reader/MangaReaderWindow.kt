@@ -35,8 +35,9 @@ internal fun MangaReaderWindowEffects(fullscreen: Boolean, menuVisible: Boolean,
             if (activity != null) {
                 originalOrientation?.let { activity.requestedOrientation = it }
                 val controller = WindowCompat.getInsetsController(activity.window, view)
-                if (originallyVisible) controller.show(WindowInsetsCompat.Type.systemBars())
-                else controller.hide(WindowInsetsCompat.Type.systemBars())
+                // Okuyucudan her çıkışta (geri tuşu, navigasyon, kapanış) sistem çubukları
+                // her koşulda geri getirilir — tam ekranda takılı kalma bug'ı engellendi.
+                controller.show(WindowInsetsCompat.Type.systemBars())
             }
         }
     }

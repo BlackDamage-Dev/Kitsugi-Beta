@@ -229,6 +229,13 @@ fun MangaReaderScreen(
 
     val useSpreads = ui.doublePage && (ui.readingMode == ReadingMode.LeftToRight || ui.readingMode == ReadingMode.RightToLeft)
     val coverAlone = useSpreads && ui.coverAlone
+    val spreads = remember(pages.size, useSpreads, coverAlone) {
+        buildReaderSpreads(pages.size, useSpreads, coverAlone)
+    }
+
+    LaunchedEffect(ui.readingMode, ui.webtoonZoom) {
+        session.resetZoom()
+    }
 
     Box(
         modifier
@@ -311,6 +318,7 @@ fun MangaReaderScreen(
                 longTapGrid = ui.longTapGrid,
                 doublePage = useSpreads,
                 coverAlone = coverAlone,
+                stitchDualPages = ui.stitchDualPages,
                 prefetchPages = readerPreloadCount(ui.preloadAhead, webtoon = false),
                 cropBorders = ui.cropBorders,
                 wideRotation = ui.wideRotation,
@@ -330,19 +338,29 @@ fun MangaReaderScreen(
             Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 1f - ui.customBrightness)))
         }
 
-        // A single unobtrusive page indicator, never printed over each webtoon image.
-        if (!menuVisible && pages.isNotEmpty() && !ui.isLoadingPages && ui.webtoon.showPageNumber) {
+        // Tek ve çift sayfa moduna uygun sayaç (sağ alt köşe, tek sayaç)
+        if (!menuVisible && ui.hiddenPageCounter && pages.isNotEmpty() && !ui.isLoadingPages) {
+            val totalPages = pages.size
+            val pageLabel = if (ui.readingMode == ReadingMode.Webtoon) {
+                (session.webtoon.listState.firstVisibleItemIndex + 1).coerceIn(1, totalPages).toString()
+            } else {
+                val spread = spreads.getOrNull(session.pager.currentPage)
+                when {
+                    spread == null -> (session.pager.currentPage + 1).coerceIn(1, totalPages).toString()
+                    spread.first != spread.last -> "${spread.first + 1}-${spread.last + 1}"
+                    else -> (spread.first + 1).coerceIn(1, totalPages).toString()
+                }
+            }
             Text(
-                "${ui.currentPageIndex + 1} / ${pages.size}",
-                color = Color.White,
-                fontSize = 11.sp,
+                text = "$pageLabel / $totalPages",
+                color = Color.White.copy(0.85f),
+                fontSize = 12.sp,
                 modifier = Modifier
-                    .align(Alignment.BottomCenter)
+                    .align(Alignment.BottomEnd)
                     .navigationBarsPadding()
-                    .padding(8.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Color.Black.copy(alpha = .65f))
-                    .padding(horizontal = 10.dp, vertical = 4.dp),
+                    .padding(end = 14.dp, bottom = 14.dp)
+                    .background(Color.Black.copy(0.65f), RoundedCornerShape(8.dp))
+                    .padding(horizontal = 10.dp, vertical = 5.dp)
             )
         }
 
@@ -487,32 +505,52 @@ fun MangaReaderScreen(
                     horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    val readingModeIcon = when (ui.readingMode) {
+                        ReadingMode.RightToLeft -> Icons.AutoMirrored.Filled.MenuBook
+                        ReadingMode.LeftToRight -> Icons.Default.SwapHoriz
+                        ReadingMode.Vertical -> Icons.Default.ViewStream
+                        ReadingMode.Webtoon -> Icons.Default.ViewStream
+                    }
                     ReaderToolbarButton(
-                        Icons.AutoMirrored.Filled.List,
-                        stringResource(R.string.reader_chapters),
-                        "C",
-                        { open(ReaderOverlay.Chapters) },
+                        readingModeIcon,
+                        stringResource(R.string.okuma_yonu),
+                        "D",
+                        {
+                            val nextMode = when (ui.readingMode) {
+                                ReadingMode.RightToLeft -> ReadingMode.LeftToRight
+                                ReadingMode.LeftToRight -> ReadingMode.Vertical
+                                ReadingMode.Vertical -> ReadingMode.Webtoon
+                                ReadingMode.Webtoon -> ReadingMode.RightToLeft
+                            }
+                            model.setReadingMode(nextMode)
+                        },
                     )
                     ReaderToolbarButton(
-                        Icons.Default.Fullscreen,
+                        if (fullscreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
                         stringResource(R.string.reader_fullscreen),
                         "F",
                         ::toggleFullscreen,
                     )
-                    if (ui.readingMode == ReadingMode.Webtoon) {
-                        ReaderToolbarButton(
-                            if (session.autoScroll) Icons.Default.Pause else Icons.Default.PlayArrow,
-                            stringResource(R.string.reader_auto_scroll),
-                            "A",
-                            { dispatch(ReaderAction.ToggleAutoScroll) },
-                            session.isReady,
-                        )
-                    }
                     ReaderToolbarButton(
-                        Icons.Default.Keyboard,
-                        stringResource(R.string.reader_shortcuts),
-                        "H",
-                        { open(ReaderOverlay.Shortcuts) },
+                        if (session.autoScroll) Icons.Default.Pause else Icons.Default.PlayArrow,
+                        stringResource(R.string.reader_auto_scroll),
+                        "A",
+                        { dispatch(ReaderAction.ToggleAutoScroll) },
+                        ui.readingMode == ReadingMode.Webtoon,
+                    )
+                    ReaderToolbarButton(
+                        Icons.Default.SwapHoriz,
+                        "Yön değiştir",
+                        "R",
+                        {
+                            val flipped = when (ui.readingMode) {
+                                ReadingMode.RightToLeft -> ReadingMode.LeftToRight
+                                ReadingMode.LeftToRight -> ReadingMode.RightToLeft
+                                ReadingMode.Vertical -> ReadingMode.Webtoon
+                                ReadingMode.Webtoon -> ReadingMode.Vertical
+                            }
+                            model.setReadingMode(flipped)
+                        },
                     )
                     ReaderToolbarButton(
                         Icons.Default.Settings,
@@ -533,6 +571,7 @@ fun MangaReaderScreen(
         onDismiss = { overlay = ReaderOverlay.None },
         onSeek = session::seek,
         onRotate = ::rotate,
+        onOpenOverlay = { overlay = it },
     )
 
     ui.pendingChoice?.let { request ->
@@ -1278,3 +1317,24 @@ private fun Modifier.androidxClickable(onClick: () -> Unit): Modifier =
         indication = null,
         onClick = onClick,
     )
+
+internal fun buildReaderSpreads(pageCount: Int, dualPage: Boolean, firstPageSolo: Boolean): List<IntRange> {
+    if (pageCount <= 0) return emptyList()
+    if (!dualPage) return (0 until pageCount).map { it..it }
+    val spreads = mutableListOf<IntRange>()
+    var i = 0
+    if (firstPageSolo && pageCount > 0) {
+        spreads.add(0..0)
+        i = 1
+    }
+    while (i < pageCount) {
+        if (i + 1 < pageCount) {
+            spreads.add(i..(i + 1))
+            i += 2
+        } else {
+            spreads.add(i..i)
+            i += 1
+        }
+    }
+    return spreads
+}

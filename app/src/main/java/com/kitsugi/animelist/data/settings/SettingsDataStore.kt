@@ -191,6 +191,11 @@ class SettingsDataStore(
         val MangaReaderBackground = stringPreferencesKey("manga_reader_background")
         val MangaDoublePage = booleanPreferencesKey("manga_double_page")
         val MangaCoverAlone = booleanPreferencesKey("manga_cover_alone")
+        val MangaDualPage = booleanPreferencesKey("manga_dual_page")
+        val MangaDualPageFirstSolo = booleanPreferencesKey("manga_dual_page_first_solo")
+        val MangaStitchDualPages = booleanPreferencesKey("manga_stitch_dual_pages")
+        val MangaAutoScrollSpeed = intPreferencesKey("manga_auto_scroll_speed")
+        val MangaHiddenPageCounter = booleanPreferencesKey("manga_hidden_page_counter")
         val MangaWebtoonAutoScrollSpeed = intPreferencesKey("manga_webtoon_auto_scroll_speed")
         val MangaWebtoonScrollPercent = intPreferencesKey("manga_webtoon_scroll_percent")
         val MangaPreloadAhead = intPreferencesKey("manga_preload_ahead")
@@ -875,7 +880,7 @@ class SettingsDataStore(
                         showPageNumber = preferences[Keys.MangaShowPageNumber] ?: true,
                         keepScreenOn = preferences[Keys.MangaKeepScreenOn] ?: true,
                     ).sanitized(),
-                    mangaWebtoonZoom = preferences[Keys.MangaWebtoonZoom] ?: true,
+                    mangaWebtoonZoom = preferences[Keys.MangaWebtoonZoom] ?: false,
                     mangaWideRotation = (preferences[Keys.MangaWideRotation] ?: "Off").takeIf { it in setOf("Off", "Clockwise", "CounterClockwise") } ?: "Off",
                     mangaWideRotationWebtoon = (preferences[Keys.MangaWideRotationWebtoon] ?: "Off").takeIf { it in setOf("Off", "Clockwise", "CounterClockwise") } ?: "Off",
                     mangaInvertTapZones = preferences[Keys.MangaInvertTapZones] ?: false,
@@ -884,9 +889,14 @@ class SettingsDataStore(
                     mangaLongTapGrid = (preferences[Keys.MangaLongTapGrid] ?: "XXXXXXXXX").takeIf { it.length == 9 && it.all { c -> c in "PMNX" } } ?: "XXXXXXXXX",
                     mangaWebtoonTapScroll = preferences[Keys.MangaWebtoonTapScroll] ?: true,
                     mangaReaderBackground = preferences[Keys.MangaReaderBackground] ?: "Black",
-                    mangaDoublePage = preferences[Keys.MangaDoublePage] ?: false,
-                    mangaCoverAlone = preferences[Keys.MangaCoverAlone] ?: false,
-                    mangaWebtoonAutoScrollSpeed = (preferences[Keys.MangaWebtoonAutoScrollSpeed] ?: 32).coerceIn(8, 160),
+                    mangaDoublePage = preferences[Keys.MangaDualPage] ?: preferences[Keys.MangaDoublePage] ?: false,
+                    mangaCoverAlone = preferences[Keys.MangaDualPageFirstSolo] ?: preferences[Keys.MangaCoverAlone] ?: false,
+                    mangaDualPage = preferences[Keys.MangaDualPage] ?: preferences[Keys.MangaDoublePage] ?: false,
+                    mangaDualPageFirstSolo = preferences[Keys.MangaDualPageFirstSolo] ?: preferences[Keys.MangaCoverAlone] ?: true,
+                    mangaStitchDualPages = preferences[Keys.MangaStitchDualPages] ?: true,
+                    mangaAutoScrollSpeed = (preferences[Keys.MangaAutoScrollSpeed] ?: preferences[Keys.MangaWebtoonAutoScrollSpeed] ?: 160).coerceIn(20, 500),
+                    mangaHiddenPageCounter = preferences[Keys.MangaHiddenPageCounter] ?: true,
+                    mangaWebtoonAutoScrollSpeed = (preferences[Keys.MangaAutoScrollSpeed] ?: preferences[Keys.MangaWebtoonAutoScrollSpeed] ?: 160).coerceIn(20, 500),
                     mangaWebtoonScrollPercent = (preferences[Keys.MangaWebtoonScrollPercent] ?: 90).coerceIn(25, 100),
                     mangaPreloadAhead = (preferences[Keys.MangaPreloadAhead] ?: -1).coerceIn(-1, 5),
                     mangaVolumeKeys = preferences[Keys.MangaVolumeKeys] ?: false,
@@ -1539,8 +1549,33 @@ class SettingsDataStore(
         context.settingsDataStore.edit { it[Keys.MangaReaderBackground] = value }
     }
 
-    suspend fun setMangaDoublePage(value: Boolean) { context.settingsDataStore.edit { it[Keys.MangaDoublePage] = value } }
-    suspend fun setMangaCoverAlone(value: Boolean) { context.settingsDataStore.edit { it[Keys.MangaCoverAlone] = value } }
+    suspend fun setMangaDoublePage(value: Boolean) {
+        context.settingsDataStore.edit {
+            it[Keys.MangaDoublePage] = value
+            it[Keys.MangaDualPage] = value
+        }
+    }
+    suspend fun setMangaCoverAlone(value: Boolean) {
+        context.settingsDataStore.edit {
+            it[Keys.MangaCoverAlone] = value
+            it[Keys.MangaDualPageFirstSolo] = value
+        }
+    }
+    suspend fun setMangaDualPage(value: Boolean) { setMangaDoublePage(value) }
+    suspend fun setMangaDualPageFirstSolo(value: Boolean) { setMangaCoverAlone(value) }
+    suspend fun setMangaStitchDualPages(value: Boolean) {
+        context.settingsDataStore.edit { it[Keys.MangaStitchDualPages] = value }
+    }
+    suspend fun setMangaHiddenPageCounter(value: Boolean) {
+        context.settingsDataStore.edit { it[Keys.MangaHiddenPageCounter] = value }
+    }
+    suspend fun setMangaAutoScrollSpeed(value: Int) {
+        val clamped = value.coerceIn(20, 500)
+        context.settingsDataStore.edit {
+            it[Keys.MangaAutoScrollSpeed] = clamped
+            it[Keys.MangaWebtoonAutoScrollSpeed] = clamped
+        }
+    }
 
     suspend fun setMangaWebtoonScrollPercent(value: Int) { context.settingsDataStore.edit { it[Keys.MangaWebtoonScrollPercent] = value.coerceIn(25, 100) } }
     suspend fun setMangaPreloadAhead(value: Int) { context.settingsDataStore.edit { it[Keys.MangaPreloadAhead] = value.coerceIn(-1, 5) } }

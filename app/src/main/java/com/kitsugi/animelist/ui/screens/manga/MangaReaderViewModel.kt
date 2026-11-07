@@ -190,7 +190,12 @@ class MangaReaderViewModel(
         val readerBackground: String = "Black",
         val doublePage: Boolean = false,
         val coverAlone: Boolean = false,
-        val webtoonAutoScrollSpeed: Int = 32,
+        val dualPage: Boolean = false,
+        val dualPageFirstSolo: Boolean = true,
+        val stitchDualPages: Boolean = true,
+        val autoScrollSpeed: Int = 160,
+        val hiddenPageCounter: Boolean = true,
+        val webtoonAutoScrollSpeed: Int = 160,
         val webtoonScrollPercent: Int = 90,
         val preloadAhead: Int = -1,
         val volumeKeys: Boolean = false,
@@ -282,7 +287,12 @@ class MangaReaderViewModel(
                             readerBackground = settings.mangaReaderBackground,
                             doublePage = settings.mangaDoublePage,
                             coverAlone = settings.mangaCoverAlone,
-                            webtoonAutoScrollSpeed = settings.mangaWebtoonAutoScrollSpeed,
+                            dualPage = settings.mangaDualPage,
+                            dualPageFirstSolo = settings.mangaDualPageFirstSolo,
+                            stitchDualPages = settings.mangaStitchDualPages,
+                            autoScrollSpeed = settings.mangaAutoScrollSpeed,
+                            hiddenPageCounter = settings.mangaHiddenPageCounter,
+                            webtoonAutoScrollSpeed = settings.mangaAutoScrollSpeed,
                             webtoonScrollPercent = settings.mangaWebtoonScrollPercent,
                             preloadAhead = settings.mangaPreloadAhead,
                             volumeKeys = settings.mangaVolumeKeys,
@@ -596,11 +606,32 @@ class MangaReaderViewModel(
     }
 
     fun setDoublePage(value: Boolean) {
+        _uiState.update { it.copy(doublePage = value, dualPage = value) }
         viewModelScope.launch { settingsDataStore.setMangaDoublePage(value) }
     }
 
     fun setCoverAlone(value: Boolean) {
+        _uiState.update { it.copy(coverAlone = value, dualPageFirstSolo = value) }
         viewModelScope.launch { settingsDataStore.setMangaCoverAlone(value) }
+    }
+
+    fun setDualPage(value: Boolean) = setDoublePage(value)
+    fun setDualPageFirstSolo(value: Boolean) = setCoverAlone(value)
+
+    fun setStitchDualPages(value: Boolean) {
+        _uiState.update { it.copy(stitchDualPages = value) }
+        viewModelScope.launch { settingsDataStore.setMangaStitchDualPages(value) }
+    }
+
+    fun setAutoScrollSpeed(speed: Int) {
+        val clamped = speed.coerceIn(20, 500)
+        _uiState.update { it.copy(autoScrollSpeed = clamped, webtoonAutoScrollSpeed = clamped) }
+        viewModelScope.launch { settingsDataStore.setMangaAutoScrollSpeed(clamped) }
+    }
+
+    fun setHiddenPageCounter(value: Boolean) {
+        _uiState.update { it.copy(hiddenPageCounter = value) }
+        viewModelScope.launch { settingsDataStore.setMangaHiddenPageCounter(value) }
     }
 
     fun setReaderBackground(value: String) {

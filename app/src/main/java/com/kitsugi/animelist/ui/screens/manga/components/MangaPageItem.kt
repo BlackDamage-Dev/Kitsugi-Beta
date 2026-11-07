@@ -300,24 +300,6 @@ fun MangaPageItem(
                 )
             }
         }
-
-        // Sayfa numarası rozeti (webtoon'da her sayfada göstermek gürültü yapar)
-        if (showPageNumber && !isScrollMode) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(10.dp)
-                    .clip(RoundedCornerShape(50))
-                    .background(Color.Black.copy(alpha = 0.55f))
-                    .padding(horizontal = 10.dp, vertical = 4.dp)
-            ) {
-                Text(
-                    text = "${page.index + 1}",
-                    color = Color.White.copy(alpha = 0.9f),
-                    fontSize = 11.sp,
-                )
-            }
-        }
     }
 }
 

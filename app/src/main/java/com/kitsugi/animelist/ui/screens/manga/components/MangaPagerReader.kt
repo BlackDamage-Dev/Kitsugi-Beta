@@ -57,6 +57,7 @@ fun MangaPagerReader(
     longTapGrid: String = DEFAULT_READER_LONG_TAP_GRID,
     doublePage: Boolean = false,
     coverAlone: Boolean = false,
+    stitchDualPages: Boolean = true,
     prefetchPages: Int = 2,
     resetZoomSignal: Int = 0,
     wideRotation: String = "Off",
@@ -123,7 +124,22 @@ fun MangaPagerReader(
                     )
                 }
             } else {
-                CompositionLocalProvider(LocalLayoutDirection provides direction) {
+                if (stitchDualPages) {
+                    MangaDualSpread(
+                        firstPage = firstPage,
+                        secondPage = secondPage,
+                        loader = loader,
+                        readingMode = readingMode,
+                        colorFilterType = colorFilterType,
+                        fitMode = fitMode,
+                        stitch = stitchDualPages,
+                        onCenterTap = onCenterTap,
+                        onNextPage = onNextPage,
+                        onPrevPage = onPrevPage,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                } else {
+                    CompositionLocalProvider(LocalLayoutDirection provides direction) {
                     // Yayılım dokunmaları: Initial-pass gözlemci. detectTapGestures
                     // (Main pass) çocuk ZoomableAsyncImage olayları tükettiği için
                     // burada hiç tetiklenmiyordu → menü / sağ-sol / uzun basma ölüydü.
@@ -199,6 +215,7 @@ fun MangaPagerReader(
                 }
             }
         }
+    }
     }
 
     CompositionLocalProvider(LocalLayoutDirection provides direction) {

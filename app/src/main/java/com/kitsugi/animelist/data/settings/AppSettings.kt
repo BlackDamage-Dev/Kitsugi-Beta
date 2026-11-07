@@ -392,7 +392,7 @@ data class DownloadAndMangaSettings(
      */
     val mangaCropBorders: Boolean = false,
     val mangaCropBordersWebtoon: Boolean = false,
-    val mangaWebtoonZoom: Boolean = true,
+    val mangaWebtoonZoom: Boolean = false,
     val mangaWideRotation: String = "Off",
     val mangaWideRotationWebtoon: String = "Off",
     val mangaInvertTapZones: Boolean = false,
@@ -403,6 +403,11 @@ data class DownloadAndMangaSettings(
     val mangaReaderBackground: String = "Black",
     val mangaDoublePage: Boolean = false,
     val mangaCoverAlone: Boolean = false,
+    val mangaDualPage: Boolean = false,
+    val mangaDualPageFirstSolo: Boolean = true,
+    val mangaStitchDualPages: Boolean = true,
+    val mangaAutoScrollSpeed: Int = 160,
+    val mangaHiddenPageCounter: Boolean = true,
     val mangaWebtoonAutoScrollSpeed: Int = 32,
     val mangaWebtoonScrollPercent: Int = 90,
     val mangaPreloadAhead: Int = -1,
@@ -579,6 +584,11 @@ data class AppSettings(
     val mangaReaderBackground: String get() = downloads.mangaReaderBackground
     val mangaDoublePage: Boolean get() = downloads.mangaDoublePage
     val mangaCoverAlone: Boolean get() = downloads.mangaCoverAlone
+    val mangaDualPage: Boolean get() = downloads.mangaDualPage
+    val mangaDualPageFirstSolo: Boolean get() = downloads.mangaDualPageFirstSolo
+    val mangaStitchDualPages: Boolean get() = downloads.mangaStitchDualPages
+    val mangaAutoScrollSpeed: Int get() = downloads.mangaAutoScrollSpeed
+    val mangaHiddenPageCounter: Boolean get() = downloads.mangaHiddenPageCounter
     val mangaWebtoonAutoScrollSpeed: Int get() = downloads.mangaWebtoonAutoScrollSpeed
     val mangaWebtoonScrollPercent: Int get() = downloads.mangaWebtoonScrollPercent
     val mangaPreloadAhead: Int get() = downloads.mangaPreloadAhead
