@@ -1,8 +1,6 @@
 package com.kitsugi.animelist.ui.screens.manga.components
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Column
@@ -28,15 +26,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.hapticfeedback.HapticFeedback
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.input.pointer.PointerEventPass
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
@@ -126,6 +119,8 @@ fun MangaPageItem(
     val currentCenterTap by rememberUpdatedState(onCenterTap)
     val currentNextPage by rememberUpdatedState(onNextPage)
     val currentPrevPage by rememberUpdatedState(onPrevPage)
+    val currentLongPress by rememberUpdatedState(onLongPress)
+    val currentLongPressPage by rememberUpdatedState(onLongPressPage)
     var itemTop by remember(page) { mutableFloatStateOf(0f) }
     val currentViewport by rememberUpdatedState(tapViewport)
 
@@ -150,41 +145,38 @@ fun MangaPageItem(
     } else null
     val actualBackground = rememberReaderAutoBackground(backgroundFile, autoBackground, pageBackground)
 
+    // TEK dokunma yolu: Initial-pass gözlemci (readerTapGestures).
+    // ZoomableAsyncImage Main pass'ta olayları tükettiği için detectTapGestures
+    // zoom'lu sayfanın üstünde ölüyordu; bu gözlemci olayları çocuklardan ÖNCE
+    // izler ve tüketmez → Default/Custom/LeftHand/RightHand düzenlerinin tümünde
+    // dokunma, uzun basma ve zoom birlikte çalışır.
     val tapModifier = if (!tapsEnabled) {
         Modifier
-    } else if (tapLayout != "Default" && tapLayout.isNotBlank()) {
+    } else {
         Modifier
             .then(if (tapViewport != null) Modifier.onGloballyPositioned { itemTop = it.positionInWindow().y } else Modifier)
-            .pointerInput(readingMode, invertTapZones, tapLayout, tapGrid, longTapGrid) {
-                fun dispatch(offset: Offset, grid: String) {
-                    val y = readerTapY(offset.y, itemTop, currentViewport, size.height)
-                    when (readerTapAction(tapLayout, readingMode == ReadingMode.RightToLeft, invertTapZones,
-                        offset.x / size.width.coerceAtLeast(1), y, grid)) {
+            .readerTapGestures(
+                tapZonesEnabled = tapZonesEnabled,
+                rtl = readingMode == ReadingMode.RightToLeft,
+                invertTapZones = invertTapZones,
+                tapLayout = tapLayout.ifBlank { "Default" },
+                tapGrid = tapGrid,
+                longTapGrid = longTapGrid,
+                haptics = haptics,
+                yFraction = { offset, height -> readerTapY(offset.y, itemTop, currentViewport, height) },
+                onAction = { action ->
+                    when (action) {
                         ReaderTapAction.MENU -> currentCenterTap()
                         ReaderTapAction.NEXT -> currentNextPage()
                         ReaderTapAction.PREVIOUS -> currentPrevPage()
                         ReaderTapAction.NONE -> Unit
                     }
-                }
-                detectTapGestures(
-                    onTap = { dispatch(it, tapGrid) },
-                    onLongPress = if (tapLayout == "Custom" && longTapGrid.any { it != 'X' }) ({ dispatch(it, longTapGrid) }) else null
-                )
-            }
-    } else {
-        Modifier.readerTapZones(
-            readingMode = readingMode,
-            tapZonesEnabled = tapZonesEnabled,
-            invertTapZones = invertTapZones,
-            haptics = haptics,
-            onCenterTap = onCenterTap,
-            onLongPress = {
-                onLongPress()
-                onLongPressPage?.invoke(page.index)
-            },
-            onNextPage = onNextPage,
-            onPrevPage = onPrevPage,
-        )
+                },
+                onLongPress = {
+                    currentLongPress()
+                    currentLongPressPage?.invoke(page.index)
+                },
+            )
     }
 
     Box(
@@ -321,72 +313,6 @@ fun MangaPageItem(
                     color = Color.White.copy(alpha = 0.9f),
                     fontSize = 11.sp,
                 )
-            }
-        }
-    }
-}
-
-/**
- * Dokunma bölgeleri (Mihon "tap zones" paritesi).
- */
-private fun Modifier.readerTapZones(
-    readingMode: ReadingMode,
-    tapZonesEnabled: Boolean,
-    invertTapZones: Boolean,
-    haptics: HapticFeedback,
-    onCenterTap: () -> Unit,
-    onLongPress: () -> Unit,
-    onNextPage: () -> Unit,
-    onPrevPage: () -> Unit,
-): Modifier = pointerInput(readingMode, tapZonesEnabled, invertTapZones) {
-    awaitPointerEventScope {
-        while (true) {
-            val down = awaitFirstDown(
-                requireUnconsumed = false,
-                pass = PointerEventPass.Initial,
-            )
-            val downPosition: Offset = down.position
-            val downTime = down.uptimeMillis
-            var multiTouch = false
-            var moved = false
-            var longPressFired = false
-            var upPosition: Offset = downPosition
-
-            while (true) {
-                val event = awaitPointerEvent(PointerEventPass.Initial)
-                if (event.changes.size > 1) multiTouch = true
-                val change = event.changes.firstOrNull { it.id == down.id } ?: break
-                if ((change.position - downPosition).getDistance() > viewConfiguration.touchSlop) {
-                    moved = true
-                }
-                if (!longPressFired && !multiTouch && !moved &&
-                    change.uptimeMillis - downTime >= viewConfiguration.longPressTimeoutMillis
-                ) {
-                    longPressFired = true
-                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                    onLongPress()
-                }
-                if (!change.pressed) {
-                    upPosition = change.position
-                    break
-                }
-            }
-
-            if (multiTouch || moved || longPressFired) continue
-
-            val width = size.width.toFloat()
-            if (!tapZonesEnabled || width <= 0f) {
-                onCenterTap()
-                continue
-            }
-
-            val leftEdge = width * 0.33f
-            val rightEdge = width * 0.66f
-            val forwardOnLeft = (readingMode == ReadingMode.RightToLeft) != invertTapZones
-            when {
-                upPosition.x < leftEdge -> if (forwardOnLeft) onNextPage() else onPrevPage()
-                upPosition.x > rightEdge -> if (forwardOnLeft) onPrevPage() else onNextPage()
-                else -> onCenterTap()
             }
         }
     }

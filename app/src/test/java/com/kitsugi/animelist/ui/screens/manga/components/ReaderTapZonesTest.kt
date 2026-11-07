@@ -13,10 +13,24 @@ class ReaderTapZonesTest {
     }
 
     @Test fun autoScrollRateIsDensityIndependentAndBounded() {
-        assertEquals(2f, autoScrollStepPixels(40, 1f), 0.001f)
-        assertEquals(4f, autoScrollStepPixels(40, 2f), 0.001f)
-        assertEquals(0.5f, autoScrollStepPixels(0, 1f), 0.001f)
-        assertEquals(8f, autoScrollStepPixels(500, 1f), 0.001f)
+        assertEquals(40f, autoScrollPixelsPerSecond(40, 1f), 0.001f)
+        assertEquals(80f, autoScrollPixelsPerSecond(40, 2f), 0.001f)
+        assertEquals(10f, autoScrollPixelsPerSecond(0, 1f), 0.001f)
+        assertEquals(160f, autoScrollPixelsPerSecond(500, 1f), 0.001f)
+        assertEquals(0f, autoScrollPixelsPerSecond(40, -1f), 0.001f)
+    }
+
+    @Test fun autoScrollFrameDeltaTracksElapsedTimeAndClampsHitches() {
+        // 120 px/sn × 16.67 ms ≈ 2 px (60 Hz kare); 8.33 ms ≈ 1 px (120 Hz kare).
+        assertEquals(2f, autoScrollFramePixels(120f, 16_666_667L), 0.01f)
+        assertEquals(1f, autoScrollFramePixels(120f, 8_333_333L), 0.01f)
+        // Negatif süre (saat gerilemesi) sıfır üretir; uzun duraksama 100 ms'e
+        // kelepçelenir ki tek karede büyük sıçrama olmasın.
+        assertEquals(0f, autoScrollFramePixels(120f, -5L), 0.001f)
+        assertEquals(12f, autoScrollFramePixels(120f, 1_000_000_000L), 0.001f)
+        assertEquals(0f, autoScrollFramePixels(0f, 16_000_000L), 0.001f)
+        // Kesirli piksel birikimi: 10 kare × 0.5 px = 5 px (carry ile korunur).
+        assertEquals(5f, (1..10).sumOf { autoScrollFramePixels(30f, 16_666_667L).toDouble() }.toFloat(), 0.01f)
     }
 
     @Test fun webtoonDimensionsAreValidatedAndBounded() {

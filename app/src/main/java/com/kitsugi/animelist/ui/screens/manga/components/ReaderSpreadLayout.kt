@@ -26,3 +26,14 @@ internal fun readerSpreadLast(spread: Int, count: Int, doublePage: Boolean, cove
     val paired = doublePage && !(coverAlone && spread == 0)
     return (first + if (paired) 1 else 0).coerceAtMost(count - 1)
 }
+
+/**
+ * Yayılımda fiziksel olarak basılan yarının sayfa indeksi.
+ * LTR'de ilk sayfa solda, RTL'de sağda durur; [xFraction] ekranın fiziksel
+ * yatay oranıdır (0 = sol kenar). Tek sayfalık yayılımda her zaman [first].
+ */
+internal fun readerSpreadPressedPage(xFraction: Float, rtl: Boolean, first: Int, last: Int): Int {
+    if (last <= first || !xFraction.isFinite()) return first
+    val pressedLeftHalf = xFraction < 0.5f
+    return if (pressedLeftHalf != rtl) first else last
+}

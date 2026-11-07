@@ -23,6 +23,23 @@ internal fun cycleReaderTapGrid(grid: String, index: Int, direction: Int = 1): S
     return grid.replaceRange(index, index + 1, actions[next].toString())
 }
 
+/**
+ * Uzun basma eylemi: yalnızca Custom düzeninde, boş olmayan bir uzun-basma
+ * ızgarası yapılandırılmışsa ızgara eylemi döner; aksi halde null → varsayılan
+ * uzun basma davranışı (menü / sayfa galerisi) uygulanır.
+ */
+internal fun readerLongTapAction(
+    layout: String,
+    longTapGrid: String,
+    rtl: Boolean,
+    inverted: Boolean,
+    x: Float,
+    y: Float,
+): ReaderTapAction? =
+    if (layout == "Custom" && longTapGrid.any { it != 'X' }) {
+        readerTapAction(layout, rtl, inverted, x, y, longTapGrid)
+    } else null
+
 /** Normalized physical coordinates, independent of UI layout direction. */
 internal fun readerTapAction(layout: String, rtl: Boolean, inverted: Boolean, x: Float, y: Float,
     customGrid: String = DEFAULT_READER_TAP_GRID): ReaderTapAction {

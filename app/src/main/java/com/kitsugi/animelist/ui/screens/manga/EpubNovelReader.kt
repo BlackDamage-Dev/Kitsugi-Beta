@@ -40,7 +40,8 @@ import com.kitsugi.animelist.R
 import com.kitsugi.animelist.ui.screens.manga.components.ReaderKeepScreenOn
 import com.kitsugi.animelist.ui.screens.manga.components.ReaderImmersiveMode
 import com.kitsugi.animelist.ui.screens.manga.components.ReaderVolumeKeys
-import com.kitsugi.animelist.ui.screens.manga.components.autoScrollStepPixels
+import com.kitsugi.animelist.ui.screens.manga.components.autoScrollFramePixels
+import com.kitsugi.animelist.ui.screens.manga.components.autoScrollPixelsPerSecond
 import com.kitsugi.animelist.ui.theme.gradient.Text
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -380,15 +381,20 @@ internal fun EpubNovelReader(uri: Uri, onDismiss: () -> Unit) {
             autoScroll = false
             return@LaunchedEffect
         }
+        // Kare saatiyle pürüzsüz akış: eski delay(50) döngüsü en fazla 20 Hz
+        // sıçrama üretiyordu; artık her karede hız × geçen süre kadar ilerler.
+        val pixelsPerSecond = autoScrollPixelsPerSecond(autoScrollSpeed, density)
         var remainder = 0f
+        var previousFrame = withFrameNanos { it }
         while (isActive) {
-            delay(50)
+            val frame = withFrameNanos { it }
+            remainder += autoScrollFramePixels(pixelsPerSecond, frame - previousFrame)
+            previousFrame = frame
             if (!view.canScrollVertically(1)) {
                 val next = nextSpeechChapter(chapter, book?.chapters?.size ?: 0, autoNextScroll)
                 if (next == null) autoScroll = false else { openChapter(next); pendingAutoScrollChapter = next }
                 break
             }
-            remainder += autoScrollStepPixels(autoScrollSpeed, density)
             val pixels = remainder.toInt()
             if (pixels > 0) { view.scrollBy(0, pixels); remainder -= pixels }
         }

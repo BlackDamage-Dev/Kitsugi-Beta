@@ -21,6 +21,17 @@ class ReaderSpreadLayoutTest {
         assertEquals(0, readerSpreadCount(0, true, true))
     }
 
+    @Test fun spreadLongPressTargetsThePhysicallyPressedHalf() {
+        // LTR: ilk sayfa solda; RTL: ilk sayfa sağda.
+        assertEquals(2, readerSpreadPressedPage(0.25f, rtl = false, first = 2, last = 3))
+        assertEquals(3, readerSpreadPressedPage(0.75f, rtl = false, first = 2, last = 3))
+        assertEquals(3, readerSpreadPressedPage(0.25f, rtl = true, first = 2, last = 3))
+        assertEquals(2, readerSpreadPressedPage(0.75f, rtl = true, first = 2, last = 3))
+        // Tek sayfalık yayılım (kapak / son tek sayfa) ve geçersiz koordinat.
+        assertEquals(0, readerSpreadPressedPage(0.9f, rtl = true, first = 0, last = 0))
+        assertEquals(2, readerSpreadPressedPage(Float.NaN, rtl = false, first = 2, last = 3))
+    }
+
     @Test fun firstCoverIsStandaloneAndOddLastPageRemainsVisible() {
         assertEquals(3, readerSpreadCount(5, true, true))
         assertEquals(0, readerSpreadLast(0, 5, true, true))

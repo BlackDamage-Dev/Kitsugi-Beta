@@ -23,6 +23,16 @@ class ReaderCustomTapGridTest {
         assertEquals(ReaderTapAction.NEXT, readerTapAction("Custom", false, false, 1f, 1f, grid))
         assertEquals(ReaderTapAction.NONE, readerTapAction("Custom", false, false, .5f, .5f, DEFAULT_READER_LONG_TAP_GRID))
     }
+    @Test fun longPressUsesCustomGridOnlyWhenConfigured() {
+        // Custom düzen + dolu uzun-basma ızgarası → ızgara eylemi.
+        assertEquals(ReaderTapAction.NEXT, readerLongTapAction("Custom", "XXXXXXXXN", false, false, 0.9f, 0.9f))
+        assertEquals(ReaderTapAction.MENU, readerLongTapAction("Custom", "XXXXMXXXX", true, false, 0.5f, 0.5f))
+        // Boş ızgara veya Default düzen → null (varsayılan uzun basma: menü/galeri).
+        assertNull(readerLongTapAction("Custom", DEFAULT_READER_LONG_TAP_GRID, false, false, 0.5f, 0.5f))
+        assertNull(readerLongTapAction("Default", "XXXXXXXXN", false, false, 0.9f, 0.9f))
+        assertNull(readerLongTapAction("LeftHand", "XXXXXXXXN", false, false, 0.9f, 0.9f))
+    }
+
     @Test fun cyclesBothDirectionsAndMaintainsMenuAvailability() {
         assertEquals("MMNPMNPMN", cycleReaderTapGrid(DEFAULT_READER_TAP_GRID, 0))
         assertEquals("XMNPMNPMN", cycleReaderTapGrid(DEFAULT_READER_TAP_GRID, 0, -1))

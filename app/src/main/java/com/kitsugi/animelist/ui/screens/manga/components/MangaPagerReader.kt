@@ -1,6 +1,5 @@
 package com.kitsugi.animelist.ui.screens.manga.components
 
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -15,7 +14,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
 import com.kitsugi.animelist.data.manga.ColorFilterType
@@ -123,24 +122,40 @@ fun MangaPagerReader(
                 }
             } else {
                 CompositionLocalProvider(LocalLayoutDirection provides direction) {
+                    // Yayılım dokunmaları: Initial-pass gözlemci. detectTapGestures
+                    // (Main pass) çocuk ZoomableAsyncImage olayları tükettiği için
+                    // burada hiç tetiklenmiyordu → menü / sağ-sol / uzun basma ölüydü.
+                    val haptics = LocalHapticFeedback.current
+                    val longPress by rememberUpdatedState(onLongPress)
+                    val longPressPage by rememberUpdatedState(onLongPressPage)
+                    val spreadFirst by rememberUpdatedState(firstIndex)
+                    val spreadLast by rememberUpdatedState(lastIndex)
                     Row(
                         modifier = Modifier
                             .fillMaxSize()
-                            .pointerInput(readingMode, invertTapZones, tapLayout, tapGrid, longTapGrid) {
-                                fun dispatch(offset: androidx.compose.ui.geometry.Offset, grid: String) {
-                                    when (readerTapAction(tapLayout, isRtl, invertTapZones,
-                                        offset.x / size.width.coerceAtLeast(1), offset.y / size.height.coerceAtLeast(1), grid)) {
+                            .readerTapGestures(
+                                tapZonesEnabled = tapZonesEnabled,
+                                rtl = isRtl,
+                                invertTapZones = invertTapZones,
+                                tapLayout = tapLayout.ifBlank { "Default" },
+                                tapGrid = tapGrid,
+                                longTapGrid = longTapGrid,
+                                haptics = haptics,
+                                onAction = { action ->
+                                    when (action) {
                                         ReaderTapAction.MENU -> centerTap()
                                         ReaderTapAction.NEXT -> nextPage()
                                         ReaderTapAction.PREVIOUS -> prevPage()
                                         ReaderTapAction.NONE -> Unit
                                     }
-                                }
-                                detectTapGestures(
-                                    onTap = { dispatch(it, tapGrid) },
-                                    onLongPress = if (tapLayout == "Custom" && longTapGrid.any { it != 'X' }) ({ dispatch(it, longTapGrid) }) else null
-                                )
-                            }
+                                },
+                                onLongPress = { xFraction ->
+                                    longPress()
+                                    longPressPage?.invoke(
+                                        readerSpreadPressedPage(xFraction, isRtl, spreadFirst, spreadLast)
+                                    )
+                                },
+                            )
                     ) {
                         listOf(firstPage, secondPage).forEach { page ->
                             CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
