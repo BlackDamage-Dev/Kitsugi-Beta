@@ -327,6 +327,21 @@ class PlayerMediaSourceFactory(
                 .map { it.url.trim() }
                 .filter { it.isNotBlank() }
                 .forEach { add(it) }
+            if (videoUrl.startsWith("file://") || videoUrl.startsWith("/")) {
+                val vPath = videoUrl.removePrefix("file://")
+                val vFile = java.io.File(vPath)
+                if (vFile.isFile) {
+                    val parent = vFile.parentFile
+                    if (parent != null) {
+                        val prefix = "${vFile.nameWithoutExtension}."
+                        val companionFiles = parent.listFiles()?.filter {
+                            it.isFile && it.name.startsWith(prefix) &&
+                                it.extension.lowercase() in com.kitsugi.animelist.core.storage.DownloadStorage.AUDIO_EXTENSIONS
+                        }.orEmpty()
+                        companionFiles.forEach { add("file://${it.absolutePath}") }
+                    }
+                }
+            }
         }.distinct()
         if (audioUrls.isNotEmpty()) {
             Log.d(TAG, "Building MergingMediaSource with ${audioUrls.size} external audio rendition(s)")

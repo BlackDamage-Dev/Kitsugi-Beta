@@ -163,6 +163,7 @@ fun PlayerSheetsHost(
     onSelectAudio: (Int) -> Unit = {},
 
     onDownloadAudio: (Int) -> Unit = {},
+    onDownloadAllAudio: (() -> Unit)? = null,
 
     onDownloadProviderAudio: (Int) -> Unit = {},
 
@@ -454,6 +455,8 @@ fun PlayerSheetsHost(
                         onSelect = onSelectAudio,
 
                         onDownload = onDownloadAudio,
+
+                        onDownloadAllTracks = onDownloadAllAudio,
 
                         providerAudioIndices = providerAudios.mapIndexedNotNull { index, source ->
 

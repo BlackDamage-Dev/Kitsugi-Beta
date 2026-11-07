@@ -231,6 +231,7 @@ internal fun ApiDetailEpisodesTab(
             val epNum = episode.episodeNumber
             if (epNum != null && epNum > 0) {
                 val completedDownload = com.kitsugi.animelist.data.local.AnimeDownloadManager.downloads.value.find {
+                    !it.isAudioOnly &&
                     it.animeId == currentAnimeId &&
                     it.episode == epNum &&
                     (it.season == (targetSeason ?: 1) || it.season == (episode.seasonNumber ?: 1)) &&
@@ -238,9 +239,12 @@ internal fun ApiDetailEpisodesTab(
                     it.localPath != null
                 }
                 if (completedDownload != null) {
+                    val companionAudioUri = com.kitsugi.animelist.core.player.OfflinePlaybackHelper
+                        .findPrimaryCompanionAudioUri(completedDownload.localPath)
                     KitsugiFullscreenPlayerActivity.startWithStreamUrls(
                         context = context,
                         videoUrl = "file://${completedDownload.localPath}",
+                        audioUrl = companionAudioUri,
                         title = context.getString(R.string.completeddownload_animetitle_bolum_completed, completedDownload.animeTitle, completedDownload.episode),
                         headers = emptyMap(),
                         subtitles = emptyList(),

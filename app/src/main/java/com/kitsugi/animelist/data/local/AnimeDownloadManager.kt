@@ -7,6 +7,8 @@ import com.kitsugi.animelist.R
 import com.kitsugi.animelist.core.download.ClipDownloadSource
 import com.kitsugi.animelist.core.download.DownloadExportNaming
 import com.kitsugi.animelist.data.model.AnimeDownload
+import com.kitsugi.animelist.data.model.DownloadKind
+import com.kitsugi.animelist.data.model.ExternalAudioTrack
 import com.kitsugi.animelist.utils.KitsugiStrings
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -37,10 +39,8 @@ object AnimeDownloadManager {
         // PERF: Önceden bu satır Application.onCreate içinde (ana iş parçacığında) Gson ile
         // tüm indirme listesini ayrıştırıyordu; liste büyüdükçe soğuk açılış uzuyordu.
         ioScope.launch {
-            val loaded = store.getDownloads().map { download ->
-                // Süreç yeniden başladığında hiçbir indirme gerçekten "sürüyor" olamaz.
-                // Diskte DOWNLOADING kalan kayıtlar sonsuza kadar "indiriliyor" görünüyordu;
-                // onları duraklatılmış duruma alıp kullanıcıya devam etme imkânı bırakıyoruz.
+            val loaded = store.getDownloads().map { rawItem ->
+                val download = rawItem.normalized()
                 if (download.status == AnimeDownload.Status.DOWNLOADING) {
                     download.copy(status = AnimeDownload.Status.PAUSED, progress = 0)
                 } else {
@@ -80,8 +80,8 @@ object AnimeDownloadManager {
 
             _downloads.value = if (localWriteBeforeLoad) {
                 // Okuma sürerken yeni indirme eklendiyse eskisini ezmesin: birleştir.
-                val seen = _downloads.value.mapTo(HashSet()) { it.animeId to it.episode }
-                _downloads.value + loaded.filterNot { seen.contains(it.animeId to it.episode) }
+                val seen = _downloads.value.mapTo(HashSet()) { it.uniqueKey }
+                _downloads.value + loaded.filterNot { seen.contains(it.uniqueKey) }
             } else {
                 loaded
             }
@@ -282,13 +282,15 @@ object AnimeDownloadManager {
         tmdbId: Int? = null,
         source: String? = null,
         streamTitle: String? = null,
-        streamName: String? = null
+        streamName: String? = null,
+        externalAudioUrl: String? = null,
+        externalAudioTracks: List<ExternalAudioTrack> = emptyList(),
+        isCloudStream: Boolean = false,
+        qualityValue: Int? = null,
+        p2pInfoHash: String? = null,
+        p2pFileIdx: Int? = null,
+        p2pTrackers: List<String> = emptyList()
     ) {
-        localWriteBeforeLoad = true
-        val current = _downloads.value.toMutableList()
-        val exists = current.any { it.animeId == animeId && it.episode == episode }
-        if (exists) return
-
         val newDownload = AnimeDownload(
             animeId = animeId,
             animeTitle = animeTitle,
@@ -305,26 +307,114 @@ object AnimeDownloadManager {
             tmdbId = tmdbId,
             source = source,
             streamTitle = streamTitle,
-            streamName = streamName
+            streamName = streamName,
+            downloadKind = DownloadKind.VIDEO,
+            externalAudioUrl = externalAudioUrl ?: externalAudioTracks.firstOrNull()?.url,
+            externalAudioTracks = externalAudioTracks,
+            isCloudStream = isCloudStream,
+            qualityValue = qualityValue,
+            p2pInfoHash = p2pInfoHash,
+            p2pFileIdx = p2pFileIdx,
+            p2pTrackers = p2pTrackers
         )
+        enqueueDownload(context, newDownload)
+    }
+
+    fun addAudioDownload(
+        context: Context,
+        animeId: String,
+        animeTitle: String,
+        posterUrl: String?,
+        episode: Int,
+        season: Int,
+        url: String,
+        requestHeaders: Map<String, String> = emptyMap(),
+        source: String? = null,
+        streamTitle: String? = null,
+        streamName: String? = null,
+        externalAudioTracks: List<ExternalAudioTrack> = emptyList(),
+        audioTrackKey: String = "default",
+        audioTrackLabel: String = "",
+        audioTrackLang: String = "",
+        audioTrackIndex: Int = -1,
+        isCloudStream: Boolean = false,
+        qualityValue: Int? = null,
+        p2pInfoHash: String? = null,
+        p2pFileIdx: Int? = null,
+        p2pTrackers: List<String> = emptyList()
+    ): Boolean {
+        val newDownload = AnimeDownload(
+            animeId = animeId,
+            animeTitle = animeTitle,
+            posterUrl = posterUrl,
+            episode = episode,
+            season = season,
+            url = url,
+            quality = audioTrackLabel.ifBlank { audioTrackLang.uppercase().ifBlank { "AUDIO" } },
+            requestHeaders = requestHeaders,
+            subtitles = emptyList(),
+            status = AnimeDownload.Status.QUEUE,
+            source = source,
+            streamTitle = streamTitle,
+            streamName = streamName,
+            downloadKind = DownloadKind.AUDIO,
+            externalAudioUrl = externalAudioTracks.firstOrNull()?.url,
+            externalAudioTracks = externalAudioTracks,
+            audioTrackKey = audioTrackKey,
+            audioTrackLabel = audioTrackLabel,
+            audioTrackLang = audioTrackLang,
+            audioTrackIndex = audioTrackIndex,
+            isCloudStream = isCloudStream,
+            qualityValue = qualityValue,
+            p2pInfoHash = p2pInfoHash,
+            p2pFileIdx = p2pFileIdx,
+            p2pTrackers = p2pTrackers
+        )
+        return enqueueDownload(context, newDownload)
+    }
+
+    fun enqueueDownload(context: Context, newDownload: AnimeDownload): Boolean {
+        localWriteBeforeLoad = true
+        val current = _downloads.value.toMutableList()
+        val key = newDownload.uniqueKey
+        val existingIdx = current.indexOfFirst { it.uniqueKey == key }
+        if (existingIdx != -1) {
+            val existing = current[existingIdx]
+            if (existing.status == AnimeDownload.Status.DOWNLOADING ||
+                existing.status == AnimeDownload.Status.QUEUE
+            ) {
+                return false
+            }
+            current[existingIdx] = newDownload.copy(
+                status = AnimeDownload.Status.QUEUE,
+                progress = 0,
+                downloadedBytes = 0L,
+                errorMessage = null
+            )
+            saveAndEmit(current)
+            startService(context)
+            return true
+        }
         current.add(newDownload)
         saveAndEmit(current)
         startService(context)
+        return true
     }
 
-    fun pauseDownload(animeId: String, episode: Int) {
+    fun pauseByKey(uniqueKey: String) {
         val current = _downloads.value.map {
-            if (it.animeId == animeId && it.episode == episode) {
-                it.copy(status = AnimeDownload.Status.PAUSED)
-            } else it
+            if (it.uniqueKey == uniqueKey) it.copy(status = AnimeDownload.Status.PAUSED) else it
         }
         saveAndEmit(current)
     }
 
-    fun resumeDownload(context: Context, animeId: String, episode: Int) {
+    fun pauseDownload(animeId: String, episode: Int) {
+        pauseByKey(AnimeDownload.videoKey(animeId, episode))
+    }
+
+    fun resumeByKey(context: Context, uniqueKey: String) {
         val current = _downloads.value.map {
-            if (it.animeId == animeId && it.episode == episode) {
-                // Önceki hata nedeni yeni denemede gösterilmesin.
+            if (it.uniqueKey == uniqueKey) {
                 it.copy(status = AnimeDownload.Status.QUEUE, errorMessage = null, progress = 0)
             } else it
         }
@@ -332,17 +422,19 @@ object AnimeDownloadManager {
         startService(context)
     }
 
-    fun deleteDownload(context: Context, animeId: String, episode: Int) {
-        // Silmeden önce kaydı al: dışa aktarılan (public) kopyaların adı başlıktan üretilir.
-        val record = _downloads.value.firstOrNull { it.animeId == animeId && it.episode == episode }
-        val current = _downloads.value.filterNot { it.animeId == animeId && it.episode == episode }
+    fun resumeDownload(context: Context, animeId: String, episode: Int) {
+        resumeByKey(context, AnimeDownload.videoKey(animeId, episode))
+    }
+
+    fun deleteByKey(context: Context, uniqueKey: String) {
+        val record = _downloads.value.firstOrNull { it.uniqueKey == uniqueKey }
+        val current = _downloads.value.filterNot { it.uniqueKey == uniqueKey }
         saveAndEmit(current)
+        if (record == null) return
 
         val appContext = context.applicationContext
 
-        // Küçük videolar bölüm klasörü kullanmaz: dosya adı taban addan (clipBaseName) türetilir
-        // ve tüm kopyaları (part / farklı uzantı) birlikte silinir.
-        if (record != null && record.isClip) {
+        if (record.isClip) {
             ioScope.launch {
                 runCatching {
                     com.kitsugi.animelist.core.storage.DownloadStorage.deleteClip(
@@ -356,35 +448,44 @@ object AnimeDownloadManager {
         }
 
         ioScope.launch {
-            try {
-                val mediaId = "${animeId}_ep$episode"
-                com.kitsugi.animelist.core.player.OfflinePlaybackHelper.deleteDownload(appContext, mediaId)
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-
-            // Video, altyazı, metadata ve poster (Download/Kitsugi/Video|Subtitles|Images) dahil
-            // dışa aktarılan tüm dosyalar temizlenir; aksi hâlde bölüm "silinmiş" görünürken
-            // dosya diskte kalıp yer kaplamaya devam ediyordu.
-            if (record != null) {
-                try {
+            if (record.isAudioOnly) {
+                record.localPath?.takeIf { it.isNotBlank() }?.let { path ->
+                    runCatching { com.kitsugi.animelist.core.storage.DownloadStorage.deleteAudio(appContext, File(path)) }
+                }
+            } else {
+                runCatching {
+                    val mediaId = "${record.animeId}_ep${record.episode}"
+                    com.kitsugi.animelist.core.player.OfflinePlaybackHelper.deleteDownload(appContext, mediaId)
+                }
+                runCatching {
                     com.kitsugi.animelist.core.download.DownloadExportNaming.deleteExports(
                         context = appContext,
                         animeTitle = record.animeTitle,
-                        episode = episode
+                        episode = record.episode
                     )
-                } catch (e: Exception) {
-                    e.printStackTrace()
                 }
             }
         }
     }
 
-    /**
-     * Tüm indirme kayıtlarını (diskteki dosyalara dokunmadan) temizler.
-     * Ayarlar > Depolama ekranındaki toplu silme sonrası çağrılır: dosyalar gittiği için
-     * indirme listesi ve kuyruk da boşalır, devam eden iş varsa servis kendini durdurur.
-     */
+    fun deleteDownload(context: Context, animeId: String, episode: Int) {
+        deleteByKey(context, AnimeDownload.videoKey(animeId, episode))
+    }
+
+    /** Bağımsız ses indirme kayıtlarını temizler. */
+    fun clearAudioDownloads() {
+        localWriteBeforeLoad = true
+        val remaining = _downloads.value.filterNot { it.isAudioOnly }
+        saveAndEmit(remaining)
+    }
+
+    /** Video indirme kayıtlarını temizler (Depolama > İndirilen Videoları Sil sonrası). */
+    fun clearVideoDownloads() {
+        localWriteBeforeLoad = true
+        val remaining = _downloads.value.filter { it.isAudioOnly }
+        saveAndEmit(remaining)
+    }
+
     fun clearAllDownloads(context: Context) {
         // Disk okuması hâlâ sürüyorsa eski liste geri yazmasın.
         localWriteBeforeLoad = true
@@ -401,9 +502,15 @@ object AnimeDownloadManager {
         }
     }
 
-    fun updateProgress(animeId: String, episode: Int, progress: Int, downloadedBytes: Long, totalBytes: Long, downloadedSegments: Int = 0) {
+    fun updateProgressByKey(
+        uniqueKey: String,
+        progress: Int,
+        downloadedBytes: Long,
+        totalBytes: Long,
+        downloadedSegments: Int = 0
+    ) {
         val currentList = _downloads.value
-        val existing = currentList.firstOrNull { it.animeId == animeId && it.episode == episode } ?: return
+        val existing = currentList.firstOrNull { it.uniqueKey == uniqueKey } ?: return
         if (existing.progress == progress &&
             existing.downloadedBytes == downloadedBytes &&
             existing.totalBytes == totalBytes &&
@@ -417,7 +524,7 @@ object AnimeDownloadManager {
         }
         lastProgressEmitTimeMs = now
         val current = currentList.map {
-            if (it.animeId == animeId && it.episode == episode) {
+            if (it.uniqueKey == uniqueKey) {
                 it.copy(
                     progress = progress,
                     downloadedBytes = downloadedBytes,
@@ -429,35 +536,47 @@ object AnimeDownloadManager {
         _downloads.value = current
     }
 
-    /**
-     * Durum güncellemesi.
-     *
-     * @param detail COMPLETED → yerel dosya yolu; ERROR → kullanıcıya gösterilecek hata nedeni;
-     *               PAUSED/QUEUE → yok sayılır.
-     */
+    fun updateProgress(animeId: String, episode: Int, progress: Int, downloadedBytes: Long, totalBytes: Long, downloadedSegments: Int = 0) {
+        updateProgressByKey(
+            uniqueKey = AnimeDownload.videoKey(animeId, episode),
+            progress = progress,
+            downloadedBytes = downloadedBytes,
+            totalBytes = totalBytes,
+            downloadedSegments = downloadedSegments
+        )
+    }
+
+    fun updateStatusByKey(
+        uniqueKey: String,
+        status: AnimeDownload.Status,
+        localPath: String? = null,
+        errorMessage: String? = null
+    ) {
+        val current = _downloads.value.map {
+            if (it.uniqueKey == uniqueKey) {
+                it.copy(
+                    status = status,
+                    progress = if (status == AnimeDownload.Status.COMPLETED) 100 else it.progress,
+                    localPath = localPath ?: it.localPath,
+                    errorMessage = errorMessage
+                )
+            } else it
+        }
+        saveAndEmit(current)
+    }
+
     fun updateStatus(
         animeId: String,
         episode: Int,
         status: AnimeDownload.Status,
         detail: String? = null
     ) {
-        val current = _downloads.value.map {
-            if (it.animeId == animeId && it.episode == episode) {
-                it.copy(
-                    status = status,
-                    localPath = if (status == AnimeDownload.Status.COMPLETED) {
-                        detail ?: it.localPath
-                    } else it.localPath,
-                    errorMessage = when (status) {
-                        AnimeDownload.Status.ERROR -> detail ?: it.errorMessage
-                        AnimeDownload.Status.QUEUE,
-                        AnimeDownload.Status.DOWNLOADING -> null
-                        else -> it.errorMessage
-                    }
-                )
-            } else it
-        }
-        saveAndEmit(current)
+        updateStatusByKey(
+            uniqueKey = AnimeDownload.videoKey(animeId, episode),
+            status = status,
+            localPath = if (status == AnimeDownload.Status.COMPLETED) detail else null,
+            errorMessage = if (status == AnimeDownload.Status.ERROR) detail else null
+        )
     }
 
     fun getNextDownload(): AnimeDownload? {

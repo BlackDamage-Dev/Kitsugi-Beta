@@ -2409,6 +2409,30 @@ class MpvPlayerEngine(
 
         }
 
+        val vUrl = videoUrl.orEmpty()
+        if (vUrl.startsWith("file:", ignoreCase = true) || vUrl.startsWith("/")) {
+            val localPath = if (vUrl.startsWith("file:", ignoreCase = true)) {
+                android.net.Uri.parse(vUrl).path ?: vUrl.removePrefix("file://")
+            } else {
+                vUrl
+            }
+            val localFile = java.io.File(localPath)
+            if (localFile.exists() && localFile.isFile) {
+                runCatching {
+                    val companions = com.kitsugi.animelist.core.player.OfflinePlaybackHelper
+                        .getLocalMediaForFile(localFile)
+                        ?.companionAudios.orEmpty()
+                    val addedUrls = tracks.map { it.url }.toSet()
+                    companions.forEachIndexed { idx, comp ->
+                        if (comp.uri !in addedUrls) {
+                            val mode = if (tracks.isEmpty() && idx == 0) "select" else "auto"
+                            view.mpv.command("audio-add", comp.uri.removePrefix("file://"), mode, comp.label, comp.language)
+                        }
+                    }
+                }
+            }
+        }
+
     }
 
 

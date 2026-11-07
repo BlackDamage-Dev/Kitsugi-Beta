@@ -111,6 +111,7 @@ fun StreamScreenContent(
     onAddonFilterChange: (String?) -> Unit,
     onStreamSelected: (StreamSource) -> Unit,
     onDownloadSelected: (StreamSource) -> Unit,
+    onAudioDownloadSelected: ((StreamSource) -> Unit)? = null,
     onBack: () -> Unit,
     resolvingSource: StreamSource?,
     resolvingError: String?,
@@ -276,6 +277,7 @@ fun StreamScreenContent(
                     filteredAddonStates = filteredAddonStates, totalFilteredStreamsCount = totalFilteredStreamsCount, totalSizedStreamsCount = totalSizedStreamsCount,
                     hasActiveFilter = hasActiveFilter, onStreamSelected = onStreamSelected,
                     onDownloadSelected = onDownloadSelected,
+                    onAudioDownloadSelected = onAudioDownloadSelected,
                     onVerifyPlugin = onVerifyPlugin, onOpenSettings = onOpenSettings,
                     onRetryPlugin = onRetryPlugin,
                     onOpenHistory = onOpenHistory,
@@ -298,6 +300,7 @@ fun StreamScreenContent(
                     filteredAddonStates = filteredAddonStates, totalFilteredStreamsCount = totalFilteredStreamsCount, totalSizedStreamsCount = totalSizedStreamsCount,
                     hasActiveFilter = hasActiveFilter, onStreamSelected = onStreamSelected,
                     onDownloadSelected = onDownloadSelected,
+                    onAudioDownloadSelected = onAudioDownloadSelected,
                     onVerifyPlugin = onVerifyPlugin, onOpenSettings = onOpenSettings,
                     onRetryPlugin = onRetryPlugin,
                     onOpenHistory = onOpenHistory,
@@ -600,7 +603,7 @@ private fun PortraitLayout(
     onAddonFilterChange: (String?) -> Unit, onBack: () -> Unit,
     isResolvingId: Boolean, idResolveFailed: Boolean, isAnyLoading: Boolean,
     filteredAddonStates: List<AddonFetchState>, totalFilteredStreamsCount: Int, totalSizedStreamsCount: Int = 0, hasActiveFilter: Boolean,
-    onStreamSelected: (StreamSource) -> Unit, onDownloadSelected: (StreamSource) -> Unit, onVerifyPlugin: ((AddonFetchState) -> Unit)?, onOpenSettings: (() -> Unit)?,
+    onStreamSelected: (StreamSource) -> Unit, onDownloadSelected: (StreamSource) -> Unit, onAudioDownloadSelected: ((StreamSource) -> Unit)? = null, onVerifyPlugin: ((AddonFetchState) -> Unit)?, onOpenSettings: (() -> Unit)?,
     onRetryPlugin: ((AddonFetchState) -> Unit)? = null,
     onOpenHistory: (() -> Unit)?,
     onOpenDownloads: (() -> Unit)? = null,
@@ -709,7 +712,8 @@ private fun PortraitLayout(
                 onVerifyPlugin = onVerifyPlugin,
                 onRetryPlugin = onRetryPlugin,
                 onStreamSelected = onStreamSelected,
-                onDownloadSelected = onDownloadSelected
+                onDownloadSelected = onDownloadSelected,
+                onAudioDownloadSelected = onAudioDownloadSelected
             )
         }
     }
@@ -745,7 +749,7 @@ private fun LandscapeLayout(
     onAddonFilterChange: (String?) -> Unit, onBack: () -> Unit,
     isResolvingId: Boolean, idResolveFailed: Boolean, isAnyLoading: Boolean,
     filteredAddonStates: List<AddonFetchState>, totalFilteredStreamsCount: Int, totalSizedStreamsCount: Int = 0, hasActiveFilter: Boolean,
-    onStreamSelected: (StreamSource) -> Unit, onDownloadSelected: (StreamSource) -> Unit, onVerifyPlugin: ((AddonFetchState) -> Unit)?, onOpenSettings: (() -> Unit)?,
+    onStreamSelected: (StreamSource) -> Unit, onDownloadSelected: (StreamSource) -> Unit, onAudioDownloadSelected: ((StreamSource) -> Unit)? = null, onVerifyPlugin: ((AddonFetchState) -> Unit)?, onOpenSettings: (() -> Unit)?,
     onRetryPlugin: ((AddonFetchState) -> Unit)? = null,
     onOpenHistory: (() -> Unit)? = null,
     onOpenDownloads: (() -> Unit)? = null,
@@ -899,7 +903,8 @@ private fun androidx.compose.foundation.lazy.LazyListScope.renderStateOrResults(
     onVerifyPlugin: ((AddonFetchState) -> Unit)?,
     onRetryPlugin: ((AddonFetchState) -> Unit)?,
     onStreamSelected: (StreamSource) -> Unit,
-    onDownloadSelected: (StreamSource) -> Unit
+    onDownloadSelected: (StreamSource) -> Unit,
+    onAudioDownloadSelected: ((StreamSource) -> Unit)? = null
 ) {
     when {
         isResolvingId -> {
@@ -927,6 +932,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.renderStateOrResults(
                 accentColor = accentColor,
                 onStreamSelected = onStreamSelected,
                 onDownloadSelected = onDownloadSelected,
+                onAudioDownloadSelected = onAudioDownloadSelected,
                 onVerifyPlugin = onVerifyPlugin,
                 onOpenSettings = onOpenSettings,
                 onRetryPlugin = onRetryPlugin,

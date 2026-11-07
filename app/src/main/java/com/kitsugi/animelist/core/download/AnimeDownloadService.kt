@@ -30,8 +30,7 @@ class AnimeDownloadService : Service() {
     private val serviceScope = CoroutineScope(Dispatchers.IO + Job())
     private var downloadJob: Job? = null
     private var activeDownloadJob: Job? = null
-    private var currentDownloadingAnimeId: String? = null
-    private var currentDownloadingEpisode: Int? = null
+    private var currentDownloadingKey: String? = null
     private lateinit var downloader: AnimeDownloader
     private lateinit var notificationManager: NotificationManager
 
@@ -71,12 +70,10 @@ class AnimeDownloadService : Service() {
 
         serviceScope.launch {
             AnimeDownloadManager.downloads.collect { list ->
-                val activeId = currentDownloadingAnimeId
-                val activeEp = currentDownloadingEpisode
-                if (activeId != null && activeEp != null) {
+                val activeKey = currentDownloadingKey
+                if (activeKey != null) {
                     val stillExistsAndDownloading = list.any {
-                        it.animeId == activeId &&
-                        it.episode == activeEp &&
+                        it.uniqueKey == activeKey &&
                         (it.status == AnimeDownload.Status.DOWNLOADING || it.status == AnimeDownload.Status.QUEUE)
                     }
                     if (!stillExistsAndDownloading) {
@@ -88,7 +85,8 @@ class AnimeDownloadService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        startForeground(NOTIFICATION_ID, buildNotification("İndirme sırası hazırlanıyor...", 0, true))
+        val initMsg = if (com.kitsugi.animelist.utils.isTurkish()) "İndirme sırası hazırlanıyor…" else "Preparing download queue…"
+        startForeground(NOTIFICATION_ID, buildNotification(text = initMsg, progress = 0, indeterminate = true))
         
         if (downloadJob == null || downloadJob?.isCompleted == true) {
             startLoop()
@@ -109,8 +107,8 @@ class AnimeDownloadService : Service() {
                         break
                     }
                 } else {
-                    currentDownloadingAnimeId = next.animeId
-                    currentDownloadingEpisode = next.episode
+                    val key = next.uniqueKey
+                    currentDownloadingKey = key
 
                     val activeJob = launch {
                         try {
@@ -121,34 +119,33 @@ class AnimeDownloadService : Service() {
                             downloader.download(
                                 download = next,
                                 onProgress = { progress, size, duration, segmentsDownloaded ->
-                                    AnimeDownloadManager.updateProgress(
-                                        animeId           = next.animeId,
-                                        episode           = next.episode,
-                                        progress          = progress,
-                                        downloadedBytes   = size,
-                                        totalBytes        = duration,
+                                    AnimeDownloadManager.updateProgressByKey(
+                                        uniqueKey = key,
+                                        progress = progress,
+                                        downloadedBytes = size,
+                                        totalBytes = duration,
                                         downloadedSegments = segmentsDownloaded
                                     )
                                     val currentTime = System.currentTimeMillis()
-                                    if (currentTime - lastNotificationTime >= 1000L || progress == 100) {
+                                    if (currentTime - lastNotificationTime >= 900L || progress == 100) {
                                         lastNotificationTime = currentTime
                                         notificationManager.notify(
                                             NOTIFICATION_ID,
                                             buildNotification(
-                                                download    = next,
-                                                progress    = progress,
+                                                download = next,
+                                                progress = progress,
                                                 indeterminate = false,
-                                                posterBitmap  = posterBitmap
+                                                posterBitmap = posterBitmap
                                             )
                                         )
                                     }
                                 },
-                                onStatusChanged = { status, detail ->
-                                    AnimeDownloadManager.updateStatus(
-                                        animeId = next.animeId,
-                                        episode = next.episode,
-                                        status  = status,
-                                        detail  = detail
+                                onStatusChanged = { status, localPath, errorMessage ->
+                                    AnimeDownloadManager.updateStatusByKey(
+                                        uniqueKey = key,
+                                        status = status,
+                                        localPath = localPath,
+                                        errorMessage = errorMessage
                                     )
                                     if (status == AnimeDownload.Status.COMPLETED) {
                                         showCompletedNotification(next, posterBitmap, success = true)
@@ -161,11 +158,10 @@ class AnimeDownloadService : Service() {
                             throw e
                         } catch (e: Exception) {
                             if (isActive) {
-                                AnimeDownloadManager.updateStatus(
-                                    animeId = next.animeId,
-                                    episode = next.episode,
+                                AnimeDownloadManager.updateStatusByKey(
+                                    uniqueKey = key,
                                     status = AnimeDownload.Status.ERROR,
-                                    detail = KitsugiStrings.get(R.string.kitsugi_clip_error_generic)
+                                    errorMessage = e.message ?: KitsugiStrings.get(R.string.kitsugi_clip_error_generic)
                                 )
                             }
                         }
@@ -177,12 +173,11 @@ class AnimeDownloadService : Service() {
                     } catch (e: Exception) {
                         e.printStackTrace()
                     } finally {
-                        currentDownloadingAnimeId = null
-                        currentDownloadingEpisode = null
+                        currentDownloadingKey = null
                         activeDownloadJob = null
                     }
                 }
-                delay(1000L)
+                delay(600L)
             }
         }
     }
@@ -194,23 +189,31 @@ class AnimeDownloadService : Service() {
         indeterminate: Boolean = true,
         posterBitmap: Bitmap? = null
     ): Notification {
-        val title = if (download != null)
-            if (download.isClip) "⬇️ ${download.clipTitle ?: download.animeTitle}"
-            else "⬇️ ${download.animeTitle}"
-        else
-            "Anime İndiriliyor"
+        val tr = com.kitsugi.animelist.utils.isTurkish()
+        val title = when {
+            download == null -> if (tr) "İndiriliyor" else "Downloading"
+            download.isClip -> "⬇️ ${download.clipTitle ?: download.animeTitle}"
+            download.isAudioOnly -> "🎧 ${download.animeTitle}"
+            else -> "⬇️ ${download.animeTitle}"
+        }
 
         val contentText = if (download != null) {
             val pct = if (!indeterminate) " (%$progress)" else ""
-            if (download.isClip) {
-                "${download.animeTitle}$pct"
-            } else {
-                val ep = "Bölüm ${download.episode}"
-                val q  = if (!download.quality.isNullOrBlank()) " • ${download.quality}" else ""
-                "$ep$q$pct"
+            when {
+                download.isClip -> "${download.animeTitle}$pct"
+                download.isAudioOnly -> {
+                    val ep = if (tr) "Bölüm ${download.episode}" else "Episode ${download.episode}"
+                    val label = download.audioTrackLabel?.takeIf { it.isNotBlank() } ?: download.quality
+                    "$ep • 🎧 $label$pct"
+                }
+                else -> {
+                    val ep = if (tr) "Bölüm ${download.episode}" else "Episode ${download.episode}"
+                    val q  = if (!download.quality.isNullOrBlank()) " • ${download.quality}" else ""
+                    "$ep$q$pct"
+                }
             }
         } else {
-            text ?: "İndirme sırası hazırlanıyor…"
+            text ?: (if (tr) "İndirme sırası hazırlanıyor…" else "Preparing download queue…")
         }
 
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
@@ -238,7 +241,7 @@ class AnimeDownloadService : Service() {
                             val cleanTitle = com.kitsugi.animelist.utils.StreamLabelSanitizer
                                 .sanitize(download.streamTitle)
                             if (cleanTitle.isNotBlank()) append(" • $cleanTitle")
-                        }.ifBlank { "Video İndiriliyor" }
+                        }.ifBlank { if (download.isAudioOnly) "Ses İndiriliyor" else "Video İndiriliyor" }
                     )
             )
         }
@@ -251,16 +254,34 @@ class AnimeDownloadService : Service() {
         buildNotification(download = null, text = text, progress = progress, indeterminate = indeterminate)
 
     private fun showCompletedNotification(download: AnimeDownload, posterBitmap: Bitmap?, success: Boolean) {
+        val tr = com.kitsugi.animelist.utils.isTurkish()
         val emoji   = if (success) "✅" else "❌"
-        val verb    = if (success) "indirildi" else "indirilemedi"
-        val epInfo  = if (download.isClip) (download.clipTitle ?: "Video") else "Bölüm ${download.episode}"
-        val quality = if (!download.isClip && !download.quality.isNullOrBlank()) " • ${download.quality}" else ""
+        val verb    = if (success) {
+            if (tr) "indirildi" else "downloaded"
+        } else {
+            if (tr) "indirilemedi" else "failed to download"
+        }
+        val epInfo  = when {
+            download.isClip -> download.clipTitle ?: "Video"
+            download.isAudioOnly -> {
+                val ep = if (tr) "Bölüm ${download.episode}" else "Episode ${download.episode}"
+                val label = download.audioTrackLabel?.takeIf { it.isNotBlank() } ?: download.quality
+                "$ep • 🎧 $label"
+            }
+            else -> if (tr) "Bölüm ${download.episode}" else "Episode ${download.episode}"
+        }
+        val quality = if (!download.isClip && !download.isAudioOnly && !download.quality.isNullOrBlank()) " • ${download.quality}" else ""
         val source  = if (!download.source.isNullOrBlank()) " • ${download.source}" else ""
+
+        val subText = when {
+            download.isAudioOnly -> if (tr) "Ses İndirme" else "Audio Download"
+            else -> KitsugiStrings.get(R.string.video_indirme)
+        }
 
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("$emoji ${download.animeTitle}")
             .setContentText("$epInfo$quality $verb")
-            .setSubText(KitsugiStrings.get(R.string.video_indirme))
+            .setSubText(subText)
             .setSmallIcon(if (success) android.R.drawable.stat_sys_download_done else android.R.drawable.stat_notify_error)
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
@@ -283,7 +304,7 @@ class AnimeDownloadService : Service() {
             )
         }
 
-        val notificationId = download.animeId.hashCode() + download.episode
+        val notificationId = download.uniqueKey.hashCode()
         notificationManager.notify(notificationId, builder.build())
     }
 

@@ -16,7 +16,8 @@ class ReaderTapZonesTest {
         assertEquals(40f, autoScrollPixelsPerSecond(40, 1f), 0.001f)
         assertEquals(80f, autoScrollPixelsPerSecond(40, 2f), 0.001f)
         assertEquals(10f, autoScrollPixelsPerSecond(0, 1f), 0.001f)
-        assertEquals(160f, autoScrollPixelsPerSecond(500, 1f), 0.001f)
+        assertEquals(500f, autoScrollPixelsPerSecond(500, 1f), 0.001f)
+        assertEquals(500f, autoScrollPixelsPerSecond(1000, 1f), 0.001f)
         assertEquals(0f, autoScrollPixelsPerSecond(40, -1f), 0.001f)
     }
 

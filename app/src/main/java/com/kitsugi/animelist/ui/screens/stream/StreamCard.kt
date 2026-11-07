@@ -80,6 +80,7 @@ fun StreamCard(
     accentColor: Color,
     onClick: () -> Unit,
     onDownloadClick: () -> Unit,
+    onAudioDownloadClick: (() -> Unit)? = null,
     /** Eklenti kapağı yoksa gösterilecek medya posteri (dizi/film afişi). */
     posterFallbackUrl: String? = null,
     /**
@@ -209,20 +210,42 @@ fun StreamCard(
                         modifier = Modifier.size(26.dp)
                     )
                 }
-                Spacer(Modifier.height(4.dp))
-                IconButton(
-                    onClick = onDownloadClick,
-                    modifier = Modifier.size(38.dp),
-                    colors = IconButtonDefaults.iconButtonColors(
-                        containerColor = KitsugiColors.SurfaceStrong.copy(alpha = 0.55f),
-                        contentColor = KitsugiColors.TextSecondary
-                    )
+                Spacer(Modifier.height(5.dp))
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        imageVector = Icons.Download,
-                        contentDescription = stringResource(R.string.indir),
-                        modifier = Modifier.size(19.dp)
-                    )
+                    IconButton(
+                        onClick = onDownloadClick,
+                        modifier = Modifier.size(36.dp),
+                        colors = IconButtonDefaults.iconButtonColors(
+                            containerColor = KitsugiColors.SurfaceStrong.copy(alpha = 0.55f),
+                            contentColor = KitsugiColors.TextSecondary
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Download,
+                            contentDescription = stringResource(R.string.indir),
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                    if (onAudioDownloadClick != null) {
+                        val audioDesc = if (com.kitsugi.animelist.utils.isTurkish()) "Sesi İndir" else "Download Audio"
+                        IconButton(
+                            onClick = onAudioDownloadClick,
+                            modifier = Modifier.size(36.dp),
+                            colors = IconButtonDefaults.iconButtonColors(
+                                containerColor = accentColor.copy(alpha = 0.16f),
+                                contentColor = accentColor
+                            )
+                        ) {
+                            Icon(
+                                imageVector = Icons.Headphones,
+                                contentDescription = audioDesc,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
                 }
             }
         }

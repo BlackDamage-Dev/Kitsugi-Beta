@@ -332,6 +332,143 @@ fun KitsugiStreamScreen(
     var showP2pConsentDialog by remember { mutableStateOf(false) }
     var pendingP2pSource by remember { mutableStateOf<StreamSource?>(null) }
     var pendingIsDownload by remember { mutableStateOf(false) }
+    var pendingAudioPickerState by remember {
+        mutableStateOf<Triple<StreamSource, String, List<com.kitsugi.animelist.core.download.AudioTrackInspector.DownloadableAudioTrack>>?>(null)
+    }
+    var pendingIsAudioDownload by remember { mutableStateOf(false) }
+
+    val resolvedMediaKeyId = remember(aniListId, malId, tmdbId, bangumiId, title) {
+        if (aniListId != null) aniListId.toString()
+        else if (malId != null) malId.toString()
+        else if (tmdbId != null) tmdbId.toString()
+        else if (bangumiId != null) "bgm_$bangumiId"
+        else title.lowercase().replace(Regex("[^a-z0-9]"), "_").trim('_').take(30).ifBlank { "media" }
+    }
+
+    val enqueueAudioTracksAndOpenScreen = { source: StreamSource, resolvedUrl: String, tracks: List<com.kitsugi.animelist.core.download.AudioTrackInspector.DownloadableAudioTrack> ->
+        val tr = com.kitsugi.animelist.utils.isTurkish()
+        var addedAny = false
+        for (track in tracks) {
+            val extTracks = if (!track.directAudioUrl.isNullOrBlank()) {
+                listOf(
+                    com.kitsugi.animelist.data.model.ExternalAudioTrack(
+                        url = track.directAudioUrl,
+                        label = track.label,
+                        lang = track.lang,
+                        headers = track.headers,
+                        codecs = track.codecHint,
+                        channels = track.channels,
+                        isDefault = track.isDefault
+                    )
+                )
+            } else {
+                source.allExternalAudioTracks
+            }
+            val added = com.kitsugi.animelist.data.local.AnimeDownloadManager.addAudioDownload(
+                context = context,
+                animeId = resolvedMediaKeyId,
+                animeTitle = title,
+                posterUrl = source.thumbnailUrl.takeIf { !it.isNullOrBlank() } ?: posterUrl,
+                episode = episode,
+                season = season,
+                url = resolvedUrl,
+                requestHeaders = source.requestHeaders ?: emptyMap(),
+                source = source.addonName,
+                streamTitle = source.title,
+                streamName = source.name,
+                externalAudioTracks = extTracks,
+                audioTrackKey = track.key,
+                audioTrackLabel = track.displayTitle(tr),
+                audioTrackLang = track.lang,
+                audioTrackIndex = track.index,
+                isCloudStream = source.isCS,
+                qualityValue = source.qualityValue,
+                p2pInfoHash = source.p2pHash,
+                p2pFileIdx = source.fileIndex,
+                p2pTrackers = source.trackers
+            )
+            if (added) addedAny = true
+        }
+        val msg = if (addedAny) {
+            if (tr) "Ses indirme kuyruğa eklendi" else "Audio download queued"
+        } else {
+            if (tr) "Bu ses parçası zaten indirme kuyruğunda" else "This audio track is already in the download queue"
+        }
+        android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
+        context.startActivity(
+            android.content.Intent(context, com.kitsugi.animelist.ui.screens.offline.DownloadsActivity::class.java).apply {
+                putExtra(
+                    com.kitsugi.animelist.ui.screens.offline.DownloadsActivity.EXTRA_INITIAL_TAB,
+                    com.kitsugi.animelist.ui.screens.offline.DownloadsActivity.TAB_AUDIOS
+                )
+            }
+        )
+    }
+
+    var executeAudioResolution: (StreamSource) -> Unit = {}
+    executeAudioResolution = { source: StreamSource ->
+        val isTorrent = source.isTorrent
+        val hasDebrid = !DebridResolver(context).getApiKey().isNullOrBlank()
+        val p2pEnabled = com.kitsugi.animelist.core.p2p.P2pSettingsRepository.isP2pEnabled()
+
+        if (isTorrent && !hasDebrid && !p2pEnabled) {
+            if (!com.kitsugi.animelist.core.p2p.P2pSettingsRepository.isConsentGranted()) {
+                pendingP2pSource = source
+                pendingIsAudioDownload = true
+                showP2pConsentDialog = true
+            } else {
+                com.kitsugi.animelist.core.p2p.P2pSettingsRepository.setP2pEnabled(true)
+            }
+        }
+
+        if (!isTorrent || hasDebrid || com.kitsugi.animelist.core.p2p.P2pSettingsRepository.isP2pEnabled()) {
+            activeStreamJob?.cancel()
+            resolvingSource = source
+            resolvingError = null
+            activeStreamJob = scope.launch {
+                val resolvedUrl = try {
+                    withContext(Dispatchers.IO) { repository.resolveStreamUrl(source) }
+                } catch (ce: kotlinx.coroutines.CancellationException) {
+                    throw ce
+                } catch (_: Exception) {
+                    null
+                }
+                if (resolvedUrl == null ||
+                    resolvedUrl.startsWith("magnet:", ignoreCase = true) ||
+                    resolvedUrl.startsWith("torrent://", ignoreCase = true)
+                ) {
+                    resolvingSource = null
+                    resolvingError = if (com.kitsugi.animelist.utils.isTurkish()) {
+                        "Ses akış bağlantısı çözümlenemedi."
+                    } else {
+                        "Could not resolve audio stream URL."
+                    }
+                    return@launch
+                }
+                val tracks = try {
+                    com.kitsugi.animelist.core.download.AudioTrackInspector.inspect(resolvedUrl, source)
+                } catch (ce: kotlinx.coroutines.CancellationException) {
+                    throw ce
+                } catch (_: Exception) {
+                    emptyList()
+                }
+                resolvingSource = null
+                when {
+                    tracks.size > 1 -> pendingAudioPickerState = Triple(source, resolvedUrl, tracks)
+                    tracks.size == 1 -> enqueueAudioTracksAndOpenScreen(source, resolvedUrl, tracks)
+                    else -> {
+                        val fallback = com.kitsugi.animelist.core.download.AudioTrackInspector.DownloadableAudioTrack(
+                            key = "default_0",
+                            index = 0,
+                            label = if (com.kitsugi.animelist.utils.isTurkish()) "Varsayılan Ses" else "Default Audio",
+                            lang = ""
+                        )
+                        enqueueAudioTracksAndOpenScreen(source, resolvedUrl, listOf(fallback))
+                    }
+                }
+            }
+        }
+    }
 
     val executeStreamResolution = { source: StreamSource, isDl: Boolean ->
         val isTorrent = source.isTorrent
@@ -477,9 +614,15 @@ fun KitsugiStreamScreen(
                 showP2pConsentDialog = false
                 val pending = pendingP2pSource
                 val isDl = pendingIsDownload
+                val isAudioDl = pendingIsAudioDownload
                 pendingP2pSource = null
+                pendingIsAudioDownload = false
                 if (pending != null) {
-                    executeStreamResolution(pending, isDl)
+                    if (isAudioDl) {
+                        executeAudioResolution(pending)
+                    } else {
+                        executeStreamResolution(pending, isDl)
+                    }
                 }
             }
         )
@@ -500,6 +643,73 @@ fun KitsugiStreamScreen(
             confirmButton = {
                 TextButton(onClick = { playbackStartError = null }) {
                     Text(stringResource(R.string.action_ok), color = accentColor)
+                }
+            },
+            containerColor = KitsugiColors.Surface
+        )
+    }
+
+    // ── Çoklu ses parçası seçim penceresi ─────────────────────────────────────
+    pendingAudioPickerState?.let { (pickerSource, pickerResolvedUrl, pickerTracks) ->
+        val tr = com.kitsugi.animelist.utils.isTurkish()
+        AlertDialog(
+            onDismissRequest = { pendingAudioPickerState = null },
+            title = {
+                Text(
+                    text = if (tr) "Ses Parçası İndir" else "Download Audio Track",
+                    color = KitsugiColors.TextPrimary,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                androidx.compose.foundation.layout.Column(
+                    verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = if (tr) {
+                            "Bu kaynakta ${pickerTracks.size} ses parçası bulundu. İndirmek istediğiniz sesi seçin:"
+                        } else {
+                            "Found ${pickerTracks.size} audio tracks in this source. Choose which track to download:"
+                        },
+                        color = KitsugiColors.TextSecondary,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    pickerTracks.forEach { track ->
+                        androidx.compose.material3.OutlinedButton(
+                            onClick = {
+                                pendingAudioPickerState = null
+                                enqueueAudioTracksAndOpenScreen(pickerSource, pickerResolvedUrl, listOf(track))
+                            },
+                            modifier = androidx.compose.ui.Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = "🎧 ${track.displayTitle(tr)}",
+                                color = KitsugiColors.TextPrimary,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+                    androidx.compose.material3.Button(
+                        onClick = {
+                            pendingAudioPickerState = null
+                            enqueueAudioTracksAndOpenScreen(pickerSource, pickerResolvedUrl, pickerTracks)
+                        },
+                        colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                            containerColor = accentColor,
+                            contentColor = KitsugiColors.OnAccent
+                        ),
+                        modifier = androidx.compose.ui.Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = if (tr) "Tüm Ses Parçalarını İndir (${pickerTracks.size})" else "Download All Audio Tracks (${pickerTracks.size})",
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { pendingAudioPickerState = null }) {
+                    Text(stringResource(R.string.iptal), color = KitsugiColors.TextMuted)
                 }
             },
             containerColor = KitsugiColors.Surface
@@ -534,6 +744,9 @@ fun KitsugiStreamScreen(
             isAutoplayResolving = false
             streamPrefs.edit().putString("last_addon_name", source.addonName).apply()
             executeStreamResolution(source, true)
+        },
+        onAudioDownloadSelected = { source ->
+            executeAudioResolution(source)
         },
         onBack = onBack,
         resolvingSource = resolvingSource, resolvingError = resolvingError,

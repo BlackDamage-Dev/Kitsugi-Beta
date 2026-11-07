@@ -5786,6 +5786,142 @@ fun onExternalPlayerResult(positionMs: Long, durationMs: Long?, endedByUser: Boo
 
      */
 
+    fun downloadAudioTrackToStorage(trackIndex: Int, trackLabel: String) {
+        enqueuePlayerAudioTracks(requestedIndices = listOf(trackIndex), fallbackLabels = mapOf(trackIndex to trackLabel))
+    }
+
+    fun downloadAllAudioTracksToStorage(trackLabels: List<String>) {
+        val indices = trackLabels.indices.toList()
+        val labelMap = trackLabels.mapIndexed { i, lbl -> i to lbl }.toMap()
+        enqueuePlayerAudioTracks(requestedIndices = indices, fallbackLabels = labelMap)
+    }
+
+    private fun enqueuePlayerAudioTracks(
+        requestedIndices: List<Int>,
+        fallbackLabels: Map<Int, String>
+    ) {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            val ctx = getApplication<android.app.Application>()
+            val tr = com.kitsugi.animelist.utils.isTurkish()
+            val vUrl = _currentVideoUrl.value
+            if (vUrl.isNullOrBlank() ||
+                vUrl.startsWith("file:", ignoreCase = true) ||
+                vUrl.startsWith("content:", ignoreCase = true) ||
+                vUrl.startsWith("/")
+            ) {
+                withContext(kotlinx.coroutines.Dispatchers.Main) {
+                    android.widget.Toast.makeText(
+                        ctx,
+                        if (tr) "Bu akıştan ses parçası indirilemez" else "Cannot download audio from this stream",
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                }
+                return@launch
+            }
+
+            val currentSrc = _currentStreamSources.value.getOrNull(_currentSourceIndex.value)
+            val headers = _currentHeaders.value.ifEmpty { currentSrc?.requestHeaders ?: emptyMap() }
+            val extAudioTracks = buildList {
+                currentSrc?.allExternalAudioTracks?.let { addAll(it) }
+                val activeAudio = _currentAudioUrl.value
+                if (!activeAudio.isNullOrBlank() && none { it.url == activeAudio }) {
+                    add(com.kitsugi.animelist.data.model.ExternalAudioTrack(url = activeAudio, headers = headers))
+                }
+            }
+
+            val inspected = runCatching {
+                com.kitsugi.animelist.core.download.AudioTrackInspector.inspect(
+                    resolvedUrl = vUrl,
+                    requestHeaders = headers,
+                    externalAudioTracks = extAudioTracks,
+                    addonName = _currentAddonName.value ?: currentSrc?.addonName,
+                    isCloudStream = currentSrc?.isCS == true
+                )
+            }.getOrDefault(emptyList())
+
+            val rawTitle = when {
+                animeTitle.isNotBlank() -> animeTitle.trim()
+                _animeTitleFlow.value.isNotBlank() -> _animeTitleFlow.value.trim()
+                _currentTitle.value.isNotBlank() -> _currentTitle.value.trim()
+                else -> "Audio"
+            }
+            val ep = _currentEpisode.value
+            val mediaKeyId = aniListId?.toString()
+                ?: malId?.toString()
+                ?: tmdbId?.toString()
+                ?: rawTitle.lowercase().replace(Regex("[^a-z0-9]"), "_").trim('_').take(30).ifBlank { "media" }
+            val poster = currentSrc?.thumbnailUrl?.takeIf { it.isNotBlank() }
+                ?: _episodesList.value.firstOrNull { it.episodeNumber == ep }?.thumbnail
+
+            var addedCount = 0
+            for (reqIdx in requestedIndices) {
+                val fbLabel = fallbackLabels[reqIdx].orEmpty()
+                val fbLang = com.kitsugi.animelist.data.model.ExternalAudioTrack.inferLanguageFromText(fbLabel)
+                val matched = inspected.firstOrNull {
+                    fbLang.isNotBlank() && it.lang.equals(fbLang, ignoreCase = true)
+                } ?: inspected.getOrNull(reqIdx)
+
+                val trackKey = matched?.key ?: "player_track_$reqIdx"
+                val trackLabel = matched?.displayTitle(tr)?.takeIf { it.isNotBlank() }
+                    ?: fbLabel.ifBlank { if (tr) "Ses Parçası #${reqIdx + 1}" else "Audio Track #${reqIdx + 1}" }
+                val trackLang = matched?.lang?.ifBlank { fbLang } ?: fbLang
+                val singleExt = if (!matched?.directAudioUrl.isNullOrBlank()) {
+                    listOf(
+                        com.kitsugi.animelist.data.model.ExternalAudioTrack(
+                            url = matched!!.directAudioUrl!!,
+                            label = matched.label,
+                            lang = matched.lang,
+                            headers = matched.headers,
+                            codecs = matched.codecHint,
+                            channels = matched.channels,
+                            isDefault = matched.isDefault
+                        )
+                    )
+                } else {
+                    extAudioTracks
+                }
+
+                val added = com.kitsugi.animelist.data.local.AnimeDownloadManager.addAudioDownload(
+                    context = ctx,
+                    animeId = mediaKeyId,
+                    animeTitle = rawTitle,
+                    posterUrl = poster,
+                    episode = ep,
+                    season = seasonNum,
+                    url = vUrl,
+                    requestHeaders = headers,
+                    source = _currentAddonName.value ?: currentSrc?.addonName,
+                    streamTitle = currentSrc?.title,
+                    streamName = currentSrc?.name,
+                    externalAudioTracks = singleExt,
+                    audioTrackKey = trackKey,
+                    audioTrackLabel = trackLabel,
+                    audioTrackLang = trackLang,
+                    audioTrackIndex = matched?.index ?: reqIdx,
+                    isCloudStream = currentSrc?.isCS == true,
+                    qualityValue = currentSrc?.qualityValue,
+                    p2pInfoHash = currentSrc?.p2pHash,
+                    p2pFileIdx = currentSrc?.fileIndex,
+                    p2pTrackers = currentSrc?.trackers.orEmpty()
+                )
+                if (added) addedCount++
+            }
+
+            withContext(kotlinx.coroutines.Dispatchers.Main) {
+                val msg = if (addedCount > 0) {
+                    if (tr) {
+                        "🎧 $addedCount ses parçası indirme kuyruğuna eklendi (Downloads/Kitsugi/Audio)"
+                    } else {
+                        "🎧 Queued $addedCount audio track(s) (Downloads/Kitsugi/Audio)"
+                    }
+                } else {
+                    if (tr) "Ses parçası zaten indirme kuyruğunda" else "Audio track is already in the download queue"
+                }
+                android.widget.Toast.makeText(ctx, msg, android.widget.Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
     fun downloadAudioToStorage(
 
         track: com.kitsugi.animelist.ui.screens.fullscreen.components.TrackOption,

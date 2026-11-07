@@ -75,7 +75,7 @@ fun EpisodesTabContent(
         com.kitsugi.animelist.data.local.AnimeDownloadManager.downloads
             .map { all ->
                 if (animeId.isEmpty()) emptyMap()
-                else all.filter { it.animeId == animeId }.associateBy { it.season to it.episode }
+                else all.filter { !it.isAudioOnly && it.animeId == animeId }.associateBy { it.season to it.episode }
             }
             .distinctUntilChanged()
     }

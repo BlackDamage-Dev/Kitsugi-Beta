@@ -1,6 +1,12 @@
 package com.kitsugi.animelist.data.model
 
 import androidx.compose.runtime.Immutable
+import com.kitsugi.animelist.core.player.SubtitleInput
+
+enum class DownloadKind {
+    VIDEO,
+    AUDIO
+}
 
 @Immutable
 data class AnimeDownload(
@@ -11,9 +17,9 @@ data class AnimeDownload(
     val season: Int,
     val url: String,
     val quality: String,
-    /** HTTP request headers to use when downloading (e.g. Cookie, Referer, User-Agent from CS3 addons). */
+    /** HTTP request headers to use when downloading (e.g. Cookie, Referer, Origin, User-Agent from CS3 addons). */
     val requestHeaders: Map<String, String> = emptyMap(),
-    val subtitles: List<com.kitsugi.animelist.core.player.SubtitleInput> = emptyList(),
+    val subtitles: List<SubtitleInput> = emptyList(),
     val status: Status = Status.QUEUE,
     val progress: Int = 0,
     val totalBytes: Long = 0L,
@@ -47,6 +53,21 @@ data class AnimeDownload(
      * kaynağa göre belirlenir (mp4 / webm / ts); silme ve listeleme bu taban adı kullanır.
      */
     val clipBaseName: String? = null,
+
+    // ── Evrensel Ses ve P2P İndirmeleri ──────────────────────────────────────
+    val downloadKind: DownloadKind? = DownloadKind.VIDEO,
+    val externalAudioUrl: String? = null,
+    val externalAudioTracks: List<ExternalAudioTrack>? = emptyList(),
+    val audioTrackKey: String? = "",
+    val audioTrackLabel: String? = "",
+    val audioTrackLang: String? = "",
+    val audioTrackIndex: Int = -1,
+    val isCloudStream: Boolean = false,
+    val qualityValue: Int? = null,
+    val p2pInfoHash: String? = null,
+    val p2pFileIdx: Int? = null,
+    val p2pTrackers: List<String>? = emptyList(),
+
     /** Kullanıcıya gösterilen son hata nedeni (yalnızca [Status.ERROR]). */
     val errorMessage: String? = null
 ) {
@@ -67,5 +88,106 @@ data class AnimeDownload(
 
     /** Bu kayıt bir küçük video mu? UI ve silme akışı bunu kullanır. */
     val isClip: Boolean get() = kind == Kind.CLIP
+
+    /** Gson eski kayıtları okurken yeni enum alanını null bırakabilir; her zaman güvenli dön. */
+    val effectiveKind: DownloadKind
+        get() = downloadKind ?: DownloadKind.VIDEO
+
+    val isAudioOnly: Boolean
+        get() = effectiveKind == DownloadKind.AUDIO
+
+    val safeHeaders: Map<String, String>
+        get() = requestHeaders ?: emptyMap()
+
+    val safeSubtitles: List<SubtitleInput>
+        get() = subtitles ?: emptyList()
+
+    val safeExternalAudioTracks: List<ExternalAudioTrack>
+        get() {
+            val tracks = externalAudioTracks ?: emptyList()
+            if (tracks.isNotEmpty()) return tracks
+            val single = externalAudioUrl?.trim()?.takeIf { it.isNotBlank() } ?: return emptyList()
+            return listOf(
+                ExternalAudioTrack.fromUrlAndHeaders(
+                    url = single,
+                    fallbackHeaders = safeHeaders
+                )
+            )
+        }
+
+    val safeAudioTrackKey: String
+        get() = (audioTrackKey ?: "").ifBlank { "default" }
+
+    val safeAudioTrackLabel: String
+        get() = audioTrackLabel ?: ""
+
+    val safeAudioTrackLang: String
+        get() = audioTrackLang ?: ""
+
+    /**
+     * Gson `Unsafe` ile eski sürümden yüklenen kayıtlarda null kalabilecek tüm koleksiyon ve
+     * enum alanlarını güvenli varsayılanlarla yeniden kurar (`.copy(...)` NPE'sini önler).
+     */
+    @Suppress("SENSELESS_COMPARISON")
+    fun normalized(): AnimeDownload = AnimeDownload(
+        animeId = animeId ?: "",
+        animeTitle = animeTitle ?: "Video",
+        posterUrl = posterUrl,
+        episode = episode,
+        season = season,
+        url = url ?: "",
+        quality = quality ?: "",
+        requestHeaders = safeHeaders,
+        subtitles = safeSubtitles,
+        status = status ?: Status.QUEUE,
+        progress = progress,
+        totalBytes = totalBytes,
+        downloadedBytes = downloadedBytes,
+        localPath = localPath,
+        createdAt = if (createdAt > 0L) createdAt else System.currentTimeMillis(),
+        downloadedSegments = downloadedSegments,
+        malId = malId,
+        aniListId = aniListId,
+        tmdbId = tmdbId,
+        source = source,
+        streamTitle = streamTitle,
+        streamName = streamName,
+        kind = kind ?: Kind.EPISODE,
+        clipKey = clipKey,
+        clipTitle = clipTitle,
+        clipBaseName = clipBaseName,
+        downloadKind = effectiveKind,
+        externalAudioUrl = externalAudioUrl,
+        externalAudioTracks = externalAudioTracks ?: emptyList(),
+        audioTrackKey = audioTrackKey ?: "",
+        audioTrackLabel = audioTrackLabel ?: "",
+        audioTrackLang = audioTrackLang ?: "",
+        audioTrackIndex = audioTrackIndex,
+        isCloudStream = isCloudStream,
+        qualityValue = qualityValue,
+        p2pInfoHash = p2pInfoHash,
+        p2pFileIdx = p2pFileIdx,
+        p2pTrackers = p2pTrackers ?: emptyList(),
+        errorMessage = errorMessage
+    )
+
+    /**
+     * Kuyruktaki benzersiz anahtar:
+     * - Video: `video:<animeId>:<episode>`
+     * - Bağımsız ses: `audio:<animeId>:<episode>:<audioTrackKey>`
+     */
+    val uniqueKey: String
+        get() = when {
+            isClip -> clipKey?.takeIf { it.isNotBlank() } ?: "clip:$animeId:$episode"
+            effectiveKind == DownloadKind.AUDIO -> audioKey(animeId, episode, safeAudioTrackKey)
+            else -> videoKey(animeId, episode)
+        }
+
+    companion object {
+        fun videoKey(animeId: String, episode: Int): String = "video:$animeId:$episode"
+
+        fun audioKey(animeId: String, episode: Int, trackKey: String = "default"): String =
+            "audio:$animeId:$episode:${trackKey.ifBlank { "default" }}"
+    }
 }
 

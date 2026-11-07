@@ -572,6 +572,27 @@ data class StreamSource(
 
 ) : java.io.Serializable {
 
+    val allExternalAudioTracks: List<com.kitsugi.animelist.data.model.ExternalAudioTrack>
+        get() {
+            if (externalAudioTracks.isNotEmpty()) {
+                return externalAudioTracks.map { input ->
+                    com.kitsugi.animelist.data.model.ExternalAudioTrack(
+                        url = input.url,
+                        label = input.name.orEmpty(),
+                        lang = input.lang.orEmpty(),
+                        headers = input.headers
+                    )
+                }
+            }
+            val single = externalAudioUrl?.trim()?.takeIf { it.isNotBlank() } ?: return emptyList()
+            return listOf(
+                com.kitsugi.animelist.data.model.ExternalAudioTrack.fromUrlAndHeaders(
+                    url = single,
+                    fallbackHeaders = requestHeaders ?: emptyMap()
+                )
+            )
+        }
+
     /**
      * Dosya adı önceliği: kaynağın verdiği gerçek dosya adı → başlık → isim.
      * Regex tabanlı bilgi çıkarımı (kalite, boyut, dil, codec) bu metin üzerinden yapılır;

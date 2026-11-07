@@ -35,6 +35,7 @@ object OfflinePlaybackHelper {
     private const val DOWNLOADS_DIR = "Kitsugi_downloads"
     private val VIDEO_EXTENSIONS = setOf("mp4", "mkv", "avi", "webm", "ts", "m2ts")
     private val SUBTITLE_EXTENSIONS = setOf("srt", "vtt", "ass", "ssa")
+    private val AUDIO_EXTENSIONS = com.kitsugi.animelist.core.storage.DownloadStorage.AUDIO_EXTENSIONS
     private val WHITESPACE_REGEX = Regex("\\s+")
 
     // ── Data classes ──────────────────────────────────────────────────────────
@@ -57,6 +58,14 @@ object OfflinePlaybackHelper {
         val downloadedAtMs: Long,
         /** Toplam süre tahmini ms (metadata'dan okunur, 0 = bilinmiyor) */
         val durationMs: Long = 0L,
+        /** Varsa videonun yanına kaydedilmiş ek/ayrık ses parçaları */
+        val companionAudios: List<LocalCompanionAudio> = emptyList(),
+    )
+
+    data class LocalCompanionAudio(
+        val language: String,
+        val label: String,
+        val uri: String,
     )
 
     data class LocalSubtitle(
@@ -150,10 +159,16 @@ object OfflinePlaybackHelper {
                     fileSizeBytes  = video.length(),
                     downloadedAtMs = metadata?.downloadedAtMs?.takeIf { it > 0 } ?: video.lastModified(),
                     durationMs     = metadata?.durationMs ?: 0L,
+                    companionAudios = readFlatCompanionAudios(primaryRoot, base, primaryEntries),
                 )
             }
         }
         return null
+    }
+
+    fun getLocalMediaForFile(file: File): LocalMedia? {
+        val parent = file.parentFile ?: return null
+        return readFlatMedia(parent, file)
     }
 
     /**
@@ -167,9 +182,12 @@ object OfflinePlaybackHelper {
             Log.w(TAG, "Video file missing for mediaId=${media.mediaId}: ${media.videoUri}")
             return null
         }
+        val primaryCompanionAudio = media.companionAudios
+            .firstOrNull { it.language.equals("tr", ignoreCase = true) }
+            ?: media.companionAudios.firstOrNull()
         return PlayerParams(
             videoUri   = media.videoUri,
-            audioUri   = null,
+            audioUri   = primaryCompanionAudio?.uri,
             headers    = emptyMap(),
             subtitles  = media.subtitles.map {
                 SubtitleInput(url = it.uri, lang = it.language, name = it.label)
@@ -180,6 +198,20 @@ object OfflinePlaybackHelper {
     }
 
     /**
+     * Yerel bir video dosyasının yanında (`<taban>.<dil>.<sesUzantısı>`) yan ses dosyası
+     * varsa birincil olanın (Türkçe öncelikli) `file://` adresini döndürür.
+     */
+    fun findPrimaryCompanionAudioUri(videoPath: String?): String? {
+        if (videoPath.isNullOrBlank()) return null
+        val videoFile = File(videoPath.removePrefix("file://"))
+        val parent = videoFile.parentFile ?: return null
+        val companions = readFlatCompanionAudios(parent, videoFile.nameWithoutExtension)
+        val picked = companions.firstOrNull { it.language.equals("tr", ignoreCase = true) }
+            ?: companions.firstOrNull()
+        return picked?.uri
+    }
+
+    /**
      * Bir indirme dizinini tamamen siler.
      *
      * @return Silme başarılıysa `true`.
@@ -187,7 +219,7 @@ object OfflinePlaybackHelper {
     fun deleteDownload(context: Context, mediaId: String): Boolean {
         val root = getDownloadsDir(context)
 
-        // Düz yerleşim: video + metadata + altyazılar (aynı taban ad)
+        // Düz yerleşim: video + metadata + altyazılar + yan sesler (aynı taban ad)
         val flatTargets = flatVideoFiles(root)
             .filter { readFlatMedia(root, it)?.mediaId == mediaId }
         var flatDeleted = false
@@ -196,7 +228,9 @@ object OfflinePlaybackHelper {
             val related = root.listFiles()?.filter { f ->
                 f.isFile && (f == video ||
                     f.name == "$base.json" ||
-                    (f.name.startsWith("$base.") && f.extension.lowercase() in SUBTITLE_EXTENSIONS))
+                    (f.name.startsWith("$base.") &&
+                        (f.extension.lowercase() in SUBTITLE_EXTENSIONS ||
+                            f.extension.lowercase() in AUDIO_EXTENSIONS)))
             }.orEmpty()
             related.forEach { f -> flatDeleted = f.delete() || flatDeleted }
         }
@@ -311,6 +345,34 @@ object OfflinePlaybackHelper {
         }
     }
 
+    private fun readFlatCompanionAudios(
+        root: File,
+        baseName: String,
+        cachedEntries: List<File>? = null
+    ): List<LocalCompanionAudio> {
+        val entries = cachedEntries ?: root.listFiles()?.toList().orEmpty()
+        val prefix = "$baseName."
+        return entries
+            .filter {
+                it.isFile && it.name.startsWith(prefix) &&
+                    it.extension.lowercase() in AUDIO_EXTENSIONS
+            }
+            .map { file ->
+                val rawTag = file.nameWithoutExtension.removePrefix(prefix)
+                val lang = rawTag.substringBefore("_", "und")
+                val rest = rawTag.substringAfter("_", "").replace("_", " ").trim()
+                val label = rest.ifEmpty {
+                    com.kitsugi.animelist.data.model.ExternalAudioTrack.languageDisplayName(lang, turkishUi = true)
+                        ?: lang.uppercase()
+                }
+                LocalCompanionAudio(
+                    language = lang,
+                    label = label,
+                    uri = "file://${file.absolutePath}"
+                )
+            }
+    }
+
     /** Düz yerleşimdeki bir videoyu [LocalMedia]'ya çevirir. */
     private fun readFlatMedia(
         root: File,
@@ -327,6 +389,7 @@ object OfflinePlaybackHelper {
             fileSizeBytes  = video.length(),
             downloadedAtMs = metadata?.downloadedAtMs?.takeIf { it > 0 } ?: video.lastModified(),
             durationMs     = metadata?.durationMs ?: 0L,
+            companionAudios = readFlatCompanionAudios(root, base, cachedEntries),
         )
     }
 

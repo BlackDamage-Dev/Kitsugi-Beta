@@ -2288,20 +2288,11 @@ fun KitsugiFullscreenPlayerScreen(
                         },
                         onDownloadAudio = { idx ->
                             audioTrackOptions.getOrNull(idx)?.let { track ->
-                                val needsGrant = android.os.Build.VERSION.SDK_INT < 29 &&
-                                    androidx.core.content.ContextCompat.checkSelfPermission(
-                                        context, android.Manifest.permission.WRITE_EXTERNAL_STORAGE
-                                    ) != android.content.pm.PackageManager.PERMISSION_GRANTED
-                                if (needsGrant) {
-                                    pendingAudioExport = PendingAudioExport(
-                                        track = track, tracks = audioTrackOptions.toList(),
-                                        videoUrl = viewModel.currentVideoUrl.value,
-                                        audioUrl = viewModel.currentAudioUrl.value,
-                                        sourceIndex = viewModel.currentSourceIndex.value
-                                    )
-                                    audioStoragePermission.launch(android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
-                                } else viewModel.downloadAudioToStorage(track, audioTrackOptions)
+                                viewModel.downloadAudioTrackToStorage(idx, track.label)
                             }
+                        },
+                        onDownloadAllAudio = {
+                            viewModel.downloadAllAudioTracksToStorage(audioTrackOptions.map { it.label })
                         },
                         onDownloadProviderAudio = { providerIndex ->
                             val url = currentStreamSources.getOrNull(currentSourceIndex)

@@ -43,6 +43,7 @@ fun AudioTracksSheet(
     onAddAudioFile: () -> Unit,
     onOpenDelayPanel: () -> Unit,
     onDismissRequest: () -> Unit,
+    onDownloadAllTracks: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     GenericTracksSheet(
@@ -52,6 +53,21 @@ fun AudioTracksSheet(
             TrackSheetTitle(
                 title = stringResource(R.string.ses_parcalari),
                 actions = {
+                    if (tracks.size > 1 && onDownloadAllTracks != null) {
+                        TextButton(onClick = onDownloadAllTracks) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Download,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Text(if (com.kitsugi.animelist.utils.isTurkish()) "Tümünü İndir" else "Download All")
+                            }
+                        }
+                    }
                     TextButton(onClick = onOpenDelayPanel) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
