@@ -1,6 +1,7 @@
 package com.kitsugi.animelist.data.settings
 
 import com.kitsugi.animelist.ui.screens.fullscreen.AudioChannels
+import com.kitsugi.animelist.data.manga.MangaWebtoonPreferences
 
 internal fun normalizeMangaBrightness(value: Float): Float =
     if (value.isFinite()) value.coerceIn(0.1f, 1f) else 1f
@@ -364,8 +365,9 @@ data class DownloadAndMangaSettings(
     val mangaAutoFullscreen: Boolean = true,
     val mangaImmersive: Boolean = false,
     val mangaWebtoonPadding: Int = 0,
-    val mangaWebtoonGap: Int = 4,
+    val mangaWebtoonGap: Int = 0,
     val mangaShowPageNumber: Boolean = true,
+    val mangaWebtoon: MangaWebtoonPreferences = MangaWebtoonPreferences(),
     /**
      * Bölüm listesi sıralaması — `ChapterSortMode` adı.
      *
@@ -397,12 +399,12 @@ data class DownloadAndMangaSettings(
     val mangaTapLayout: String = "Default",
     val mangaTapGrid: String = "PMNPMNPMN",
     val mangaLongTapGrid: String = "XXXXXXXXX",
-    val mangaWebtoonTapScroll: Boolean = false,
+    val mangaWebtoonTapScroll: Boolean = true,
     val mangaReaderBackground: String = "Black",
     val mangaDoublePage: Boolean = false,
     val mangaCoverAlone: Boolean = false,
-    val mangaWebtoonAutoScrollSpeed: Int = 40,
-    val mangaWebtoonScrollPercent: Int = 80,
+    val mangaWebtoonAutoScrollSpeed: Int = 32,
+    val mangaWebtoonScrollPercent: Int = 90,
     val mangaPreloadAhead: Int = -1,
     val mangaVolumeKeys: Boolean = false,
     val mangaInvertVolumeKeys: Boolean = false,
@@ -548,6 +550,7 @@ data class AppSettings(
     val bufferForPlaybackAfterRebufferMs: Int get() = playback.bufferForPlaybackAfterRebufferMs
     val backBufferDurationMs: Int get() = playback.backBufferDurationMs
     val mangaReadingMode: String get() = downloads.mangaReadingMode
+    val mangaWebtoon: MangaWebtoonPreferences get() = downloads.mangaWebtoon
     val mangaColorFilter: String get() = downloads.mangaColorFilter
     val mangaSaturation: Int get() = downloads.mangaSaturation
     val mangaContrast: Int get() = downloads.mangaContrast

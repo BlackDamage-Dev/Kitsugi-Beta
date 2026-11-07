@@ -1,319 +1,278 @@
 package com.kitsugi.animelist.ui.screens.manga.components
 
-import android.graphics.BitmapFactory
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculateCentroid
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.graphics. ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kitsugi.animelist.R
 import com.kitsugi.animelist.data.manga.ColorFilterType
-import com.kitsugi.animelist.data.manga.MangaFitMode
 import com.kitsugi.animelist.data.manga.MangaPage
 import com.kitsugi.animelist.data.manga.MangaPageStatus
-import com.kitsugi.animelist.data.manga.ReadingMode
+import com.kitsugi.animelist.data.manga.MangaWebtoonPreferences
+import com.kitsugi.animelist.data.manga.loader.MangaImageTileDecoder
 import com.kitsugi.animelist.data.manga.loader.MangaPageLoaderV2
 import com.kitsugi.animelist.ui.components.KitsugiButton
-import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
-import com.kitsugi.animelist.ui.theme.KitsugiColors
-import com.kitsugi.animelist.ui.theme.gradient.Icon
+import com.kitsugi.animelist.ui.components.KitsugiPlasmaLoader
+import com.kitsugi.animelist.ui.screens.manga.reader.MangaWebtoonState
+import com.kitsugi.animelist.data.manga.WebtoonLayout
 import com.kitsugi.animelist.ui.theme.gradient.Text
-import com.kitsugi.animelist.ui.utils.uniqueItemsIndexed
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.withContext
+import kotlin.math.abs
 
 /**
- * Sürekli dikey kaydırmalı Webtoon / Manhwa okuma modu.
- *
- * Her sayfa dikey bir akışta peş peşe çizilir.
- * Sayfalar arasında boşluk ve kenar kırpma ayarları desteklenir.
+ * A width-fitted, seamless strip. Lazy tiles are drawing units, NOT independently zoomable or
+ * scrollable images. Long images are decoded by region and never measured as gigantic children.
+ * A single viewport transform scales the list (whose logical height shrinks accordingly), so the
+ * last pixel remains reachable even when zoomed. Default side padding and inter-page gap are zero.
  */
 @Composable
 fun MangaWebtoonReader(
     pages: List<MangaPage>,
-    listState: LazyListState,
+    state: MangaWebtoonState,
     loader: MangaPageLoaderV2,
+    preferences: MangaWebtoonPreferences = MangaWebtoonPreferences(),
     colorFilterType: ColorFilterType = ColorFilterType.Normal,
     saturation: Int = 100,
     contrast: Int = 100,
     hue: Int = 0,
-    fitMode: MangaFitMode = MangaFitMode.FitScreen,
-    sidePadding: Int = 0,
-    pageGap: Int = 4,
-    cropBorders: Boolean = false,
-    mirrorPages: Boolean = false,
     zoomEnabled: Boolean = true,
-    wideRotation: String = "Off",
-    autoNext: Boolean = false,
-    pageBackground: Color = Color.Black,
-    autoBackground: Boolean = false,
-    showPageNumber: Boolean = true,
-    tapZonesEnabled: Boolean = true,
-    invertTapZones: Boolean = false,
-    tapLayout: String = "Default",
-    tapGrid: String = DEFAULT_READER_TAP_GRID,
-    longTapGrid: String = DEFAULT_READER_LONG_TAP_GRID,
-    tapScroll: Boolean = false,
-    scrollPercent: Int = 80,
-    hasNextChapter: Boolean = false,
-    nextChapterName: String? = null,
-    /** Hedef bölümün çevirmen sürümü sayısı (>1 ise rozet gösterilir). */
-    nextChapterVariantCount: Int = 0,
-    showChapterTransition: Boolean = true,
+    backgroundColor: Color = Color.Black,
     onCenterTap: () -> Unit = {},
-    onLongPress: () -> Unit = {},
-    /** Uzun basınca galeriyi aç (sayfa indeksi ile). */
-    onLongPressPage: ((Int) -> Unit)? = null,
-    onPageChanged: (Int) -> Unit = {},
     onNextPage: () -> Unit = {},
     onPrevPage: () -> Unit = {},
-    onSourceLogin: (() -> Unit)? = null,
-    onChapterEnd: () -> Unit = {},
+    onLongPressPage: ((Int) -> Unit)? = null,
+    onInteraction: () -> Unit = {},
+    hasNextChapter: Boolean = false,
+    nextChapterName: String? = null,
+    nextChapterVariantCount: Int = 0,
     onGoToNextChapter: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
-    var tapViewport by remember { mutableStateOf<ReaderTapViewport?>(null) }
-    val currentOnPageChanged by rememberUpdatedState(onPageChanged)
-    val currentGoToNextChapter by rememberUpdatedState(onGoToNextChapter)
-    val currentOnChapterEnd by rememberUpdatedState(onChapterEnd)
-    val pageSizeMemory = remember { MangaPageSizeMemory() }
-
-    // Görünen ilk öğeyi takip et ve üst katmana bildir
-    LaunchedEffect(listState, pages.size) {
-        snapshotFlow { listState.firstVisibleItemIndex }
-            .distinctUntilChanged()
-            .collect { index ->
-                if (pages.isNotEmpty()) currentOnPageChanged(index.coerceIn(0, pages.lastIndex))
-            }
-    }
-
-    // A long last image is not complete just because its top is visible.
-    LaunchedEffect(listState, pages) {
-        var reported = false
-        snapshotFlow {
-            listState.isScrollInProgress &&
-                listState.layoutInfo.visibleItemsInfo.any { it.key == "chapter_transition_footer" }
-        }.distinctUntilChanged().collect { reachedFooter ->
-            if (reachedFooter && !reported && pages.isNotEmpty()) {
-                reported = true
-                currentOnChapterEnd()
-            }
+    val decoder = remember(pages) { MangaImageTileDecoder() }
+    DisposableEffect(decoder) { onDispose { decoder.clear() } }
+    val colorFilter = remember(colorFilterType, saturation, contrast, hue) {
+        if (saturation != 100 || contrast != 100 || hue != 0) {
+            readerColorMatrix(colorFilterType.name, saturation, contrast, hue)?.let {
+                ColorFilter.colorMatrix(ColorMatrix(it))
+            } ?: mangaPageColorFilter(colorFilterType)
+        } else {
+            mangaPageColorFilter(colorFilterType)
         }
     }
+    val density = LocalDensity.current
+    val tap by rememberUpdatedState(onCenterTap)
+    val forward by rememberUpdatedState(onNextPage)
+    val backward by rememberUpdatedState(onPrevPage)
+    val longPressPage by rememberUpdatedState(onLongPressPage)
+    val interaction by rememberUpdatedState(onInteraction)
+    val tapToScroll by rememberUpdatedState(preferences.tapToScroll)
+    val allowZoom by rememberUpdatedState(zoomEnabled)
 
-    // Only advance after the user actually scrolls to the end of the footer.
-    LaunchedEffect(listState, pages, autoNext, hasNextChapter) {
-        if (autoNext && hasNextChapter && pages.isNotEmpty()) {
-            var requested = false
-            snapshotFlow {
-                listState.isScrollInProgress && !listState.canScrollForward &&
-                    listState.layoutInfo.visibleItemsInfo.any { it.key == "chapter_transition_footer" }
-            }.distinctUntilChanged().collect { reachedEnd ->
-                if (reachedEnd && !requested) {
-                    requested = true
-                    currentGoToNextChapter()
-                }
-            }
-        }
-    }
-
-    LazyColumn(
-        state = listState,
-        modifier = modifier
-            .fillMaxSize()
-            .onGloballyPositioned { coordinates ->
-                val next = ReaderTapViewport(coordinates.positionInWindow().y, coordinates.size.height.toFloat())
-                if (tapViewport != next) tapViewport = next
-            }
-            .background(pageBackground),
-    ) {
-        uniqueItemsIndexed(
-            items = pages,
-            key = { _, page -> page.index },
-        ) { _, page ->
-            val imageUrl = page.imageUrl ?: page.url
-            val dimensions by produceState<Pair<Int, Int>?>(null, page, page.status, imageUrl) {
-                value = if (page.status == MangaPageStatus.Ready) {
-                    withContext(Dispatchers.IO) {
-                        val key = loader.cacheKey(page, imageUrl)
-                        loader.cache.getImageDimensions(key)
+    BoxWithConstraints(
+        modifier = modifier.fillMaxSize().clipToBounds().background(backgroundColor)
+            .testTag("webtoon_strip")
+            .onSizeChanged { state.viewport = it; state.clampPan() }
+            .pointerInput(state) {
+                awaitEachGesture {
+                    awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                    interaction()
+                    var horizontal = false
+                    var transformed = false
+                    var accumulated = Offset.Zero
+                    try {
+                        do {
+                            val event = awaitPointerEvent(PointerEventPass.Initial)
+                            val count = event.changes.count { it.pressed }
+                            val pan = event.calculatePan()
+                            accumulated += pan
+                            if (count > 1 && allowZoom) {
+                                transformed = true
+                                state.isTransforming = true
+                                state.transform(event.calculateZoom(), event.calculateCentroid(useCurrent = false), pan)
+                                event.changes.forEach { it.consume() }
+                            } else if (transformed) {
+                                // A remaining finger cannot accidentally fling a page after a pinch.
+                                event.changes.forEach { it.consume() }
+                            } else if (state.zoom > 1f) {
+                                if (abs(accumulated.x) > viewConfiguration.touchSlop && abs(accumulated.x) > abs(accumulated.y)) {
+                                    horizontal = true
+                                    state.isTransforming = true
+                                }
+                                if (horizontal) {
+                                    state.panBy(pan.x)
+                                    event.changes.forEach { it.consume() }
+                                }
+                            }
+                        } while (event.changes.any { it.pressed })
+                    } finally {
+                        state.isTransforming = false
                     }
-                } else null
-            }
-
-            val cacheFile = loader.cache.getImageFile(loader.cacheKey(page, imageUrl))
-            val crop = rememberReaderCrop(
-                source = cacheFile,
-                enabled = cropBorders && page.status == MangaPageStatus.Ready,
-                rotation = if (page.status == MangaPageStatus.Ready) wideRotation else "Off"
-            )
-
-            BoxWithConstraints(Modifier.fillMaxWidth()) {
-                val density = LocalDensity.current
-                val maximumHeight = with(density) { 32_000.toDp() }
-                val naturalHeight = dimensions?.let { (width, height) ->
-                    maxWidth * (height.toFloat() / width)
                 }
-                val isExtremeStrip = naturalHeight != null && naturalHeight > maximumHeight
-
-                val displayedRatio = crop?.let { webtoonAspectRatio(it.width, it.height) }
-                    ?: dimensions?.let { (w, h) -> webtoonAspectRatio(w, h) }
-
-                val pageModifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = sidePadding.coerceIn(0, 64).dp)
-                    .then(
-                        if (isExtremeStrip) Modifier.height(maximumHeight)
-                        else displayedRatio?.let { Modifier.aspectRatio(it) } ?: Modifier.height(480.dp)
-                    )
-
-                MangaPageItem(
-                    page = page,
-                    loader = loader,
-                    readingMode = ReadingMode.Webtoon,
-                    zoomEnabled = zoomEnabled,
-                    colorFilterType = colorFilterType,
-                    saturation = saturation,
-                    contrast = contrast,
-                    hue = hue,
-                    fitMode = if (isExtremeStrip) MangaFitMode.FitScreen else fitMode,
-                    pageBackground = pageBackground,
-                    autoBackground = autoBackground,
-                    cropBorders = cropBorders,
-                    mirrorPages = mirrorPages,
-                    showPageNumber = showPageNumber,
-                    tapZonesEnabled = tapZonesEnabled,
-                    invertTapZones = invertTapZones,
-                    tapLayout = tapLayout,
-                    tapGrid = tapGrid,
-                    longTapGrid = longTapGrid,
-                    tapViewport = tapViewport,
-                    wideRotation = wideRotation,
-                    imageOverride = crop?.file,
-                    onCenterTap = onCenterTap,
-                    onLongPress = onLongPress,
-                    onLongPressPage = onLongPressPage,
-                    onNextPage = onNextPage,
-                    onPrevPage = onPrevPage,
-                    onSourceLogin = onSourceLogin,
-                    sizeMemory = pageSizeMemory,
-                    modifier = pageModifier,
-                )
             }
-
-            // Sayfalar arası ince ayırıcı
-            Spacer(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(pageGap.coerceIn(0, 32).dp)
-                    .background(Color(0xFF1A1A1A))
-            )
-        }
-
-        // ─── Bölüm Sonu Geçiş Kartı ───────────────────────────────────────────
-        item(key = "chapter_transition_footer") {
-            ChapterTransitionFooter(
-                hasNextChapter = hasNextChapter,
-                nextChapterName = nextChapterName,
-                variantCount = nextChapterVariantCount,
-                compact = !showChapterTransition,
-                onGoToNextChapter = {
-                    currentOnChapterEnd()
-                    currentGoToNextChapter()
+            .pointerInput(state) {
+                detectTapGestures(
+                    onDoubleTap = { point ->
+                        interaction()
+                        if (allowZoom) state.transform(if (state.zoom > 1f) 1f / state.zoom else 2f, point)
+                    },
+                    onLongPress = {
+                        interaction()
+                        longPressPage?.invoke(state.position().pageIndex)
+                    },
+                    onTap = { point ->
+                        when {
+                            tapToScroll && point.y < size.height * .25f -> backward()
+                            tapToScroll && point.y > size.height * .75f -> forward()
+                            else -> tap()
+                        }
+                    },
+                )
+            },
+    ) {
+        val widthPx = with(density) { (maxWidth - (preferences.sidePaddingDp * 2).dp).roundToPx() }.coerceAtLeast(1)
+        SideEffect { state.contentWidthPx = widthPx }
+        LazyColumn(
+            state = state.listState,
+            userScrollEnabled = !state.isTransforming,
+            contentPadding = PaddingValues(horizontal = preferences.sidePaddingDp.dp),
+            modifier = Modifier.fillMaxWidth().requiredHeight(maxHeight / state.zoom)
+                .align(Alignment.TopCenter)
+                .graphicsLayer {
+                    scaleX = state.zoom
+                    scaleY = state.zoom
+                    translationX = state.panX
+                    transformOrigin = TransformOrigin(.5f, 0f)
                 },
-            )
+        ) {
+            items(state.layout.tiles, key = { it.key }, contentType = { "image_strip" }) { tile ->
+                val page = pages.getOrNull(tile.pageIndex) ?: return@items
+                LaunchedEffect(page) { loader.loadPage(page) }
+                key(page) {
+                    Column(Modifier.fillMaxWidth()) {
+                        WebtoonTile(
+                            page, tile, widthPx, (widthPx * state.zoom).toInt(), decoder,
+                            colorFilter, loader, backgroundColor,
+                        )
+                        // No hardcoded spacer, border, page number, shadow or fit-height box.
+                        if (tile.isLast && tile.pageIndex < pages.lastIndex && preferences.pageGapDp > 0) {
+                            Spacer(Modifier.height(preferences.pageGapDp.dp))
+                        }
+                    }
+                }
+            }
+            item(key = "chapter_transition_footer", contentType = "chapter_footer") {
+                Column(
+                    Modifier.fillMaxWidth().padding(vertical = 48.dp, horizontal = 16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    val foreground = if (backgroundColor == Color.White) Color.Black else Color.White
+                    Text(stringResource(R.string.reader_chapter_end), color = foreground.copy(alpha = .7f))
+                    if (hasNextChapter) {
+                        KitsugiButton(
+                            onClick = onGoToNextChapter,
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7C4DFF)),
+                        ) {
+                            Text(nextChapterName ?: stringResource(R.string.sonraki_bolum), color = Color.White)
+                        }
+                        if (nextChapterVariantCount > 1) {
+                            Text(
+                                text = stringResource(R.string.manga_next_chapter_multi, nextChapterVariantCount),
+                                color = foreground.copy(alpha = .55f),
+                                fontSize = 11.sp,
+                            )
+                        }
+                    } else {
+                        Text(stringResource(R.string.inline_you_re_on_the_last_4e9fc31), color = foreground.copy(alpha = .5f))
+                    }
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun ChapterTransitionFooter(
-    hasNextChapter: Boolean,
-    nextChapterName: String?,
-    variantCount: Int,
-    compact: Boolean,
-    onGoToNextChapter: () -> Unit,
+private fun WebtoonTile(
+    page: MangaPage,
+    tile: WebtoonLayout.Tile,
+    widthPx: Int,
+    decodeWidthPx: Int,
+    decoder: MangaImageTileDecoder,
+    colorFilter: ColorFilter?,
+    loader: MangaPageLoaderV2,
+    background: Color,
 ) {
+    val density = LocalDensity.current
+    val file = page.cachedImageFile ?: page.cachedFile
+    val status = page.status
+    var attempt by remember(page, tile.key) { mutableIntStateOf(0) }
+    // Restart only when the required sampling level changes, not at every pinch pixel.
+    val sample = tile.image?.sourceRegion(tile.top, tile.bottom)?.let {
+        WebtoonLayout.sampleSize(it.width, it.height, decodeWidthPx)
+    } ?: 0
+    val result by produceState<Result<android.graphics.Bitmap>?>(null, file, status, tile, sample, attempt) {
+        if (status != MangaPageStatus.Ready || file == null) value = null
+        if (status == MangaPageStatus.Ready && tile.image != null && file != null) {
+            value = try {
+                Result.success(decoder.decode(file, tile, decodeWidthPx))
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                Result.failure(error)
+            }
+        }
+    }
     Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(if (compact) 120.dp else 220.dp)
-            .background(Color.Black),
+        Modifier.fillMaxWidth()
+            .height(with(density) { tile.heightPx(widthPx).toDp() })
+            .background(background).testTag("webtoon_tile_${tile.key}"),
         contentAlignment = Alignment.Center,
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(horizontal = 24.dp),
-        ) {
-            if (hasNextChapter) {
-                Text(
-                    text = stringResource(R.string.inline_end_of_episode_928d999),
-                    color = Color.White.copy(alpha = 0.5f),
-                    fontSize = 13.sp,
-                )
-                Spacer(Modifier.height(12.dp))
-                KitsugiButton(
-                    onClick = onGoToNextChapter,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = KitsugiColors.Accent,
-                        contentColor = KitsugiColors.OnAccent,
-                    ),
-                ) {
-                    Icon(
-                        imageVector = Icons.ArrowForward,
-                        contentDescription = null,
-                        tint = KitsugiColors.OnAccent,
-                        modifier = Modifier.size(16.dp),
-                    )
-                    Spacer(Modifier.size(8.dp))
-                    Text(
-                        text = nextChapterName?.let { stringResource(R.string.manga_reader_next_chapter, it) }
-                            ?: stringResource(R.string.inline_next_episode_ab03b91)
-                    )
-                }
-                if (variantCount > 1) {
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        text = stringResource(R.string.manga_next_chapter_multi, variantCount),
-                        color = Color.White.copy(alpha = 0.55f),
-                        fontSize = 11.sp,
-                    )
-                }
-            } else {
-                Text(
-                    text = stringResource(R.string.inline_you_re_on_the_last_4e9fc31),
-                    color = Color.White.copy(alpha = 0.5f),
-                    fontSize = 14.sp,
-                )
+        val bitmap = result?.getOrNull()
+        when {
+            bitmap != null -> Image(
+                bitmap.asImageBitmap(),
+                contentDescription = if (tile.part == 0) stringResource(R.string.manga_sayfasi_x, tile.pageIndex + 1) else null,
+                contentScale = ContentScale.FillBounds,
+                colorFilter = colorFilter,
+                modifier = Modifier.fillMaxSize(),
+            )
+            status == MangaPageStatus.Error || result?.isFailure == true -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(stringResource(R.string.inline_page_1_s_couldn_t_11d924a, tile.pageIndex + 1), color = Color(0xFFEF5350))
+                TextButton(onClick = {
+                    attempt++
+                    if (status == MangaPageStatus.Error || file?.exists() != true) loader.retryPage(page)
+                }) { Text(stringResource(R.string.reader_retry), color = Color(0xFF9D7BFF)) }
             }
+            else -> KitsugiPlasmaLoader(size = 36.dp)
         }
     }
 }

@@ -179,8 +179,8 @@
     <string name="manga_direction_ltr_desc">Manhua / Manhwa için</string>
     <string name="manga_direction_vertical">Dikey Kaydırma</string>
     <string name="manga_direction_vertical_desc">Webtoon tarzı</string>
-    <string name="manga_direction_webtoon_zoom">Webtoon Zoom</string>
-    <string name="manga_direction_webtoon_zoom_desc">Otomatik yükseklik</string>
+    <string name="manga_direction_webtoon_zoom">Webtoon</string>
+    <string name="manga_direction_webtoon_zoom_desc">Aynı genişlikte, tek ve kesintisiz dikey şerit</string>
 
     <string name="manga_color_filter">Renk Filtresi</string>
     <string name="manga_color_filter_desc">Sayfa üzerine uygulanacak renk filtresi</string>
@@ -19006,7 +19006,6 @@ Eklentiler ekranından eklenti etkinleştirin.</string>
     <string name="reader_webtoon_padding">Webtoon yan boşluğu</string>
     <string name="reader_webtoon_gap">Sayfalar arası boşluk</string>
     <string name="reader_show_page_number">Sayfa numarasını göster</string>
-    <string name="reader_keep_screen_on">Okurken ekranı açık tut</string>
     <string name="reader_invert_taps">Dokunma bölgelerini ters çevir</string>
     <string name="reader_webtoon_tap_scroll">Dokununca ekran kadar kaydır</string>
     <string name="reader_skip_read_chapters">Okunmuş bölümleri atla</string>
@@ -19020,7 +19019,6 @@ Eklentiler ekranından eklenti etkinleştirin.</string>
     <string name="reader_txt_title">Metin okuyucu (TXT)</string>
     <string name="reader_txt_theme">Tema</string>
     <string name="reader_txt_error">Dosya açılamadı. UTF-8 TXT dosyası seçin (en fazla 5 MB).</string>
-    <string name="reader_background">Sayfa arka planı</string>
     <string name="reader_background_black">Siyah</string>
     <string name="reader_background_gray">Koyu gri</string>
     <string name="reader_background_white">Beyaz</string>
@@ -19041,9 +19039,7 @@ Eklentiler ekranından eklenti etkinleştirin.</string>
     <string name="reader_cover_alone">İlk sayfayı tek göster</string>
     <string name="reader_webtoon_auto_scroll">Otomatik kaydırma (bu oturum)</string>
     <string name="reader_auto_scroll_hint">Panel kapatılınca başlar; durdurmak için merkeze dokunun. Bölüm sonunda durur.</string>
-    <string name="reader_auto_scroll_speed">Otomatik kaydırma hızı</string>
     <string name="reader_scroll_speed_value">%1$d dp/sn</string>
-    <string name="reader_volume_keys">Ses tuşlarıyla sayfa değiştir</string>
     <string name="reader_invert_volume_keys">Ses tuşlarının yönünü ters çevir</string>
     <string name="reader_epub_search_book">Kitabın tamamında ara</string>
     <string name="reader_epub_search_incomplete">Arama güvenli sınır veya okunamayan bölüm nedeniyle tamamlanamadı.</string>

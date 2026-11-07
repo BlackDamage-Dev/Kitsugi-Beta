@@ -136,12 +136,12 @@ class MangaPageLoaderV2(
      * Keep-alive penceresi: [currentIndex - keepBehind .. currentIndex + preloadAhead]
      * Bu pencere dışındaki tüm devam eden prefetch'ler iptal edilir.
      */
-    fun onPageChanged(currentIndex: Int) {
+    fun onPageChanged(currentIndex: Int, lastVisibleIndex: Int = currentIndex) {
         val allPages = _pages.value
         if (allPages.isEmpty()) return
 
         val windowStart = (currentIndex - keepBehind).coerceAtLeast(0)
-        val windowEnd   = (currentIndex + preloadAhead).coerceAtMost(allPages.size - 1)
+        val windowEnd   = maxOf(currentIndex + preloadAhead, lastVisibleIndex).coerceAtMost(allPages.size - 1)
 
         // Pencere dışı işleri iptal et
         val outsideKeys = prefetchJobs.keys.filter { it < windowStart || it > windowEnd }
@@ -151,7 +151,7 @@ class MangaPageLoaderV2(
         // Önce currentIndex, sonra +1, +2, +3, sonra -1
         val priority = buildList {
             add(currentIndex)
-            for (i in 1..preloadAhead) {
+            for (i in 1..(windowEnd - currentIndex)) {
                 val next = currentIndex + i
                 if (next <= windowEnd) add(next)
             }
@@ -165,7 +165,7 @@ class MangaPageLoaderV2(
     /** Register before starting, and only remove our own job on completion. */
     fun loadPage(page: MangaPage) {
         synchronized(prefetchJobs) {
-            if (page.status == MangaPageStatus.Ready || prefetchJobs.containsKey(page.index)) return
+            if (isReady(page) || prefetchJobs.containsKey(page.index)) return
             val job = scope.launch(start = kotlinx.coroutines.CoroutineStart.LAZY) {
                 loadPageInternal(page)
             }
@@ -200,38 +200,39 @@ class MangaPageLoaderV2(
     // ─── İç yükleme mantığı ───────────────────────────────────────────────────
 
     private suspend fun loadPageInternal(page: MangaPage) {
-        if (page.status == MangaPageStatus.Ready) return
+        if (isReady(page)) return
         page.errorCode = null
 
-        if (page.archivePath != null && archiveFile != null) {
-            try {
-                val entry = page.archivePath!!
-                val archiveKey = "archive:${archiveFile.absolutePath}:${archiveFile.lastModified()}:$entry"
-                page.imageUrl = archiveKey
-                val archive = activeArchive ?: archiveFile ?: throw java.io.IOException("Arşiv dosyası bulunamadı")
-                val storedKey = cacheKey(page, archiveKey)
-                if (!cache.isImageInCache(storedKey)) {
-                    val stream = ArchivePageLoader(context, archive).loadPage(entry)
-                        ?: throw java.io.IOException("Arşiv sayfası okunamadı: $entry")
-                    stream.use { cache.putImageToCache(storedKey, it) }
+        if (page.archivePath != null && (activeArchive != null || archiveFile != null)) {
+            semaphore.withPermit {
+                try {
+                    val entry = page.archivePath!!
+                    val archive = activeArchive ?: archiveFile ?: throw java.io.IOException("Arşiv dosyası bulunamadı")
+                    val archiveKey = "archive:${archive.absolutePath}:${archive.lastModified()}:$entry"
+                    page.imageUrl = archiveKey
+                    val storedKey = cacheKey(page, archiveKey)
+                    if (!cache.isImageInCache(storedKey)) {
+                        page.status = MangaPageStatus.DownloadImage
+                        val stream = ArchivePageLoader(context, archive).loadPage(entry)
+                            ?: throw java.io.IOException("Arşiv sayfası okunamadı: $entry")
+                        stream.use { cache.putImageToCache(storedKey, it) }
+                    }
+                    kotlinx.coroutines.currentCoroutineContext().ensureActive()
+                    val file = cache.getImageFile(storedKey)
+                    if (!file.exists() || file.length() <= 0L) {
+                        throw java.io.IOException("Arşiv sayfası diske yazılamadı: $entry")
+                    }
+                    publishReady(page, file)
+                    Log.v(TAG, "Archive page ready [${page.index}]: $entry")
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    page.status = MangaPageStatus.Queue
+                    throw e
+                } catch (e: Exception) {
+                    page.status = MangaPageStatus.Error
+                    MangaLogger.logImageFetch(context, source.name, page.index,
+                        page.archivePath, success = false, error = e)
+                    Log.e(TAG, "Archive page error [${page.index}]: ${page.archivePath}", e)
                 }
-                val file = cache.getImageFile(storedKey)
-                if (!file.exists() || file.length() <= 0L) {
-                    throw java.io.IOException("Arşiv sayfası diske yazılamadı: $entry")
-                }
-                page.aspectRatio = readAspectRatio(file)
-                page.localFile = file
-                page.cachedFile = file
-                page.stream = { file.inputStream() }
-                page.status = MangaPageStatus.Ready
-                Log.v(TAG, "Archive page ready [${page.index}]: $entry")
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                page.status = MangaPageStatus.Error
-                MangaLogger.logImageFetch(context, source.name, page.index,
-                    page.archivePath, success = false, error = e)
-                Log.e(TAG, "Archive page error [${page.index}]: ${page.archivePath}", e)
             }
             return
         }
@@ -253,12 +254,7 @@ class MangaPageLoaderV2(
                     val storedKey = cacheKey(page, imageUrl)
                     // 2. Disk cache'te var mı kontrol et
                     if (cache.isImageInCache(storedKey)) {
-                        val file = cache.getImageFile(storedKey)
-                        page.aspectRatio = readAspectRatio(file)
-                        page.localFile = file
-                        page.cachedFile = file
-                        page.stream = { file.inputStream() }
-                        page.status = MangaPageStatus.Ready
+                        publishReady(page, cache.getImageFile(storedKey))
                         Log.v(TAG, "Cache hit [${page.index}]")
                         return@withTimeout
                     }
@@ -275,11 +271,7 @@ class MangaPageLoaderV2(
 
                     val file = cache.getImageFile(storedKey)
                     if (file.exists() && file.length() > 0L) {
-                        page.aspectRatio = readAspectRatio(file)
-                        page.localFile = file
-                        page.cachedFile = file
-                        page.stream = { file.inputStream() }
-                        page.status = MangaPageStatus.Ready
+                        publishReady(page, file)
 
                         val elapsed = System.currentTimeMillis() - t0
                         sourceStateStore.recordOperationSuccess(source, "image", elapsed)
@@ -312,11 +304,18 @@ class MangaPageLoaderV2(
         }
     }
 
-    private fun readAspectRatio(file: java.io.File): Float? {
-        val options = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        android.graphics.BitmapFactory.decodeFile(file.absolutePath, options)
-        return if (options.outWidth > 0 && options.outHeight > 0)
-            (options.outWidth.toFloat() / options.outHeight).coerceIn(0.02f, 100f) else null
+    private fun isReady(page: MangaPage): Boolean = page.status == MangaPageStatus.Ready &&
+        page.cachedImageFile != null && page.imageInfo != null
+
+    private fun publishReady(page: MangaPage, file: java.io.File) {
+        val header = MangaImageTileDecoder.readHeader(file)
+        page.imageInfo = header
+        page.aspectRatio = (header.width.toFloat() / header.height).coerceIn(0.02f, 100f)
+        page.localFile = file
+        page.cachedFile = file
+        page.cachedImageFile = file
+        page.stream = { file.inputStream() }
+        page.status = MangaPageStatus.Ready
     }
 
     // ─── Yardımcı fonksiyonlar ────────────────────────────────────────────────

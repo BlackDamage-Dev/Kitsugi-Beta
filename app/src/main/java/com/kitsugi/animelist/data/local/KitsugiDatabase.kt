@@ -28,7 +28,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         CustomButton::class,
         MangaLibraryEntity::class              // 📚 Manga kitaplığı (takip edilen seriler)
     ],
-    version = 34,
+    version = 35,
     exportSchema = true  // T3-03/TASK-106: KSP → $projectDir/schemas/ konumuna yazar
 )
 abstract class KitsugiDatabase : RoomDatabase() {
@@ -520,6 +520,12 @@ abstract class KitsugiDatabase : RoomDatabase() {
             }
         }
 
+        internal val MIGRATION_34_35 = object : Migration(34, 35) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE manga_chapter_progress ADD COLUMN lastPageOffset REAL NOT NULL DEFAULT 0")
+            }
+        }
+
         fun getDatabase(context: Context): KitsugiDatabase {
             return INSTANCE ?: synchronized(this) {
                 val builder = Room.databaseBuilder(
@@ -560,7 +566,8 @@ abstract class KitsugiDatabase : RoomDatabase() {
                         MIGRATION_29_31,
                         MIGRATION_31_32,  // 🎬 Otomatik liste takibi (izlendi bayrağı)
                         MIGRATION_32_33,  // 📖 Okunan bölüm geçmişi
-                        MIGRATION_33_34   // 📚 Manga kitaplığı
+                        MIGRATION_33_34,  // 📚 Manga kitaplığı
+                        MIGRATION_34_35   // 📐 Webtoon görsel içi kesirli ilerleme (lastPageOffset)
                     )
                 
                 // T3-03: Güvenlik sertleştirmesi — Üretim sürümünde verilerin kazara sıfırlanmasını engeller.

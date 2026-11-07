@@ -179,8 +179,8 @@
     <string name="manga_direction_ltr_desc">For Manhua / Manhwa</string>
     <string name="manga_direction_vertical">Vertical Scroll</string>
     <string name="manga_direction_vertical_desc">Webtoon style</string>
-    <string name="manga_direction_webtoon_zoom">Webtoon Zoom</string>
-    <string name="manga_direction_webtoon_zoom_desc">Auto height</string>
+    <string name="manga_direction_webtoon_zoom">Webtoon</string>
+    <string name="manga_direction_webtoon_zoom_desc">One continuous, width-fitted vertical strip</string>
 
     <string name="manga_color_filter">Color Filter</string>
     <string name="manga_color_filter_desc">Color filter to apply over page</string>
@@ -19000,7 +19000,6 @@
     <string name="reader_webtoon_padding">Webtoon side padding</string>
     <string name="reader_webtoon_gap">Space between pages</string>
     <string name="reader_show_page_number">Show page numbers</string>
-    <string name="reader_keep_screen_on">Keep screen on while reading</string>
     <string name="reader_invert_taps">Invert tap zones</string>
     <string name="reader_webtoon_tap_scroll">Tap to scroll by screen</string>
     <string name="reader_skip_read_chapters">Skip completed chapters</string>
@@ -19014,7 +19013,6 @@
     <string name="reader_txt_title">Text reader (TXT)</string>
     <string name="reader_txt_theme">Theme</string>
     <string name="reader_txt_error">Could not open the file. Choose a UTF-8 TXT file (up to 5 MB).</string>
-    <string name="reader_background">Page background</string>
     <string name="reader_background_black">Black</string>
     <string name="reader_background_gray">Dark gray</string>
     <string name="reader_background_white">White</string>
@@ -19035,9 +19033,7 @@
     <string name="reader_cover_alone">Show first page alone</string>
     <string name="reader_webtoon_auto_scroll">Auto-scroll (this session)</string>
     <string name="reader_auto_scroll_hint">Starts when settings close; tap the center to stop. Stops at chapter end.</string>
-    <string name="reader_auto_scroll_speed">Auto-scroll speed</string>
     <string name="reader_scroll_speed_value">%1$d dp/s</string>
-    <string name="reader_volume_keys">Turn pages with volume keys</string>
     <string name="reader_invert_volume_keys">Invert volume key direction</string>
     <string name="reader_epub_search_book">Search entire book</string>
     <string name="reader_epub_search_incomplete">Search was incomplete due to a safety limit or an unreadable chapter.</string>

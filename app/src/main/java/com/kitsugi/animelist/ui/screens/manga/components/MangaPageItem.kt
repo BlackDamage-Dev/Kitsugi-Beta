@@ -100,6 +100,7 @@ fun MangaPageItem(
     longTapGrid: String = DEFAULT_READER_LONG_TAP_GRID,
     tapViewport: ReaderTapViewport? = null,
     zoomEnabled: Boolean = true,
+    resetZoomSignal: Int = 0,
     wideRotation: String = "Off",
     imageOverride: java.io.File? = null,
     tapsEnabled: Boolean = true,
@@ -188,23 +189,24 @@ fun MangaPageItem(
         when (page.status) {
             MangaPageStatus.Ready -> {
                 val imageUrl = page.imageUrl ?: page.url
-                val cacheFile = loader.cache.getImageFile(loader.cacheKey(page, imageUrl))
+                val cacheFile = page.cachedImageFile?.takeIf { it.exists() && it.length() > 0L }
+                    ?: loader.cache.getImageFile(loader.cacheKey(page, imageUrl))
                 val croppedFile = rememberReaderCrop(
                     source = cacheFile,
                     enabled = cropBorders && imageOverride == null,
                     rotation = if (imageOverride == null) wideRotation else "Off"
                 )?.file
-                val modelToLoad: Any = imageOverride
+                val file: Any = imageOverride
                     ?: croppedFile
                     ?: page.localUri?.let(android.net.Uri::parse)
                     ?: if (cacheFile.exists()) cacheFile else (page.cachedFile ?: imageUrl)
 
                 val context = LocalContext.current
-                val displayError = remember(page, modelToLoad) { mutableStateOf<Throwable?>(null) }
-                val retryGeneration = remember(page, modelToLoad) { mutableIntStateOf(0) }
-                val imageRequest = remember(modelToLoad, retryGeneration.intValue) {
+                val displayError = remember(page, file) { mutableStateOf<Throwable?>(null) }
+                val retryGeneration = remember(page, file) { mutableIntStateOf(0) }
+                val imageRequest = remember(file, retryGeneration.intValue) {
                     ImageRequest.Builder(context)
-                        .data(modelToLoad)
+                        .data(file)
                         .size(2048, 2048)
                         .scale(Scale.FIT)
                         .diskCachePolicy(CachePolicy.DISABLED)
@@ -221,15 +223,16 @@ fun MangaPageItem(
                 val composeColorFilter = remember(colorFilterType, saturation, contrast, hue) {
                     readerColorMatrix(colorFilterType.name, saturation, contrast, hue)?.let {
                         ColorFilter.colorMatrix(ColorMatrix(it))
-                    } ?: colorFilterType.toComposeColorFilter()
+                    } ?: mangaPageColorFilter(colorFilterType) ?: colorFilterType.toComposeColorFilter()
                 }
 
                 if (displayError.value == null) {
-                    key(modelToLoad, retryGeneration.intValue, zoomEnabled) {
+                    key(file, retryGeneration.intValue, zoomEnabled) {
                         val zoomableState = rememberZoomableState(
                             zoomSpec = ZoomSpec(maxZoomFactor = if (zoomEnabled) 2f else 1f)
                         )
                         val imageState = rememberZoomableImageState(zoomableState)
+                        LaunchedEffect(resetZoomSignal) { if (resetZoomSignal > 0) zoomableState.resetZoom() }
 
                         val imageModifier = (if (isScrollMode) {
                             Modifier

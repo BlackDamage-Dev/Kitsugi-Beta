@@ -16,6 +16,8 @@ import com.kitsugi.animelist.ui.screens.search.SearchHistoryItem
 import com.kitsugi.animelist.ui.screens.search.SearchPlatform
 import com.kitsugi.animelist.model.MediaType
 import com.kitsugi.animelist.ui.screens.fullscreen.AudioChannels
+import com.kitsugi.animelist.data.manga.MangaReaderPreferences
+import com.kitsugi.animelist.data.manga.MangaWebtoonPreferences
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -841,13 +843,13 @@ class SettingsDataStore(
                     notificationInterval = preferences[Keys.NotificationInterval] ?: 180
                 ),
                 downloads = DownloadAndMangaSettings(
-                    mangaReadingMode = preferences[Keys.MangaReadingMode] ?: "RightToLeft",
-                    mangaColorFilter = preferences[Keys.MangaColorFilter] ?: "Normal",
+                    mangaReadingMode = MangaReaderPreferences.readingMode(preferences[Keys.MangaReadingMode] ?: "RightToLeft").name,
+                    mangaColorFilter = MangaReaderPreferences.colorFilter(preferences[Keys.MangaColorFilter] ?: "Normal").name,
                     mangaSaturation = (preferences[Keys.MangaSaturation] ?: 100).coerceIn(0, 200),
                     mangaContrast = (preferences[Keys.MangaContrast] ?: 100).coerceIn(50, 200),
                     mangaHue = (preferences[Keys.MangaHue] ?: 0).coerceIn(-180, 180),
                     mangaFitMode = preferences[Keys.MangaFitMode] ?: "FitScreen",
-                    mangaBrightness = normalizeMangaBrightness(preferences[Keys.MangaBrightness] ?: 1.0f),
+                    mangaBrightness = MangaReaderPreferences.finite(preferences[Keys.MangaBrightness] ?: 1.0f, 1.0f, 0.1f, 1.0f),
                     mangaKeepScreenOn = preferences[Keys.MangaKeepScreenOn] ?: true,
                     mangaAutoFullscreen = preferences[Keys.MangaAutoFullscreen] ?: true,
                     mangaImmersive = preferences[Keys.MangaImmersive] ?: false,
@@ -860,8 +862,19 @@ class SettingsDataStore(
                     mangaCropBorders = preferences[Keys.MangaCropBorders] ?: false,
                     mangaCropBordersWebtoon = preferences[Keys.MangaCropBordersWebtoon] ?: false,
                     mangaWebtoonPadding = (preferences[Keys.MangaWebtoonPadding] ?: 0).coerceIn(0, 64),
-                    mangaWebtoonGap = (preferences[Keys.MangaWebtoonGap] ?: 4).coerceIn(0, 32),
+                    mangaWebtoonGap = (preferences[Keys.MangaWebtoonGap] ?: 0).coerceIn(0, 32),
                     mangaShowPageNumber = preferences[Keys.MangaShowPageNumber] ?: true,
+                    mangaWebtoon = MangaWebtoonPreferences(
+                        sidePaddingDp = preferences[Keys.MangaWebtoonPadding] ?: 0,
+                        pageGapDp = preferences[Keys.MangaWebtoonGap] ?: 0,
+                        scrollPercent = preferences[Keys.MangaWebtoonScrollPercent] ?: 90,
+                        tapToScroll = preferences[Keys.MangaWebtoonTapScroll] ?: true,
+                        volumeKeys = preferences[Keys.MangaVolumeKeys] ?: false,
+                        autoScrollDpPerSecond = preferences[Keys.MangaWebtoonAutoScrollSpeed] ?: 32,
+                        background = preferences[Keys.MangaReaderBackground] ?: "Black",
+                        showPageNumber = preferences[Keys.MangaShowPageNumber] ?: true,
+                        keepScreenOn = preferences[Keys.MangaKeepScreenOn] ?: true,
+                    ).sanitized(),
                     mangaWebtoonZoom = preferences[Keys.MangaWebtoonZoom] ?: true,
                     mangaWideRotation = (preferences[Keys.MangaWideRotation] ?: "Off").takeIf { it in setOf("Off", "Clockwise", "CounterClockwise") } ?: "Off",
                     mangaWideRotationWebtoon = (preferences[Keys.MangaWideRotationWebtoon] ?: "Off").takeIf { it in setOf("Off", "Clockwise", "CounterClockwise") } ?: "Off",
@@ -869,12 +882,12 @@ class SettingsDataStore(
                     mangaTapLayout = (preferences[Keys.MangaTapLayout] ?: "Default").takeIf { it in setOf("Default", "LeftHand", "RightHand", "Custom") } ?: "Default",
                     mangaTapGrid = (preferences[Keys.MangaTapGrid] ?: "PMNPMNPMN").takeIf { it.length == 9 && it.all { c -> c in "PMNX" } } ?: "PMNPMNPMN",
                     mangaLongTapGrid = (preferences[Keys.MangaLongTapGrid] ?: "XXXXXXXXX").takeIf { it.length == 9 && it.all { c -> c in "PMNX" } } ?: "XXXXXXXXX",
-                    mangaWebtoonTapScroll = preferences[Keys.MangaWebtoonTapScroll] ?: false,
+                    mangaWebtoonTapScroll = preferences[Keys.MangaWebtoonTapScroll] ?: true,
                     mangaReaderBackground = preferences[Keys.MangaReaderBackground] ?: "Black",
                     mangaDoublePage = preferences[Keys.MangaDoublePage] ?: false,
                     mangaCoverAlone = preferences[Keys.MangaCoverAlone] ?: false,
-                    mangaWebtoonAutoScrollSpeed = (preferences[Keys.MangaWebtoonAutoScrollSpeed] ?: 40).coerceIn(10, 160),
-                    mangaWebtoonScrollPercent = (preferences[Keys.MangaWebtoonScrollPercent] ?: 80).coerceIn(25, 100),
+                    mangaWebtoonAutoScrollSpeed = (preferences[Keys.MangaWebtoonAutoScrollSpeed] ?: 32).coerceIn(8, 160),
+                    mangaWebtoonScrollPercent = (preferences[Keys.MangaWebtoonScrollPercent] ?: 90).coerceIn(25, 100),
                     mangaPreloadAhead = (preferences[Keys.MangaPreloadAhead] ?: -1).coerceIn(-1, 5),
                     mangaVolumeKeys = preferences[Keys.MangaVolumeKeys] ?: false,
                     mangaInvertVolumeKeys = preferences[Keys.MangaInvertVolumeKeys] ?: false,
@@ -1533,7 +1546,22 @@ class SettingsDataStore(
     suspend fun setMangaPreloadAhead(value: Int) { context.settingsDataStore.edit { it[Keys.MangaPreloadAhead] = value.coerceIn(-1, 5) } }
 
     suspend fun setMangaWebtoonAutoScrollSpeed(value: Int) {
-        context.settingsDataStore.edit { it[Keys.MangaWebtoonAutoScrollSpeed] = value.coerceIn(10, 160) }
+        context.settingsDataStore.edit { it[Keys.MangaWebtoonAutoScrollSpeed] = value.coerceIn(8, 160) }
+    }
+
+    suspend fun setMangaWebtoonPreferences(value: MangaWebtoonPreferences) {
+        val safe = value.sanitized()
+        context.settingsDataStore.edit { prefs ->
+            prefs[Keys.MangaWebtoonPadding] = safe.sidePaddingDp
+            prefs[Keys.MangaWebtoonGap] = safe.pageGapDp
+            prefs[Keys.MangaWebtoonScrollPercent] = safe.scrollPercent
+            prefs[Keys.MangaWebtoonTapScroll] = safe.tapToScroll
+            prefs[Keys.MangaVolumeKeys] = safe.volumeKeys
+            prefs[Keys.MangaWebtoonAutoScrollSpeed] = safe.autoScrollDpPerSecond
+            prefs[Keys.MangaReaderBackground] = safe.background
+            prefs[Keys.MangaShowPageNumber] = safe.showPageNumber
+            prefs[Keys.MangaKeepScreenOn] = safe.keepScreenOn
+        }
     }
 
     suspend fun setMangaVolumeKeys(value: Boolean) { context.settingsDataStore.edit { it[Keys.MangaVolumeKeys] = value } }

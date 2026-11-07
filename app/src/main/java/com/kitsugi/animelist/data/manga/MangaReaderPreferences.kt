@@ -105,5 +105,49 @@ class MangaReaderPreferences private constructor(context: Context) {
             instance ?: synchronized(this) {
                 instance ?: MangaReaderPreferences(context).also { instance = it }
             }
+
+        fun readingMode(value: String): ReadingMode = when (value) {
+            "WebtoonZoom", "Webtoon" -> ReadingMode.Webtoon // migrate the old global-settings ID
+            else -> ReadingMode.entries.firstOrNull { it.name == value } ?: ReadingMode.RightToLeft
+        }
+
+        fun nextReadingMode(mode: ReadingMode): ReadingMode {
+            val modes = listOf(ReadingMode.RightToLeft, ReadingMode.LeftToRight, ReadingMode.Vertical, ReadingMode.Webtoon)
+            return modes[(modes.indexOf(mode) + 1) % modes.size]
+        }
+
+        fun colorFilter(value: String): ColorFilterType = when (value) {
+            "GrayScale", "Grayscale" -> ColorFilterType.Grayscale
+            "Inverted", "Invert" -> ColorFilterType.Invert
+            "Warm", "Sepia" -> ColorFilterType.Sepia
+            else -> ColorFilterType.Normal
+        }
+
+        fun fitMode(value: String): MangaFitMode =
+            MangaFitMode.entries.firstOrNull { it.name == value } ?: MangaFitMode.FitScreen
+
+        fun finite(value: Float, default: Float, min: Float, max: Float): Float =
+            if (value.isFinite()) value.coerceIn(min, max) else default
     }
+}
+
+/** Only persistent preferences; transient zoom/auto-scroll never survive a chapter or app restart. */
+data class MangaWebtoonPreferences(
+    val sidePaddingDp: Int = 0,
+    val pageGapDp: Int = 0,
+    val scrollPercent: Int = 90,
+    val tapToScroll: Boolean = true,
+    val volumeKeys: Boolean = false,
+    val autoScrollDpPerSecond: Int = 32,
+    val background: String = "Black",
+    val showPageNumber: Boolean = true,
+    val keepScreenOn: Boolean = true,
+) {
+    fun sanitized() = copy(
+        sidePaddingDp = sidePaddingDp.coerceIn(0, 64),
+        pageGapDp = pageGapDp.coerceIn(0, 32),
+        scrollPercent = scrollPercent.coerceIn(25, 100),
+        autoScrollDpPerSecond = autoScrollDpPerSecond.coerceIn(8, 160),
+        background = background.takeIf { it in setOf("Black", "DarkGray", "White") } ?: "Black",
+    )
 }

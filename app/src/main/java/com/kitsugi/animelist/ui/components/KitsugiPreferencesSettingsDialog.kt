@@ -2011,19 +2011,17 @@ private fun MangaReaderTab(
     // "GrayScale", "Inverted", "Warm", "Cool", "WebtoonZoom" gibi farklı yazımlar
     // vardı ve okuyucu bunları çözemediği için seçim sessizce yok sayılıyordu.
     val readingModeOptions = listOf(
-        KitsugiChoiceOption(id = MangaSettingIds.READING_RTL, title = stringResource(R.string.manga_direction_rtl), description = stringResource(R.string.manga_direction_rtl_desc)),
-        KitsugiChoiceOption(id = MangaSettingIds.READING_LTR, title = stringResource(R.string.manga_direction_ltr), description = stringResource(R.string.manga_direction_ltr_desc)),
-        KitsugiChoiceOption(id = MangaSettingIds.READING_VERTICAL, title = stringResource(R.string.manga_reader_mode_vertical), description = stringResource(R.string.manga_reader_mode_vertical_desc)),
-        KitsugiChoiceOption(id = MangaSettingIds.READING_WEBTOON, title = stringResource(R.string.manga_reader_mode_webtoon), description = stringResource(R.string.manga_reader_mode_webtoon_desc))
+        KitsugiChoiceOption(id = "RightToLeft", title = stringResource(R.string.manga_direction_rtl), description = stringResource(R.string.manga_direction_rtl_desc)),
+        KitsugiChoiceOption(id = "LeftToRight", title = stringResource(R.string.manga_direction_ltr), description = stringResource(R.string.manga_direction_ltr_desc)),
+        KitsugiChoiceOption(id = "Vertical", title = stringResource(R.string.manga_reader_mode_vertical), description = stringResource(R.string.manga_reader_mode_vertical_desc)),
+        KitsugiChoiceOption(id = "Webtoon", title = stringResource(R.string.manga_direction_webtoon_zoom), description = stringResource(R.string.manga_direction_webtoon_zoom_desc))
     )
 
     val colorFilterOptions = listOf(
-        KitsugiChoiceOption(id = MangaSettingIds.FILTER_NORMAL, title = stringResource(R.string.manga_filter_normal), description = ""),
-        KitsugiChoiceOption(id = MangaSettingIds.FILTER_WARM, title = stringResource(R.string.manga_filter_warm), description = ""),
-        KitsugiChoiceOption(id = MangaSettingIds.FILTER_COOL, title = stringResource(R.string.manga_filter_cool), description = ""),
-        KitsugiChoiceOption(id = MangaSettingIds.FILTER_GRAYSCALE, title = stringResource(R.string.manga_filter_grayscale), description = ""),
-        KitsugiChoiceOption(id = MangaSettingIds.FILTER_SEPIA, title = stringResource(R.string.manga_filter_sepia), description = ""),
-        KitsugiChoiceOption(id = MangaSettingIds.FILTER_INVERT, title = stringResource(R.string.manga_filter_inverted), description = "")
+        KitsugiChoiceOption(id = "Normal", title = stringResource(R.string.manga_filter_normal), description = ""),
+        KitsugiChoiceOption(id = "Sepia", title = stringResource(R.string.reader_sepia), description = ""),
+        KitsugiChoiceOption(id = "Grayscale", title = stringResource(R.string.manga_filter_grayscale), description = ""),
+        KitsugiChoiceOption(id = "Invert", title = stringResource(R.string.manga_filter_inverted), description = "")
     )
 
     val fitModeOptions = listOf(
@@ -2165,30 +2163,32 @@ private fun MangaReaderTab(
 
             KitsugiSettingsDivider()
 
-            Box {
-                KitsugiSettingsListItem(
-                    title = stringResource(R.string.manga_page_fit),
-                    description = stringResource(R.string.manga_page_fit_desc),
-                    value = fitModeOptions.find { it.id == appSettings.mangaFitMode }?.title ?: "",
-                    icon = Icons.Tablet,
-                    iconColor = accentColor,
-                    onClick = { showFitModeMenu = true }
-                )
-                KitsugiDropdownMenu(expanded = showFitModeMenu, onDismissRequest = { showFitModeMenu = false }, dialogTitle = stringResource(R.string.manga_page_fit)) {
-                    fitModeOptions.forEach { opt ->
-                        KitsugiDropdownItem(
-                            text = opt.title,
-                            selected = opt.id == appSettings.mangaFitMode,
-                            onClick = {
-                                onMangaFitModeSelected(opt.id)
-                                showFitModeMenu = false
-                            }
-                        )
+            if (appSettings.mangaReadingMode != "Webtoon") {
+                Box {
+                    KitsugiSettingsListItem(
+                        title = stringResource(R.string.manga_page_fit),
+                        description = stringResource(R.string.manga_page_fit_desc),
+                        value = fitModeOptions.find { it.id == appSettings.mangaFitMode }?.title ?: "",
+                        icon = Icons.Tablet,
+                        iconColor = accentColor,
+                        onClick = { showFitModeMenu = true }
+                    )
+                    KitsugiDropdownMenu(expanded = showFitModeMenu, onDismissRequest = { showFitModeMenu = false }, dialogTitle = stringResource(R.string.manga_page_fit)) {
+                        fitModeOptions.forEach { opt ->
+                            KitsugiDropdownItem(
+                                text = opt.title,
+                                selected = opt.id == appSettings.mangaFitMode,
+                                onClick = {
+                                    onMangaFitModeSelected(opt.id)
+                                    showFitModeMenu = false
+                                }
+                            )
+                        }
                     }
                 }
-            }
 
-            KitsugiSettingsDivider()
+                KitsugiSettingsDivider()
+            }
 
             // Parlaklık Ayarı
             Column(

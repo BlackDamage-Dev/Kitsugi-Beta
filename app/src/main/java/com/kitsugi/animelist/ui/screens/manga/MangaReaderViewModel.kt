@@ -35,7 +35,16 @@ import com.kitsugi.animelist.data.manga.ChapterChoiceRequest
 import com.kitsugi.animelist.data.manga.ChapterVariantInfo
 import com.kitsugi.animelist.data.manga.MangaChapterGroup
 import com.kitsugi.animelist.data.manga.MangaChapterGrouping
+import com.kitsugi.animelist.data.manga.MangaPageStatus
+import com.kitsugi.animelist.data.manga.MangaReaderPreferences
+import com.kitsugi.animelist.data.manga.MangaReadingProgressPolicy
 import com.kitsugi.animelist.data.manga.MangaSettingIds
+import com.kitsugi.animelist.data.manga.MangaWebtoonPreferences
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.channels.Channel
 
 /**
  * MangaReaderScreen için ViewModel.
@@ -112,9 +121,36 @@ class MangaReaderViewModel(
     private val completedChapterUrls = mutableSetOf<String>()
     private val sessionOnlyCompletedUrls = mutableSetOf<String>()
 
-    private val flushScope = kotlinx.coroutines.CoroutineScope(
-        kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO
-    )
+    // FIFO writes outlive ViewModel cancellation just long enough to drain the final snapshot.
+    private val progressWriteScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val progressWrites = Channel<MangaChapterProgressEntity>(Channel.UNLIMITED)
+    private val progressWriter = progressWriteScope.launch {
+        for (snapshot in progressWrites) {
+            try {
+                dao.upsertIfNewer(snapshot)
+                runCatching {
+                    com.kitsugi.animelist.data.local.MangaReadHistoryManager.record(
+                        sourceName = source.name,
+                        mangaUrl = mangaDetails.url,
+                        mangaTitle = mangaDetails.title,
+                        thumbnailUrl = mangaDetails.thumbnailUrl,
+                        chapterUrl = snapshot.chapterUrl,
+                        chapterName = snapshot.chapterName,
+                        lastPageIndex = snapshot.lastPageIndex,
+                        totalPages = snapshot.totalPages,
+                        isCompleted = snapshot.isCompleted
+                    )
+                }
+            } catch (error: Exception) {
+                if (error is kotlinx.coroutines.CancellationException) throw error
+                android.util.Log.e("MangaReader", "Unable to save reading position", error)
+            }
+        }
+    }.also { it.invokeOnCompletion { progressWriteScope.cancel() } }
+
+    val currentPageOffset: Float
+        get() = pendingProgress[_uiState.value.currentChapter.url]?.lastPageOffset
+            ?: _uiState.value.restoredPageOffset
 
     // ─── UI Durumu ────────────────────────────────────────────────────────────
 
@@ -130,8 +166,10 @@ class MangaReaderViewModel(
         val hue: Int = 0,
         val fitMode: MangaFitMode = MangaFitMode.FitScreen,
         val customBrightness: Float = 1.0f,
+        val webtoon: MangaWebtoonPreferences = MangaWebtoonPreferences(),
+        val restoredPageOffset: Float = 0f,
         val webtoonPadding: Int = 0,
-        val webtoonGap: Int = 4,
+        val webtoonGap: Int = 0,
         val showPageNumber: Boolean = true,
         val keepScreenOn: Boolean = true,
         val immersive: Boolean = false,
@@ -144,7 +182,7 @@ class MangaReaderViewModel(
         val tapLayout: String = "Default",
         val tapGrid: String = "PMNPMNPMN",
         val longTapGrid: String = "XXXXXXXXX",
-        val webtoonTapScroll: Boolean = false,
+        val webtoonTapScroll: Boolean = true,
         val skipReadChapters: Boolean = false,
         val autoAdvanceChapter: Boolean = false,
         val pauseProgressSaving: Boolean = false,
@@ -152,8 +190,8 @@ class MangaReaderViewModel(
         val readerBackground: String = "Black",
         val doublePage: Boolean = false,
         val coverAlone: Boolean = false,
-        val webtoonAutoScrollSpeed: Int = 40,
-        val webtoonScrollPercent: Int = 80,
+        val webtoonAutoScrollSpeed: Int = 32,
+        val webtoonScrollPercent: Int = 90,
         val preloadAhead: Int = -1,
         val volumeKeys: Boolean = false,
         val invertVolumeKeys: Boolean = false,
@@ -222,6 +260,7 @@ class MangaReaderViewModel(
                             hue = settings.mangaHue,
                             fitMode = fit,
                             customBrightness = settings.mangaBrightness,
+                            webtoon = settings.mangaWebtoon.sanitized(),
                             webtoonPadding = settings.mangaWebtoonPadding,
                             webtoonGap = settings.mangaWebtoonGap,
                             showPageNumber = settings.mangaShowPageNumber,
@@ -330,40 +369,37 @@ class MangaReaderViewModel(
         pendingProgress.clear()
         progressSaveJobs.values.forEach { it.cancel() }
         progressSaveJobs.clear()
-        flushScope.launch {
-            unsaved.forEach { progress ->
-                runCatching {
-                    dao.upsertIfNewer(progress)
-                    com.kitsugi.animelist.data.local.MangaReadHistoryManager.record(
-                        sourceName = source.name,
-                        mangaUrl = mangaDetails.url,
-                        mangaTitle = mangaDetails.title,
-                        thumbnailUrl = mangaDetails.thumbnailUrl,
-                        chapterUrl = progress.chapterUrl,
-                        chapterName = progress.chapterName,
-                        lastPageIndex = progress.lastPageIndex,
-                        totalPages = progress.totalPages,
-                        isCompleted = progress.isCompleted
-                    )
-                }
-            }
+        unsaved.forEach { progress ->
+            progressWrites.trySend(progress)
         }
     }
 
     /**
-     * Sayfa değiştikçe Room'a anlık olarak kaydeder.
-     * Bölüm tamamlandıysa isCompleted = true olarak işaretler.
+     * Görünen kaynak konumunu 500 ms debounce ile kaydeder; çıkış/bölüm geçişinde flush edilir.
+     * Webtoon tamamlanması son görselin alt ucunun görünmesine bağlıdır.
      */
     // F5: Progress debounce — 500ms bekle, hızlı swipe'ta tekrar tetiklenirse iptal et
-    fun onPageChanged(chapterUrl: String, pageIndex: Int, totalPages: Int) {
-        if (totalPages <= 0 || chapterUrl != _uiState.value.currentChapter.url) return
+    fun onPageChanged(
+        chapterUrl: String,
+        pageIndex: Int,
+        totalPages: Int,
+        pageOffset: Float = 0f,
+        reachedEnd: Boolean? = null,
+    ) {
+        val state = _uiState.value
+        if (totalPages <= 0 || chapterUrl != state.currentChapter.url || state.isLoadingPages) return
         val safePageIndex = pageIndex.coerceIn(0, totalPages - 1)
-        val chapterName = _uiState.value.currentChapter.name
-        val paused = _uiState.value.pauseProgressSaving
-        val decision = readerProgressDecision(paused, chapterUrl in completedChapterUrls,
-            chapterUrl in sessionOnlyCompletedUrls, _uiState.value.readingMode == ReadingMode.Webtoon,
-            safePageIndex, totalPages)
-        val isCompleted = decision.completed
+        val fraction = MangaReaderPreferences.finite(pageOffset, 0f, 0f, 1f)
+        val paused = state.pauseProgressSaving
+        val alreadyCompleted = chapterUrl in completedChapterUrls || chapterUrl in sessionOnlyCompletedUrls
+        // A long last image is NOT complete just because its first pixel became visible.
+        val isCompleted = MangaReadingProgressPolicy.isComplete(
+            state.readingMode,
+            safePageIndex,
+            totalPages,
+            reachedEnd,
+            alreadyCompleted
+        )
         if (isCompleted) {
             if (paused) sessionOnlyCompletedUrls.add(chapterUrl) else {
                 completedChapterUrls.add(chapterUrl)
@@ -371,36 +407,25 @@ class MangaReaderViewModel(
             }
         }
         _uiState.update { it.copy(currentPageIndex = safePageIndex) }
-        if (!decision.persist) return
-        progressSaveJobs[chapterUrl]?.cancel()
-        val progress = MangaChapterProgressEntity(
+        if (paused) return
+        val snapshot = MangaChapterProgressEntity(
             chapterUrl = chapterUrl,
             mangaUrl = mangaDetails.url,
-            chapterName = chapterName,
+            chapterName = state.currentChapter.name,
             lastPageIndex = safePageIndex,
+            lastPageOffset = fraction,
             totalPages = totalPages,
             isCompleted = isCompleted,
             updatedAt = nextReaderProgressTimestamp()
         )
-        pendingProgress[chapterUrl] = progress
+        if (pendingProgress[chapterUrl]?.let { it.copy(updatedAt = snapshot.updatedAt) == snapshot } == true) return
+        pendingProgress[chapterUrl] = snapshot
+        progressSaveJobs[chapterUrl]?.cancel()
         val job = viewModelScope.launch(start = kotlinx.coroutines.CoroutineStart.LAZY) {
             try {
                 kotlinx.coroutines.delay(500L)
-                dao.upsertIfNewer(progress)
-                runCatching {
-                    com.kitsugi.animelist.data.local.MangaReadHistoryManager.record(
-                        sourceName = source.name,
-                        mangaUrl = mangaDetails.url,
-                        mangaTitle = mangaDetails.title,
-                        thumbnailUrl = mangaDetails.thumbnailUrl,
-                        chapterUrl = progress.chapterUrl,
-                        chapterName = progress.chapterName,
-                        lastPageIndex = progress.lastPageIndex,
-                        totalPages = progress.totalPages,
-                        isCompleted = progress.isCompleted
-                    )
-                }
-                if (pendingProgress[chapterUrl] === progress) pendingProgress.remove(chapterUrl)
+                progressWrites.send(snapshot)
+                if (pendingProgress[chapterUrl] === snapshot) pendingProgress.remove(chapterUrl)
             } finally {
                 if (progressSaveJobs[chapterUrl] === kotlin.coroutines.coroutineContext[kotlinx.coroutines.Job]) {
                     progressSaveJobs.remove(chapterUrl)
@@ -415,7 +440,7 @@ class MangaReaderViewModel(
         if (chapterUrl != _uiState.value.currentChapter.url || totalPages <= 0) return
         if (_uiState.value.pauseProgressSaving) sessionOnlyCompletedUrls.add(chapterUrl)
         else completedChapterUrls.add(chapterUrl)
-        onPageChanged(chapterUrl, totalPages - 1, totalPages)
+        onPageChanged(chapterUrl, totalPages - 1, totalPages, pageOffset = 1f, reachedEnd = true)
     }
 
     /** Session-only progress suppression; this is not an anonymous browsing mode. */
@@ -588,10 +613,40 @@ class MangaReaderViewModel(
         viewModelScope.launch { settingsDataStore.setMangaWebtoonAutoNext(value) }
     }
 
+    fun setWebtoonPreferences(value: MangaWebtoonPreferences) {
+        lastLocalPrefChangeAt = System.currentTimeMillis()
+        val safe = value.sanitized()
+        _uiState.update {
+            it.copy(
+                webtoon = safe,
+                webtoonPadding = safe.sidePaddingDp,
+                webtoonGap = safe.pageGapDp,
+                webtoonScrollPercent = safe.scrollPercent,
+                webtoonTapScroll = safe.tapToScroll,
+                volumeKeys = safe.volumeKeys,
+                webtoonAutoScrollSpeed = safe.autoScrollDpPerSecond,
+                readerBackground = safe.background,
+                showPageNumber = safe.showPageNumber,
+                keepScreenOn = safe.keepScreenOn
+            )
+        }
+        viewModelScope.launch { settingsDataStore.setMangaWebtoonPreferences(safe) }
+    }
+
+    fun retryVisiblePages() {
+        if (_uiState.value.pagesError != null) { retryLoadPages(); return }
+        val current = _uiState.value.currentPageIndex
+        val failed = pages.value.filter { it.index in (current - 1)..(current + 3) && it.status == MangaPageStatus.Error }
+        if (failed.isNotEmpty()) failed.forEach(loader::retryPage)
+        else pages.value.getOrNull(current)?.let(loader::retryPage)
+    }
+
     // ─── Bölüm gezinme ───────────────────────────────────────────────────────
 
     // F6: Bölüm değişiminde eski queue'yu temizle — yanlış sayfa yükleme önler
     fun goToChapter(chapter: MangaChapter) {
+        if (chapter.url == _uiState.value.currentChapter.url) return
+        flushProgress()
         // Kullanıcı bir çevirmen seçtiyse sonraki bölümlerde de o çevirmen önerilir.
         chapter.scanlator?.takeIf { it.isNotBlank() }?.let { scanlator ->
             scanlatorPrefs.setPreferredScanlator(mangaDetails.url, scanlator)
@@ -601,6 +656,8 @@ class MangaReaderViewModel(
             it.copy(
                 currentChapter = chapter,
                 currentPageIndex = 0,
+                restoredPageOffset = 0f,
+                isLoadingPages = true,
                 pendingChoice = null,
                 preferredScanlator = scanlatorPrefs.preferredScanlator(mangaDetails.url)
             )
@@ -810,12 +867,16 @@ class MangaReaderViewModel(
             val saved = dao.getProgress(chapter.url)
             if (saved?.isCompleted == true) completedChapterUrls.add(chapter.url)
             val pageIndex = if (saved != null && !saved.isCompleted) saved.lastPageIndex else 0
-            _uiState.update { it.copy(currentPageIndex = pageIndex) }
+            val pageOffset = if (saved != null && !saved.isCompleted) {
+                MangaReaderPreferences.finite(saved.lastPageOffset, 0f, 0f, 1f)
+            } else 0f
+            _uiState.update { it.copy(currentPageIndex = pageIndex, restoredPageOffset = pageOffset) }
             try {
                 loader.loadPageList(chapter)
                 kotlinx.coroutines.currentCoroutineContext().ensureActive()
                 val restoredIndex = pageIndex.coerceIn(0, (loader.pages.value.size - 1).coerceAtLeast(0))
-                _uiState.update { it.copy(currentPageIndex = restoredIndex) }
+                val restoredOffset = if (restoredIndex == pageIndex) pageOffset else 0f
+                _uiState.update { it.copy(currentPageIndex = restoredIndex, restoredPageOffset = restoredOffset) }
                 loader.onPageChanged(restoredIndex)
                 if (loader.pages.value.isEmpty()) {
                     _uiState.update {
@@ -869,20 +930,8 @@ class MangaReaderViewModel(
     }
 
     override fun onCleared() {
-        val unsaved = pendingProgress.values.toList()
-        progressSaveJobs.values.forEach { it.cancel() }
-        progressSaveJobs.clear()
-        if (unsaved.isNotEmpty()) {
-            flushScope.launch {
-                unsaved.forEach { progress ->
-                    try {
-                        dao.upsertIfNewer(progress)
-                    } catch (e: Exception) {
-                        android.util.Log.e("MangaReader", "Unable to save pending progress", e)
-                    }
-                }
-            }
-        }
+        flushProgress()
+        progressWrites.close()
         loader.recycle()
         super.onCleared()
     }

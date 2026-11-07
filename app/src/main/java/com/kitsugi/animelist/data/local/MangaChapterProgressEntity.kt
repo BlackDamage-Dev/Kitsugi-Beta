@@ -27,6 +27,9 @@ data class MangaChapterProgressEntity(
     val chapterName: String,
     @ColumnInfo(defaultValue = "0")
     val lastPageIndex: Int = 0,
+    /** Upright source-image fraction at the viewport top, independent of density/zoom. */
+    @ColumnInfo(defaultValue = "0")
+    val lastPageOffset: Float = 0f,
     @ColumnInfo(defaultValue = "0")
     val totalPages: Int = 0,
     @ColumnInfo(defaultValue = "0")
@@ -46,16 +49,16 @@ interface MangaChapterProgressDao {
     suspend fun insertIfAbsent(progress: MangaChapterProgressEntity): Long
 
     @Query("""UPDATE manga_chapter_progress SET mangaUrl = :mangaUrl, chapterName = :chapterName,
-        lastPageIndex = :lastPageIndex, totalPages = :totalPages, isCompleted = :isCompleted, updatedAt = :updatedAt
+        lastPageIndex = :lastPageIndex, lastPageOffset = :lastPageOffset, totalPages = :totalPages, isCompleted = :isCompleted, updatedAt = :updatedAt
         WHERE chapterUrl = :chapterUrl AND updatedAt <= :updatedAt""")
     suspend fun updateIfNotOlder(chapterUrl: String, mangaUrl: String, chapterName: String,
-        lastPageIndex: Int, totalPages: Int, isCompleted: Boolean, updatedAt: Long): Int
+        lastPageIndex: Int, lastPageOffset: Float, totalPages: Int, isCompleted: Boolean, updatedAt: Long): Int
 
     @Transaction
     suspend fun upsertIfNewer(progress: MangaChapterProgressEntity) {
         if (insertIfAbsent(progress) == -1L) {
             updateIfNotOlder(progress.chapterUrl, progress.mangaUrl, progress.chapterName,
-                progress.lastPageIndex, progress.totalPages, progress.isCompleted, progress.updatedAt)
+                progress.lastPageIndex, progress.lastPageOffset, progress.totalPages, progress.isCompleted, progress.updatedAt)
         }
     }
 

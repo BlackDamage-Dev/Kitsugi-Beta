@@ -81,6 +81,8 @@ class MangaPage(
     /** Source-processed image file; the UI must never refetch imageUrl independently. */
     var localFile: java.io.File? = null
     var aspectRatio: Float? by mutableStateOf(null)
+    var imageInfo: MangaImageInfo? by mutableStateOf(null)
+    var cachedImageFile: java.io.File? = null
 
     /** Yerel arşiv dosyası yolu (ZIP/CBZ/RAR içindeki sayfa) — null ise normal HTTP akışı. */
     var archivePath: String? = null

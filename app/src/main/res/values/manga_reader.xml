@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="reader_chapter_end">Bölüm sonu</string>
+    <string name="reader_retry">Tekrar dene</string>
+    <string name="reader_chapters">Bölümler</string>
+    <string name="reader_fullscreen">Tam ekran</string>
+    <string name="reader_auto_scroll">Otomatik kaydırmayı başlat / durdur</string>
+    <string name="reader_shortcuts">Klavye kısayolları</string>
+    <string name="reader_webtoon_hint">Tek ve kesintisiz şerit: bütün görseller aynı genişliğe sığar. İki parmakla veya çift dokunarak tüm şeridi yakınlaştırabilirsiniz.</string>
+    <string name="reader_side_padding">Webtoon yan boşluğu</string>
+    <string name="reader_page_gap">Görseller arası boşluk</string>
+    <string name="reader_scroll_amount">Dokunma / tuş ile kaydırma (ekran yüzdesi)</string>
+    <string name="reader_tap_scroll">Üst / alt alana dokunarak kaydır</string>
+    <string name="reader_auto_scroll_speed">Otomatik kaydırma hızı: %1$d dp/sn</string>
+    <string name="reader_sepia">Sepya</string>
+    <string name="reader_background">Sayfa arka planı</string>
+    <string name="reader_black">Siyah</string>
+    <string name="reader_dark_gray">Koyu gri</string>
+    <string name="reader_white">Beyaz</string>
+    <string name="reader_volume_keys">Kontroller gizliyken ses tuşlarıyla ilerle</string>
+    <string name="reader_page_number">Kontroller gizliyken sayfa sayacı</string>
+    <string name="reader_keep_screen_on">Okurken ekranı açık tut</string>
+    <string name="reader_reset_preferences">Görünüm ve kaydırma tercihlerini sıfırla</string>
+    <string name="reader_go_to_page">Sayfaya git</string>
+    <string name="reader_page_range">Sayfa (1–%1$d)</string>
+    <string name="reader_go">Git</string>
+    <string name="reader_keys_horizontal">Yatay gezinme; manga modunda sağdan sola yönüne uyar.</string>
+    <string name="reader_keys_vertical">Aşağı / yukarı ilerle (J: aşağı, K: yukarı).</string>
+    <string name="reader_keys_screen">İleri / geri: webtoonda görsel atlamak yerine ekran boyuna göre kaydırır.</string>
+    <string name="reader_keys_ends">Bölümün başına / sonuna git.</string>
+    <string name="reader_keys_chapters">Sonraki / önceki bölüm (tuşu basılı tutmak bölüm atlatmaz).</string>
+    <string name="reader_keys_menu">Kontrolleri göster / gizle.</string>
+    <string name="reader_keys_mode">Okuma modunu değiştir.</string>
+    <string name="reader_keys_fit">Görsel sığdırma modunu değiştir.</string>
+    <string name="reader_keys_zoom">Tüm webtoon şeridini yakınlaştır / uzaklaştır.</string>
+    <string name="reader_keys_reset_zoom">Yakınlaştırmayı sıfırla.</string>
+    <string name="reader_keys_back">Önce açık paneli, ardından webtoon yakınlaştırmasını ve kontrolleri kapatır; sonra okuyucudan çıkar.</string>
+    <string name="reader_keys_focus">Butonlar arasında gezin ve odaktaki butonu çalıştır.</string>
+    <string name="reader_keys_scope">Kısayollar okuma alanı odaktayken çalışır. Açık menü, metin alanı veya sürgünün tuşlarını çalmaz. Ses tuşları isteğe bağlıdır. Dokunma otomatik kaydırmayı durdurur.</string>
+</resources>
