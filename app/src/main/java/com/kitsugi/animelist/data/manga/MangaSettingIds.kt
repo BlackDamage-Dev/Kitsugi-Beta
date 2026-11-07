@@ -61,6 +61,8 @@ object MangaSettingIds {
     const val FILTER_GRAYSCALE = "Grayscale"
     const val FILTER_SEPIA = "Sepia"
     const val FILTER_INVERT = "Invert"
+    const val FILTER_HIGH_CONTRAST = "HighContrast"
+    const val FILTER_SOFT = "Soft"
 
     fun colorFilterId(filter: ColorFilterType): String = when (filter) {
         ColorFilterType.Normal -> FILTER_NORMAL
@@ -69,6 +71,8 @@ object MangaSettingIds {
         ColorFilterType.Grayscale -> FILTER_GRAYSCALE
         ColorFilterType.Sepia -> FILTER_SEPIA
         ColorFilterType.Invert -> FILTER_INVERT
+        ColorFilterType.HighContrast -> FILTER_HIGH_CONTRAST
+        ColorFilterType.Soft -> FILTER_SOFT
     }
 
     fun colorFilter(id: String?): ColorFilterType = when (id?.trim()?.lowercase()) {
@@ -77,6 +81,8 @@ object MangaSettingIds {
         "grayscale", "greyscale", "gri", "griton", "gray" -> ColorFilterType.Grayscale
         "sepia", "sepya" -> ColorFilterType.Sepia
         "invert", "inverted", "ters", "terscevir", "negatif" -> ColorFilterType.Invert
+        "highcontrast", "yuksekkontrast", "yüksekkontrast" -> ColorFilterType.HighContrast
+        "soft", "yumusak", "yumuşak" -> ColorFilterType.Soft
         else -> ColorFilterType.Normal
     }
 
@@ -86,6 +92,8 @@ object MangaSettingIds {
     const val FIT_HEIGHT = "FitHeight"
     const val FIT_CROP = "Crop"
     const val FIT_ORIGINAL = "Original"
+    const val FIT_STRETCH = "Stretch"
+    const val FIT_SMART = "SmartFit"
 
     fun fitModeId(mode: MangaFitMode): String = when (mode) {
         MangaFitMode.FitScreen -> FIT_SCREEN
@@ -93,6 +101,8 @@ object MangaSettingIds {
         MangaFitMode.FitHeight -> FIT_HEIGHT
         MangaFitMode.Crop -> FIT_CROP
         MangaFitMode.Original -> FIT_ORIGINAL
+        MangaFitMode.Stretch -> FIT_STRETCH
+        MangaFitMode.SmartFit -> FIT_SMART
     }
 
     fun fitMode(id: String?): MangaFitMode = when (id?.trim()?.lowercase()) {
@@ -100,6 +110,8 @@ object MangaSettingIds {
         "fitheight", "yukseklik", "yükseklik", "heightfit" -> MangaFitMode.FitHeight
         "crop", "kirp", "kırp", "doldur" -> MangaFitMode.Crop
         "original", "orijinal", "none" -> MangaFitMode.Original
+        "stretch", "uzat" -> MangaFitMode.Stretch
+        "smartfit", "smart", "akilli", "akıllı" -> MangaFitMode.SmartFit
         else -> MangaFitMode.FitScreen
     }
 
@@ -111,12 +123,10 @@ object MangaSettingIds {
         ReadingMode.Webtoon -> ReadingMode.RightToLeft
     }
 
-    fun nextFitMode(mode: MangaFitMode): MangaFitMode = when (mode) {
-        MangaFitMode.FitScreen -> MangaFitMode.FitWidth
-        MangaFitMode.FitWidth -> MangaFitMode.FitHeight
-        MangaFitMode.FitHeight -> MangaFitMode.Crop
-        MangaFitMode.Crop -> MangaFitMode.Original
-        MangaFitMode.Original -> MangaFitMode.FitScreen
+    fun nextFitMode(mode: MangaFitMode): MangaFitMode {
+        val order = MangaFitMode.cycleOrder
+        val idx = order.indexOf(mode).coerceAtLeast(0)
+        return order[(idx + 1) % order.size]
     }
 }
 

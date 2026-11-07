@@ -5,14 +5,14 @@ import com.kitsugi.animelist.data.manga.ReadingMode
 /** Platform-independent key policy. Android key codes are adapted in MangaReaderKeyHandler. */
 enum class ReaderKey {
     Left, Right, Up, Down, PageUp, PageDown, Home, End, Space, Enter, Menu, Escape, Back,
-    N, P, M, S, C, G, R, F, O, D, I, B, A, H, J, K, F1, Plus, Minus, Zero,
+    N, P, M, S, C, G, R, F, O, D, I, B, A, Q, H, J, K, F1, Plus, Minus, Zero,
     LeftBracket, RightBracket, VolumeUp, VolumeDown, Other,
 }
 
 enum class ReaderAction(val repeatable: Boolean = false) {
     Forward(true), Backward(true), NextChapter, PreviousChapter, FirstPage, LastPage,
     ToggleMenu, Settings, Chapters, GoToPage, Retry, Fullscreen, Rotate, CycleMode, CycleFit,
-    CycleBackground, ToggleAutoScroll, Help, ZoomIn(true), ZoomOut(true), ResetZoom, Back,
+    CycleBackground, CycleBarStage, ToggleAutoScroll, Help, ZoomIn(true), ZoomOut(true), ResetZoom, Back,
 }
 
 data class ReaderKeyStroke(
@@ -108,6 +108,7 @@ object MangaReaderShortcutPolicy {
             ReaderKey.D -> ReaderAction.CycleMode
             ReaderKey.I -> if (context.mode != ReadingMode.Webtoon) ReaderAction.CycleFit else return ReaderKeyResult()
             ReaderKey.B -> ReaderAction.CycleBackground
+            ReaderKey.Q -> ReaderAction.CycleBarStage
             ReaderKey.A -> if (context.mode == ReadingMode.Webtoon) ReaderAction.ToggleAutoScroll else return ReaderKeyResult()
             ReaderKey.H, ReaderKey.F1 -> ReaderAction.Help
             ReaderKey.Plus -> if (context.mode == ReadingMode.Webtoon) ReaderAction.ZoomIn else return ReaderKeyResult()

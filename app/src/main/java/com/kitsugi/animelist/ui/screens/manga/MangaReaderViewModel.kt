@@ -30,6 +30,9 @@ import com.kitsugi.animelist.data.manga.SourceFailureClassifier
 import com.kitsugi.animelist.data.settings.SettingsDataStore
 import com.kitsugi.animelist.data.manga.ColorFilterType
 import com.kitsugi.animelist.data.manga.MangaFitMode
+import com.kitsugi.animelist.data.manga.MangaReaderOptions
+import com.kitsugi.animelist.data.manga.MangaPageBackground
+import com.kitsugi.animelist.data.manga.MangaCropProfile
 import com.kitsugi.animelist.data.manga.ChapterChoiceReason
 import com.kitsugi.animelist.data.manga.ChapterChoiceRequest
 import com.kitsugi.animelist.data.manga.ChapterVariantInfo
@@ -158,6 +161,13 @@ class MangaReaderViewModel(
         val currentChapter: MangaChapter,
         val chapterList: List<MangaChapter> = emptyList(),
         val currentPageIndex: Int = 0,
+        val options: MangaReaderOptions = MangaReaderOptions(),
+        /** Bölüm yer imleri (Kotatsu "bookmarks"). */
+        val bookmarks: List<MangaReaderBookmark> = emptyList(),
+        /** Otomatik sonraki bölüm geri sayımı (saniye); null = kapalı. */
+        val autoNextCountdown: Int? = null,
+        /** Otomatik kaydırma çalışıyor mu? */
+        val autoScrollRunning: Boolean = false,
         val readingMode: ReadingMode = ReadingMode.RightToLeft,
         val seriesModeOverride: Boolean = false,
         val colorFilterType: ColorFilterType = ColorFilterType.Normal,
@@ -224,6 +234,12 @@ class MangaReaderViewModel(
     private val _uiState = MutableStateFlow(UiState(currentChapter = initialChapter))
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
+    private var localOptions: MangaReaderOptions? = null
+    private var optionsSaveJob: kotlinx.coroutines.Job? = null
+    private var mangaPresets: MutableMap<String, String> = mutableMapOf()
+    private var presetsLoaded = false
+    private var autoNextJob: kotlinx.coroutines.Job? = null
+
     init {
         observeSettings()
         // Manga-TR gibi imzalı/gate'li kaynaklarda bölüm listesi ile okuyucu
@@ -244,13 +260,18 @@ class MangaReaderViewModel(
     private fun observeSettings() {
         viewModelScope.launch {
             settingsDataStore.settingsFlow.collect { settings ->
-                // Tek doğruluk kaynağı: MangaSettingIds. Eski sürümlerin yazdığı
-                // "GrayScale", "Inverted", "Warm", "Cool", "WebtoonZoom" gibi
-                // değerler burada geriye dönük uyumlu olarak çözülür.
-                val mode = MangaSettingIds.readingMode(settings.mangaReadingMode)
-                val filter = MangaSettingIds.colorFilter(settings.mangaColorFilter)
-                val fit = MangaSettingIds.fitMode(settings.mangaFitMode)
-                updatePreload(readerPreloadCount(settings.mangaPreloadAhead, mode == ReadingMode.Webtoon))
+                if (!presetsLoaded) {
+                    presetsLoaded = true
+                    mangaPresets = settings.mangaReaderPresets.toMutableMap()
+                }
+                val base = localOptions ?: settings.mangaReaderOptions
+                val presetShape = mangaPresets[mangaKey()]
+                val options = if (presetShape != null && base.perMangaMode && localOptions == null) {
+                    applyPerMangaPreset(presetShape, base)
+                } else {
+                    base
+                }
+                updatePreload(readerPreloadCount(settings.mangaPreloadAhead, options.readingMode == ReadingMode.Webtoon))
                 loader.keepBehind = 1
                 // Kullanıcı az önce okuyucudan bir ayar değiştirdiyse, DataStore'dan
                 // gelen (henüz güncellenmemiş) değer ekranı geri sıçratmasın.
@@ -258,22 +279,22 @@ class MangaReaderViewModel(
                 if (!keepLocal) {
                     _uiState.update {
                         it.copy(
-                            readingMode = mode,
-                            colorFilterType = filter,
-                            saturation = settings.mangaSaturation,
-                            contrast = settings.mangaContrast,
-                            hue = settings.mangaHue,
-                            fitMode = fit,
-                            customBrightness = settings.mangaBrightness,
+                            options = options,
+                            readingMode = options.readingMode,
+                            colorFilterType = options.colorFilter,
+                            saturation = (options.saturation * 100).toInt(),
+                            contrast = (options.contrast * 100).toInt(),
+                            fitMode = options.fitMode,
+                            customBrightness = options.brightness,
                             webtoon = settings.mangaWebtoon.sanitized(),
-                            webtoonPadding = settings.mangaWebtoonPadding,
-                            webtoonGap = settings.mangaWebtoonGap,
-                            showPageNumber = settings.mangaShowPageNumber,
-                            keepScreenOn = settings.mangaKeepScreenOn,
-                            immersive = settings.mangaImmersive,
-                            cropBorders = settings.mangaCropBorders,
-                            cropBordersWebtoon = settings.mangaCropBordersWebtoon,
-                            webtoonZoom = settings.mangaWebtoonZoom,
+                            webtoonPadding = options.sidePaddingDp,
+                            webtoonGap = options.pageGapDp,
+                            showPageNumber = options.showPageNumber,
+                            keepScreenOn = options.keepScreenOn,
+                            immersive = options.immersive,
+                            cropBorders = options.cropBorders,
+                            cropBordersWebtoon = options.cropBorders,
+                            webtoonZoom = options.webtoonZoom,
                             wideRotation = settings.mangaWideRotation,
                             wideRotationWebtoon = settings.mangaWideRotationWebtoon,
                             invertTapZones = settings.mangaInvertTapZones,
@@ -281,23 +302,23 @@ class MangaReaderViewModel(
                             tapGrid = settings.mangaTapGrid,
                             longTapGrid = settings.mangaLongTapGrid,
                             webtoonTapScroll = settings.mangaWebtoonTapScroll,
-                            skipReadChapters = settings.mangaSkipReadChapters,
-                            autoAdvanceChapter = settings.mangaAutoAdvanceChapter,
+                            skipReadChapters = options.skipReadChapters,
+                            autoAdvanceChapter = options.autoNextChapterSeconds > 0,
                             webtoonAutoNext = settings.mangaWebtoonAutoNext,
-                            readerBackground = settings.mangaReaderBackground,
-                            doublePage = settings.mangaDoublePage,
-                            coverAlone = settings.mangaCoverAlone,
-                            dualPage = settings.mangaDualPage,
-                            dualPageFirstSolo = settings.mangaDualPageFirstSolo,
+                            readerBackground = options.background.name,
+                            doublePage = options.dualPage,
+                            coverAlone = options.firstPageSingle,
+                            dualPage = options.dualPage,
+                            dualPageFirstSolo = options.firstPageSingle,
                             stitchDualPages = settings.mangaStitchDualPages,
-                            autoScrollSpeed = settings.mangaAutoScrollSpeed,
+                            autoScrollSpeed = options.autoScrollSpeed,
                             hiddenPageCounter = settings.mangaHiddenPageCounter,
-                            webtoonAutoScrollSpeed = settings.mangaAutoScrollSpeed,
+                            webtoonAutoScrollSpeed = options.autoScrollSpeed,
                             webtoonScrollPercent = settings.mangaWebtoonScrollPercent,
                             preloadAhead = settings.mangaPreloadAhead,
                             volumeKeys = settings.mangaVolumeKeys,
-                            invertVolumeKeys = settings.mangaInvertVolumeKeys,
-                            autoFullscreen = settings.mangaAutoFullscreen,
+                            invertVolumeKeys = options.invertVolumeKeys,
+                            autoFullscreen = options.immersive,
                             settingsLoaded = true
                         )
                     }
@@ -312,6 +333,158 @@ class MangaReaderViewModel(
                 loader.keepBehind = 1
                 _uiState.update { it.copy(readingMode = mode, seriesModeOverride = seriesMode != null) }
             }
+        }
+    }
+
+    /**
+     * Seçenekleri günceller ve (debounce ile) kalıcı yazar.
+     * UI iyimser davranır: DataStore turu beklenmeden buton/slider tepki verir.
+     */
+    fun updateOptions(block: (MangaReaderOptions) -> MangaReaderOptions) {
+        val next = block(_uiState.value.options)
+        if (next == _uiState.value.options) return
+        lastLocalPrefChangeAt = System.currentTimeMillis()
+        localOptions = next
+        _uiState.update {
+            it.copy(
+                options = next,
+                readingMode = next.readingMode,
+                colorFilterType = next.colorFilter,
+                fitMode = next.fitMode,
+                customBrightness = next.brightness,
+                cropBorders = next.cropBorders,
+                cropBordersWebtoon = next.cropBorders,
+                dualPage = next.dualPage,
+                doublePage = next.dualPage,
+                coverAlone = next.firstPageSingle,
+                dualPageFirstSolo = next.firstPageSingle,
+                showPageNumber = next.showPageNumber,
+                keepScreenOn = next.keepScreenOn,
+                immersive = next.immersive,
+                webtoonZoom = next.webtoonZoom,
+                skipReadChapters = next.skipReadChapters,
+                invertVolumeKeys = next.invertVolumeKeys,
+                autoScrollSpeed = next.autoScrollSpeed,
+                webtoonAutoScrollSpeed = next.autoScrollSpeed,
+                webtoonPadding = next.sidePaddingDp,
+                webtoonGap = next.pageGapDp,
+                contrast = (next.contrast * 100).toInt(),
+                saturation = (next.saturation * 100).toInt()
+            )
+        }
+        updatePreload(readerPreloadCount(_uiState.value.preloadAhead, next.readingMode == ReadingMode.Webtoon))
+        rememberPerManga(next)
+        scheduleOptionsSave()
+    }
+
+    private fun rememberPerManga(next: MangaReaderOptions) {
+        if (!next.perMangaMode) return
+        if (!presetsLoaded) return
+        val key = mangaKey()
+        val shape = next.readingShape
+        if (mangaPresets[key] == shape) return
+        mangaPresets[key] = shape
+        viewModelScope.launch { settingsDataStore.setMangaReaderPresets(mangaPresets.toMap()) }
+    }
+
+    private fun applyPerMangaPreset(shape: String, base: MangaReaderOptions): MangaReaderOptions {
+        val parts = shape.split("|")
+        if (parts.size < 7) return base
+        fun part(i: Int): String? = parts.getOrNull(i)?.takeIf { it.isNotBlank() }
+        return base.copy(
+            readingMode = ReadingMode.fromKey(parts[0]),
+            fitMode = MangaFitMode.fromKey(parts[1]),
+            dualPage = part(2)?.toBooleanStrictOrNull() ?: base.dualPage,
+            dualPageOnLandscape = part(3)?.toBooleanStrictOrNull() ?: base.dualPageOnLandscape,
+            cropProfile = MangaCropProfile.fromKey(parts[4]),
+            rotateWidePages = part(5)?.toBooleanStrictOrNull() ?: base.rotateWidePages,
+            rotateWidePagesInvert = part(6)?.toBooleanStrictOrNull() ?: base.rotateWidePagesInvert,
+            firstPageSingle = part(7)?.toBooleanStrictOrNull() ?: base.firstPageSingle,
+            dualPageInvert = part(8)?.toBooleanStrictOrNull() ?: base.dualPageInvert
+        )
+    }
+
+    private fun mangaKey(): String = mangaDetails.url.ifBlank { mangaDetails.title }
+
+    private val MangaReaderOptions.readingShape: String
+        get() = listOf(
+            readingMode.toKey(), fitMode.key, dualPage, dualPageOnLandscape,
+            cropProfile.key, rotateWidePages, rotateWidePagesInvert,
+            firstPageSingle, dualPageInvert
+        ).joinToString("|")
+
+    private fun scheduleOptionsSave(immediate: Boolean = false) {
+        optionsSaveJob?.cancel()
+        optionsSaveJob = viewModelScope.launch {
+            if (!immediate) kotlinx.coroutines.delay(250L)
+            settingsDataStore.setMangaReaderOptions(_uiState.value.options)
+        }
+    }
+
+    private fun <T> nextInCycle(order: List<T>, current: T): T =
+        order[(order.indexOf(current).coerceAtLeast(0) + 1) % order.size]
+
+    fun cycleColorFilter() {
+        updateOptions { it.copy(colorFilter = nextInCycle(ColorFilterType.cycleOrder, it.colorFilter)) }
+    }
+
+    fun cycleBackground() {
+        updateOptions { it.copy(background = nextInCycle(MangaPageBackground.cycleOrder, it.background)) }
+    }
+
+    fun cycleFitMode() {
+        updateOptions { it.copy(fitMode = nextInCycle(MangaFitMode.cycleOrder, it.fitMode)) }
+    }
+
+    fun cycleReadingMode() {
+        updateOptions { it.copy(readingMode = nextInCycle(ReadingMode.cycleOrder, it.readingMode)) }
+    }
+
+    fun toggleBookmark(pageIndex: Int) {
+        val current = _uiState.value.bookmarks
+        val chapterUrl = _uiState.value.currentChapter.url
+        val existing = current.firstOrNull { it.chapterUrl == chapterUrl && it.pageIndex == pageIndex }
+        val next = if (existing != null) {
+            current - existing
+        } else {
+            current + MangaReaderBookmark(chapterUrl, _uiState.value.currentChapter.name, pageIndex)
+        }
+        _uiState.update { it.copy(bookmarks = next) }
+    }
+
+    fun setAutoScrollRunning(running: Boolean) {
+        _uiState.update { it.copy(autoScrollRunning = running && it.options.autoScrollSpeed > 0) }
+    }
+
+    fun setBackground(background: MangaPageBackground) = updateOptions { it.copy(background = background) }
+
+    fun isAutoScrollEnabled(): Boolean = _uiState.value.options.autoScrollSpeed > 0
+
+    fun maybeStartAutoNext(pageIndex: Int, totalPages: Int) {
+        val seconds = _uiState.value.options.autoNextChapterSeconds
+        if (seconds <= 0 || totalPages <= 1 || pageIndex < totalPages - 1) {
+            cancelAutoNext()
+            return
+        }
+        if (!hasNextChapter) return
+        if (autoNextJob?.isActive == true) return
+        autoNextJob = viewModelScope.launch {
+            var remaining = seconds
+            while (remaining > 0) {
+                _uiState.update { it.copy(autoNextCountdown = remaining) }
+                kotlinx.coroutines.delay(1_000L)
+                remaining--
+            }
+            _uiState.update { it.copy(autoNextCountdown = null) }
+            goToNextChapter()
+        }
+    }
+
+    fun cancelAutoNext() {
+        autoNextJob?.cancel()
+        autoNextJob = null
+        if (_uiState.value.autoNextCountdown != null) {
+            _uiState.update { it.copy(autoNextCountdown = null) }
         }
     }
 
@@ -417,6 +590,7 @@ class MangaReaderViewModel(
             }
         }
         _uiState.update { it.copy(currentPageIndex = safePageIndex) }
+        maybeStartAutoNext(safePageIndex, totalPages)
         if (paused) return
         val snapshot = MangaChapterProgressEntity(
             chapterUrl = chapterUrl,
@@ -677,6 +851,7 @@ class MangaReaderViewModel(
     // F6: Bölüm değişiminde eski queue'yu temizle — yanlış sayfa yükleme önler
     fun goToChapter(chapter: MangaChapter) {
         if (chapter.url == _uiState.value.currentChapter.url) return
+        cancelAutoNext()
         flushProgress()
         // Kullanıcı bir çevirmen seçtiyse sonraki bölümlerde de o çevirmen önerilir.
         chapter.scanlator?.takeIf { it.isNotBlank() }?.let { scanlator ->
@@ -685,6 +860,7 @@ class MangaReaderViewModel(
         loader.resetQueue()
         _uiState.update {
             it.copy(
+                autoScrollRunning = false,
                 currentChapter = chapter,
                 currentPageIndex = 0,
                 restoredPageOffset = 0f,
@@ -961,6 +1137,12 @@ class MangaReaderViewModel(
     }
 
     override fun onCleared() {
+        cancelAutoNext()
+        if (optionsSaveJob?.isActive == true) {
+            runCatching {
+                kotlinx.coroutines.runBlocking { settingsDataStore.setMangaReaderOptions(_uiState.value.options) }
+            }
+        }
         flushProgress()
         progressWrites.close()
         loader.recycle()

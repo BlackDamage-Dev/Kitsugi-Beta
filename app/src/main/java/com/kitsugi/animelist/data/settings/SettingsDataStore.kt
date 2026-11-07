@@ -161,6 +161,8 @@ class SettingsDataStore(
         val MangaHue = intPreferencesKey("manga_hue")
         val MangaFitMode = stringPreferencesKey("manga_fit_mode")
         val MangaBrightness = floatPreferencesKey("manga_brightness")
+        val MangaReaderOptionsJson = stringPreferencesKey("manga_reader_options_json")
+        val MangaReaderPresetsJson = stringPreferencesKey("manga_reader_presets_json")
         val MangaKeepScreenOn = booleanPreferencesKey("manga_keep_screen_on")
         val MangaAutoFullscreen = booleanPreferencesKey("manga_auto_fullscreen")
         val MangaImmersive = booleanPreferencesKey("manga_immersive")
@@ -855,6 +857,25 @@ class SettingsDataStore(
                     mangaHue = (preferences[Keys.MangaHue] ?: 0).coerceIn(-180, 180),
                     mangaFitMode = preferences[Keys.MangaFitMode] ?: "FitScreen",
                     mangaBrightness = MangaReaderPreferences.finite(preferences[Keys.MangaBrightness] ?: 1.0f, 1.0f, 0.1f, 1.0f),
+                    mangaReaderOptions = com.kitsugi.animelist.data.manga.MangaReaderOptions.fromJson(
+                        raw = preferences[Keys.MangaReaderOptionsJson],
+                        fallback = com.kitsugi.animelist.data.manga.MangaReaderOptions(
+                            readingMode = com.kitsugi.animelist.data.manga.ReadingMode.fromKey(preferences[Keys.MangaReadingMode]),
+                            colorFilter = com.kitsugi.animelist.data.manga.ColorFilterType.fromKey(preferences[Keys.MangaColorFilter]),
+                            fitMode = com.kitsugi.animelist.data.manga.MangaFitMode.fromKey(preferences[Keys.MangaFitMode]),
+                            brightness = MangaReaderPreferences.finite(preferences[Keys.MangaBrightness] ?: 1.0f, 1.0f, 0.1f, 1.0f)
+                        )
+                    ),
+                    mangaReaderPresets = runCatching {
+                        val raw = preferences[Keys.MangaReaderPresetsJson]
+                        if (raw.isNullOrBlank()) emptyMap()
+                        else {
+                            val obj = org.json.JSONObject(raw)
+                            buildMap {
+                                obj.keys().forEach { k -> put(k, obj.optString(k, "")) }
+                            }
+                        }
+                    }.getOrDefault(emptyMap()),
                     mangaKeepScreenOn = preferences[Keys.MangaKeepScreenOn] ?: true,
                     mangaAutoFullscreen = preferences[Keys.MangaAutoFullscreen] ?: true,
                     mangaImmersive = preferences[Keys.MangaImmersive] ?: false,
@@ -1478,8 +1499,31 @@ class SettingsDataStore(
     }
 
     suspend fun setMangaBrightness(brightness: Float) {
+        val safeBrightness = normalizeMangaBrightness(brightness)
         context.settingsDataStore.edit { preferences ->
-            preferences[Keys.MangaBrightness] = normalizeMangaBrightness(brightness)
+            preferences[Keys.MangaBrightness] = safeBrightness
+        }
+        runCatching {
+            val current = settingsFlow.first().mangaReaderOptions
+            setMangaReaderOptions(current.copy(brightness = safeBrightness))
+        }
+    }
+
+    suspend fun setMangaReaderPresets(presets: Map<String, String>) {
+        context.settingsDataStore.edit { preferences ->
+            preferences[Keys.MangaReaderPresetsJson] = org.json.JSONObject().apply {
+                presets.forEach { (k, v) -> put(k, v) }
+            }.toString()
+        }
+    }
+
+    suspend fun setMangaReaderOptions(options: com.kitsugi.animelist.data.manga.MangaReaderOptions) {
+        context.settingsDataStore.edit { preferences ->
+            preferences[Keys.MangaReaderOptionsJson] = options.toJson()
+            preferences[Keys.MangaReadingMode] = options.readingMode.toKey()
+            preferences[Keys.MangaColorFilter] = options.colorFilter.key
+            preferences[Keys.MangaFitMode] = options.fitMode.key
+            preferences[Keys.MangaBrightness] = options.brightness
         }
     }
 

@@ -359,6 +359,17 @@ data class DownloadAndMangaSettings(
     val mangaHue: Int = 0,
     val mangaFitMode: String = "FitScreen",
     val mangaBrightness: Float = 1.0f,
+    /**
+     * Manga okuyucunun tamamlanmış ayar seti (tek doğruluk kaynağı).
+     * Diğer alanlar geriye dönük uyum için korunur ve bu nesneyle senkron yazılır.
+     */
+    val mangaReaderOptions: com.kitsugi.animelist.data.manga.MangaReaderOptions =
+        com.kitsugi.animelist.data.manga.MangaReaderOptions(),
+    /**
+     * Manga bazlı okuma biçimi hatırlama: `mangaUrl → readingShape` (tek harita).
+     * `MangaReaderOptions.perMangaMode` açıkken doldurulur.
+     */
+    val mangaReaderPresets: Map<String, String> = emptyMap(),
     /** Okurken ekranın kapanmasını engelle (webtoon okurken çok işe yarar). */
     val mangaKeepScreenOn: Boolean = true,
     /** Okuyucu açıldığında sistem barlarını (durum/gezinme) otomatik gizle. */
@@ -562,6 +573,8 @@ data class AppSettings(
     val mangaHue: Int get() = downloads.mangaHue
     val mangaFitMode: String get() = downloads.mangaFitMode
     val mangaBrightness: Float get() = downloads.mangaBrightness
+    val mangaReaderOptions: com.kitsugi.animelist.data.manga.MangaReaderOptions get() = downloads.mangaReaderOptions
+    val mangaReaderPresets: Map<String, String> get() = downloads.mangaReaderPresets
     val mangaKeepScreenOn: Boolean get() = downloads.mangaKeepScreenOn
     val mangaAutoFullscreen: Boolean get() = downloads.mangaAutoFullscreen
     val mangaImmersive: Boolean get() = downloads.mangaImmersive

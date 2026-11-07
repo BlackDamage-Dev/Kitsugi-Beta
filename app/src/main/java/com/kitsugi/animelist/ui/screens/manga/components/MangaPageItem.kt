@@ -321,10 +321,11 @@ class MangaPageSizeMemory {
 
 /** [MangaFitMode] → Compose [ContentScale]. */
 internal fun MangaFitMode.toContentScale(): ContentScale = when (this) {
-    MangaFitMode.FitScreen -> ContentScale.Fit
+    MangaFitMode.FitScreen, MangaFitMode.SmartFit -> ContentScale.Fit
     MangaFitMode.FitWidth -> ContentScale.FillWidth
     MangaFitMode.FitHeight -> ContentScale.FillHeight
     MangaFitMode.Crop -> ContentScale.Crop
+    MangaFitMode.Stretch -> ContentScale.FillBounds
     MangaFitMode.Original -> ContentScale.None
 }
 
@@ -388,6 +389,10 @@ internal fun ColorFilterType.toComposeColorFilter(): ColorFilter? = when (this) 
             )
         )
     )
+
+    ColorFilterType.HighContrast, ColorFilterType.Soft -> {
+        ColorFilter.colorMatrix(ColorMatrix(com.kitsugi.animelist.data.manga.MangaImageFilters.filterMatrix(this)))
+    }
 }
 
 // ─── Yükleme / hata yer tutucuları ───────────────────────────────────────────

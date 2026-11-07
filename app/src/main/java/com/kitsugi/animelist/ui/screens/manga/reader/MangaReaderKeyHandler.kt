@@ -40,6 +40,7 @@ fun handleMangaReaderKey(
         AndroidKeyEvent.KEYCODE_I -> ReaderKey.I
         AndroidKeyEvent.KEYCODE_B -> ReaderKey.B
         AndroidKeyEvent.KEYCODE_A -> ReaderKey.A
+        AndroidKeyEvent.KEYCODE_Q -> ReaderKey.Q
         AndroidKeyEvent.KEYCODE_H, AndroidKeyEvent.KEYCODE_SLASH -> ReaderKey.H
         AndroidKeyEvent.KEYCODE_J -> ReaderKey.J
         AndroidKeyEvent.KEYCODE_K -> ReaderKey.K

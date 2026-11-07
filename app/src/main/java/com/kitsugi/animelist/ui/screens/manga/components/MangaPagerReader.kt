@@ -10,6 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
@@ -85,11 +86,25 @@ fun MangaPagerReader(
     val nextPage by rememberUpdatedState(onNextPage)
     val prevPage by rememberUpdatedState(onPrevPage)
 
+    val spreadPages = remember(pages) {
+        val opts = com.kitsugi.animelist.data.manga.MangaReaderOptions()
+        pages.filter { page ->
+            page.aspectRatio?.let { com.kitsugi.animelist.ui.screens.manga.MangaReaderPaging.isSpread(it, opts) } == true
+        }.map { it.index }.toSet()
+    }
+    val pageGroups = remember(pages.size, doublePage, coverAlone, spreadPages) {
+        com.kitsugi.animelist.ui.screens.manga.MangaReaderPaging.groups(
+            pages.size,
+            com.kitsugi.animelist.data.manga.MangaReaderOptions(dualPage = doublePage, firstPageSingle = coverAlone),
+            false,
+            spreadPages
+        )
+    }
+
     val pageContent: @Composable (Int) -> Unit = { spreadIndex ->
-        val firstIndex = readerSpreadFirst(spreadIndex, doublePage, coverAlone)
-        val firstPage = pages.getOrNull(firstIndex)
-        val lastIndex = readerSpreadLast(spreadIndex, pages.size, doublePage, coverAlone)
-        val secondPage = if (lastIndex > firstIndex) pages.getOrNull(lastIndex) else null
+        val indices = pageGroups.getOrNull(spreadIndex) ?: listOf(spreadIndex)
+        val firstPage = indices.firstOrNull()?.let { pages.getOrNull(it) }
+        val secondPage = if (indices.size > 1) pages.getOrNull(indices[1]) else null
         if (firstPage != null) {
             if (secondPage == null) {
                 CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
@@ -146,8 +161,8 @@ fun MangaPagerReader(
                     val haptics = LocalHapticFeedback.current
                     val longPress by rememberUpdatedState(onLongPress)
                     val longPressPage by rememberUpdatedState(onLongPressPage)
-                    val spreadFirst by rememberUpdatedState(firstIndex)
-                    val spreadLast by rememberUpdatedState(lastIndex)
+                    val spreadFirst by rememberUpdatedState(firstPage.index)
+                    val spreadLast by rememberUpdatedState(secondPage?.index ?: firstPage.index)
                     Row(
                         modifier = Modifier
                             .fillMaxSize()
@@ -223,7 +238,7 @@ fun MangaPagerReader(
             VerticalPager(
                 state = pagerState,
                 modifier = modifier.fillMaxSize(),
-                key = { index -> pages.getOrNull(readerSpreadFirst(index, doublePage, coverAlone))?.index ?: index },
+                key = { index -> (pageGroups.getOrNull(index) ?: listOf(index)).firstOrNull() ?: index },
                 beyondViewportPageCount = prefetchPages.coerceIn(0, 2)
             ) { pageIndex ->
                 pageContent(pageIndex)
@@ -232,7 +247,7 @@ fun MangaPagerReader(
             HorizontalPager(
                 state = pagerState,
                 modifier = modifier.fillMaxSize(),
-                key = { index -> pages.getOrNull(readerSpreadFirst(index, doublePage, coverAlone))?.index ?: index },
+                key = { index -> (pageGroups.getOrNull(index) ?: listOf(index)).firstOrNull() ?: index },
                 beyondViewportPageCount = prefetchPages.coerceIn(0, 2)
             ) { pageIndex ->
                 pageContent(pageIndex)

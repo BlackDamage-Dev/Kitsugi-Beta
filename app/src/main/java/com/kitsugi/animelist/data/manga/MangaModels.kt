@@ -96,49 +96,15 @@ class MangaPage(
 
     /** Durable downloaded page (content/file URI), outside the evictable reader cache. */
     var localUri: String? = null
-}
 
-/**
- * Okuma modunu belirleyen enum.
- * Pager: Yatay/Dikey sayfalama (Manga, Manhua)
- * Webtoon: Sürekli dikey kaydırma (Manhwa, Webtoon)
- */
-enum class ReadingMode {
-    LeftToRight,   // Soldan Sağa (Manhua)
-    RightToLeft,   // Sağdan Sola (Manga - Japonca)
-    Vertical,      // Dikey Pager
-    Webtoon        // Kesintisiz dikey kaydırma (Manhwa)
-}
-
-/**
- * Sayfaya uygulanan renk filtresi (Mihon/Aniyomi paritesi).
- *
- * Not: Bu enum'un metin kimlikleri [MangaSettingIds] üzerinden çözülür; eski
- * sürümlerde yazılmış "GrayScale", "Inverted", "Warm", "Cool" gibi değerler
- * geriye dönük uyumlu olarak okunur.
- */
-enum class ColorFilterType {
-    Normal,
-    Warm,
-    Cool,
-    Grayscale,
-    Sepia,
-    Invert
-}
-
-/**
- * Sayfanın ekrana nasıl oturtulacağı.
- *
- * — FitScreen / FitWidth / FitHeight: kırpma yok, oran korunur
- * — Crop:  ekranı tamamen doldurur, taşan kısım kırpılır (tam ekran hissi)
- * — Original: hiç ölçeklenmez, sayfa gerçek piksel boyutunda çizilir
- */
-enum class MangaFitMode {
-    FitScreen,
-    FitWidth,
-    FitHeight,
-    Crop,
-    Original
+    /**
+     * Akıllı zemin (Smart background) için sayfa tonu — 0..1.
+     *
+     * Sayfa başına tutulur. Önceden tek bir uiState.pageLuminance vardı ve
+     * okuyucu hangi sayfada olursa olsun aynı tonu tüm sayfalara uyguluyordu;
+     * Smart zeminde her sayfa aynı renge boyanıyordu. null = henüz örneklenmedi.
+     */
+    var luminance: Float? by mutableStateOf(null)
 }
 
 enum class MangaStatus {

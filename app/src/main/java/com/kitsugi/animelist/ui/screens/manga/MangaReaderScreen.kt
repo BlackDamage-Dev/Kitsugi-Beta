@@ -223,13 +223,13 @@ fun MangaReaderScreen(
             ReaderAction.Retry -> model.retryVisiblePages()
             ReaderAction.Fullscreen -> toggleFullscreen()
             ReaderAction.Rotate -> rotate()
-            ReaderAction.CycleMode -> model.setReadingMode(MangaReaderPreferences.nextReadingMode(ui.readingMode))
-            ReaderAction.CycleFit -> model.setFitMode(MangaFitMode.entries[(ui.fitMode.ordinal + 1) % MangaFitMode.entries.size])
-            ReaderAction.CycleBackground -> {
-                val choices = listOf("Black", "DarkGray", "White")
-                model.setWebtoonPreferences(
-                    ui.webtoon.copy(background = choices[(choices.indexOf(ui.webtoon.background) + 1) % choices.size])
-                )
+            ReaderAction.CycleMode -> model.cycleReadingMode()
+            ReaderAction.CycleFit -> model.cycleFitMode()
+            ReaderAction.CycleBackground -> model.cycleBackground()
+            ReaderAction.CycleBarStage -> {
+                val order = MangaBarStyle.cycleOrder
+                val idx = order.indexOf(ui.options.barStyle).coerceAtLeast(0)
+                model.updateOptions { it.copy(barStyle = order[(idx + 1) % order.size]) }
             }
             ReaderAction.ToggleAutoScroll -> if (ui.readingMode == ReadingMode.Webtoon && session.isReady) {
                 session.autoScroll = !session.autoScroll
@@ -479,28 +479,35 @@ fun MangaReaderScreen(
             exit = fadeOut() + slideOutVertically { it },
             modifier = Modifier.align(Alignment.BottomCenter),
         ) {
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    .background(Color(0xF5161622))
-                    .navigationBarsPadding()
-                    .padding(horizontal = 8.dp, vertical = 8.dp),
-            ) {
-                // Hızlı parlaklık şeridi: alt çubuktan yumuşak yayılım ile açılır.
-                // Ayarlar panelindeki "Parlaklık" sürgüsü yerinde kalır; bu şerit
-                // okurken tek dokunuşla erişim için vardır.
-                AnimatedVisibility(
-                    visible = showBrightnessQuick,
-                    enter = expandVertically(tween(240)) + fadeIn(tween(200)),
-                    exit = shrinkVertically(tween(180)) + fadeOut(tween(140)),
+            if (ui.options.barStyle == MangaBarStyle.Minimal) {
+                MinimalBottomBar(
+                    currentPage = ui.currentPageIndex,
+                    totalPages = pages.size,
+                    onClick = { open(ReaderOverlay.GoToPage) }
+                )
+            } else {
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xF5161622))
+                        .navigationBarsPadding()
+                        .padding(horizontal = 8.dp, vertical = 8.dp),
                 ) {
-                    ReaderBrightnessQuickPanel(
-                        brightness = ui.customBrightness,
-                        onBrightnessChange = model::setCustomBrightness,
-                        onReset = { model.setCustomBrightness(1f) },
-                    )
-                }
-                if (pages.isNotEmpty() && !ui.isLoadingPages) {
+                    // Hızlı parlaklık şeridi: alt çubuktan yumuşak yayılım ile açılır.
+                    // Ayarlar panelindeki "Parlaklık" sürgüsü yerinde kalır; bu şerit
+                    // okurken tek dokunuşla erişim için vardır.
+                    AnimatedVisibility(
+                        visible = showBrightnessQuick,
+                        enter = expandVertically(tween(240)) + fadeIn(tween(200)),
+                        exit = shrinkVertically(tween(180)) + fadeOut(tween(140)),
+                    ) {
+                        ReaderBrightnessQuickPanel(
+                            brightness = ui.customBrightness,
+                            onBrightnessChange = model::setCustomBrightness,
+                            onReset = { model.setCustomBrightness(1f) },
+                        )
+                    }
+                    if (ui.options.barStyle == MangaBarStyle.Full && pages.isNotEmpty() && !ui.isLoadingPages) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         ReaderToolbarButton(
                             Icons.AutoMirrored.Filled.ArrowBack,
@@ -607,6 +614,7 @@ fun MangaReaderScreen(
                 }
             }
         }
+    }
     }
 
     MangaReaderOverlayHost(
@@ -1441,4 +1449,36 @@ internal fun buildReaderSpreads(pageCount: Int, dualPage: Boolean, firstPageSolo
         }
     }
     return spreads
+}
+
+@Composable
+private fun MinimalBottomBar(
+    currentPage: Int,
+    totalPages: Int,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .navigationBarsPadding()
+            .padding(bottom = 12.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(16.dp))
+                .background(Color(0xE6161622))
+                .clickable(onClick = onClick)
+                .padding(horizontal = 14.dp, vertical = 6.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "${currentPage + 1} / $totalPages",
+                color = Color.White,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium
+            )
+        }
+    }
 }

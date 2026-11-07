@@ -293,12 +293,12 @@ fun MangaReaderBottomBar(
             )
             ReaderIconButton(
                 icon = readingMode.icon(),
-                label = stringResource(R.string.manga_reader_reading_mode, readingMode.label()),
+                label = stringResource(R.string.manga_reader_reading_mode, readingMode.readerLabel()),
                 onClick = onCycleReadingMode,
             )
             ReaderIconButton(
                 icon = Icons.Default.CropFree,
-                label = stringResource(R.string.manga_reader_fit_mode, fitMode.label()),
+                label = stringResource(R.string.manga_reader_fit_mode, fitMode.readerLabel()),
                 onClick = onCycleFitMode,
             )
             ReaderIconButton(
@@ -791,7 +791,7 @@ internal fun ReadingMode.icon(): androidx.compose.ui.graphics.vector.ImageVector
 }
 
 @Composable
-internal fun ReadingMode.label(): String = when (this) {
+internal fun ReadingMode.readerLabel(): String = when (this) {
     ReadingMode.RightToLeft -> stringResource(R.string.manga_direction_rtl)
     ReadingMode.LeftToRight -> stringResource(R.string.manga_direction_ltr)
     ReadingMode.Vertical -> stringResource(R.string.manga_reader_mode_vertical)
@@ -799,10 +799,12 @@ internal fun ReadingMode.label(): String = when (this) {
 }
 
 @Composable
-internal fun MangaFitMode.label(): String = when (this) {
+internal fun MangaFitMode.readerLabel(): String = when (this) {
     MangaFitMode.FitScreen -> stringResource(R.string.manga_fit_screen)
     MangaFitMode.FitWidth -> stringResource(R.string.manga_fit_width)
     MangaFitMode.FitHeight -> stringResource(R.string.manga_fit_height)
     MangaFitMode.Crop -> stringResource(R.string.manga_fit_crop)
     MangaFitMode.Original -> stringResource(R.string.manga_fit_original)
+    MangaFitMode.Stretch -> "Uzat"
+    MangaFitMode.SmartFit -> "Akıllı"
 }
