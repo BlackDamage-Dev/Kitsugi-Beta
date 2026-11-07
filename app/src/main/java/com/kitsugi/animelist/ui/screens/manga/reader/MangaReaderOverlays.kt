@@ -50,7 +50,7 @@ internal fun MangaReaderOverlayHost(
             val current = ui.chapterList.indexOfFirst { it.url == ui.currentChapter.url }.coerceAtLeast(0)
             val list = rememberLazyListState(initialFirstVisibleItemIndex = (current - 2).coerceAtLeast(0))
             KitsugiSheetOrDialog(onDismiss = onDismiss, innerScrollState = list) {
-                ReaderPanel(onDismiss = onDismiss) {
+                ReaderPanel(onDismiss = onDismiss, toggleKeys = listOf(Key.C)) {
                     ReaderPanelTitle(stringResource(R.string.reader_chapters))
                     if (ui.isLoadingChapters) CircularProgressIndicator(Modifier.padding(24.dp))
                     else if (ui.error != null) Text(ui.error, color = Color(0xFFEF9A9A), modifier = Modifier.padding(16.dp))
@@ -91,6 +91,7 @@ private fun ReaderSettings(
         ReaderPanel(
             onDismiss = onDismiss,
             modifier = Modifier.verticalScroll(scroll).padding(horizontal = 16.dp, vertical = 8.dp),
+            toggleKeys = listOf(Key.S),
         ) {
             ReaderPanelTitle(stringResource(R.string.okuyucu_ayarlari))
             ReaderToggle(stringResource(R.string.reader_series_mode), ui.seriesModeOverride, model::setSeriesModeOverride)
@@ -259,11 +260,19 @@ private fun ReaderSettings(
     }
 }
 
-/** Dialogs/sheets are separate windows: handle Escape INSIDE them, not only on the reader. */
+/**
+ * Dialogs/sheets are separate windows: handle Escape INSIDE them, not only on the reader.
+ *
+ * [toggleKeys] — bu paneli AÇAN kısayol tuşları. Panel açıkken aynı tuşa tekrar
+ * basmak paneli kapatır (aç/kapa). Ön tuş (preview) aşamasında yakalandığı için
+ * içerideki sürgü/buton odağı ne olursa olsun çalışır; yazı alanına yazılan
+ * karakterleri çalmaz (yalnızca bu tuşlar dinlenir).
+ */
 @Composable
 private fun ReaderPanel(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
+    toggleKeys: List<Key> = emptyList(),
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val focus = remember { FocusRequester() }
@@ -271,6 +280,10 @@ private fun ReaderPanel(
         Modifier.fillMaxWidth().background(Color(0xFF10101B))
             .focusRequester(focus).onPreviewKeyEvent { event ->
                 if (event.key == Key.Escape || event.key == Key.Back) {
+                    if (event.type == KeyEventType.KeyDown) onDismiss()
+                    true
+                } else if (toggleKeys.any { it == event.key }) {
+                    // Panel kendi kısayoluyla da kapanır: tuşa ikinci kez basmak = kapat.
                     if (event.type == KeyEventType.KeyDown) onDismiss()
                     true
                 } else false
@@ -343,6 +356,13 @@ private fun GoToPageDialog(currentPage: Int, pageCount: Int, onDismiss: () -> Un
                             if (event.type == KeyEventType.KeyDown) onDismiss()
                             true
                         }
+                        // Açan kısayol (G) ikinci kez basıldığında paneli kapatır.
+                        // Alan yalnızca rakam kabul ettiği için G hiçbir zaman
+                        // yazıya karışmaz.
+                        Key.G -> {
+                            if (event.type == KeyEventType.KeyDown) onDismiss()
+                            true
+                        }
                         else -> false
                     }
                 },
@@ -383,10 +403,19 @@ private fun ReaderShortcuts(mode: ReadingMode, onDismiss: () -> Unit) {
         add("Tab / Shift+Tab · Enter" to stringResource(R.string.reader_keys_focus))
     }
     KitsugiSheetOrDialog(onDismiss = onDismiss, innerScrollState = list) {
-        ReaderPanel(onDismiss = onDismiss) {
+        ReaderPanel(onDismiss = onDismiss, toggleKeys = listOf(Key.H, Key.Slash, Key.F1)) {
             ReaderPanelTitle(stringResource(R.string.reader_shortcuts))
             LazyColumn(state = list, modifier = Modifier.fillMaxWidth().heightIn(max = 560.dp).padding(horizontal = 16.dp)) {
-                item { Text(stringResource(R.string.reader_keys_scope), color = Color.White.copy(.6f), modifier = Modifier.padding(bottom = 12.dp)) }
+                item {
+                    Column(Modifier.padding(bottom = 12.dp)) {
+                        Text(stringResource(R.string.reader_keys_scope), color = Color.White.copy(.6f))
+                        Text(
+                            stringResource(R.string.reader_keys_toggle),
+                            color = Color(0xFFB39DFF).copy(alpha = .85f),
+                            modifier = Modifier.padding(top = 6.dp),
+                        )
+                    }
+                }
                 items(shortcuts) { (keys, label) ->
                     Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
                         Text(keys, color = Color(0xFFB39DFF), fontWeight = FontWeight.SemiBold, fontSize = 13.sp)

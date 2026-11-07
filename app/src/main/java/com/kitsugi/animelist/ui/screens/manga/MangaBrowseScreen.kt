@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
@@ -37,7 +38,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
@@ -62,7 +62,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.MutableFloatState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -71,27 +70,26 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
-import androidx.compose.ui.input.nestedscroll.NestedScrollSource
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -140,7 +138,9 @@ import com.kitsugi.animelist.ui.theme.gradient.CircularProgressIndicator
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import com.kitsugi.animelist.ui.theme.gradient.Text
 import com.kitsugi.animelist.ui.utils.rememberKitsugiGridColumns
+import com.kitsugi.animelist.ui.utils.requestFocusAfterFrames
 import com.kitsugi.animelist.ui.utils.tvClickable
+import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
 
 // ─── Sabitler ─────────────────────────────────────────────────────────────────
@@ -373,45 +373,48 @@ fun MangaBrowseScreen(
     val hasNextPageToShow = if (!isSearchMode) hasNext
         else (selFilter != null && (states.firstOrNull { it.source.stableSourceKey() == selFilter.stableSourceKey() }?.hasNextPage == true))
 
-    // ── Katlanan başlık durumu (Stream ekranındaki HideOnScrollConnection ile aynı) ──
+    // ── Kaydırmayla birlikte akan başlık ──────────────────────────────────────
+    // 2026-11-07 — Tek kaydırma ekseni.
+    // Eski sürüm kaydırma deltasını nested scroll ile TÜKETİYORDU: 188 dp'lik başlık
+    // kayarken kartlar yerinde kalıyor, başlık bitince liste aniden zıplıyor, geri
+    // kaydırınca başlık sadece liste en tepedeyken geri geliyordu ("yok olup geri
+    // gelme"). Yeni düzende başlık kaydırılan içeriğin bir parçası (ızgara öğesi 0):
+    // kartlar parmakla birebir birlikte akar, başlık yumuşakça yukarı çıkar.
+    // Yapışkan kaynak çubuğu yalnızca başlığın ÖLÇÜLEN konumuna bağlı olarak kayar
+    // ve başlık bitince tepede sabitlenir; konum lambdalarda okunur, bu yüzden
+    // kaydırma sırasında recomposition üretmez.
     val density = LocalDensity.current
     val gridState = rememberLazyGridState()
     val searchFocusRequester = remember { FocusRequester() }
-    val headerOffsetPx = remember { mutableFloatStateOf(0f) }
-    val initialCollapsiblePx = with(density) { 188.dp.toPx() }
-    val collapsibleHeightPx = remember { mutableFloatStateOf(initialCollapsiblePx) }
-    val stickyBarPx = with(density) { MangaStickyBarHeight.toPx() }
-    val nestedScrollConnection = remember(gridState) {
-        MangaHideOnScrollConnection(headerOffsetPx, collapsibleHeightPx, gridState)
-    }
+    val chipsHeightPx = remember { mutableFloatStateOf(with(density) { MangaStickyBarHeight.toPx() }) }
+    val headerTopInRoot = remember { mutableFloatStateOf(0f) }
+    val headerHeightPx = remember { mutableFloatStateOf(0f) }
+    val gridTopInRoot = remember { mutableFloatStateOf(0f) }
+    var headerMeasured by remember { mutableStateOf(false) }
 
-    LaunchedEffect(gridState) {
-        snapshotFlow { gridState.firstVisibleItemIndex == 0 && gridState.firstVisibleItemScrollOffset < 4 }
-            .collect { atTop -> if (atTop) headerOffsetPx.floatValue = 0f }
-    }
+    /** Yapışkan çubuğun ızgara tepesine göre konumu (başlığın hemen altı → tepede 0). */
+    fun chipsTopPx(): Float =
+        (headerTopInRoot.floatValue + headerHeightPx.floatValue - gridTopInRoot.floatValue)
+            .coerceAtLeast(0f)
+
+    /** Başlığın ne kadarı yukarı kaydı (px). */
+    fun headerScrolledPx(): Float =
+        (gridTopInRoot.floatValue - headerTopInRoot.floatValue).coerceAtLeast(0f)
+
     val collapsed by remember {
-        derivedStateOf {
-            collapsibleHeightPx.floatValue > 0f &&
-                headerOffsetPx.floatValue >= collapsibleHeightPx.floatValue * 0.6f
-        }
+        derivedStateOf { headerMeasured && chipsTopPx() <= 0.5f }
     }
 
     val revealHeader: () -> Unit = {
-        settingsScope.launch {
-            gridState.animateScrollToItem(0)
-            headerOffsetPx.floatValue = 0f
-        }
+        settingsScope.launch { gridState.animateScrollToItem(0) }
     }
     val changeSearchName: () -> Unit = {
         settingsScope.launch {
             gridState.animateScrollToItem(0)
-            headerOffsetPx.floatValue = 0f
-            searchFocusRequester.requestFocus()
+            // Başlık artık ızgara öğesi: önce kompoze edilmesini bekle, sonra odak iste.
+            searchFocusRequester.requestFocusAfterFrames(frames = 2)
         }
     }
-    val topContentPadding = with(density) {
-        (collapsibleHeightPx.floatValue + stickyBarPx).toDp()
-    } + 10.dp
 
     val bg = KitsugiColors.Background
 
@@ -477,7 +480,6 @@ fun MangaBrowseScreen(
                     Modifier
                         .fillMaxSize()
                         .clipToBounds()
-                        .nestedScroll(nestedScrollConnection)
                 ) {
                     // 1) Izgara — daima tek bir kaydırılabilir liste (kısa liste koruması için).
                     KitsugiShimmerProvider(active = loading) {
@@ -489,11 +491,96 @@ fun MangaBrowseScreen(
                             contentPadding = PaddingValues(
                                 start = 12.dp,
                                 end = 12.dp,
-                                top = topContentPadding,
                                 bottom = 24.dp
                             ),
-                            modifier = Modifier.fillMaxSize()
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .onGloballyPositioned { gridTopInRoot.floatValue = it.positionInRoot().y }
                         ) {
+                            // Katlanan başlık: kaydırılan içeriğin parçası → kartlarla
+                            // birlikte akar, hiçbir zaman "yerinde kalıp zıplama" yapmaz.
+                            item(key = "manga_discover_header", span = { GridItemSpan(cols) }) {
+                                Column(
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .graphicsLayer {
+                                            val max = headerHeightPx.floatValue.coerceAtLeast(1f)
+                                            val progress = (headerScrolledPx() / max).coerceIn(0f, 1f)
+                                            alpha = 1f - progress * 0.35f
+                                        }
+                                        .onGloballyPositioned { coords ->
+                                            headerTopInRoot.floatValue = coords.positionInRoot().y
+                                            headerHeightPx.floatValue = coords.size.height.toFloat()
+                                            if (!headerMeasured) headerMeasured = true
+                                        }
+                                ) {
+                                    MangaDiscoverTopBar(
+                                        summary = summaryText,
+                                        accent = accentColor,
+                                        onBack = onBack,
+                                        onShowInfo = { showInfoDialog = true },
+                                        onOpenSettings = { showSettingsDialog = true },
+                                        onOpenLibrary = onOpenMangaLibrary,
+                                        isResolving = ui.isResolvingTitles
+                                    )
+                                    MangaDiscoverSearchPanel(
+                                        query = query,
+                                        onQueryChange = { vm.search(it) },
+                                        mode = titleMode,
+                                        onToggleMode = {
+                                            vm.setTitleMode(
+                                                if (titleMode == MangaSearchTitleMode.LOCALIZED) MangaSearchTitleMode.ORIGINAL
+                                                else MangaSearchTitleMode.LOCALIZED
+                                            )
+                                        },
+                                        accent = accentColor,
+                                        enabled = query.isNotBlank(),
+                                        onShowInfo = { showInfoDialog = true },
+                                        onChangeSearchName = changeSearchName,
+                                        focusRequester = searchFocusRequester,
+                                        compact = isLandscape,
+                                        chips = null
+                                    )
+                                    Spacer(Modifier.height(2.dp))
+                                    MangaDiscoverSortRow(
+                                        relevanceLabel = stringResource(R.string.manga_discover_sort_relevance),
+                                        titleLabel = stringResource(R.string.manga_discover_sort_title),
+                                        isRelevance = sortMode == MangaSortMode.RELEVANCE,
+                                        accent = accentColor,
+                                        label = stringResource(R.string.manga_discover_sort_label),
+                                        onSelectRelevance = { vm.setSortMode(MangaSortMode.RELEVANCE) },
+                                        onSelectTitle = { vm.setSortMode(MangaSortMode.TITLE) },
+                                        trailing = {
+                                            if (query.isNotBlank() && !usingTitle.isNullOrBlank()) {
+                                                Text(
+                                                    text = stringResource(R.string.manga_discover_using_title, usingTitle),
+                                                    color = KitsugiColors.TextMuted,
+                                                    fontSize = 10.sp,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis,
+                                                    modifier = Modifier.widthIn(max = if (isLandscape) 260.dp else 150.dp)
+                                                )
+                                            }
+                                        }
+                                    )
+                                    authFailureSource?.let { source ->
+                                        MangaSourceAuthBanner(
+                                            source = source,
+                                            onLogin = { loginSource = source },
+                                            onRetry = { vm.retrySource(source) },
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                        )
+                                    }
+                                }
+                            }
+                            // Yapışkan çubuğun kapladığı alan. Izgara dikey aralığı 14 dp
+                            // olduğu için boşluk (çubuk yüksekliği − 14 dp); böylece ilk
+                            // kart sırası tam olarak çubuğun altında başlar.
+                            item(key = "manga_discover_sticky_spacer", span = { GridItemSpan(cols) }) {
+                                val h = (with(density) { chipsHeightPx.floatValue.toDp() } - 14.dp)
+                                    .coerceAtLeast(0.dp)
+                                Box(Modifier.fillMaxWidth().height(h))
+                            }
                             when {
                                 loading && mergedMangas.isEmpty() -> {
                                     items(if (isLandscape) cols * 2 else 8) {
@@ -573,98 +660,57 @@ fun MangaBrowseScreen(
                         }
                     }
 
-                    // 2) Üst overlay: [katlanan kısım] + [yapışkan kaynak çubuğu].
+                    // 2) Başlık zemin perdesi — TAM GENİŞLİK. Başlık ızgara öğesi olduğu
+                    //    için 12 dp'lik yatay iç boşluğun kenarda iz bırakmaması adına
+                    //    perde ayrı katmanda durur; başlığın ÖLÇÜLEN konumuna oturur ve
+                    //    zIndex(-1) ile ızgaranın ALTINDA çizilir. Izgaradan sonra
+                    //    bildirildiği için konumu aynı karede ölçülmüş olur (gecikme yok).
                     val headerTop = bg.copy(alpha = 0.88f)
                     val headerBottom = bg.copy(alpha = 0.97f)
-                    Column(
+                    Box(
                         Modifier
                             .fillMaxWidth()
-                            .graphicsLayer { translationY = -headerOffsetPx.floatValue }
-                    ) {
-                        Column(
-                            Modifier
-                                .fillMaxWidth()
-                                .onSizeChanged { collapsibleHeightPx.floatValue = it.height.toFloat() }
-                                .background(Brush.verticalGradient(listOf(headerTop, headerBottom)))
-                                .graphicsLayer {
-                                    val max = collapsibleHeightPx.floatValue.coerceAtLeast(1f)
-                                    val progress = (headerOffsetPx.floatValue / max).coerceIn(0f, 1f)
-                                    alpha = 1f - progress * 0.85f
-                                }
-                        ) {
-                            MangaDiscoverTopBar(
-                                summary = summaryText,
-                                accent = accentColor,
-                                onBack = onBack,
-                                onShowInfo = { showInfoDialog = true },
-                                onOpenSettings = { showSettingsDialog = true },
-                                onOpenLibrary = onOpenMangaLibrary,
-                                isResolving = ui.isResolvingTitles
-                            )
-                            MangaDiscoverSearchPanel(
-                                query = query,
-                                onQueryChange = { vm.search(it) },
-                                mode = titleMode,
-                                onToggleMode = {
-                                    vm.setTitleMode(
-                                        if (titleMode == MangaSearchTitleMode.LOCALIZED) MangaSearchTitleMode.ORIGINAL
-                                        else MangaSearchTitleMode.LOCALIZED
-                                    )
-                                },
-                                accent = accentColor,
-                                enabled = query.isNotBlank(),
-                                onShowInfo = { showInfoDialog = true },
-                                onChangeSearchName = changeSearchName,
-                                focusRequester = searchFocusRequester,
-                                compact = isLandscape,
-                                chips = null
-                            )
-                            Spacer(Modifier.height(2.dp))
-                            MangaDiscoverSortRow(
-                                relevanceLabel = stringResource(R.string.manga_discover_sort_relevance),
-                                titleLabel = stringResource(R.string.manga_discover_sort_title),
-                                isRelevance = sortMode == MangaSortMode.RELEVANCE,
-                                accent = accentColor,
-                                label = stringResource(R.string.manga_discover_sort_label),
-                                onSelectRelevance = { vm.setSortMode(MangaSortMode.RELEVANCE) },
-                                onSelectTitle = { vm.setSortMode(MangaSortMode.TITLE) },
-                                trailing = {
-                                    if (query.isNotBlank() && !usingTitle.isNullOrBlank()) {
-                                        Text(
-                                            text = stringResource(R.string.manga_discover_using_title, usingTitle),
-                                            color = KitsugiColors.TextMuted,
-                                            fontSize = 10.sp,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                            modifier = Modifier.widthIn(max = if (isLandscape) 260.dp else 150.dp)
-                                        )
-                                    }
+                            .height(
+                                with(density) {
+                                    (if (headerMeasured) headerHeightPx.floatValue else 188.dp.toPx()).toDp()
                                 }
                             )
-                            authFailureSource?.let { source ->
-                                MangaSourceAuthBanner(
-                                    source = source,
-                                    onLogin = { loginSource = source },
-                                    onRetry = { vm.retrySource(source) },
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                                )
+                            .zIndex(-1f)
+                            .graphicsLayer {
+                                val top = headerTopInRoot.floatValue - gridTopInRoot.floatValue
+                                translationY = top
+                                val max = headerHeightPx.floatValue.coerceAtLeast(1f)
+                                val scrolled = (-top).coerceAtLeast(0f)
+                                alpha = 1f - (scrolled / max).coerceIn(0f, 1f) * 0.25f
                             }
-                        }
+                            .background(Brush.verticalGradient(listOf(headerTop, headerBottom)))
+                    )
 
-                        MangaStickySourceBar(
-                            states = states,
-                            sources = ui.sources,
-                            isSearchMode = isSearchMode,
-                            popular = popular,
-                            isLoadingPopular = ui.isLoadingPopular,
-                            selFilter = selFilter,
-                            accent = accentColor,
-                            collapsed = collapsed,
-                            onSelect = { vm.selectSourceFilter(it) },
-                            onOpenPicker = { showSourcePicker = true },
-                            onRevealHeader = revealHeader
-                        )
-                    }
+                    // 3) Yapışkan kaynak çubuğu — başlığın ölçülen konumuna bağlı olarak
+                    //    kayar; başlık bittiğinde tepede sabitlenir. Konum layout fazında
+                    //    okunur (offset lambda), kaydırma sırasında recomposition olmaz.
+                    MangaStickySourceBar(
+                        states = states,
+                        sources = ui.sources,
+                        isSearchMode = isSearchMode,
+                        popular = popular,
+                        isLoadingPopular = ui.isLoadingPopular,
+                        selFilter = selFilter,
+                        accent = accentColor,
+                        collapsed = collapsed,
+                        onSelect = { vm.selectSourceFilter(it) },
+                        onOpenPicker = { showSourcePicker = true },
+                        onRevealHeader = revealHeader,
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .offset {
+                                // İlk karede başlık henüz ölçülmemiş olabilir; yaklaşık
+                                // yükseklikle başla ki çubuk bir an tepede görünmesin.
+                                val y = if (headerMeasured) chipsTopPx() else 188.dp.toPx()
+                                IntOffset(0, y.roundToInt())
+                            }
+                            .onSizeChanged { chipsHeightPx.floatValue = it.height.toFloat() }
+                    )
                 }
             }
         }
@@ -805,26 +851,6 @@ fun MangaBrowseScreen(
     }
 }
 
-// ─── Katlanan başlık: nested scroll bağlantısı ────────────────────────────────
-
-private class MangaHideOnScrollConnection(
-    private val offset: MutableFloatState,
-    private val maxOffset: MutableFloatState,
-    private val gridState: LazyGridState
-) : NestedScrollConnection {
-    override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-        val dy = available.y
-        val max = maxOffset.floatValue
-        if (dy == 0f || max <= 0f) return Offset.Zero
-        if (dy < 0f && !gridState.canScrollForward) return Offset.Zero
-        val target = (offset.floatValue - dy).coerceIn(0f, max)
-        val delta = target - offset.floatValue
-        if (delta == 0f) return Offset.Zero
-        offset.floatValue = target
-        return Offset(0f, -delta)
-    }
-}
-
 // ─── Yapışkan kaynak çubuğu (çipler + açılır buton) ──────────────────────────
 
 @Composable
@@ -839,7 +865,8 @@ private fun MangaStickySourceBar(
     collapsed: Boolean,
     onSelect: (MangaSource?) -> Unit,
     onOpenPicker: () -> Unit,
-    onRevealHeader: () -> Unit
+    onRevealHeader: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val bg = KitsugiColors.Background
     val stickyAlpha by animateFloatAsState(
@@ -853,7 +880,7 @@ private fun MangaStickySourceBar(
         label = "manga_sticky_elevation"
     )
 
-    Surface(color = Color.Transparent, shadowElevation = stickyElevation) {
+    Surface(modifier = modifier, color = Color.Transparent, shadowElevation = stickyElevation) {
         Column(Modifier.fillMaxWidth().background(bg.copy(alpha = stickyAlpha))) {
             Row(
                 Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 10.dp),

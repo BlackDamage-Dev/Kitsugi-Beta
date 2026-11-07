@@ -4,8 +4,11 @@ import android.content.pm.ActivityInfo
 import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
@@ -119,6 +122,8 @@ fun MangaReaderScreen(
     var showGallery by remember { mutableStateOf(false) }
     var galleryInitialIndex by remember { mutableStateOf(ui.currentPageIndex) }
     var showMusicPanel by remember { mutableStateOf(false) }
+    // Alt çubuktan açılan hızlı parlaklık paneli (ayarlardaki sürgü de durur).
+    var showBrightnessQuick by remember { mutableStateOf(false) }
     var showSourceLogin by remember { mutableStateOf(false) }
     var showMangaTrLogin by remember { mutableStateOf(false) }
     var verificationUrl by remember { mutableStateOf<String?>(null) }
@@ -184,6 +189,24 @@ fun MangaReaderScreen(
         overlay = value
     }
 
+    /**
+     * Aç/kapa: alttan açılan paneller (ayarlar, bölümler, sayfaya git, kısayollar)
+     * KENDİ kısayoluyla tekrar çağrıldığında kapanır. Panel açma düğmeleri
+     * [open] kullanmaya devam eder; tuş yolu bu fonksiyondan geçer.
+     */
+    fun toggle(value: ReaderOverlay) {
+        if (overlay == value) overlay = ReaderOverlay.None else open(value)
+    }
+
+    /** Açık paneli tuş politikasına bildir (aynı tuş = kapat). */
+    val openPanel = when (overlay) {
+        ReaderOverlay.Settings -> ReaderPanel.Settings
+        ReaderOverlay.Chapters -> ReaderPanel.Chapters
+        ReaderOverlay.GoToPage -> ReaderPanel.GoToPage
+        ReaderOverlay.Shortcuts -> ReaderPanel.Shortcuts
+        ReaderOverlay.None -> null
+    }
+
     fun dispatch(action: ReaderAction, repeated: Boolean = false) {
         if (action != ReaderAction.ToggleAutoScroll) session.stop()
         when (action) {
@@ -194,9 +217,9 @@ fun MangaReaderScreen(
             ReaderAction.NextChapter -> model.goToNextChapter()
             ReaderAction.PreviousChapter -> model.goToPreviousChapter()
             ReaderAction.ToggleMenu -> menuVisible = !menuVisible
-            ReaderAction.Settings -> open(ReaderOverlay.Settings)
-            ReaderAction.Chapters -> open(ReaderOverlay.Chapters)
-            ReaderAction.GoToPage -> if (pages.isNotEmpty()) open(ReaderOverlay.GoToPage)
+            ReaderAction.Settings -> toggle(ReaderOverlay.Settings)
+            ReaderAction.Chapters -> toggle(ReaderOverlay.Chapters)
+            ReaderAction.GoToPage -> if (pages.isNotEmpty()) toggle(ReaderOverlay.GoToPage)
             ReaderAction.Retry -> model.retryVisiblePages()
             ReaderAction.Fullscreen -> toggleFullscreen()
             ReaderAction.Rotate -> rotate()
@@ -212,7 +235,7 @@ fun MangaReaderScreen(
                 session.autoScroll = !session.autoScroll
                 if (session.autoScroll) menuVisible = false
             }
-            ReaderAction.Help -> open(ReaderOverlay.Shortcuts)
+            ReaderAction.Help -> toggle(ReaderOverlay.Shortcuts)
             ReaderAction.ZoomIn -> session.webtoon.zoomBy(1.25f)
             ReaderAction.ZoomOut -> session.webtoon.zoomBy(.8f)
             ReaderAction.ResetZoom -> session.resetZoom()
@@ -224,6 +247,8 @@ fun MangaReaderScreen(
     LaunchedEffect(overlayOpen, menuVisible) {
         if (!overlayOpen) focus.requestFocusAfterFrames(frames = 2)
         if (menuVisible) session.stop()
+        // Kontroller veya bir panel kapandığında hızlı parlaklık şeridi de kapanır.
+        if (!menuVisible || overlayOpen) showBrightnessQuick = false
     }
     MangaReaderWindowEffects(fullscreen, menuVisible, ui.webtoon.keepScreenOn)
 
@@ -248,11 +273,12 @@ fun MangaReaderScreen(
                 handleMangaReaderKey(
                     event,
                     ReaderKeyContext(
-                        ui.readingMode,
-                        overlayOpen,
-                        contentFocused,
-                        menuVisible,
-                        ui.webtoon.volumeKeys,
+                        mode = ui.readingMode,
+                        overlayOpen = overlayOpen,
+                        contentFocused = contentFocused,
+                        menuVisible = menuVisible,
+                        volumeKeys = ui.webtoon.volumeKeys,
+                        openPanel = openPanel,
                     ),
                     ::dispatch,
                 )
@@ -460,6 +486,20 @@ fun MangaReaderScreen(
                     .navigationBarsPadding()
                     .padding(horizontal = 8.dp, vertical = 8.dp),
             ) {
+                // Hızlı parlaklık şeridi: alt çubuktan yumuşak yayılım ile açılır.
+                // Ayarlar panelindeki "Parlaklık" sürgüsü yerinde kalır; bu şerit
+                // okurken tek dokunuşla erişim için vardır.
+                AnimatedVisibility(
+                    visible = showBrightnessQuick,
+                    enter = expandVertically(tween(240)) + fadeIn(tween(200)),
+                    exit = shrinkVertically(tween(180)) + fadeOut(tween(140)),
+                ) {
+                    ReaderBrightnessQuickPanel(
+                        brightness = ui.customBrightness,
+                        onBrightnessChange = model::setCustomBrightness,
+                        onReset = { model.setCustomBrightness(1f) },
+                    )
+                }
                 if (pages.isNotEmpty() && !ui.isLoadingPages) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         ReaderToolbarButton(
@@ -553,10 +593,16 @@ fun MangaReaderScreen(
                         },
                     )
                     ReaderToolbarButton(
+                        Icons.BrightnessMedium,
+                        stringResource(R.string.manga_brightness),
+                        "",
+                        { showBrightnessQuick = !showBrightnessQuick },
+                    )
+                    ReaderToolbarButton(
                         Icons.Default.Settings,
                         stringResource(R.string.okuyucu_ayarlari),
                         "S",
-                        { open(ReaderOverlay.Settings) },
+                        { toggle(ReaderOverlay.Settings) },
                     )
                 }
             }
@@ -657,7 +703,65 @@ private fun ReaderToolbarButton(
             .clip(RoundedCornerShape(12.dp))
             .background(if (focused) Color(0xFF66509D) else Color.Transparent),
     ) {
-        Icon(icon, "$label ($key)", tint = if (enabled) Color.White else Color.White.copy(.3f))
+        Icon(
+            icon,
+            if (key.isBlank()) label else "$label ($key)",
+            tint = if (enabled) Color.White else Color.White.copy(.3f),
+        )
+    }
+}
+
+/**
+ * Alt çubuktan açılan hızlı parlaklık şeridi.
+ *
+ * Okuyucu ayarlarındaki parlaklık sürgüsü aynen korunur; bu şerit yalnızca
+ * okuma sırasında tek dokunuşla ince ayar yapmak için açılır/kapanır.
+ */
+@Composable
+private fun ReaderBrightnessQuickPanel(
+    brightness: Float,
+    onBrightnessChange: (Float) -> Unit,
+    onReset: () -> Unit,
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 4.dp, vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            Icons.BrightnessLow,
+            contentDescription = null,
+            tint = Color.White.copy(alpha = .6f),
+            modifier = Modifier.size(18.dp),
+        )
+        Slider(
+            value = brightness,
+            onValueChange = onBrightnessChange,
+            valueRange = .1f..1f,
+            modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
+        )
+        Text(
+            "${(brightness * 100).roundToInt()}%",
+            color = Color.White,
+            fontSize = 12.sp,
+            textAlign = TextAlign.End,
+            modifier = Modifier.widthIn(min = 40.dp),
+        )
+        IconButton(onClick = onReset, modifier = Modifier.size(36.dp)) {
+            Icon(
+                Icons.RestartAlt,
+                contentDescription = stringResource(R.string.reader_brightness_reset),
+                tint = Color.White.copy(alpha = .8f),
+                modifier = Modifier.size(17.dp),
+            )
+        }
+        Icon(
+            Icons.BrightnessHigh,
+            contentDescription = null,
+            tint = Color.White.copy(alpha = .6f),
+            modifier = Modifier.size(18.dp),
+        )
     }
 }
 

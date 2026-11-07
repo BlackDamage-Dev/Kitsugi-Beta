@@ -37,4 +37,6 @@
     <string name="reader_keys_back">Önce açık paneli, ardından webtoon yakınlaştırmasını ve kontrolleri kapatır; sonra okuyucudan çıkar.</string>
     <string name="reader_keys_focus">Butonlar arasında gezin ve odaktaki butonu çalıştır.</string>
     <string name="reader_keys_scope">Kısayollar okuma alanı odaktayken çalışır. Açık menü, metin alanı veya sürgünün tuşlarını çalmaz. Ses tuşları isteğe bağlıdır. Dokunma otomatik kaydırmayı durdurur.</string>
+    <string name="reader_brightness_reset">Parlaklığı %100\'e döndür</string>
+    <string name="reader_keys_toggle">Paneli açan tuşa ikinci kez basmak aynı paneli kapatır (aç/kapa).</string>
 </resources>

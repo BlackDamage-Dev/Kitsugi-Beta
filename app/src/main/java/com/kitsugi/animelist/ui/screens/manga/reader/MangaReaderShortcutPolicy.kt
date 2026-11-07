@@ -25,12 +25,37 @@ data class ReaderKeyStroke(
     val keyUp: Boolean = false,
 )
 
+/**
+ * Okuyucuda alttan açılan paneller. Her panelin onu AÇAN bir kısayolu vardır;
+ * panel açıkken aynı tuşa tekrar basmak paneli kapatır (aç/kapa).
+ */
+enum class ReaderPanel { Settings, Chapters, GoToPage, Shortcuts }
+
+/** Bir paneli açan/kapatan kısayolun eylemi (kapatma aynı eylemle yapılır: host toggle eder). */
+internal fun ReaderPanel.toggleAction(): ReaderAction = when (this) {
+    ReaderPanel.Settings -> ReaderAction.Settings
+    ReaderPanel.Chapters -> ReaderAction.Chapters
+    ReaderPanel.GoToPage -> ReaderAction.GoToPage
+    ReaderPanel.Shortcuts -> ReaderAction.Help
+}
+
+/** Tuş → açtığı panel eşlemesi (yoksa null). */
+internal fun ReaderKey.panel(): ReaderPanel? = when (this) {
+    ReaderKey.S -> ReaderPanel.Settings
+    ReaderKey.C -> ReaderPanel.Chapters
+    ReaderKey.G -> ReaderPanel.GoToPage
+    ReaderKey.H, ReaderKey.F1 -> ReaderPanel.Shortcuts
+    else -> null
+}
+
 data class ReaderKeyContext(
     val mode: ReadingMode,
     val overlayOpen: Boolean = false,
     val contentFocused: Boolean = true,
     val menuVisible: Boolean = false,
     val volumeKeys: Boolean = false,
+    /** Açık panel (varsa). Yalnızca onu açan tuş paneli kapatabilir. */
+    val openPanel: ReaderPanel? = null,
 )
 
 data class ReaderKeyResult(val consumed: Boolean = false, val action: ReaderAction? = null)
@@ -40,6 +65,17 @@ object MangaReaderShortcutPolicy {
         val key = stroke.key
         if (stroke.alt || stroke.meta) return ReaderKeyResult()
         if (key == ReaderKey.Back || key == ReaderKey.Escape) return result(ReaderAction.Back, stroke)
+        // ── Aç/kapa: bir panel açıkken YALNIZCA onu açan tuş onu kapatır ──────
+        // Böylece "S"ye iki kez basmak ayarları açar ve kapatır; "C"/"G"/"H" için
+        // de aynı davranış geçerli. Diğer tuşlar panele bırakılır.
+        if (context.openPanel != null) {
+            val panel = key.panel()
+            return if (panel != null && panel == context.openPanel) {
+                result(panel.toggleAction(), stroke)
+            } else {
+                ReaderKeyResult()
+            }
+        }
         // Never steal input from a dialog, page-number field, chip, slider or focused HUD button.
         if (context.overlayOpen) return ReaderKeyResult()
         if (!context.contentFocused) return ReaderKeyResult()

@@ -37,4 +37,6 @@
     <string name="reader_keys_back">Close the open panel, reset strip zoom, hide controls, then exit the reader.</string>
     <string name="reader_keys_focus">Move between buttons and activate the focused button.</string>
     <string name="reader_keys_scope">Shortcuts work when the reading area has focus. They do not steal keys from dialogs, text fields or sliders. Volume keys are optional. Touch stops auto-scroll.</string>
+    <string name="reader_brightness_reset">Reset brightness to 100%</string>
+    <string name="reader_keys_toggle">Press the key that opened a panel a second time to close it (toggle).</string>
 </resources>

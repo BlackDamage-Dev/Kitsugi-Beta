@@ -208,6 +208,22 @@ object MangaReaderRegressionCases {
             ReaderKey.entries.filter { it !in listOf(ReaderKey.Back, ReaderKey.Escape) }.forEach { check(!key(it, context).consumed) }
             check(key(ReaderKey.Escape, context).action == ReaderAction.Back)
         }
+        test("a panel's own shortcut closes it, other keys stay with the panel") {
+            // Aç/kapa: panel açıkken YALNIZCA onu açan tuş eylem üretir; host bu
+            // eylemi toggle ederek paneli kapatır. Diğer tuşlar panele bırakılır.
+            val settings = web.copy(overlayOpen = true, openPanel = ReaderPanel.Settings)
+            check(key(ReaderKey.S, settings).action == ReaderAction.Settings)
+            for (k in listOf(ReaderKey.C, ReaderKey.G, ReaderKey.H, ReaderKey.M, ReaderKey.F)) {
+                check(!key(k, settings).consumed)
+            }
+            check(key(ReaderKey.C, web.copy(overlayOpen = true, openPanel = ReaderPanel.Chapters)).action == ReaderAction.Chapters)
+            check(key(ReaderKey.G, web.copy(overlayOpen = true, openPanel = ReaderPanel.GoToPage)).action == ReaderAction.GoToPage)
+            check(key(ReaderKey.F1, web.copy(overlayOpen = true, openPanel = ReaderPanel.Shortcuts)).action == ReaderAction.Help)
+            check(key(ReaderKey.H, web.copy(overlayOpen = true, openPanel = ReaderPanel.Shortcuts)).action == ReaderAction.Help)
+            // Tuş bırakılması (keyUp) tüketilir ama ikinci bir kapatma eylemi üretmez.
+            check(key(ReaderKey.S, settings, up = true).consumed)
+            check(key(ReaderKey.S, settings, up = true).action == null)
+        }
         test("focused HUD buttons/sliders own all non-back keys including Enter") {
             val context = web.copy(contentFocused = false, menuVisible = true)
             for (k in listOf(ReaderKey.Enter, ReaderKey.Space, ReaderKey.Left, ReaderKey.Right, ReaderKey.S, ReaderKey.R)) check(!key(k, context).consumed)
