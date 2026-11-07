@@ -1,31 +1,40 @@
-# Kitsugi Beta v2.4.341
+# Kitsugi Beta v2.4.463 (v2.4.341 Entegrasyonu)
 
 ## 🇹🇷 Türkçe
 
-### 🎬 Yayın (Kaynak) Ekranı — Üst Bar, Filtreler ve Tek Kaynak Paneli
-- **Üst bar artık yumuşak hareket ediyor:** Kaynak ekranındaki başlık çubuğu, kaydırma mesafesine birebir bağlı eski `translationY` yöntemini bıraktı. Artık Listem ve detay sayfalarıyla **aynı ortak hareketi** kullanıyor: aşağı kaydırınca yumuşakça süzülüp çekiliyor, yukarı kaydırınca aynı easing ile geri geliyor. Parmak titremesi bara yansımıyor.
-- **Yatay düzende sol ray senkronu:** Yatayda sol kontrol rayı elle taşınmıyor; bar ile aynı akışta hareket ettiği için gizlenme sırasında boş şerit kalmıyor.
-- **Arama alanı ve filtre çipleri düzenlendi:** Kesilen uzun placeholder yerine kısa metin ("Kaynak veya video ara…"), tek satır ve küçük tipografi. Çipler eklenti ekranlarındaki **kompakt çip stiliyle** aynı; etiketler netleşti (Altyazı · Dublaj · 4K · 1080p+ · 720p · ⚡ Debrid) ve dar ray/genişliklerde taşmadan sarıyor.
-- **Anlamsız "Tüm kaynaklar" kartı kaldırıldı:** Listede sürekli duran ve listenin üstünü kaplayan özet kartı artık yok.
-- **Sıralama ve kaynak seçimi tek panelde:** Ayrı "Sıralama: kaynak sırası" satırı kaldırıldı; ikisi birlikte arama alanının yanındaki kompakt **Tune** butonundan açılan **"Kaynaklar ve sıralama"** alt panelinde toplandı. Panelde:
-  - **Sıralama:** Kaynak sırası · Kalite (yüksekten düşüğe) · Boyut (büyükten küçüğe) — boyut sıralaması yeni.
-  - **Eklenti listesi:** her eklentinin video sayısı, arama, yükleme durumu, hata/doğrulama durumu.
-  - **Tek dokunuşla eklenti işlemleri:** hata veren veya boş dönen eklenti için **yenile**, doğrulama isteyen eklenti için **doğrula**, ayrıca "Hatalıları yenile" toplu işlemi ve doğrudan **Eklenti ayarları** kısayolu.
-  - **Yalnızca sonuç verenler** anahtarı ile uzun eklenti listeleri kısalır.
-- **Aktif filtre görünür:** Panelden tek bir eklenti seçildiğinde, arama alanının altında o eklentinin adı kompakt bir çip olarak görünür; dokununca filtre kalkar.
+### 🧩 Manga Eklentileri İçin "Eklenti Keşfet" Sayfası
+- **Video eklentileriyle birebir parite:** Eklenti Portalı → *Manga* sekmesi → kurulu bir manga eklentisinin satırına dokunduğunda (veya satırdaki **Keşfet** ikonuna bastığında) artık o kaynağa ait **kendi Keşfet sayfası** açılıyor.
+- **Kaynağa ait raflar:** "Popüler Mangalar" ve — kaynak gerçekten destekliyorsa — "Son Güncellemeler" rafları yatay poster şeritleri olarak listeleniyor.
+- **Tümünü Gör:** Her raf başlığının sağındaki "Tümünü Gör" ile o rafın tam ekran grid görünümü açılıyor; aşağı kaydırdıkça sonraki sayfalar otomatik yükleniyor (sayfalama + yükleniyor göstergesi).
+- **Kaynak içi arama:** Üstteki arama alanı yalnızca o eklentide arıyor; yazarken 260 ms debounce ile istek selleri engelleniyor, sonuçlar sayfalanıyor.
+- **Türler:** Yüklenen raflardaki türlerden üretilen çip satırı; bir türe dokunmak o tür adıyla kaynak içi aramayı başlatıyor.
+- **Manga → bölümler:** Bir mangaya dokunduğunuzda kaynağın **detay + bölüm listesi** sayfası açılıyor; oradan okuyucuya devam edebiliyorsunuz. Geri tuşu sizi keşfet sayfasına döndürür.
+- **Uydurma veri yok:** "Son Güncellemeler" rafı yalnızca kaynak `supportsLatest` bildirdiğinde çizilir (Mihon `Source.supportsLatest`, Kotatsu `SortOrder.UPDATED`). Desteklemeyen kaynakta raf hiç görünmez — popüler liste "son güncelleme" diye sunulmaz.
+- **Akıllı önbellek ve durum koruma:** Keşfet sayfası LRU (8 kaynak) ile önbelleklenir; bir mangaya girip geri döndüğünüzde ağa tekrar çıkılmaz ve **bıraktığınız görünüm** (raflar, "Tümünü Gör" grid'i, arama sonuçları) aynen geri gelir. Yenile butonu önbelleği atlar.
+- **Hız sınırı koruması:** Raflar sırayla yüklenir; eşzamanlı liste isteklerinin tetiklediği HTTP 429 hataları önlenir.
+- **Hata görünürlüğü:** Kaynak hatası olduğunda mesaj + `KTS-SRC-*` hata kodu çipi ve "Yeniden Dene" butonu gösterilir; hata kaynak sağlık raporuna da işlenir.
 
 ---
 
 ## 🇬🇧 English
 
-### 🎬 Stream (Source) Screen — Top Bar, Filters and a Single Source Panel
-- **Softer top bar motion:** The stream screen header no longer follows scroll distance 1:1 with `translationY`. It now uses the **same shared scroll-aware header motion** as My List and detail pages: it slides away softly on scroll-down and returns with the same easing on scroll-up, without finger-jitter artifacts.
-- **Landscape rail stays in sync:** The left control rail is no longer translated by hand; it moves with the header, so no empty strip is left behind when the bar collapses.
-- **Search field and filter chips cleaned up:** Short placeholder ("Search sources or videos…"), single line, smaller typography, and the **compact chip style** used by the add-on screens (Altyazı · Dublaj · 4K · 1080p+ · 720p · ⚡ Debrid) that wraps instead of overflowing in narrow rails.
-- **Removed the redundant "All sources" card:** The always-visible summary card that covered the top of the list is gone.
-- **Sorting and source picking unified in one panel:** The separate "Sort: source order" row is gone; everything lives in a **"Sources & sorting"** bottom sheet opened from the compact **Tune** button next to the search field:
-  - **Sorting:** Source order · Quality (highest first) · Size (largest first) — size sorting is new.
-  - **Add-on list:** per add-on video counts, search, loading state, error / verification state.
-  - **One-tap add-on actions:** retry a failing or empty add-on, verify an add-on that requires verification, a bulk "Retry failed" action, and a direct **Add-on settings** shortcut.
-  - **"Only with results"** toggle to shorten long add-on lists.
-- **Active filter is visible:** When a single add-on is selected, its name appears as a compact chip under the search field; tapping it clears the filter.
+### 🧩 Explore Page for Manga Extensions
+- **Video-plugin parity:** Extension Portal → *Manga* tab → tapping an installed manga extension row (or its **Explore** icon) now opens a dedicated explore page for that source.
+- **Source-specific shelves:** "Popular Manga" and — only when the source actually supports it — "Latest Updates" rails rendered as horizontal poster rows.
+- **See All:** Each rail offers a "See All" full-screen grid with automatic pagination and a loading indicator.
+- **In-source search:** The search field is scoped to that extension, with a 260 ms debounce and paginated results.
+- **Genres:** A genre chip row derived from the loaded rails; tapping a chip runs an in-source search for that genre.
+- **Manga → chapters:** Tapping a manga opens the source's **detail + chapter list** page and continues into the reader; back returns to the explore page.
+- **No fabricated data:** "Latest Updates" is only shown when the source reports `supportsLatest` (Mihon `Source.supportsLatest`, Kotatsu `SortOrder.UPDATED`); otherwise the shelf is hidden entirely.
+- **Smart cache & state preservation:** Explore snapshots are memoised in an 8-entry LRU cache, so returning from a manga detail neither refetches nor loses your place (rails, "See All" grid, search results). The refresh button bypasses the cache.
+- **Rate-limit protection:** Rails load sequentially, avoiding HTTP 429 responses caused by concurrent list requests.
+- **Visible failures:** Failures surface a message, a `KTS-SRC-*` error-code chip and a retry action, and are recorded in the source health report.
+
+## Teknik Notlar
+
+- `MangaSource` kontratına iki **varsayılan uygulamalı** üye eklendi: `supportsLatest` (varsayılan `false`) ve `fetchLatestManga(page)` (varsayılan `fetchPopularManga`). Böylece mevcut üçüncü parti eklentiler değişmeden derlenir.
+- `MihonSourceWrapper` → `Source.supportsLatest` + `getLatestUpdates(page)`; hata durumunda popüler listeye düşer.
+- `KotatsuMangaSource` → `SortOrder.UPDATED in parser.availableSortOrders` + `getList(order = UPDATED)`; sayfalama ofseti popüler rafıyla çakışmaması için ayrı sanal anahtar kullanır.
+- Yeni ekran: `ui/screens/manga/MangaSourceExploreScreen.kt` (durum tutucu + LRU önbellek, ViewModel biriktirmeyen tasarım).
+- Navigasyon: `DetailScreen.MangaSourceExplore(sourceKey)` / `AppStateKey.MangaSourceExplore(sourceKey, depth)`; kaynak nesnesi taşınamadığı için `stableSourceKey()` ile çözülür.
+- Giriş noktaları: Eklenti Portalı manga sekmesindeki kurulu kaynak satırı ve Manga tarama ekranındaki eklentiler diyaloğu.

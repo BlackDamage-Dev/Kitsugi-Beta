@@ -35,6 +35,15 @@ sealed interface DetailScreen {
     data object WatchHistory : DetailScreen
     data object PluginPicker : DetailScreen
     data class AddonExplore(val apiName: String, val initialQuery: String = "") : DetailScreen
+    /**
+     * Eklenti portalındaki bir **manga** eklentisinin kendi Keşfet sayfası.
+     *
+     * Video eklentilerindeki [AddonExplore] ile aynı mantık; ancak kaynak
+     * nesnesi (MangaSource bir interface) burada taşınamadığı için kararlı
+     * kaynak anahtarı ([com.kitsugi.animelist.data.manga.stableSourceKey])
+     * saklanır ve ekran açılırken kurulu kaynak listesinden çözülür.
+     */
+    data class MangaSourceExplore(val sourceKey: String) : DetailScreen
     /** "Tümünü Gör" → kaynağa özel filtreler + arama sonuçlarının ayrı sayfada açılması. */
     data class SourceSearchPage(val engine: SearchSourceEngine, val query: String, val scope: SearchScope, val shelfResults: List<JikanSearchResult>) : DetailScreen
 }
@@ -68,6 +77,7 @@ sealed interface AppStateKey {
     data class WatchHistory(override val depth: Int) : AppStateKey
     data class PluginPicker(override val depth: Int) : AppStateKey
     data class AddonExplore(val apiName: String, override val depth: Int, val initialQuery: String = "") : AppStateKey
+    data class MangaSourceExplore(val sourceKey: String, override val depth: Int) : AppStateKey
     data class SourceSearchPage(val engine: SearchSourceEngine, val query: String, val scope: SearchScope, val shelfResults: List<JikanSearchResult>, override val depth: Int) : AppStateKey
 }
 

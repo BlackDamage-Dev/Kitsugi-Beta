@@ -380,6 +380,10 @@ fun SettingsScreen(
                             route = SettingsRoute.Main
                             params.onExplorePlugin?.invoke(pluginName)
                         },
+                        onExploreMangaSource = { source ->
+                            route = SettingsRoute.Main
+                            params.onExploreMangaSource?.invoke(source)
+                        },
                         onOpenPluginPicker = {
                             route = SettingsRoute.Main
                             params.onOpenPluginPicker?.invoke()
@@ -1259,6 +1263,7 @@ private fun SettingsAddonsContent(
     initialTab: Int,
     onOpenDiagnostic: () -> Unit,
     onExplorePlugin: (String) -> Unit,
+    onExploreMangaSource: (com.kitsugi.animelist.data.manga.MangaSource) -> Unit,
     onOpenPluginPicker: () -> Unit
 ) {
     KitsugiAddonsSettingsDialog(
@@ -1345,6 +1350,7 @@ private fun SettingsAddonsContent(
         onDismissUntrustedSignature = manga.onDismissUntrustedSignature,
         onOpenDiagnostic = onOpenDiagnostic,
         onExplorePlugin = onExplorePlugin,
+        onExploreMangaSource = onExploreMangaSource,
         onOpenPluginPicker = onOpenPluginPicker,
         onDismiss = {}
     )

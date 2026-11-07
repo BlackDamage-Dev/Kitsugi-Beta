@@ -761,7 +761,9 @@ object KitsugiIcons {
     val LinkOff: ImageVector get() = Unlink
     val ListAlt: ImageVector get() = ListChecks
     val Layers: ImageVector get() = Copy
+    val LocalFireDepartment: ImageVector get() = Flame
     val LocalFlorist: ImageVector get() = Flower
+    val Update: ImageVector get() = History
     val LocationOn: ImageVector get() = MapPin
     val MyLocation: ImageVector get() = MapPin
     val Login: ImageVector get() = LogIn

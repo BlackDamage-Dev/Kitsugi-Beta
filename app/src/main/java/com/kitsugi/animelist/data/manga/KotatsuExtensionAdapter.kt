@@ -384,6 +384,17 @@ class KitsugiKotatsuContext(private val context: Context) : MangaLoaderContext()
 }
 
 // ─── KotatsuMangaSource — Gerçek Parser Wrapper ──────────────────────────────
+
+/**
+ * "Son Güncellemeler" rafının sayfalama anahtarı.
+ *
+ * Kotatsu adaptörü sayfa ofsetlerini `(sorgu, sayfa)` çiftiyle önbelleğe alır.
+ * Bu raf da popüler raf gibi boş sorguyla listelendiği için `""` anahtarını
+ * kullanırsa iki rafın ofsetleri birbirine karışır; ayrı bir sanal anahtar
+ * kullanarak bunu engelliyoruz.
+ */
+private const val LATEST_OFFSET_KEY = "\u0000latest"
+
 class KotatsuMangaSource(
     val parserSource: MangaParserSource,
     private val parser: MangaParser,
@@ -449,6 +460,40 @@ class KotatsuMangaSource(
             result(query, page, list)
         } catch (e: Exception) {
             android.util.Log.w("KotatsuMangaSrc", "fetchSearchManga hata [${parserSource.name}]: ${e.message}")
+            throw e
+        }
+    }
+
+    /**
+     * Kotatsu parseri `SortOrder.UPDATED` destekliyorsa "Son Güncellemeler" rafı
+     * eklenti portalındaki manga keşfet sayfasında gösterilir.
+     *
+     * NOT: parserin kendi `availableSortOrders` kümesine bakılır; desteklemeyen
+     * kaynakta raf hiç çizilmez (popüler listeyi "son güncelleme" diye sunmayız).
+     */
+    override val supportsLatest: Boolean
+        get() = try {
+            SortOrder.UPDATED in parser.availableSortOrders
+        } catch (_: Throwable) {
+            false
+        }
+
+    override suspend fun fetchLatestManga(page: Int): MangaSourceResult = withContext(Dispatchers.IO) {
+        try {
+            val order = SortOrder.UPDATED.takeIf { it in parser.availableSortOrders }
+                ?: return@withContext fetchPopularManga(page)
+            val list = parser.getList(
+                // Popüler rafıyla aynı offset anahtarını PAYLAŞMA — "" anahtarı
+                // popüler sayfalamayı bozardı. Ayrı bir sanal sorgu anahtarı kullanılır.
+                offset = offset(LATEST_OFFSET_KEY, page),
+                filter = MangaListFilter(query = ""),
+                order = order,
+            )
+            result(LATEST_OFFSET_KEY, page, list)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            android.util.Log.w("KotatsuMangaSrc", "fetchLatestManga hata [${parserSource.name}]: ${e.message}")
             throw e
         }
     }

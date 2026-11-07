@@ -1,6 +1,8 @@
 package com.kitsugi.animelist
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import com.kitsugi.animelist.data.manga.stableSourceKey
 import com.kitsugi.animelist.ui.app.AppNavigationState
 import com.kitsugi.animelist.ui.app.MangaViewModel
 import com.kitsugi.animelist.ui.screens.manga.MangaBrowseViewModel
@@ -8,6 +10,7 @@ import com.kitsugi.animelist.ui.screens.manga.MangaReaderScreen
 import com.kitsugi.animelist.ui.screens.manga.MangaDetailScreen
 import com.kitsugi.animelist.ui.screens.manga.MangaSourceHealthScreen
 import com.kitsugi.animelist.ui.screens.manga.MangaBrowseScreen
+import com.kitsugi.animelist.ui.screens.manga.MangaSourceExploreScreen
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
@@ -104,6 +107,34 @@ fun AppRootMangaPages(
             )
         }
 
+        is AppStateKey.MangaSourceExplore -> {
+            // Eklenti portalı → manga eklentisi → Keşfet.
+            // Kaynak nesnesi yerine kararlı anahtar taşındığı için kurulu
+            // kaynak listesinden çözülür (video tarafındaki APIHolder çözümüyle aynı mantık).
+            val exploreKey = "manga_source_explore_${key.depth}_${key.sourceKey}"
+            navState.stateHolder.SaveableStateProvider(key = exploreKey) {
+                val source = mangaViewModel.mangaSources
+                    .firstOrNull { it.stableSourceKey() == key.sourceKey }
+                if (source != null) {
+                    MangaSourceExploreScreen(
+                        source = source,
+                        repository = mangaViewModel.mangaRepository,
+                        onMangaClick = { clickedSource, mangaDetails ->
+                            // Kaynağın kendi detay + bölüm listesi sayfası açılır.
+                            navState.mangaDetailNavState = MangaDetailNavState(
+                                source = clickedSource,
+                                mangaDetails = mangaDetails
+                            )
+                        },
+                        onBack = { navState.popDetailStack() }
+                    )
+                } else {
+                    // Eklenti bu arada kaldırıldıysa boş ekranda bırakma.
+                    LaunchedEffect(Unit) { navState.popDetailStack() }
+                }
+            }
+        }
+
         is AppStateKey.MangaBrowse -> {
             MangaBrowseScreen(
                 repository    = mangaViewModel.mangaRepository,
@@ -136,6 +167,15 @@ fun AppRootMangaPages(
                     navState.mangaDetailNavState = MangaDetailNavState(
                         source       = source,
                         mangaDetails = mangaDetails
+                    )
+                },
+                onExploreMangaSource = { exploreSource ->
+                    // Keşfet sayfası bir DetailScreen olarak itilir; MangaBrowse açıkken
+                    // öncelik onu gölgeleyeceği için önce tarama sayfası kapatılır.
+                    mangaBrowseViewModel.reset()
+                    navState.closeMangaBrowse()
+                    navState.navigateToDetail(
+                        DetailScreen.MangaSourceExplore(sourceKey = exploreSource.stableSourceKey())
                     )
                 },
                 onBack        = {

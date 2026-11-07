@@ -19185,4 +19185,16 @@
     <string name="manga_browse_no_source_match">No matching sources.</string>
     <string name="manga_browse_source_error">Error</string>
     <string name="manga_browse_result_count">%1$d results</string>
+
+    <!-- ── Manga extension Explore page (extension portal → manga source) ── -->
+    <string name="manga_source_explore_hint">Tap a source to open that extension\'s own explore and search page.</string>
+    <string name="manga_source_explore">Explore</string>
+    <string name="manga_explore_header_subtitle">Explore · %1$s source</string>
+    <string name="manga_explore_search_hint">Search in %1$s...</string>
+    <string name="manga_explore_clear_search">Clear search</string>
+    <string name="manga_explore_search_results">Search: %1$s</string>
+    <string name="manga_explore_genres_title">Genres</string>
+    <string name="manga_explore_count">%1$d manga</string>
+    <string name="manga_explore_rail_empty">No manga in this shelf right now.</string>
+    <string name="manga_explore_footer_title">%1$s source · in-source browsing</string>
 </resources>

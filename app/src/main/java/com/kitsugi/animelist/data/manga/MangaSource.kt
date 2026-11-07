@@ -91,6 +91,27 @@ interface MangaSource {
      */
     suspend fun fetchSearchManga(page: Int, query: String): MangaSourceResult
 
+    /**
+     * Kaynak "Son Güncellemeler" rafını gerçekten destekliyor mu?
+     *
+     * Mihon/Keiyoushi eklentileri bu bilgiyi `supportsLatest` bayrağıyla verir.
+     * Kitsugi, eklenti portalındaki manga kaynağı için açılan **Keşfet** sayfasında
+     * bu rafı yalnızca bayrak `true` ise gösterir — böylece uydurma/yanlış
+     * sıralanmış bir liste kullanıcıya "son güncelleme" diye sunulmaz.
+     *
+     * Varsayılan `false`: raf gizlenir.
+     */
+    val supportsLatest: Boolean get() = false
+
+    /**
+     * Sitede son güncellenen / yeni bölüm eklenen mangaların listesini döndürür.
+     *
+     * Yalnızca [supportsLatest] `true` iken çağrılır. Varsayılan uygulama popüler
+     * listeye düşer; gerçek desteği olan kaynaklar (Mihon/Kotatsu adaptörleri)
+     * bunu kendi "latest" uçlarıyla ezer.
+     */
+    suspend fun fetchLatestManga(page: Int): MangaSourceResult = fetchPopularManga(page)
+
     /** Select-filter indices are interpreted by the extension, never as server values. */
     fun selectFilters(): List<MangaSelectFilter> = emptyList()
     suspend fun fetchFilteredManga(page: Int, selections: Map<Int, Int>): MangaSourceResult = fetchPopularManga(page)

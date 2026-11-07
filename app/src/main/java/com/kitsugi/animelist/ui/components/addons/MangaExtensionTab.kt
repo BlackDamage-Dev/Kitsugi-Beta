@@ -105,6 +105,14 @@ internal fun MangaExtensionsTab(
     /** Kurulu tüm manga eklentilerini tek onayla kaldırır (video eklentileriyle parite). */
     onUninstallAllExtensions: () -> Unit = {},
     onVerifySource: ((String, String) -> Unit)? = null,
+    /**
+     * Kurulu bir manga eklentisinin **kendi Keşfet sayfasını** açar.
+     *
+     * Video sekmesindeki `onExplorePlugin` ile birebir aynı sözleşme:
+     * eklenti portalı → eklenti satırı → Keşfet → kaynağın rafları/araması.
+     * `null` ise satır tıklaması ve Keşfet ikonu hiç gösterilmez.
+     */
+    onExploreSource: ((MangaSource) -> Unit)? = null,
     listState: LazyListState = rememberLazyListState(),
     /** Null ise toplu silme butonu hiç çizilmez (callback'siz ölü buton yok). */
     bulkDelete: MangaBulkDeleteState? = null,
@@ -1191,6 +1199,17 @@ internal fun MangaExtensionsTab(
                     }
                 }
             }
+            if (onExploreSource != null && sources.isNotEmpty()) {
+                // Keşfet girişinin keşfedilebilir olması için tek satırlık ipucu.
+                item {
+                    Text(
+                        text = KitsugiStrings.get(R.string.manga_source_explore_hint),
+                        color = KitsugiColors.TextMuted,
+                        fontSize = 11.sp,
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                    )
+                }
+            }
             if (sources.isEmpty()) {
                 // Eklentiler sayfasının ortak boş-durum kartı (bkz. StremioAddonTab.kt).
                 item {
@@ -1226,6 +1245,11 @@ internal fun MangaExtensionsTab(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .then(
+                                if (onExploreSource != null) {
+                                    Modifier.tvClickable(shape = RoundedCornerShape(14.dp)) { onExploreSource.invoke(source) }
+                                } else Modifier
+                            )
                             .padding(horizontal = 14.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -1274,6 +1298,19 @@ internal fun MangaExtensionsTab(
                             }
                             if (errorCode != null) {
                                 PlatformErrorCodeHint(code = errorCode)
+                            }
+                        }
+                        if (onExploreSource != null) {
+                            IconButton(
+                                onClick = { onExploreSource.invoke(source) },
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Icon(
+                                    Icons.Rounded.TravelExplore,
+                                    stringResource(R.string.manga_source_explore),
+                                    tint = accentColor,
+                                    modifier = Modifier.size(18.dp)
+                                )
                             }
                         }
                         // ── AÇ/KAPA SWITCH ──────────────────────────────────────────────

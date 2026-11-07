@@ -957,6 +957,7 @@ fun AppRoot(
                     activeScreen is DetailScreen.WatchHistory -> AppStateKey.WatchHistory(depth = currentDepth)
                     activeScreen is DetailScreen.PluginPicker -> AppStateKey.PluginPicker(depth = currentDepth)
                     activeScreen is DetailScreen.AddonExplore -> AppStateKey.AddonExplore(activeScreen.apiName, depth = currentDepth, initialQuery = activeScreen.initialQuery)
+                    activeScreen is DetailScreen.MangaSourceExplore -> AppStateKey.MangaSourceExplore(activeScreen.sourceKey, depth = currentDepth)
                     activeScreen is DetailScreen.SourceSearchPage -> AppStateKey.SourceSearchPage(activeScreen.engine, activeScreen.query, activeScreen.scope, activeScreen.shelfResults, depth = currentDepth)
                     else                         -> AppStateKey.Tab(selectedTab)
                 }
@@ -1547,7 +1548,8 @@ private fun AppNavigationContent(
             is AppStateKey.MangaDetail,
             is AppStateKey.MangaSourceHealth,
             is AppStateKey.MangaLibraryState,
-            is AppStateKey.MangaBrowse -> {
+            is AppStateKey.MangaBrowse,
+            is AppStateKey.MangaSourceExplore -> {
                 AppRootMangaPages(
                     key = key,
                     navState = navState,

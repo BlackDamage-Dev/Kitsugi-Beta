@@ -19,6 +19,8 @@ class SettingsScreenParameters(
     val onOpenDownloads: (() -> Unit)? = null,
     val onOpenWatchHistory: (() -> Unit)? = null,
     val onExplorePlugin: ((String) -> Unit)? = null,
+    /** Eklenti portalındaki manga eklentisinin kendi Keşfet sayfasını açar. */
+    val onExploreMangaSource: ((com.kitsugi.animelist.data.manga.MangaSource) -> Unit)? = null,
     val onOpenPluginPicker: (() -> Unit)? = null,
     val onOpenAbout: (() -> Unit)? = null,
     val onSubPageOpenChange: ((Boolean) -> Unit)? = null,

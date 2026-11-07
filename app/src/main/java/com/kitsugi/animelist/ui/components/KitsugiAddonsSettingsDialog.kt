@@ -132,6 +132,8 @@ fun KitsugiAddonsSettingsDialog(
     useGithubProxy: Boolean = false,
     onUseGithubProxyChanged: (Boolean) -> Unit = {},
     onExplorePlugin: ((String) -> Unit)? = null,
+    /** Manga eklentisi → kendi Keşfet sayfası (video tarafındaki onExplorePlugin'in ikizi). */
+    onExploreMangaSource: ((MangaSource) -> Unit)? = null,
     onOpenPluginPicker: (() -> Unit)? = null,
     embeddedMode: Boolean = false,
     onDismiss: () -> Unit
@@ -334,6 +336,7 @@ fun KitsugiAddonsSettingsDialog(
                             onOpenPluginPicker = onOpenPluginPicker
                         )
                         2 -> MangaExtensionsTab(
+                            onExploreSource = onExploreMangaSource,
                             sources = mangaSources,
                             onVerifySource = { url, name ->
                                 webViewDialogUrl = url

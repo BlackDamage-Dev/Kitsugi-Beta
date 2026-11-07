@@ -159,6 +159,7 @@ class AppNavigationState(
                 DetailScreen.WatchHistory -> "watch_history_${depth}"
                 DetailScreen.PluginPicker -> "plugin_picker_${depth}"
                 is DetailScreen.AddonExplore -> "addon_explore_${depth}_${screen.apiName}"
+                is DetailScreen.MangaSourceExplore -> "manga_source_explore_${depth}_${screen.sourceKey}"
                 is DetailScreen.SourceSearchPage -> "source_search_${depth}_${screen.engine.id}"
             }
             stateHolder.removeState(key)
@@ -182,6 +183,7 @@ class AppNavigationState(
                     DetailScreen.WatchHistory -> "watch_history_${plainDepth}"
                     DetailScreen.PluginPicker -> "plugin_picker_${plainDepth}"
                     is DetailScreen.AddonExplore -> "addon_explore_${plainDepth}_${screen.apiName}"
+                    is DetailScreen.MangaSourceExplore -> "manga_source_explore_${plainDepth}_${screen.sourceKey}"
                     is DetailScreen.SourceSearchPage -> "source_search_${plainDepth}_${screen.engine.id}"
                 }
                 stateHolder.removeState(fallbackKey)

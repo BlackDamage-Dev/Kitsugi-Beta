@@ -201,6 +201,11 @@ fun MangaBrowseScreen(
     initialTitleSet: com.kitsugi.animelist.data.manga.MangaTitleSet? = null,
     vm: MangaBrowseViewModel = viewModel(factory = MangaBrowseViewModel.Factory(repository, LocalContext.current.applicationContext)),
     onMangaClick: (MangaSource, MangaDetails) -> Unit = { _, _ -> },
+    /**
+     * Eklentiler diyaloğundaki kurulu manga kaynağından kendi **Keşfet**
+     * sayfasını açar (eklenti portalı ile aynı hedef).
+     */
+    onExploreMangaSource: ((MangaSource) -> Unit)? = null,
     onOpenMangaLibrary: () -> Unit = {},
     onBack: () -> Unit = {}
 ) {
@@ -739,6 +744,12 @@ fun MangaBrowseScreen(
             useGithubProxy = appSettings.useGithubProxy,
             onUseGithubProxyChanged = { enabled ->
                 settingsScope.launch { settingsDataStore.setUseGithubProxy(enabled) }
+            },
+            onExploreMangaSource = { exploreSource ->
+                // Bu diyalog gerçek bir Dialog katmanı; keşfet sayfası altta kalmasın
+                // diye önce kapatılır, sonra hedef ekran itilir.
+                showSettingsDialog = false
+                onExploreMangaSource?.invoke(exploreSource)
             },
             mangaSources = mangaViewModel.mangaSources,
             onInstallMangaExtension = { mangaViewModel.installMangaExtension(it) },

@@ -19191,4 +19191,16 @@ Eklentiler ekranından eklenti etkinleştirin.</string>
     <string name="manga_browse_no_source_match">Eşleşen kaynak bulunamadı.</string>
     <string name="manga_browse_source_error">Hata</string>
     <string name="manga_browse_result_count">%1$d sonuç</string>
+
+    <!-- ── Manga eklentisi Keşfet sayfası (eklenti portalı → manga kaynağı) ── -->
+    <string name="manga_source_explore_hint">Bir kaynağa dokunun: yalnızca o eklentinin keşfet ve arama sayfası açılır.</string>
+    <string name="manga_source_explore">Keşfet</string>
+    <string name="manga_explore_header_subtitle">Keşfet · %1$s kaynağı</string>
+    <string name="manga_explore_search_hint">%1$s içinde ara...</string>
+    <string name="manga_explore_clear_search">Aramayı temizle</string>
+    <string name="manga_explore_search_results">Arama: %1$s</string>
+    <string name="manga_explore_genres_title">Türler</string>
+    <string name="manga_explore_count">%1$d manga</string>
+    <string name="manga_explore_rail_empty">Bu rafta şu an manga yok.</string>
+    <string name="manga_explore_footer_title">%1$s kaynağı · kaynak içi tarama</string>
 </resources>

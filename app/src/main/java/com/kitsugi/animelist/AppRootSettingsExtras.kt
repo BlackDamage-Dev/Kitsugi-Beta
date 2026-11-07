@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import com.kitsugi.animelist.ui.screens.settings.SettingsScreen
 import kotlinx.coroutines.launch
 import com.kitsugi.animelist.utils.KitsugiStrings
+import com.kitsugi.animelist.data.manga.stableSourceKey
 import com.kitsugi.animelist.R
 
 /**
@@ -612,6 +613,13 @@ internal fun SettingsContext.buildSettingsParams() =
         },
         onExplorePlugin = { pluginName ->
             navState.navigateToDetail(DetailScreen.AddonExplore(pluginName))
+        },
+        onExploreMangaSource = { source ->
+            navState.navigateToDetail(
+                DetailScreen.MangaSourceExplore(
+                    sourceKey = source.stableSourceKey()
+                )
+            )
         },
         onOpenPluginPicker = {
             navState.navigateToDetail(DetailScreen.PluginPicker)

@@ -113,6 +113,43 @@ class MihonSourceWrapper(
         }
     }
 
+    // ── Son Güncellemeler (Mihon supportsLatest) ──────────────────────────────
+
+    /**
+     * Mihon/Tachiyomi eklentisi "son güncellemeler" rafını destekliyor mu?
+     *
+     * `Source.supportsLatest` bayrağı okunur; eklenti bu bayrağı uygulamıyorsa
+     * (eski/eğreti derlenmiş APK) güvenli tarafta kalıp `false` döneriz.
+     */
+    override val supportsLatest: Boolean
+        get() = try {
+            mihonSource.supportsLatest
+        } catch (_: Throwable) {
+            false
+        }
+
+    override suspend fun fetchLatestManga(page: Int): MangaSourceResult = withRecovery {
+        val t0 = System.currentTimeMillis()
+        try {
+            val pageResult = mihonSource.getLatestUpdates(page)
+            val result = MangaSourceResult(
+                mangas = pageResult.mangas.map { it.toMangaDetails() },
+                hasNextPage = pageResult.hasNextPage
+            )
+            MangaLogger.logPopular(
+                context, mihonSource.name, success = true,
+                resultCount = result.mangas.size, elapsedMs = System.currentTimeMillis() - t0
+            )
+            result
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            Log.w(TAG, "${mihonSource.name} APK son güncellemeler başarısız (engine=$engineType): ${e.message}")
+            // Bazı eklentilerde latest ucu bozuk/kapalı; keşfet sayfası boş kalmasın
+            // diye popüler listeye düşeriz (aynı davranış MangaBrowse'da da var).
+            fetchPopularManga(page)
+        }
+    }
+
     // ── Popüler Manga ────────────────────────────────────────────────────────
 
     override suspend fun fetchPopularManga(page: Int): MangaSourceResult = withRecovery {
