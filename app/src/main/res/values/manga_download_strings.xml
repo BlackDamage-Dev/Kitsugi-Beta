@@ -11,6 +11,10 @@
     <string name="manga_download_storage_permission">Manga sayfalarını galeriye kaydetmek için depolama izni gerekli.</string>
     <string name="manga_download_queued">Bölüm manga indirme kuyruğuna eklendi.</string>
     <string name="manga_download_storage_summary">%1$d bölüm · %2$s MB</string>
+    <string name="manga_download_group_ready_suffix"> · %1$d/%2$d hazır</string>
+    <string name="manga_download_cover">Manga kapak görseli</string>
+    <string name="manga_download_source_badge">Kaynak</string>
+    <string name="manga_download_scanlator_badge">Çevirmen</string>
     <string name="manga_download_folder_hint">Pictures/Kitsugi/Manga · Manga ve bölüm klasörleri · Sıralı sayfalar</string>
     <string name="manga_download_empty">Bölümün yanındaki indirme düğmesiyle çevrimdışı okumak için manga indirin.</string>
     <string name="manga_download_status_queued">Sırada / ağ bekleniyor</string>

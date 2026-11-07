@@ -11,6 +11,10 @@
     <string name="manga_download_storage_permission">Storage permission is required to save manga pages to your gallery.</string>
     <string name="manga_download_queued">Chapter added to the manga download queue.</string>
     <string name="manga_download_storage_summary">%1$d chapters · %2$s MB</string>
+    <string name="manga_download_group_ready_suffix"> · %1$d/%2$d ready</string>
+    <string name="manga_download_cover">Manga cover image</string>
+    <string name="manga_download_source_badge">Source</string>
+    <string name="manga_download_scanlator_badge">Translator</string>
     <string name="manga_download_folder_hint">Pictures/Kitsugi/Manga · Manga and chapter folders · Ordered pages</string>
     <string name="manga_download_empty">Use the download button next to a chapter to save manga for offline reading.</string>
     <string name="manga_download_status_queued">Queued / waiting for network</string>
