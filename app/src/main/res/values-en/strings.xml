@@ -19169,4 +19169,20 @@
     <string name="manga_browse_ui_sort_relevance">Relevance</string>
     <string name="manga_browse_ui_sort_az">A-Z</string>
     <string name="manga_browse_ui_empty_subtitle">Try another title or check your manga sources.</string>
+
+    <!-- Manga Keşfet — yapışkan kaynak çubuğu / kaynak seçici (v2.4.340) -->
+    <string name="manga_browse_manage_sources">Manage sources</string>
+    <string name="manga_browse_search_name">Search: %1$s</string>
+    <string name="manga_browse_change_search_name">Change search name</string>
+    <string name="manga_browse_sort_label">Sort:</string>
+    <string name="manga_browse_sort_relevance">Relevance</string>
+    <string name="manga_browse_sort_az">A-Z</string>
+    <string name="manga_browse_searched_name">Searched: %1$s</string>
+    <string name="manga_browse_back_to_search">Back to search</string>
+    <string name="manga_browse_show_all_sources">Show all sources</string>
+    <string name="manga_browse_sources_title">Sources</string>
+    <string name="manga_browse_search_sources">Search sources</string>
+    <string name="manga_browse_no_source_match">No matching sources.</string>
+    <string name="manga_browse_source_error">Error</string>
+    <string name="manga_browse_result_count">%1$d results</string>
 </resources>

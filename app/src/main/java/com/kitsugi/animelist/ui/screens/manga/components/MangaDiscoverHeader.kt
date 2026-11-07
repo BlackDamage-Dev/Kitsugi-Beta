@@ -27,6 +27,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -246,8 +248,10 @@ fun MangaDiscoverSearchPanel(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     onShowInfo: (() -> Unit)? = null,
+    onChangeSearchName: (() -> Unit)? = null,
+    focusRequester: FocusRequester? = null,
     compact: Boolean = false,
-    chips: @Composable () -> Unit = {},
+    chips: (@Composable () -> Unit)? = null,
 ) {
     Surface(
         shape = RoundedCornerShape(18.dp),
@@ -271,18 +275,37 @@ fun MangaDiscoverSearchPanel(
                 )
             }
             val hint: @Composable () -> Unit = {
-                if (onShowInfo != null) {
-                    Text(
-                        text = stringResource(R.string.manga_discover_mode_chip_hint),
-                        color = KitsugiColors.TextMuted,
-                        fontSize = 9.5.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(999.dp))
-                            .tvClickable(shape = RoundedCornerShape(999.dp)) { onShowInfo() }
-                            .padding(horizontal = 6.dp, vertical = 3.dp)
-                    )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    if (onChangeSearchName != null && query.isNotBlank()) {
+                        Text(
+                            text = stringResource(R.string.manga_browse_change_search_name),
+                            color = accent,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(999.dp))
+                                .tvClickable(shape = RoundedCornerShape(999.dp)) { onChangeSearchName() }
+                                .padding(horizontal = 6.dp, vertical = 3.dp)
+                        )
+                    }
+                    if (onShowInfo != null) {
+                        Text(
+                            text = stringResource(R.string.manga_discover_mode_chip_hint),
+                            color = KitsugiColors.TextMuted,
+                            fontSize = 9.5.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(999.dp))
+                                .tvClickable(shape = RoundedCornerShape(999.dp)) { onShowInfo() }
+                                .padding(horizontal = 6.dp, vertical = 3.dp)
+                        )
+                    }
                 }
             }
 
@@ -291,13 +314,12 @@ fun MangaDiscoverSearchPanel(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // Çipin metni uzun olabildiği için genişliği sınırlanır; aksi hâlde
-                    // arama alanını sıfıra sıkıştırırdı.
                     Box(Modifier.widthIn(max = 172.dp)) { modeChip() }
                     MangaSearchField(
                         query = query,
                         onQueryChange = onQueryChange,
                         accent = accent,
+                        focusRequester = focusRequester,
                         modifier = Modifier.weight(1f)
                     )
                     if (onShowInfo != null) {
@@ -323,11 +345,12 @@ fun MangaDiscoverSearchPanel(
                     query = query,
                     onQueryChange = onQueryChange,
                     accent = accent,
+                    focusRequester = focusRequester,
                     modifier = Modifier.fillMaxWidth()
                 )
             }
 
-            chips()
+            chips?.invoke()
         }
     }
 }
@@ -339,6 +362,7 @@ private fun MangaSearchField(
     onQueryChange: (String) -> Unit,
     accent: Color,
     modifier: Modifier = Modifier,
+    focusRequester: FocusRequester? = null,
 ) {
     TextField(
         value = query,
@@ -384,7 +408,7 @@ private fun MangaSearchField(
             unfocusedTextColor       = KitsugiColors.TextPrimary,
             cursorColor              = accent
         ),
-        modifier = modifier
+        modifier = if (focusRequester != null) modifier.focusRequester(focusRequester) else modifier
     )
 }
 

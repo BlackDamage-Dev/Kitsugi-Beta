@@ -19175,4 +19175,20 @@ Eklentiler ekranından eklenti etkinleştirin.</string>
     <string name="manga_browse_ui_sort_relevance">İlgi</string>
     <string name="manga_browse_ui_sort_az">A-Z</string>
     <string name="manga_browse_ui_empty_subtitle">Farklı bir başlık deneyin veya manga kaynaklarınızı kontrol edin.</string>
+
+    <!-- Manga Keşfet — yapışkan kaynak çubuğu / kaynak seçici (v2.4.340) -->
+    <string name="manga_browse_manage_sources">Kaynakları yönet</string>
+    <string name="manga_browse_search_name">Arama: %1$s</string>
+    <string name="manga_browse_change_search_name">Arama adını değiştir</string>
+    <string name="manga_browse_sort_label">Sırala:</string>
+    <string name="manga_browse_sort_relevance">İlgi</string>
+    <string name="manga_browse_sort_az">A-Z</string>
+    <string name="manga_browse_searched_name">Aranan: %1$s</string>
+    <string name="manga_browse_back_to_search">Aramaya dön</string>
+    <string name="manga_browse_show_all_sources">Tüm kaynakları göster</string>
+    <string name="manga_browse_sources_title">Kaynaklar</string>
+    <string name="manga_browse_search_sources">Kaynak ara</string>
+    <string name="manga_browse_no_source_match">Eşleşen kaynak bulunamadı.</string>
+    <string name="manga_browse_source_error">Hata</string>
+    <string name="manga_browse_result_count">%1$d sonuç</string>
 </resources>
