@@ -1,11 +1,11 @@
-package com.kitsugi.animelist.ui.screens.detail.wiki
+﻿package com.kitsugi.animelist.ui.screens.detail.wiki
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
@@ -217,7 +217,7 @@ internal fun WikiPageTools(
                 Text(stringResource(R.string.wiki_tools_info), color = KitsugiColors.TextPrimary)
             },
             text = {
-                Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
+                Column(Modifier.heightIn(max = 420.dp).kitsugiVerticalScroll(rememberScrollState())) {
                     if (host.isNotBlank()) {
                         Text(stringResource(R.string.wiki_original_hint, host))
                         Spacer(Modifier.height(12.dp))
@@ -306,7 +306,7 @@ private fun WikiPageToolsDialog(
         },
         text = {
             Column(
-                modifier = Modifier.heightIn(max = 460.dp).verticalScroll(rememberScrollState())
+                modifier = Modifier.heightIn(max = 460.dp).kitsugiVerticalScroll(rememberScrollState())
             ) {
                 // 2026-10-23: satırlar tek sütun hâlinde yığılmıyor; uygulama temasındaki
                 // ayar grupları gibi başlıklı, yuvarlak yüzeylere ayrıldı.
@@ -770,7 +770,7 @@ internal fun WikiReadingSettingsDialog(
             Text(stringResource(R.string.wiki_reading_appearance), color = KitsugiColors.TextPrimary)
         },
         text = {
-            Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
+            Column(Modifier.heightIn(max = 420.dp).kitsugiVerticalScroll(rememberScrollState())) {
                 Text(stringResource(R.string.wiki_theme_explanation))
                 Column(Modifier.selectableGroup()) {
                     WikiReadingAppearance.modes.forEach { value ->

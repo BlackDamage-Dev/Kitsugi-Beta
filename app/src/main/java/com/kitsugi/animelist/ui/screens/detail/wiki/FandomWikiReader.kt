@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.ui.screens.detail.wiki
+﻿package com.kitsugi.animelist.ui.screens.detail.wiki
 
 import com.kitsugi.animelist.ui.components.KitsugiChevronIcon
 import androidx.compose.animation.AnimatedVisibility
@@ -39,7 +39,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
 import com.kitsugi.animelist.data.settings.KitsugiContentPrefs
 import com.kitsugi.animelist.data.settings.SettingsDataStore
 import kotlinx.coroutines.launch
@@ -513,7 +513,7 @@ internal fun FandomWikiReaderSheet(
                 Text(stringResource(R.string.wiki_tabs_title), color = KitsugiColors.TextPrimary)
             },
             text = {
-                Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
+                Column(Modifier.heightIn(max = 420.dp).kitsugiVerticalScroll(rememberScrollState())) {
                     navigation.tabs.forEach { item ->
                         val itemTitle = webSessions[item.id]?.title?.takeIf { it.isNotBlank() }
                             ?: item.location.title
@@ -1237,7 +1237,7 @@ private fun ReaderContent(
             .onGloballyPositioned { coordinates ->
                 layoutProbe.onContainerPosition(coordinates.positionInRoot().y)
             }
-            .verticalScroll(scrollState)
+            .kitsugiVerticalScroll(scrollState)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {

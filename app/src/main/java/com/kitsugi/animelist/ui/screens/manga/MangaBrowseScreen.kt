@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.ui.screens.manga
+﻿package com.kitsugi.animelist.ui.screens.manga
 
 import android.content.res.Configuration
 import androidx.compose.animation.AnimatedVisibility
@@ -45,7 +45,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -1681,7 +1681,7 @@ private fun MangaSearchInfoDialog(
             Column(
                 Modifier
                     .heightIn(max = 480.dp)
-                    .verticalScroll(rememberScrollState())
+                    .kitsugiVerticalScroll(rememberScrollState())
                     .padding(18.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
@@ -1790,7 +1790,7 @@ fun SourceSelectFiltersDialog(
         onDismissRequest = onDismiss,
         title = { Text("Kaynak filtreleri") },
         text = {
-            Column(Modifier.fillMaxWidth().heightIn(max = 480.dp).then(Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState()))) {
+            Column(Modifier.fillMaxWidth().heightIn(max = 480.dp).then(Modifier.kitsugiVerticalScroll(androidx.compose.foundation.rememberScrollState()))) {
                 filters.forEach { filter ->
                     var expanded by remember(filter.index) { mutableStateOf(false) }
                     Text(filter.name, fontWeight = FontWeight.SemiBold)

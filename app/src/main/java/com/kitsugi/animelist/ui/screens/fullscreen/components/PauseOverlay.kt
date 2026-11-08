@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.ui.screens.fullscreen.components
+﻿package com.kitsugi.animelist.ui.screens.fullscreen.components
 
 import com.kitsugi.animelist.ui.theme.gradient.Text
 
@@ -14,7 +14,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -81,7 +81,7 @@ fun PauseOverlay(
                         .weight(1f)
                         .fillMaxHeight()
                         .tvClickable(enabled = false) {} // block click propagation
-                        .verticalScroll(rememberScrollState()),
+                        .kitsugiVerticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.Top
                 ) {
                     Text(

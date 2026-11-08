@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.ui.components
+﻿package com.kitsugi.animelist.ui.components
 
 import android.content.Intent
 import android.net.Uri
@@ -25,7 +25,7 @@ import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
 import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.ButtonDefaults
 import com.kitsugi.animelist.ui.theme.gradient.Icon
@@ -219,7 +219,7 @@ fun KitsugiBangumiLoginDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f, fill = false)
-                        .verticalScroll(scrollState),
+                        .kitsugiVerticalScroll(scrollState),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     // Hata kutusu

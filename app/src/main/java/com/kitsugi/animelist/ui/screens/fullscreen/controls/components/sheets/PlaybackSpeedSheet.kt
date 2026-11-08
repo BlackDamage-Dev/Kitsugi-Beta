@@ -11,7 +11,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
 import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledTonalIconButton
@@ -61,7 +61,7 @@ fun PlaybackSpeedSheet(
     PlayerSheet(onDismissRequest = onDismissRequest) {
         Column(
             modifier = modifier
-                .verticalScroll(rememberScrollState())
+                .kitsugiVerticalScroll(rememberScrollState())
                 .padding(vertical = 12.dp),
         ) {
             // Speed label + slider

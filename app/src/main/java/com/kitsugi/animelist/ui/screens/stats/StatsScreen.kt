@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.ui.screens.stats
+﻿package com.kitsugi.animelist.ui.screens.stats
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -15,7 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
 import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -112,7 +112,7 @@ fun StatsScreen(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .verticalScroll(scrollState)
+                    .kitsugiVerticalScroll(scrollState)
                     .padding(horizontal = 16.dp)
                     .padding(bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)

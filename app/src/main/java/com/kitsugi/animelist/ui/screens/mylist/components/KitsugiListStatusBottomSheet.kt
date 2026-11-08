@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.ui.screens.mylist.components
+﻿package com.kitsugi.animelist.ui.screens.mylist.components
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -21,7 +21,7 @@ import com.kitsugi.animelist.R
 import com.kitsugi.animelist.model.MediaEntry
 import com.kitsugi.animelist.model.WatchStatus
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
 import com.kitsugi.animelist.ui.components.KitsugiSheetOrDialog
 import com.kitsugi.animelist.ui.components.LocalDismissAnimated
 import com.kitsugi.animelist.ui.theme.KitsugiColors
@@ -94,7 +94,7 @@ fun KitsugiListStatusBottomSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .verticalScroll(scrollState)
+                .kitsugiVerticalScroll(scrollState)
                 .padding(horizontal = 16.dp, vertical = 8.dp)
                 .padding(bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)

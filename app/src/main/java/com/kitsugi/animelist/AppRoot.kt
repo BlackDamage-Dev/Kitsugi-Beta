@@ -1378,7 +1378,32 @@ private fun AppNavigationContent(
                 if (key.state.savedStateKey == null) key.state.openingStackDepth = navState.detailBackStack.size
                 key.state.savedStateKey = gridKey
                 navState.stateHolder.SaveableStateProvider(key = gridKey) {
-                    FullScreenMediaGridPage(
+                    if (key.state.mobileFiniteResults) {
+                        com.kitsugi.animelist.ui.screens.explore.mobile.MobileExploreFiniteGrid(
+                            title = key.state.title,
+                            results = key.state.initialResults,
+                            alreadyInList = isAlreadyInList,
+                            getMediaEntry = getMediaEntry,
+                            onItemClick = onOpenApiDetail,
+                            onLongClickItem = { result ->
+                                val entry = getMediaEntry(result)
+                                if (entry != null) onEditEntry(entry)
+                                else onAddApiSelectionToList(ApiSearchSelection(result = result, synopsis = null))
+                            },
+                            onBack = {
+                                navState.fullScreenGridState = null
+                                coroutineScope.launch {
+                                    kotlinx.coroutines.delay(350L)
+                                    navState.stateHolder.removeState(gridKey)
+                                }
+                            },
+                            showAdultContent = appSettings.showAdultContent,
+                            titleLanguage = appSettings.titleLanguage,
+                            scoreFormat = appSettings.scoreFormat,
+                            hideScores = appSettings.hideScores,
+                            blurAdultMedia = appSettings.blurAdultMedia,
+                        )
+                    } else FullScreenMediaGridPage(
                         title = key.state.title,
                         categoryType = key.state.categoryType,
                         platform = key.state.platform,

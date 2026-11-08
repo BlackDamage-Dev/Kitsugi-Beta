@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.ui.screens.detail.wiki
+﻿package com.kitsugi.animelist.ui.screens.detail.wiki
 
 import com.kitsugi.animelist.ui.components.KitsugiChevronIcon
 import android.content.Context
@@ -27,7 +27,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
-import androidx.compose.foundation.verticalScroll
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
 import com.kitsugi.animelist.ui.components.KitsugiEmojiLabel
 import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.CircularProgressIndicator
@@ -1090,7 +1090,7 @@ private fun WikiItemSheet(
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(max = maxHeight)
-                .verticalScroll(scrollState)
+                .kitsugiVerticalScroll(scrollState)
                 .padding(horizontal = 20.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {

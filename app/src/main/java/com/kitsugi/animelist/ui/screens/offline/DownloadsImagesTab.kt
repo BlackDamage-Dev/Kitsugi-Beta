@@ -1,7 +1,7 @@
-package com.kitsugi.animelist.ui.screens.offline
+﻿package com.kitsugi.animelist.ui.screens.offline
 
 import com.kitsugi.animelist.ui.components.KitsugiSheetOrDialog
-import androidx.compose.foundation.verticalScroll
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
 import androidx.compose.foundation.layout.navigationBarsPadding
 
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -352,7 +352,7 @@ fun DownloadedImagesTab(
         if (menuOpen) {
             val sheetScroll = rememberScrollState()
             KitsugiSheetOrDialog(onDismiss = onDismissMenu, innerColumnScrollState = sheetScroll) {
-                Column(modifier = Modifier.fillMaxWidth().navigationBarsPadding().verticalScroll(sheetScroll).padding(vertical = 12.dp)) {
+                Column(modifier = Modifier.fillMaxWidth().navigationBarsPadding().kitsugiVerticalScroll(sheetScroll).padding(vertical = 12.dp)) {
                     Text(stringResource(R.string.page_controls), color = KitsugiColors.TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
                     commonMenu()
             FlowRow(

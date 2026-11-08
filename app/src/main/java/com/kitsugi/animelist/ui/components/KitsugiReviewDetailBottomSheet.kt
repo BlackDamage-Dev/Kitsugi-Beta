@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.ui.components
+﻿package com.kitsugi.animelist.ui.components
 
 import com.kitsugi.animelist.utils.KitsugiTranslateUtils
 import com.kitsugi.animelist.utils.KitsugiTranslatePrefs
@@ -15,7 +15,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
 import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.material3.*
@@ -323,7 +323,7 @@ fun KitsugiReviewDetailBottomSheet(
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(max = 350.dp)
-                    .verticalScroll(scrollState)
+                    .kitsugiVerticalScroll(scrollState)
                     .padding(vertical = 4.dp)
             ) {
                 if (isTranslating && translatedText == null) {

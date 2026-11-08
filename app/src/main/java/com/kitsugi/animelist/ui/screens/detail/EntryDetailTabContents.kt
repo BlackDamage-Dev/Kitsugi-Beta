@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.ui.screens.detail
+﻿package com.kitsugi.animelist.ui.screens.detail
 
 import android.content.Intent
 import android.net.Uri
@@ -25,7 +25,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
@@ -488,7 +488,7 @@ internal fun DetailGalleryCard(
                         .fillMaxWidth()
                         .navigationBarsPadding()
                         .heightIn(max = LocalConfiguration.current.screenHeightDp.dp * 0.78f)
-                        .verticalScroll(rememberScrollState())
+                        .kitsugiVerticalScroll(rememberScrollState())
                         .padding(horizontal = 16.dp, vertical = 4.dp)
                 ) {
                     Text(

@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.ui.screens.audio
+﻿package com.kitsugi.animelist.ui.screens.audio
 
 import android.content.Context
 import android.content.Intent
@@ -47,7 +47,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -333,7 +333,7 @@ fun KitsugiAudioPlayerFullContent(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .verticalScroll(rememberScrollState())
+            .kitsugiVerticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp, vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {

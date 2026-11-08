@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.ui.screens.settings
+﻿package com.kitsugi.animelist.ui.screens.settings
 
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import com.kitsugi.animelist.ui.theme.gradient.LinearProgressIndicator
@@ -13,7 +13,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
 import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -101,7 +101,7 @@ private fun PlatformConnectionsPage(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(scrollState)
+            .kitsugiVerticalScroll(scrollState)
             .padding(vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -221,7 +221,7 @@ private fun CrossSyncConnectionsPage(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(scrollState)
+            .kitsugiVerticalScroll(scrollState)
             .padding(vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -252,7 +252,7 @@ internal fun AniListSettingsContent(profile: ProfileSettings) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(scrollState)
+            .kitsugiVerticalScroll(scrollState)
             .padding(vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -424,7 +424,7 @@ internal fun MalSettingsContent(profile: ProfileSettings) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(scrollState)
+            .kitsugiVerticalScroll(scrollState)
             .padding(vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -513,7 +513,7 @@ internal fun SimklSettingsContent(profile: ProfileSettings) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(scrollState)
+            .kitsugiVerticalScroll(scrollState)
             .padding(vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -595,7 +595,7 @@ internal fun KitsuSettingsContent(profile: ProfileSettings) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(scrollState)
+            .kitsugiVerticalScroll(scrollState)
             .padding(vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -699,7 +699,7 @@ internal fun ShikimoriSettingsContent(profile: ProfileSettings) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(scrollState)
+            .kitsugiVerticalScroll(scrollState)
             .padding(vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -818,7 +818,7 @@ internal fun BangumiSettingsContent(profile: ProfileSettings) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(scrollState)
+            .kitsugiVerticalScroll(scrollState)
             .padding(vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -919,7 +919,7 @@ internal fun TmdbSettingsContent(profile: ProfileSettings) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
+            .kitsugiVerticalScroll(rememberScrollState())
             .padding(vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -1013,7 +1013,7 @@ internal fun CrossSyncSettingsContent(profile: ProfileSettings) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(scrollState)
+            .kitsugiVerticalScroll(scrollState)
             .padding(vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {

@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.ui.components
+﻿package com.kitsugi.animelist.ui.components
 
 import androidx.compose.ui.res.stringResource
 
@@ -19,7 +19,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
 import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -169,7 +169,7 @@ private fun DataManagementTab(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(scrollState)
+            .kitsugiVerticalScroll(scrollState)
             .padding(vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -265,7 +265,7 @@ private fun DnsSettingsTab(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(scrollState)
+            .kitsugiVerticalScroll(scrollState)
             .padding(vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -418,7 +418,7 @@ fun StorageSettingsTab(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(scrollState)
+            .kitsugiVerticalScroll(scrollState)
             .padding(vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -882,7 +882,7 @@ fun <T> KitsugiChoicePickerDialog(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .verticalScroll(rememberScrollState()),
+                    .kitsugiVerticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 options.forEach { (value, label) ->
@@ -960,7 +960,7 @@ fun <T> KitsugiMultiSelectPickerDialog(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .verticalScroll(rememberScrollState()),
+                    .kitsugiVerticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 options.forEach { (value, label) ->

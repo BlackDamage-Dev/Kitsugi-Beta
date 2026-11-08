@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.ui.screens.settings
+﻿package com.kitsugi.animelist.ui.screens.settings
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -10,7 +10,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
 import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
@@ -81,7 +81,7 @@ fun ExperimentalSettingsContent(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
+            .kitsugiVerticalScroll(rememberScrollState())
             .padding(vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {

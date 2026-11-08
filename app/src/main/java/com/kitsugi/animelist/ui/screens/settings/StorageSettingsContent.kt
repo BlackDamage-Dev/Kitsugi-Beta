@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.ui.screens.settings
+﻿package com.kitsugi.animelist.ui.screens.settings
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -14,7 +14,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
 import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -106,7 +106,7 @@ fun StorageSettingsContent() {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
+            .kitsugiVerticalScroll(rememberScrollState())
     ) {
         Spacer(Modifier.height(8.dp))
 

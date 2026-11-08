@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.ui.screens.manga
+﻿package com.kitsugi.animelist.ui.screens.manga
 
 import com.kitsugi.animelist.R
 import com.kitsugi.animelist.data.fandom.FandomMediaQueries
@@ -37,7 +37,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.verticalScroll
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -1052,7 +1052,7 @@ private fun ChapterTranslatorPickerSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .verticalScroll(sheetScroll)
+                .kitsugiVerticalScroll(sheetScroll)
                 .padding(horizontal = 16.dp)
                 .padding(bottom = 24.dp)
         ) {

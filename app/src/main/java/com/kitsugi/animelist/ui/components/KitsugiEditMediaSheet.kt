@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.ui.components
+﻿package com.kitsugi.animelist.ui.components
 
 import com.kitsugi.animelist.ui.utils.localizedLabel
 import android.app.DatePickerDialog
@@ -22,7 +22,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
 import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.HorizontalDivider
 import com.kitsugi.animelist.ui.theme.gradient.Icon
@@ -515,7 +515,7 @@ fun KitsugiEditMediaSheet(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .verticalScroll(scrollState)
+                    .kitsugiVerticalScroll(scrollState)
                     .padding(bottom = 32.dp)
             ) {
 
@@ -1283,7 +1283,7 @@ fun KitsugiCustomListsSelectionDialog(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(250.dp)
-                    .verticalScroll(rememberScrollState()),
+                    .kitsugiVerticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 viewerCustomLists.forEach { listName ->

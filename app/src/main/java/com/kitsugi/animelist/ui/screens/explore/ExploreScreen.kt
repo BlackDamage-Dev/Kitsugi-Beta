@@ -5,6 +5,8 @@
 
 package com.kitsugi.animelist.ui.screens.explore
 
+import com.kitsugi.animelist.ui.screens.explore.mobile.*
+import androidx.compose.ui.text.style.TextAlign
 import com.kitsugi.animelist.ui.theme.gradient.FloatingActionButton
 import com.kitsugi.animelist.ui.components.PlatformErrorExplanationBlock
 import com.kitsugi.animelist.ui.theme.gradient.Icon
@@ -120,7 +122,9 @@ fun ExploreScreen(
     /** TMDB hatası — Ayarlar/Entegrasyonlar sayfasına yönlendir */
     onRedirectToSettings: (() -> Unit)? = null,
     /** AniList/MAL hatası — Giriş yap sayfasına yönlendir */
-    onRedirectToAuth: (() -> Unit)? = null
+    onRedirectToAuth: (() -> Unit)? = null,
+    /** Mobil yeni Keşfet için Tümünü Gör raf açma callback'i */
+    onOpenMobileShelf: ((com.kitsugi.animelist.ui.screens.explore.mobile.MobileExploreShelfData, String) -> Unit)? = null
 ) {
     val accentColor = LocalKitsugiAccent.current
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -334,6 +338,55 @@ fun ExploreScreen(
 
     val isTvDevice = LocalIsTvDevice.current
 
+    val mobileExploreInput = remember(
+        viewModel.selectedPlatform,
+        filteredSourcePayload,
+        viewModel.allSourceStates,
+        viewModel.isLoading,
+        viewModel.errorMessage,
+        viewModel.isShowingCachedData,
+        viewModel.platformErrorCode,
+        isSimklConnected
+    ) {
+        if (viewModel.selectedPlatform == ExplorePlatform.ALL) {
+            val personalPayload = if (isSimklConnected) {
+                val simklPayload = viewModel.allSourceStates[ExplorePlatform.SIMKL]?.payload
+                if (simklPayload != null && (simklPayload.simklContinueSeries.isNotEmpty() || simklPayload.simklContinueMovies.isNotEmpty() || simklPayload.simklPlannedSeries.isNotEmpty() || simklPayload.simklPlannedMovies.isNotEmpty())) {
+                    PersonalPayload(ExplorePlatform.SIMKL, simklPayload)
+                } else {
+                    val tmdbPayload = viewModel.allSourceStates[ExplorePlatform.TMDB]?.payload
+                    if (tmdbPayload != null && (tmdbPayload.simklContinueSeries.isNotEmpty() || tmdbPayload.simklContinueMovies.isNotEmpty() || tmdbPayload.simklPlannedSeries.isNotEmpty() || tmdbPayload.simklPlannedMovies.isNotEmpty())) {
+                        PersonalPayload(ExplorePlatform.TMDB, tmdbPayload)
+                    } else null
+                }
+            } else null
+            MobileExploreInput.All(
+                states = viewModel.allSourceStates,
+                personal = personalPayload
+            )
+        } else {
+            val selectedState = ExploreSourceState(
+                payload = filteredSourcePayload,
+                isLoading = viewModel.isLoading,
+                error = viewModel.errorMessage,
+                isCached = viewModel.isShowingCachedData,
+                errorCode = viewModel.platformErrorCode
+            )
+            MobileExploreInput.Selected(
+                platform = viewModel.selectedPlatform,
+                state = selectedState
+            )
+        }
+    }
+
+    val mobileContent = remember(mobileExploreInput, showAdultContent, separateNovelsManga) {
+        buildMobileExploreContent(
+            input = mobileExploreInput,
+            showAdultContent = showAdultContent,
+            separateNovelsManga = separateNovelsManga
+        )
+    }
+
     // ── "Yukarı Çık" FAB — arama/liste sayfalarıyla aynı davranış, alt barla uyumlu ──
     val scope = rememberCoroutineScope()
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
@@ -387,7 +440,8 @@ fun ExploreScreen(
                         )
                     }
                 ) {
-                    KitsugiShimmerProvider(active = viewModel.isLoading) {
+                    if (isTvDevice) {
+                        KitsugiShimmerProvider(active = viewModel.isLoading) {
                         LazyColumn(
                             state = lazyListState,
                             modifier = Modifier.fillMaxSize(),
@@ -730,21 +784,261 @@ fun ExploreScreen(
                             }
                         }
                     }
+                } else {
+                    MobileExploreVisualHost(
+                        selectedSource = viewModel.selectedPlatform,
+                        content = mobileContent,
+                        onSourceClick = { showSourceSheet = true },
+                        actions = {
+                            KitsugiTopActionRow(
+                                actions = buildList {
+                                    add(KitsugiTopAction.HISTORY)
+                                    if (onNavigateToDownloads != null) add(KitsugiTopAction.DOWNLOADS)
+                                    add(KitsugiTopAction.RANDOM)
+                                    if (isNotificationsVisible) add(KitsugiTopAction.NOTIFICATIONS)
+                                },
+                                onActionClick = { action ->
+                                    when (action) {
+                                        KitsugiTopAction.RANDOM -> {
+                                            val randomPool = mutableListOf<JikanSearchResult>()
+                                            if (viewModel.selectedPlatform == ExplorePlatform.ALL) {
+                                                randomPool.addAll(
+                                                    allSectionsList
+                                                        .flatMap { it.results }
+                                                        .distinctBy { it.exploreIdentity() }
+                                                )
+                                            } else {
+                                                randomPool.addAll(
+                                                    visibleSelectedSourceSections
+                                                        .flatMap { it.results }
+                                                        .distinctBy { it.exploreIdentity() }
+                                                )
+                                            }
+                                            randomPool.filter { showAdultContent || !it.isAdult }
+                                                .randomOrNull()?.let(onOpenApiDetail)
+                                        }
+                                        KitsugiTopAction.HISTORY -> onNavigateToWatchHistory()
+                                        KitsugiTopAction.DOWNLOADS -> (onNavigateToDownloads ?: onOpenDownloads).invoke()
+                                        KitsugiTopAction.NOTIFICATIONS -> onOpenNotifications()
+                                        else -> Unit
+                                    }
+                                }
+                            )
+                        },
+                        alreadyInList = isAlreadyInList,
+                        getMediaEntry = getMediaEntry,
+                        onItemClick = onOpenApiDetail,
+                        onLongClickItem = onLongClickItem,
+                        onOpenShelf = { shelf, title ->
+                            when (mobileShelfAction(shelf)) {
+                                MobileShelfAction.NONE -> Unit
+                                MobileShelfAction.WATCH_HISTORY -> onNavigateToWatchHistory()
+                                MobileShelfAction.FINITE_GRID_REQUIRES_UI -> {
+                                    if (onOpenMobileShelf != null) {
+                                        onOpenMobileShelf(shelf, title)
+                                    } else {
+                                        onSeeAllSection(title, shelf.category, shelf.results, shelf.source)
+                                    }
+                                }
+                            }
+                        },
+                        sourceStatus = { tab, status ->
+                            val state = status.state
+                            if (state != null) {
+                                if (state.error != null) {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 13.dp, vertical = 6.dp)
+                                    ) {
+                                        val errorType = viewModel.exploreErrorType
+                                        KitsugiErrorState(
+                                            message = state.error,
+                                            onRetryClick = {
+                                                if (viewModel.selectedPlatform == ExplorePlatform.ALL) {
+                                                    viewModel.retrySource(status.source)
+                                                } else {
+                                                    viewModel.loadData(forceRefresh = true)
+                                                }
+                                            },
+                                            actionButton = when {
+                                                errorType == ExploreErrorType.TmdbError && onRedirectToSettings != null -> ({
+                                                    OutlinedButton(
+                                                        onClick = { onRedirectToSettings.invoke() },
+                                                        colors = ButtonDefaults.outlinedButtonColors(
+                                                            contentColor = LocalKitsugiAccent.current
+                                                        ),
+                                                        border = ButtonDefaults.outlinedButtonBorder
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = Icons.Key,
+                                                            contentDescription = null,
+                                                            modifier = Modifier.size(16.dp)
+                                                        )
+                                                        Spacer(Modifier.width(6.dp))
+                                                        Text(
+                                                            text = stringResource(R.string.inline_set_tmdb_api_key_d93a3ee),
+                                                            fontWeight = FontWeight.SemiBold
+                                                        )
+                                                    }
+                                                })
+                                                (errorType == ExploreErrorType.AniListError || errorType == ExploreErrorType.MalError) && onRedirectToAuth != null -> ({
+                                                    OutlinedButton(
+                                                        onClick = { onRedirectToAuth.invoke() },
+                                                        colors = ButtonDefaults.outlinedButtonColors(
+                                                            contentColor = LocalKitsugiAccent.current
+                                                        ),
+                                                        border = ButtonDefaults.outlinedButtonBorder
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = Icons.Login,
+                                                            contentDescription = null,
+                                                            modifier = Modifier.size(16.dp)
+                                                        )
+                                                        Spacer(Modifier.width(6.dp))
+                                                        Text(
+                                                            text = stringResource(R.string.giris_yap),
+                                                            fontWeight = FontWeight.SemiBold
+                                                        )
+                                                    }
+                                                })
+                                                else -> null
+                                            }
+                                        )
+                                        state.errorCode?.let { code ->
+                                            Spacer(modifier = Modifier.height(6.dp))
+                                            PlatformErrorExplanationBlock(code = code, tint = KitsugiColors.AccentRed)
+                                        }
+                                    }
+                                }
+                                if (state.isCached) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 13.dp, vertical = 6.dp)
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(KitsugiColors.Surface.copy(alpha = 0.5f))
+                                            .kitsugiCardFrame(RoundedCornerShape(12.dp), highlightColor = accentColor.copy(alpha = 0.3f))
+                                            .padding(horizontal = 16.dp, vertical = 12.dp)
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                        ) {
+                                            com.kitsugi.animelist.ui.theme.gradient.Icon(
+                                                imageVector = Icons.Satellite,
+                                                contentDescription = null,
+                                                tint = accentColor,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                            Column {
+                                                Text(
+                                                    text = stringResource(R.string.inline_offline_cache_mode_63b3c6b),
+                                                    style = MaterialTheme.typography.labelLarge,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = KitsugiColors.TextPrimary
+                                                )
+                                                Text(
+                                                    text = stringResource(R.string.inline_the_internet_connection_is_down_56227de),
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = KitsugiColors.TextSecondary
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        emptyPage = { page ->
+                            if (!page.supported) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 24.dp, vertical = 32.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.Center
+                                ) {
+                                    Text(
+                                        text = stringResource(
+                                            R.string.explore_tab_unsupported_title,
+                                            viewModel.selectedPlatform.shortName,
+                                            stringResource(
+                                                when (page.tab) {
+                                                    MobileExploreTab.SERIES -> R.string.mobile_explore_tab_series
+                                                    MobileExploreTab.MOVIES -> R.string.mobile_explore_tab_movies
+                                                    MobileExploreTab.ANIME -> R.string.mobile_explore_tab_anime
+                                                    MobileExploreTab.MANGA -> R.string.mobile_explore_tab_manga
+                                                }
+                                            )
+                                        ),
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = KitsugiColors.TextPrimary,
+                                        textAlign = TextAlign.Center
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text(
+                                        text = stringResource(R.string.explore_tab_unsupported_desc),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = KitsugiColors.TextSecondary,
+                                        textAlign = TextAlign.Center
+                                    )
+                                }
+                            } else if (page.showNoShelves) {
+                                KitsugiEmptyState(
+                                    title = stringResource(R.string.explore_source_empty_title),
+                                    subtitle = stringResource(R.string.explore_source_empty_subtitle)
+                                )
+                            }
+                        },
+                        extraItems = { page ->
+                            val airingSoonList = if (viewModel.selectedPlatform == ExplorePlatform.ALL) sharedAiringSoon else filteredAiringSoonAnime
+                            if (page.tab == MobileExploreTab.ANIME && (airingSoonList.isNotEmpty() || viewModel.isLoading)) {
+                                item(key = "mobile_airing_soon") {
+                                    ExploreAiringSoonSection(
+                                        title = airingSoonTitle,
+                                        airingSoonAnime = airingSoonList,
+                                        isLoading = viewModel.isLoading,
+                                        alreadyInList = isAlreadyInList,
+                                        onItemClick = onOpenApiDetail,
+                                        onLongClickItem = onLongClickItem,
+                                        onOpenAiringCalendar = onOpenAiringCalendar,
+                                        accentColor = accentColor,
+                                        titleLanguage = titleLanguage,
+                                        blurAdultMedia = blurAdultMedia
+                                    )
+                                    Spacer(modifier = Modifier.height(14.dp))
+                                }
+                            }
+                        },
+                        titleLanguage = titleLanguage,
+                        scoreFormat = scoreFormat,
+                        hideScores = hideScores,
+                        blurAdultMedia = blurAdultMedia,
+                        modifier = Modifier.fillMaxSize(),
+                        showScrollToTopFab = true,
+                        bottomBarScrollState = bottomBarScrollState,
+                        isBottomBarVisible = isBottomBarVisible,
+                        onScrollReset = { onScrollReset?.invoke() }
+                    )
                 }
             }
+        }
 
-            // ── "Yukarı Çık" FAB — aşağı kaydırınca belirir, alt bar üstünde hizalanır ──
-            com.kitsugi.animelist.ui.components.KitsugiScrollToTopFab(
-                visible = showFab,
-                isLandscape = isLandscape,
-                bottomBarScrollState = bottomBarScrollState,
-                fallbackBottomBarVisible = isBottomBarVisible,
-                onClick = {
-                    onScrollReset?.invoke()
-                    scope.launch { lazyListState.animateScrollToItem(0) }
-                },
-                modifier = Modifier.align(Alignment.BottomEnd)
-            )
+            // ── "Yukarı Çık" FAB (TV) — aşağı kaydırınca belirir ──
+            if (isTvDevice) {
+                com.kitsugi.animelist.ui.components.KitsugiScrollToTopFab(
+                    visible = showFab,
+                    isLandscape = isLandscape,
+                    bottomBarScrollState = bottomBarScrollState,
+                    fallbackBottomBarVisible = isBottomBarVisible,
+                    onClick = {
+                        onScrollReset?.invoke()
+                        scope.launch { lazyListState.animateScrollToItem(0) }
+                    },
+                    modifier = Modifier.align(Alignment.BottomEnd)
+                )
+            }
         }
     }
 

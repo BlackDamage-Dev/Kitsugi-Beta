@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.ui.components
+﻿package com.kitsugi.animelist.ui.components
 
 import com.kitsugi.animelist.ui.theme.gradient.background
 import androidx.compose.foundation.layout.Column
@@ -13,7 +13,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import com.kitsugi.animelist.ui.theme.gradient.Text
@@ -111,7 +111,7 @@ fun KitsugiHeroPreviewDialog(
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(max = 560.dp)
-                    .verticalScroll(rememberScrollState())
+                    .kitsugiVerticalScroll(rememberScrollState())
             ) {
                 Box(
                     modifier = Modifier

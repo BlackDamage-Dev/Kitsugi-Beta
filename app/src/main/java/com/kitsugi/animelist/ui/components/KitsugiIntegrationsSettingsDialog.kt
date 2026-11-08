@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.ui.components
+﻿package com.kitsugi.animelist.ui.components
 
 import com.kitsugi.animelist.ui.theme.gradient.CircularProgressIndicator
 import com.kitsugi.animelist.ui.theme.gradient.Icon
@@ -17,7 +17,7 @@ import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
 import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -409,7 +409,7 @@ private fun TmdbSettingsTab(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(scrollState)
+            .kitsugiVerticalScroll(scrollState)
             .padding(vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
@@ -710,7 +710,7 @@ private fun LanguageSelectionDialog(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .verticalScroll(rememberScrollState()),
+                    .kitsugiVerticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 AVAILABLE_TMDB_LANGUAGES.forEach { lang ->
@@ -778,7 +778,7 @@ private fun MdbListSettingsTab(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(scrollState)
+            .kitsugiVerticalScroll(scrollState)
             .padding(vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
@@ -1178,7 +1178,7 @@ private fun AniSkipSettingsTab(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(scrollState)
+            .kitsugiVerticalScroll(scrollState)
             .padding(vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
@@ -1495,7 +1495,7 @@ private fun FanartTvSettingsTab(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(scrollState)
+            .kitsugiVerticalScroll(scrollState)
             .padding(vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
@@ -1661,7 +1661,7 @@ private fun MusicSettingsTab(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(scrollState)
+            .kitsugiVerticalScroll(scrollState)
             .padding(vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {

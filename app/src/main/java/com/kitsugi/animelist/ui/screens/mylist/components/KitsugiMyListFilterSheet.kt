@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.ui.screens.mylist.components
+﻿package com.kitsugi.animelist.ui.screens.mylist.components
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,7 +18,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.kitsugi.animelist.R
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
 import com.kitsugi.animelist.ui.components.KitsugiSheetOrDialog
 import com.kitsugi.animelist.ui.components.LocalDismissAnimated
 import com.kitsugi.animelist.ui.screens.mylist.ExtraFilterRow
@@ -64,7 +64,7 @@ fun KitsugiMyListFilterSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .verticalScroll(scrollState)
+                .kitsugiVerticalScroll(scrollState)
                 .padding(horizontal = 16.dp, vertical = 8.dp)
                 .padding(bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp)

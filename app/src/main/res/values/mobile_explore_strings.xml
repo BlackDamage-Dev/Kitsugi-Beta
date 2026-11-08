@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- İŞ 2 — Mobil Keşfet görsel bileşenleri (V2, onaylı tasarım).
+     Yeni adlar mobile_explore_ önekiyle başlar; büyük başlık için mevcut
+     R.string.kesfet (TR: Keşfet / EN: Explore) yeniden kullanılır. -->
+<resources>
+    <string name="mobile_explore_brand">KITSUGI</string>
+    <string name="mobile_explore_source_all">Tümü</string>
+    <string name="mobile_explore_source_select">Kaynak seç</string>
+    <string name="mobile_explore_tab_series">Diziler</string>
+    <string name="mobile_explore_tab_movies">Filmler</string>
+    <string name="mobile_explore_tab_anime">Anime</string>
+    <string name="mobile_explore_tab_manga">Manga</string>
+    <string name="mobile_explore_hero_caption">Yeni hikayeler keşfet</string>
+    <string name="mobile_explore_hero_cta">İncele</string>
+    <string name="mobile_explore_see_all">Tümünü gör</string>
+    <string name="mobile_explore_in_list">Listende</string>
+    <string name="mobile_explore_score_cd">Puan: %1$s</string>
+    <string name="mobile_explore_loading">Yükleniyor</string>
+    <string name="explore_tab_unsupported_title">%1$s kaynağında %2$s sekmesi bulunmuyor</string>
+    <string name="explore_tab_unsupported_desc">Bu kaynak için desteklenen diğer sekmelere geçiş yapabilir veya Tüm kaynakları seçebilirsiniz.</string>
+</resources>

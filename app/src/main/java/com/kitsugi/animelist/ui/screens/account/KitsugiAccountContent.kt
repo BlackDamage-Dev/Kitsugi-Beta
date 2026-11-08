@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.ui.screens.account
+﻿package com.kitsugi.animelist.ui.screens.account
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -9,7 +9,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -334,7 +334,7 @@ fun KitsugiAccountContent() {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(stringResource(R.string.account_addon_trust_confirm))
                     Column(
-                        modifier = Modifier.heightIn(max = 180.dp).verticalScroll(rememberScrollState()),
+                        modifier = Modifier.heightIn(max = 180.dp).kitsugiVerticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         addonRestoreState.pendingTrustHosts.forEach { host ->

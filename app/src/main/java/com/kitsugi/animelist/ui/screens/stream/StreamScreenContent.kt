@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.ui.screens.stream
+﻿package com.kitsugi.animelist.ui.screens.stream
 
 import android.content.SharedPreferences
 import android.content.res.Configuration
@@ -31,7 +31,7 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
 import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.components.KitsugiTopAction
 import com.kitsugi.animelist.ui.components.KitsugiTopActionButton
@@ -794,7 +794,7 @@ private fun LandscapeLayout(
                     .fillMaxHeight()
                     .widthIn(min = 240.dp, max = 300.dp)
                     .fillMaxWidth(0.34f)
-                    .verticalScroll(rememberScrollState())
+                    .kitsugiVerticalScroll(rememberScrollState())
                     .padding(start = 12.dp, end = 6.dp, top = 2.dp, bottom = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {

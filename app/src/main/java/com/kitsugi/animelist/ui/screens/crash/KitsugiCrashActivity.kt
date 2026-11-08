@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.ui.screens.crash
+﻿package com.kitsugi.animelist.ui.screens.crash
 
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import com.kitsugi.animelist.ui.theme.gradient.Text
@@ -28,7 +28,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
-import androidx.compose.foundation.verticalScroll
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
 import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -284,7 +284,7 @@ class KitsugiCrashActivity : ComponentActivity() {
                                     lineHeight = 15.sp,
                                     modifier = Modifier
                                         .fillMaxSize()
-                                        .verticalScroll(rememberScrollState())
+                                        .kitsugiVerticalScroll(rememberScrollState())
                                         .padding(12.dp)
                                 )
                             }

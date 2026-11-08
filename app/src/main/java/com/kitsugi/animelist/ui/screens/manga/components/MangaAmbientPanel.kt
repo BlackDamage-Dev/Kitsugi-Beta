@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.ui.screens.manga.components
+﻿package com.kitsugi.animelist.ui.screens.manga.components
 
 import androidx.compose.foundation.background
 import androidx.compose.ui.focus.onFocusChanged
@@ -28,7 +28,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
 import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -464,7 +464,7 @@ fun MangaAmbientPanel(
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
-                            .verticalScroll(rememberScrollState())
+                            .kitsugiVerticalScroll(rememberScrollState())
                             .padding(vertical = 8.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
@@ -524,7 +524,7 @@ private fun ForYouTab(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .verticalScroll(rememberScrollState())
+            .kitsugiVerticalScroll(rememberScrollState())
             .padding(vertical = 8.dp)
     ) {
         // ── Eşleşme gerekçesi + güven ───────────────────────────────────
@@ -754,7 +754,7 @@ private fun SoundListTab(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .verticalScroll(rememberScrollState())
+            .kitsugiVerticalScroll(rememberScrollState())
             .padding(vertical = 8.dp)
     ) {
         // ── Filtre çipleri ──────────────────────────────────────────────
@@ -901,7 +901,7 @@ private fun MixerTab(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .verticalScroll(rememberScrollState())
+            .kitsugiVerticalScroll(rememberScrollState())
             .padding(vertical = 10.dp)
     ) {
         // ── Ana ses ─────────────────────────────────────────────────────
@@ -1485,7 +1485,7 @@ private fun OnlineTab(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .verticalScroll(rememberScrollState())
+            .kitsugiVerticalScroll(rememberScrollState())
             .padding(vertical = 8.dp)
     ) {
         // ── İndirilenler ────────────────────────────────────────────────
@@ -1894,7 +1894,7 @@ private fun ProfileTab(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .verticalScroll(rememberScrollState())
+            .kitsugiVerticalScroll(rememberScrollState())
             .padding(vertical = 8.dp)
     ) {
         // ── Şu anki karışımı kaydet ─────────────────────────────────────
@@ -2115,7 +2115,7 @@ private fun TimerTab(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .verticalScroll(rememberScrollState())
+            .kitsugiVerticalScroll(rememberScrollState())
             .padding(vertical = 8.dp)
     ) {
         if (timer.running) {
@@ -2303,7 +2303,7 @@ private fun SoundDetailPage(
         modifier = Modifier
             .fillMaxWidth()
             .fillMaxHeight()
-            .verticalScroll(rememberScrollState())
+            .kitsugiVerticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp, vertical = 4.dp)
     ) {
         // ── Başlık satırı ───────────────────────────────────────────────

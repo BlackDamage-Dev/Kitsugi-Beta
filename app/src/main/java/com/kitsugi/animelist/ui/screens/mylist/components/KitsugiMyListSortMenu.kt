@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.ui.screens.mylist.components
+﻿package com.kitsugi.animelist.ui.screens.mylist.components
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -7,7 +7,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
 import com.kitsugi.animelist.ui.theme.gradient.background
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -125,7 +125,7 @@ fun KitsugiMyListSortMenu(
                 .fillMaxWidth()
                 .navigationBarsPadding()
                 .heightIn(max = LocalConfiguration.current.screenHeightDp.dp * 0.78f)
-                .verticalScroll(rememberScrollState())
+                .kitsugiVerticalScroll(rememberScrollState())
                 .padding(horizontal = 8.dp, vertical = 4.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {

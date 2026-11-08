@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.ui.components
+﻿package com.kitsugi.animelist.ui.components
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -10,7 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
@@ -117,7 +117,7 @@ fun KitsugiTmdbListsDialog(
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(max = 560.dp)
-                    .verticalScroll(rememberScrollState())
+                    .kitsugiVerticalScroll(rememberScrollState())
             ) {
                 Text(
                     text = entry.title,

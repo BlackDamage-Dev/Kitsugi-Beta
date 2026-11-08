@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="mobile_grid_back">Geri</string>
+    <string name="mobile_grid_loaded_results_only">Yalnızca şu anda yüklenmiş içerikler gösteriliyor.</string>
+</resources>

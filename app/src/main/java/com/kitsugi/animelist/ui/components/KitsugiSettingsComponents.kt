@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.ui.components
+﻿package com.kitsugi.animelist.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.material3.LocalContentColor
@@ -15,7 +15,7 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.ui.draw.drawWithContent
@@ -786,7 +786,7 @@ fun KitsugiDropdownMenu(
                 Column(
                     modifier = modifier
                         .widthIn(min = 168.dp, max = 320.dp)
-                        .verticalScroll(rememberScrollState())
+                        .kitsugiVerticalScroll(rememberScrollState())
                         .padding(6.dp),
                     content = content
                 )
@@ -852,7 +852,7 @@ private fun KitsugiSettingsDropdownDialog(
                             modifier = modifier
                                 .fillMaxWidth()
                                 .weight(1f, fill = false)
-                                .verticalScroll(rememberScrollState())
+                                .kitsugiVerticalScroll(rememberScrollState())
                                 .padding(horizontal = 16.dp, vertical = 4.dp),
                             content = content
                         )

@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.ui.screens.fullscreen.controls.components.panels
+﻿package com.kitsugi.animelist.ui.screens.fullscreen.controls.components.panels
 
 import android.content.res.Configuration.ORIENTATION_PORTRAIT
 import androidx.activity.compose.BackHandler
@@ -26,7 +26,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PageSize
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
 import com.kitsugi.animelist.ui.components.KitsugiChevronIcon
 import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.Card
@@ -159,7 +159,7 @@ fun SubtitleSettingsPanel(
                     .fillMaxHeight()
                     .widthIn(max = LANDSCAPE_PANEL_MAX_WIDTH)
                     .padding(horizontal = 16.dp, vertical = 12.dp)
-                    .verticalScroll(rememberScrollState()),
+                    .kitsugiVerticalScroll(rememberScrollState()),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {

@@ -1,5 +1,37 @@
 # Kitsugi-Beta — Sürüm Notları / Release Notes
 
+## Kitsugi Beta v2.4.476
+
+### 🇹🇷 Türkçe
+
+#### 🛡️ 1. İç İçe Kaydırma Çökme Koruması (`KitsugiSafeScroll`)
+- **Infinity Max Height Çökmesine Kesin Çözüm:** Jetpack Compose `ScrollNode` üzerinde meydana gelen `IllegalStateException: Vertically scrollable component was measured with an infinity maximum height constraints` istisnası tüm kod tabanında kökten kapatıldı.
+- **Korumalı Kaydırma Modifiyeri (`kitsugiVerticalScroll`):** Üst konteyner sınırsız yükseklik sunduğunda (`!hasBoundedHeight`), alt kaydırma konteyneri ekran yüksekliğine kilitlenir; sınırlı durumlarda hiçbir ölçüm değişmeden sıfır ek yük ile çalışır.
+- **Tüm Kod Tabanında 72 Dosya & 100+ Çağrı Kapsamı:** Manga ayarları, eklentiler sekmesi, ayar alt sayfaları, okuyucu paneli (`ReaderPanel` içi `MangaReaderSettingsSheet`), wiki okuyucu, galeri ve sheet içerikleri dahil tek bir korunmasız `verticalScroll` bırakılmadı.
+- **Manga Kaynak Sağlığı Null Koruması:** `MangaSourceHealthScreen` içerisindeki `editingDomainSource!!` çağrısı `?.let { ... }` ile null-safe hâle getirildi.
+
+#### 📱 2. Mobil Keşfet Ekranı Tam Entegrasyonu
+- **Tasarım Birebir Eşleşmesi:** Onaylı tasarıma uygun üst çubuk, kaynak seçici, tür sekmeleri (Diziler, Filmler, Anime, Manga), vitrin alanı ve yatay raflar bağlandı.
+- **Yedi Kaynak Tam Desteği:** AniList, MAL/Jikan, TMDB, Simkl, Kitsu, Shikimori ve Bangumi kaynakları "Tümü" moduyla birlikte çalışır.
+- **Görsel Rozet Temizliği:** Tasarım kuralına uygun olarak ana Keşfet posterleri üzerindeki yıldız/puan ve liste durum rozetleri kaldırıldı.
+
+---
+
+### 🇬🇧 English
+
+#### 🛡️ 1. Nested Scroll Crash Protection (`KitsugiSafeScroll`)
+- **Permanent Fix for Infinite Max Height Crash:** Completely eliminated Jetpack Compose `IllegalStateException: Vertically scrollable component was measured with an infinity maximum height constraints` across all nested scroll containers.
+- **Safe Scroll Modifier (`kitsugiVerticalScroll`):** When parent constraints are unbounded, clamps child height to display height; maintains zero-overhead identical behavior when bounded.
+- **Codebase-Wide Migration (72 Files, 100+ Calls):** Covers manga preferences, plugin repositories, reader settings overlay (`MangaReaderSettingsSheet` inside `ReaderPanel`), wiki reader, sheets and dialogs.
+- **Manga Source Health Null Safety:** Replaced force unwrap in `MangaSourceHealthScreen` (`editingDomainSource!!`) with null-safe handling.
+
+#### 📱 2. Mobile Explore Screen Full Integration
+- **1:1 Design Parity:** Linked approved mobile explore layout featuring custom header, source selector, horizontal media tabs (Series, Movies, Anime, Manga), showcase hero, and horizontal shelves.
+- **Full Seven Source Support:** Seamless integration of AniList, MAL/Jikan, TMDB, Simkl, Kitsu, Shikimori, and Bangumi plus "All" aggregated mode.
+- **Clean Poster Cards:** Removed score stars and list status badges from explore poster cards in adherence to the approved reference visual.
+
+---
+
 ## Kitsugi Beta v2.4.432
 
 ### 🇹🇷 Türkçe

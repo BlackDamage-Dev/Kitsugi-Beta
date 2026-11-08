@@ -42,8 +42,8 @@ class CropBordersTransformationTest {
         val cropped = source.cropUniformBorders(tolerance = 18, profile = MangaCropProfile.White)
         assertNotNull(cropped)
         // Örnekleme adımı (2px) kadar sapma kabul edilir.
-        assertEquals(180, cropped!!.width, 6)
-        assertEquals(280, cropped.height, 6)
+        assertEquals(180.0, cropped!!.width.toDouble(), 6.0)
+        assertEquals(280.0, cropped.height.toDouble(), 6.0)
     }
 
     @Test fun leavesFullBleedImagesUntouched() {
@@ -137,7 +137,7 @@ class CropBordersTransformationTest {
         narrow.eraseColor(Color.GRAY)
         val transformed = kotlinx.coroutines.runBlocking {
             RotateWidePageTransformation(threshold = 1.2f)
-                .transform(narrow, androidx.compose.ui.geometry.Size(50f, 100f))
+                .transform(narrow, coil3.size.Size(50, 100))
         }
         assertEquals(50, transformed.width)
         assertEquals(100, transformed.height)
@@ -148,7 +148,7 @@ class CropBordersTransformationTest {
         wide.eraseColor(Color.GRAY)
         val transformed = kotlinx.coroutines.runBlocking {
             RotateWidePageTransformation(threshold = 1.2f)
-                .transform(wide, androidx.compose.ui.geometry.Size(200f, 100f))
+                .transform(wide, coil3.size.Size(200, 100))
         }
         assertEquals(100, transformed.width)
         assertEquals(200, transformed.height)

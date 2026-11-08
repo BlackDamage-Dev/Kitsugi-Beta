@@ -1,4 +1,4 @@
-@file:OptIn(
+﻿@file:OptIn(
     androidx.compose.foundation.ExperimentalFoundationApi::class,
     androidx.compose.material3.ExperimentalMaterial3Api::class
 )
@@ -24,7 +24,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
 import androidx.compose.foundation.layout.*
 import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
@@ -191,7 +191,7 @@ fun DetailPageScaffold(
                                         .weight(leftPanelWeight)
                                         .fillMaxSize()
                                         .then(if (isTvDevice) Modifier.dpadVerticalFastScroll(leftScrollState) else Modifier)
-                                        .verticalScroll(leftScrollState)
+                                        .kitsugiVerticalScroll(leftScrollState)
                                 ) {
                                     leftPanel(leftPanelFocusRequester, tabBarFocusRequester)
                                 }
@@ -250,7 +250,7 @@ fun DetailPageScaffold(
                                                 modifier = Modifier
                                                     .fillMaxSize()
                                                     .then(if (isTvDevice) Modifier.dpadVerticalFastScroll(pageScrollState) else Modifier)
-                                                    .verticalScroll(pageScrollState)
+                                                    .kitsugiVerticalScroll(pageScrollState)
                                                     .padding(horizontal = 16.dp, vertical = 8.dp)
                                             ) {
                                                 CompositionLocalProvider(

@@ -9,7 +9,7 @@ import com.kitsugi.animelist.ui.theme.gradient.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
 import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -50,7 +50,7 @@ fun FeedbackDialog(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .verticalScroll(scrollState)
+                .kitsugiVerticalScroll(scrollState)
                 .padding(horizontal = 24.dp, vertical = if (embeddedMode) 8.dp else 16.dp)
         ) {
             if (!embeddedMode) {

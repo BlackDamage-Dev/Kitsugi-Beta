@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.ui.tv.detail
+﻿package com.kitsugi.animelist.ui.tv.detail
 
 import com.kitsugi.animelist.ui.theme.gradient.Button
 import com.kitsugi.animelist.ui.theme.gradient.Icon
@@ -13,7 +13,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
 import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -307,7 +307,7 @@ fun TvReviewDetailDialog(
                         )
                         .onFocusChanged { isScrollFocused = it.isFocused }
                         .focusTarget()
-                        .verticalScroll(scrollState)
+                        .kitsugiVerticalScroll(scrollState)
                         .padding(16.dp)
                 ) {
                     if (isTranslating) {

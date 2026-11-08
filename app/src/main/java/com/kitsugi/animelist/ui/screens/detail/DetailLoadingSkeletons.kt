@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.ui.screens.detail
+﻿package com.kitsugi.animelist.ui.screens.detail
 
 import android.content.res.Configuration
 import androidx.compose.foundation.background
@@ -16,7 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -610,7 +610,7 @@ internal fun DetailSocialCardsLoadingSkeleton(
 internal fun DetailTopicDialogLoadingSkeleton() {
     DetailShimmerFrame { brush ->
         Column(
-            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+            modifier = Modifier.fillMaxSize().kitsugiVerticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Column(
@@ -658,7 +658,7 @@ internal fun DetailTopicDialogLoadingSkeleton() {
 internal fun DetailActivityDialogLoadingSkeleton() {
     DetailShimmerFrame { brush ->
         Column(
-            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+            modifier = Modifier.fillMaxSize().kitsugiVerticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Row(

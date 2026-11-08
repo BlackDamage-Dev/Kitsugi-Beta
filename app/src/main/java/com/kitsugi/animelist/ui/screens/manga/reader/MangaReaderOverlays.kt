@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.ui.screens.manga.reader
+﻿package com.kitsugi.animelist.ui.screens.manga.reader
 
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.background
@@ -9,7 +9,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -89,7 +89,7 @@ private fun ReaderSettings(
     KitsugiSheetOrDialog(onDismiss = onDismiss, innerColumnScrollState = scroll) {
         ReaderPanel(
             onDismiss = onDismiss,
-            modifier = Modifier.verticalScroll(scroll).padding(horizontal = 16.dp, vertical = 8.dp),
+            modifier = Modifier.kitsugiVerticalScroll(scroll).padding(horizontal = 16.dp, vertical = 8.dp),
             toggleKeys = listOf(Key.S),
         ) {
             ReaderPanelTitle(stringResource(R.string.okuyucu_ayarlari))

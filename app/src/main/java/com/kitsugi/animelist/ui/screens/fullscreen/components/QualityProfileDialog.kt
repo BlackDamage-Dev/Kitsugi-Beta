@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.ui.screens.fullscreen.components
+﻿package com.kitsugi.animelist.ui.screens.fullscreen.components
 
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import com.kitsugi.animelist.ui.theme.gradient.Slider
@@ -17,7 +17,7 @@ import com.kitsugi.animelist.ui.theme.gradient.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
 import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -101,7 +101,7 @@ fun QualityProfileDialog(
                 )
             }
             Column(
-                modifier = Modifier.verticalScroll(rememberScrollState()),
+                modifier = Modifier.kitsugiVerticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
 

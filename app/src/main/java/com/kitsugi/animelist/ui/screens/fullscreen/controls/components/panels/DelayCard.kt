@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.ui.screens.fullscreen.controls.components.panels
+﻿package com.kitsugi.animelist.ui.screens.fullscreen.controls.components.panels
 import com.kitsugi.animelist.ui.components.KitsugiButton
 
 import androidx.compose.animation.animateContentSize
@@ -11,7 +11,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
 import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.Button
 import androidx.compose.material3.ButtonDefaults
@@ -73,7 +73,7 @@ fun DelayCard(
         CompositionLocalProvider(LocalContentColor provides Color.White) {
             Column(
                 modifier = Modifier
-                    .verticalScroll(rememberScrollState())
+                    .kitsugiVerticalScroll(rememberScrollState())
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {

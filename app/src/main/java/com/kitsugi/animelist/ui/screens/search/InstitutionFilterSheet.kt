@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.ui.screens.search
+﻿package com.kitsugi.animelist.ui.screens.search
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -18,7 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
 import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -198,7 +198,7 @@ fun InstitutionFilterSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
+                .kitsugiVerticalScroll(rememberScrollState())
                 .padding(horizontal = 22.dp, vertical = 10.dp)
         ) {
             // ── Başlık ──────────────────────────────────────────────────────
@@ -447,7 +447,7 @@ fun InstitutionFilterSheet(
                         modifier = Modifier
                             .fillMaxWidth()
                             .heightIn(max = 320.dp)
-                            .verticalScroll(catalogScrollState),
+                            .kitsugiVerticalScroll(catalogScrollState),
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         visibleCatalog.forEach { organization ->
@@ -482,7 +482,7 @@ fun InstitutionFilterSheet(
                         modifier = Modifier
                             .fillMaxWidth()
                             .heightIn(max = 320.dp)
-                            .verticalScroll(rememberScrollState()),
+                            .kitsugiVerticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         results.take(20).forEach { result ->

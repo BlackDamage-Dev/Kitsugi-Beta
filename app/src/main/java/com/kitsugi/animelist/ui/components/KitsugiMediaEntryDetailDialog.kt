@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.ui.components
+﻿package com.kitsugi.animelist.ui.components
 
 import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.Icon
@@ -19,7 +19,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import com.kitsugi.animelist.ui.theme.gradient.Text
@@ -158,7 +158,7 @@ fun KitsugiMediaEntryDetailDialog(
                     Column(
                         modifier = Modifier
                             .width(180.dp)
-                            .verticalScroll(rememberScrollState()),
+                            .kitsugiVerticalScroll(rememberScrollState()),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
@@ -225,7 +225,7 @@ fun KitsugiMediaEntryDetailDialog(
                     Column(
                         modifier = Modifier
                             .weight(1f)
-                            .verticalScroll(rememberScrollState()),
+                            .kitsugiVerticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Text(
@@ -285,7 +285,7 @@ fun KitsugiMediaEntryDetailDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(max = 620.dp)
-                        .verticalScroll(rememberScrollState())
+                        .kitsugiVerticalScroll(rememberScrollState())
                 ) {
                     DetailPoster(
                         entry = entry,

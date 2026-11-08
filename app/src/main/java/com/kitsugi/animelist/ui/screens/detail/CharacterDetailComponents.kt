@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.ui.screens.detail
+﻿package com.kitsugi.animelist.ui.screens.detail
 
 import com.kitsugi.animelist.ui.components.KitsugiGalleryIconButton
 import com.kitsugi.animelist.ui.components.KitsugiOriginalToggleButton
@@ -23,7 +23,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
@@ -230,7 +230,7 @@ internal fun CharacterDetailLeftPanel(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
+            .kitsugiVerticalScroll(rememberScrollState())
     ) {
         Box(
             modifier = Modifier

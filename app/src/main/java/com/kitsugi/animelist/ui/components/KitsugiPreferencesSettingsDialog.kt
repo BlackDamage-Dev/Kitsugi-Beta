@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.ui.components
+﻿package com.kitsugi.animelist.ui.components
 
 import com.kitsugi.animelist.data.manga.MangaSettingIds
 
@@ -18,7 +18,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
 import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -381,7 +381,7 @@ private fun AppearanceTab(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(scrollState)
+            .kitsugiVerticalScroll(scrollState)
             .padding(vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
@@ -1024,7 +1024,7 @@ private fun ListScoreTab(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(scrollState)
+            .kitsugiVerticalScroll(scrollState)
             .padding(vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
@@ -1338,7 +1338,7 @@ private fun ListScoreTab(
                     },
                     text = {
                         Column(
-                            modifier = Modifier.verticalScroll(rememberScrollState()),
+                            modifier = Modifier.kitsugiVerticalScroll(rememberScrollState()),
                             verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             translateSourceLanguages.forEach { option ->
@@ -1410,7 +1410,7 @@ private fun ListScoreTab(
                     },
                     text = {
                         Column(
-                            modifier = Modifier.verticalScroll(rememberScrollState()),
+                            modifier = Modifier.kitsugiVerticalScroll(rememberScrollState()),
                             verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             translateTargetLanguages.forEach { option ->
@@ -2063,7 +2063,7 @@ private fun MangaReaderTab(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(scrollState)
+            .kitsugiVerticalScroll(scrollState)
             .padding(vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {

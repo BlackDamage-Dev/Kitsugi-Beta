@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.ui.screens.more
+﻿package com.kitsugi.animelist.ui.screens.more
 import com.kitsugi.animelist.ui.components.KitsugiButton
 
 import android.content.Intent
@@ -13,7 +13,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
 import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -917,7 +917,7 @@ private fun ReleaseNotesCard(
                                 shape = RoundedCornerShape(16.dp)
                             )
                             .padding(14.dp)
-                            .verticalScroll(rememberScrollState())
+                            .kitsugiVerticalScroll(rememberScrollState())
                     ) {
                         CleanReleaseNotesText(notes = release.releaseNotes)
                     }

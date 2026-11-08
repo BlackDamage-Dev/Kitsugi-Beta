@@ -31,6 +31,7 @@ import com.kitsugi.animelist.data.remote.canonicalMediaSourceId
 import com.kitsugi.animelist.data.remote.ApiSearchSelection
 import com.kitsugi.animelist.ui.navigation.MainTab
 import com.kitsugi.animelist.ui.screens.explore.ExploreScreen
+import com.kitsugi.animelist.ui.screens.explore.mobile.openMobileExploreShelf
 import com.kitsugi.animelist.ui.screens.notifications.notificationSourceId
 import com.kitsugi.animelist.ui.screens.notifications.notificationSourceIdForMyListTab
 import com.kitsugi.animelist.ui.screens.notifications.notificationSourceIdForProfileTab
@@ -289,6 +290,9 @@ private fun ExploreTabPage(ctx: TabPagesContext) {
         blurAdultMedia = ctx.appSettings.blurAdultMedia,
         onAddSelectionToList = ctx.onAddApiSelectionToList,
         onSeeAllSection = ctx.onSeeAllSection,
+        onOpenMobileShelf = { shelf, title ->
+            ctx.navState.openMobileExploreShelf(shelf, title)
+        },
         onNavigateToWatchHistory = ctx.onNavigateToWatchHistory,
         onNavigateToDownloads = { ctx.navState.navigateToDetail(DetailScreen.Downloads) },
         onOpenApiDetail = ctx.onOpenApiDetail,

@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.ui.screens.fullscreen.controls.components.sheets
+﻿package com.kitsugi.animelist.ui.screens.fullscreen.controls.components.sheets
 
 import android.text.format.DateUtils
 import androidx.compose.animation.animateContentSize
@@ -16,7 +16,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
 import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.ExperimentalMaterial3Api
 import com.kitsugi.animelist.ui.theme.gradient.FilterChip
@@ -78,7 +78,7 @@ fun MoreSheet(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp)
-                .verticalScroll(rememberScrollState()),
+                .kitsugiVerticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Row(
@@ -242,7 +242,7 @@ fun TimePickerDialog(
         ) {
             Column(
                 modifier = Modifier
-                    .verticalScroll(rememberScrollState())
+                    .kitsugiVerticalScroll(rememberScrollState())
                     .width(IntrinsicSize.Max)
                     .animateContentSize()
                     .padding(16.dp),

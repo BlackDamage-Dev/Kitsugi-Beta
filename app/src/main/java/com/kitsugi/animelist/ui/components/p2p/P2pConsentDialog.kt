@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.ui.components.p2p
+﻿package com.kitsugi.animelist.ui.components.p2p
 import com.kitsugi.animelist.ui.components.KitsugiButton
 
 import com.kitsugi.animelist.ui.theme.gradient.background
@@ -6,7 +6,7 @@ import com.kitsugi.animelist.ui.theme.gradient.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
 import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -95,7 +95,7 @@ fun P2pConsentDialog(
                     modifier = Modifier
                         .weight(1f, fill = false)
                         .heightIn(max = 380.dp)
-                        .verticalScroll(rememberScrollState()),
+                        .kitsugiVerticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
                     P2pDisclaimerItem(

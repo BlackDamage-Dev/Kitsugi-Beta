@@ -8,7 +8,9 @@ data class FullScreenMediaGridState(
     val title: String,
     val categoryType: ExploreCategoryType,
     val platform: ExplorePlatform,
-    val initialResults: List<JikanSearchResult>
+    val initialResults: List<JikanSearchResult>,
+    /** Opt-in for the new mobile Explore finite fallback; legacy grids remain unchanged. */
+    val mobileFiniteResults: Boolean = false
 ) {
     // In-memory pagination while a detail page is pushed above the grid.
     var savedStateKey: String? = null

@@ -240,7 +240,12 @@ fun MangaSourceHealthScreen(
                     onEditDomainSource = { editingDomainSource = it; domainInputText = onGetMangaConfiguredDomain(it) },
                     onDomainTextChange = { domainInputText = it },
                     onDomainDialogDismiss = { editingDomainSource = null },
-                    onDomainSave = { onSetMangaSourceDomain(editingDomainSource!!, domainInputText.trim()); editingDomainSource = null },
+                    onDomainSave = {
+                        editingDomainSource?.let { source ->
+                            onSetMangaSourceDomain(source, domainInputText.trim())
+                        }
+                        editingDomainSource = null
+                    },
                 )
             }
         }
