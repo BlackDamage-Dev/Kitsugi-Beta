@@ -667,7 +667,12 @@ class AmbientAudioEngine(
      *
      * @param minutes Süre (dakika). 0 → zamanlayıcıyı iptal eder.
      */
-    fun startSleepTimer(minutes: Int, fadeSeconds: Int = SleepTimerState.DEFAULT_FADE_SECONDS) {
+    fun startSleepTimer(
+        minutes: Int,
+        fadeSeconds: Int = SleepTimerState.DEFAULT_FADE_SECONDS,
+        /** Süre dolunca (kullanıcı iptalinden farklı olarak) çalışacak ek eylem. */
+        onExpired: (() -> Unit)? = null,
+    ) {
         cancelSleepTimer()
         if (minutes <= 0) return
 
@@ -692,6 +697,8 @@ class AmbientAudioEngine(
             }
             // Süre doldu → kısarak sustur (aniden kesme)
             if (fade > 0) fadeAllOut(fade * 1000L) else stopAllChannels()
+            // Okuyucudaki çevrimiçi kuyruk da aynı anda sussun (v2.4.485).
+            runCatching { onExpired?.invoke() }
             _sleepTimer.value = SleepTimerState()
         }
     }

@@ -176,7 +176,16 @@ fun MangaAmbientPanel(
     onDownloadSound: (AmbientSound) -> Unit = {},
     /** İndirilenlerin toplam boyutu (bayt). */
     downloadedBytes: Long = 0L,
-    onClearDownloads: () -> Unit = {}
+    onClearDownloads: () -> Unit = {},
+    /**
+     * 🌐 Yeni çok kaynaklı ortam sesi motoru (v2.4.480).
+     *
+     * Verilirse "Çevrimiçi" sekmesi 8 açık lisans kaynağını, indirmeyi ve
+     * sıralı otomatik çalmayı gösterir; "Ayarlar" sekmesine de internetten
+     * otomatik çalma kartı eklenir. `null` ise eski (5 kaynaklı) katalog
+     * görünümü korunur — TV/önizleme yolları bozulmaz.
+     */
+    ambientOnline: MangaAmbientOnlineController? = null
 ) {
     val accent = LocalKitsugiAccent.current
 
@@ -255,11 +264,17 @@ fun MangaAmbientPanel(
                 // Başlık asla "null" basmaz: aktif başlık yoksa (ör. ön plan
                 // servisinden veya preset geçişinden sonra) kanalların kendi
                 // etiketi kullanılır.
+                // Çevrimiçi kuyruk da (v2.4.480) başlıkta görünür: eski
+                // panelde çalan parçanın adı üstte yazıyordu, koruyoruz.
+                val onlineTrack = ambientOnline?.playback?.currentTrack
                 val headerTitle = activeTitle?.takeIf { it.isNotBlank() }
                     ?: channels.firstOrNull()?.displayLabel
+                    ?: onlineTrack?.title
                 Text(
                     text = when {
-                        channels.isEmpty() -> "Okuduğun içeriğe uygun ses"
+                        channels.isEmpty() && onlineTrack == null -> "Okuduğun içeriğe uygun ses"
+                        channels.isEmpty() -> onlineTrack?.let { "${it.title} · sırayla çalıyor" }
+                            ?: "Ortam sesi çalıyor"
                         channels.size == 1 -> headerTitle ?: "Ortam sesi çalıyor"
                         else -> "${channels.size} ses çalıyor · " +
                             (headerTitle ?: "karışım")
@@ -270,11 +285,16 @@ fun MangaAmbientPanel(
                     overflow = TextOverflow.Ellipsis
                 )
             }
-            if (channels.isNotEmpty()) {
-                IconButton(onClick = onTogglePlay) {
+            val onlinePlaying = ambientOnline?.playback?.isPlaying == true
+            if (channels.isNotEmpty() || ambientOnline?.playback?.currentTrack != null) {
+                val anyPlaying = isPlaying || onlinePlaying
+                IconButton(onClick = {
+                    onTogglePlay()
+                    ambientOnline?.playback?.togglePlayback()
+                }) {
                     Icon(
-                        imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                        contentDescription = if (isPlaying) "Duraklat" else "Çal",
+                        imageVector = if (anyPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                        contentDescription = if (anyPlaying) "Duraklat" else "Çal",
                         tint = accent
                     )
                 }
@@ -399,23 +419,31 @@ fun MangaAmbientPanel(
                     onToggleFavorite = onToggleFavorite,
                     onLongClickSound = openDetail
                 )
-                3 -> OnlineTab(
-                    modifier = Modifier.fillMaxSize(),
-                    results = onlineResults,
-                    isSearching = isSearching,
-                    error = searchError,
-                    query = searchQuery,
-                    sourceStates = sourceStates,
-                    playingIds = channels.map { it.sound.id }.toSet(),
-                    accent = accent,
-                    onQueryChanged = onSearchQueryChanged,
-                    onSearch = onSearch,
-                    onPlay = onPlayOnline,
-                    onToggleSource = onToggleSource,
-                    downloadedIds = downloadedIds,
-                    downloadProgress = downloadProgress,
-                    onDownload = onDownloadSound
-                )
+                3 -> if (ambientOnline != null) {
+                    AmbientOnlineTab(
+                        controller = ambientOnline,
+                        accent = accent,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    OnlineTab(
+                        modifier = Modifier.fillMaxSize(),
+                        results = onlineResults,
+                        isSearching = isSearching,
+                        error = searchError,
+                        query = searchQuery,
+                        sourceStates = sourceStates,
+                        playingIds = channels.map { it.sound.id }.toSet(),
+                        accent = accent,
+                        onQueryChanged = onSearchQueryChanged,
+                        onSearch = onSearch,
+                        onPlay = onPlayOnline,
+                        onToggleSource = onToggleSource,
+                        downloadedIds = downloadedIds,
+                        downloadProgress = downloadProgress,
+                        onDownload = onDownloadSound
+                    )
+                }
                 4 -> MixerTab(
                     modifier = Modifier.fillMaxSize(),
                     channels = channels,
@@ -480,8 +508,19 @@ fun MangaAmbientPanel(
                             muteOnSilent = autoPlayMuteOnSilent,
                             onMuteOnSilentChanged = onAutoPlayMuteOnSilentChanged,
                             includeOnline = autoPlayIncludeOnline,
-                            onIncludeOnlineChanged = onAutoPlayIncludeOnlineChanged
+                            onIncludeOnlineChanged = onAutoPlayIncludeOnlineChanged,
+                            // Çok kaynaklı motor bağlıyken internetten otomatik
+                            // çalma anahtarı aşağıdaki kartta (tek kaynak).
+                            showOnlineRow = ambientOnline == null
                         )
+                        // İnternetten otomatik çalma (v2.4.480): kullanıcı bu
+                        // anahtarların eski panelin Ayarlar sekmesinde kalmasını istedi.
+                        ambientOnline?.let { controller ->
+                            AmbientOnlineSettingsCard(
+                                controller = controller,
+                                accent = accent
+                            )
+                        }
                         Text(
                             text = "Çevrimiçi parça bulunamazsa veya açılamazsa cihaz içi ses " +
                                 "kesintisiz devam eder; okuyucudan çıkınca müzik her durumda durur.",
@@ -2902,7 +2941,15 @@ private fun AutoPlayCard(
     muteOnSilent: Boolean = false,
     onMuteOnSilentChanged: (Boolean) -> Unit = {},
     includeOnline: Boolean = false,
-    onIncludeOnlineChanged: (Boolean) -> Unit = {}
+    onIncludeOnlineChanged: (Boolean) -> Unit = {},
+    /**
+     * "Çevrimiçi kaynakları kullan" satırı gösterilsin mi?
+     *
+     * v2.4.480: çok kaynaklı motor bağlıyken internetten otomatik çalmanın
+     * **tek** anahtarı Ayarlar sekmesindeki yeni karttır; burada ikinci bir
+     * anahtar göstermek kullanıcıyı yanıltıyordu.
+     */
+    showOnlineRow: Boolean = true
 ) {
     Column(
         modifier = Modifier
@@ -2997,16 +3044,18 @@ private fun AutoPlayCard(
                     accent = accent,
                     onCheckedChange = onMuteOnSilentChanged
                 )
-                AutoPlayDetailRow(
-                    title = "Çevrimiçi kaynakları kullan",
-                    subtitle = if (includeOnline)
-                        "İçeriğe uygun gerçek parça aranır (veri kullanır)"
-                    else
-                        "Yalnızca cihaz içi sesler — anında ve çevrimdışı",
-                    checked = includeOnline,
-                    accent = accent,
-                    onCheckedChange = onIncludeOnlineChanged
-                )
+                if (showOnlineRow) {
+                    AutoPlayDetailRow(
+                        title = "Çevrimiçi kaynakları kullan",
+                        subtitle = if (includeOnline)
+                            "İçeriğe uygun gerçek parça aranır (veri kullanır)"
+                        else
+                            "Yalnızca cihaz içi sesler — anında ve çevrimdışı",
+                        checked = includeOnline,
+                        accent = accent,
+                        onCheckedChange = onIncludeOnlineChanged
+                    )
+                }
             }
         }
     }

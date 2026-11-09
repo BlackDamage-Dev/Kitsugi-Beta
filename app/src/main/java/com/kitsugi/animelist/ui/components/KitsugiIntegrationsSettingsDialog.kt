@@ -1658,6 +1658,15 @@ private fun MusicSettingsTab(
     accentColor: Color,
     scrollState: ScrollState = rememberScrollState()
 ) {
+    // Açık lisans kaynakları ve internetten otomatik çalma, okuyucu
+    // paneliyle **aynı** SharedPreferences dosyasını kullanır (v2.4.480).
+    val ambientAppContext = LocalContext.current.applicationContext
+    val ambientPreferences = remember(ambientAppContext) {
+        com.kitsugi.animelist.data.ambient.AmbientAudioPreferences(ambientAppContext)
+    }
+    var autoPlayOnline by remember { mutableStateOf(ambientPreferences.autoPlayOnline) }
+    var enabledAmbientSources by remember { mutableStateOf(ambientPreferences.enabledSources()) }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -1729,6 +1738,20 @@ private fun MusicSettingsTab(
 
                 KitsugiSettingsDivider()
                 KitsugiSettingsSwitchItem(
+                    title = "İnternetten otomatik çal",
+                    description = "Okuyucu açılınca manga adıyla aranır, en alakalı parça ve " +
+                        "benzerleri sırayla kendiliğinden çalar. Kaynaklar aşağıda seçilir.",
+                    icon = Icons.Rounded.MusicNote,
+                    iconColor = accentColor,
+                    checked = autoPlayOnline,
+                    onCheckedChange = { checked ->
+                        autoPlayOnline = checked
+                        ambientPreferences.autoPlayOnline = checked
+                    }
+                )
+
+                KitsugiSettingsDivider()
+                KitsugiSettingsSwitchItem(
                     title = stringResource(R.string.music_settings_continue_on_exit),
                     description = stringResource(R.string.music_settings_continue_on_exit_desc),
                     icon = Icons.Rounded.PlayCircle,
@@ -1783,8 +1806,21 @@ private fun MusicSettingsTab(
                 // Jamendo
                 MusicSourceKeyItem(
                     sourceId = com.kitsugi.animelist.data.music.MusicSourceId.JAMENDO,
-                    enabled = jamendoEnabled,
-                    onEnabledChanged = onJamendoEnabledChanged,
+                    enabled = jamendoEnabled &&
+                        com.kitsugi.animelist.data.ambient.AmbientAudioSource.JAMENDO in enabledAmbientSources,
+                    onEnabledChanged = { value ->
+                        onJamendoEnabledChanged(value)
+                        // Ortam sesi motoru da aynı anahtarı görsün (v2.4.480).
+                        val next = if (value) {
+                            enabledAmbientSources + com.kitsugi.animelist.data.ambient.AmbientAudioSource.JAMENDO
+                        } else {
+                            enabledAmbientSources - com.kitsugi.animelist.data.ambient.AmbientAudioSource.JAMENDO
+                        }
+                        if (next.isNotEmpty()) {
+                            enabledAmbientSources = next
+                            ambientPreferences.setEnabledSources(next)
+                        }
+                    },
                     currentKey = jamendoClientId,
                     onKeyChanged = onJamendoClientIdChanged,
                     accentColor = accentColor
@@ -1827,6 +1863,65 @@ private fun MusicSettingsTab(
                     onEnabledChanged = onArchiveEnabledChanged,
                     accentColor = accentColor
                 )
+            }
+
+            // ── Bölüm 3: Açık lisans / anahtarsız yeni kaynaklar ────────
+            // Okuyucu panelindeki Çevrimiçi sekmesinin KAYNAKLAR listesiyle
+            // birebir aynı 8 kaynağın ortak anahtarlarıdır (v2.4.480).
+            KitsugiSettingsSection(
+                title = "Ortam sesi kaynakları",
+                subtitle = "Jamendo dışındaki kaynaklar anahtar gerektirmez. Burada kapatılan " +
+                    "kaynak okuyucudaki otomatik aramaya da katılmaz."
+            ) {
+                val ambientSourceLabels = listOf(
+                    com.kitsugi.animelist.data.ambient.AmbientAudioSource.JAMENDO to
+                        ("Jamendo" to "Kişisel Client ID gerekir; anahtarı yukarıdaki Jamendo kartından gir. Yalnızca akış."),
+                    com.kitsugi.animelist.data.ambient.AmbientAudioSource.FREESOUND to
+                        ("Freesound · Openverse" to "CC ses kayıtları; Openverse üzerinden anahtarsız taranır."),
+                    com.kitsugi.animelist.data.ambient.AmbientAudioSource.WIKIMEDIA_AUDIO to
+                        ("Wikimedia audio · Openverse" to "Vikipedi/Vikiveri ses dosyaları."),
+                    com.kitsugi.animelist.data.ambient.AmbientAudioSource.INTERNET_ARCHIVE to
+                        ("Internet Archive" to "Kamu malı arşiv kayıtları; kota pratikte yok."),
+                    com.kitsugi.animelist.data.ambient.AmbientAudioSource.AUDIUS to
+                        ("Audius" to "Merkeziyetsiz müzik platformu; anahtarsız da çalışır."),
+                    com.kitsugi.animelist.data.ambient.AmbientAudioSource.WIKIMEDIA_COMMONS to
+                        ("Wikimedia Commons" to "Özgür lisanslı medya arşivi."),
+                    com.kitsugi.animelist.data.ambient.AmbientAudioSource.CCMIXTER to
+                        ("ccMixter" to "Creative Commons remiks ve enstrümantal müzik."),
+                    com.kitsugi.animelist.data.ambient.AmbientAudioSource.FREE_TO_USE to
+                        ("Free To Use" to "Ücretsiz kullanım kataloğu."),
+                    com.kitsugi.animelist.data.ambient.AmbientAudioSource.RADIO_BROWSER to
+                        ("Radio Browser" to "Canlı radyo istasyonları; parça süresi yoktur."),
+                    com.kitsugi.animelist.data.ambient.AmbientAudioSource.ANIMETHEMES to
+                        ("Anime OP/ED" to "Animenin kendi açılış/kapanış şarkısı (AnimeThemes); " +
+                            "doğrudan ses dosyası, indirilebilir, anahtarsız."),
+                    com.kitsugi.animelist.data.ambient.AmbientAudioSource.YOUTUBE to
+                        ("YouTube Music" to "Tüm YouTube kataloğu (OST, OP/ED, cover). Akış " +
+                            "çalma anında çözülür; anahtarsız, indirilemez.")
+                )
+                ambientSourceLabels.forEachIndexed { index, entry ->
+                    val (source, texts) = entry
+                    val (label, description) = texts
+                    if (index > 0) KitsugiSettingsDivider()
+                    KitsugiSettingsSwitchItem(
+                        title = label,
+                        description = description,
+                        icon = Icons.Rounded.MusicNote,
+                        iconColor = accentColor,
+                        checked = source in enabledAmbientSources,
+                        onCheckedChange = { checked ->
+                            val next = if (checked) enabledAmbientSources + source
+                            else enabledAmbientSources - source
+                            if (next.isNotEmpty()) {
+                                enabledAmbientSources = next
+                                ambientPreferences.setEnabledSources(next)
+                                if (source == com.kitsugi.animelist.data.ambient.AmbientAudioSource.JAMENDO) {
+                                    onJamendoEnabledChanged(checked)
+                                }
+                            }
+                        }
+                    )
+                }
             }
         }
     }

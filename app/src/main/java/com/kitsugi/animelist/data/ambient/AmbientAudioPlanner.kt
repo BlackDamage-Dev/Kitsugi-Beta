@@ -104,9 +104,18 @@ internal object AmbientAudioPlanner {
         ),
     )
 
-    private val vocalOrSpeechTerms = setOf(
-        "vocal", "vocals", "lyrics", "lyric", "singing", "sung", "voice", "voices",
-        "speech", "spoken", "dialogue", "narration", "podcast", "audiobook", "interview",
+    /** Konuşma içerikli kayıtlar her modda elenir. */
+    private val speechTerms = setOf(
+        "speech", "spoken", "dialogue", "narration", "podcast", "audiobook", "interview"
+    )
+
+    /** Sözlü müzik: yalnızca AMBIENCE modunda elenir (anime OP/ED gibi şarkılar MUSIC'te kalır). */
+    private val vocalTerms = setOf(
+        "vocal", "vocals", "lyrics", "lyric", "singing", "sung", "voice", "voices"
+    )
+
+    /** Ses efekti kayıtları: yalnızca MUSIC modunda elenir (ambiyansta yağmur/rüzgâr istenir). */
+    private val sfxTerms = setOf(
         "sound effect", "sound effects", "sfx", "foley", "notification", "alarm"
     )
 
@@ -158,6 +167,7 @@ internal object AmbientAudioPlanner {
             reason = reason,
             matchTerms = terms.map(::normalize).toSet(),
             titleQuery = titleQuery,
+            mode = mode,
             titleMatchTerms = normalize(titleQuery).split(' ').filter(String::isNotBlank).toSet(),
         )
     }
@@ -169,7 +179,7 @@ internal object AmbientAudioPlanner {
     ): List<AmbientAudioTrack> {
         val sortedCandidates = tracks
             .asSequence()
-            .filter(::isSafeCandidate)
+            .filter { isSafeCandidate(it, plan.mode) }
             .map { it to score(it, plan, recentlyPlayedIds) }
             .sortedWith(compareByDescending<Pair<AmbientAudioTrack, Int>> { it.second }.thenBy { it.first.id })
             .map { it.first }
@@ -217,8 +227,12 @@ internal object AmbientAudioPlanner {
         return matched >= minimumMatches
     }
 
-    fun isSafeCandidate(track: AmbientAudioTrack): Boolean {
-        if (!track.streamUrl.startsWith("https://", ignoreCase = true)) return false
+    fun isSafeCandidate(
+        track: AmbientAudioTrack,
+        mode: AmbientAudioMode = AmbientAudioMode.AUTO,
+    ): Boolean {
+        // https:// doğrudan akış, kitsugi-yt:// ise çalma anında çözülen işaretçi.
+        if (!track.isStreamable) return false
         if (track.id.isBlank() || track.title.isBlank()) return false
 
         val mediaType = AmbientAudioFormats.canonicalType(
@@ -229,8 +243,20 @@ internal object AmbientAudioPlanner {
         if (track.fileSizeBytes != null && track.fileSizeBytes > MAX_STREAM_FILE_BYTES) return false
 
         val contentText = normalize(listOf(track.title, track.tags.joinToString(" ")).joinToString(" "))
-        if (vocalOrSpeechTerms.any { containsPhrase(contentText, normalize(it)) }) return false
-        if (track.source.contains("jamendo", ignoreCase = true) || track.provider.contains("jamendo", ignoreCase = true)) return false
+        // Konuşma içeriği (podcast/audiobook) hiçbir modda istenmez.
+        if (speechTerms.any { containsPhrase(contentText, normalize(it)) }) return false
+        // Sessiz okuma için "sözsüz" tercihi yalnızca ambiyans modunda geçerli.
+        if (mode == AmbientAudioMode.AMBIENCE &&
+            vocalTerms.any { containsPhrase(contentText, normalize(it)) }
+        ) {
+            return false
+        }
+        // Müzik modunda ses efekti paketleri elenir; ambiyansta serbesttir.
+        if (mode == AmbientAudioMode.MUSIC &&
+            sfxTerms.any { containsPhrase(contentText, normalize(it)) }
+        ) {
+            return false
+        }
         return true
     }
 

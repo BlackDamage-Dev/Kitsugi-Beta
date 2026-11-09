@@ -13,6 +13,7 @@ import android.provider.MediaStore
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.util.UnstableApi
+import com.kitsugi.animelist.data.trailer.InAppYouTubeExtractor
 import androidx.media3.transformer.Composition
 import androidx.media3.transformer.EditedMediaItem
 import androidx.media3.transformer.ExportException
@@ -60,6 +61,7 @@ internal data class AmbientAudioDownloadState(
 @OptIn(UnstableApi::class)
 internal object AmbientAudioDownloadManager {
     private const val MAX_DOWNLOAD_BYTES = 250L * 1024L * 1024L
+    private const val YOUTUBE_PREFIX = "kitsugi-yt://"
     private const val AAC_BIT_RATE = 128_000
     private const val AAC_SAMPLE_RATE = 44_100
     private const val AAC_CHANNEL_COUNT = 2
@@ -80,17 +82,26 @@ internal object AmbientAudioDownloadManager {
         .build()
 
     fun start(context: Context, track: AmbientAudioTrack): Boolean {
-        val url = track.downloadUrl?.takeIf { it.startsWith("https://", ignoreCase = true) } ?: return false
-        if (track.provider.equals("radio_browser", ignoreCase = true) ||
-            !AmbientAudioFormats.isDirectAudioFile(track.fileType)
-        ) return false
+        // v2.4.484 — YouTube kaynaklı parçalar da indirilebilir: akış adresi indirme
+        // anında çözülür ve dosya cihaza kalıcı olarak yazılır. İndirilen içerik
+        // süresi dolan imzalı adresten bağımsızdır.
+        val directUrl = track.downloadUrl?.takeIf { it.startsWith("https://", ignoreCase = true) }
+        val youTubeId = youTubeVideoId(track)
+        if (directUrl == null && youTubeId == null) return false
+        if (track.provider.equals("radio_browser", ignoreCase = true)) return false
+        if (directUrl != null && !AmbientAudioFormats.isDirectAudioFile(track.fileType)) return false
         if (!activeDownloads.add(track.id)) return false
 
         mutableDownloads.update { it + (track.id to AmbientAudioDownloadState(AmbientAudioDownloadStatus.QUEUED)) }
         val appContext = context.applicationContext
         scope.launch {
             try {
-                val state = downloadAndPublish(appContext, track, url)
+                val resolved = if (directUrl != null) {
+                    directUrl to emptyMap()
+                } else {
+                    resolveYouTubeStream(youTubeId.orEmpty())
+                } ?: throw IOException("Parçanın ses adresi çözülemedi")
+                val state = downloadAndPublish(appContext, track, resolved.first, resolved.second)
                 if (state.status == AmbientAudioDownloadStatus.COMPLETED && state.contentUri != null) {
                     preferences(appContext).edit()
                         .putString(savedUriKey(track.id), state.contentUri)
@@ -156,10 +167,37 @@ internal object AmbientAudioDownloadManager {
         }
     }
 
+    /** YouTube işaretçisinden video kimliği (`kitsugi-yt://<id>` → `<id>`). */
+    private fun youTubeVideoId(track: AmbientAudioTrack): String? =
+        track.streamUrl
+            .takeIf { it.startsWith(YOUTUBE_PREFIX, ignoreCase = true) }
+            ?.substringAfter(YOUTUBE_PREFIX)
+            ?.substringBefore('/')
+            ?.takeIf { it.isNotBlank() }
+
+    /**
+     * İndirme anında gerçek ses adresini + başlıkları çözer. İndirilen dosya
+     * cihaza yazıldığı için imzalı adresin süresi dolması sonucu etkilemez.
+     */
+    private suspend fun resolveYouTubeStream(videoId: String): Pair<String, Map<String, String>>? {
+        if (videoId.isBlank()) return null
+        val source = InAppYouTubeExtractor.shared.extractPlaybackSource(
+            "https://www.youtube.com/watch?v=$videoId"
+        ) ?: return null
+        val url = source.audioUrl ?: source.videoUrl
+        // Manifest (HLS/DASH) adresleri tek dosya olarak indirilemez; yalnızca
+        // doğrudan ses/video akışı indirilir.
+        if (url.contains("m3u8", ignoreCase = true) ||
+            url.contains(".mpd", ignoreCase = true)
+        ) return null
+        return url to source.requestHeaders
+    }
+
     private suspend fun downloadAndPublish(
         context: Context,
         track: AmbientAudioTrack,
         url: String,
+        requestHeaders: Map<String, String> = emptyMap(),
     ): AmbientAudioDownloadState = withContext(Dispatchers.IO) {
         if (track.fileSizeBytes != null && track.fileSizeBytes > MAX_DOWNLOAD_BYTES) {
             throw IOException("Audio file exceeds the 250 MB offline-download limit")
@@ -175,7 +213,7 @@ internal object AmbientAudioDownloadManager {
             mutableDownloads.update {
                 it + (track.id to AmbientAudioDownloadState(AmbientAudioDownloadStatus.DOWNLOADING))
             }
-            downloadFile(url, original) { progress ->
+            downloadFile(url, original, requestHeaders) { progress ->
                 mutableDownloads.update {
                     it + (track.id to AmbientAudioDownloadState(
                         status = AmbientAudioDownloadStatus.DOWNLOADING,
@@ -229,13 +267,19 @@ internal object AmbientAudioDownloadManager {
         }
     }
 
-    private fun downloadFile(url: String, destination: File, onProgress: (Float) -> Unit) {
-        val request = Request.Builder()
+    private fun downloadFile(
+        url: String,
+        destination: File,
+        requestHeaders: Map<String, String> = emptyMap(),
+        onProgress: (Float) -> Unit,
+    ) {
+        val builder = Request.Builder()
             .url(url)
             .header("Accept", "audio/*, application/octet-stream;q=0.9, */*;q=0.5")
             .header("User-Agent", "KitsugiBeta/2.x (Android ambient audio offline download)")
-            .get()
-            .build()
+        // YouTube imzalı adresleri, adresi üreten istemcinin UA'sını bekler.
+        requestHeaders.forEach { (name, value) -> builder.header(name, value) }
+        val request = builder.get().build()
         client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) throw IOException("Audio download failed: HTTP ${response.code}")
             val body = response.body ?: throw IOException("Audio download returned no file")

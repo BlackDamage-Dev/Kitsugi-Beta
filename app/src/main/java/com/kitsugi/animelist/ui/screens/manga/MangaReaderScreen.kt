@@ -60,7 +60,9 @@ import com.kitsugi.animelist.ui.components.KitsugiWebViewDialog
 import com.kitsugi.animelist.ui.components.MangaSourceAuthBanner
 import com.kitsugi.animelist.ui.components.MangaSourceLoginDialog
 import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
+import com.kitsugi.animelist.ui.screens.manga.components.MangaAmbientOnlineController
 import com.kitsugi.animelist.ui.screens.manga.components.MangaAmbientPanel
+import com.kitsugi.animelist.ui.screens.manga.components.rememberMangaAmbientOnlineController
 import com.kitsugi.animelist.ui.screens.manga.components.MangaChapterChoiceDialog
 import com.kitsugi.animelist.ui.screens.manga.components.MangaPagerReader
 import com.kitsugi.animelist.ui.screens.manga.components.MangaWebtoonReader
@@ -121,7 +123,6 @@ fun MangaReaderScreen(
 
     var showGallery by remember { mutableStateOf(false) }
     var galleryInitialIndex by remember { mutableStateOf(ui.currentPageIndex) }
-    var showAmbientAudio by rememberSaveable { mutableStateOf(false) }
     val ambientPlayback = rememberMangaAmbientAudioPlayback()
     var showMusicPanel by remember { mutableStateOf(false) }
     // Alt çubuktan açılan hızlı parlaklık paneli (ayarlardaki sürgü de durur).
@@ -132,7 +133,6 @@ fun MangaReaderScreen(
 
     val overlayOpen = overlay != ReaderOverlay.None ||
         showGallery ||
-        showAmbientAudio ||
         showMusicPanel ||
         showSourceLogin ||
         showMangaTrLogin ||
@@ -148,6 +148,48 @@ fun MangaReaderScreen(
     val readerAppSettings by readerSettingsStore.settingsFlow.collectAsState(initial = AppSettings())
     val musicIsPlaying by musicEngine.isPlaying.collectAsState()
 
+    // 🌐 Çok kaynaklı ortam sesi motoru — eski sekmeli panelin içinde çalışır.
+    val ambientOnline = rememberMangaAmbientOnlineController(
+        manga = mangaDetails,
+        chapter = ui.currentChapter,
+        playback = ambientPlayback,
+        jamendoClientId = readerAppSettings.musicJamendoClientId,
+    )
+
+    LaunchedEffect(readerAppSettings.musicJamendoClientId) {
+        ambientOnline.updateJamendoClientId(readerAppSettings.musicJamendoClientId)
+    }
+
+    // Bölüm değişince plan/ipucu metni tazelenir; çalan kuyruk kesilmez.
+    LaunchedEffect(ui.currentChapter.url) {
+        ambientOnline.updateChapter(ui.currentChapter)
+    }
+
+    // ── İnternetten otomatik çalma (v2.4.480) ───────────────────────────
+    // Kullanıcı isteği: okuduğu içeriğin adıyla en alakalı parça bulunsun ve
+    // ardından gelenler **sırayla** kendiliğinden çalsın. Ayar panelin
+    // Ayarlar sekmesinde (ve Harici Entegrasyonlar > Müzik) durur.
+    LaunchedEffect(mangaDetails.url, ambientOnline.autoPlayOnline) {
+        if (!ambientOnline.autoPlayOnline) return@LaunchedEffect
+        if (!readerAppSettings.musicEnabled) return@LaunchedEffect
+        if (ambientPlayback.currentTrack != null) return@LaunchedEffect
+        if (musicEngine.channels.value.isNotEmpty()) return@LaunchedEffect
+        if (!AutoplayGate.canAutoplay(context, readerAppSettings)) {
+            Log.i("MangaReader", "İnternetten otomatik çalma atlandı — kulaklık yok veya sessiz mod")
+            return@LaunchedEffect
+        }
+        val delayMs = readerAppSettings.musicAutoPlayDelaySeconds.coerceIn(0, 30) * 1000L
+        if (delayMs > 0) kotlinx.coroutines.delay(delayMs)
+        if (ambientPlayback.currentTrack == null && musicEngine.channels.value.isEmpty()) {
+            ambientOnline.playBestForManga()
+        }
+    }
+
+    // Okuyucudan çıkınca çevrimiçi kuyruk da kesin durur.
+    DisposableEffect(ambientPlayback) {
+        onDispose { ambientPlayback.stop() }
+    }
+
     fun leaveReader() {
         session.stop()
         model.flushProgress()
@@ -158,7 +200,6 @@ fun MangaReaderScreen(
         when {
             overlay != ReaderOverlay.None -> overlay = ReaderOverlay.None
             showGallery -> showGallery = false
-            showAmbientAudio -> showAmbientAudio = false
             showMusicPanel -> showMusicPanel = false
             showSourceLogin -> showSourceLogin = false
             showMangaTrLogin -> showMangaTrLogin = false
@@ -463,12 +504,12 @@ fun MangaReaderScreen(
                 }
                 IconButton(onClick = {
                     session.stop()
-                    showAmbientAudio = true
+                    showMusicPanel = true
                 }) {
                     Icon(
                         imageVector = Icons.Rounded.MusicNote,
-                        contentDescription = stringResource(R.string.ambient_audio_title),
-                        tint = if (ambientPlayback.isPlaying) Color(0xFF9BE7D2) else Color.White,
+                        contentDescription = stringResource(R.string.music_panel_title),
+                        tint = if (ambientPlayback.isPlaying || musicIsPlaying) Color(0xFF9BE7D2) else Color.White,
                     )
                 }
                 // Settings used to have a second identical trigger here. It now exists only below.
@@ -664,18 +705,10 @@ fun MangaReaderScreen(
         musicEngine = musicEngine,
         readerSettingsStore = readerSettingsStore,
         readerAppSettings = readerAppSettings,
+        ambientOnline = ambientOnline,
         showMusicPanel = showMusicPanel,
         onDismissMusicPanel = { showMusicPanel = false },
     )
-
-    if (showAmbientAudio) {
-        MangaAmbientAudioSheet(
-            manga = mangaDetails,
-            chapter = ui.currentChapter,
-            playback = ambientPlayback,
-            onDismiss = { showAmbientAudio = false },
-        )
-    }
 
     if (showMangaTrLogin) {
         MangaTrLoginDialog(onDismiss = {
@@ -883,6 +916,7 @@ private fun MangaReaderAmbientOrchestrator(
     musicEngine: AmbientAudioEngine,
     readerSettingsStore: SettingsDataStore,
     readerAppSettings: AppSettings,
+    ambientOnline: MangaAmbientOnlineController,
     showMusicPanel: Boolean,
     onDismissMusicPanel: () -> Unit,
 ) {
@@ -1015,6 +1049,9 @@ private fun MangaReaderAmbientOrchestrator(
         if (autoPlayHandled) return@LaunchedEffect
         if (!readerAppSettings.musicEnabled) return@LaunchedEffect
         if (!readerAppSettings.musicAutoPlay) return@LaunchedEffect
+        // v2.4.480: internetten otomatik çalma açıksa çok kaynaklı yeni motor
+        // devralır — iki motorun aynı anda başlamasını engeller.
+        if (ambientOnline.autoPlayOnline) return@LaunchedEffect
         if (musicEngine.channels.value.isNotEmpty()) return@LaunchedEffect
 
         if (!AutoplayGate.canAutoplay(context, readerAppSettings)) {
@@ -1035,7 +1072,12 @@ private fun MangaReaderAmbientOrchestrator(
         val outcome = AmbientAutoplayStarter.start(
             engine = musicEngine,
             catalog = musicCatalog,
-            settings = readerAppSettings,
+            // v2.4.480: internetten arama artık çok kaynaklı yeni motorda.
+            // Eski motor yalnızca cihaz içi (prosedürel) sesleri başlatır;
+            // böylece iki ayrı çevrimiçi arama aynı anda çalışmaz.
+            settings = readerAppSettings.copy(
+                integrations = readerAppSettings.integrations.copy(musicAutoPlayIncludeOnline = false),
+            ),
             mood = recommendation.mood,
             detectedGenres = recommendation.detectedGenres,
             fallbackGenres = mangaDetails.genre,
@@ -1086,6 +1128,7 @@ private fun MangaReaderAmbientOrchestrator(
             sheetGesturesEnabled = false,
         ) {
             MangaAmbientPanel(
+                ambientOnline = ambientOnline,
                 recommendations = musicRecommendations,
                 matchNote = when {
                     musicEnriching -> "Kaynaklar taranıyor…"
@@ -1137,7 +1180,13 @@ private fun MangaReaderAmbientOrchestrator(
                     }
                 },
                 sleepTimer = sleepTimer,
-                onStartTimer = { minutes -> musicEngine.startSleepTimer(minutes) },
+                onStartTimer = { minutes ->
+                    // Uyku zamanlayıcısı yalnızca cihaz içi sesleri değil, okuyucudaki
+                    // çevrimiçi kuyruğu da kapatır (v2.4.485).
+                    musicEngine.startSleepTimer(minutes) {
+                        ambientOnline.stopPlayback()
+                    }
+                },
                 onCancelTimer = { musicEngine.cancelSleepTimer() },
                 onPauseTimer = { musicEngine.pauseSleepTimer() },
                 onResumeTimer = { musicEngine.resumeSleepTimer() },

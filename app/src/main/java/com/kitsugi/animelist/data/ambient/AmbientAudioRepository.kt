@@ -26,11 +26,16 @@ class AmbientAudioRepository(context: Context) {
     private val ccMixter = CcMixterAudioSource(client)
     private val freeToUse = FreeToUseAudioSource(client)
     private val radioBrowser = RadioBrowserAudioSource(client)
+    private val jamendo = JamendoAudioSource(client)
+    private val animeThemes = AnimeThemesAudioSource(client)
+    private val youTubeMusic = YouTubeMusicAudioSource(client)
 
     suspend fun search(
         query: String,
         sources: Set<AmbientAudioSource>,
         plan: AmbientAudioPlan,
+        /** Jamendo kişisel `client_id`; boşsa Jamendo atlanır (diğer kaynaklar çalışır). */
+        jamendoClientId: String = "",
     ): AmbientAudioSearchResult = searchInternal(
         query = query,
         sources = sources.toList().sortedBy { it.key },
@@ -39,12 +44,15 @@ class AmbientAudioRepository(context: Context) {
         includeLiveRadio = true,
         allowGenericFallback = true,
         showEmptyWarning = true,
+        jamendoClientId = jamendoClientId,
     )
 
     /** Search the reader's manga title first, then add style/context discoveries to the queue. */
     suspend fun searchForManga(
         sources: Set<AmbientAudioSource>,
         plan: AmbientAudioPlan,
+        /** Jamendo kişisel `client_id`; boşsa Jamendo atlanır. */
+        jamendoClientId: String = "",
     ): AmbientAudioSearchResult {
         val enabledSources = sources.toList().sortedBy { it.key }
         if (enabledSources.isEmpty()) {
@@ -61,6 +69,7 @@ class AmbientAudioRepository(context: Context) {
                 includeLiveRadio = false,
                 allowGenericFallback = false,
                 showEmptyWarning = false,
+                jamendoClientId = jamendoClientId,
             )
         } else {
             AmbientAudioSearchResult(emptyList())
@@ -72,13 +81,11 @@ class AmbientAudioRepository(context: Context) {
         }
 
         val needsMoodFallback = AmbientAudioPlanner.shouldSearchMoodContext(freshTitleMatchCount)
-        // When title search already found a useful queue, only add live-radio context results.
-        // Otherwise query every enabled catalog with the mood/context plan as the fallback phase.
-        val contextSources = if (needsMoodFallback) {
-            enabledSources
-        } else {
-            enabledSources.filter { it == AmbientAudioSource.RADIO_BROWSER }
-        }
+        // v2.4.483 — kullanıcı isteği: "en alakalıdan en alakasıza kadar TÜM kaynaklar
+        // arasında sıralı çalma". Bu yüzden başlık eşleşmesi yeterli olsa bile bağlam
+        // araması tüm kaynaklarda yapılır; sıralamayı yine `orderForAutoplay` belirler
+        // (başlık eşleşmesi +1000 puan aldığı için her zaman en başta kalır).
+        val contextSources = enabledSources
         val contextResult = if (contextSources.isNotEmpty()) {
             searchInternal(
                 query = plan.query,
@@ -88,11 +95,14 @@ class AmbientAudioRepository(context: Context) {
                 includeLiveRadio = true,
                 allowGenericFallback = needsMoodFallback,
                 showEmptyWarning = false,
+                jamendoClientId = jamendoClientId,
             )
         } else {
             AmbientAudioSearchResult(emptyList())
         }
-        val ordered = AmbientAudioPlanner.orderForAutoplay(titleMatches, contextResult.tracks, plan, history)
+        val ordered = AmbientAudioPlanner
+            .orderForAutoplay(titleMatches, contextResult.tracks, plan, history)
+            .take(MAX_QUEUE_TRACKS)
         val warnings = (titleResult.warnings + contextResult.warnings).distinct().toMutableList()
         if (ordered.isEmpty() && warnings.isEmpty()) {
             warnings += "Bu manga için eşleşme bulunamadı; farklı kaynakları veya tür/anahtar kelimeleri deneyebilirsin."
@@ -114,6 +124,7 @@ class AmbientAudioRepository(context: Context) {
         includeLiveRadio: Boolean,
         allowGenericFallback: Boolean,
         showEmptyWarning: Boolean,
+        jamendoClientId: String = "",
     ): AmbientAudioSearchResult {
         val normalizedQuery = query.trim().replace(Regex("\\s+"), " ").take(MAX_QUERY_LENGTH)
         if (normalizedQuery.isBlank()) {
@@ -130,7 +141,7 @@ class AmbientAudioRepository(context: Context) {
         }
 
         val warnings = mutableListOf<String>()
-        val fetched = searchSources(normalizedQuery, sources, plan, warnings, includeLiveRadio)
+        val fetched = searchSources(normalizedQuery, sources, plan, warnings, includeLiveRadio, jamendoClientId)
         var ranked = AmbientAudioPlanner.filterAndRank(fetched, plan, recentlyPlayedTrackIds())
 
         // One restrained mood-search fallback is useful when no enabled source has a playable hit.
@@ -189,6 +200,7 @@ class AmbientAudioRepository(context: Context) {
         plan: AmbientAudioPlan,
         warnings: MutableList<String>,
         includeLiveRadio: Boolean,
+        jamendoClientId: String,
     ): List<AmbientAudioTrack> = coroutineScope {
         sources.map { source ->
             async {
@@ -202,6 +214,13 @@ class AmbientAudioRepository(context: Context) {
                         source == AmbientAudioSource.CCMIXTER -> ccMixter.search(query)
                         source == AmbientAudioSource.FREE_TO_USE -> freeToUse.search(query)
                         source == AmbientAudioSource.RADIO_BROWSER -> radioBrowser.search(query, plan)
+                        // Jamendo BYOK: anahtar yoksa sessizce atlanır (panelde sabit uyarı var).
+                        source == AmbientAudioSource.JAMENDO && jamendoClientId.isBlank() -> emptyList()
+                        source == AmbientAudioSource.JAMENDO -> jamendo.search(jamendoClientId, query)
+                        // Anime OP/ED şarkılarının kendisi (doğrudan .ogg, çözücü yok).
+                        source == AmbientAudioSource.ANIMETHEMES -> animeThemes.search(query)
+                        // YouTube Music: arama; akış çalma anında çözülür.
+                        source == AmbientAudioSource.YOUTUBE -> youTubeMusic.search(query)
                         else -> emptyList()
                     }
                 } catch (cancelled: kotlinx.coroutines.CancellationException) {
@@ -221,8 +240,14 @@ class AmbientAudioRepository(context: Context) {
                 "Openverse geçici istek sınırına ulaştı; biraz sonra tekrar dene."
             description.contains("HTTP 429") ->
                 "${source.label.substringBefore(" ·")} isteği geçici olarak sınırlandı; biraz sonra tekrar dene."
+            source == AmbientAudioSource.JAMENDO ->
+                "Jamendo için kişisel Client ID gerekir (Harici Entegrasyonlar → Müzik)."
             source == AmbientAudioSource.INTERNET_ARCHIVE ->
                 "Internet Archive şu an yanıt vermedi; diğer kaynaklar kullanılabilir."
+            source == AmbientAudioSource.ANIMETHEMES ->
+                "AnimeThemes'te bu başlık için OP/ED kaydı bulunamadı; diğer kaynaklar kullanılabilir."
+            source == AmbientAudioSource.YOUTUBE ->
+                "YouTube Music şu an yanıt vermedi; diğer kaynaklar kullanılabilir."
             else -> "${source.label.substringBefore(" ·")} şu an yanıt vermedi; diğer kaynaklar kullanılabilir."
         }
     }
@@ -332,6 +357,8 @@ class AmbientAudioRepository(context: Context) {
         const val KEY_RECENT_TRACKS = "recent_track_ids"
         const val CACHE_PREFIX = "search_"
         const val MAX_QUERY_LENGTH = 120
+        /** Kuyrukta tutulacak en fazla parça (alakalıdan alakasıza sıralı). */
+        const val MAX_QUEUE_TRACKS = 40
         const val MAX_RECENT_TRACK_KEYS = 80
         const val MAX_CACHE_ENTRIES = 36
         const val MAX_CACHED_TAGS = 48

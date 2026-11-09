@@ -1,5 +1,202 @@
 # Kitsugi-Beta — Sürüm Notları / Release Notes
 
+## Kitsugi Beta v2.4.485
+
+### 🇹🇷 Türkçe
+
+#### ⏱️ 1. Uyku Zamanlayıcısı Çevrimiçi Kuyruğu da Durduruyor
+- Süre dolduğunda yalnızca cihaz içi sesler değil, okuyucudaki **çevrimiçi kuyruk** (YouTube, Anime OP/ED, tüm kataloglar) da kısılarak susar.
+- Zamanlayıcıyı iptal etmek çalmayı durdurmaz; yalnızca süre dolduğunda susturur.
+
+#### 🎚️ 2. Yumuşak Ses Girişi (Fade-in)
+- Her parça sıfır sesle başlar ve ~0,7 saniyede kullanıcı seviyesine yükselir; parça geçişlerindeki "pat" sesi biter.
+- Ses seviyesini elle değiştirdiğinde yükselme anında kesilir (kullanıcı kontrolü öncelikli).
+- Değişiklik yalnızca okuyucudaki ambiyans oynatıcısına uygulanır; diğer oynatıcılara dokunmaz.
+
+### 🇬🇧 English
+
+#### ⏱️ 1. Sleep timer also stops the online queue
+- When the timer expires, the reader's online queue (YouTube, Anime OP/ED, every catalog) fades out along with on-device sounds. Cancelling the timer never stops playback.
+
+#### 🎚️ 2. Soft fade-in
+- Every track starts at zero volume and ramps up in ~0.7 s, removing the "pop" on transitions. Manual volume changes cancel the ramp immediately.
+
+## Kitsugi Beta v2.4.484
+
+### 🇹🇷 Türkçe
+
+#### ⬇️ 1. YouTube Parçaları Artık İndirilebiliyor
+- **Kalıcı Kopya:** İndirme anında ses adresi çözülür, dosya cihaza **kalıcı** olarak yazılır (`MUSIC/Kitsugi/Ambient`) ve AAC 128 kbps `.m4a` olarak saklanır. İmzalı adresin süresi dolması indirilen içeriği etkilemez.
+- **Ses-Only:** Kaynak video içerse bile indirilen dosyada yalnızca ses izi bulunur.
+- **Başlık Desteği:** YouTube imzalı adresleri istemci UA'sı beklediği için indirme isteği adresi üreten çıkarcının başlıklarıyla yapılır.
+- **Güvenli Sınır:** HLS/DASH manifest adresleri tek dosya olarak indirilemediği için bu durumda indirme "çözülemedi" durumuna düşer; diğer parçalar etkilenmez.
+
+#### 🚫 2. "Bir Daha Önerme" (Kalıcı Kara Liste)
+- Parça satırındaki **×** düğmesi parçayı kalıcı olarak listeden çıkarır ve bir daha önerilmez (arama sonuçları ve otomatik kuyruk).
+- Çalan parça engellenirse otomatik olarak sıradakine geçilir.
+- Ayarlar kartında kaç parçanın engellendiği yazar ve **Temizle** ile sıfırlanır.
+
+#### 🔀 3. Kuyruk Karıştırma
+- Mod çiplerinin yanına **Karıştır** eklendi. Açıkken sıra rastgeleleşir; "sonraki/önceki" çalışmaya devam eder. Tercih kalıcıdır.
+
+### 🇬🇧 English
+
+#### ⬇️ 1. YouTube tracks can now be downloaded
+- The stream is resolved at download time and stored permanently on the device as AAC 128 kbps `.m4a`; expiring signed URLs no longer matter.
+- Audio-only output, with the issuing client's headers applied to the download request.
+
+#### 🚫 2. Persistent "never recommend again" list
+- The **×** button on a track row blocks it permanently and removes it from results; blocking the playing track skips to the next one. A **Clear** action sits in the settings card.
+
+#### 🔀 3. Queue shuffle
+- A **Shuffle** chip next to the mode chips randomises the play order; the preference is persisted.
+
+## Kitsugi Beta v2.4.483
+
+### 🇹🇷 Türkçe
+
+#### 🔊 1. Ortam Sesi Her Zaman **Ses** — Video Asla Çalınmaz
+- **Video İzi Tamamen Kapalı:** Oynatıcı `DefaultTrackSelector` ile `TRACK_TYPE_VIDEO` izini devre dışı bırakır. Kaynak video içeren bir akış (YouTube birleşik/HLS) olsa bile yalnızca ses dekode edilir; pil ve veri harcanmaz.
+- **İndirilen Dosya da Ses:** İndirme yöneticisi kaynak dosyadan **yalnızca ses izini** seçer (`MediaExtractor`) ve AAC 128 kbps olarak paketler — diske düşen her dosya ses-only `.m4a`.
+- **YouTube'da İndirme Yok:** İmzalı akış adresleri kısa ömürlü olduğu için bu kaynakta çevrimdışı kopya sunulmaz; indirme Anime OP/ED ve 9 açık lisans kaynağında çalışmaya devam eder.
+
+#### 🔀 2. Tüm Kaynaklar Arası "En Alakalıdan En Alakasıza" Sıralı Çalma
+- **Tek Kuyruk:** Başlık araması + bağlam araması artık **her zaman tüm açık kaynaklarda** yapılır ve tek bir kuyrukta puanla sıralanır (başlık eşleşmesi +1000 puan → daima en başta).
+- **Sıra:** Mangayla en alakalı parça → diğer başlık eşleşmeleri → tür/özet uyumlu parçalar → genel ambiyans. Liste bitince başa döner; kuyruk en fazla 40 parça.
+- **Kuyruk Konumu:** Panel başlığında `2/12` gibi konum gösterilir.
+
+#### 🎼 3. Uygunluk Filtresi Moda Duyarlı
+- **Konuşma** (podcast/audiobook/interview) her modda elenir.
+- **Sözlü şarkılar** yalnızca "Ambiyans" modunda elenir; "Müzik" ve "Otomatik" modda anime OP/ED gibi vokalli parçalar korunur (önceki sürümde sessizce eleniyordu).
+- **Ses efektleri** yalnızca "Müzik" modunda elenir.
+
+#### 🐞 4. Düzeltilen Gerçek Hatalar
+- YouTube parçaları (`kitsugi-yt://`) güvenlik filtresi yüzünden **sessizce eleniyordu**; hem sıralamada hem otomatik çalmada düzeltildi.
+- Jamendo parçaları sıralamada **koşulsuz eleniyordu**; düzeltildi.
+- Sıradaki YouTube parçası artık önceden çözülür → parça geçişinde boşluk olmaz.
+
+### 🇬🇧 English
+
+#### 🔊 1. Ambient Audio Is Always Audio — Never Video
+- The player disables the video track entirely (`TRACK_TYPE_VIDEO`), so even video-bearing sources decode audio only.
+- Downloads keep the **audio track only** and mux to AAC 128 kbps; every stored file is audio-only `.m4a`.
+
+#### 🔀 2. Cross-source "most relevant → least relevant" queue
+- Title and context searches now always cover every enabled source and are merged into one scored queue (title match +1000). The queue loops and is capped at 40 tracks.
+
+#### 🎼 3. Mode-aware suitability filter
+- Speech is always excluded; vocal songs only in Ambience mode; SFX only excluded in Music mode.
+
+#### 🐞 4. Real fixes
+- YouTube tracks were being silently dropped by an https-only safety filter.
+- Jamendo tracks were unconditionally excluded from ranking.
+- Next YouTube track is pre-resolved for gapless transitions.
+
+## Kitsugi Beta v2.4.482
+
+### 🇹🇷 Türkçe
+
+#### ▶️ 1. Yeni Kaynak: YouTube Music (11. kaynak)
+- **Arama + Sıralı Çalma:** Okuduğun içeriğin adıyla YouTube'da arama yapılır; OST, OP/ED ve cover sonuçları puana göre öne alınır (fragman/inceleme videoları geriye atılır).
+- **Gecikmeli Çözüm:** Ses adresi arama sırasında değil, **tam çalma anında** çözülür (`kitsugi-yt://<videoId>` → gerçek akış). Böylece arama hızlı kalır, imza şifrelemesi yalnızca gerektiğinde çalışır ve YouTube hız sınırı yenmez.
+- **Başlık Desteği:** YouTube imzalı adresleri istemci User-Agent'ı olmadan 403 dönebildiği için adres **ve** başlıklar indirme katmanında uygulanır (`ResolvingDataSource`).
+- **Dayanıklılık:** Bir parça çözülemezse yalnızca o parça atlanır; kuyruk ve diğer 10 kaynak çalışmaya devam eder.
+- **İndirme Yok:** YouTube akış adresleri kısa ömürlü olduğu için bu kaynakta çevrimdışı kopya desteklenmez; Anime OP/ED ve 9 açık lisans kaynağında indirme çalışmaya devam eder.
+- Kaynak sayısı **11**.
+
+#### 🎵 2. Anime OP/ED (v2.4.481'den)
+- Animenin kendi açılış/kapanış şarkısı doğrudan `.ogg` olarak çalınır; çözücü/token yok, indirilebilir.
+
+### 🇬🇧 English
+
+#### ▶️ 1. New Source: YouTube Music (11th source)
+- Searches YouTube with the title you are reading and ranks OST/OP/ED/cover results above trailers and reviews.
+- **Lazy resolution:** the stream is resolved at playback time (`kitsugi-yt://<videoId>` → real URL), keeping search fast and avoiding signature-solving on every result.
+- **Header support:** signed URLs are fetched with the issuing client's User-Agent via `ResolvingDataSource`.
+- **Resilient:** a failing track is skipped; the queue and the other ten sources keep working.
+- **No download:** YouTube stream URLs expire, so offline copies are not offered for this source.
+
+#### 🎵 2. Anime OP/ED
+- The anime's own OP/ED plays straight from AnimeThemes as `.ogg`; no resolver, downloadable.
+
+## Kitsugi Beta v2.4.481
+
+### 🇹🇷 Türkçe
+
+#### 🎵 1. Yeni Kaynak: Anime OP/ED (AnimeThemes.moe)
+- **Animenin Kendi Şarkısı:** Okuduğun içeriğin adıyla anime veritabanında arama yapılır ve o animenin **gerçek açılış/kapanış (OP/ED) şarkıları** çalınır.
+- **Kırılma Yok:** Ses dosyaları AnimeThemes CDN'inden doğrudan `.ogg` olarak gelir; YouTube çözücüsü, PO token veya imza şifrelemesi kullanılmaz. YouTube tarafında yaşanan değişikliklerden etkilenmez.
+- **Çevrimdışı Çalışır:** Dosyalar indirilebilir; "İndirilenler" şeridinde görünür ve internet olmadan çalar.
+- **Yanlış Eşleşme Koruması:** Başlık benzerliği puanlanır; alakasız bir anime seçilmesindense boş dönülür.
+- Kaynak sayısı **10**'a çıktı; panelin "KAYNAKLAR" listesinde tek tek açılıp kapatılabilir.
+
+#### 📚 2. Araştırma Raporu
+- `ARASTIRMA_MUZIK_KAYNAKLARI_2026-11-09.md`: YouTube Music (InnerTube), PO token, SABR, NewPipe Extractor, zemer-cipher, Spotify Connect, SoundCloud ve Piped/Invidious'un 2026 durumu; kırılma senaryoları ve önlemleri.
+
+### 🇬🇧 English
+
+#### 🎵 1. New Source: Anime OP/ED (AnimeThemes.moe)
+- Searches the AnimeThemes database with the title you are reading and plays that anime's **actual opening/ending songs**.
+- **Break-proof:** audio is served straight from the AnimeThemes CDN as `.ogg`; no YouTube resolver, PO token or cipher involved.
+- **Offline capable:** files are downloadable and playable without a connection.
+- **Wrong-match guard:** title similarity is scored; the source returns empty rather than playing an unrelated anime.
+- Source count is now **10**; toggleable in the panel's "SOURCES" list.
+
+#### 📚 2. Research Report
+- `ARASTIRMA_MUZIK_KAYNAKLARI_2026-11-09.md`: 2026 status of YouTube Music (InnerTube), PO tokens, SABR, NewPipe Extractor, zemer-cipher, Spotify Connect, SoundCloud and Piped/Invidious, plus failure scenarios and mitigations.
+
+## Kitsugi Beta v2.4.480
+
+### 🇹🇷 Türkçe
+
+#### 🎛️ 1. Okuyucu Ortam Sesi Paneli Eski (Sekmeli) Düzenine Döndü
+- **Geri Dönen Sekmeler:** Müzik düğmesi yeniden klasik alttan açılır paneli açar: **Senin İçin · Ambiyans · Müzik · Çevrimiçi · Karışım · Profil · Süre · Ayarlar**.
+- **Kaldırılan Ara Ekran:** v2.4.471'de panelin yerine konan tek ekranlı "Okuma müziği" sayfası kaldırıldı; karışım, profil, uyku zamanlayıcısı ve ayarlar sekmeleri yeniden erişilebilir.
+- **Başlık Çubuğu:** Üstte çalan parçanın adı, sanatçısı ve kuyruk sırası (ör. 2/7) yeniden görünür; duraklat/çal ve parça atlama düğmeleri hem cihaz içi hem çevrimiçi sesi yönetir.
+
+#### 🌐 2. Kaynaklar Korundu ve Genişletildi (9 Kaynak)
+- **Çok Kaynaklı Motor Panele Taşındı:** Yeni motorun tüm yetenekleri (arama, kuyruk, sıralı otomatik çalma, çevrimdışı indirme) artık eski panelin **Çevrimiçi** sekmesinde çalışır.
+- **Dokuz Kaynak:** Jamendo (kişisel Client ID), Freesound (Openverse), Wikimedia audio, Internet Archive, Audius, Wikimedia Commons, ccMixter, Free To Use ve Radio Browser tek tek açılıp kapatılabilir. Böylece eski panelin 5 kaynağı korunup üzerine 4 yeni kaynak eklendi.
+- **Kaynak Karşılaştırması:** "Hangi kaynak ne sunuyor?" bölümü yeni kaynakların kapsamını ve anahtar gereksinimini listeler.
+
+#### 🤖 3. İnternetten Otomatik Çalma (Ayarlar Sekmesinde)
+- **Başlıkla Ara → En Alakalıyı Çal → Sırayla Devam Et:** Okuyucu açıldığında manga adıyla arama yapılır; ilk en iyi eşleşme çalar, ardından başlık eşleşmeleri ve bağlam önerileri kuyruktan sırayla devam eder.
+- **Ayarlar Sekmesi:** "Otomatik başlat" ve "Çevrimiçi kaynakları kullan" anahtarları bu davranışı yönetir; ayrıca panelin **Ayarlar** sekmesinde çevrimiçi akış oynatımı, açılışta otomatik çalma ve açık kaynak seçimi kartı bulunur.
+- **Çift Çalma Koruması:** İnternetten otomatik çalma açıkken eski cihaz içi otomatik başlatma devre dışı kalır (eski motor artık yalnızca cihaz içi sesleri başlatır).
+- **Tek Anahtar:** İnternetten otomatik çalmanın tek anahtarı Ayarlar sekmesindeki karttır; aynı ayar için iki farklı anahtar gösterilmez.
+- **Çevrimdışı Kurtarma:** Uygulama yeniden açıldığında daha önce indirilen parçalar geri yüklenir ve çevrimdışı çalmaya devam eder.
+
+#### ⚙️ 4. Harici Entegrasyonlar → Müzik
+- **Yeni Kaynak Bölümü:** Sekiz açık lisans kaynağı, anahtar gerektirmeyen kartlar hâlinde ayarlara eklendi; burada kapatılan kaynak okuyucudaki otomatik aramaya da katılmaz.
+- **Aynı Tercih Dosyası:** Panel ve ayarlar aynı kayıtları kullanır, iki ekran anında senkron kalır.
+
+---
+
+### 🇬🇧 English
+
+#### 🎛️ 1. Reader Ambient Panel Restored to the Classic Tabbed Layout
+- **Tabs Are Back:** The music button opens the classic bottom sheet again: **For You · Ambience · Music · Online · Mix · Profile · Timer · Settings**.
+- **Interim Screen Removed:** The single-page "Reading music" sheet introduced in v2.4.471 was removed; mixing, profiles, sleep timer and settings are reachable again.
+- **Header Bar:** The playing track, artist and queue position (e.g. 2/7) are visible again; play/pause and skip controls drive both on-device and online audio.
+
+#### 🌐 2. Sources Preserved and Expanded (9 Sources)
+- **Multi-Source Engine Moved Into the Panel:** Search, queue playback, sequential autoplay and offline downloads now run inside the classic **Online** tab.
+- **Nine Sources:** Jamendo (personal Client ID), Freesound (Openverse), Wikimedia audio, Internet Archive, Audius, Wikimedia Commons, ccMixter, Free To Use and Radio Browser can each be toggled — the old panel's five sources are preserved and four new ones are added.
+- **Source Comparison:** "What does each source offer?" lists coverage and key requirements.
+
+#### 🤖 3. Internet Autoplay (Inside the Settings Tab)
+- **Search by Title → Play Best Match → Continue in Order:** On reader open the manga title is searched; the best match plays first, then title matches and context suggestions continue sequentially.
+- **Settings Tab:** "Auto start" and "Use online sources" switches drive this behaviour; a dedicated card adds online streaming, autoplay-on-open and source selection.
+- **No Double Playback:** When internet autoplay is enabled the legacy on-device autoplay is skipped (the old engine now starts on-device sounds only).
+- **Single Switch:** Internet autoplay has exactly one switch, on the Settings tab card.
+- **Offline Restore:** Previously downloaded tracks are restored after an app restart and keep playing offline.
+
+#### ⚙️ 4. External Integrations → Music
+- **New Source Section:** The eight open-license sources are listed as keyless cards; disabling one here also removes it from reader searches.
+- **Shared Preferences:** Reader panel and settings read/write the same store and stay in sync instantly.
+
+---
+
 ## Kitsugi Beta v2.4.476
 
 ### 🇹🇷 Türkçe

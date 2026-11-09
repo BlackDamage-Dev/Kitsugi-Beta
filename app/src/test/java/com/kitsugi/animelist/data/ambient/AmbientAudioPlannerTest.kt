@@ -100,6 +100,7 @@ class AmbientAudioPlannerTest {
     fun `safe filtering rejects excluded providers short clips insecure URLs and unsupported media`() {
         val accepted = track(id = "ok", url = "https://cdn.example.org/music.mp3")
         val jamendo = track(id = "jamendo", source = "jamendo", provider = "jamendo")
+        val youtube = track(id = "youtube:1", url = "kitsugi-yt://dQw4w9WgXcQ", provider = "youtube", source = "youtube")
         val unclassifiedAccess = track(id = "unclassified")
         val shortClip = track(id = "short", durationMs = 12_000L)
         val insecure = track(id = "http", url = "http://cdn.example.org/music.mp3")
@@ -114,7 +115,10 @@ class AmbientAudioPlannerTest {
         )
 
         assertTrue(AmbientAudioPlanner.isSafeCandidate(accepted))
-        assertFalse(AmbientAudioPlanner.isSafeCandidate(jamendo))
+        // Jamendo is supported since v2.4.480+ (BYOK).
+        assertTrue(AmbientAudioPlanner.isSafeCandidate(jamendo))
+        // YouTube (kitsugi-yt://) is streamable and safe since v2.4.482+.
+        assertTrue(AmbientAudioPlanner.isSafeCandidate(youtube))
         assertTrue(AmbientAudioPlanner.isSafeCandidate(unclassifiedAccess))
         assertFalse(AmbientAudioPlanner.isSafeCandidate(shortClip))
         assertFalse(AmbientAudioPlanner.isSafeCandidate(insecure))
