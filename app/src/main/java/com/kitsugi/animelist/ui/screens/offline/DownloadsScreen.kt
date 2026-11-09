@@ -733,16 +733,18 @@ fun DownloadsScreen(
                 }
                 return@launch
             }
-            val safeAnimeId = resolveSafeAnimeId(download.animeId, download.animeTitle)
-            val mediaId = "${safeAnimeId}_ep${download.episode}"
             val params = withContext(Dispatchers.IO) {
-                val localMedia = OfflinePlaybackHelper.getLocalMedia(context, mediaId)
-                localMedia?.let { OfflinePlaybackHelper.buildPlayerParams(it) }
+                OfflinePlaybackHelper.resolveDownloadPlaybackParams(
+                    context = context,
+                    download = download,
+                    fallbackTitle = KitsugiStrings.get(R.string.title_bolum_episode, download.animeTitle, download.episode)
+                )
             }
             if (params != null) {
                 KitsugiFullscreenPlayerActivity.startWithStreamUrls(
                     context = context,
                     videoUrl = params.videoUri,
+                    audioUrl = params.audioUri,
                     title = params.title,
                     headers = params.headers,
                     subtitles = params.subtitles,
@@ -755,44 +757,11 @@ fun DownloadsScreen(
                     posterUrl = download.posterUrl
                 )
             } else {
-                download.localPath?.let { path ->
-                    val companionSubs = withContext(Dispatchers.IO) {
-                        val videoFile = File(path)
-                        val parentDir = videoFile.parentFile
-                        val baseName = videoFile.nameWithoutExtension
-                        if (parentDir != null && parentDir.exists()) {
-                            parentDir.listFiles()?.filter { f ->
-                                f.isFile && f.name.startsWith("$baseName.") &&
-                                    f.extension.lowercase() in COMPANION_SUB_EXTS
-                            }?.map { subFile ->
-                                val lang = subFile.nameWithoutExtension.removePrefix(baseName).trim('.', '_')
-                                com.kitsugi.animelist.core.player.SubtitleInput(
-                                    url = "file://${subFile.absolutePath}",
-                                    name = lang.ifBlank { KitsugiStrings.get(R.string.bangumi_tag_subtitles) },
-                                    lang = lang.ifBlank { "tr" }
-                                )
-                            } ?: emptyList()
-                        } else emptyList()
-                    }
-                    KitsugiFullscreenPlayerActivity.startWithStreamUrls(
-                        context = context,
-                        videoUrl = "file://$path",
-                        title = KitsugiStrings.get(
-                            R.string.title_bolum_episode,
-                            download.animeTitle,
-                            download.episode
-                        ),
-                        headers = emptyMap(),
-                        subtitles = companionSubs,
-                        malId = download.malId,
-                        aniListId = download.aniListId,
-                        tmdbId = download.tmdbId,
-                        season = download.season,
-                        episode = download.episode,
-                        animeTitle = download.animeTitle,
-                        posterUrl = download.posterUrl
-                    )
-                }
+                Toast.makeText(
+                    context,
+                    KitsugiStrings.get(R.string.gecersiz_veya_guvenli_olmayan_dosya_adresi),
+                    Toast.LENGTH_SHORT
+                ).show()
             }
         }
     }

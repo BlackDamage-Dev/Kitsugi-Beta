@@ -238,16 +238,21 @@ internal fun ApiDetailEpisodesTab(
                     it.status == com.kitsugi.animelist.data.model.AnimeDownload.Status.COMPLETED &&
                     it.localPath != null
                 }
-                if (completedDownload != null) {
-                    val companionAudioUri = com.kitsugi.animelist.core.player.OfflinePlaybackHelper
-                        .findPrimaryCompanionAudioUri(completedDownload.localPath)
+                val offlineParams = completedDownload?.let { dl ->
+                    com.kitsugi.animelist.core.player.OfflinePlaybackHelper.resolveDownloadPlaybackParams(
+                        context = context,
+                        download = dl,
+                        fallbackTitle = context.getString(R.string.completeddownload_animetitle_bolum_completed, dl.animeTitle, dl.episode)
+                    )
+                }
+                if (offlineParams != null) {
                     KitsugiFullscreenPlayerActivity.startWithStreamUrls(
                         context = context,
-                        videoUrl = "file://${completedDownload.localPath}",
-                        audioUrl = companionAudioUri,
-                        title = context.getString(R.string.completeddownload_animetitle_bolum_completed, completedDownload.animeTitle, completedDownload.episode),
-                        headers = emptyMap(),
-                        subtitles = emptyList(),
+                        videoUrl = offlineParams.videoUri,
+                        audioUrl = offlineParams.audioUri,
+                        title = offlineParams.title,
+                        headers = offlineParams.headers,
+                        subtitles = offlineParams.subtitles,
                         malId = streamIds.malId, aniListId = streamIds.aniListId,
                         tmdbId = streamIds.tmdbId, bangumiId = streamIds.bangumiId, imdbId = imdbId,
                         season = episode.seasonNumber ?: targetSeason ?: 1, episode = epNum,

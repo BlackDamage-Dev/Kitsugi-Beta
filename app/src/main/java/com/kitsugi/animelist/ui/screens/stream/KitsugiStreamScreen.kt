@@ -543,8 +543,15 @@ fun KitsugiStreamScreen(
                         // şekilde temizlenmiş hâli kaydedilir.
                         streamTitle = com.kitsugi.animelist.utils.StreamLabelSanitizer.sanitize(source.title),
                         streamName = com.kitsugi.animelist.utils.StreamLabelSanitizer.sanitize(source.name),
+                        isMovie = isMovie,
+                        bangumiId = bangumiId,
                         recoverUrl = source.embedUrl,
-                        recoverReferer = source.embedReferer
+                        recoverReferer = source.embedReferer,
+                        externalAudioUrl = source.externalAudioUrl,
+                        isCS = source.isCS,
+                        addonName = source.addonName,
+                        audioKind = source.providerAudioKind,
+                        audioLanguages = source.providerLanguages
                     )
                     android.widget.Toast.makeText(context, KitsugiStrings.get(R.string.indirme_kuyruga_eklendi), android.widget.Toast.LENGTH_SHORT).show()
                     context.startActivity(

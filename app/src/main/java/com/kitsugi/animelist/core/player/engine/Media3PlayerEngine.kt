@@ -2095,18 +2095,21 @@ class Media3PlayerEngine(
             // ── MediaItem ────────────────────────────────────────────────────────
 
             val videoUri = Uri.parse(videoUrl)
+            val isLocalUri = videoUrl.startsWith("file://", ignoreCase = true) ||
+                videoUrl.startsWith("content://", ignoreCase = true) ||
+                videoUrl.startsWith("/")
 
             val format = com.kitsugi.animelist.core.player.StreamFormatPolicy.resolve(videoUrl, mediaType)
 
-            val adaptiveType = com.kitsugi.animelist.data.cloudstream.CsStreamFormat.choose(
+            val adaptiveType = if (isLocalUri) null else com.kitsugi.animelist.data.cloudstream.CsStreamFormat.choose(
                 csStreamType, PlayerMediaSourceFactory.isHlsUrl(videoUrl, streamTypeHint), PlayerMediaSourceFactory.isDashUrl(videoUrl, streamTypeHint)
             )
 
-            val isM3u8 = adaptiveType == "M3U8" || format == com.kitsugi.animelist.core.player.StreamMediaType.HLS || PlayerMediaSourceFactory.isHlsUrl(videoUrl, streamTypeHint)
+            val isM3u8 = !isLocalUri && (adaptiveType == "M3U8" || format == com.kitsugi.animelist.core.player.StreamMediaType.HLS || PlayerMediaSourceFactory.isHlsUrl(videoUrl, streamTypeHint))
 
-            val isDash = adaptiveType == "DASH" || format == com.kitsugi.animelist.core.player.StreamMediaType.DASH || PlayerMediaSourceFactory.isDashUrl(videoUrl, streamTypeHint)
+            val isDash = !isLocalUri && (adaptiveType == "DASH" || format == com.kitsugi.animelist.core.player.StreamMediaType.DASH || PlayerMediaSourceFactory.isDashUrl(videoUrl, streamTypeHint))
 
-            val isSs = videoUrl.contains(".ism", ignoreCase = true)
+            val isSs = !isLocalUri && videoUrl.contains(".ism", ignoreCase = true)
 
 
 

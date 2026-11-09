@@ -33,6 +33,20 @@ object AnimeDownloadManager {
     @Volatile
     private var lastProgressEmitTimeMs = 0L
 
+    fun resolveSafeAnimeId(animeId: String, animeTitle: String): String {
+        return animeId.ifBlank {
+            animeTitle.lowercase()
+                .replace(Regex("[^a-z0-9]"), "_")
+                .trim('_')
+                .take(30)
+                .ifBlank { "media" }
+        }
+    }
+
+    fun buildMediaId(animeId: String, animeTitle: String, episode: Int): String {
+        return "${resolveSafeAnimeId(animeId, animeTitle)}_ep$episode"
+    }
+
     fun init(context: Context) {
         val appContext = context.applicationContext
         store = AnimeDownloadStore(appContext)
@@ -291,7 +305,13 @@ object AnimeDownloadManager {
         p2pFileIdx: Int? = null,
         p2pTrackers: List<String> = emptyList(),
         recoverUrl: String? = null,
-        recoverReferer: String? = null
+        recoverReferer: String? = null,
+        isMovie: Boolean? = null,
+        bangumiId: Int? = null,
+        isCS: Boolean = false,
+        addonName: String? = null,
+        audioKind: String? = null,
+        audioLanguages: List<String>? = null
     ) {
         val newDownload = AnimeDownload(
             animeId = animeId,
@@ -310,12 +330,18 @@ object AnimeDownloadManager {
             source = source,
             streamTitle = streamTitle,
             streamName = streamName,
+            isMovie = isMovie,
+            bangumiId = bangumiId,
             recoverUrl = recoverUrl,
             recoverReferer = recoverReferer,
             downloadKind = DownloadKind.VIDEO,
             externalAudioUrl = externalAudioUrl ?: externalAudioTracks.firstOrNull()?.url,
             externalAudioTracks = externalAudioTracks,
-            isCloudStream = isCloudStream,
+            isCloudStream = isCloudStream || isCS,
+            isCS = isCS || isCloudStream,
+            addonName = addonName ?: source,
+            audioKind = audioKind,
+            audioLanguages = audioLanguages?.takeIf { it.isNotEmpty() },
             qualityValue = qualityValue,
             p2pInfoHash = p2pInfoHash,
             p2pFileIdx = p2pFileIdx,
@@ -412,8 +438,8 @@ object AnimeDownloadManager {
         saveAndEmit(current)
     }
 
-    fun pauseDownload(animeId: String, episode: Int) {
-        pauseByKey(AnimeDownload.videoKey(animeId, episode))
+    fun pauseDownload(animeId: String, episode: Int, season: Int = 1) {
+        pauseByKey(AnimeDownload.videoKey(animeId, episode, season))
     }
 
     fun resumeByKey(context: Context, uniqueKey: String) {
@@ -432,8 +458,8 @@ object AnimeDownloadManager {
         startService(context)
     }
 
-    fun resumeDownload(context: Context, animeId: String, episode: Int) {
-        resumeByKey(context, AnimeDownload.videoKey(animeId, episode))
+    fun resumeDownload(context: Context, animeId: String, episode: Int, season: Int = 1) {
+        resumeByKey(context, AnimeDownload.videoKey(animeId, episode, season))
     }
 
     fun deleteByKey(context: Context, uniqueKey: String) {
@@ -471,15 +497,18 @@ object AnimeDownloadManager {
                     com.kitsugi.animelist.core.download.DownloadExportNaming.deleteExports(
                         context = appContext,
                         animeTitle = record.animeTitle,
-                        episode = record.episode
+                        episode = record.episode,
+                        season = record.season
                     )
                 }
+                record.localPath?.let { path -> runCatching { File(path).delete() } }
+                record.localAudioPath?.let { path -> runCatching { File(path).delete() } }
             }
         }
     }
 
-    fun deleteDownload(context: Context, animeId: String, episode: Int) {
-        deleteByKey(context, AnimeDownload.videoKey(animeId, episode))
+    fun deleteDownload(context: Context, animeId: String, episode: Int, season: Int = 1) {
+        deleteByKey(context, AnimeDownload.videoKey(animeId, episode, season))
     }
 
     /** Bağımsız ses indirme kayıtlarını temizler. */
@@ -561,7 +590,8 @@ object AnimeDownloadManager {
         status: AnimeDownload.Status,
         localPath: String? = null,
         errorMessage: String? = null,
-        retryAtMs: Long? = null
+        retryAtMs: Long? = null,
+        localAudioPath: String? = null
     ) {
         val current = _downloads.value.map {
             if (it.uniqueKey == uniqueKey) {
@@ -569,6 +599,11 @@ object AnimeDownloadManager {
                     status = status,
                     progress = if (status == AnimeDownload.Status.COMPLETED) 100 else it.progress,
                     localPath = localPath ?: it.localPath,
+                    localAudioPath = if (status == AnimeDownload.Status.COMPLETED) {
+                        localAudioPath
+                    } else {
+                        localAudioPath ?: it.localAudioPath
+                    },
                     errorMessage = if (status == AnimeDownload.Status.ERROR) errorMessage else null,
                     retryAtMs = if (status == AnimeDownload.Status.QUEUE) retryAtMs else null
                 )
@@ -582,14 +617,31 @@ object AnimeDownloadManager {
         episode: Int,
         status: AnimeDownload.Status,
         detail: String? = null,
-        retryAtMs: Long? = null
+        retryAtMs: Long? = null,
+        localAudioPath: String? = null
     ) {
         updateStatusByKey(
             uniqueKey = AnimeDownload.videoKey(animeId, episode),
             status = status,
             localPath = if (status == AnimeDownload.Status.COMPLETED) detail else null,
             errorMessage = if (status == AnimeDownload.Status.ERROR) detail else null,
-            retryAtMs = retryAtMs
+            retryAtMs = retryAtMs,
+            localAudioPath = localAudioPath
+        )
+    }
+
+    fun updateStatus(
+        animeId: String,
+        episode: Int,
+        status: AnimeDownload.Status,
+        localPath: String?,
+        localAudioPath: String?
+    ) {
+        updateStatusByKey(
+            uniqueKey = AnimeDownload.videoKey(animeId, episode),
+            status = status,
+            localPath = localPath,
+            localAudioPath = localAudioPath
         )
     }
 

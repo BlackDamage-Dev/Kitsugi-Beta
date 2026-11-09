@@ -16,5 +16,7 @@ data class Subtitle(
     /** Addon logo URL'si (gösterim için, nullable) */
     val addonLogo: String? = null,
     /** Format tahmini: "srt", "ass", "vtt" vb. – URL'den tahmin edilir */
-    val format: String? = null
+    val format: String? = null,
+    /** Release/file detail from the provider; useful for identifying the matching video. */
+    val releaseName: String? = null
 )

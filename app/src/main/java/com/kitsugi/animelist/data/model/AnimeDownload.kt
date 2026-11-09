@@ -33,6 +33,9 @@ data class AnimeDownload(
     val source: String? = null,
     val streamTitle: String? = null,
     val streamName: String? = null,
+    /** Unknown for older persisted downloads; never infer film from season zero. */
+    val isMovie: Boolean? = null,
+    val bangumiId: Int? = null,
 
     // ── Küçük video (fragman / kamera arkası / tema) indirmeleri ──────────────
     /**
@@ -56,7 +59,18 @@ data class AnimeDownload(
 
     // ── Evrensel Ses ve P2P İndirmeleri ──────────────────────────────────────
     val downloadKind: DownloadKind? = DownloadKind.VIDEO,
+    /** Kaynağın bildirdiği harici ses akışı URL'si (`ExtractorLink.audioTracks` / dual-stream). */
     val externalAudioUrl: String? = null,
+    /** Birleştirilemeyen (ör. Dolby E-AC-3) ayrık sesler için yerel yan ses dosyası yolu. */
+    val localAudioPath: String? = null,
+    /** CloudStream 3 eklenti kaynağı mı? (`CsVideoInterceptorFactory` ve `getVideoInterceptor` için) */
+    val isCS: Boolean = false,
+    /** Eklenti kimliği (`APIHolder.getApiFromNameNull` araması için). */
+    val addonName: String? = null,
+    /** Ses türü ipucu: `"dub"`, `"sub"`, `"dual"` veya `null`. */
+    val audioKind: String? = null,
+    /** Kaynağın bildirdiği ses dilleri (ör. `["tr"]`, `["tr", "en"]`). */
+    val audioLanguages: List<String>? = null,
     val externalAudioTracks: List<ExternalAudioTrack>? = emptyList(),
     val audioTrackKey: String? = "",
     val audioTrackLabel: String? = "",
@@ -174,12 +188,19 @@ data class AnimeDownload(
         source = source,
         streamTitle = streamTitle,
         streamName = streamName,
+        isMovie = isMovie ?: if (season > 1 || episode > 1) false else if (animeTitle.contains("Film", ignoreCase = true) || animeTitle.contains("Movie", ignoreCase = true)) true else null,
+        bangumiId = bangumiId,
         kind = kind ?: Kind.EPISODE,
         clipKey = clipKey,
         clipTitle = clipTitle,
         clipBaseName = clipBaseName,
         downloadKind = effectiveKind,
         externalAudioUrl = externalAudioUrl,
+        localAudioPath = localAudioPath,
+        isCS = isCS || isCloudStream,
+        addonName = addonName ?: source,
+        audioKind = audioKind,
+        audioLanguages = audioLanguages,
         externalAudioTracks = externalAudioTracks ?: emptyList(),
         audioTrackKey = audioTrackKey ?: "",
         audioTrackLabel = audioTrackLabel ?: "",
@@ -206,11 +227,12 @@ data class AnimeDownload(
         get() = when {
             isClip -> clipKey?.takeIf { it.isNotBlank() } ?: "clip:$animeId:$episode"
             effectiveKind == DownloadKind.AUDIO -> audioKey(animeId, episode, safeAudioTrackKey)
-            else -> videoKey(animeId, episode)
+            else -> videoKey(animeId, episode, season)
         }
 
     companion object {
-        fun videoKey(animeId: String, episode: Int): String = "video:$animeId:$episode"
+        fun videoKey(animeId: String, episode: Int, season: Int = 1): String =
+            if (season > 1) "video:$animeId:s${season}e$episode" else "video:$animeId:$episode"
 
         fun audioKey(animeId: String, episode: Int, trackKey: String = "default"): String =
             "audio:$animeId:$episode:${trackKey.ifBlank { "default" }}"

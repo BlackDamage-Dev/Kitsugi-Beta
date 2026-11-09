@@ -236,7 +236,10 @@ class PlayerMediaSourceFactory(
 
         val isHlsOrDash = csStreamType == "M3U8" || csStreamType == "DASH" ||
             isHlsUrl(videoUrl) || videoUrl.contains(".mpd", ignoreCase = true)
-        val isLocalP2p = videoUrl.contains("127.0.0.1") || videoUrl.contains("localhost")
+        val isLocalP2p = videoUrl.contains("127.0.0.1") || videoUrl.contains("localhost") ||
+            videoUrl.startsWith("file://", ignoreCase = true) ||
+            videoUrl.startsWith("content://", ignoreCase = true) ||
+            videoUrl.startsWith("/")
 
         return if (settings.parallelRangeEnabled && !isHlsOrDash && !isLocalP2p) {
             Log.d(TAG, "ParallelRangeDataSource enabled (${ParallelRangeDataSource.DEFAULT_PARALLEL_CONNECTIONS} connections)")
@@ -352,9 +355,10 @@ class PlayerMediaSourceFactory(
             val mediaSources = ArrayList<MediaSource>(audioUrls.size + 1)
             mediaSources += factory.createMediaSource(mediaItem)
             audioUrls.forEach { url ->
-                mediaSources += factory.createMediaSource(MediaItem.fromUri(Uri.parse(url)))
+                val audioMediaItem = buildMediaItem(url, emptyList())
+                mediaSources += factory.createMediaSource(audioMediaItem)
             }
-            return MergingMediaSource(*mediaSources.toTypedArray())
+            return MergingMediaSource(/* adjustPeriodTimeOffsets = */ true, /* clipDurations = */ true, *mediaSources.toTypedArray())
         }
 
         // Standard progressive / adaptive
@@ -456,7 +460,10 @@ class PlayerMediaSourceFactory(
                 "DASH" -> return false
             }
             if (videoUrl.isBlank()) return false
-            val clean = videoUrl.lowercase(Locale.ROOT)
+            val clean = videoUrl.trim().lowercase(Locale.ROOT)
+            if (clean.startsWith("file://") || clean.startsWith("content://") || clean.startsWith("/")) {
+                return false
+            }
             val path = try {
                 java.net.URI(clean).path.orEmpty()
             } catch (_: Exception) {
@@ -540,7 +547,7 @@ class PlayerMediaSourceFactory(
         }
 
         /** Yolun sonu doğrudan bir progressive video dosyası uzantısıysa eşleşir. */
-        private val PROGRESSIVE_PATH_REGEX = Regex("""\.(mp4|mkv|webm|avi|m4v)$""")
+        private val PROGRESSIVE_PATH_REGEX = Regex("""\.(mp4|mkv|webm|avi|m4v|mov|ts|m2ts)$""")
 
         /**
          * URL'nin origin'ini (`scheme://host[:port]`) döndürür. Çözümlenemezse null.

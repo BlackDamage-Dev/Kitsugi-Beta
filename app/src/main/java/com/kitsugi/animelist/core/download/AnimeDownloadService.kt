@@ -149,10 +149,11 @@ class AnimeDownloadService : Service() {
                                         )
                                     }
                                 },
-                                onStatusChanged = { status, localPath, errorMessage ->
-                                    val isRateLimited = errorMessage?.contains("429") == true ||
-                                        errorMessage?.contains("hız sınırı", ignoreCase = true) == true ||
-                                        errorMessage?.contains("rate limit", ignoreCase = true) == true
+                                onStatusChanged = { status, localPath, localAudioOrError ->
+                                    val isRateLimited = (status == AnimeDownload.Status.ERROR) &&
+                                        (localAudioOrError?.contains("429") == true ||
+                                         localAudioOrError?.contains("hız sınırı", ignoreCase = true) == true ||
+                                         localAudioOrError?.contains("rate limit", ignoreCase = true) == true)
                                     if (status == AnimeDownload.Status.ERROR &&
                                         isRateLimited &&
                                         next.autoRetryCount < MAX_AUTO_RETRIES
@@ -164,18 +165,19 @@ class AnimeDownloadService : Service() {
                                             uniqueKey = key,
                                             waitMs = waitMs
                                         )
-                                        showRateLimitNotification(next, errorMessage.orEmpty(), waitMs)
+                                        showRateLimitNotification(next, localAudioOrError.orEmpty(), waitMs)
                                     } else {
                                         AnimeDownloadManager.updateStatusByKey(
                                             uniqueKey = key,
                                             status = status,
-                                            localPath = localPath,
-                                            errorMessage = errorMessage
+                                            localPath = if (status == AnimeDownload.Status.COMPLETED) localPath else null,
+                                            localAudioPath = if (status == AnimeDownload.Status.COMPLETED) localAudioOrError else null,
+                                            errorMessage = if (status == AnimeDownload.Status.ERROR) localAudioOrError else null
                                         )
                                         if (status == AnimeDownload.Status.COMPLETED) {
                                             showCompletedNotification(next, posterBitmap, success = true)
                                         } else if (status == AnimeDownload.Status.ERROR) {
-                                            showCompletedNotification(next, posterBitmap, success = false, detail = errorMessage)
+                                            showCompletedNotification(next, posterBitmap, success = false, detail = localAudioOrError)
                                         }
                                     }
                                 }

@@ -787,7 +787,7 @@ class KitsugiFullscreenPlayerActivity : ComponentActivity() {
                     tmdbId           = tmdbId,
                     bangumiId        = bangumiId,
                     treatAsTrailer   = treatAsTrailer,
-                    imdbId           = intent.getStringExtra("subtitle_imdb_id"),
+                    imdbId           = intent.getStringExtra("subtitle_imdb_id") ?: knownImdbId,
                     season           = season,
                     episode          = episode,
                     animeTitle       = animeTitle,

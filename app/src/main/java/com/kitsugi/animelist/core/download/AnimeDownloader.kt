@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.media.MediaScannerConnection
 import android.net.Uri
+import android.os.Bundle
 import android.os.SystemClock
 import android.util.Log
 import androidx.documentfile.provider.DocumentFile
@@ -14,6 +15,7 @@ import com.kitsugi.animelist.core.player.OfflinePlaybackHelper
 import com.kitsugi.animelist.core.player.PlayerMediaSourceFactory
 import com.kitsugi.animelist.core.player.PlayerSubtitleUtils
 import com.kitsugi.animelist.core.player.SubtitleInput
+import com.kitsugi.animelist.data.local.AnimeDownloadManager
 import com.kitsugi.animelist.data.model.AnimeDownload
 import com.kitsugi.animelist.data.model.DownloadKind
 import com.kitsugi.animelist.data.model.ExternalAudioTrack
@@ -34,10 +36,13 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
 import org.json.JSONObject
+import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
@@ -48,28 +53,40 @@ import java.util.Locale
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.coroutines.coroutineContext
 
-/**
- * İndirme tamamlandı ama dosya bu cihazda oynatılamıyor (desteklenmeyen codec).
- */
 class UnsupportedMediaException(message: String) : IOException(message)
 
-/**
- * Evrensel bölüm (video+ses) ve bağımsız ses indirme motoru (T-IND dayanıklılık mimarisi).
- *
- * - Rotasyonlu CDN host kurtarma (`recoverUrl` + `DownloadStreamResolver`)
- * - Çökmeye ve ağ kesintisine dayanıklı segment defteri (`SegmentJournal`) ile mükemmel resume hizası
- * - HTTP 429 hız sınırı pacing ve Retry-After yönetimi (`DownloadResilience`)
- * - BYTERANGE, EXT-X-MAP, AES-128 şifre çözme (`HlsPlaylistParser`)
- * - Cihaz codec uyumluluğu ve indirme sonrası dosya doğrulaması (`DeviceCodecSupport` + `DownloadVerifier`)
- */
 class AnimeDownloader(private val context: Context) {
 
     companion object {
         private const val TAG = "AnimeDownloader"
+        private const val IO_BUFFER_BYTES = 64 * 1024
+        private const val PROBE_PEEK_BYTES = 8 * 1024
+        private const val MAX_URL_HOPS = 4
+        private const val MAX_MASTER_DEPTH = 4
         private const val MAX_CLIP_BYTES = 2L * 1024L * 1024L * 1024L
     }
 
-    /** onStatusChanged(status, localPath, errorMessage) */
+    private data class FetchedText(
+        val body: String,
+        val finalUrl: String,
+        val contentType: String?
+    )
+
+    private sealed class StreamProbeResult {
+        data class Hls(val manifestText: String, val finalUrl: String) : StreamProbeResult()
+        data class Progressive(val finalUrl: String) : StreamProbeResult()
+    }
+
+    private data class StagingResumeState(
+        val sourceUrl: String = "",
+        val externalAudioUrl: String = "",
+        val videoPlaylistUrl: String = "",
+        val audioPlaylistUrl: String = "",
+        val videoSegmentsDone: Int = 0,
+        val audioSegmentsDone: Int = 0,
+        val firstAudioId3PtsUs: Long? = null
+    )
+
     suspend fun download(
         download: AnimeDownload,
         onProgress: (Int, Long, Long, Int) -> Unit,
@@ -89,7 +106,6 @@ class AnimeDownloader(private val context: Context) {
             return
         }
 
-        // Bağımsız ses indirmeleri her zaman dahili motorla indirilir
         if (downloaderPref == "INTERNAL" || download.isAudioOnly) {
             downloadInternal(download, onProgress, onStatusChanged)
         } else {
@@ -105,14 +121,26 @@ class AnimeDownloader(private val context: Context) {
         onStatusChanged(AnimeDownload.Status.DOWNLOADING, null, null)
 
         val settings = SettingsDataStore(context).settingsFlow.first()
-        val preferredAudioLangs = settings.preferredAudioLanguages
-            .split(',')
-            .map { it.trim().lowercase(Locale.ROOT) }
-            .filter { it.isNotEmpty() }
-            .ifEmpty { listOf("tr", "ja", "en") }
+        val mediaId = AnimeDownloadManager.buildMediaId(
+            animeId = download.animeId,
+            animeTitle = download.animeTitle,
+            episode = download.episode
+        )
+        val baseName = DownloadExportNaming.exportBaseName(download.animeTitle, download.episode)
+        val videoDir = OfflinePlaybackHelper.getDownloadsDir(context).also { it.mkdirs() }
+        val stagingDir = DownloadExportNaming.stagingDir(videoDir, mediaId).also { it.mkdirs() }
 
-        // Bağımsız ses indirme akışı
+        val stateFile = File(stagingDir, "state.json")
+        val stagingVideoFile = File(stagingDir, "video.part")
+        val stagingAudioFile = File(stagingDir, "audio.part")
+
+                // Bağımsız ses indirme akışı
         if (download.effectiveKind == DownloadKind.AUDIO) {
+            val preferredAudioLangs = settings.preferredAudioLanguages
+                .split(',')
+                .map { it.trim().lowercase(Locale.ROOT) }
+                .filter { it.isNotEmpty() }
+                .ifEmpty { listOf("tr", "ja", "en") }
             val workId = Math.abs(download.uniqueKey.hashCode())
             val workDir = File(context.cacheDir, "kitsugi_dl_audio_$workId")
             try {
@@ -158,44 +186,1417 @@ class AnimeDownloader(private val context: Context) {
             return@withContext
         }
 
-        // Video indirme akışı
-        val safeAnimeId = download.animeId.ifBlank {
-            download.animeTitle.lowercase(Locale.ROOT)
-                .replace(Regex("[^a-z0-9]"), "_")
-                .trim('_')
-                .take(30)
-                .ifBlank { "media" }
-        }
-        val mediaId = "${safeAnimeId}_ep${download.episode}"
-        val outFilename = DownloadExportNaming.exportFileName(download.animeTitle, download.episode)
-        val baseName = outFilename.removeSuffix(".mp4")
-        val videoDir = OfflinePlaybackHelper.getDownloadsDir(context)
-        val localFile = File(videoDir, outFilename)
-
-        val policy = DownloadResilience.policyFor(download.source, download.url)
+        val (httpClient, effectiveHeaders) = DownloadHttpClientFactory.buildClient(download)
 
         try {
-            val isHls = download.url.contains(".m3u8", ignoreCase = true) ||
-                download.url.contains("master.txt", ignoreCase = true) ||
-                download.url.contains("playlist.txt", ignoreCase = true) ||
-                PlayerMediaSourceFactory.isHlsUrl(download.url)
+            val savedState = readStagingState(stateFile)
+            val isSameSource = savedState != null &&
+                savedState.sourceUrl == download.url &&
+                savedState.externalAudioUrl == download.externalAudioUrl.orEmpty()
 
-            if (isHls) {
-                downloadHls(download, policy, localFile, baseName, onProgress)
-            } else {
-                downloadDirectFile(download.url, download.requestHeaders, localFile, { p, b, t ->
-                    onProgress(p, b, t, 0)
-                }, download, policy)
+            if (!isSameSource) {
+                runCatching { stagingVideoFile.delete() }
+                runCatching { stagingAudioFile.delete() }
+                runCatching { stateFile.delete() }
             }
 
-            finishDownload(download, settings, mediaId, baseName, videoDir, localFile, onStatusChanged)
+            var currentState = if (isSameSource) {
+                savedState!!
+            } else {
+                StagingResumeState(
+                    sourceUrl = download.url,
+                    externalAudioUrl = download.externalAudioUrl.orEmpty()
+                )
+            }
+
+            val hlsExtraSubtitleRenditions = mutableListOf<HlsManifestParser.HlsSubtitleRendition>()
+
+            // 1) Akış türünü tespit et (URL + Content-Type + ilk baytlar + düz URL yönlendirmesi + GDrive onayı)
+            val probe = probeStreamKind(httpClient, download.url)
+            var audioFirstId3PtsUs: Long? = currentState.firstAudioId3PtsUs
+
+            when (probe) {
+                is StreamProbeResult.Hls -> {
+                    val preferredAudioLangs = buildPreferredAudioLanguages(
+                        download = download,
+                        settingsPreferred = settings.preferredAudioLanguages
+                    )
+                    val audioKindHint = inferAudioKindHint(
+                        explicitKind = download.audioKind,
+                        streamTitle = download.streamTitle,
+                        streamName = download.streamName
+                    )
+
+                    val resolvedHls = resolveHlsStreams(
+                        httpClient = httpClient,
+                        initialManifest = probe.manifestText,
+                        initialUrl = probe.finalUrl,
+                        preferredAudioLangs = preferredAudioLangs,
+                        audioKindHint = audioKindHint,
+                        hasExternalAudio = !download.externalAudioUrl.isNullOrBlank()
+                    )
+
+                    hlsExtraSubtitleRenditions.addAll(resolvedHls.subtitleRenditions)
+
+                    val hasSeparateAudio = resolvedHls.audioMedia != null || !download.externalAudioUrl.isNullOrBlank()
+                    val videoProgressWeight = if (hasSeparateAudio) 82 else 96
+
+                    // Video segmentlerini indir (duraklatılmışsa kaldığı segmentten devam eder)
+                    val resumeVideoFrom = if (stagingVideoFile.isFile && stagingVideoFile.length() > 0L) {
+                        currentState.videoSegmentsDone.coerceIn(0, resolvedHls.videoMedia.segments.size)
+                    } else {
+                        0
+                    }
+
+                    currentState = currentState.copy(videoPlaylistUrl = resolvedHls.videoMedia.baseUrl)
+                    writeStagingState(stateFile, currentState)
+
+                    val videoBytes = downloadHlsMediaToFile(
+                        httpClient = httpClient,
+                        media = resolvedHls.videoMedia,
+                        destFile = stagingVideoFile,
+                        startSegmentIndex = resumeVideoFrom,
+                        progressStartPct = 0,
+                        progressEndPct = videoProgressWeight,
+                        baseBytesAccumulated = 0L,
+                        onSegmentCommitted = { doneCount ->
+                            currentState = currentState.copy(videoSegmentsDone = doneCount)
+                            if (doneCount % 10 == 0 || doneCount == resolvedHls.videoMedia.segments.size) {
+                                writeStagingState(stateFile, currentState)
+                            }
+                        },
+                        onProgress = onProgress
+                    )
+
+                    // Ayrık HLS ses rendisyonu (#EXT-X-MEDIA:TYPE=AUDIO) veya harici ses URL'si varsa indir
+                    if (resolvedHls.audioMedia != null) {
+                        val audioMedia = resolvedHls.audioMedia
+                        val resumeAudioFrom = if (stagingAudioFile.isFile && stagingAudioFile.length() > 0L) {
+                            currentState.audioSegmentsDone.coerceIn(0, audioMedia.segments.size)
+                        } else {
+                            0
+                        }
+                        currentState = currentState.copy(audioPlaylistUrl = audioMedia.baseUrl)
+                        writeStagingState(stateFile, currentState)
+
+                        downloadHlsMediaToFile(
+                            httpClient = httpClient,
+                            media = audioMedia,
+                            destFile = stagingAudioFile,
+                            startSegmentIndex = resumeAudioFrom,
+                            progressStartPct = videoProgressWeight,
+                            progressEndPct = 96,
+                            baseBytesAccumulated = videoBytes,
+                            onFirstId3PtsUs = { ptsUs ->
+                                if (audioFirstId3PtsUs == null) {
+                                    audioFirstId3PtsUs = ptsUs
+                                    currentState = currentState.copy(firstAudioId3PtsUs = ptsUs)
+                                    writeStagingState(stateFile, currentState)
+                                }
+                            },
+                            onSegmentCommitted = { doneCount ->
+                                currentState = currentState.copy(audioSegmentsDone = doneCount)
+                                if (doneCount % 15 == 0 || doneCount == audioMedia.segments.size) {
+                                    writeStagingState(stateFile, currentState)
+                                }
+                            },
+                            onProgress = onProgress
+                        )
+                    } else if (!download.externalAudioUrl.isNullOrBlank()) {
+                        downloadExternalAudioStream(
+                            httpClient = httpClient,
+                            externalAudioUrl = download.externalAudioUrl,
+                            destFile = stagingAudioFile,
+                            progressStartPct = videoProgressWeight,
+                            progressEndPct = 96,
+                            baseBytesAccumulated = videoBytes,
+                            onFirstId3PtsUs = { ptsUs ->
+                                if (audioFirstId3PtsUs == null) audioFirstId3PtsUs = ptsUs
+                            },
+                            onProgress = onProgress
+                        )
+                    }
+                }
+
+                is StreamProbeResult.Progressive -> {
+                    val hasExternalAudio = !download.externalAudioUrl.isNullOrBlank()
+                    val videoMaxPct = if (hasExternalAudio) 85 else 96
+
+                    val videoBytes = downloadProgressiveFile(
+                        httpClient = httpClient,
+                        url = probe.finalUrl,
+                        destFile = stagingVideoFile,
+                        progressStartPct = 0,
+                        progressEndPct = videoMaxPct,
+                        baseBytesAccumulated = 0L,
+                        onProgress = { pct, dlBytes, totalBytes ->
+                            onProgress(pct, dlBytes, totalBytes, 0)
+                        }
+                    )
+
+                    if (hasExternalAudio) {
+                        downloadExternalAudioStream(
+                            httpClient = httpClient,
+                            externalAudioUrl = download.externalAudioUrl!!,
+                            destFile = stagingAudioFile,
+                            progressStartPct = videoMaxPct,
+                            progressEndPct = 96,
+                            baseBytesAccumulated = videoBytes,
+                            onFirstId3PtsUs = { ptsUs ->
+                                if (audioFirstId3PtsUs == null) audioFirstId3PtsUs = ptsUs
+                            },
+                            onProgress = onProgress
+                        )
+                    }
+                }
+            }
+
+            if (!stagingVideoFile.isFile || stagingVideoFile.length() == 0L) {
+                throw IOException("İndirilen video dosyası boş")
+            }
+
+            // 2) Kapsayıcı birleştirme (Video + Ses Muxing / TS->MP4 kayıpsız dönüştürme)
+            coroutineContext.ensureActive()
+            val (finalVideoFile, finalCompanionAudioFile) = finalizeDownloadedMedia(
+                stagingVideoFile = stagingVideoFile,
+                stagingAudioFile = stagingAudioFile.takeIf { it.isFile && it.length() > 0L },
+                videoDir = videoDir,
+                baseName = baseName,
+                sourceUrl = download.url,
+                audioId3StartPtsUs = audioFirstId3PtsUs
+            )
+
+            val finalBytes = finalVideoFile.length() + (finalCompanionAudioFile?.length() ?: 0L)
+            onProgress(98, finalBytes, finalBytes, download.downloadedSegments)
+
+            // 3) Altyazıları çöz ve indir (eklenti altyazıları + HLS gömülü VTT + OpenSubtitles/SubDL)
+            val savedSubs = downloadAllSubtitles(
+                download = download,
+                settingsSubtitleLangs = settings.subtitleDownloadLanguages,
+                hlsSubtitleRenditions = hlsExtraSubtitleRenditions,
+                httpClient = httpClient,
+                effectiveVideoHeaders = effectiveHeaders,
+                videoDir = videoDir,
+                baseName = baseName
+            )
+
+            // 4) Metadata dosyasını yaz (video + varsa yan ses adı)
+            val metaFile = File(videoDir, DownloadExportNaming.metadataFileName(baseName))
+            val metaJson = JSONObject().apply {
+                put("mediaId", mediaId)
+                put("title", "${download.animeTitle} - Bölüm ${download.episode}")
+                put("videoFile", finalVideoFile.name)
+                if (finalCompanionAudioFile != null) {
+                    put("audioFile", finalCompanionAudioFile.name)
+                }
+                put("durationMs", 0)
+                put("downloadedAtMs", System.currentTimeMillis())
+            }
+            metaFile.writeText(metaJson.toString(2))
+
+            // 5) Poster görselini indir (best-effort)
+            val posterFile = File(
+                DownloadExportNaming.publicImagesDir().also { it.mkdirs() },
+                DownloadExportNaming.posterFileName(baseName)
+            )
+            downloadPosterIfAvailable(httpClient, download.posterUrl, posterFile)
+
+            // 6) Özel SAF klasörü seçiliyse kopyala
+            copyToCustomSafIfConfigured(
+                customDirUriStr = settings.videoDownloadUri,
+                finalVideoFile = finalVideoFile,
+                finalCompanionAudioFile = finalCompanionAudioFile,
+                savedSubs = savedSubs
+            )
+
+            // 7) Geçici çalışma dizinini temizle ve MediaScanner'a bildir
+            runCatching { stagingDir.deleteRecursively() }
+
+            val toScan = buildList {
+                add(finalVideoFile)
+                if (finalCompanionAudioFile != null) add(finalCompanionAudioFile)
+                addAll(savedSubs)
+                if (posterFile.isFile) add(posterFile)
+            }.map { it.absolutePath }.toTypedArray()
+            MediaScannerConnection.scanFile(context, toScan, null, null)
+
+            onProgress(100, finalBytes, finalBytes, download.downloadedSegments)
+            onStatusChanged(
+                AnimeDownload.Status.COMPLETED,
+                finalVideoFile.absolutePath,
+                finalCompanionAudioFile?.absolutePath
+            )
         } catch (ce: CancellationException) {
+            // Duraklatma / iptal durumunda .staging_<mediaId> korunur ve PAUSED durumu ezilmez!
             throw ce
         } catch (e: Exception) {
-            Log.e(TAG, "Video indirme başarısız", e)
+            Log.e(TAG, "Download failed for ${download.animeTitle} ep=${download.episode} url=${download.url}", e)
             val kind = DownloadResilience.classify(e)
             val message = buildErrorMessage(e, kind)
             onStatusChanged(AnimeDownload.Status.ERROR, null, message)
+        }
+    }
+
+    // ── Akış Türü Tespiti (HLS / Progressive / Plain-URL Hop / GDrive) ────────
+
+    private suspend fun probeStreamKind(
+        httpClient: OkHttpClient,
+        initialUrl: String
+    ): StreamProbeResult {
+        var currentUrl = initialUrl.trim()
+
+        for (hop in 0 until MAX_URL_HOPS) {
+            coroutineContext.ensureActive()
+
+            if (HlsManifestParser.isLikelyHlsUrl(currentUrl)) {
+                val fetched = fetchTextWithUrl(httpClient, currentUrl)
+                val nextHop = HlsManifestParser.extractPlainUrlHop(fetched.body)
+                if (nextHop != null && nextHop != currentUrl) {
+                    currentUrl = HlsManifestParser.resolveUrl(fetched.finalUrl, nextHop)
+                    continue
+                }
+                if (looksLikeHtmlDocument(fetched.contentType, fetched.body)) {
+                    val gdriveConfirm = extractGoogleDriveConfirmUrl(fetched.body, fetched.finalUrl)
+                    if (gdriveConfirm != null && gdriveConfirm != currentUrl) {
+                        currentUrl = gdriveConfirm
+                        continue
+                    }
+                    throw IOException("HLS manifesti yerine HTML hata sayfası döndü")
+                }
+                return StreamProbeResult.Hls(fetched.body, fetched.finalUrl)
+            }
+
+            // Uzantısız veya .mp4/.txt görünümlü URL'lerde ilk baytları kokla
+            val request = Request.Builder().url(currentUrl).get().build()
+            val hopDecision: Pair<String?, StreamProbeResult?> = httpClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    throw IOException("Akış bağlantısı başarısız: HTTP ${response.code}")
+                }
+                val finalUrl = response.request.url.toString()
+                val contentType = response.header("Content-Type")
+                val body = response.body ?: throw IOException("Boş sunucu yanıtı")
+
+                val buffered = BufferedInputStream(body.byteStream(), PROBE_PEEK_BYTES * 2)
+                val head = ByteArray(PROBE_PEEK_BYTES)
+                var headRead = 0
+                while (headRead < head.size) {
+                    val n = buffered.read(head, headRead, head.size - headRead)
+                    if (n <= 0) break
+                    headRead += n
+                }
+
+                // 1) HLS manifesti mi? (#EXTM3U / mpegurl / çıplak varyant listesi)
+                if (HlsManifestParser.looksLikeHlsContent(contentType, head, headRead) ||
+                    HlsManifestParser.isLikelyHlsUrl(finalUrl)
+                ) {
+                    val rest = buffered.readBytes()
+                    val fullBytes = ByteArray(headRead + rest.size)
+                    System.arraycopy(head, 0, fullBytes, 0, headRead)
+                    System.arraycopy(rest, 0, fullBytes, headRead, rest.size)
+                    val fullText = String(fullBytes, Charsets.UTF_8)
+
+                    val plainHop = HlsManifestParser.extractPlainUrlHop(fullText)
+                    if (plainHop != null) {
+                        return@use HlsManifestParser.resolveUrl(finalUrl, plainHop) to null
+                    }
+                    return@use null to StreamProbeResult.Hls(fullText, finalUrl)
+                }
+
+                // 2) Kısa metin yanıtı -> tek satır https:// yönlendirmesi veya Google Drive onay formu mu?
+                val contentLen = body.contentLength()
+                val ctLower = contentType?.lowercase(Locale.ROOT).orEmpty()
+                val headText = if (headRead > 0) String(head, 0, headRead, Charsets.UTF_8) else ""
+
+                if (ctLower.startsWith("text/") || looksLikeHtmlDocument(contentType, headText) ||
+                    (contentLen in 1..4096 && HlsManifestParser.extractPlainUrlHop(headText) != null)
+                ) {
+                    val rest = if (contentLen < 0 || contentLen <= 256 * 1024) buffered.readBytes() else ByteArray(0)
+                    val fullBytes = ByteArray(headRead + rest.size)
+                    System.arraycopy(head, 0, fullBytes, 0, headRead)
+                    System.arraycopy(rest, 0, fullBytes, headRead, rest.size)
+                    val fullText = String(fullBytes, Charsets.UTF_8)
+
+                    val plainHop = HlsManifestParser.extractPlainUrlHop(fullText)
+                    if (plainHop != null) {
+                        return@use HlsManifestParser.resolveUrl(finalUrl, plainHop) to null
+                    }
+
+                    val gdriveConfirm = extractGoogleDriveConfirmUrl(fullText, finalUrl)
+                    if (gdriveConfirm != null) {
+                        return@use gdriveConfirm to null
+                    }
+
+                    if (looksLikeHtmlDocument(contentType, fullText)) {
+                        throw IOException("Sunucu video yerine HTML sayfası döndürdü (403/koruma)")
+                    }
+                }
+
+                null to StreamProbeResult.Progressive(finalUrl)
+            }
+
+            val (nextUrl, resolvedResult) = hopDecision
+            if (resolvedResult != null) return resolvedResult
+            if (!nextUrl.isNullOrBlank() && nextUrl != currentUrl) {
+                currentUrl = nextUrl
+                continue
+            }
+            return StreamProbeResult.Progressive(currentUrl)
+        }
+
+        return StreamProbeResult.Progressive(currentUrl)
+    }
+
+    // ── HLS Master -> Video + Ayrık Ses + Altyazı Çözümlemesi ─────────────────
+
+    private data class ResolvedHlsStreams(
+        val videoMedia: HlsManifestParser.ParsedHlsPlaylist.Media,
+        val audioMedia: HlsManifestParser.ParsedHlsPlaylist.Media?,
+        val subtitleRenditions: List<HlsManifestParser.HlsSubtitleRendition>
+    )
+
+    private suspend fun resolveHlsStreams(
+        httpClient: OkHttpClient,
+        initialManifest: String,
+        initialUrl: String,
+        preferredAudioLangs: List<String>,
+        audioKindHint: String?,
+        hasExternalAudio: Boolean
+    ): ResolvedHlsStreams {
+        var currentText = initialManifest
+        var currentUrl = initialUrl
+        var audioCandidates: List<HlsManifestParser.HlsAudioRendition> = emptyList()
+        var subtitleRenditions: List<HlsManifestParser.HlsSubtitleRendition> = emptyList()
+
+        var resolvedVideoMedia: HlsManifestParser.ParsedHlsPlaylist.Media? = null
+
+        for (depth in 0 until MAX_MASTER_DEPTH) {
+            coroutineContext.ensureActive()
+            when (val parsed = HlsManifestParser.parse(currentText, currentUrl)) {
+                is HlsManifestParser.ParsedHlsPlaylist.Media -> {
+                    if (parsed.segments.isEmpty()) {
+                        throw IOException("HLS medya listesinde segment bulunamadı")
+                    }
+                    resolvedVideoMedia = parsed
+                    break
+                }
+
+                is HlsManifestParser.ParsedHlsPlaylist.Master -> {
+                    val plan = HlsManifestParser.selectBestPlan(
+                        master = parsed,
+                        preferredAudioLanguages = preferredAudioLangs,
+                        audioKindHint = audioKindHint,
+                        hasExternalAudio = hasExternalAudio
+                    ) ?: throw IOException("HLS master listesinde uygun video varyantı bulunamadı")
+
+                    if (plan.audioCandidates.isNotEmpty()) {
+                        audioCandidates = plan.audioCandidates
+                    }
+                    if (plan.subtitleRenditions.isNotEmpty()) {
+                        subtitleRenditions = plan.subtitleRenditions
+                    }
+
+                    // Önce en iyi varyantı dene; 403/404 alırsa diğer video varyantlarına düş
+                    val orderedVariants = buildList {
+                        add(plan.selectedVariant)
+                        parsed.variants
+                            .filterNot { it.isAudioOnly || it.url == plan.selectedVariant.url }
+                            .sortedByDescending { it.effectiveHeight * 1_000_000L + it.bandwidth }
+                            .forEach { add(it) }
+                    }
+
+                    var fetchedVariant: FetchedText? = null
+                    var lastErr: Exception? = null
+                    for (candidateVariant in orderedVariants) {
+                        try {
+                            fetchedVariant = fetchTextWithUrl(httpClient, candidateVariant.url)
+                            break
+                        } catch (e: Exception) {
+                            if (e is CancellationException) throw e
+                            lastErr = e
+                            Log.w(TAG, "HLS varyantı açılamadı (${candidateVariant.url}): ${e.message}")
+                        }
+                    }
+
+                    val winner = fetchedVariant ?: throw (lastErr ?: IOException("Hiçbir HLS varyantı açılamadı"))
+                    currentText = winner.body
+                    currentUrl = winner.finalUrl
+                }
+            }
+        }
+
+        val finalVideoMedia = resolvedVideoMedia
+            ?: throw IOException("HLS video medya listesi çözümlenemedi")
+
+        // Ayrık ses rendisyonu adaylarını sırayla dene (#EXT-X-MEDIA:TYPE=AUDIO,URI=...)
+        var resolvedAudioMedia: HlsManifestParser.ParsedHlsPlaylist.Media? = null
+        for (audioCandidate in audioCandidates) {
+            val audioUri = audioCandidate.uri ?: continue
+            try {
+                val media = resolveMediaPlaylistOnly(httpClient, audioUri)
+                if (media.segments.isNotEmpty()) {
+                    Log.i(
+                        TAG,
+                        "HLS ayrık ses rendisyonu seçildi: name=${audioCandidate.name}, " +
+                            "lang=${audioCandidate.language}, segments=${media.segments.size}"
+                    )
+                    resolvedAudioMedia = media
+                    break
+                }
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                Log.w(TAG, "Ayrık ses rendisyonu açılamadı (${audioCandidate.name} -> $audioUri): ${e.message}")
+            }
+        }
+
+        return ResolvedHlsStreams(
+            videoMedia = finalVideoMedia,
+            audioMedia = resolvedAudioMedia,
+            subtitleRenditions = subtitleRenditions
+        )
+    }
+
+    private suspend fun resolveMediaPlaylistOnly(
+        httpClient: OkHttpClient,
+        playlistUrl: String
+    ): HlsManifestParser.ParsedHlsPlaylist.Media {
+        var textFetch = fetchTextWithUrl(httpClient, playlistUrl)
+        for (depth in 0 until MAX_MASTER_DEPTH) {
+            val plainHop = HlsManifestParser.extractPlainUrlHop(textFetch.body)
+            if (plainHop != null) {
+                textFetch = fetchTextWithUrl(
+                    httpClient,
+                    HlsManifestParser.resolveUrl(textFetch.finalUrl, plainHop)
+                )
+                continue
+            }
+            when (val parsed = HlsManifestParser.parse(textFetch.body, textFetch.finalUrl)) {
+                is HlsManifestParser.ParsedHlsPlaylist.Media -> return parsed
+                is HlsManifestParser.ParsedHlsPlaylist.Master -> {
+                    val nextUrl = parsed.variants.firstOrNull()?.url
+                        ?: parsed.audioRenditions.firstOrNull { !it.uri.isNullOrBlank() }?.uri
+                        ?: throw IOException("İç içe ses master listesi boş")
+                    textFetch = fetchTextWithUrl(httpClient, nextUrl)
+                }
+            }
+        }
+        throw IOException("Ses medya listesi derinlik sınırını aştı")
+    }
+
+    // ── HLS Segment İndirici (fMP4 MAP + ByteRange + AES-128 + Sahte Başlık Temizliği) ──
+
+    private suspend fun downloadHlsMediaToFile(
+        httpClient: OkHttpClient,
+        media: HlsManifestParser.ParsedHlsPlaylist.Media,
+        destFile: File,
+        startSegmentIndex: Int,
+        progressStartPct: Int,
+        progressEndPct: Int,
+        baseBytesAccumulated: Long,
+        onFirstId3PtsUs: ((Long) -> Unit)? = null,
+        onSegmentCommitted: ((Int) -> Unit)? = null,
+        onProgress: (Int, Long, Long, Int) -> Unit
+    ): Long {
+        val segments = media.segments
+        if (segments.isEmpty()) throw IOException("Boş HLS segment listesi")
+        if (startSegmentIndex >= segments.size && destFile.isFile && destFile.length() > 0L) {
+            return destFile.length()
+        }
+
+        val appendMode = startSegmentIndex > 0 && destFile.isFile && destFile.length() > 0L
+        val effectiveStart = if (appendMode) startSegmentIndex else 0
+        var bytesWritten = if (appendMode) destFile.length() else 0L
+
+        val keyCache = HashMap<String, ByteArray>()
+        var lastWrittenInitKey: String? = if (appendMode && effectiveStart > 0) {
+            segments[effectiveStart - 1].initSegment?.cacheKey
+        } else {
+            null
+        }
+
+        var lastEmitMs = 0L
+        var lastReportedPct = -1
+        var capturedFirstPts = false
+
+        BufferedOutputStream(FileOutputStream(destFile, appendMode), IO_BUFFER_BYTES).use { out ->
+            val total = segments.size
+            for (index in effectiveStart until total) {
+                coroutineContext.ensureActive()
+                val seg = segments[index]
+
+                // fMP4 / CMAF başlatma segmenti (#EXT-X-MAP)
+                val initSeg = seg.initSegment
+                if (initSeg != null && initSeg.cacheKey != lastWrittenInitKey) {
+                    var initBytes = fetchSegmentBytesWithRetry(httpClient, initSeg.url, initSeg.byteRange)
+                    val initEnc = initSeg.encryptionKey
+                    if (initEnc != null && initEnc.isAes128) {
+                        val keyBytes = fetchEncryptionKey(httpClient, initEnc.uri!!, keyCache)
+                        initBytes = HlsSegmentProcessor.decryptAes128(initBytes, keyBytes, initEnc.ivHex, 0L)
+                    }
+                    out.write(initBytes)
+                    bytesWritten += initBytes.size
+                    lastWrittenInitKey = initSeg.cacheKey
+                }
+
+                // Medya segmentini indir
+                var segBytes = fetchSegmentBytesWithRetry(httpClient, seg.url, seg.byteRange)
+
+                // AES-128 şifreliyse çöz
+                val enc = seg.encryptionKey
+                if (enc != null && enc.isAes128) {
+                    val keyBytes = fetchEncryptionKey(httpClient, enc.uri!!, keyCache)
+                    segBytes = HlsSegmentProcessor.decryptAes128(
+                        encrypted = segBytes,
+                        keyBytes = keyBytes,
+                        explicitIvHex = enc.ivHex,
+                        sequenceNumber = seg.sequenceNumber
+                    )
+                }
+
+                // Sahte PNG/JPG/JS başlığını veya tekrarlayan Packed-Audio ID3 etiketini temizle
+                val sanitized = HlsSegmentProcessor.sanitizeSegment(segBytes)
+                if (!capturedFirstPts && sanitized.id3TimestampUs != null) {
+                    capturedFirstPts = true
+                    onFirstId3PtsUs?.invoke(sanitized.id3TimestampUs)
+                }
+
+                if (sanitized.length > 0) {
+                    out.write(sanitized.bytes, sanitized.offset, sanitized.length)
+                    bytesWritten += sanitized.length
+                }
+
+                val doneCount = index + 1
+                onSegmentCommitted?.invoke(doneCount)
+
+                val span = (progressEndPct - progressStartPct).coerceAtLeast(1)
+                val scaledPct = (progressStartPct + (span * doneCount) / total).coerceIn(0, 99)
+                val now = SystemClock.elapsedRealtime()
+                val isLast = doneCount == total
+                if (isLast ||
+                    now - lastEmitMs >= 250L ||
+                    (scaledPct != lastReportedPct && now - lastEmitMs >= 100L)
+                ) {
+                    lastEmitMs = now
+                    lastReportedPct = scaledPct
+                    onProgress(scaledPct, baseBytesAccumulated + bytesWritten, 0L, doneCount)
+                }
+            }
+            out.flush()
+        }
+
+        return bytesWritten
+    }
+
+    private suspend fun downloadExternalAudioStream(
+        httpClient: OkHttpClient,
+        externalAudioUrl: String,
+        destFile: File,
+        progressStartPct: Int,
+        progressEndPct: Int,
+        baseBytesAccumulated: Long,
+        onFirstId3PtsUs: ((Long) -> Unit)? = null,
+        onProgress: (Int, Long, Long, Int) -> Unit
+    ) {
+        try {
+            when (val audioProbe = probeStreamKind(httpClient, externalAudioUrl)) {
+                is StreamProbeResult.Hls -> {
+                    val media = resolveMediaPlaylistOnly(httpClient, audioProbe.finalUrl)
+                    downloadHlsMediaToFile(
+                        httpClient = httpClient,
+                        media = media,
+                        destFile = destFile,
+                        startSegmentIndex = 0,
+                        progressStartPct = progressStartPct,
+                        progressEndPct = progressEndPct,
+                        baseBytesAccumulated = baseBytesAccumulated,
+                        onFirstId3PtsUs = onFirstId3PtsUs,
+                        onProgress = onProgress
+                    )
+                }
+
+                is StreamProbeResult.Progressive -> {
+                    downloadProgressiveFile(
+                        httpClient = httpClient,
+                        url = audioProbe.finalUrl,
+                        destFile = destFile,
+                        progressStartPct = progressStartPct,
+                        progressEndPct = progressEndPct,
+                        baseBytesAccumulated = baseBytesAccumulated,
+                        onProgress = { pct, dl, total ->
+                            onProgress(pct, dl, total, 0)
+                        }
+                    )
+                }
+            }
+        } catch (ce: CancellationException) {
+            throw ce
+        } catch (e: Exception) {
+            Log.e(TAG, "Harici ses akışı indirilemedi ($externalAudioUrl): ${e.message}", e)
+            runCatching { destFile.delete() }
+            throw e
+        }
+    }
+
+    // ── Kapsayıcı Sonlandırma (Tekil MP4/WebM Birleştirme veya Güvenli Yan Ses) ──
+
+    private suspend fun finalizeDownloadedMedia(
+        stagingVideoFile: File,
+        stagingAudioFile: File?,
+        videoDir: File,
+        baseName: String,
+        sourceUrl: String,
+        audioId3StartPtsUs: Long?
+    ): Pair<File, File?> {
+        // Önce aynı taban adlı eski video ve yan ses kalıntılarını temizle
+        deleteExistingMediaOfBase(videoDir, baseName)
+
+        if (stagingAudioFile != null && stagingAudioFile.isFile && stagingAudioFile.length() > 0L) {
+            when (val muxResult = MediaRemuxer.muxVideoAndAudio(
+                videoFile = stagingVideoFile,
+                audioFile = stagingAudioFile,
+                outputDir = videoDir,
+                baseName = baseName,
+                audioId3StartPtsUs = audioId3StartPtsUs
+            )) {
+                is MediaRemuxer.MuxOutcome.MuxedSingleFile -> {
+                    return muxResult.file to null
+                }
+
+                is MediaRemuxer.MuxOutcome.CompanionAudioRequired -> {
+                    Log.w(TAG, "Tek dosyada mux yapılamadı (${muxResult.reason}); yan ses dosyası kaydediliyor")
+                    val videoExt = HlsSegmentProcessor.detectContainerExtension(
+                        file = stagingVideoFile,
+                        fallbackExtension = guessVideoExtensionFromUrl(sourceUrl)
+                    )
+                    val audioExt = HlsSegmentProcessor.detectContainerExtension(
+                        file = stagingAudioFile,
+                        fallbackExtension = "m4a"
+                    )
+                    val targetVideo = File(videoDir, "$baseName.$videoExt")
+                    val targetAudio = File(videoDir, DownloadExportNaming.companionAudioFileName(baseName, audioExt))
+                    moveOrCopyFile(stagingVideoFile, targetVideo)
+                    moveOrCopyFile(stagingAudioFile, targetAudio)
+                    return targetVideo to targetAudio
+                }
+            }
+        }
+
+        // Tekil akış (gömülü sesli HLS veya doğrudan progressive dosya)
+        val detectedExt = HlsSegmentProcessor.detectContainerExtension(
+            file = stagingVideoFile,
+            fallbackExtension = guessVideoExtensionFromUrl(sourceUrl)
+        )
+
+        if (detectedExt == "ts") {
+            when (val tsOutcome = MediaRemuxer.remuxSingleTsToMp4IfLossless(
+                tsFile = stagingVideoFile,
+                outputDir = videoDir,
+                baseName = baseName
+            )) {
+                is MediaRemuxer.SingleTsOutcome.RemuxedToMp4 -> {
+                    return tsOutcome.mp4File to null
+                }
+                is MediaRemuxer.SingleTsOutcome.KeepOriginalTs -> {
+                    val targetTs = File(videoDir, "$baseName.ts")
+                    moveOrCopyFile(stagingVideoFile, targetTs)
+                    return targetTs to null
+                }
+            }
+        }
+
+        val finalExt = if (detectedExt in DownloadExportNaming.VIDEO_EXTENSIONS) detectedExt else "mp4"
+        val targetFile = File(videoDir, "$baseName.$finalExt")
+        moveOrCopyFile(stagingVideoFile, targetFile)
+        return targetFile to null
+    }
+
+    // ── Doğrudan (Progressive) İndirici (HTTP Range 206 Destekli) ─────────────
+
+    private suspend fun downloadProgressiveFile(
+        httpClient: OkHttpClient,
+        url: String,
+        destFile: File,
+        progressStartPct: Int,
+        progressEndPct: Int,
+        baseBytesAccumulated: Long,
+        onProgress: (Int, Long, Long) -> Unit
+    ): Long {
+        var attempt = 0
+        val maxAttempts = 3
+        while (attempt < maxAttempts) {
+            attempt++
+            try {
+                val existingLen = if (destFile.isFile) destFile.length() else 0L
+                val reqBuilder = Request.Builder().url(url).get()
+                if (existingLen > 0L) {
+                    reqBuilder.header("Range", "bytes=$existingLen-")
+                }
+
+                var writtenTotal = existingLen
+                httpClient.newCall(reqBuilder.build()).execute().use { response ->
+                    if (response.code == 416) {
+                        destFile.delete()
+                        throw IOException("416 Range Not Satisfiable")
+                    }
+                    if (!response.isSuccessful) {
+                        throw IOException("Dosya indirilemedi: HTTP ${response.code} ${response.message}")
+                    }
+
+                    val isPartial = response.code == 206 && existingLen > 0L
+                    val body = response.body ?: throw IOException("Boş yanıt gövdesi")
+                    val contentLen = body.contentLength()
+                    val totalBytes = when {
+                        contentLen > 0L && isPartial -> existingLen + contentLen
+                        contentLen > 0L -> contentLen
+                        else -> 0L
+                    }
+
+                    writtenTotal = if (isPartial) existingLen else 0L
+                    var lastEmitMs = 0L
+                    var lastPct = -1
+
+                    body.byteStream().use { input ->
+                        BufferedOutputStream(FileOutputStream(destFile, isPartial), IO_BUFFER_BYTES).use { output ->
+                            val buffer = ByteArray(IO_BUFFER_BYTES)
+                            var readCount: Int
+                            var checkedFirstChunk = isPartial
+
+                            while (input.read(buffer).also { readCount = it } != -1) {
+                                coroutineContext.ensureActive()
+                                if (!checkedFirstChunk && readCount > 0) {
+                                    checkedFirstChunk = true
+                                    val sampleStr = String(buffer, 0, readCount.coerceAtMost(512), Charsets.UTF_8)
+                                    if (looksLikeHtmlDocument(response.header("Content-Type"), sampleStr)) {
+                                        throw IOException("Video yerine HTML koruma sayfası döndü")
+                                    }
+                                }
+
+                                output.write(buffer, 0, readCount)
+                                writtenTotal += readCount
+
+                                val span = (progressEndPct - progressStartPct).coerceAtLeast(1)
+                                val pct = if (totalBytes > 0L) {
+                                    (progressStartPct + (span * writtenTotal / totalBytes).toInt())
+                                        .coerceIn(progressStartPct, progressEndPct)
+                                } else {
+                                    progressStartPct
+                                }
+
+                                val now = SystemClock.elapsedRealtime()
+                                if (now - lastEmitMs >= 250L || (pct != lastPct && now - lastEmitMs >= 100L)) {
+                                    lastEmitMs = now
+                                    lastPct = pct
+                                    onProgress(pct, baseBytesAccumulated + writtenTotal, totalBytes)
+                                }
+                            }
+                            output.flush()
+                        }
+                    }
+
+                    onProgress(progressEndPct, baseBytesAccumulated + writtenTotal, totalBytes)
+                }
+                return writtenTotal
+            } catch (ce: CancellationException) {
+                throw ce
+            } catch (e: Exception) {
+                Log.w(TAG, "Progressive indirme denemesi $attempt/$maxAttempts başarısız: ${e.message}")
+                if (attempt >= maxAttempts) throw e
+                delay(1500L * attempt)
+            }
+        }
+        throw IOException("Progressive indirme başarısız")
+    }
+
+    // ── Altyazı Çözümleme & İndirme (Eklenti + HLS VTT + Harici Servisler) ───
+
+    private suspend fun downloadAllSubtitles(
+        download: AnimeDownload,
+        settingsSubtitleLangs: String,
+        hlsSubtitleRenditions: List<HlsManifestParser.HlsSubtitleRendition>,
+        httpClient: OkHttpClient,
+        effectiveVideoHeaders: Map<String, String>,
+        videoDir: File,
+        baseName: String
+    ): List<File> {
+        val allResolvedSubtitles = mutableListOf<SubtitleInput>()
+        if (!download.subtitles.isNullOrEmpty()) {
+            allResolvedSubtitles.addAll(download.subtitles)
+        }
+
+        // Harici altyazı sağlayıcıları (OpenSubtitles, SubDL, Stremio vb.)
+        try {
+            val dMalId = download.malId
+            val dAniListId = download.aniListId
+            val dTmdbId = download.tmdbId
+                ?: if (dMalId == null && dAniListId == null) download.animeId.toIntOrNull() else null
+
+            if (dMalId != null || dAniListId != null || dTmdbId != null) {
+                val resolvedIds = KitsugiIdResolver.resolveIds(
+                    malId = dMalId,
+                    aniListId = dAniListId,
+                    tmdbId = dTmdbId,
+                    mediaType = if (download.isMovie == true) com.kitsugi.animelist.model.MediaType.Movie else null,
+                    bangumiId = download.bangumiId,
+                    expectedSeason = download.season
+                )
+                val imdbId = resolvedIds.imdbId
+                val kitsuId = resolvedIds.kitsuId
+
+                val isMovieType = download.season == 0 && download.episode <= 1
+                val type = if (isMovieType) "movie" else "series"
+                val queryIds = buildList {
+                    if (!imdbId.isNullOrBlank()) {
+                        add(if (isMovieType) imdbId else "$imdbId:${download.season}:${download.episode}")
+                    }
+                    if (kitsuId != null) {
+                        add(if (isMovieType) "kitsu:$kitsuId" else "kitsu:$kitsuId:${download.episode}")
+                    }
+                }
+
+                if (queryIds.isNotEmpty()) {
+                    val guessedFilename = runCatching {
+                        Uri.parse(download.url).lastPathSegment
+                            ?.takeIf { it.isNotBlank() && it.contains('.') }
+                            ?.substringBefore('\n')
+                            ?.substringBefore('\r')
+                            ?.trim()
+                    }.getOrNull()
+
+                    val subRepo = SubtitleRepositoryImpl(context)
+                    for (queryId in queryIds) {
+                        try {
+                            val subs = subRepo.getSubtitles(
+                                type = type,
+                                id = queryId,
+                                videoUrl = download.url,
+                                videoHeaders = effectiveVideoHeaders,
+                                filename = guessedFilename,
+                                aniListId = dAniListId,
+                                animeTitle = download.animeTitle,
+                                episode = download.episode
+                            )
+                            for (sub in subs.distinctBy { it.url }) {
+                                val friendly = PlayerSubtitleUtils.getFriendlyLanguageName(sub.lang)
+                                allResolvedSubtitles += SubtitleInput(
+                                    url = sub.url,
+                                    name = "$friendly (${sub.addonName})",
+                                    lang = sub.lang
+                                )
+                            }
+                        } catch (e: Exception) {
+                            if (e is CancellationException) throw e
+                            Log.w(TAG, "Altyazı sorgusu başarısız ($queryId): ${e.message}")
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            Log.w(TAG, "Harici altyazı çözümleme hatası: ${e.message}")
+        }
+
+        val dlLangs = settingsSubtitleLangs
+            .split(",")
+            .map { it.trim().lowercase(Locale.ROOT) }
+            .filter { it.isNotBlank() }
+
+        val dedupedSubs = allResolvedSubtitles.distinctBy { it.url }
+        val filteredSubs = if (dlLangs.isEmpty()) {
+            dedupedSubs
+        } else {
+            dedupedSubs.filter { sub ->
+                dlLangs.any { targetLang ->
+                    PlayerSubtitleUtils.matchesLanguageCode(sub.lang, targetLang)
+                }
+            }
+        }
+
+        val savedSubs = mutableListOf<File>()
+
+        // 1) Doğrudan altyazı dosyalarını indir
+        for (subtitle in filteredSubs) {
+            coroutineContext.ensureActive()
+            val extension = when {
+                subtitle.url.contains(".vtt", ignoreCase = true) -> "vtt"
+                subtitle.url.contains(".ass", ignoreCase = true) -> "ass"
+                subtitle.url.contains(".ssa", ignoreCase = true) -> "ssa"
+                else -> "srt"
+            }
+            val subFile = File(
+                videoDir,
+                DownloadExportNaming.subtitleFileName(baseName, subtitle.lang, subtitle.name, extension)
+            )
+            try {
+                val subHeaders = DownloadHttpClientFactory.resolveSubtitleHeaders(
+                    subtitleUrl = subtitle.url,
+                    videoUrl = download.url,
+                    effectiveVideoHeaders = effectiveVideoHeaders
+                )
+                downloadSimpleFile(httpClient, subtitle.url, subHeaders, subFile)
+                if (subFile.isFile && subFile.length() > 0L) {
+                    savedSubs += subFile
+                } else {
+                    runCatching { subFile.delete() }
+                }
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                Log.w(TAG, "Altyazı indirilemedi (${subtitle.name}): ${e.message}")
+                runCatching { subFile.delete() }
+            }
+        }
+
+        // 2) Master listede gömülü HLS #EXT-X-MEDIA:TYPE=SUBTITLES rendisyonlarını indir
+        for (hlsSub in hlsSubtitleRenditions) {
+            coroutineContext.ensureActive()
+            val subUri = hlsSub.uri ?: continue
+            val subLang = hlsSub.language?.ifBlank { "tr" } ?: "tr"
+            if (dlLangs.isNotEmpty() && dlLangs.none { PlayerSubtitleUtils.matchesLanguageCode(subLang, it) }) {
+                continue
+            }
+            val outVtt = File(
+                videoDir,
+                DownloadExportNaming.subtitleFileName(baseName, subLang, hlsSub.name, "vtt")
+            )
+            if (outVtt.exists()) continue
+            try {
+                downloadHlsSubtitlePlaylistToVtt(httpClient, subUri, outVtt)
+                if (outVtt.isFile && outVtt.length() > 0L) {
+                    savedSubs += outVtt
+                }
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                Log.w(TAG, "HLS gömülü altyazı indirilemedi (${hlsSub.name}): ${e.message}")
+                runCatching { outVtt.delete() }
+            }
+        }
+
+        return savedSubs
+    }
+
+    private suspend fun downloadHlsSubtitlePlaylistToVtt(
+        httpClient: OkHttpClient,
+        subUrl: String,
+        destVtt: File
+    ) {
+        val fetched = fetchTextWithUrl(httpClient, subUrl)
+        if (!HlsManifestParser.looksLikeHlsContent(fetched.contentType, fetched.body.toByteArray())) {
+            destVtt.writeText(fetched.body)
+            return
+        }
+        val media = when (val parsed = HlsManifestParser.parse(fetched.body, fetched.finalUrl)) {
+            is HlsManifestParser.ParsedHlsPlaylist.Media -> parsed
+            is HlsManifestParser.ParsedHlsPlaylist.Master -> return
+        }
+        val merged = StringBuilder("WEBVTT\n\n")
+        for (seg in media.segments) {
+            coroutineContext.ensureActive()
+            val segText = fetchTextWithUrl(httpClient, seg.url).body
+            val stripped = HlsManifestParser.stripBomAndLeadingWhitespace(segText)
+            val bodyWithoutHeader = if (stripped.startsWith("WEBVTT", ignoreCase = true)) {
+                stripped.substringAfter('\n', "").trimStart('\r', '\n')
+            } else {
+                stripped
+            }
+            if (bodyWithoutHeader.isNotBlank()) {
+                merged.append(bodyWithoutHeader.trim()).append("\n\n")
+            }
+        }
+        destVtt.writeText(merged.toString())
+    }
+
+    // ── Düşük Seviye Ağ Yardımcıları ──────────────────────────────────────────
+
+    private suspend fun fetchTextWithUrl(httpClient: OkHttpClient, url: String): FetchedText {
+        var lastEx: Exception? = null
+        for (attempt in 1..3) {
+            try {
+                val request = Request.Builder().url(url).get().build()
+                return httpClient.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) {
+                        throw IOException("HTTP ${response.code} ${response.message} ($url)")
+                    }
+                    val contentType = response.header("Content-Type")
+                    val bodyStr = response.body?.string() ?: throw IOException("Boş metin yanıtı")
+                    FetchedText(
+                        body = bodyStr,
+                        finalUrl = response.request.url.toString(),
+                        contentType = contentType
+                    )
+                }
+            } catch (ce: CancellationException) {
+                throw ce
+            } catch (e: Exception) {
+                lastEx = e
+                if (attempt < 3) delay(800L * attempt)
+            }
+        }
+        throw lastEx ?: IOException("Metin indirilemedi: $url")
+    }
+
+    private suspend fun fetchEncryptionKey(
+        httpClient: OkHttpClient,
+        keyUrl: String,
+        cache: MutableMap<String, ByteArray>
+    ): ByteArray {
+        cache[keyUrl]?.let { return it }
+        val bytes = fetchSegmentBytesWithRetry(httpClient, keyUrl, null)
+        cache[keyUrl] = bytes
+        return bytes
+    }
+
+    private suspend fun fetchSegmentBytesWithRetry(
+        httpClient: OkHttpClient,
+        url: String,
+        byteRange: HlsManifestParser.ByteRange?
+    ): ByteArray {
+        var lastEx: Exception? = null
+        for (attempt in 1..4) {
+            try {
+                val builder = Request.Builder().url(url).get()
+                if (byteRange != null) {
+                    builder.header("Range", byteRange.toHttpRangeHeader())
+                }
+                return httpClient.newCall(builder.build()).execute().use { response ->
+                    if (response.code == 429) {
+                        val retryAfterSec = response.header("Retry-After")?.toLongOrNull() ?: 2L
+                        throw RateLimitException(retryAfterSec.coerceIn(1L, 10L) * 1000L)
+                    }
+                    if (!response.isSuccessful) {
+                        throw IOException("Segment indirilemedi: HTTP ${response.code}")
+                    }
+                    val body = response.body ?: throw IOException("Boş segment gövdesi")
+                    val out = ByteArrayOutputStream(
+                        body.contentLength().takeIf { it in 1..(16 * 1024 * 1024) }?.toInt() ?: 65_536
+                    )
+                    body.byteStream().use { input ->
+                        val buf = ByteArray(IO_BUFFER_BYTES)
+                        var n: Int
+                        while (input.read(buf).also { n = it } != -1) {
+                            coroutineContext.ensureActive()
+                            out.write(buf, 0, n)
+                        }
+                    }
+                    val raw = out.toByteArray()
+                    // Sunucu Range isteğine rağmen 200 OK ile tüm dosyayı döndürdüyse dilimi kes
+                    if (byteRange != null && response.code == 200 &&
+                        byteRange.offset + byteRange.length <= raw.size
+                    ) {
+                        raw.copyOfRange(
+                            byteRange.offset.toInt(),
+                            (byteRange.offset + byteRange.length).toInt()
+                        )
+                    } else {
+                        raw
+                    }
+                }
+            } catch (ce: CancellationException) {
+                throw ce
+            } catch (rle: RateLimitException) {
+                lastEx = rle
+                delay(rle.waitMs)
+            } catch (e: Exception) {
+                lastEx = e
+                Log.w(TAG, "Segment denemesi $attempt/4 başarısız: ${e.message}")
+                if (attempt < 4) delay(750L * attempt)
+            }
+        }
+        throw lastEx ?: IOException("Segment indirilemedi")
+    }
+
+    private class RateLimitException(val waitMs: Long) : IOException("HTTP 429 Too Many Requests")
+
+    private suspend fun downloadSimpleFile(
+        httpClient: OkHttpClient,
+        url: String,
+        headers: Map<String, String>,
+        destFile: File
+    ) {
+        val reqBuilder = Request.Builder().url(url).get()
+        headers.forEach { (k, v) -> reqBuilder.header(k, v) }
+        httpClient.newCall(reqBuilder.build()).execute().use { response ->
+            if (!response.isSuccessful) {
+                throw IOException("HTTP ${response.code} ${response.message}")
+            }
+            val body = response.body ?: throw IOException("Boş yanıt")
+            body.byteStream().use { input ->
+                destFile.outputStream().use { output -> input.copyTo(output) }
+            }
+        }
+    }
+
+    private suspend fun downloadPosterIfAvailable(
+        httpClient: OkHttpClient,
+        url: String?,
+        destFile: File
+    ) {
+        if (url.isNullOrBlank() || !url.startsWith("http", ignoreCase = true)) return
+        if (destFile.isFile && destFile.length() > 0L) return
+        try {
+            val request = Request.Builder().url(url).get().build()
+            httpClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return
+                val body = response.body ?: return
+                body.byteStream().use { input ->
+                    destFile.outputStream().use { output -> input.copyTo(output) }
+                }
+            }
+        } catch (ce: CancellationException) {
+            throw ce
+        } catch (e: Exception) {
+            Log.w(TAG, "Poster indirme atlandı: ${e.message}")
+            runCatching { destFile.delete() }
+        }
+    }
+
+    // ── SAF Kopyalama, Durum Saklama & Yardımcılar ───────────────────────────
+
+    private fun copyToCustomSafIfConfigured(
+        customDirUriStr: String,
+        finalVideoFile: File,
+        finalCompanionAudioFile: File?,
+        savedSubs: List<File>
+    ) {
+        if (customDirUriStr.isBlank()) return
+        try {
+            val customDirDoc = DocumentFile.fromTreeUri(context, Uri.parse(customDirUriStr))
+            if (customDirDoc == null || !customDirDoc.exists()) return
+
+            fun copyFileToSaf(srcFile: File, mimeType: String) {
+                customDirDoc.findFile(srcFile.name)?.delete()
+                val doc = customDirDoc.createFile(mimeType, srcFile.name) ?: return
+                context.contentResolver.openOutputStream(doc.uri)?.use { out ->
+                    srcFile.inputStream().use { input -> input.copyTo(out) }
+                }
+            }
+
+            copyFileToSaf(
+                finalVideoFile,
+                DownloadExportNaming.mimeTypeForVideoExtension(finalVideoFile.extension)
+            )
+
+            if (finalCompanionAudioFile != null && finalCompanionAudioFile.isFile) {
+                copyFileToSaf(
+                    finalCompanionAudioFile,
+                    DownloadExportNaming.mimeTypeForAudioExtension(finalCompanionAudioFile.extension)
+                )
+            }
+
+            savedSubs.forEach { subFile ->
+                runCatching {
+                    val subMime = when (subFile.extension.lowercase(Locale.ROOT)) {
+                        "ass", "ssa" -> "text/x-ass"
+                        "vtt" -> "text/vtt"
+                        else -> "application/x-subrip"
+                    }
+                    copyFileToSaf(subFile, subMime)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Özel SAF klasörüne kopyalama başarısız", e)
+        }
+    }
+
+    private fun deleteExistingMediaOfBase(videoDir: File, baseName: String) {
+        val entries = videoDir.listFiles() ?: return
+        for (entry in entries) {
+            if (!entry.isFile) continue
+            if (DownloadExportNaming.isVideoOfBase(entry.name, baseName) ||
+                DownloadExportNaming.isCompanionAudioOfBase(entry.name, baseName)
+            ) {
+                runCatching { entry.delete() }
+            }
+        }
+    }
+
+    private fun moveOrCopyFile(src: File, dst: File) {
+        if (dst.exists() && dst.absolutePath != src.absolutePath) {
+            dst.delete()
+        }
+        if (src.absolutePath == dst.absolutePath) return
+        if (!src.renameTo(dst)) {
+            src.copyTo(dst, overwrite = true)
+            src.delete()
+        }
+    }
+
+    private fun buildPreferredAudioLanguages(
+        download: AnimeDownload,
+        settingsPreferred: String
+    ): List<String> {
+        val userPrefs = settingsPreferred
+            .split(",")
+            .map { it.trim().lowercase(Locale.ROOT) }
+            .filter { it.isNotBlank() }
+        val sourceLangs = download.audioLanguages.orEmpty()
+            .map { it.trim().lowercase(Locale.ROOT) }
+            .filter { it.isNotBlank() }
+        return (userPrefs + sourceLangs + listOf("tr", "ja", "en")).distinct()
+    }
+
+    private fun inferAudioKindHint(
+        explicitKind: String?,
+        streamTitle: String?,
+        streamName: String?
+    ): String? {
+        if (!explicitKind.isNullOrBlank()) return explicitKind
+        val combined = "${streamTitle.orEmpty()} ${streamName.orEmpty()}".lowercase(Locale.ROOT)
+        return when {
+            combined.contains("dual") -> "dual"
+            combined.contains("dublaj") || combined.contains("türkçe ses") || combined.contains("turkce ses") -> "dub"
+            combined.contains("altyazı") || combined.contains("altyazi") -> "sub"
+            else -> null
+        }
+    }
+
+    private fun guessVideoExtensionFromUrl(url: String): String {
+        val path = url.substringBefore('?').substringBefore('#').lowercase(Locale.ROOT)
+        val ext = path.substringAfterLast('.', "")
+        return if (ext in DownloadExportNaming.VIDEO_EXTENSIONS) ext else "mp4"
+    }
+
+    private fun looksLikeHtmlDocument(contentType: String?, sample: String): Boolean {
+        val ct = contentType?.lowercase(Locale.ROOT).orEmpty()
+        if (ct.contains("text/html") || ct.contains("application/xhtml")) return true
+        val trimmed = HlsManifestParser.stripBomAndLeadingWhitespace(sample).take(256).lowercase(Locale.ROOT)
+        return trimmed.startsWith("<!doctype html") || trimmed.startsWith("<html")
+    }
+
+    /**
+     * Google Drive virüs tarama onay sayfasından (`download-form`) doğrudan indirme URL'sini çıkarır.
+     */
+    private fun extractGoogleDriveConfirmUrl(html: String, baseUrl: String): String? {
+        if (!baseUrl.contains("google", ignoreCase = true) && !html.contains("download-form")) {
+            return null
+        }
+        val formAction = Regex("""<form[^>]*id=["']download-form["'][^>]*action=["']([^"']+)["']""", RegexOption.IGNORE_CASE)
+            .find(html)?.groupValues?.getOrNull(1)?.replace("&amp;", "&")
+            ?: return null
+
+        val params = mutableListOf<String>()
+        val inputRegex = Regex("""<input[^>]*type=["']hidden["'][^>]*>""", RegexOption.IGNORE_CASE)
+        val nameRegex = Regex("""name=["']([^"']+)["']""", RegexOption.IGNORE_CASE)
+        val valRegex = Regex("""value=["']([^"']*)["']""", RegexOption.IGNORE_CASE)
+
+        for (m in inputRegex.findAll(html)) {
+            val tag = m.value
+            val name = nameRegex.find(tag)?.groupValues?.getOrNull(1) ?: continue
+            val value = valRegex.find(tag)?.groupValues?.getOrNull(1).orEmpty()
+            params += "${ java.net.URLEncoder.encode(name, "UTF-8") }=${ java.net.URLEncoder.encode(value, "UTF-8") }"
+        }
+        val sep = if (formAction.contains('?')) "&" else "?"
+        val resolvedAction = HlsManifestParser.resolveUrl(baseUrl, formAction)
+        return if (params.isEmpty()) resolvedAction else "$resolvedAction$sep${params.joinToString("&")}"
+    }
+
+    private fun readStagingState(file: File): StagingResumeState? {
+        if (!file.isFile) return null
+        return runCatching {
+            val json = JSONObject(file.readText())
+            StagingResumeState(
+                sourceUrl = json.optString("sourceUrl", ""),
+                externalAudioUrl = json.optString("externalAudioUrl", ""),
+                videoPlaylistUrl = json.optString("videoPlaylistUrl", ""),
+                audioPlaylistUrl = json.optString("audioPlaylistUrl", ""),
+                videoSegmentsDone = json.optInt("videoSegmentsDone", 0),
+                audioSegmentsDone = json.optInt("audioSegmentsDone", 0),
+                firstAudioId3PtsUs = if (json.has("firstAudioId3PtsUs")) json.optLong("firstAudioId3PtsUs") else null
+            )
+        }.getOrNull()
+    }
+
+    private fun writeStagingState(file: File, state: StagingResumeState) {
+        runCatching {
+            val json = JSONObject().apply {
+                put("sourceUrl", state.sourceUrl)
+                put("externalAudioUrl", state.externalAudioUrl)
+                put("videoPlaylistUrl", state.videoPlaylistUrl)
+                put("audioPlaylistUrl", state.audioPlaylistUrl)
+                put("videoSegmentsDone", state.videoSegmentsDone)
+                put("audioSegmentsDone", state.audioSegmentsDone)
+                state.firstAudioId3PtsUs?.let { put("firstAudioId3PtsUs", it) }
+            }
+            file.writeText(json.toString())
+        }
+    }
+
+    // ── Harici İndirme Yöneticileri (1DM / ADM / Tarayıcı) ────────────────────
+
+    private fun downloadExternal(
+        download: AnimeDownload,
+        downloaderPref: String,
+        onStatusChanged: (AnimeDownload.Status, String?, String?) -> Unit
+    ) {
+        val pm = context.packageManager
+        val cleanTitle = DownloadExportNaming.sanitizeTitle(download.animeTitle)
+        val filename = KitsugiStrings.get(R.string.x_bolum_x_mp4, cleanTitle, download.episode)
+        val effectiveHeaders = DownloadHttpClientFactory.buildEffectiveHeaders(
+            rawHeaders = download.requestHeaders,
+            videoUrl = download.url
+        )
+
+        try {
+            val intent: Intent
+            when (downloaderPref) {
+                "EXTERNAL_1DM" -> {
+                    val pkgName = if (isPackageInstalled(pm, "idm.internet.download.manager.plus")) {
+                        "idm.internet.download.manager.plus"
+                    } else {
+                        "idm.internet.download.manager"
+                    }
+                    if (!isPackageInstalled(pm, pkgName)) {
+                        throw IOException("1DM not installed")
+                    }
+                    val headersBundle = Bundle().apply {
+                        effectiveHeaders.forEach { (k, v) -> putString(k, v) }
+                    }
+                    intent = Intent(Intent.ACTION_VIEW).apply {
+                        data = Uri.parse(download.url)
+                        setPackage(pkgName)
+                        putExtra("extra_filename", filename)
+                        putExtra("extra_headers", headersBundle)
+                        putExtra("headers", headersBundle)
+                        effectiveHeaders["Referer"]?.let { putExtra("extra_referer", it) }
+                        effectiveHeaders["User-Agent"]?.let { putExtra("extra_useragent", it) }
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                }
+                "EXTERNAL_ADM" -> {
+                    val pkgName = if (isPackageInstalled(pm, "com.dv.adm.pay")) {
+                        "com.dv.adm.pay"
+                    } else {
+                        "com.dv.adm"
+                    }
+                    if (!isPackageInstalled(pm, pkgName)) {
+                        throw IOException("ADM not installed")
+                    }
+                    intent = Intent(Intent.ACTION_VIEW).apply {
+                        component = ComponentName(pkgName, "$pkgName.AEditor")
+                        putExtra("com.dv.get.ACTION_LIST_ADD", "${download.url}<info>$filename")
+                        effectiveHeaders["User-Agent"]?.let { putExtra("com.dv.get.USER_AGENT", it) }
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                }
+                else -> {
+                    intent = Intent(Intent.ACTION_VIEW).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        setDataAndType(Uri.parse(download.url), "video/*")
+                        putExtra("extra_filename", filename)
+                    }
+                }
+            }
+            context.startActivity(intent)
+            onStatusChanged(AnimeDownload.Status.COMPLETED, null, null)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to launch external downloader", e)
+            onStatusChanged(AnimeDownload.Status.ERROR, null, null)
+        }
+    }
+
+    private fun isPackageInstalled(pm: android.content.pm.PackageManager, pkgName: String): Boolean {
+        return try {
+            pm.getPackageInfo(pkgName, 0)
+            true
+        } catch (_: Exception) {
+            false
         }
     }
 
@@ -211,797 +1612,6 @@ class AnimeDownloader(private val context: Context) {
             else -> raw ?: e.javaClass.simpleName
         }.trim()
     }
-
-    // ── HLS İndirme Motoru (SegmentJournal + Re-resolve + AES-128 + BYTERANGE) ──
-
-    private class HlsPlan(
-        val mediaPlaylistUrl: String,
-        val segments: List<HlsPlaylistParser.Segment>,
-        val initSegmentUrl: String?,
-        val unsupportedReason: String? = null
-    )
-
-    private suspend fun downloadHls(
-        download: AnimeDownload,
-        policy: DownloadResilience.SourceDownloadPolicy,
-        localFile: File,
-        baseName: String,
-        onProgress: (Int, Long, Long, Int) -> Unit
-    ) {
-        var videoUrl = download.url
-        var headers = download.requestHeaders
-        var reResolveCount = 0
-
-        fun canReResolve(): Boolean =
-            policy.allowReResolve &&
-                reResolveCount < policy.maxReResolve &&
-                !download.recoverUrl.isNullOrBlank()
-
-        suspend fun fetchPlan(url: String, hdrs: Map<String, String>): HlsPlan {
-            var lastError: Exception? = null
-            for (attempt in 1..policy.playlistAttempts) {
-                coroutineContext.ensureActive()
-                try {
-                    return buildPlan(url, hdrs)
-                } catch (e: Exception) {
-                    if (e is CancellationException) throw e
-                    lastError = e
-                    val kind = DownloadResilience.classify(e)
-                    Log.w(
-                        TAG,
-                        "playlist deneme $attempt/${policy.playlistAttempts} başarısız (${kind}): ${e.message}"
-                    )
-                    if (attempt < policy.playlistAttempts) {
-                        delay(waitMs(e, attempt, policy))
-                    }
-                }
-            }
-            throw lastError ?: Exception("Playlist indirilemedi")
-        }
-
-        var plan = fetchPlan(videoUrl, headers)
-        plan.unsupportedReason?.let { throw Exception(it) }
-        var knownSegments = plan.segments.map { it.url }
-
-        val keyCache = HashMap<String, ByteArray>()
-        val journalFile = File(localFile.parentFile, DownloadExportNaming.journalFileName(baseName))
-        var journalOut: FileOutputStream? = null
-
-        fun journalWrite(line: String) {
-            runCatching {
-                journalOut?.write((line + "\n").toByteArray(Charsets.US_ASCII))
-                journalOut?.flush()
-            }
-        }
-
-        fun journalClose() {
-            runCatching { journalOut?.close() }
-            journalOut = null
-        }
-
-        fun journalRestart(initBytes: Long) {
-            journalClose()
-            journalFile.delete()
-            journalOut = runCatching { FileOutputStream(journalFile, false) }.getOrNull()
-            journalWrite(
-                SegmentJournal.headerLine(
-                    planKey = DownloadResilience.segmentPathKey(plan.segments.first().url),
-                    total = plan.segments.size,
-                    initBytes = initBytes
-                )
-            )
-        }
-
-        val planKey = DownloadResilience.segmentPathKey(plan.segments.first().url)
-        val hasFile = localFile.exists() && localFile.length() > 0
-        var segmentIndex = 0
-        var appendMode = false
-
-        if (hasFile && journalFile.isFile) {
-            val state = runCatching { SegmentJournal.parse(journalFile.readText()) }
-                .getOrDefault(SegmentJournal.EMPTY)
-            val header = state.header
-            var contiguous = 0
-            var contiguousBytes = 0L
-            for ((idx, size) in state.entries) {
-                if (idx != contiguous) break
-                contiguous++
-                contiguousBytes += size
-            }
-            val resumable = header != null &&
-                header.planKey == planKey &&
-                header.total == plan.segments.size &&
-                contiguous > 0
-
-            if (resumable && header != null) {
-                val expected = header.initBytes + contiguousBytes
-                if (localFile.length() != expected) {
-                    runCatching {
-                        RandomAccessFile(localFile, "rw").use { it.setLength(expected) }
-                    }
-                    Log.w(
-                        TAG,
-                        "journal: dosya boyu uyuşmadı → ${localFile.length()} yerine $expected bayta kırpıldı"
-                    )
-                }
-                segmentIndex = contiguous
-                appendMode = true
-                journalOut = runCatching { FileOutputStream(journalFile, true) }.getOrNull()
-                Log.i(
-                    TAG,
-                    "journal resume: dilim=$segmentIndex/${plan.segments.size}, bayt=${localFile.length()}"
-                )
-            } else {
-                journalFile.delete()
-            }
-        } else if (hasFile) {
-            Log.w(TAG, "journal yok — kısmi dosya doğrulanamıyor, baştan indiriliyor")
-        }
-
-        if (segmentIndex >= plan.segments.size) {
-            segmentIndex = 0
-            appendMode = false
-            journalClose()
-            journalFile.delete()
-        }
-
-        var bytesDownloaded = if (appendMode) localFile.length() else 0L
-        var lastProgressEmitMs = 0L
-        var lastReportedProgress = -1
-        var lastSegmentStartMs = 0L
-
-        var out: BufferedOutputStream? = null
-        fun openStream(append: Boolean) {
-            out?.runCatching { flush(); close() }
-            out = BufferedOutputStream(FileOutputStream(localFile, append), 64 * 1024)
-        }
-
-        fun closeStream() {
-            out?.runCatching { flush(); close() }
-            out = null
-        }
-
-        suspend fun writeInitSegment(): Long {
-            val init = plan.initSegmentUrl ?: return 0L
-            val bytes = downloadSegmentBytes(HlsPlaylistParser.Segment(url = init), headers, policy)
-            out?.write(bytes)
-            out?.flush()
-            bytesDownloaded += bytes.size
-            return bytes.size.toLong()
-        }
-
-        suspend fun recover(e: Exception, atIndex: Int): Int? {
-            val kind = DownloadResilience.classify(e)
-            if (!DownloadResilience.worthReResolving(kind) || !canReResolve()) return null
-            reResolveCount++
-            val fresh = DownloadStreamResolver.reResolve(
-                recoverUrl = download.recoverUrl,
-                recoverReferer = download.recoverReferer,
-                currentUrl = videoUrl
-            ) ?: return null
-
-            val freshPlan = runCatching { fetchPlan(fresh.url, fresh.headers) }.getOrNull()
-                ?: return null
-            if (freshPlan.unsupportedReason != null) return null
-
-            val resumeAt = DownloadResilience.reconcileResumeIndex(
-                oldSegmentUrls = knownSegments,
-                newSegmentUrls = freshPlan.segments.map { it.url },
-                currentIndex = atIndex
-            )
-            Log.i(
-                TAG,
-                "adres tazelendi: eski host=${hostOf(videoUrl)} yeni host=${hostOf(fresh.url)} " +
-                    "resume@$resumeAt (eski indis $atIndex)"
-            )
-            videoUrl = fresh.url
-            headers = fresh.headers
-            knownSegments = freshPlan.segments.map { it.url }
-            plan = freshPlan
-            if (resumeAt == 0) {
-                closeStream()
-                openStream(append = false)
-                bytesDownloaded = 0L
-                journalRestart(writeInitSegment())
-            }
-            return resumeAt
-        }
-
-        try {
-            if (appendMode) {
-                openStream(append = true)
-            } else {
-                openStream(append = false)
-            }
-
-            if (!appendMode) {
-                try {
-                    journalRestart(writeInitSegment())
-                } catch (e: Exception) {
-                    if (e is CancellationException) throw e
-                    segmentIndex = recover(e, 0) ?: throw e
-                }
-            }
-
-            while (segmentIndex < plan.segments.size) {
-                coroutineContext.ensureActive()
-
-                if (policy.minSegmentIntervalMs > 0 && lastSegmentStartMs > 0L) {
-                    val elapsed = SystemClock.elapsedRealtime() - lastSegmentStartMs
-                    val wait = policy.minSegmentIntervalMs - elapsed
-                    if (wait > 0) delay(wait)
-                }
-                lastSegmentStartMs = SystemClock.elapsedRealtime()
-
-                val seg = plan.segments[segmentIndex]
-                val segmentBytes = try {
-                    val raw = downloadSegmentBytes(seg, headers, policy)
-                    if (seg.keyUri != null) decryptSegment(raw, seg, headers, keyCache) else raw
-                } catch (e: Exception) {
-                    if (e is CancellationException) throw e
-                    Log.w(
-                        TAG,
-                        "segment $segmentIndex başarısız (${DownloadResilience.classify(e)}): ${e.message} — politika=${policy.name}"
-                    )
-                    val resumed = recover(e, segmentIndex) ?: throw e
-                    segmentIndex = resumed
-                    onProgress(
-                        (100 * segmentIndex / plan.segments.size).coerceIn(0, 100),
-                        bytesDownloaded, 0L, segmentIndex
-                    )
-                    continue
-                }
-
-                out?.write(segmentBytes)
-                out?.flush()
-                journalWrite(SegmentJournal.entryLine(segmentIndex, segmentBytes.size.toLong()))
-                bytesDownloaded += segmentBytes.size
-                segmentIndex++
-
-                val progress = (100 * segmentIndex / plan.segments.size).coerceIn(0, 100)
-                val now = SystemClock.elapsedRealtime()
-                val isFinalSegment = segmentIndex == plan.segments.size
-                if (isFinalSegment ||
-                    now - lastProgressEmitMs >= 250L ||
-                    (progress != lastReportedProgress && now - lastProgressEmitMs >= 100L)
-                ) {
-                    lastProgressEmitMs = now
-                    lastReportedProgress = progress
-                    onProgress(progress, bytesDownloaded, 0L, segmentIndex)
-                }
-            }
-            out?.flush()
-            journalClose()
-            runCatching { journalFile.delete() }
-        } finally {
-            closeStream()
-            journalClose()
-        }
-    }
-
-    private fun hostOf(url: String?): String? = try {
-        URI(url).host
-    } catch (_: Exception) {
-        null
-    }
-
-    private suspend fun buildPlan(url: String, headers: Map<String, String>): HlsPlan {
-        val content = getUrlContent(url, headers)
-        val parsed = if (HlsPlaylistParser.isMasterPlaylist(content)) {
-            val master = HlsPlaylistParser.parseMaster(content, url)
-            val variant = master?.let { HlsPlaylistParser.selectVariant(it) }?.url
-                ?: HlsPlaylistParser.pickVariantUrl(content, url)
-                ?: throw Exception("Master playlist: varyant seçilemedi")
-            val mediaContent = getUrlContent(variant, headers)
-            HlsPlaylistParser.parseMediaPlaylist(mediaContent, variant)
-        } else {
-            HlsPlaylistParser.parseMediaPlaylist(content, url)
-        }
-        if (parsed.segments.isEmpty()) {
-            throw Exception("No segments found in HLS playlist")
-        }
-        return HlsPlan(parsed.mediaPlaylistUrl, parsed.segments, parsed.initSegmentUrl, parsed.unsupportedReason)
-    }
-
-    // ── Ortak Bitiş ve Doğrulama Adımları ───────────────────────────────────────
-
-    private suspend fun finishDownload(
-        download: AnimeDownload,
-        settings: com.kitsugi.animelist.data.settings.AppSettings,
-        mediaId: String,
-        baseName: String,
-        videoDir: File,
-        localFile: File,
-        onStatusChanged: (AnimeDownload.Status, String?, String?) -> Unit
-    ) {
-        val allResolvedSubtitles = mutableListOf<SubtitleInput>()
-        if (!download.subtitles.isNullOrEmpty()) {
-            allResolvedSubtitles.addAll(download.subtitles)
-        }
-
-        try {
-            val dMalId = download.malId
-            val dAniListId = download.aniListId
-            val dTmdbId = download.tmdbId ?: if (dMalId == null && dAniListId == null) download.animeId.toIntOrNull() else null
-
-            if (dMalId != null || dAniListId != null || dTmdbId != null) {
-                val resolvedIds = KitsugiIdResolver.resolveIds(
-                    malId = dMalId,
-                    aniListId = dAniListId,
-                    tmdbId = dTmdbId
-                )
-                val imdbId = resolvedIds.imdbId
-                val kitsuId = resolvedIds.kitsuId
-
-                val isMovieType = download.season == 0 && download.episode <= 1
-                val type = if (isMovieType) "movie" else "series"
-                val queryIds = mutableListOf<String>()
-                if (!imdbId.isNullOrBlank()) {
-                    queryIds.add(if (isMovieType) imdbId else "$imdbId:${download.season}:${download.episode}")
-                }
-                if (kitsuId != null) {
-                    queryIds.add(if (isMovieType) "kitsu:$kitsuId" else "kitsu:$kitsuId:${download.episode}")
-                }
-
-                if (queryIds.isNotEmpty()) {
-                    val guessedFilename = runCatching {
-                        val lastSeg = Uri.parse(download.url).lastPathSegment
-                        if (!lastSeg.isNullOrBlank() && lastSeg.contains(".")) lastSeg else null
-                    }.getOrNull()?.substringBefore("\n")?.substringBefore("\r")?.trim()
-
-                    val subRepo = SubtitleRepositoryImpl(context)
-                    for (queryId in queryIds) {
-                        try {
-                            val subs = subRepo.getSubtitles(
-                                type = type,
-                                id = queryId,
-                                videoUrl = download.url,
-                                videoHeaders = download.requestHeaders,
-                                filename = guessedFilename,
-                                aniListId = dAniListId,
-                                animeTitle = download.animeTitle,
-                                episode = download.episode
-                            )
-                            for (sub in subs) {
-                                val friendlyLangName = PlayerSubtitleUtils.getFriendlyLanguageName(sub.lang)
-                                allResolvedSubtitles.add(
-                                    SubtitleInput(
-                                        url = sub.url,
-                                        name = "$friendlyLangName (${sub.addonName})",
-                                        lang = sub.lang
-                                    )
-                                )
-                            }
-                        } catch (e: Exception) {
-                            Log.e(TAG, "Failed to fetch subtitles for queryId=$queryId", e)
-                        }
-                    }
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to resolve subtitles in downloader", e)
-        }
-
-        val dedupedSubs = allResolvedSubtitles.distinctBy { it.url }
-        val dlLangs = settings.subtitleDownloadLanguages
-            .split(",")
-            .map { it.trim().lowercase(Locale.ROOT) }
-            .filter { it.isNotBlank() }
-
-        val filteredSubs = if (dlLangs.isEmpty()) {
-            dedupedSubs
-        } else {
-            dedupedSubs.filter { sub ->
-                dlLangs.any { targetLang ->
-                    PlayerSubtitleUtils.matchesLanguageCode(sub.lang ?: "", targetLang)
-                }
-            }
-        }
-
-        val savedSubs = mutableListOf<File>()
-        for (subtitle in filteredSubs) {
-            val extension = when {
-                subtitle.url.contains(".vtt", ignoreCase = true) -> "vtt"
-                subtitle.url.contains(".ass", ignoreCase = true) -> "ass"
-                subtitle.url.contains(".ssa", ignoreCase = true) -> "ssa"
-                else -> "srt"
-            }
-            val subFile = File(
-                videoDir,
-                DownloadExportNaming.subtitleFileName(baseName, subtitle.lang, subtitle.name, extension)
-            )
-            try {
-                val useHeaders = try {
-                    val subHost = URI(subtitle.url).host
-                    val videoHost = URI(download.url).host
-                    if (subHost != null && subHost.equals(videoHost, true)) {
-                        download.requestHeaders
-                    } else {
-                        emptyMap()
-                    }
-                } catch (_: Exception) {
-                    emptyMap()
-                }
-
-                downloadSubtitleFile(subtitle.url, useHeaders, subFile)
-                savedSubs += subFile
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to download subtitle: ${subtitle.name}", e)
-                runCatching { subFile.delete() }
-            }
-        }
-
-        val metaFile = File(videoDir, DownloadExportNaming.metadataFileName(baseName))
-        val metaJson = JSONObject().apply {
-            put("mediaId", mediaId)
-            put("title", "${download.animeTitle} - Bölüm ${download.episode}")
-            put("durationMs", 0)
-            put("downloadedAtMs", System.currentTimeMillis())
-        }
-        metaFile.writeText(metaJson.toString(2))
-
-        val posterFile = File(
-            DownloadExportNaming.publicImagesDir().also { it.mkdirs() },
-            DownloadExportNaming.posterFileName(baseName)
-        )
-        downloadPosterIfAvailable(download.posterUrl, posterFile)
-
-        val customDirUriStr = settings.videoDownloadUri
-        if (customDirUriStr.isNotBlank()) {
-            try {
-                val customDirDoc = DocumentFile.fromTreeUri(context, Uri.parse(customDirUriStr))
-                if (customDirDoc != null && customDirDoc.exists()) {
-                    customDirDoc.findFile(localFile.name)?.delete()
-                    val newFileDoc = customDirDoc.createFile("video/mp4", localFile.name)
-                    newFileDoc?.uri?.let { destUri ->
-                        context.contentResolver.openOutputStream(destUri)?.use { outStream ->
-                            localFile.inputStream().use { inStream ->
-                                inStream.copyTo(outStream)
-                            }
-                        }
-                    }
-
-                    savedSubs.forEach { subFile ->
-                        try {
-                            val subMime = when (subFile.extension.lowercase(Locale.ROOT)) {
-                                "ass", "ssa" -> "text/x-ass"
-                                "vtt" -> "text/vtt"
-                                else -> "application/x-subrip"
-                            }
-                            customDirDoc.findFile(subFile.name)?.delete()
-                            val subDoc = customDirDoc.createFile(subMime, subFile.name)
-                            subDoc?.uri?.let { subUri ->
-                                context.contentResolver.openOutputStream(subUri)?.use { subOutStream ->
-                                    subFile.inputStream().use { subInStream ->
-                                        subInStream.copyTo(subOutStream)
-                                    }
-                                }
-                            }
-                        } catch (subEx: Exception) {
-                            Log.e(TAG, "Failed to copy subtitle ${subFile.name} to custom SAF directory", subEx)
-                        }
-                    }
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to copy video to custom SAF directory", e)
-            }
-        }
-
-        // Cihaz oynatma doğrulaması
-        val verification = DownloadVerifier.verify(localFile)
-        if (!verification.playable) {
-            Log.w(TAG, "İndirilen dosya doğrulanamadı: ${verification.warning} (${verification.details})")
-            runCatching { localFile.delete() }
-            throw UnsupportedMediaException(
-                verification.warning ?: KitsugiStrings.get(R.string.indirme_hata_desteklenmeyen_format)
-            )
-        }
-
-        val toScan = buildList {
-            add(localFile)
-            addAll(savedSubs)
-            if (posterFile.isFile) add(posterFile)
-        }.map { it.absolutePath }.toTypedArray()
-        MediaScannerConnection.scanFile(context, toScan, null, null)
-
-        onStatusChanged(AnimeDownload.Status.COMPLETED, localFile.absolutePath, null)
-    }
-
-    // ── HTTP Yardımcıları ────────────────────────────────────────────────────────
-
-    private fun httpError(response: Response, what: String): DownloadResilience.SegmentHttpException {
-        val retryAfter = DownloadResilience.parseRetryAfterMs(response.header("Retry-After"))
-        return DownloadResilience.SegmentHttpException(
-            code = response.code,
-            retryAfterMs = retryAfter,
-            message = "$what: ${response.code} ${response.message}"
-        )
-    }
-
-    private fun waitMs(e: Exception, attempt: Int, policy: DownloadResilience.SourceDownloadPolicy): Long {
-        val ra = (e as? DownloadResilience.SegmentHttpException)?.retryAfterMs
-        return if (ra != null) minOf(ra, policy.retryAfterCapMs) else DownloadResilience.backoffMs(attempt, policy)
-    }
-
-    private suspend fun getUrlContent(url: String, headers: Map<String, String>): String = withContext(Dispatchers.IO) {
-        val requestBuilder = Request.Builder().url(url)
-        headers.forEach { (k, v) -> requestBuilder.header(k, v) }
-        KitsugiHttpClient.downloadClient.newCall(requestBuilder.build()).execute().use { response ->
-            if (!response.isSuccessful) {
-                throw httpError(response, "Failed to fetch HLS playlist")
-            }
-            response.body?.string() ?: throw Exception("Empty playlist content")
-        }
-    }
-
-    private suspend fun downloadSegmentBytes(
-        seg: HlsPlaylistParser.Segment,
-        headers: Map<String, String>,
-        policy: DownloadResilience.SourceDownloadPolicy
-    ): ByteArray = withContext(Dispatchers.IO) {
-        var lastException: Exception? = null
-        for (attempt in 1..policy.segmentAttempts) {
-            try {
-                val requestBuilder = Request.Builder().url(seg.url)
-                headers.forEach { (k, v) -> requestBuilder.header(k, v) }
-                if (seg.hasRange) {
-                    requestBuilder.header(
-                        "Range",
-                        "bytes=${seg.rangeStart}-${seg.rangeStart + seg.rangeLen - 1}"
-                    )
-                }
-                KitsugiHttpClient.downloadClient.newCall(requestBuilder.build()).execute().use { response ->
-                    if (seg.hasRange && response.code != 206) {
-                        throw httpError(response, "Range istendi ama 206 dönmedi")
-                    }
-                    if (!response.isSuccessful) {
-                        throw httpError(response, "Failed to download segment")
-                    }
-                    val body = response.body ?: throw Exception("Empty segment body")
-                    return@withContext body.byteStream().readBytes()
-                }
-            } catch (e: Exception) {
-                if (e is CancellationException) throw e
-                lastException = e
-                Log.w(
-                    TAG,
-                    "Segment download attempt $attempt/${policy.segmentAttempts} failed (${DownloadResilience.classify(e)}): ${e.message}"
-                )
-                if (attempt < policy.segmentAttempts) {
-                    delay(waitMs(e, attempt, policy))
-                }
-            }
-        }
-        throw lastException ?: Exception("Unknown error downloading segment")
-    }
-
-    private suspend fun decryptSegment(
-        encrypted: ByteArray,
-        seg: HlsPlaylistParser.Segment,
-        headers: Map<String, String>,
-        keyCache: HashMap<String, ByteArray>
-    ): ByteArray {
-        val keyUri = seg.keyUri ?: return encrypted
-        val key = keyCache[keyUri] ?: run {
-            val useHeaders = if (hostOf(keyUri).equals(hostOf(seg.url), true)) headers else emptyMap()
-            val fetched = fetchKey(keyUri, useHeaders)
-            if (fetched.size != 16) {
-                throw Exception("Geçersiz AES-128 anahtar boyutu: ${fetched.size} (beklenen 16)")
-            }
-            keyCache[keyUri] = fetched
-            fetched
-        }
-        val iv = HlsPlaylistParser.ivBytesFor(seg)
-        val cipher = javax.crypto.Cipher.getInstance("AES/CBC/PKCS5Padding")
-        cipher.init(
-            javax.crypto.Cipher.DECRYPT_MODE,
-            javax.crypto.spec.SecretKeySpec(key, "AES"),
-            javax.crypto.spec.IvParameterSpec(iv)
-        )
-        return cipher.doFinal(encrypted)
-    }
-
-    private suspend fun fetchKey(url: String, headers: Map<String, String>): ByteArray = withContext(Dispatchers.IO) {
-        val requestBuilder = Request.Builder().url(url)
-        headers.forEach { (k, v) -> requestBuilder.header(k, v) }
-        KitsugiHttpClient.downloadClient.newCall(requestBuilder.build()).execute().use { response ->
-            if (!response.isSuccessful) {
-                throw httpError(response, "Failed to fetch HLS key")
-            }
-            response.body?.bytes() ?: throw Exception("Empty key body")
-        }
-    }
-
-    private suspend fun downloadDirectFile(
-        url: String,
-        headers: Map<String, String>,
-        localFile: File,
-        onProgress: (Int, Long, Long) -> Unit,
-        download: AnimeDownload,
-        policy: DownloadResilience.SourceDownloadPolicy
-    ) = withContext(Dispatchers.IO) {
-        var attempts = 0
-        val maxAttempts = policy.segmentAttempts.coerceAtLeast(3)
-        while (attempts < maxAttempts) {
-            attempts++
-            try {
-                val existingLength = if (localFile.exists()) localFile.length() else 0L
-                val requestBuilder = Request.Builder().url(url)
-                headers.forEach { (k, v) -> requestBuilder.header(k, v) }
-
-                if (existingLength > 0) {
-                    requestBuilder.header("Range", "bytes=$existingLength-")
-                }
-
-                KitsugiHttpClient.downloadClient.newCall(requestBuilder.build()).execute().use { response ->
-                    if (!response.isSuccessful) {
-                        if (response.code == 416) {
-                            localFile.delete()
-                            throw DownloadResilience.SegmentHttpException(416, null, "416 Range Not Satisfiable")
-                        }
-                        throw httpError(response, "Failed to download file")
-                    }
-
-                    val isRange = response.code == 206
-                    val body = response.body ?: throw Exception("Empty response body")
-                    val contentLength = body.contentLength()
-                    val totalBytes = if (isRange) contentLength + existingLength else contentLength
-                    val appendMode = isRange && existingLength > 0
-
-                    body.byteStream().use { inputStream ->
-                        BufferedOutputStream(FileOutputStream(localFile, appendMode), 64 * 1024).use { outputStream ->
-                            val buffer = ByteArray(64 * 1024)
-                            var bytesRead: Int
-                            var bytesDownloaded = if (appendMode) existingLength else 0L
-                            var lastProgressEmitMs = 0L
-                            var lastReportedProgress = -1
-                            var lastReportedBytes = -1L
-
-                            while (inputStream.read(buffer).also { bytesRead = it } != -1) {
-                                coroutineContext.ensureActive()
-                                outputStream.write(buffer, 0, bytesRead)
-                                bytesDownloaded += bytesRead
-
-                                val progress = if (totalBytes > 0) {
-                                    (100 * bytesDownloaded / totalBytes).toInt().coerceIn(0, 100)
-                                } else {
-                                    0
-                                }
-                                val now = SystemClock.elapsedRealtime()
-                                if (now - lastProgressEmitMs >= 250L ||
-                                    (progress != lastReportedProgress && now - lastProgressEmitMs >= 100L)
-                                ) {
-                                    lastProgressEmitMs = now
-                                    lastReportedProgress = progress
-                                    lastReportedBytes = bytesDownloaded
-                                    onProgress(progress, bytesDownloaded, totalBytes)
-                                }
-                            }
-                            outputStream.flush()
-
-                            val finalProgress = if (totalBytes > 0) {
-                                (100 * bytesDownloaded / totalBytes).toInt().coerceIn(0, 100)
-                            } else {
-                                100
-                            }
-                            if (bytesDownloaded != lastReportedBytes || finalProgress != lastReportedProgress) {
-                                onProgress(finalProgress, bytesDownloaded, totalBytes)
-                            }
-                        }
-                    }
-                }
-                return@withContext
-            } catch (e: Exception) {
-                if (e is CancellationException) throw e
-                Log.w(TAG, "Direct download attempt $attempts failed: ${e.message}")
-                if (attempts >= maxAttempts) {
-                    throw e
-                }
-                delay(waitMs(e, attempts, policy))
-            }
-        }
-    }
-
-    private suspend fun downloadSubtitleFile(
-        url: String,
-        headers: Map<String, String>,
-        destFile: File
-    ) = withContext(Dispatchers.IO) {
-        val requestBuilder = Request.Builder().url(url)
-        headers.forEach { (k, v) -> requestBuilder.header(k, v) }
-        KitsugiHttpClient.downloadClient.newCall(requestBuilder.build()).execute().use { response ->
-            if (!response.isSuccessful) {
-                throw httpError(response, "Failed to download subtitle")
-            }
-            val body = response.body ?: throw Exception("Empty subtitle response body")
-            body.byteStream().use { inputStream ->
-                destFile.outputStream().use { outputStream ->
-                    inputStream.copyTo(outputStream)
-                }
-            }
-        }
-    }
-
-    private fun downloadPosterIfAvailable(url: String?, destFile: File) {
-        if (url.isNullOrBlank() || !url.startsWith("http", ignoreCase = true)) return
-        if (destFile.isFile && destFile.length() > 0L) return
-        runCatching {
-            val request = Request.Builder().url(url).build()
-            KitsugiHttpClient.client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) return
-                val body = response.body ?: return
-                body.byteStream().use { input ->
-                    destFile.outputStream().use { output -> input.copyTo(output) }
-                }
-            }
-        }.onFailure { e ->
-            Log.w(TAG, "Poster indirme atlandı: ${e.message}")
-        }
-    }
-
-    private fun downloadExternal(
-        download: AnimeDownload,
-        downloaderPref: String,
-        onStatusChanged: (AnimeDownload.Status, String?, String?) -> Unit
-    ) {
-        val pm = context.packageManager
-        val cleanTitle = download.animeTitle.replace(Regex("[\\\\/:*?\"<>|]"), "_")
-        val filename = KitsugiStrings.get(R.string.x_bolum_x_mp4, cleanTitle, download.episode)
-
-        try {
-            val intent: Intent = when (downloaderPref) {
-                "EXTERNAL_1DM" -> {
-                    val pkgName = if (isPackageInstalled(pm, "idm.internet.download.manager.plus")) {
-                        "idm.internet.download.manager.plus"
-                    } else {
-                        "idm.internet.download.manager"
-                    }
-                    if (!isPackageInstalled(pm, pkgName)) throw IOException("1DM kurulu değil")
-                    Intent(Intent.ACTION_VIEW).apply {
-                        data = Uri.parse(download.url)
-                        setPackage(pkgName)
-                        putExtra("extra_filename", filename)
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    }
-                }
-
-                "EXTERNAL_ADM" -> {
-                    val pkgName = if (isPackageInstalled(pm, "com.dv.adm.pay")) {
-                        "com.dv.adm.pay"
-                    } else {
-                        "com.dv.adm"
-                    }
-                    if (!isPackageInstalled(pm, pkgName)) throw IOException("ADM kurulu değil")
-                    Intent(Intent.ACTION_VIEW).apply {
-                        component = ComponentName(pkgName, "$pkgName.AEditor")
-                        putExtra("com.dv.get.ACTION_LIST_ADD", "${download.url}<info>$filename")
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    }
-                }
-
-                else -> {
-                    Intent(Intent.ACTION_VIEW).apply {
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        setDataAndType(Uri.parse(download.url), "video/*")
-                        putExtra("extra_filename", filename)
-                    }
-                }
-            }
-            context.startActivity(intent)
-            onStatusChanged(AnimeDownload.Status.COMPLETED, null, null)
-        } catch (e: Exception) {
-            Log.e(TAG, "Harici indirici başlatılamadı", e)
-            onStatusChanged(AnimeDownload.Status.ERROR, null, e.message)
-        }
-    }
-
-    private fun isPackageInstalled(pm: android.content.pm.PackageManager, pkgName: String): Boolean =
-        try {
-            pm.getPackageInfo(pkgName, 0)
-            true
-        } catch (_: Exception) {
-            false
-        }
 
     // ── Standalone Audio Download Pipeline ──────────────────────────────────────
 
@@ -1823,6 +2433,17 @@ class AnimeDownloader(private val context: Context) {
 
     private class ClipHttpException(val code: Int, message: String) : Exception(message)
 
+    private suspend fun getUrlContent(url: String, headers: Map<String, String>): String = withContext(Dispatchers.IO) {
+        val requestBuilder = Request.Builder().url(url)
+        headers.forEach { (k, v) -> requestBuilder.header(k, v) }
+        KitsugiHttpClient.client.newCall(requestBuilder.build()).execute().use { response ->
+            if (!response.isSuccessful) {
+                throw Exception("Failed to fetch HLS playlist: ${response.code} ${response.message}")
+            }
+            response.body?.string() ?: throw Exception("Empty playlist content")
+        }
+    }
+
     private suspend fun downloadSegmentToStream(
         url: String,
         headers: Map<String, String>,
@@ -1875,4 +2496,5 @@ class AnimeDownloader(private val context: Context) {
             }
         }
     }
+
 }

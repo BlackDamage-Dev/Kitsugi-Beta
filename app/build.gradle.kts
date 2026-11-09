@@ -404,6 +404,8 @@ dependencies {
     implementation("com.fasterxml.jackson.core:jackson-databind:2.18.3")
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.18.3")
     implementation("com.github.Blatzar:NiceHttp:0.4.4")
+    // Android JNI libarchive supports RAR4/RAR5 as well as bounded entry reads.
+    implementation("me.zhanghai.android.libarchive:library:1.1.6")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.squareup.okhttp3:okhttp-dnsoverhttps:4.12.0")
     // Real Brotli decoder for Keiyoushi/Mihon extension HTTP responses (Manga-TR, Cloudflare, DDoS-Guard).

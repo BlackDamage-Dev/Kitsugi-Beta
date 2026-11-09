@@ -1,0 +1,72 @@
+name: Android gerçek AniSub RAR testi
+on:
+  push:
+    branches: ['arena/**']
+    paths:
+      - 'app/src/main/java/com/kitsugi/animelist/data/remote/AniSubArchive.kt'
+      - 'app/src/main/java/com/kitsugi/animelist/core/player/AnisubMatching.kt'
+      - 'app/src/main/java/com/kitsugi/animelist/core/player/SubtitleEncoding.kt'
+      - 'scripts/subtitle-tests/android/**'
+      - '.github/workflows/subtitle-archive-device.yml'
+  workflow_dispatch:
+concurrency:
+  group: subtitle-archive-device-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  rar-on-emulator:
+    permissions:
+      contents: read
+      checks: write
+    runs-on: ubuntu-22.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Gerçek AniSub RAR indir (repo içine eklenmez)
+        run: |
+          python3 - <<'PY'
+          import json, pathlib, urllib.request
+          def fetch(url):
+              req = urllib.request.Request(url, headers={'User-Agent': 'Kitsugi-Subtitle-Contract-Test/1.0'})
+              with urllib.request.urlopen(req, timeout=30) as r:
+                  data = r.read(10*1024*1024+1)
+                  if len(data) > 10*1024*1024: raise ValueError('archive too large')
+                  return data
+          info = json.loads(fetch('https://anisub.co/api/subtitles/3607/download'))['data']
+          data = fetch(info['download_url'])
+          if not data.startswith(b'Rar!'): raise ValueError('provider did not return RAR')
+          path = pathlib.Path('scripts/subtitle-tests/android/build/generated/probeAssets/anisub-3607.rar')
+          path.parent.mkdir(parents=True, exist_ok=True)
+          path.write_bytes(data)
+          # A real, publicly returned Turkish OpenSubtitles SRT for encoding checks.
+          srt = fetch('https://dl.opensubtitles.org/en/download/src-api/vrf-de0d0b4c/file/95005.srt')
+          if b'-->' not in srt[:2000]: raise ValueError('provider did not return SRT')
+          path.with_name('opensubtitles-95005.srt').write_bytes(srt)
+          PY
+      - name: Test APK derle
+        run: |
+          set -o pipefail
+          ./gradlew -p scripts/subtitle-tests/android assembleDebug assembleDebugAndroidTest --stacktrace --console=plain 2>&1 | tee archive-device.log
+      - name: KVM etkinleştir
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Android emülatöründe üretim RAR kodunu test et
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 29
+          arch: x86_64
+          disable-animations: true
+          script: bash scripts/subtitle-tests/android/run-emulator-test.sh
+      - name: Hata ayrıntısını kontrol kaydına yaz
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 scripts/subtitle-tests/android/report-failure.py
+          gh api -X POST "repos/${GITHUB_REPOSITORY}/check-runs" --input /tmp/rar-check.json

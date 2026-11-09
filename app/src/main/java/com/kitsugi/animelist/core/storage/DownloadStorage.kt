@@ -57,7 +57,8 @@ object DownloadStorage {
     private const val PUBLIC_KITSUGI_DIR = "Kitsugi"
 
     private val VIDEO_EXTENSIONS = setOf(
-        "mp4", "mkv", "avi", "webm", "ts", "m2ts", "mov", "m4v", "flv", "wmv", "partial"
+        "mp4", "mkv", "avi", "webm", "ts", "m2ts", "mov", "m4v", "flv", "wmv", "partial", "part",
+        "m4a", "aac", "mp3", "ac3", "eac3", "ec3", "opus", "ogg", "flac"
     )
 
     private val SUBTITLE_EXTENSIONS = setOf("srt", "vtt", "ass", "ssa", "sub")
@@ -244,9 +245,8 @@ object DownloadStorage {
             val children = runCatching { root.listFiles() }.getOrNull() ?: return@forEach
             for (child in children) {
                 if (child.isDirectory) {
-                    // Yalnızca içinde video bulunan klasörler indirme klasörüdür; boş/yabancı
-                    // klasörlere dokunulmaz.
-                    if (!containsVideo(child)) continue
+                    // Yalnızca içinde video bulunan klasörler veya .staging_ çalışma klasörleri silinir.
+                    if (!child.name.startsWith(".staging_") && !containsVideo(child)) continue
                     val stats = StorageJanitor.dirStats(child)
                     val ok = runCatching { child.deleteRecursively() }.getOrDefault(false)
                     if (ok && !child.exists()) {
@@ -255,7 +255,11 @@ object DownloadStorage {
                     } else {
                         failures++
                     }
-                } else if (child.isFile && child.extension.lowercase() in VIDEO_EXTENSIONS) {
+                } else if (child.isFile && (
+                        child.extension.lowercase() in VIDEO_EXTENSIONS ||
+                            child.extension.lowercase() == "json"
+                        )
+                ) {
                     val size = child.length()
                     if (deleteFile(child)) {
                         removed++

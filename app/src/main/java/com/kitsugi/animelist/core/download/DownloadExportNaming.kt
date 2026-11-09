@@ -29,6 +29,9 @@ object DownloadExportNaming {
 
     val SUBTITLE_EXTENSIONS: Set<String> = setOf("srt", "vtt", "ass", "ssa", "sub")
     val VIDEO_EXTENSIONS: Set<String> = setOf("mp4", "mkv", "webm", "avi", "ts", "m2ts", "m4v", "mov")
+    val COMPANION_AUDIO_EXTENSIONS: Set<String> = setOf(
+        "m4a", "aac", "mp3", "ac3", "eac3", "ec3", "opus", "ogg", "flac", "wav", "ts", "mp4", "webm"
+    )
     val SUPPORTED_AUDIO_EXTENSIONS: Set<String> = setOf(
         "m4a", "aac", "mp3", "opus", "ogg", "oga", "flac", "wav", "ac3", "eac3", "ec3", "dts", "mka"
     )
@@ -215,21 +218,21 @@ object DownloadExportNaming {
         title.replace(ILLEGAL_CHARS, "_").trim().ifBlank { "Video" }
 
     /** Ör. `Naruto_Bölüm_12.mp4`; film ise `Naruto.mp4`. */
-    fun exportFileName(animeTitle: String, episode: Int, extension: String = "mp4"): String {
+    fun exportFileName(animeTitle: String, episode: Int, extension: String = "mp4", season: Int = 1): String {
         val ext = extension.trim().trimStart('.').lowercase(java.util.Locale.ROOT).ifBlank { "mp4" }
         val cleanTitle = sanitizeTitle(animeTitle)
-        val isMovie = episode <= 1 &&
+        val isMovie = season <= 1 && episode <= 1 &&
             (animeTitle.contains("Film", ignoreCase = true) || animeTitle.contains("Movie", ignoreCase = true))
-        return if (isMovie && !cleanTitle.contains("Bölüm", ignoreCase = true)) {
-            "$cleanTitle.$ext"
-        } else {
-            "${cleanTitle}_Bölüm_${episode}.$ext"
+        return when {
+            isMovie && !cleanTitle.contains("Bölüm", ignoreCase = true) -> "$cleanTitle.$ext"
+            season > 1 -> "${cleanTitle}_S${season}_Bölüm_${episode}.$ext"
+            else -> "${cleanTitle}_Bölüm_${episode}.$ext"
         }
     }
 
     /** Uzantısız taban ad (`Naruto_Bölüm_12`) — diğer tüm dosyalar bu adla başlar. */
-    fun exportBaseName(animeTitle: String, episode: Int, extension: String = "mp4"): String =
-        exportFileName(animeTitle, episode, extension).substringBeforeLast('.')
+    fun exportBaseName(animeTitle: String, episode: Int, extension: String = "mp4", season: Int = 1): String =
+        exportFileName(animeTitle, episode, extension, season).substringBeforeLast('.')
 
     /**
      * Bağımsız ses indirmesi dosya adı (`Download/Kitsugi/Audio` altına yazılır):
@@ -263,6 +266,50 @@ object DownloadExportNaming {
         }
         return "$base$middle.$ext"
     }
+
+    /** Yan ses dosyası adı: `<taban>.audio.<uzantı>`. */
+    fun companionAudioFileName(baseName: String, extension: String): String {
+        val ext = extension.trim().trimStart('.').lowercase(Locale.ROOT).ifBlank { "m4a" }
+        return "$baseName.audio.$ext"
+    }
+
+    fun isCompanionAudioFileName(fileName: String): Boolean {
+        val lower = fileName.lowercase(Locale.ROOT)
+        val ext = lower.substringAfterLast('.', "")
+        if (ext !in COMPANION_AUDIO_EXTENSIONS && ext !in SUPPORTED_AUDIO_EXTENSIONS) return false
+        val withoutExt = lower.substringBeforeLast('.', "")
+        return withoutExt.endsWith(".audio") || withoutExt.contains(".audio.")
+    }
+
+    fun isCompanionAudioOfBase(fileName: String, baseName: String): Boolean {
+        if (fileName.startsWith("$baseName.audio.", ignoreCase = true)) {
+            val ext = fileName.substringAfterLast('.', "").lowercase(Locale.ROOT)
+            return ext in COMPANION_AUDIO_EXTENSIONS || ext in SUPPORTED_AUDIO_EXTENSIONS
+        }
+        if (fileName.startsWith("$baseName.", ignoreCase = true)) {
+            val ext = fileName.substringAfterLast('.', "").lowercase(Locale.ROOT)
+            return ext in SUPPORTED_AUDIO_EXTENSIONS
+        }
+        return false
+    }
+
+    fun isVideoOfBase(fileName: String, baseName: String): Boolean {
+        if (isCompanionAudioFileName(fileName)) return false
+        val dotIdx = fileName.lastIndexOf('.')
+        if (dotIdx <= 0) return false
+        val stem = fileName.substring(0, dotIdx)
+        val ext = fileName.substring(dotIdx + 1).lowercase(Locale.ROOT)
+        return stem.equals(baseName, ignoreCase = true) && ext in VIDEO_EXTENSIONS
+    }
+
+    /** Gizli çalışma dizini: tamamlanmamış indirmeler MediaScanner ve galeriye görünmez. */
+    fun stagingDir(videoDir: File, mediaId: String): File {
+        val safeMediaId = mediaId.replace(ILLEGAL_CHARS, "_").trim().ifBlank { "media" }
+        return File(videoDir, ".staging_$safeMediaId")
+    }
+
+    fun mimeTypeForVideoExtension(extension: String): String = videoMimeType(extension)
+    fun mimeTypeForAudioExtension(extension: String): String = audioMimeType(extension)
 
     /**
      * Çevrimdışı video oynatımında çoklu ses veya MP4-dışı kodek (ör. E-AC-3) için
@@ -404,8 +451,14 @@ object DownloadExportNaming {
      *
      * @return silinen dosya sayısı
      */
-    fun deleteExports(context: Context, animeTitle: String, episode: Int): Int {
-        val baseName = exportBaseName(animeTitle, episode)
+    fun deleteExports(
+        context: Context,
+        animeTitle: String,
+        episode: Int,
+        season: Int = 1,
+        mediaId: String? = null
+    ): Int {
+        val baseName = exportBaseName(animeTitle, episode, season = season)
         val appContext = context.applicationContext
 
         val roots = buildList {
@@ -418,25 +471,28 @@ object DownloadExportNaming {
                 File(name).extension.lowercase(Locale.ROOT) in SUBTITLE_EXTENSIONS
 
         fun isCompanionAudioOfBase(name: String): Boolean =
-            name.startsWith("$baseName.", ignoreCase = true) &&
-                File(name).extension.lowercase(Locale.ROOT) in SUPPORTED_AUDIO_EXTENSIONS
+            isCompanionAudioOfBase(name, baseName)
 
-        fun isVideoOfBase(name: String): Boolean {
-            val f = File(name)
-            return f.nameWithoutExtension.equals(baseName, ignoreCase = true) &&
-                f.extension.lowercase(Locale.ROOT) in VIDEO_EXTENSIONS
-        }
+        fun isVideoOfBase(name: String): Boolean =
+            isVideoOfBase(name, baseName)
 
         val deletedPaths = ArrayList<String>()
         var removed = 0
         for (root in roots) {
+            val videoFolder = File(root, "Video")
             // Video klasörü: video + metadata + yan sesler + altyazılar
-            removed += deleteMatching(File(root, "Video"), deletedPaths) { name ->
+            removed += deleteMatching(videoFolder, deletedPaths) { name ->
                 isVideoOfBase(name) ||
                     name.equals(metadataFileName(baseName), ignoreCase = true) ||
                     name.equals(journalFileName(baseName), ignoreCase = true) ||
                     isCompanionAudioOfBase(name) ||
                     isSubtitleOfBase(name)
+            }
+            if (!mediaId.isNullOrBlank()) {
+                val stage = stagingDir(videoFolder, mediaId)
+                if (stage.exists()) {
+                    runCatching { stage.deleteRecursively() }
+                }
             }
             // Eski sürümlerin ayrı Subtitles klasörü (geriye dönük temizlik)
             removed += deleteMatching(File(root, "Subtitles"), deletedPaths) { name -> isSubtitleOfBase(name) }
@@ -454,6 +510,9 @@ object DownloadExportNaming {
         Log.i(TAG, "Dışa aktarılan dosyalar silindi: $removed dosya (taban: $baseName)")
         return removed
     }
+
+    fun deleteExports(context: Context, animeTitle: String, episode: Int, mediaId: String?): Int =
+        deleteExports(context, animeTitle, episode, season = 1, mediaId = mediaId)
 
     private inline fun deleteMatching(
         dir: File,

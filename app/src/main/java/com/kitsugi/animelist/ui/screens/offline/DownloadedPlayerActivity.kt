@@ -57,12 +57,23 @@ class DownloadedPlayerActivity : ComponentActivity() {
                         titleHint = null
                     )
                 } else {
+                    val fileParams = if (data.scheme.equals("file", ignoreCase = true)) {
+                        data.path?.let { filePath ->
+                            com.kitsugi.animelist.core.player.OfflinePlaybackHelper.resolveFilePlaybackParams(
+                                videoFile = java.io.File(filePath),
+                                fallbackTitle = filename
+                            )
+                        }
+                    } else {
+                        null
+                    }
                     KitsugiFullscreenPlayerActivity.startWithStreamUrls(
                         context = this,
-                        videoUrl = data.toString(),
-                        title = filename,
+                        videoUrl = fileParams?.videoUri ?: data.toString(),
+                        audioUrl = fileParams?.audioUri,
+                        title = fileParams?.title ?: filename,
                         headers = emptyMap(),
-                        subtitles = emptyList()
+                        subtitles = fileParams?.subtitles ?: emptyList()
                     )
                 }
             } else {

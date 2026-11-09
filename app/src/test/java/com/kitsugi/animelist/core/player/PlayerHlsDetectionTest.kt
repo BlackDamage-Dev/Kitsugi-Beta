@@ -113,5 +113,10 @@ class PlayerHlsDetectionTest {
         )
         // Uzantısız ama bilinen HLS CDN'i → progressive sayılıp Range ile parçalanmamalı
         assertTrue(PlayerMediaSourceFactory.isHlsUrl("https://rapidrame.com/e/lozcj87hjrh6fuof"))
+
+        // Yerel indirilen dosyalar (başlıkta hdfilmcehennemi / filmmakinesi / stream geçse bile!) ASLA HLS sayılmamalı
+        assertFalse(PlayerMediaSourceFactory.isHlsUrl("file:///storage/emulated/0/Download/Kitsugi/Video/HDFilmCehennemi_Film.ts"))
+        assertFalse(PlayerMediaSourceFactory.isHlsUrl("file:///storage/emulated/0/Download/Kitsugi/Video/FilmMakinesi_Bölüm_1.mp4"))
+        assertFalse(PlayerMediaSourceFactory.isHlsUrl("content://com.android.providers.downloads/stream/999"))
     }
 }

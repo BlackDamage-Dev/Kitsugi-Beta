@@ -142,7 +142,9 @@ class KitsugiCdnJwExtractor(
             // Keep HLS renditions inside the active video. Emitting child URLs as
             // sources makes autoplay choose a fixed variant and hides the other
             // resolutions (and potentially alternate audio/subtitles) from the player.
-            if (adaptive || listText.lineSequence().any { it.trim().startsWith("#EXT-X-MEDIA:") }) return fallback
+            if (adaptive || listText.lineSequence().any { it.trim().startsWith("#EXT-X-MEDIA:") } ||
+                com.kitsugi.animelist.core.download.HlsManifestParser.hasDetachedAudioRendition(listText)
+            ) return fallback
             val links = variants.map { variant ->
                 val streamOrigin = originOf(variant.url)
                 val streamHeaders = if (streamOrigin != null && streamOrigin != originOf(playlistUrl)) {

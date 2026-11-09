@@ -2398,9 +2398,8 @@ class MpvPlayerEngine(
             }
 
             runCatching {
-
-                view.mpv.command("audio-add", track.url, flags, label, track.lang.orEmpty())
-
+                val resolvedTrackUrl = if (track.url.startsWith("file://")) track.url.removePrefix("file://") else track.url
+                view.mpv.command("audio-add", resolvedTrackUrl, flags, label, track.lang.orEmpty())
             }.onFailure {
 
                 Log.w(TAG, "audio-add başarısız ($label): ${it.message}")

@@ -210,10 +210,10 @@ class ParallelRangeDataSource(
     private fun openSingleMode(dataSpec: DataSpec): Long {
         isParallelMode = false
         val bytesOpened = upstream.open(dataSpec)
-        singleBytesRemaining = if (dataSpec.length != androidx.media3.common.C.LENGTH_UNSET.toLong()) {
-            dataSpec.length
-        } else {
-            bytesOpened
+        singleBytesRemaining = when {
+            dataSpec.length != androidx.media3.common.C.LENGTH_UNSET.toLong() -> dataSpec.length
+            bytesOpened != androidx.media3.common.C.LENGTH_UNSET.toLong() && bytesOpened >= 0L -> bytesOpened
+            else -> Long.MAX_VALUE
         }
         return bytesOpened
     }

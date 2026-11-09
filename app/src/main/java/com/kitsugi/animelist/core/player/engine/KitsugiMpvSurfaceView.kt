@@ -42,6 +42,9 @@ class KitsugiMpvSurfaceView @JvmOverloads constructor(
         staleKeys.forEach { key ->
             contentDescriptors.remove(key)?.let { pfd -> runCatching { pfd.close() } }
         }
+        if (url.startsWith("file://")) {
+            return url.removePrefix("file://")
+        }
         val uri = android.net.Uri.parse(url)
         if (uri.scheme != "content") return url
         val descriptor = contentDescriptors.getOrPut(url) {
@@ -615,16 +618,17 @@ class KitsugiMpvSurfaceView @JvmOverloads constructor(
         if (url.isBlank()) return false
         return runCatching {
             // "cached" avoids duplicate re-loads for the same external subtitle.
+            val resolvedSubPath = if (url.startsWith("file://")) url.removePrefix("file://") else url
             val flag = if (select) "cached" else "auto"
             val safeTitle = title?.takeIf { it.isNotBlank() }
             val safeLanguage = language?.takeIf { it.isNotBlank() }
             when {
                 safeTitle != null && safeLanguage != null ->
-                    mpv.command("sub-add", url, flag, safeTitle, safeLanguage)
+                    mpv.command("sub-add", resolvedSubPath, flag, safeTitle, safeLanguage)
                 safeTitle != null ->
-                    mpv.command("sub-add", url, flag, safeTitle)
+                    mpv.command("sub-add", resolvedSubPath, flag, safeTitle)
                 else ->
-                    mpv.command("sub-add", url, flag)
+                    mpv.command("sub-add", resolvedSubPath, flag)
             }
             if (select) mpv.setPropertyBoolean("sub-visibility", true)
             true
