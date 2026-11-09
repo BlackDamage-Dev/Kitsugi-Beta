@@ -46,6 +46,11 @@ import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.abs
 
 /**
+ * İndirme tamamlandı ama dosya bu cihazda oynatılamıyor (desteklenmeyen codec).
+ */
+class UnsupportedMediaException(message: String) : IOException(message)
+
+/**
  * Evrensel bölüm (video+ses) ve bağımsız ses indirme motoru.
  *
  * - Gömülü ve ayrık (`#EXT-X-MEDIA:TYPE=AUDIO`) HLS (`master.txt`, `playlist.txt`, `.m3u8`, uzantısız URL)
@@ -166,13 +171,27 @@ class AnimeDownloader(private val context: Context) {
                 )
             }
 
+            val verification = DownloadVerifier.verify(finalFile)
+            if (!verification.playable) {
+                Log.w(TAG, "İndirilen dosya doğrulanamadı: ${verification.warning} (${verification.details})")
+                runCatching { finalFile.delete() }
+                throw UnsupportedMediaException(
+                    verification.warning ?: KitsugiStrings.get(R.string.indirme_hata_desteklenmeyen_format)
+                )
+            }
+
             onProgress(100, finalFile.length(), finalFile.length(), 0)
             onStatusChanged(AnimeDownload.Status.COMPLETED, finalFile.absolutePath, null)
         } catch (ce: CancellationException) {
             throw ce
         } catch (e: Exception) {
-            Log.e(TAG, "İndirme başarısız (${download.uniqueKey}): ${e.message}", e)
-            onStatusChanged(AnimeDownload.Status.ERROR, null, e.message)
+            val errorMsg = when (e) {
+                is RateLimitedException -> KitsugiStrings.get(R.string.indirme_hata_hiz_siniri, e.message.orEmpty())
+                is UnsupportedMediaException -> e.message ?: KitsugiStrings.get(R.string.indirme_hata_desteklenmeyen_format)
+                else -> e.message
+            }
+            Log.e(TAG, "İndirme başarısız (${download.uniqueKey}): $errorMsg", e)
+            onStatusChanged(AnimeDownload.Status.ERROR, null, errorMsg)
         } finally {
             if (startedP2pForDownload) {
                 runCatching { com.kitsugi.animelist.core.p2p.P2pStreamingEngine.stopStream() }
@@ -769,6 +788,11 @@ class AnimeDownloader(private val context: Context) {
         var lastWrittenInitKey: String? = null
         var lastEmitMs = 0L
 
+        val sampleUrl = media.segments.firstOrNull()?.url.orEmpty()
+        val policy = HlsPolicySelector.forUrl(sampleUrl)
+        val concurrency = if (policy.minRequestIntervalMs > 100L) 1 else SEGMENT_CONCURRENCY
+        val gate = Semaphore(concurrency)
+
         BufferedOutputStream(FileOutputStream(destFile, false), 128 * 1024).use { out ->
             for (batch in media.segments.chunked(SEGMENT_BATCH_SIZE)) {
                 currentCoroutineContext().ensureActive()
@@ -799,11 +823,13 @@ class AnimeDownloader(private val context: Context) {
                     }
                 }
 
-                val gate = Semaphore(SEGMENT_CONCURRENCY)
                 val fetchedBatch = coroutineScope {
                     batch.map { seg ->
                         async {
                             gate.withPermit {
+                                if (policy.minRequestIntervalMs > 0L) {
+                                    delay(policy.minRequestIntervalMs)
+                                }
                                 var data = http.fetchBytes(seg.url, extraHeaders, seg.byteRange)
                                 val enc = seg.encryption
                                 if (enc != null && enc.isAes128 && !enc.keyUrl.isNullOrBlank()) {

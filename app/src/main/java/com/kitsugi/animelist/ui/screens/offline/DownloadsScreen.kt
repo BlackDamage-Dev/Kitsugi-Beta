@@ -2561,6 +2561,17 @@ internal fun DownloadItemRow(
     var isExpanded by remember { mutableStateOf(true) }
     var isAudiosExpanded by remember { mutableStateOf(true) }
 
+    // Hız sınırı sonrası planlanan yeniden deneme geri sayımı için saniyelik saat.
+    val hasScheduledRetry = download.status == AnimeDownload.Status.QUEUE &&
+        (download.retryAtMs ?: 0L) > 0L
+    var nowTick by remember(download.retryAtMs) { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(hasScheduledRetry, download.retryAtMs) {
+        while (hasScheduledRetry && (download.retryAtMs ?: 0L) > System.currentTimeMillis()) {
+            delay(1_000L)
+            nowTick = System.currentTimeMillis()
+        }
+    }
+
     val mediaId = remember(download.animeId, download.animeTitle, download.episode) {
         "${resolveSafeAnimeId(download.animeId, download.animeTitle)}_ep${download.episode}"
     }
@@ -2818,22 +2829,33 @@ internal fun DownloadItemRow(
                     }
 
                     AnimeDownload.Status.QUEUE -> {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
+                        val retryAt = download.retryAtMs
+                        if (retryAt != null && retryAt > nowTick) {
+                            val secondsLeft = ((retryAt - nowTick) / 1000L).coerceAtLeast(1L).toInt()
                             Text(
-                                text = stringResource(R.string.inline_queued_195de15),
-                                color = KitsugiColors.TextMuted,
-                                fontSize = 12.sp
+                                text = stringResource(R.string.indirme_devam_edecek_sn, secondsLeft),
+                                color = KitsugiColors.AccentPurple,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
                             )
-                            // Kuyruk önceliği: sıradaki işi yukarı/aşağı taşı
-                            if (onMoveUp != null || onMoveDown != null) {
-                                QueueOrderButtons(
-                                    onMoveUp = onMoveUp,
-                                    onMoveDown = onMoveDown,
-                                    accentColor = accentColor
+                        } else {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    text = stringResource(R.string.inline_queued_195de15),
+                                    color = KitsugiColors.TextMuted,
+                                    fontSize = 12.sp
                                 )
+                                // Kuyruk önceliği: sıradaki işi yukarı/aşağı taşı
+                                if (onMoveUp != null || onMoveDown != null) {
+                                    QueueOrderButtons(
+                                        onMoveUp = onMoveUp,
+                                        onMoveDown = onMoveDown,
+                                        accentColor = accentColor
+                                    )
+                                }
                             }
                         }
                     }

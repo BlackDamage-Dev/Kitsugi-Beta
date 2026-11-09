@@ -6265,6 +6265,22 @@
     <string name="mayis">May</string>
     <string name="resim_hazirlaniyor">Preparing image…</string>
     <string name="indirme_basarisiz_oldu">Download failed.</string>
+
+    <!-- Download errors (source rate limit / 429) -->
+    <string name="indirme_hata_hiz_siniri">Source rate limit (HTTP 429). %1$s</string>
+    <string name="indirme_hiz_siniri_bekleme_sn">Retry in about %1$d s.</string>
+    <string name="indirme_hata_canli_yayin">This is a live/incomplete stream and cannot be downloaded.</string>
+    <string name="indirme_hata_sifreleme">The stream uses an unsupported encryption method (SAMPLE-AES) and cannot be downloaded.</string>
+    <string name="indirme_hata_erisim_yok">Source denied access (HTTP 403/404). The link may have expired; refresh the source and retry.</string>
+    <string name="indirme_hata_disk_dolu">Not enough free space on the device.</string>
+    <string name="indirme_hata_http">Server error: %1$s</string>
+    <string name="indirme_hata_genel">Download failed: %1$s</string>
+    <string name="indirme_hata_genel_bilinmiyor">Download failed (unknown error).</string>
+    <string name="indirme_hata_desteklenmeyen_format">The downloaded file cannot be played on this device (unsupported video/audio format). Try another source or quality.</string>
+    <string name="indirme_format_uyarisi">Device compatibility: %1$s</string>
+
+    <string name="indirme_devam_edecek_sn">Source throttled — resuming in %1$d s</string>
+    <string name="indirme_kaldigi_yerden">Resuming from where it left off</string>
     <string name="dosya_kaydedilemedi_depolama_alanina_erisilemiyor">File could not be saved: Storage is not accessible.</string>
     <string name="resim_indirildi">Image Downloaded</string>
     <string name="yayinda_5231d5c">airing</string>

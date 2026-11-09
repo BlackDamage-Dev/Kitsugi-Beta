@@ -155,7 +155,10 @@ class StreamDownloadHttpClient(
             val req = buildGetRequest(url, headers, byteRange = null)
             client.newCall(req).execute().use { resp ->
                 if (!resp.isSuccessful) {
-                    throw HttpStatusException(resp.code, "Manifest alınamadı: HTTP ${resp.code}")
+                    val retryAfter = HlsDownloadPolicy.parseRetryAfterMs(
+                        resp.header("Retry-After") ?: resp.header("retry-after")
+                    )
+                    throw HttpStatusException(resp.code, "Manifest alınamadı: HTTP ${resp.code}", retryAfter)
                 }
                 val finalUrl = resp.request.url.toString()
                 val text = resp.body?.string() ?: throw IOException("Boş manifest gövdesi")
@@ -176,7 +179,10 @@ class StreamDownloadHttpClient(
             val req = buildGetRequest(url, headers, byteRange = byteRange)
             client.newCall(req).execute().use { resp ->
                 if (!resp.isSuccessful) {
-                    throw HttpStatusException(resp.code, "Segment alınamadı: HTTP ${resp.code}")
+                    val retryAfter = HlsDownloadPolicy.parseRetryAfterMs(
+                        resp.header("Retry-After") ?: resp.header("retry-after")
+                    )
+                    throw HttpStatusException(resp.code, "Segment alınamadı: HTTP ${resp.code}", retryAfter)
                 }
                 resp.body?.bytes() ?: throw IOException("Boş segment gövdesi")
             }
@@ -416,6 +422,17 @@ class StreamDownloadHttpClient(
                 if (e is HttpStatusException && e.code in listOf(404, 410)) {
                     throw e
                 }
+                // 429 / 503 / 509: hız sınırı
+                if (e is HttpStatusException && (e.code == 429 || e.code == 503 || e.code == 509)) {
+                    val waitMs = e.retryAfterMs ?: (1_500L * (1L shl (attempt - 1).coerceAtMost(4))).coerceIn(1_000L, 30_000L)
+                    val jitter = kotlin.random.Random.nextLong(0, 300L)
+                    val totalWait = waitMs + jitter
+                    if (attempt >= maxRetries) {
+                        throw RateLimitedException(e.code, totalWait, e.message.orEmpty())
+                    }
+                    delay(totalWait)
+                    continue
+                }
                 if (attempt < maxRetries) {
                     delay(400L * attempt)
                 }
@@ -424,7 +441,11 @@ class StreamDownloadHttpClient(
         throw lastError ?: IOException("Ağ isteği başarısız oldu")
     }
 
-    class HttpStatusException(val code: Int, message: String) : IOException(message)
+    class HttpStatusException(
+        val code: Int,
+        message: String,
+        val retryAfterMs: Long? = null
+    ) : IOException(message)
 
     companion object {
         const val META_MASTER_URL_HEADER = "X-Kitsugi-Master-Url"

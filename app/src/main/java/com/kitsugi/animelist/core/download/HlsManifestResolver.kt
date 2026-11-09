@@ -333,21 +333,25 @@ object HlsManifestResolver {
 
     fun selectBestVariant(
         master: ParsedPlaylist.Master,
-        preferredMaxHeight: Int? = null
+        preferredMaxHeight: Int? = null,
+        codecFilter: (String?) -> Boolean = DeviceCodecSupport::isCodecListSupported
     ): VariantStream? {
         if (master.variants.isEmpty()) return null
+        val supportedVariants = master.variants.filter { codecFilter(it.codecs) }
+        val pool = if (supportedVariants.isNotEmpty()) supportedVariants else master.variants
+
         val comparator = compareBy<VariantStream>(
             { it.height },
             { if (it.averageBandwidth > 0) it.averageBandwidth else it.bandwidth },
             { it.width }
         )
         if (preferredMaxHeight != null && preferredMaxHeight > 0) {
-            val capped = master.variants.filter { it.height in 1..preferredMaxHeight }
+            val capped = pool.filter { it.height in 1..preferredMaxHeight }
             if (capped.isNotEmpty()) {
                 return capped.maxWithOrNull(comparator)
             }
         }
-        return master.variants.maxWithOrNull(comparator)
+        return pool.maxWithOrNull(comparator)
     }
 
     fun audioRenditionsForVariant(

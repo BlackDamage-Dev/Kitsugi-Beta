@@ -69,7 +69,20 @@ data class AnimeDownload(
     val p2pTrackers: List<String>? = emptyList(),
 
     /** Kullanıcıya gösterilen son hata nedeni (yalnızca [Status.ERROR]). */
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    /**
+     * Kaynak hız sınırı (HTTP 429) nedeniyle durdurulduysa, tekrar denenebilecek
+     * en erken zaman (epoch ms). UI "birazdan devam edecek" bilgisini gösterebilir.
+     */
+    val retryAtMs: Long? = null,
+    /**
+     * Hız sınırı nedeniyle otomatik yapılan yeniden deneme sayısı.
+     *
+     * Sonsuz döngüyü engeller: kaynak sürekli 429 veriyorsa (ör. IP bloklu)
+     * 3 otomatik denemeden sonra iş `ERROR` olarak kalır ve kullanıcıya neden
+     * gösterilir.
+     */
+    val autoRetryCount: Int = 0
 ) {
     enum class Status {
         QUEUE,
@@ -168,7 +181,9 @@ data class AnimeDownload(
         p2pInfoHash = p2pInfoHash,
         p2pFileIdx = p2pFileIdx,
         p2pTrackers = p2pTrackers ?: emptyList(),
-        errorMessage = errorMessage
+        errorMessage = errorMessage,
+        retryAtMs = retryAtMs,
+        autoRetryCount = autoRetryCount
     )
 
     /**

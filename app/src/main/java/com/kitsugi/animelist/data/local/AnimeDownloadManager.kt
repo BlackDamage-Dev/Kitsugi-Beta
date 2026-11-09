@@ -415,7 +415,13 @@ object AnimeDownloadManager {
     fun resumeByKey(context: Context, uniqueKey: String) {
         val current = _downloads.value.map {
             if (it.uniqueKey == uniqueKey) {
-                it.copy(status = AnimeDownload.Status.QUEUE, errorMessage = null, progress = 0)
+                it.copy(
+                    status = AnimeDownload.Status.QUEUE,
+                    errorMessage = null,
+                    retryAtMs = null,
+                    autoRetryCount = 0,
+                    progress = 0
+                )
             } else it
         }
         saveAndEmit(current)
@@ -550,7 +556,8 @@ object AnimeDownloadManager {
         uniqueKey: String,
         status: AnimeDownload.Status,
         localPath: String? = null,
-        errorMessage: String? = null
+        errorMessage: String? = null,
+        retryAtMs: Long? = null
     ) {
         val current = _downloads.value.map {
             if (it.uniqueKey == uniqueKey) {
@@ -558,7 +565,8 @@ object AnimeDownloadManager {
                     status = status,
                     progress = if (status == AnimeDownload.Status.COMPLETED) 100 else it.progress,
                     localPath = localPath ?: it.localPath,
-                    errorMessage = errorMessage
+                    errorMessage = if (status == AnimeDownload.Status.ERROR) errorMessage else null,
+                    retryAtMs = if (status == AnimeDownload.Status.QUEUE) retryAtMs else null
                 )
             } else it
         }
@@ -569,18 +577,57 @@ object AnimeDownloadManager {
         animeId: String,
         episode: Int,
         status: AnimeDownload.Status,
-        detail: String? = null
+        detail: String? = null,
+        retryAtMs: Long? = null
     ) {
         updateStatusByKey(
             uniqueKey = AnimeDownload.videoKey(animeId, episode),
             status = status,
             localPath = if (status == AnimeDownload.Status.COMPLETED) detail else null,
-            errorMessage = if (status == AnimeDownload.Status.ERROR) detail else null
+            errorMessage = if (status == AnimeDownload.Status.ERROR) detail else null,
+            retryAtMs = retryAtMs
         )
     }
 
     fun getNextDownload(): AnimeDownload? {
-        return _downloads.value.firstOrNull { it.status == AnimeDownload.Status.QUEUE }
+        val now = System.currentTimeMillis()
+        return _downloads.value.firstOrNull {
+            it.status == AnimeDownload.Status.QUEUE && (it.retryAtMs == null || it.retryAtMs <= now)
+        }
+    }
+
+    /** Hız sınırı sonrası işi "birazdan devam edecek" durumuna alır. */
+    fun scheduleRetryByKey(uniqueKey: String, waitMs: Long) {
+        val retryAt = System.currentTimeMillis() + waitMs.coerceAtLeast(1_000L)
+        val current = _downloads.value.map {
+            if (it.uniqueKey == uniqueKey) {
+                it.copy(
+                    status = AnimeDownload.Status.QUEUE,
+                    retryAtMs = retryAt,
+                    autoRetryCount = it.autoRetryCount + 1,
+                    errorMessage = null
+                )
+            } else it
+        }
+        saveAndEmit(current)
+    }
+
+    fun scheduleRetry(animeId: String, episode: Int, waitMs: Long) {
+        scheduleRetryByKey(AnimeDownload.videoKey(animeId, episode), waitMs)
+    }
+
+    /** Kullanıcı yeniden denerse otomatik deneme sayacı sıfırlanır. */
+    fun clearRetryStateByKey(uniqueKey: String) {
+        val current = _downloads.value.map {
+            if (it.uniqueKey == uniqueKey && (it.autoRetryCount != 0 || it.retryAtMs != null)) {
+                it.copy(autoRetryCount = 0, retryAtMs = null, errorMessage = null)
+            } else it
+        }
+        if (current != _downloads.value) saveAndEmit(current)
+    }
+
+    fun clearRetryState(animeId: String, episode: Int) {
+        clearRetryStateByKey(AnimeDownload.videoKey(animeId, episode))
     }
 
     /**

@@ -6267,6 +6267,22 @@ Eklentiler ekranından eklenti etkinleştirin.</string>
     <string name="mayis">Mayıs</string>
     <string name="resim_hazirlaniyor">Resim hazırlanıyor…</string>
     <string name="indirme_basarisiz_oldu">İndirme başarısız oldu.</string>
+
+    <!-- İndirme hataları (kaynak hız sınırı / 429) -->
+    <string name="indirme_hata_hiz_siniri">Kaynak hız sınırı (HTTP 429). %1$s</string>
+    <string name="indirme_hiz_siniri_bekleme_sn">Yaklaşık %1$d sn sonra devam edin.</string>
+    <string name="indirme_hata_canli_yayin">Bu akış canlı/bitmemiş bir yayın olduğu için indirilemez.</string>
+    <string name="indirme_hata_sifreleme">Akış desteklenmeyen bir şifreleme kullanıyor (SAMPLE-AES). İndirilemez.</string>
+    <string name="indirme_hata_erisim_yok">Kaynak erişimi reddetti (HTTP 403/404). Bağlantı süresi dolmuş olabilir; kaynağı yenileyip tekrar deneyin.</string>
+    <string name="indirme_hata_disk_dolu">Cihazda yeterli boş alan yok.</string>
+    <string name="indirme_hata_http">Sunucu hatası: %1$s</string>
+    <string name="indirme_hata_genel">İndirme başarısız: %1$s</string>
+    <string name="indirme_hata_genel_bilinmiyor">İndirme başarısız oldu (bilinmeyen hata).</string>
+    <string name="indirme_hata_desteklenmeyen_format">İndirilen dosya bu cihazda oynatılamıyor (desteklenmeyen video/ses formatı). Farklı bir kaynak veya kalite deneyin.</string>
+    <string name="indirme_format_uyarisi">Cihaz uyumu: %1$s</string>
+
+    <string name="indirme_devam_edecek_sn">Kaynak yavaşlattı — %1$d sn sonra devam edecek</string>
+    <string name="indirme_kaldigi_yerden">Kaldığı yerden devam ediyor</string>
     <string name="dosya_kaydedilemedi_depolama_alanina_erisilemiyor">Dosya kaydedilemedi: Depolama alanına erişilemiyor.</string>
     <string name="resim_indirildi">Resim İndirildi</string>
     <string name="yayinda_5231d5c">yayında</string>

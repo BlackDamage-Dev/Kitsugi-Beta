@@ -228,8 +228,8 @@ object DownloadExportNaming {
     }
 
     /** Uzantısız taban ad (`Naruto_Bölüm_12`) — diğer tüm dosyalar bu adla başlar. */
-    fun exportBaseName(animeTitle: String, episode: Int): String =
-        exportFileName(animeTitle, episode, "mp4").removeSuffix(".mp4")
+    fun exportBaseName(animeTitle: String, episode: Int, extension: String = "mp4"): String =
+        exportFileName(animeTitle, episode, extension).substringBeforeLast('.')
 
     /**
      * Bağımsız ses indirmesi dosya adı (`Download/Kitsugi/Audio` altına yazılır):
