@@ -306,6 +306,12 @@ object DownloadExportNaming {
     /** Poster dosyası: `<taban>.jpg`. */
     fun posterFileName(baseName: String): String = "$baseName.jpg"
 
+    /**
+     * T-IND-2 segment defteri: `<taban>.mp4.jl`. İndirme bitince silinir; hata durumunda
+     * devam ettirme için korunur ve bölüm silinirken burada temizlenir.
+     */
+    fun journalFileName(baseName: String): String = "$baseName.mp4.jl"
+
     fun videoMimeType(extension: String): String = when (extension.lowercase(Locale.ROOT).trimStart('.')) {
         "mkv" -> "video/x-matroska"
         "webm" -> "video/webm"
@@ -428,6 +434,7 @@ object DownloadExportNaming {
             removed += deleteMatching(File(root, "Video"), deletedPaths) { name ->
                 isVideoOfBase(name) ||
                     name.equals(metadataFileName(baseName), ignoreCase = true) ||
+                    name.equals(journalFileName(baseName), ignoreCase = true) ||
                     isCompanionAudioOfBase(name) ||
                     isSubtitleOfBase(name)
             }

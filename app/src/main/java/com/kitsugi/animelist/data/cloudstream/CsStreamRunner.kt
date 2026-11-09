@@ -7316,6 +7316,15 @@ object CsStreamRunner {
 
         }
 
+        // T-IND-1 (2026-11-09): embed adresini akışlara damgala — indirme sırasında CDN host'u
+        // ölürse aynı çözücü zinciri bu adresten yeniden çalıştırılabilsin (DownloadStreamResolver).
+        for (i in resolvedStreams.indices) {
+            val s = resolvedStreams[i]
+            if (s.embedUrl.isNullOrBlank()) {
+                resolvedStreams[i] = s.copy(embedUrl = resolvedUrl, embedReferer = referer)
+            }
+        }
+
         return resolvedStreams
 
     }

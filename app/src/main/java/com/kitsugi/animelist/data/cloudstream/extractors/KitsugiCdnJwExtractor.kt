@@ -200,7 +200,11 @@ class KitsugiCdnJwExtractor(
         val REGISTRATIONS: List<Pair<String, String>> = listOf(
             "KitsugiCloseLoad" to "https://closeload.",
             "KitsugiRapidrame" to "https://rapidrame.",
-            "KitsugiRplayer" to "https://rplayer."
+            "KitsugiRplayer" to "https://rplayer.",
+            "KitsugiHdfcEmbed" to "https://hdfilmcehennemi.mobi",
+            "KitsugiFmRapid" to "https://rapid.filmmakinesi.to",
+            "KitsugiHdfcRplayerNl" to "https://www.hdfilmcehennemi.nl/rplayer/",
+            "KitsugiHdfcRplayerBare" to "https://hdfilmcehennemi.nl/rplayer/"
         )
 
         /**

@@ -113,6 +113,29 @@ object KitsugiHttpClient {
             .build()
     }
 
+    /**
+     * T-IND-1 (2026-11-09): Video indirme hattının ÖZEL istemcisi.
+     *
+     * NEDEN: [client] üzerindeki [RetryInterceptor] 429/5xx/ağ hatasında isteği anında
+     * (≤5 sn Retry-After üstüyle) 2 kez daha gönderiyordu. İndiricinin kendi segment retry'ı
+     * ile çarpılınca tek segment için 9'a kadar istek kısa pencerede çıkıp CDN hız sınırını
+     * (429) daha da büyütüyordu ("segment alınamadı: 429" sarmalı). İndirme hattında yeniden
+     * deneme kararını tamamen [com.kitsugi.animelist.core.download.AnimeDownloader] +
+     * [com.kitsugi.animelist.core.download.DownloadResilience] verir: kaynak politikasına
+     * göre üstel backoff, Retry-After ve tempo (pacing) uygulanır.
+     *
+     * readTimeout uzun: yavaş CDN segmentlerinde 30 sn okuma sınırı indirmeyi ortadan
+     * kesiyordu; 120 sn verilir (callTimeout yok — büyük dosyalar dakikalarca sürebilir).
+     */
+    val downloadClient: OkHttpClient by lazy {
+        client.newBuilder()
+            .apply { interceptors().removeAll { it is RetryInterceptor } }
+            .connectTimeout(20, TimeUnit.SECONDS)
+            .readTimeout(120, TimeUnit.SECONDS)
+            .writeTimeout(30, TimeUnit.SECONDS)
+            .build()
+    }
+
 
     val client: OkHttpClient by lazy {
         OkHttpClient.Builder()

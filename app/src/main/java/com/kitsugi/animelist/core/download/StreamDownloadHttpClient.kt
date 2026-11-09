@@ -92,7 +92,7 @@ class StreamDownloadHttpClient(
                 .followSslRedirects(true)
                 .build()
         }.getOrElse {
-            KitsugiHttpClient.client.newBuilder()
+            KitsugiHttpClient.downloadClient.newBuilder()
                 .connectTimeout(25, TimeUnit.SECONDS)
                 .readTimeout(60, TimeUnit.SECONDS)
                 .build()

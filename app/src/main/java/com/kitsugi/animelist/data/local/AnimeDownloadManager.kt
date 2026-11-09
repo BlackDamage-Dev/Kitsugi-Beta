@@ -289,7 +289,9 @@ object AnimeDownloadManager {
         qualityValue: Int? = null,
         p2pInfoHash: String? = null,
         p2pFileIdx: Int? = null,
-        p2pTrackers: List<String> = emptyList()
+        p2pTrackers: List<String> = emptyList(),
+        recoverUrl: String? = null,
+        recoverReferer: String? = null
     ) {
         val newDownload = AnimeDownload(
             animeId = animeId,
@@ -308,6 +310,8 @@ object AnimeDownloadManager {
             source = source,
             streamTitle = streamTitle,
             streamName = streamName,
+            recoverUrl = recoverUrl,
+            recoverReferer = recoverReferer,
             downloadKind = DownloadKind.VIDEO,
             externalAudioUrl = externalAudioUrl ?: externalAudioTracks.firstOrNull()?.url,
             externalAudioTracks = externalAudioTracks,

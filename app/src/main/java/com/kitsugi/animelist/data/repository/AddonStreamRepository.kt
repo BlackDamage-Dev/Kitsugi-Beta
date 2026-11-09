@@ -568,7 +568,16 @@ data class StreamSource(
      * Kaynağın kendi dosya adı (Stremio `behaviorHints.filename`). Torrentio gibi eklentiler
      * gerçek dosya adını burada verir; başlık metni kısaltılmış olabilir.
      */
-    val fileName: String? = null
+    val fileName: String? = null,
+
+    /**
+     * T-IND-1 (2026-11-09): Akışın çözüldüğü asıl embed/oynatıcı sayfası.
+     * Rotasyonlu CDN host'ları (srvN.cdnimagesNNNN.cyou vb.) indirme kuyrukta beklerken
+     * öldüğünde, indirme motoru (DownloadStreamResolver) bu adresi yeniden çözerek
+     * taze bir link üretebilir. Yalnızca CS embed zincirinden gelen akışlarda doludur.
+     */
+    val embedUrl: String? = null,
+    val embedReferer: String? = null
 
 ) : java.io.Serializable {
 

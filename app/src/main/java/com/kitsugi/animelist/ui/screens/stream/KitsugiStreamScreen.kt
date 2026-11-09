@@ -542,7 +542,9 @@ fun KitsugiStreamScreen(
                         // İndirilenler ekranı da bu metinleri gösteriyor; geçmişle aynı
                         // şekilde temizlenmiş hâli kaydedilir.
                         streamTitle = com.kitsugi.animelist.utils.StreamLabelSanitizer.sanitize(source.title),
-                        streamName = com.kitsugi.animelist.utils.StreamLabelSanitizer.sanitize(source.name)
+                        streamName = com.kitsugi.animelist.utils.StreamLabelSanitizer.sanitize(source.name),
+                        recoverUrl = source.embedUrl,
+                        recoverReferer = source.embedReferer
                     )
                     android.widget.Toast.makeText(context, KitsugiStrings.get(R.string.indirme_kuyruga_eklendi), android.widget.Toast.LENGTH_SHORT).show()
                     context.startActivity(

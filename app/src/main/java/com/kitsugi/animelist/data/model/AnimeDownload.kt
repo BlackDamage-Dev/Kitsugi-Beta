@@ -68,6 +68,15 @@ data class AnimeDownload(
     val p2pFileIdx: Int? = null,
     val p2pTrackers: List<String>? = emptyList(),
 
+    /**
+     * T-IND-1 (2026-11-09): bu indirmenin video adresinin çözüldüğü EMBED/oynatıcı sayfası.
+     * CDN host'u ölürse (Unable to resolve host / 404 / 429 sarmalı) indirme hattı bu
+     * adresten taze link üretir ([com.kitsugi.animelist.core.download.DownloadStreamResolver]).
+     */
+    val recoverUrl: String? = null,
+    /** Embed sayfasının referer'ı (film/bölüm sayfası). */
+    val recoverReferer: String? = null,
+
     /** Kullanıcıya gösterilen son hata nedeni (yalnızca [Status.ERROR]). */
     val errorMessage: String? = null,
     /**
@@ -181,6 +190,8 @@ data class AnimeDownload(
         p2pInfoHash = p2pInfoHash,
         p2pFileIdx = p2pFileIdx,
         p2pTrackers = p2pTrackers ?: emptyList(),
+        recoverUrl = recoverUrl,
+        recoverReferer = recoverReferer,
         errorMessage = errorMessage,
         retryAtMs = retryAtMs,
         autoRetryCount = autoRetryCount
