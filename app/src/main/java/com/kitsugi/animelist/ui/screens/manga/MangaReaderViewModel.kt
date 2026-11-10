@@ -1,5 +1,6 @@
 package com.kitsugi.animelist.ui.screens.manga
 
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 
 import android.content.Context
@@ -18,6 +19,7 @@ import com.kitsugi.animelist.data.manga.model.SourceHealthStatus
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import com.kitsugi.animelist.data.manga.loader.MangaCache
@@ -55,8 +57,25 @@ class MangaReaderViewModel(
     private val settingsDataStore = SettingsDataStore(context)
     private val sourceStateStore = MangaSourceStateStore(context)
     private val bookmarkStore = MangaBookmarkStore(context)
+    private val seriesStore = com.kitsugi.animelist.data.manga.MangaSeriesPreferencesStore(context)
     private val speechController = com.kitsugi.animelist.data.manga.MangaNovelSpeechController(context)
     val speechState = speechController.state
+    val speechHighlightState = speechController.highlightState
+    val speechAvailableVoices = speechController.availableVoices
+    val speechSelectedVoice = speechController.selectedVoice
+
+    init {
+        speechController.onNextChapterRequested = {
+            viewModelScope.launch(Dispatchers.Main) {
+                goToNextChapter()
+            }
+        }
+        speechController.onPreviousChapterRequested = {
+            viewModelScope.launch(Dispatchers.Main) {
+                goToPreviousChapter()
+            }
+        }
+    }
     val loader = MangaPageLoaderV2(
         context = context, source = source, cache = cache,
         archiveFile = (source as? com.kitsugi.animelist.data.manga.LocalMangaArchiveSource)?.archiveFile?.takeIf { source.isArchive },
@@ -84,6 +103,7 @@ class MangaReaderViewModel(
         val fitMode: MangaFitMode = MangaFitMode.FitScreen,
         val customBrightness: Float = 1.0f,
         val readerOptions: MangaReaderOptions = MangaReaderOptions(),
+        val isCustomForSeries: Boolean = false,
         val bookmarks: List<MangaBookmark> = emptyList(),
         val isLoadingChapters: Boolean = false,
         val error: String? = null,
@@ -105,9 +125,33 @@ class MangaReaderViewModel(
 
     private fun observeSettings() {
         viewModelScope.launch {
+            val seriesPrefs = seriesStore.get(mangaDetails.url)
+            val hasCustom = seriesPrefs?.hasCustomSettings == true
+
             settingsDataStore.mangaReaderPreferencesFlow.collect { persisted ->
                 if (pendingPreferenceWrites > 0) return@collect
                 val preferences = persisted.sanitized()
+
+                if (_uiState.value.isCustomForSeries) return@collect
+
+                if (hasCustom && seriesPrefs != null) {
+                    val mode = seriesPrefs.readingMode ?: preferences.readingMode
+                    val options = seriesPrefs.options ?: preferences.options
+                    loader.preloadAhead = options.preloadAhead
+                    loader.keepBehind = 1
+                    _uiState.update {
+                        it.copy(
+                            isCustomForSeries = true,
+                            readingMode = mode,
+                            colorFilterType = seriesPrefs.colorFilter ?: preferences.colorFilter,
+                            fitMode = seriesPrefs.fitMode ?: preferences.fitMode,
+                            customBrightness = preferences.brightness,
+                            readerOptions = options,
+                        )
+                    }
+                    return@collect
+                }
+
                 val shouldAutoSelectWebtoon = !hasAppliedAutomaticMode &&
                     ((preferences.options.autoWebtoon && isWebtoonContent()) || mangaDetails.isNovelContent)
                 hasAppliedAutomaticMode = true
@@ -116,6 +160,7 @@ class MangaReaderViewModel(
                 loader.keepBehind = 1
                 _uiState.update {
                     it.copy(
+                        isCustomForSeries = false,
                         readingMode = mode,
                         colorFilterType = preferences.colorFilter,
                         fitMode = preferences.fitMode,
@@ -202,17 +247,29 @@ class MangaReaderViewModel(
         hasAppliedAutomaticMode = true
         _uiState.update { it.copy(readingMode = mode) }
         loader.preloadAhead = _uiState.value.readerOptions.preloadAhead
-        persistPreference { settingsDataStore.setMangaReadingMode(mode.name) }
+        if (_uiState.value.isCustomForSeries) {
+            persistSeriesPreferences()
+        } else {
+            persistPreference { settingsDataStore.setMangaReadingMode(mode.name) }
+        }
     }
 
     fun setColorFilter(filter: ColorFilterType) {
         _uiState.update { it.copy(colorFilterType = filter) }
-        persistPreference { settingsDataStore.setMangaColorFilter(filter.name) }
+        if (_uiState.value.isCustomForSeries) {
+            persistSeriesPreferences()
+        } else {
+            persistPreference { settingsDataStore.setMangaColorFilter(filter.name) }
+        }
     }
 
     fun setFitMode(fitMode: MangaFitMode) {
         _uiState.update { it.copy(fitMode = fitMode) }
-        persistPreference { settingsDataStore.setMangaFitMode(fitMode.name) }
+        if (_uiState.value.isCustomForSeries) {
+            persistSeriesPreferences()
+        } else {
+            persistPreference { settingsDataStore.setMangaFitMode(fitMode.name) }
+        }
     }
 
     fun setCustomBrightness(brightness: Float) {
@@ -225,8 +282,48 @@ class MangaReaderViewModel(
         val value = options.sanitized()
         if (value.incognito) progressSaveJob?.cancel()
         loader.preloadAhead = value.preloadAhead
+        speechController.setRate(value.novelSpeechRate)
         _uiState.update { it.copy(readerOptions = value) }
-        persistPreference { settingsDataStore.setMangaReaderOptions(value) }
+        if (_uiState.value.isCustomForSeries) {
+            persistSeriesPreferences()
+        } else {
+            persistPreference { settingsDataStore.setMangaReaderOptions(value) }
+        }
+    }
+
+    private fun persistSeriesPreferences() {
+        val state = _uiState.value
+        seriesStore.save(
+            mangaDetails.url,
+            com.kitsugi.animelist.data.manga.MangaSeriesPreferences(
+                hasCustomSettings = true,
+                readingMode = state.readingMode,
+                colorFilter = state.colorFilterType,
+                fitMode = state.fitMode,
+                options = state.readerOptions,
+            )
+        )
+    }
+
+    fun toggleCustomForSeries(enable: Boolean) {
+        if (enable) {
+            persistSeriesPreferences()
+            _uiState.update { it.copy(isCustomForSeries = true) }
+        } else {
+            seriesStore.clear(mangaDetails.url)
+            _uiState.update { it.copy(isCustomForSeries = false) }
+            viewModelScope.launch {
+                val global = settingsDataStore.mangaReaderPreferencesFlow.first().sanitized()
+                _uiState.update {
+                    it.copy(
+                        readingMode = global.readingMode,
+                        colorFilterType = global.colorFilter,
+                        fitMode = global.fitMode,
+                        readerOptions = global.options,
+                    )
+                }
+            }
+        }
     }
 
     private fun persistPreference(write: suspend () -> Unit) {
@@ -244,9 +341,15 @@ class MangaReaderViewModel(
         setReaderOptions(update(_uiState.value.readerOptions))
     }
 
-    fun speakCurrentChapter() {
+    fun speakCurrentChapter(startIndex: Int = 0) {
         val paragraphs = pages.value.flatMap { it.textParagraphs.orEmpty() }
-        speechController.speak(paragraphs, rate = _uiState.value.readerOptions.novelSpeechRate)
+        speechController.speak(
+            paragraphs = paragraphs,
+            rate = _uiState.value.readerOptions.novelSpeechRate,
+            title = mangaDetails.title,
+            chapter = _uiState.value.currentChapter.name,
+            startIndex = startIndex,
+        )
     }
 
     fun toggleSpeechPlayback() {
@@ -258,6 +361,9 @@ class MangaReaderViewModel(
     }
 
     fun stopSpeech() = speechController.stop()
+    fun skipNextSpeech() = speechController.skipNext()
+    fun skipPreviousSpeech() = speechController.skipPrevious()
+    fun setSpeechVoice(name: String?) = speechController.setVoiceByName(name)
 
     fun toggleCurrentPageBookmark() {
         val state = _uiState.value

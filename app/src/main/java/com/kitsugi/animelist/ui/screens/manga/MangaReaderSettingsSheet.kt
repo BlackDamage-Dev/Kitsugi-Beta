@@ -60,11 +60,16 @@ fun MangaReaderSettingsSheet(
     brightness: Float,
     options: MangaReaderOptions,
     hasText: Boolean,
+    isCustomForSeries: Boolean = false,
+    speechVoices: List<android.speech.tts.Voice> = emptyList(),
+    selectedVoice: String? = null,
     onReadingModeChange: (ReadingMode) -> Unit,
     onColorFilterChange: (ColorFilterType) -> Unit,
     onFitModeChange: (MangaFitMode) -> Unit,
     onBrightnessChange: (Float) -> Unit,
     onOptionsChange: (MangaReaderOptions) -> Unit,
+    onToggleCustomForSeries: (Boolean) -> Unit = {},
+    onSelectVoice: (String?) -> Unit = {},
     onDismiss: () -> Unit,
 ) {
     val scrollState = rememberScrollState()
@@ -78,7 +83,34 @@ fun MangaReaderSettingsSheet(
     KitsugiSheetOrDialog(onDismiss = onDismiss, innerColumnScrollState = scrollState) {
         Column(modifier = Modifier.fillMaxWidth().verticalScroll(scrollState).padding(horizontal = 16.dp, vertical = 8.dp)) {
             Text(stringResource(R.string.inline_reader_settings_82b7841), color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(12.dp))
+
+            ReaderSwitch(
+                title = stringResource(R.string.reader_series_custom_title),
+                description = stringResource(R.string.reader_series_custom_desc),
+                checked = isCustomForSeries,
+                onCheckedChange = onToggleCustomForSeries,
+            )
+            if (isCustomForSeries) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    androidx.compose.material3.TextButton(onClick = { onToggleCustomForSeries(false) }) {
+                        Text(
+                            stringResource(R.string.reader_series_reset_to_global),
+                            color = Color(0xFFFF8A80),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+            }
+            androidx.compose.material3.HorizontalDivider(
+                modifier = Modifier.padding(bottom = 10.dp),
+                color = Color.White.copy(alpha = 0.12f)
+            )
+
+            Spacer(Modifier.height(4.dp))
             ReaderChoices(
                 items = tabs.mapIndexed { index, title -> index to title },
                 selected = selectedTab.coerceIn(0, tabs.lastIndex),
@@ -150,6 +182,9 @@ fun MangaReaderSettingsSheet(
                     if (!hasText) ReaderSection("Sayfa Düzeni") {
                         ReaderSwitch("Kenarları Kırp", "Taramalardaki boş beyaz kenarları otomatik temizler", options.cropBorders) {
                             onOptionsChange(options.copy(cropBorders = it))
+                        }
+                        ReaderSwitch(stringResource(R.string.reader_crop_webtoon_title), stringResource(R.string.reader_crop_webtoon_desc), options.cropWebtoonBorders) {
+                            onOptionsChange(options.copy(cropWebtoonBorders = it))
                         }
                         ReaderSwitch("Çift Sayfa", "İki sayfayı yan yana gösterir; yatay LTR/RTL modlarında geçerlidir", options.doublePage) {
                             onOptionsChange(options.copy(doublePage = it))
@@ -242,9 +277,6 @@ fun MangaReaderSettingsSheet(
                         ReaderSlider("Satır Aralığı", options.novelLineHeight / 2.5f, 0.4f..1f, {
                             onOptionsChange(options.copy(novelLineHeight = it * 2.5f))
                         }) { onOptionsChange(options.copy(novelLineHeight = 1.5f)) }
-                        ReaderSlider("Sesli Okuma Hızı", options.novelSpeechRate / 2f, 0.25f..1f, {
-                            onOptionsChange(options.copy(novelSpeechRate = it * 2f))
-                        }) { onOptionsChange(options.copy(novelSpeechRate = 1f)) }
                         ReaderChoices(
                             items = MangaNovelFont.entries.map { it to it.name }, selected = options.novelFontFamily,
                             onSelected = { onOptionsChange(options.copy(novelFontFamily = it)) },
@@ -253,6 +285,47 @@ fun MangaReaderSettingsSheet(
                             items = MangaNovelTextAlign.entries.map { it to it.name }, selected = options.novelTextAlign,
                             onSelected = { onOptionsChange(options.copy(novelTextAlign = it)) },
                         )
+                        ReaderSwitch(
+                            title = stringResource(R.string.manga_bionic_reading),
+                            description = stringResource(R.string.manga_bionic_reading_desc),
+                            checked = options.bionicReading,
+                            onCheckedChange = { onOptionsChange(options.copy(bionicReading = it)) }
+                        )
+                        ReaderSwitch(
+                            title = stringResource(R.string.manga_novel_clock),
+                            description = stringResource(R.string.manga_novel_clock_desc),
+                            checked = options.novelShowBatteryAndClock,
+                            onCheckedChange = { onOptionsChange(options.copy(novelShowBatteryAndClock = it)) }
+                        )
+                    }
+
+                    ReaderSection(stringResource(R.string.tts_notification_channel_name)) {
+                        ReaderSlider(stringResource(R.string.tts_speed_title), options.novelSpeechRate / 2f, 0.25f..1f, {
+                            onOptionsChange(options.copy(novelSpeechRate = it * 2f))
+                        }) { onOptionsChange(options.copy(novelSpeechRate = 1f)) }
+
+                        ReaderSwitch(
+                            title = stringResource(R.string.tts_highlight_sentence),
+                            description = null,
+                            checked = options.novelSpeechHighlight,
+                            onCheckedChange = { onOptionsChange(options.copy(novelSpeechHighlight = it)) }
+                        )
+
+                        if (speechVoices.isNotEmpty()) {
+                            Text(
+                                stringResource(R.string.tts_voice_title),
+                                color = Color.White.copy(0.7f),
+                                fontSize = 12.sp,
+                                modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
+                            )
+                            val voiceItems = listOf(null to stringResource(R.string.tts_voice_default)) +
+                                speechVoices.take(10).map { it.name to (it.locale.displayLanguage.ifBlank { it.name }) }
+                            ReaderChoices(
+                                items = voiceItems,
+                                selected = selectedVoice,
+                                onSelected = onSelectVoice,
+                            )
+                        }
                     }
                 }
             }

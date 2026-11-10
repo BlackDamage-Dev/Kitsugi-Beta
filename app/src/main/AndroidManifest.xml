@@ -274,6 +274,12 @@
             android:foregroundServiceType="mediaPlayback"
             android:exported="false" />
 
+        <!-- Okuyucu sesli okuma (TTS) arkaplan servisi ve medya kontrolü -->
+        <service
+            android:name=".data.manga.MangaSpeechService"
+            android:foregroundServiceType="mediaPlayback"
+            android:exported="false" />
+
         <!-- AnimeDownloadService for background downloading -->
         <service
             android:name=".core.download.AnimeDownloadService"

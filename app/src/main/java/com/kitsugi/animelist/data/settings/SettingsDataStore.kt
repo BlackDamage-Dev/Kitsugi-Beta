@@ -424,6 +424,10 @@ class SettingsDataStore(
                         novelFontFamily = value.optString("novelFontFamily").asEnum(defaults.novelFontFamily),
                         novelTextAlign = value.optString("novelTextAlign").asEnum(defaults.novelTextAlign),
                         novelSpeechRate = value.optDouble("novelSpeechRate", defaults.novelSpeechRate.toDouble()).toFloat(),
+                        novelSpeechHighlight = value.optBoolean("novelSpeechHighlight", defaults.novelSpeechHighlight),
+                        bionicReading = value.optBoolean("bionicReading", defaults.bionicReading),
+                        novelShowBatteryAndClock = value.optBoolean("novelShowBatteryAndClock", defaults.novelShowBatteryAndClock),
+                        cropWebtoonBorders = value.optBoolean("cropWebtoonBorders", defaults.cropWebtoonBorders),
                     )
                 }.getOrDefault(defaults)
             } ?: defaults
@@ -472,6 +476,10 @@ class SettingsDataStore(
             put("novelFontFamily", value.novelFontFamily.name)
             put("novelTextAlign", value.novelTextAlign.name)
             put("novelSpeechRate", value.novelSpeechRate.toDouble())
+            put("novelSpeechHighlight", value.novelSpeechHighlight)
+            put("bionicReading", value.bionicReading)
+            put("novelShowBatteryAndClock", value.novelShowBatteryAndClock)
+            put("cropWebtoonBorders", value.cropWebtoonBorders)
         }.toString()
         context.settingsDataStore.edit { preferences ->
             preferences[Keys.MangaReaderOptionsJson] = json

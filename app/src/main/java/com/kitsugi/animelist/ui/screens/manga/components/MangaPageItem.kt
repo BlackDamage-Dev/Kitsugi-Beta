@@ -73,6 +73,7 @@ fun MangaPageItem(
     fitMode: MangaFitMode = MangaFitMode.FitScreen,
     readerOptions: MangaReaderOptions = MangaReaderOptions(),
     totalPages: Int = 1,
+    highlightState: com.kitsugi.animelist.data.manga.MangaNovelSpeechController.SpeechHighlightState? = null,
     tapNavigationEnabled: Boolean = true,
     allowWideRotation: Boolean = true,
     tapHorizontalOrigin: Float = 0f,
@@ -90,6 +91,7 @@ fun MangaPageItem(
             pageIndex = page.index,
             totalPages = totalPages,
             options = readerOptions,
+            highlightState = highlightState,
             onCenterTap = onCenterTap,
             modifier = modifier,
         )

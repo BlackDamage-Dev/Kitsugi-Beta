@@ -17780,4 +17780,32 @@ Eklentiler ekranından eklenti etkinleştirin.</string>
     <string name="inline_video_unsupported_title">Bu video uygulama içinde oynatılamadı</string>
     <string name="inline_video_unsupported_body">Bu biçim bu cihazda çözülemiyor olabilir. Tam ekran oynatıcı bu dosyayı yazılım çözücüyle açabilir.</string>
     <string name="inline_open_fullscreen">Tam ekranda aç</string>
+    <!-- TTS ve Novel Okuyucu -->
+    <string name="tts_notification_channel_name">Sesli Okuma (TTS)</string>
+    <string name="tts_notification_channel_desc">Kitap ve novel sesli okuma kontrolleri</string>
+    <string name="tts_action_play">Oynat</string>
+    <string name="tts_action_pause">Duraklat</string>
+    <string name="tts_action_stop">Durdur</string>
+    <string name="tts_action_previous">Önceki</string>
+    <string name="tts_action_next">Sonraki</string>
+    <string name="tts_speed_title">Sesli Okuma Hızı</string>
+    <string name="tts_voice_title">Sesli Okuma Sesi</string>
+    <string name="tts_voice_default">Sistem Varsayılanı</string>
+    <string name="tts_highlight_sentence">Okunan Cümleyi Vurgula</string>
+    <string name="epub_toc_title">İçindekiler</string>
+    <string name="epub_no_chapters">İçindekiler tablosu bulunamadı</string>
+    <string name="manga_tts_prev_sentence">Önceki cümle</string>
+    <string name="manga_tts_next_sentence">Sonraki cümle</string>
+    <string name="manga_bionic_reading">Bionic Okuma</string>
+    <string name="manga_bionic_reading_desc">Kelimelerin ilk harflerini belirginleştirerek odaklanmayı artırır</string>
+    <string name="manga_novel_clock">Saat Göstergesi</string>
+    <string name="manga_novel_clock_desc">Novel okurken üst köşede saati gösterir</string>
+    <string name="reader_series_custom_title">Bu Seriye Özel Ayarla</string>
+    <string name="reader_series_custom_desc">Bu serinin ayarlarını genel tercihlerden bağımsız saklar</string>
+    <string name="reader_series_reset_to_global">Genel Ayarlara Sıfırla</string>
+    <string name="reader_crop_webtoon_title">Webtoon Kenarlarını Kırp</string>
+    <string name="reader_crop_webtoon_desc">Dikey webtoon sayfalarının beyaz kenarlarını kırpar</string>
+    <string name="reader_save_gallery">Galeriye Kaydet</string>
+    <string name="reader_save_wallpaper">Duvar Kağıdı Yap</string>
+    <string name="reader_saved_to_gallery">Sayfa galeriye kaydedildi</string>
 </resources>

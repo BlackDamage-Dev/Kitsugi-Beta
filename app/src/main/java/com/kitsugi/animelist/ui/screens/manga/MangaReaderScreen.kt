@@ -108,6 +108,9 @@ fun MangaReaderScreen(
     val readerOptions = uiState.readerOptions
     val loader = viewModel.loader
     val speechState by viewModel.speechState.collectAsState()
+    val speechHighlightState by viewModel.speechHighlightState.collectAsState()
+    val speechAvailableVoices by viewModel.speechAvailableVoices.collectAsState()
+    val speechSelectedVoice: String? by viewModel.speechSelectedVoice.collectAsState()
     val scope = rememberCoroutineScope()
     var menuVisible by remember { mutableStateOf(true) }
     var showSettings by remember { mutableStateOf(false) }
@@ -265,6 +268,7 @@ fun MangaReaderScreen(
                 colorFilterType = uiState.colorFilterType,
                 fitMode = uiState.fitMode,
                 readerOptions = readerOptions,
+                highlightState = if (readerOptions.novelSpeechHighlight) speechHighlightState else null,
                 hasNextChapter = viewModel.hasNextChapter,
                 nextChapterName = viewModel.nextChapterName,
                 onGoToNextChapter = viewModel::goToNextChapter,
@@ -288,6 +292,7 @@ fun MangaReaderScreen(
                 fitMode = uiState.fitMode,
                 doublePage = doublePage,
                 readerOptions = readerOptions,
+                highlightState = if (readerOptions.novelSpeechHighlight) speechHighlightState else null,
                 onCenterTap = { menuVisible = !menuVisible },
                 onNextPage = ::nextPage,
                 onPrevPage = ::previousPage,
@@ -439,6 +444,32 @@ fun MangaReaderScreen(
             onSearch = { showQuickPanel = false; showTextSearch = true },
             onToggleSpeech = viewModel::toggleSpeechPlayback,
             onStopSpeech = viewModel::stopSpeech,
+            onPreviousSpeech = viewModel::skipPreviousSpeech,
+            onNextSpeech = viewModel::skipNextSpeech,
+            onSaveGallery = {
+                val page = pages.getOrNull(currentPage)
+                if (page != null) scope.launch {
+                    runCatching {
+                        com.kitsugi.animelist.data.manga.MangaPageShareHelper.saveToGallery(context, page, loader)
+                    }.onSuccess {
+                        android.widget.Toast.makeText(context, context.getString(R.string.reader_saved_to_gallery), android.widget.Toast.LENGTH_SHORT).show()
+                    }.onFailure {
+                        android.widget.Toast.makeText(context, it.message, android.widget.Toast.LENGTH_LONG).show()
+                    }
+                }
+            },
+            onSetWallpaper = {
+                val page = pages.getOrNull(currentPage)
+                if (page != null) scope.launch {
+                    runCatching {
+                        com.kitsugi.animelist.data.manga.MangaPageShareHelper.setAsWallpaper(context, page, loader)
+                    }.onSuccess {
+                        android.widget.Toast.makeText(context, "Duvar kâğıdı ayarlandı", android.widget.Toast.LENGTH_SHORT).show()
+                    }.onFailure {
+                        android.widget.Toast.makeText(context, it.message, android.widget.Toast.LENGTH_LONG).show()
+                    }
+                }
+            },
             onOptionsChange = viewModel::setReaderOptions,
         )
     }
@@ -483,11 +514,16 @@ fun MangaReaderScreen(
             brightness = uiState.customBrightness,
             options = readerOptions,
             hasText = pages.any { it.textParagraphs != null },
+            isCustomForSeries = uiState.isCustomForSeries,
+            speechVoices = speechAvailableVoices,
+            selectedVoice = speechSelectedVoice,
             onReadingModeChange = viewModel::setReadingMode,
             onColorFilterChange = viewModel::setColorFilter,
             onFitModeChange = viewModel::setFitMode,
             onBrightnessChange = viewModel::setCustomBrightness,
             onOptionsChange = viewModel::setReaderOptions,
+            onToggleCustomForSeries = viewModel::toggleCustomForSeries,
+            onSelectVoice = viewModel::setSpeechVoice,
             onDismiss = { showSettings = false },
         )
     }

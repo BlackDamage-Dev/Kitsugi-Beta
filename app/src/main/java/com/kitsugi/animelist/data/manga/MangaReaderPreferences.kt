@@ -35,6 +35,10 @@ data class MangaReaderOptions(
     val novelFontFamily: MangaNovelFont = MangaNovelFont.Sans,
     val novelTextAlign: MangaNovelTextAlign = MangaNovelTextAlign.Start,
     val novelSpeechRate: Float = 1f,
+    val novelSpeechHighlight: Boolean = true,
+    val bionicReading: Boolean = false,
+    val novelShowBatteryAndClock: Boolean = true,
+    val cropWebtoonBorders: Boolean = false,
 ) {
     fun sanitized(): MangaReaderOptions = copy(
         sidePaddingDp = sidePaddingDp.coerceIn(0, 32),

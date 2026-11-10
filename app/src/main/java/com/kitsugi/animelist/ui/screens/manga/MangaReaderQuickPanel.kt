@@ -13,11 +13,15 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.Wallpaper
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.IconButton
@@ -28,6 +32,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -52,6 +57,10 @@ fun MangaReaderQuickPanel(
     onSearch: () -> Unit,
     onToggleSpeech: () -> Unit,
     onStopSpeech: () -> Unit,
+    onPreviousSpeech: () -> Unit = {},
+    onNextSpeech: () -> Unit = {},
+    onSaveGallery: (() -> Unit)? = null,
+    onSetWallpaper: (() -> Unit)? = null,
     onOptionsChange: (MangaReaderOptions) -> Unit,
 ) {
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Color(0xFF17171F)) {
@@ -62,6 +71,10 @@ fun MangaReaderQuickPanel(
                 QuickTool(if (isBookmarked) Icons.Filled.Bookmark else Icons.Filled.BookmarkBorder, "Yer imi", onToggleBookmark)
                 QuickTool(Icons.AutoMirrored.Filled.MenuBook, "Yer imleri", onBookmarks)
                 if (canShare) QuickTool(Icons.Filled.Share, "Paylaş", onShare)
+                if (canShare && !hasText) {
+                    onSaveGallery?.let { QuickTool(Icons.Filled.Download, stringResource(com.kitsugi.animelist.R.string.reader_save_gallery), it) }
+                    onSetWallpaper?.let { QuickTool(Icons.Filled.Wallpaper, stringResource(com.kitsugi.animelist.R.string.reader_save_wallpaper), it) }
+                }
                 if (hasText) QuickTool(Icons.Filled.Search, "Bölümde ara", onSearch)
                 if (hasText) QuickTool(
                     if (speechState == MangaNovelSpeechController.State.Speaking) Icons.Filled.Pause else Icons.Filled.PlayArrow,
@@ -69,6 +82,8 @@ fun MangaReaderQuickPanel(
                     onToggleSpeech,
                 )
                 if (speechState != MangaNovelSpeechController.State.Idle && speechState != MangaNovelSpeechController.State.Unavailable) {
+                    QuickTool(Icons.Filled.SkipPrevious, "Önceki cümle", onPreviousSpeech)
+                    QuickTool(Icons.Filled.SkipNext, "Sonraki cümle", onNextSpeech)
                     QuickTool(Icons.Filled.Stop, "Sesi durdur", onStopSpeech)
                 }
             }
