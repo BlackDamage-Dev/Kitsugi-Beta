@@ -130,6 +130,23 @@ class MangaAmbientAudioPlayback internal constructor(context: Context) {
 
     private var queue: List<AmbientAudioTrack> = emptyList()
 
+    /**
+     * Kuyruk bitmeye yaklaştığında (veya bittiğinde) çağrılır. Denetleyici
+     * "sıralı devam" açıksa kuyruğa yeni aday ekler. Oynatıcı yalnızca tetikler.
+     */
+    var onNearQueueEnd: (() -> Unit)? = null
+
+    /** Mevcut kuyruğun anlık görüntüsü (sıraya dönmek için). */
+    fun queueSnapshot(): List<AmbientAudioTrack> = queue
+
+    /** Kuyrukta çalan parçanın 0-tabanlı dizini. */
+    val queueIndex: Int get() = player.currentMediaItemIndex.coerceAtLeast(0)
+
+    /** Tekrar modu: 0 kapalı · 1 tek parça · 2 liste (Media3 sabitleri). */
+    fun setRepeatMode(mode: Int) {
+        runCatching { player.repeatMode = mode }
+    }
+
     private val listener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlayingNow: Boolean) {
             isPlaying = isPlayingNow
@@ -139,6 +156,7 @@ class MangaAmbientAudioPlayback internal constructor(context: Context) {
             currentTrack = queue.firstOrNull { it.id == mediaItem?.mediaId }
             queueFinished = false
             updateNavigationState()
+            onNearQueueEnd?.invoke()
             prefetchNextYouTubeTrack()
             // Yumuşak geçiş: yeni parça sıfır sesle başlayıp kısa sürede
             // kullanıcı seviyesine çıkar (aniden patlama olmaz).
@@ -150,6 +168,7 @@ class MangaAmbientAudioPlayback internal constructor(context: Context) {
             if (playbackState == Player.STATE_ENDED) {
                 isPlaying = false
                 queueFinished = true
+                onNearQueueEnd?.invoke()
             }
             updateNavigationState()
         }
@@ -182,10 +201,11 @@ class MangaAmbientAudioPlayback internal constructor(context: Context) {
         localFileTypes: Map<String, String> = emptyMap(),
         allowOnline: Boolean = true,
         /**
-         * `true` ise liste bitince başa döner (okuma boyunca kesintisiz ortam
-         * sesi). Tek parça çalarken daima `false`.
+         * Tekrar modu: [Player.REPEAT_MODE_ALL] liste bitince başa döner (okuma
+         * boyunca kesintisiz ortam sesi), [Player.REPEAT_MODE_ONE] seçili parçayı
+         * sürekli çalar, [Player.REPEAT_MODE_OFF] liste bitince durur.
          */
-        repeatQueue: Boolean = false,
+        repeatMode: Int = Player.REPEAT_MODE_OFF,
     ) {
         val selectedTrackId = tracks.getOrNull(startIndex)?.id
         val playable = tracks.mapNotNull { track ->
@@ -215,11 +235,7 @@ class MangaAmbientAudioPlayback internal constructor(context: Context) {
         queueLength = safeTracks.size
         currentTrack = safeTracks[selectedIndex]
         queuePosition = selectedIndex + 1
-        player.repeatMode = if (repeatQueue && safeTracks.size > 1) {
-            Player.REPEAT_MODE_ALL
-        } else {
-            Player.REPEAT_MODE_OFF
-        }
+        player.repeatMode = repeatMode
         runCatching {
             player.setMediaItems(items, selectedIndex, 0L)
             player.prepare()

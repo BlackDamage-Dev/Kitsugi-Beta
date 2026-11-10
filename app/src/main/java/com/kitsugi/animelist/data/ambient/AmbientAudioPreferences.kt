@@ -17,6 +17,8 @@ import android.content.SharedPreferences
  *  - `auto_play_online`       → okuyucu açılınca internetten otomatik çalma
  *  - `blocked_track_ids`      → "bir daha önerme" listesi
  *  - `queue_shuffle`          → kuyruk karıştırma
+ *  - `repeat_mode`            → tekrar modu (kapalı / tek / liste)
+ *  - `continuous_play`        → seçimden sonra da sıralı devam
  */
 class AmbientAudioPreferences(context: Context) {
 
@@ -85,6 +87,26 @@ class AmbientAudioPreferences(context: Context) {
             prefs.edit().putBoolean(KEY_SHUFFLE, value).apply()
         }
 
+    /**
+     * Tekrar modu: 0 kapalı · 1 tek parça · 2 liste (Media3 ile aynı değerler).
+     * Varsayılan liste tekrarıdır: önceki sürümdeki kesintisiz ambiyans davranışı.
+     */
+    var repeatMode: Int
+        get() = prefs.getInt(KEY_REPEAT_MODE, AmbientQueueRules.REPEAT_ALL)
+        set(value) {
+            prefs.edit().putInt(KEY_REPEAT_MODE, value.coerceIn(AmbientQueueRules.REPEAT_OFF, AmbientQueueRules.REPEAT_ALL)).apply()
+        }
+
+    /**
+     * Sıralı devam: açıkken seçilen parçadan sonra da kuyruk, arama mantığıyla
+     * sıradaki benzer parçalarla kendiliğinden sürer.
+     */
+    var continuousPlay: Boolean
+        get() = prefs.getBoolean(KEY_CONTINUOUS_PLAY, true)
+        set(value) {
+            prefs.edit().putBoolean(KEY_CONTINUOUS_PLAY, value).apply()
+        }
+
     companion object {
         const val FILE_NAME = "ambient_audio_settings"
         private const val KEY_ENABLED_SOURCES = "enabled_sources"
@@ -92,5 +114,7 @@ class AmbientAudioPreferences(context: Context) {
         private const val KEY_AUTO_PLAY_ONLINE = "auto_play_online"
         private const val KEY_BLOCKED_TRACKS = "blocked_track_ids"
         private const val KEY_SHUFFLE = "queue_shuffle"
+        private const val KEY_REPEAT_MODE = "repeat_mode"
+        private const val KEY_CONTINUOUS_PLAY = "continuous_play"
     }
 }

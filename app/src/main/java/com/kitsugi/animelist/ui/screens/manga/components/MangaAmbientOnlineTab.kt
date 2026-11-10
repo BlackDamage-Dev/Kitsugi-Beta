@@ -1,6 +1,7 @@
 package com.kitsugi.animelist.ui.screens.manga.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -41,6 +42,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import android.widget.Toast
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -53,6 +55,7 @@ import com.kitsugi.animelist.data.ambient.AmbientAudioDownloadStatus
 import com.kitsugi.animelist.data.ambient.AmbientAudioMode
 import com.kitsugi.animelist.data.ambient.AmbientAudioSource
 import com.kitsugi.animelist.data.ambient.AmbientAudioTrack
+import com.kitsugi.animelist.data.ambient.AmbientQueueRules
 import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.KitsugiColors
 import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
@@ -253,6 +256,91 @@ internal fun AmbientOnlineTab(
 
         Spacer(Modifier.height(8.dp))
 
+        // ── Oynatma seçenekleri: tekrar · sıralı devam · sıraya dön ─────
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            val repeatLabel = when (controller.repeatMode) {
+                AmbientQueueRules.REPEAT_ONE -> "Parça tekrarı"
+                AmbientQueueRules.REPEAT_ALL -> "Liste tekrarı"
+                else -> "Tekrar kapalı"
+            }
+            FilterChip(
+                selected = controller.repeatMode != AmbientQueueRules.REPEAT_OFF,
+                onClick = { controller.cycleRepeatMode() },
+                label = { Text(repeatLabel, fontSize = 11.sp) },
+                leadingIcon = {
+                    Icon(
+                        imageVector = if (controller.repeatMode == AmbientQueueRules.REPEAT_ONE) {
+                            Icons.Rounded.RepeatOne
+                        } else {
+                            Icons.Rounded.Repeat
+                        },
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp)
+                    )
+                },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = accent.copy(alpha = 0.22f),
+                    selectedLabelColor = accent,
+                    containerColor = KitsugiColors.SurfaceSoft,
+                    labelColor = KitsugiColors.TextSecondary
+                )
+            )
+            FilterChip(
+                selected = controller.continuousPlay,
+                onClick = { controller.setContinuousPlay(!controller.continuousPlay) },
+                label = { Text("Sıralı devam", fontSize = 11.sp) },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Rounded.PlaylistPlay,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp)
+                    )
+                },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = accent.copy(alpha = 0.22f),
+                    selectedLabelColor = accent,
+                    containerColor = KitsugiColors.SurfaceSoft,
+                    labelColor = KitsugiColors.TextSecondary
+                )
+            )
+            if (controller.canResumeAutoQueue) {
+                FilterChip(
+                    selected = false,
+                    onClick = { controller.resumeAutoQueue() },
+                    label = { Text("Sıraya dön", fontSize = 11.sp) },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Rounded.Replay,
+                            contentDescription = null,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    },
+                    colors = FilterChipDefaults.filterChipColors(
+                        containerColor = KitsugiColors.SurfaceSoft,
+                        labelColor = accent
+                    )
+                )
+            }
+        }
+        Text(
+            text = if (controller.continuousPlay) {
+                "Sıralı devam açık: seçtiğin parçadan sonra da benzer parçalar kendiliğinden sıraya girer."
+            } else {
+                "Sıralı devam kapalı: seçtiğin parça bitince durur."
+            },
+            color = KitsugiColors.TextMuted,
+            fontSize = 9.sp,
+            lineHeight = 12.sp,
+            modifier = Modifier.padding(top = 4.dp)
+        )
+        Spacer(Modifier.height(8.dp))
+
         // ── Başlıkla ara + en iyi eşleşmeyi sırayla çal ─────────────────
         Button(
             onClick = { controller.playBestForManga() },
@@ -347,48 +435,6 @@ internal fun AmbientOnlineTab(
 
         Spacer(Modifier.height(10.dp))
 
-        // ── Kaynaklar ───────────────────────────────────────────────────
-        Text(
-            text = "KAYNAKLAR",
-            color = KitsugiColors.TextMuted,
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Bold
-        )
-        Spacer(Modifier.height(6.dp))
-
-        AmbientAudioSource.entries.forEach { source ->
-            AmbientSourceToggleRow(
-                source = source,
-                checked = source in controller.enabledSources,
-                accent = accent,
-                onToggle = { controller.toggleSource(source) }
-            )
-            Spacer(Modifier.height(4.dp))
-        }
-
-        if (!controller.jamendoConfigured) {
-            Text(
-                text = "Jamendo atlandı: kişisel Client ID girilmedi " +
-                    "(Harici Entegrasyonlar → Müzik).",
-                color = Color(0xFFFBBF24),
-                fontSize = 9.sp,
-                lineHeight = 12.sp,
-                modifier = Modifier.padding(top = 2.dp)
-            )
-        }
-
-        Spacer(Modifier.height(6.dp))
-        Text(
-            text = "Manga adı seçili ses kaynaklarına gönderilir; bölüm adı, özet metni, " +
-                "sayfa içeriği ve hesap bilgisi gönderilmez. Sonuçlar cihazda 12 saat " +
-                "önbelleğe alınır, Radio Browser canlı istasyon sunar.",
-            color = KitsugiColors.TextMuted,
-            fontSize = 9.sp,
-            lineHeight = 12.sp
-        )
-
-        Spacer(Modifier.height(12.dp))
-
         // ── Sonuçlar ────────────────────────────────────────────────────
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
@@ -450,6 +496,7 @@ internal fun AmbientOnlineTab(
                 downloadStatus = downloadStates[track.id]?.status,
                 downloadProgress = downloadStates[track.id]?.progress,
                 downloadConverted = downloadStates[track.id]?.converted == true,
+                downloadMessage = downloadStates[track.id]?.message,
                 onOpenSource = { url -> runCatching { uriHandler.openUri(url) } }
             )
             Spacer(Modifier.height(6.dp))
@@ -550,8 +597,10 @@ private fun AmbientTrackRow(
     downloadStatus: AmbientAudioDownloadStatus?,
     downloadProgress: Float?,
     downloadConverted: Boolean,
+    downloadMessage: String? = null,
     onOpenSource: (String) -> Unit,
 ) {
+    val context = LocalContext.current
     val isSelected = controller.playback.currentTrack?.id == track.id
     val isQueued = track.id in controller.playback.queuedTrackIds
     val isDownloaded = downloadStatus == AmbientAudioDownloadStatus.COMPLETED
@@ -589,6 +638,15 @@ private fun AmbientTrackRow(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = 1.dp)
         )
+        if (downloadStatus == AmbientAudioDownloadStatus.FAILED && !downloadMessage.isNullOrBlank()) {
+            Text(
+                text = downloadMessage,
+                color = Color(0xFFFFB4AB),
+                fontSize = 9.sp,
+                lineHeight = 12.sp,
+                modifier = Modifier.padding(top = 2.dp)
+            )
+        }
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (track.landingUrl.startsWith("https://")) {
                 TextButton(
@@ -611,6 +669,21 @@ private fun AmbientTrackRow(
             // dosya cihaza kalıcı yazılır (imzalı adresin süresi dolması etkilemez).
             val canDownload = track.isDownloadable &&
                 !track.provider.equals("radio_browser", ignoreCase = true)
+            // İndirilemeyen parçada düğme gizlenmez: soluk simge, nedeni bildirimle söyler.
+            if (!canDownload && !track.provider.equals("radio_browser", ignoreCase = true)) {
+                val reason = AmbientQueueRules.downloadRefusalReason(track).orEmpty()
+                IconButton(
+                    onClick = { Toast.makeText(context, reason, Toast.LENGTH_SHORT).show() },
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.CloudOff,
+                        contentDescription = reason,
+                        tint = KitsugiColors.TextMuted.copy(alpha = 0.6f),
+                        modifier = Modifier.size(17.dp)
+                    )
+                }
+            }
             if (canDownload) {
                 val downloading = downloadStatus != null && downloadStatus in setOf(
                     AmbientAudioDownloadStatus.QUEUED,
@@ -858,6 +931,26 @@ internal fun AmbientOnlineSettingsCard(
             }
             Spacer(Modifier.height(4.dp))
         }
+
+        // Kaynak gizliliği ve Jamendo notu (Çevrimiçi sekmesinden buraya taşındı).
+        if (!controller.jamendoConfigured) {
+            Text(
+                text = "Jamendo atlandı: kişisel Client ID girilmedi (Harici Entegrasyonlar → Müzik).",
+                color = Color(0xFFFBBF24),
+                fontSize = 9.sp,
+                lineHeight = 12.sp,
+                modifier = Modifier.padding(top = 2.dp)
+            )
+        }
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = "Manga adı seçili ses kaynaklarına gönderilir; bölüm adı, özet metni, " +
+                "sayfa içeriği ve hesap bilgisi gönderilmez. Sonuçlar cihazda 12 saat " +
+                "önbelleğe alınır, Radio Browser canlı istasyon sunar.",
+            color = KitsugiColors.TextMuted,
+            fontSize = 9.sp,
+            lineHeight = 12.sp
+        )
 
         // "Bir daha önerme" listesi: varsa temizleme kısayolu gösterilir.
         if (controller.blockedIds.isNotEmpty()) {
