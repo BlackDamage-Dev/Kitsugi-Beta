@@ -34,14 +34,40 @@ class OpdsCatalogClient(private val client: OkHttpClient = OkHttpClient()) {
         }
         require(extension in setOf("epub", "pdf", "cbz", "cbr", "zip", "rar")) { "Bu yayın desteklenen bir dosya bağlantısı sunmuyor" }
         directory.mkdirs()
-        val output = File(directory, "${System.currentTimeMillis()}-${acquisition.title.hashCode().toUInt()}.$extension")
+        val temporary = File(directory, "opds-${java.util.UUID.nameUUIDFromBytes(acquisition.url.toByteArray())}.tmp")
+        val digest = java.security.MessageDigest.getInstance("SHA-256")
         val request = Request.Builder().url(acquisition.url).build()
-        client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) throw IOException("OPDS indirme hatası: HTTP ${response.code}")
-            val body = response.body ?: throw IOException("OPDS boş dosya yanıtı")
-            output.outputStream().buffered().use { body.byteStream().copyTo(it) }
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) throw IOException("OPDS indirme hatası: HTTP ${response.code}")
+                val body = response.body ?: throw IOException("OPDS boş dosya yanıtı")
+                response.header("Content-Length")?.toLongOrNull()?.let {
+                    require(it in 0..MangaReaderStorage.MAX_IMPORT_BYTES) { "Dosya 512 MB sınırını aşıyor" }
+                }
+                var total = 0L
+                temporary.outputStream().buffered().use { outputStream ->
+                    body.byteStream().use { input ->
+                        val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                        while (true) {
+                            val count = input.read(buffer)
+                            if (count < 0) break
+                            total += count
+                            if (total > MangaReaderStorage.MAX_IMPORT_BYTES) error("Dosya 512 MB sınırını aşıyor")
+                            digest.update(buffer, 0, count)
+                            outputStream.write(buffer, 0, count)
+                        }
+                    }
+                }
+            }
+            val hash = digest.digest().joinToString("") { "%02x".format(it) }
+            val output = File(directory, "$hash.$extension")
+            if (output.exists()) temporary.delete()
+            else if (!temporary.renameTo(output)) error("İndirilen dosya depolanamadı")
+            output
+        } catch (error: Throwable) {
+            temporary.delete()
+            throw error
         }
-        output
     }
 
     private fun parseAtom(xml: String, baseUrl: String): List<OpdsAcquisition> {

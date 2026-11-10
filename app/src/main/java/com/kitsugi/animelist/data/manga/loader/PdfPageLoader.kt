@@ -31,7 +31,10 @@ class PdfPageLoader(private val context: Context, private val file: File) {
         val name = java.security.MessageDigest.getInstance("SHA-256").digest(key.toByteArray())
             .joinToString("") { "%02x".format(it) }
         val output = File(directory, "$name.webp")
-        if (output.isFile && output.length() > 0) return@withContext output
+        if (output.isFile && output.length() > 0) {
+            com.kitsugi.animelist.data.manga.MangaReaderStorage.pruneDerivedCache(directory, keep = output)
+            return@withContext output
+        }
         ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY).use { descriptor ->
             PdfRenderer(descriptor).use { renderer ->
                 require(index in 0 until renderer.pageCount) { "PDF sayfası sınır dışında" }
@@ -50,6 +53,7 @@ class PdfPageLoader(private val context: Context, private val file: File) {
                 }
             }
         }
+        com.kitsugi.animelist.data.manga.MangaReaderStorage.pruneDerivedCache(directory, keep = output)
         output
     }
 }

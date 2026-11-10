@@ -4369,6 +4369,24 @@
 
 	<!-- Auto-extracted UI strings (hardcoded TR -> localized) -->
 	<string name="kapat">Close</string>
+    <string name="okuyucu_add_bookmark">Add or remove bookmark</string>
+    <string name="okuyucu_bookmarks">Bookmarks</string>
+    <string name="okuyucu_speech">Read aloud or pause</string>
+    <string name="okuyucu_stop_speech">Stop reading aloud</string>
+    <string name="okuyucu_share_page">Share page</string>
+    <string name="okuyucu_search_text">Search in chapter</string>
+    <string name="okuyucu_no_bookmarks">No bookmarks yet. Save the current page from Quick Tools.</string>
+    <string name="okuyucu_page_number">Page %1$d</string>
+    <string name="okuyucu_theme_black">Black</string>
+    <string name="okuyucu_theme_dark">Dark</string>
+    <string name="okuyucu_theme_white">White</string>
+    <string name="okuyucu_theme_sepia">Sepia</string>
+    <string name="okuyucu_font_sans">Sans</string>
+    <string name="okuyucu_font_serif">Serif</string>
+    <string name="okuyucu_font_mono">Monospace</string>
+    <string name="okuyucu_align_start">Start aligned</string>
+    <string name="okuyucu_align_justify">Justified</string>
+    <string name="okuyucu_align_center">Centered</string>
 	<string name="iptal">Cancel</string>
 	<string name="geri">Back</string>
 	<string name="temizle">Clear</string>

@@ -4377,7 +4377,7 @@ Eklentiler ekranından eklenti etkinleştirin.</string>
     <string name="okuyucu_stop_speech">Sesli okumayı durdur</string>
     <string name="okuyucu_share_page">Sayfayı paylaş</string>
     <string name="okuyucu_search_text">Bölümde ara</string>
-    <string name="okuyucu_no_bookmarks">Henüz yer imi yok. Okuduğun sayfayı üst çubuktan kaydedebilirsin.</string>
+    <string name="okuyucu_no_bookmarks">Henüz yer imi yok. Okuduğun sayfayı Hızlı Araçlar panelinden kaydedebilirsin.</string>
     <string name="okuyucu_page_number">Sayfa %1$d</string>
     <string name="okuyucu_theme_black">Siyah</string>
     <string name="okuyucu_theme_dark">Koyu</string>

@@ -51,7 +51,10 @@ class ArchivePageLoader(private val context: Context, private val archiveFile: F
             .joinToString("") { "%02x".format(it) }
         val extension = entryName.substringAfterLast('.', "img").take(5).filter { it.isLetterOrDigit() }.ifBlank { "img" }
         val output = File(directory, "$digest.$extension")
-        if (output.isFile && output.length() > 0L) return@withContext output
+        if (output.isFile && output.length() > 0L) {
+            com.kitsugi.animelist.data.manga.MangaReaderStorage.pruneDerivedCache(directory, keep = output)
+            return@withContext output
+        }
         val temporary = File(directory, "$digest.tmp")
         openPageStream(entryName)?.use { input ->
             temporary.outputStream().buffered().use { input.copyTo(it) }
@@ -60,6 +63,7 @@ class ArchivePageLoader(private val context: Context, private val archiveFile: F
             if (output.exists()) temporary.delete()
             else return@withContext null
         }
+        com.kitsugi.animelist.data.manga.MangaReaderStorage.pruneDerivedCache(directory, keep = output)
         output
     }
 

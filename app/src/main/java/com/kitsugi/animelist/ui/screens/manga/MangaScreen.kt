@@ -61,17 +61,8 @@ fun MangaScreen(
     ) { uri ->
         if (uri != null) scope.launch(kotlinx.coroutines.Dispatchers.IO) {
             runCatching {
-                val displayName = context.contentResolver.query(
-                    uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null,
-                )?.use { cursor -> if (cursor.moveToFirst()) cursor.getString(0) else null }
-                val name = displayName ?: uri.lastPathSegment?.substringAfterLast('/')?.substringAfterLast(':').orEmpty()
-                val extension = name.substringAfterLast('.', "cbz").lowercase()
-                require(extension in setOf("zip", "cbz", "rar", "cbr", "epub", "pdf")) { "Desteklenen biçimler: ZIP, CBZ, CBR, RAR, EPUB, PDF" }
-                val directory = java.io.File(context.filesDir, "local-archives").apply { mkdirs() }
-                val file = java.io.File(directory, "${System.currentTimeMillis()}.$extension")
-                context.contentResolver.openInputStream(uri)?.use { input ->
-                    file.outputStream().buffered().use { input.copyTo(it) }
-                } ?: error("Dosya açılamadı")
+                com.kitsugi.animelist.data.manga.MangaReaderStorage.importDocument(context, uri)
+            }.onSuccess { file ->
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { localArchive = file }
             }.onFailure { error ->
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
