@@ -283,6 +283,7 @@ dependencies {
     
     // Transitive dependencies required by forked local AARs
     implementation("com.google.guava:guava:33.3.1-android")
+    implementation("com.github.junrar:junrar:7.5.5")
     implementation("androidx.media3:media3-database:1.8.0")
     implementation("androidx.media3:media3-container:1.8.0")
     implementation("androidx.media3:media3-decoder:1.8.0")

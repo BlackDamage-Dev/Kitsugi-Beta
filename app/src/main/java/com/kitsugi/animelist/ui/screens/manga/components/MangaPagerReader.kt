@@ -12,6 +12,9 @@ import androidx.compose.foundation.pager.VerticalPager
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
@@ -55,6 +58,7 @@ fun MangaPagerReader(
                     colorFilterType = colorFilterType,
                     fitMode = fitMode,
                     readerOptions = readerOptions,
+                    totalPages = pages.size,
                     onCenterTap = onCenterTap,
                     onNextPage = onNextPage,
                     onPrevPage = onPrevPage,
@@ -116,6 +120,14 @@ private fun DoublePageSpread(
     onPrevPage: () -> Unit,
 ) {
     val visualPages = remember(displayPages, readingMode) { orderMangaSpreadPages(displayPages, readingMode) }
+    LaunchedEffect(readerOptions.autoScroll, readerOptions.autoScrollSpeed) {
+        if (!readerOptions.autoScroll) return@LaunchedEffect
+        while (isActive) {
+            delay(24L)
+            pagerState.dispatchRawDelta(readerOptions.autoScrollSpeed * 24f / 1000f)
+        }
+    }
+
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
         Row(
             modifier = Modifier.fillMaxSize(),
@@ -132,6 +144,7 @@ private fun DoublePageSpread(
                             colorFilterType = colorFilterType,
                             fitMode = fitMode,
                             readerOptions = readerOptions,
+                            totalPages = pages.size,
                             tapNavigationEnabled = true,
                             allowWideRotation = false,
                             tapHorizontalOrigin = if (visuallyFirst) 0f else 0.5f,

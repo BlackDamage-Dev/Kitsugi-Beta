@@ -32,6 +32,8 @@ class MangaPageLoaderV2(
     var keepBehind: Int = 1,
     /** Yerel ZIP/CBZ arşiv dosyası — null ise normal HTTP scraping akışı devam eder. */
     val archiveFile: java.io.File? = null,
+    /** HTML/XHTML kaynaklarını resim yerine seçilebilir metin olarak yükler. */
+    val preferText: Boolean = false,
 ) {
     companion object {
         private const val TAG = "MangaPageLoaderV2"
@@ -60,16 +62,8 @@ class MangaPageLoaderV2(
 
                 if (archiveFile != null) {
                     val archiveLoader = ArchivePageLoader(context, archiveFile)
-                    val entryNames = archiveLoader.loadPageList()
-                    if (entryNames.isEmpty()) throw java.io.IOException("Arşivde sayfa bulunamadı")
-                    _pages.value = entryNames.mapIndexed { index, entryName ->
-                        com.kitsugi.animelist.data.manga.MangaPage(
-                            index = index,
-                            url = entryName
-                        ).apply {
-                            archivePath = entryName
-                        }
-                    }
+                    _pages.value = archiveLoader.loadPages(chapter.url)
+                    if (_pages.value.isEmpty()) throw java.io.IOException("Arşivde sayfa bulunamadı")
                     val elapsed = System.currentTimeMillis() - t0
                     sourceStateStore.recordOperationSuccess(source, "pages", elapsed)
                     MangaLogger.logPageList(context, source.name, chapter.name,
@@ -165,9 +159,9 @@ class MangaPageLoaderV2(
 
         if (page.archivePath != null && archiveFile != null) {
             val archiveLoader = ArchivePageLoader(context, archiveFile)
-            val stream = archiveLoader.loadPage(page.archivePath!!)
-            if (stream != null) {
-                page.stream = { stream }
+            val file = archiveLoader.extractPageToCache(page.archivePath!!)
+            if (file != null) {
+                page.imageUrl = file.toURI().toString()
                 page.status = MangaPageStatus.Ready
                 Log.v(TAG, "Archive page ready [${page.index}]: ${page.archivePath}")
                 return
@@ -188,7 +182,17 @@ class MangaPageLoaderV2(
                     }
 
                     val imageUrl = page.imageUrl?.takeIf { it.isNotBlank() }
-                        ?: throw java.io.IOException("Kaynak boş görsel adresi döndürdü")
+                        ?: throw java.io.IOException("Kaynak boş içerik adresi döndürdü")
+
+                    if (preferText) {
+                        page.status = MangaPageStatus.DownloadImage
+                        val html = source.getImage(page).bufferedReader(Charsets.UTF_8).use { it.readText() }
+                        val paragraphs = com.kitsugi.animelist.data.manga.MangaTextParser.parse(html)
+                        if (paragraphs.isEmpty()) throw java.io.IOException("Bölümde okunabilir metin bulunamadı")
+                        page.textParagraphs = paragraphs
+                        page.status = MangaPageStatus.Ready
+                        return@withTimeout
+                    }
 
                     // 2. Disk cache'te var mı kontrol et
                     if (cache.isImageInCache(imageUrl)) {

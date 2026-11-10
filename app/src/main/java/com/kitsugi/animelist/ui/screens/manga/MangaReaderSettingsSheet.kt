@@ -38,6 +38,9 @@ import com.kitsugi.animelist.data.manga.MangaFitMode
 import com.kitsugi.animelist.data.manga.MangaReaderOptions
 import com.kitsugi.animelist.data.manga.MangaTapNavigation
 import com.kitsugi.animelist.data.manga.MangaZoomStart
+import com.kitsugi.animelist.data.manga.MangaReaderTheme
+import com.kitsugi.animelist.data.manga.MangaNovelFont
+import com.kitsugi.animelist.data.manga.MangaNovelTextAlign
 import com.kitsugi.animelist.data.manga.ReadingMode
 import com.kitsugi.animelist.ui.components.KitsugiSheetOrDialog
 import com.kitsugi.animelist.ui.theme.gradient.FilterChip
@@ -178,6 +181,60 @@ fun MangaReaderSettingsSheet(
                 ReaderSwitch("Okunmuş Bölümleri Atla", "Sonraki bölüme geçerken tamamlanmış bölümleri atlar", options.skipReadChapters) {
                     onOptionsChange(options.copy(skipReadChapters = it))
                 }
+                ReaderSwitch("Gizli Okuma", "Bu oturumda sayfa ve tamamlanma ilerlemesini kaydetme", options.incognito) {
+                    onOptionsChange(options.copy(incognito = it))
+                }
+                ReaderSwitch("Ekranı Açık Tut", "Okuyucu açıkken cihazın uyumasını engeller", options.keepScreenOn) {
+                    onOptionsChange(options.copy(keepScreenOn = it))
+                }
+                ReaderSwitch("Tam Ekran", "Sistem çubuklarını gizler; kaydırarak geçici gösterebilirsin", options.fullscreen) {
+                    onOptionsChange(options.copy(fullscreen = it))
+                }
+                ReaderSwitch("Sayfa Geçiş Animasyonu", "Kapatıldığında sayfalar anında değişir", options.pageTransitions) {
+                    onOptionsChange(options.copy(pageTransitions = it))
+                }
+                ReaderSwitch("Okuma Yüzdesi", "Sayfa sayacına gerçek sayfa ilerlemesini ekler", options.showProgressPercent) {
+                    onOptionsChange(options.copy(showProgressPercent = it))
+                }
+                ReaderSwitch("Uzun Dokunarak İlerle", "Zoom yapılmayan sayfada basılı tutarak sonraki sayfaya geç", options.longTapNavigation) {
+                    onOptionsChange(options.copy(longTapNavigation = it))
+                }
+                ReaderSwitch("Otomatik Kaydır", "Sayfalı ve kesintisiz okumada ayarlanabilir hızla ilerler", options.autoScroll) {
+                    onOptionsChange(options.copy(autoScroll = it))
+                }
+                if (options.autoScroll) ReaderStepper("Kaydırma Hızı (px/sn)", options.autoScrollSpeed) {
+                    onOptionsChange(options.copy(autoScrollSpeed = it.coerceIn(8, 240)))
+                }
+                ReaderStepper("Önden Yükleme (sayfa)", options.preloadAhead) {
+                    onOptionsChange(options.copy(preloadAhead = it.coerceIn(0, 8)))
+                }
+            }
+
+            ReaderSection("Okuyucu Teması") {
+                ReaderChoices(
+                    items = MangaReaderTheme.entries.map { it to it.name },
+                    selected = options.readerTheme,
+                    onSelected = { onOptionsChange(options.copy(readerTheme = it)) },
+                )
+            }
+            ReaderSection("Novel / Light Novel") {
+                ReaderStepper("Yazı Boyutu (sp)", options.novelFontSizeSp) {
+                    onOptionsChange(options.copy(novelFontSizeSp = it.coerceIn(12, 36)))
+                }
+                ReaderStepper("Metin Kenar Boşluğu (dp)", options.novelMarginDp) {
+                    onOptionsChange(options.copy(novelMarginDp = it.coerceIn(0, 48)))
+                }
+                ReaderSlider("Satır Aralığı", options.novelLineHeight / 2.5f, 0.4f..1f, {
+                    onOptionsChange(options.copy(novelLineHeight = it * 2.5f))
+                }) { onOptionsChange(options.copy(novelLineHeight = 1.5f)) }
+                ReaderChoices(
+                    items = MangaNovelFont.entries.map { it to it.name }, selected = options.novelFontFamily,
+                    onSelected = { onOptionsChange(options.copy(novelFontFamily = it)) },
+                )
+                ReaderChoices(
+                    items = MangaNovelTextAlign.entries.map { it to it.name }, selected = options.novelTextAlign,
+                    onSelected = { onOptionsChange(options.copy(novelTextAlign = it)) },
+                )
             }
 
             ReaderSection("Okuyucu Parlaklığı") {

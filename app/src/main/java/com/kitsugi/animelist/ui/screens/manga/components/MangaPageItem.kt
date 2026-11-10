@@ -72,6 +72,7 @@ fun MangaPageItem(
     colorFilterType: ColorFilterType = ColorFilterType.Normal,
     fitMode: MangaFitMode = MangaFitMode.FitScreen,
     readerOptions: MangaReaderOptions = MangaReaderOptions(),
+    totalPages: Int = 1,
     tapNavigationEnabled: Boolean = true,
     allowWideRotation: Boolean = true,
     tapHorizontalOrigin: Float = 0f,
@@ -82,6 +83,18 @@ fun MangaPageItem(
     modifier: Modifier = Modifier,
 ) {
     LaunchedEffect(page) { loader.loadPage(page) }
+
+    page.textParagraphs?.let { paragraphs ->
+        MangaNovelPageItem(
+            paragraphs = paragraphs,
+            pageIndex = page.index,
+            totalPages = totalPages,
+            options = readerOptions,
+            onCenterTap = onCenterTap,
+            modifier = modifier,
+        )
+        return
+    }
 
     val usesZoomableGestures = page.status == MangaPageStatus.Ready &&
         (readingMode != ReadingMode.Webtoon || readerOptions.webtoonZoom)
@@ -140,6 +153,9 @@ fun MangaPageItem(
                             contentDescription = stringResource(R.string.manga_sayfasi_x, page.index + 1),
                             contentScale = contentScale,
                             colorFilter = colorFilter,
+                            onLongClick = if (readerOptions.longTapNavigation) {
+                                { if (zoomState.zoomFraction == null || zoomState.zoomFraction == 0f) onNextPage() }
+                            } else null,
                             modifier = sizedModifier,
                         )
                     } else {

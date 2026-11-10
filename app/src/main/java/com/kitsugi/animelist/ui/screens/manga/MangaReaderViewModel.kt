@@ -28,6 +28,8 @@ import com.kitsugi.animelist.data.settings.SettingsDataStore
 import com.kitsugi.animelist.data.manga.ColorFilterType
 import com.kitsugi.animelist.data.manga.MangaFitMode
 import com.kitsugi.animelist.data.manga.MangaReaderOptions
+import com.kitsugi.animelist.data.manga.MangaBookmark
+import com.kitsugi.animelist.data.manga.MangaBookmarkStore
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -52,7 +54,12 @@ class MangaReaderViewModel(
     private val cache = MangaCache(context)
     private val settingsDataStore = SettingsDataStore(context)
     private val sourceStateStore = MangaSourceStateStore(context)
-    val loader = MangaPageLoaderV2(context, source, cache)
+    private val bookmarkStore = MangaBookmarkStore(context)
+    val loader = MangaPageLoaderV2(
+        context = context, source = source, cache = cache,
+        archiveFile = (source as? com.kitsugi.animelist.data.manga.LocalMangaArchiveSource)?.archiveFile,
+        preferText = mangaDetails.isNovelContent,
+    )
     val pages: StateFlow<List<MangaPage>> = loader.pages
 
     // F5: Debounce için Job referansı — hızlı swipe'ta Room IO flood önler
@@ -72,6 +79,7 @@ class MangaReaderViewModel(
         val fitMode: MangaFitMode = MangaFitMode.FitScreen,
         val customBrightness: Float = 1.0f,
         val readerOptions: MangaReaderOptions = MangaReaderOptions(),
+        val bookmarks: List<MangaBookmark> = emptyList(),
         val isLoadingChapters: Boolean = false,
         val error: String? = null,
         val isLoadingPages: Boolean = false,
@@ -87,6 +95,7 @@ class MangaReaderViewModel(
         loadChapterList()
         restoreProgress(initialChapter)
         observeSettings()
+        refreshBookmarks()
     }
 
     private fun observeSettings() {
@@ -95,10 +104,10 @@ class MangaReaderViewModel(
                 if (pendingPreferenceWrites > 0) return@collect
                 val preferences = persisted.sanitized()
                 val shouldAutoSelectWebtoon = !hasAppliedAutomaticMode &&
-                    preferences.options.autoWebtoon && isWebtoonContent()
+                    ((preferences.options.autoWebtoon && isWebtoonContent()) || mangaDetails.isNovelContent)
                 hasAppliedAutomaticMode = true
                 val mode = if (shouldAutoSelectWebtoon) ReadingMode.Webtoon else preferences.readingMode
-                loader.preloadAhead = if (mode == ReadingMode.Webtoon) 3 else 2
+                loader.preloadAhead = preferences.options.preloadAhead
                 loader.keepBehind = 1
                 _uiState.update {
                     it.copy(
@@ -162,6 +171,7 @@ class MangaReaderViewModel(
         if (chapterUrl != _uiState.value.currentChapter.url || totalPages <= 0) return
         val safePageIndex = pageIndex.coerceIn(0, totalPages - 1)
         _uiState.update { it.copy(currentPageIndex = safePageIndex) }
+        if (_uiState.value.readerOptions.incognito) return
         progressSaveJob?.cancel()
         progressSaveJob = viewModelScope.launch {
             kotlinx.coroutines.delay(500L)
@@ -186,7 +196,7 @@ class MangaReaderViewModel(
         // Update immediately; waiting for a DataStore round-trip caused visible mode reversions.
         hasAppliedAutomaticMode = true
         _uiState.update { it.copy(readingMode = mode) }
-        loader.preloadAhead = if (mode == ReadingMode.Webtoon) 3 else 2
+        loader.preloadAhead = _uiState.value.readerOptions.preloadAhead
         persistPreference { settingsDataStore.setMangaReadingMode(mode.name) }
     }
 
@@ -208,6 +218,8 @@ class MangaReaderViewModel(
 
     fun setReaderOptions(options: MangaReaderOptions) {
         val value = options.sanitized()
+        if (value.incognito) progressSaveJob?.cancel()
+        loader.preloadAhead = value.preloadAhead
         _uiState.update { it.copy(readerOptions = value) }
         persistPreference { settingsDataStore.setMangaReaderOptions(value) }
     }
@@ -225,6 +237,26 @@ class MangaReaderViewModel(
 
     fun updateReaderOptions(update: (MangaReaderOptions) -> MangaReaderOptions) {
         setReaderOptions(update(_uiState.value.readerOptions))
+    }
+
+    fun toggleCurrentPageBookmark() {
+        val state = _uiState.value
+        bookmarkStore.toggle(MangaBookmark(
+            chapterUrl = state.currentChapter.url,
+            mangaUrl = mangaDetails.url,
+            chapterName = state.currentChapter.name,
+            pageIndex = state.currentPageIndex,
+        ))
+        refreshBookmarks()
+    }
+
+    fun removeBookmark(bookmark: MangaBookmark) {
+        bookmarkStore.toggle(bookmark)
+        refreshBookmarks()
+    }
+
+    private fun refreshBookmarks() {
+        _uiState.update { it.copy(bookmarks = bookmarkStore.list(mangaDetails.url)) }
     }
 
     // ─── Bölüm gezinme ───────────────────────────────────────────────────────

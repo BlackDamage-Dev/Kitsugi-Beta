@@ -20,6 +20,9 @@ import com.kitsugi.animelist.data.manga.ColorFilterType
 import com.kitsugi.animelist.data.manga.MangaFitMode
 import com.kitsugi.animelist.data.manga.MangaReaderOptions
 import com.kitsugi.animelist.data.manga.MangaReaderPreferences
+import com.kitsugi.animelist.data.manga.MangaReaderTheme
+import com.kitsugi.animelist.data.manga.MangaNovelFont
+import com.kitsugi.animelist.data.manga.MangaNovelTextAlign
 import com.kitsugi.animelist.data.manga.MangaTapNavigation
 import com.kitsugi.animelist.data.manga.MangaZoomStart
 import com.kitsugi.animelist.data.manga.ReadingMode
@@ -405,6 +408,21 @@ class SettingsDataStore(
                         webtoonZoom = value.optBoolean("webtoonZoom", defaults.webtoonZoom),
                         autoWebtoon = value.optBoolean("autoWebtoon", defaults.autoWebtoon),
                         skipReadChapters = value.optBoolean("skipReadChapters", defaults.skipReadChapters),
+                        keepScreenOn = value.optBoolean("keepScreenOn", defaults.keepScreenOn),
+                        fullscreen = value.optBoolean("fullscreen", defaults.fullscreen),
+                        pageTransitions = value.optBoolean("pageTransitions", defaults.pageTransitions),
+                        longTapNavigation = value.optBoolean("longTapNavigation", defaults.longTapNavigation),
+                        preloadAhead = value.optInt("preloadAhead", defaults.preloadAhead),
+                        incognito = value.optBoolean("incognito", defaults.incognito),
+                        readerTheme = value.optString("readerTheme").asEnum(defaults.readerTheme),
+                        autoScroll = value.optBoolean("autoScroll", defaults.autoScroll),
+                        autoScrollSpeed = value.optInt("autoScrollSpeed", defaults.autoScrollSpeed),
+                        showProgressPercent = value.optBoolean("showProgressPercent", defaults.showProgressPercent),
+                        novelFontSizeSp = value.optInt("novelFontSizeSp", defaults.novelFontSizeSp),
+                        novelLineHeight = value.optDouble("novelLineHeight", defaults.novelLineHeight.toDouble()).toFloat(),
+                        novelMarginDp = value.optInt("novelMarginDp", defaults.novelMarginDp),
+                        novelFontFamily = value.optString("novelFontFamily").asEnum(defaults.novelFontFamily),
+                        novelTextAlign = value.optString("novelTextAlign").asEnum(defaults.novelTextAlign),
                     )
                 }.getOrDefault(defaults)
             } ?: defaults
@@ -437,6 +455,21 @@ class SettingsDataStore(
             put("webtoonZoom", value.webtoonZoom)
             put("autoWebtoon", value.autoWebtoon)
             put("skipReadChapters", value.skipReadChapters)
+            put("keepScreenOn", value.keepScreenOn)
+            put("fullscreen", value.fullscreen)
+            put("pageTransitions", value.pageTransitions)
+            put("longTapNavigation", value.longTapNavigation)
+            put("preloadAhead", value.preloadAhead)
+            put("incognito", value.incognito)
+            put("readerTheme", value.readerTheme.name)
+            put("autoScroll", value.autoScroll)
+            put("autoScrollSpeed", value.autoScrollSpeed)
+            put("showProgressPercent", value.showProgressPercent)
+            put("novelFontSizeSp", value.novelFontSizeSp)
+            put("novelLineHeight", value.novelLineHeight.toDouble())
+            put("novelMarginDp", value.novelMarginDp)
+            put("novelFontFamily", value.novelFontFamily.name)
+            put("novelTextAlign", value.novelTextAlign.name)
         }.toString()
         context.settingsDataStore.edit { preferences ->
             preferences[Keys.MangaReaderOptionsJson] = json

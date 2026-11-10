@@ -4370,7 +4370,21 @@ Eklentiler ekranından eklenti etkinleştirin.</string>
 
 
 	<!-- Auto-extracted UI strings (hardcoded TR -> localized) -->
-	<string name="kapat">Kapat</string>
+    <string name="kapat">Kapat</string>
+    <string name="okuyucu_add_bookmark">Yer imi ekle veya kaldır</string>
+    <string name="okuyucu_bookmarks">Yer imleri</string>
+    <string name="okuyucu_no_bookmarks">Henüz yer imi yok. Okuduğun sayfayı üst çubuktan kaydedebilirsin.</string>
+    <string name="okuyucu_page_number">Sayfa %1$d</string>
+    <string name="okuyucu_theme_black">Siyah</string>
+    <string name="okuyucu_theme_dark">Koyu</string>
+    <string name="okuyucu_theme_white">Beyaz</string>
+    <string name="okuyucu_theme_sepia">Sepya</string>
+    <string name="okuyucu_font_sans">Sans</string>
+    <string name="okuyucu_font_serif">Serif</string>
+    <string name="okuyucu_font_mono">Tek aralıklı</string>
+    <string name="okuyucu_align_start">Başa hizalı</string>
+    <string name="okuyucu_align_justify">İki yana yaslı</string>
+    <string name="okuyucu_align_center">Ortalı</string>
 	<string name="iptal">İptal</string>
 	<string name="geri">Geri</string>
 	<string name="temizle">Temizle</string>

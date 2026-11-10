@@ -27,6 +27,8 @@ import com.kitsugi.animelist.data.manga.MangaPage
 import com.kitsugi.animelist.data.manga.ReadingMode
 import com.kitsugi.animelist.data.manga.loader.MangaPageLoaderV2
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.delay
 
 import com.kitsugi.animelist.data.manga.ColorFilterType
 import com.kitsugi.animelist.data.manga.MangaFitMode
@@ -70,6 +72,14 @@ fun MangaWebtoonReader(
             .collect { index -> onPageChanged(index) }
     }
 
+    LaunchedEffect(readerOptions.autoScroll, readerOptions.autoScrollSpeed) {
+        if (!readerOptions.autoScroll) return@LaunchedEffect
+        while (isActive) {
+            delay(24L)
+            listState.dispatchRawDelta(readerOptions.autoScrollSpeed * 24f / 1000f)
+        }
+    }
+
     LazyColumn(
         state = listState,
         contentPadding = PaddingValues(horizontal = readerOptions.sidePaddingDp.dp),
@@ -94,6 +104,7 @@ fun MangaWebtoonReader(
                 colorFilterType = colorFilterType,
                 fitMode     = fitMode,
                 readerOptions = readerOptions,
+                totalPages = pages.size,
                 allowWideRotation = false,
                 onCenterTap = onCenterTap,
                 onNextPage   = onNextPage,

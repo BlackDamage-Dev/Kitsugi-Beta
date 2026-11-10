@@ -1,4 +1,4 @@
-﻿package com.kitsugi.animelist.ui.screens.manga
+package com.kitsugi.animelist.ui.screens.manga
 import com.kitsugi.animelist.ui.components.KitsugiButton
 
 import androidx.compose.foundation.layout.Spacer
@@ -42,6 +42,37 @@ fun MangaScreen(
     viewModel: MangaViewModel = viewModel()
 ) {
     val accentColor = LocalKitsugiAccent.current
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var localArchive by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<java.io.File?>(null) }
+    val archivePicker = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        if (uri != null) scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching {
+                val name = uri.lastPathSegment?.substringAfterLast('/')?.substringAfterLast(':').orEmpty()
+                val extension = name.substringAfterLast('.', "cbz").lowercase()
+                require(extension in setOf("zip", "cbz", "rar", "cbr")) { "Desteklenen biçimler: ZIP, CBZ, CBR, RAR" }
+                val directory = java.io.File(context.filesDir, "local-archives").apply { mkdirs() }
+                val file = java.io.File(directory, "${System.currentTimeMillis()}.$extension")
+                context.contentResolver.openInputStream(uri)?.use { input ->
+                    file.outputStream().buffered().use { input.copyTo(it) }
+                } ?: error("Dosya açılamadı")
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { localArchive = file }
+            }.onFailure { error ->
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                    android.widget.Toast.makeText(context, error.message, android.widget.Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+    localArchive?.let { file ->
+        val source = androidx.compose.runtime.remember(file) { com.kitsugi.animelist.data.manga.LocalMangaArchiveSource(file) }
+        val details = androidx.compose.runtime.remember(file) { MangaDetails(file.toURI().toString(), file.nameWithoutExtension, source = source.name) }
+        val chapter = androidx.compose.runtime.remember(file) { MangaChapter(details.url, file.nameWithoutExtension, 1f, mangaUrl = details.url) }
+        MangaReaderScreen(chapter, details, source, onBack = { localArchive = null })
+        return
+    }
 
     val filteredTopManga = viewModel.topManga.filter { showAdultContent || !it.isAdult }
     val filteredPublishingManga = viewModel.publishingManga.filter { showAdultContent || !it.isAdult }
@@ -78,6 +109,12 @@ fun MangaScreen(
             )
             Text(KitsugiStrings.get(R.string.inline_read_manga_extension_sources_cf7a30a))
         }
+
+        Spacer(modifier = Modifier.height(8.dp))
+        KitsugiButton(
+            onClick = { archivePicker.launch(arrayOf("application/zip", "application/x-cbz", "application/vnd.rar", "application/x-rar-compressed", "application/x-cbr", "application/octet-stream")) },
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+        ) { Text("Yerel arşiv aç (ZIP • CBZ • CBR • RAR)") }
 
         Spacer(modifier = Modifier.height(8.dp))
 

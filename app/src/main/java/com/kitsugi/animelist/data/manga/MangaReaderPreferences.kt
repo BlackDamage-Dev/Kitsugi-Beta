@@ -19,16 +19,44 @@ data class MangaReaderOptions(
     val webtoonZoom: Boolean = true,
     val autoWebtoon: Boolean = true,
     val skipReadChapters: Boolean = false,
+    val keepScreenOn: Boolean = false,
+    val fullscreen: Boolean = true,
+    val pageTransitions: Boolean = true,
+    val longTapNavigation: Boolean = false,
+    val preloadAhead: Int = 3,
+    val incognito: Boolean = false,
+    val readerTheme: MangaReaderTheme = MangaReaderTheme.Black,
+    val autoScroll: Boolean = false,
+    val autoScrollSpeed: Int = 36,
+    val showProgressPercent: Boolean = true,
+    val novelFontSizeSp: Int = 18,
+    val novelLineHeight: Float = 1.5f,
+    val novelMarginDp: Int = 20,
+    val novelFontFamily: MangaNovelFont = MangaNovelFont.Sans,
+    val novelTextAlign: MangaNovelTextAlign = MangaNovelTextAlign.Start,
 ) {
     fun sanitized(): MangaReaderOptions = copy(
         sidePaddingDp = sidePaddingDp.coerceIn(0, 32),
         pageGapDp = pageGapDp.coerceIn(0, 32),
         pageOpacity = if (pageOpacity.isFinite()) pageOpacity.coerceIn(0.1f, 1f) else 1f,
+        preloadAhead = preloadAhead.coerceIn(0, 8),
+        autoScrollSpeed = autoScrollSpeed.coerceIn(8, 240),
+        novelFontSizeSp = novelFontSizeSp.coerceIn(12, 36),
+        novelLineHeight = if (novelLineHeight.isFinite()) novelLineHeight.coerceIn(1f, 2.5f) else 1.5f,
+        novelMarginDp = novelMarginDp.coerceIn(0, 48),
     )
 }
 
 enum class MangaTapNavigation { Standard, Inverted, Disabled }
 enum class MangaZoomStart { Automatic, Center, Left, Right }
+enum class MangaReaderTheme(val backgroundArgb: Long, val textArgb: Long) {
+    Black(0xFF000000, 0xFFFFFFFF),
+    Dark(0xFF17171D, 0xFFF5F5F7),
+    White(0xFFFFFFFF, 0xFF202124),
+    Sepia(0xFFF4ECD8, 0xFF4A3B2A),
+}
+enum class MangaNovelFont { Sans, Serif, Monospace }
+enum class MangaNovelTextAlign { Start, Justify, Center }
 
 data class MangaReaderPreferences(
     val readingMode: ReadingMode = ReadingMode.RightToLeft,

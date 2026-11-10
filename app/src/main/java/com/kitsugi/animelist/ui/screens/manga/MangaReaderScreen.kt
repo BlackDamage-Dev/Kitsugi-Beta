@@ -28,6 +28,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.BrightnessHigh
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.filled.ColorLens
 import androidx.compose.material.icons.filled.CropFree
 import androidx.compose.material.icons.filled.ScreenRotation
@@ -109,6 +111,26 @@ fun MangaReaderScreen(
     val scope = rememberCoroutineScope()
     var menuVisible by remember { mutableStateOf(true) }
     var showSettings by remember { mutableStateOf(false) }
+    var showBookmarks by remember { mutableStateOf(false) }
+
+    val activity = remember(context) { context.findActivity() }
+    DisposableEffect(readerOptions.keepScreenOn, readerOptions.fullscreen, activity) {
+        val window = activity?.window
+        if (window != null) {
+            if (readerOptions.keepScreenOn) window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            else window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            val controller = androidx.core.view.WindowCompat.getInsetsController(window, window.decorView)
+            if (readerOptions.fullscreen) {
+                controller.hide(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+                controller.systemBarsBehavior = androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            } else controller.show(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+        }
+        onDispose {
+            window?.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            if (window != null) androidx.core.view.WindowCompat.getInsetsController(window, window.decorView)
+                .show(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+        }
+    }
 
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
@@ -188,7 +210,7 @@ fun MangaReaderScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black)
+            .background(Color(readerOptions.readerTheme.backgroundArgb))
             .focusRequester(focusRequester)
             .focusable()
             .onPreviewKeyEvent { event ->
@@ -292,8 +314,17 @@ fun MangaReaderScreen(
                         Text(mangaDetails.title, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(currentChapter.name, color = Color.White.copy(0.65f), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
+                    IconButton(onClick = { viewModel.toggleCurrentPageBookmark() }) {
+                        Icon(
+                            if (uiState.bookmarks.any { it.chapterUrl == currentChapter.url && it.pageIndex == currentPage }) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
+                            stringResource(R.string.okuyucu_add_bookmark), tint = Color.White,
+                        )
+                    }
+                    IconButton(onClick = { showBookmarks = true }) {
+                        Icon(Icons.AutoMirrored.Filled.MenuBook, stringResource(R.string.okuyucu_bookmarks), tint = Color.White)
+                    }
                     IconButton(onClick = { showSettings = true }) {
-                        Icon(Icons.AutoMirrored.Filled.MenuBook, stringResource(R.string.okuyucu_ayarlari), tint = Color.White)
+                        Icon(Icons.Filled.Settings, stringResource(R.string.okuyucu_ayarlari), tint = Color.White)
                     }
                 }
             }
@@ -335,7 +366,10 @@ fun MangaReaderScreen(
                                 colors = SliderDefaults.colors(activeTrackColor = Color(0xFF7C4DFF), inactiveTrackColor = Color(0xFF3D3D5C), thumbColor = Color(0xFF7C4DFF)),
                                 modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
                             )
-                            Text("${pages.size}", color = Color.White.copy(0.6f), fontSize = 12.sp)
+                            Text(
+                                "${pages.size}" + if (readerOptions.showProgressPercent) " • ${((currentPage + 1) * 100 / pages.size)}%" else "",
+                                color = Color.White.copy(0.6f), fontSize = 12.sp,
+                            )
                         }
                     } else Spacer(Modifier.weight(1f))
                     IconButton(onClick = viewModel::goToNextChapter, enabled = viewModel.hasNextChapter) {
@@ -387,6 +421,22 @@ fun MangaReaderScreen(
                 }
             }
         }
+    }
+
+    if (showBookmarks) {
+        MangaBookmarkSheet(
+            bookmarks = uiState.bookmarks,
+            onDismiss = { showBookmarks = false },
+            onDelete = viewModel::removeBookmark,
+            onOpen = { bookmark ->
+                showBookmarks = false
+                if (bookmark.chapterUrl != currentChapter.url) viewModel.goToChapter(bookmark.chapterUrl)
+                scope.launch {
+                    if (readingMode == ReadingMode.Webtoon) listState.scrollToItem(bookmark.pageIndex.coerceIn(0, pages.lastIndex))
+                    else pagerState.scrollToPage(mangaDisplayPageIndexFor(displayPages, bookmark.pageIndex.coerceIn(0, pages.lastIndex)))
+                }
+            },
+        )
     }
 
     if (showSettings) {
