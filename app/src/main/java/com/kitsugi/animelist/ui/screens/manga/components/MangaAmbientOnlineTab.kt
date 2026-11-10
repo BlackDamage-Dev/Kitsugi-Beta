@@ -668,7 +668,7 @@ private fun formatAmbientTime(ms: Long): String {
     return "%d:%02d".format(totalSeconds / 60, totalSeconds % 60)
 }
 
-private fun speedLabel(speed: Float): String = when (speed) {
+internal fun speedLabel(speed: Float): String = when (speed) {
     1f -> "1x"
     0.75f -> "0,75x"
     1.25f -> "1,25x"
@@ -740,7 +740,7 @@ private fun AmbientSeekBar(
 
 /** Kuyruk listesi: tıklayınca o parçaya atlar, çöp kutusuyla çıkarır (çalan hariç). */
 @Composable
-private fun AmbientQueueDialog(
+internal fun AmbientQueueDialog(
     controller: MangaAmbientOnlineController,
     accent: Color,
     onDismiss: () -> Unit,

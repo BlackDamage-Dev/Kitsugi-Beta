@@ -7,6 +7,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.clickable
+import com.kitsugi.animelist.data.ambient.AmbientQueueRules
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -312,17 +313,26 @@ fun MangaAmbientPanel(
 
         // ══════════════════════════════════════════════════════════════
         //  KISAYOL ŞERİDİ — sayfayı kaplamadan tek dokunuş
+        //  Çevrimiçi parça çalarken çevrimiçi kontroller de aynı şeritte.
         // ══════════════════════════════════════════════════════════════
+        var showOnlineQueue by remember { mutableStateOf(false) }
+        val onlineActive = ambientOnline?.playback?.currentTrack != null
         QuickActionBar(
             accent = accent,
-            isPlaying = isPlaying,
+            isPlaying = isPlaying || ambientOnline?.playback?.isPlaying == true,
             hasChannels = channels.isNotEmpty(),
+            onlineActive = onlineActive,
+            online = if (onlineActive) ambientOnline else null,
+            onOpenOnlineQueue = { showOnlineQueue = true },
             isMuted = channels.isNotEmpty() && channels.all { it.muted },
             timerRunning = sleepTimer.running,
             timerLabel = sleepTimer.display,
             favoriteCount = favorites.size,
             profileCount = profiles.size,
-            onTogglePlay = onTogglePlay,
+            onTogglePlay = {
+                onTogglePlay()
+                if (onlineActive) ambientOnline?.playback?.togglePlayback()
+            },
             onMuteAll = {
                 // En az bir kanal açıksa hepsini sustur; hepsi zaten
                 // kapalıysa hepsini aç. Böylece düğme gerçek bir toggle.
@@ -336,9 +346,20 @@ fun MangaAmbientPanel(
             onQuickTimer = { minutes ->
                 if (sleepTimer.running) onCancelTimer() else onStartTimer(minutes)
             },
-            onStopAll = onStopAll,
+            onStopAll = {
+                onStopAll()
+                if (onlineActive) ambientOnline?.playback?.stop()
+            },
             onJumpTo = { tab -> jumpToTab(tab) }
         )
+        val onlineForQueue = ambientOnline
+        if (showOnlineQueue && onlineForQueue != null) {
+            AmbientQueueDialog(
+                controller = onlineForQueue,
+                accent = accent,
+                onDismiss = { showOnlineQueue = false }
+            )
+        }
 
         Spacer(Modifier.height(8.dp))
 
@@ -2723,6 +2744,11 @@ private fun QuickActionBar(
     accent: Color,
     isPlaying: Boolean,
     hasChannels: Boolean,
+    /** Çevrimiçi parça çalıyor/yüklü mü: oynat ve durdur düğmeleri onu da kapsar. */
+    onlineActive: Boolean = false,
+    /** Çevrimiçi kontrolcü; `null` ise çevrimiçi grup gösterilmez. */
+    online: MangaAmbientOnlineController? = null,
+    onOpenOnlineQueue: () -> Unit = {},
     isMuted: Boolean,
     timerRunning: Boolean,
     timerLabel: String,
@@ -2746,11 +2772,12 @@ private fun QuickActionBar(
         horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         // ── Oynat / duraklat ────────────────────────────────────────────
+        val playEnabled = hasChannels || onlineActive
         QuickIcon(
             icon = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
             label = if (isPlaying) "Duraklat" else "Çal",
-            enabled = hasChannels,
-            tint = if (hasChannels) accent else KitsugiColors.TextMuted,
+            enabled = playEnabled,
+            tint = if (playEnabled) accent else KitsugiColors.TextMuted,
             accent = accent,
             onClick = onTogglePlay
         )
@@ -2780,11 +2807,20 @@ private fun QuickActionBar(
         QuickIcon(
             icon = Icons.Rounded.Stop,
             label = "Durdur",
-            enabled = hasChannels,
-            tint = if (hasChannels) KitsugiColors.AccentRed else KitsugiColors.TextMuted,
+            enabled = playEnabled,
+            tint = if (playEnabled) KitsugiColors.AccentRed else KitsugiColors.TextMuted,
             accent = accent,
             onClick = onStopAll
         )
+
+        // ── Çevrimiçi kontroller (aktif parça varsa) ───────────────────
+        if (online != null) {
+            OnlineQuickControls(
+                online = online,
+                accent = accent,
+                onOpenQueue = onOpenOnlineQueue
+            )
+        }
 
         Spacer(Modifier.width(8.dp))
 
@@ -2809,6 +2845,90 @@ private fun QuickActionBar(
                 onClick = { onJumpTo(5) }
             )
         }
+    }
+}
+
+/**
+ * Çevrimiçi oynatıcının kısayol grubu: önceki/sonraki, tekrar, karıştır, hız,
+ * uyku, kuyruk ve sıraya dön. Hepsi tek ikon/hap; şerit yüksekliği değişmez.
+ */
+@Composable
+private fun OnlineQuickControls(
+    online: MangaAmbientOnlineController,
+    accent: Color,
+    onOpenQueue: () -> Unit
+) {
+    val playback = online.playback
+    val repeatOn = online.repeatMode != AmbientQueueRules.REPEAT_OFF
+    val repeatLabel = when (online.repeatMode) {
+        AmbientQueueRules.REPEAT_ONE -> "Parça tekrarı"
+        AmbientQueueRules.REPEAT_ALL -> "Liste tekrarı"
+        else -> "Tekrar kapalı"
+    }
+
+    QuickIcon(
+        icon = Icons.Rounded.SkipPrevious,
+        label = "Önceki parça",
+        enabled = playback.hasPreviousTrack,
+        tint = if (playback.hasPreviousTrack) KitsugiColors.TextSecondary else KitsugiColors.TextMuted,
+        accent = accent,
+        onClick = { playback.skipToPrevious() }
+    )
+    QuickIcon(
+        icon = Icons.Rounded.SkipNext,
+        label = "Sonraki parça",
+        enabled = playback.hasNextTrack,
+        tint = if (playback.hasNextTrack) KitsugiColors.TextSecondary else KitsugiColors.TextMuted,
+        accent = accent,
+        onClick = { playback.skipToNext() }
+    )
+    QuickIcon(
+        icon = if (online.repeatMode == AmbientQueueRules.REPEAT_ONE) Icons.Rounded.RepeatOne else Icons.Rounded.Repeat,
+        label = repeatLabel,
+        enabled = true,
+        tint = if (repeatOn) accent else KitsugiColors.TextSecondary,
+        accent = accent,
+        onClick = { online.cycleRepeatMode() }
+    )
+    QuickIcon(
+        icon = Icons.Rounded.Shuffle,
+        label = if (online.shuffleEnabled) "Karıştırma açık" else "Karıştırma kapalı",
+        enabled = true,
+        tint = if (online.shuffleEnabled) accent else KitsugiColors.TextSecondary,
+        accent = accent,
+        onClick = { online.setShuffle(!online.shuffleEnabled) }
+    )
+    PillAction(
+        text = speedLabel(online.playbackSpeed),
+        icon = null,
+        active = online.playbackSpeed != 1f,
+        accent = accent,
+        onClick = { online.cycleSpeed() }
+    )
+    PillAction(
+        text = if (online.sleepTimerMinutes > 0) "${online.sleepTimerMinutes} dk" else "Uyku",
+        icon = Icons.Rounded.Timer,
+        active = online.sleepTimerMinutes > 0,
+        accent = accent,
+        onClick = { online.cycleSleepTimer() }
+    )
+    QuickIcon(
+        icon = Icons.Rounded.PlaylistPlay,
+        label = "Çevrimiçi sıra",
+        enabled = playback.queueLength > 0,
+        tint = if (playback.queueLength > 0) KitsugiColors.TextSecondary else KitsugiColors.TextMuted,
+        accent = accent,
+        onClick = onOpenQueue
+    )
+    if (online.canResumeAutoQueue) {
+        QuickIcon(
+            icon = Icons.Rounded.Replay,
+            label = "Sıraya dön",
+            enabled = true,
+            tint = accent,
+            accent = accent,
+            onClick = { online.resumeAutoQueue() }
+        )
     }
 }
 
