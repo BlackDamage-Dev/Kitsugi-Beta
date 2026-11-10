@@ -96,6 +96,7 @@ fun MangaPageItem(
         return
     }
 
+    val zoomableState = rememberZoomableState()
     val usesZoomableGestures = page.status == MangaPageStatus.Ready &&
         (readingMode != ReadingMode.Webtoon || readerOptions.webtoonZoom)
     val tapModifier = if (tapNavigationEnabled && !usesZoomableGestures && readerOptions.tapNavigation != MangaTapNavigation.Disabled) {
@@ -164,7 +165,6 @@ fun MangaPageItem(
                             modifier = sizedModifier,
                         )
                     } else {
-                        val zoomableState = rememberZoomableState()
                         val imageState = rememberZoomableImageState(zoomableState)
                         LaunchedEffect(page, readerOptions.zoomStart) {
                             zoomableState.resetZoom(withAnimation = false)

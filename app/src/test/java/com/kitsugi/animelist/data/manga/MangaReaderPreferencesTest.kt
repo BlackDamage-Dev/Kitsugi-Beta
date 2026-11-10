@@ -71,12 +71,21 @@ class MangaReaderPreferencesTest {
     @Test fun invalidPersistedRangesAreSanitized() {
         val preferences = MangaReaderPreferences(
             brightness = -2f,
-            options = MangaReaderOptions(sidePaddingDp = 100, pageGapDp = -5, pageOpacity = 4f),
+            options = MangaReaderOptions(
+                sidePaddingDp = 100, pageGapDp = -5, pageOpacity = 4f,
+                preloadAhead = 99, autoScrollSpeed = -1,
+                novelFontSizeSp = 500, novelLineHeight = Float.NaN, novelMarginDp = -20,
+            ),
         ).sanitized()
         assertEquals(0.1f, preferences.brightness, 0.0001f)
         assertEquals(32, preferences.options.sidePaddingDp)
         assertEquals(0, preferences.options.pageGapDp)
         assertEquals(1f, preferences.options.pageOpacity, 0.0001f)
+        assertEquals(8, preferences.options.preloadAhead)
+        assertEquals(8, preferences.options.autoScrollSpeed)
+        assertEquals(36, preferences.options.novelFontSizeSp)
+        assertEquals(1.5f, preferences.options.novelLineHeight, 0.0001f)
+        assertEquals(0, preferences.options.novelMarginDp)
     }
 
     @Test fun nonFiniteSliderValuesCannotCrashTheReader() {

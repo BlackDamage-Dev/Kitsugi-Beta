@@ -451,8 +451,7 @@ fun MangaReaderScreen(
                 if (bookmark.chapterUrl != currentChapter.url) {
                     val targetChapter = uiState.chapterList.firstOrNull { it.url == bookmark.chapterUrl }
                     if (targetChapter != null) viewModel.goToChapter(targetChapter, bookmark.pageIndex)
-                }
-                scope.launch {
+                } else scope.launch {
                     if (readingMode == ReadingMode.Webtoon) listState.scrollToItem(bookmark.pageIndex.coerceIn(0, pages.lastIndex))
                     else pagerState.scrollToPage(mangaDisplayPageIndexFor(displayPages, bookmark.pageIndex.coerceIn(0, pages.lastIndex)))
                 }

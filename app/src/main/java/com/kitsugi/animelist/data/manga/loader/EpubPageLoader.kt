@@ -24,7 +24,7 @@ class EpubPageLoader(private val file: File) {
             val base = rootfile.substringBeforeLast('/', "")
             val pages = opf.select("spine > itemref").mapNotNull { spine ->
                 val item = manifest[spine.attr("idref")] ?: return@mapNotNull null
-                resolveArchivePath(base, item.attr("href"))?.takeIf(zip::contains)
+                resolveArchivePath(base, item.attr("href"))?.takeIf { zip.getEntry(it) != null }
             }
             if (pages.isEmpty()) throw java.io.IOException("EPUB spine bölümü boş")
             pages.mapIndexedNotNull { index, path ->
@@ -42,7 +42,6 @@ class EpubPageLoader(private val file: File) {
         }
     }
 
-    private fun ZipFile.contains(path: String) = getEntry(path) != null
     private fun ZipFile.read(path: String): String = (getEntry(path) ?: throw java.io.FileNotFoundException(path))
         .let { entry -> getInputStream(entry).bufferedReader(Charsets.UTF_8).use { it.readText() } }
 
