@@ -40,6 +40,9 @@ class MangaPageLoaderV2(
      * kullanıcı çevrimdışıyken de bölümü açabilir (Mihon "downloaded" davranışı).
      */
     private val archiveResolver: ((com.kitsugi.animelist.data.manga.MangaChapter) -> java.io.File?)? = null,
+    val localDocumentFile: java.io.File? = null,
+    /** HTML/XHTML kaynaklarını resim yerine seçilebilir metin olarak yükler. */
+    val preferText: Boolean = false,
 ) {
     companion object {
         private const val TAG = "MangaPageLoaderV2"
@@ -77,6 +80,19 @@ class MangaPageLoaderV2(
             try {
                 resetQueue()
                 _pages.value = emptyList()
+
+                if (localDocumentFile != null) {
+                    _pages.value = when (localDocumentFile.extension.lowercase()) {
+                        "epub" -> EpubPageLoader(localDocumentFile).loadPages(chapter.url)
+                        "pdf" -> PdfPageLoader(context, localDocumentFile).let { pdf -> pdf.pages(chapter.url, pdf.pageCount()) }
+                        "txt", "md", "markdown", "fb2" -> TextDocumentPageLoader(localDocumentFile).loadPages(chapter.url)
+                        else -> throw java.io.IOException("Desteklenmeyen yerel belge")
+                    }
+                    if (_pages.value.isEmpty()) throw java.io.IOException("Belgede okunabilir sayfa bulunamadı")
+                    val elapsed = System.currentTimeMillis() - t0
+                    sourceStateStore.recordOperationSuccess(source, "pages", elapsed)
+                    return@withContext
+                }
 
                 // İndirilmiş bölüm varsa doğrudan arşivden oku (ağ yok, çevrimdışı çalışır).
                 val resolvedArchive = archiveFile
@@ -203,6 +219,19 @@ class MangaPageLoaderV2(
         if (isReady(page)) return
         page.errorCode = null
 
+        if (page.textParagraphs != null) {
+            page.status = MangaPageStatus.Ready
+            return
+        }
+
+        if (localDocumentFile?.extension?.equals("pdf", true) == true && page.archivePath?.startsWith("pdf:") == true) {
+            val index = page.archivePath!!.removePrefix("pdf:").toIntOrNull()
+                ?: throw java.io.IOException("Geçersiz PDF sayfa kimliği")
+            page.imageUrl = PdfPageLoader(context, localDocumentFile).renderPage(index).toURI().toString()
+            page.status = MangaPageStatus.Ready
+            return
+        }
+
         if (page.archivePath != null && (activeArchive != null || archiveFile != null)) {
             semaphore.withPermit {
                 try {
@@ -249,7 +278,17 @@ class MangaPageLoaderV2(
                     }
 
                     val imageUrl = page.imageUrl?.takeIf { it.isNotBlank() }
-                        ?: throw java.io.IOException("Kaynak boş görsel adresi döndürdü")
+                        ?: throw java.io.IOException("Kaynak boş içerik adresi döndürdü")
+
+                    if (preferText) {
+                        page.status = MangaPageStatus.DownloadImage
+                        val html = source.getImage(page).bufferedReader(Charsets.UTF_8).use { it.readText() }
+                        val paragraphs = com.kitsugi.animelist.data.manga.MangaTextParser.parse(html)
+                        if (paragraphs.isEmpty()) throw java.io.IOException("Bölümde okunabilir metin bulunamadı")
+                        page.textParagraphs = paragraphs
+                        page.status = MangaPageStatus.Ready
+                        return@withTimeout
+                    }
 
                     val storedKey = cacheKey(page, imageUrl)
                     // 2. Disk cache'te var mı kontrol et

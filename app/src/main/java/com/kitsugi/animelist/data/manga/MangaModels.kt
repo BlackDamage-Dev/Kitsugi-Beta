@@ -24,6 +24,15 @@ data class MangaDetails(
      * +18 içerik mi? Manga kaynaklarında net bir API bayrağı olmadığı için
      * tür/source ipuçlarıyla kontrol edilir (ecchi hariç tutulur).
      */
+    val isNovelContent: Boolean
+        get() {
+            val tokens = listOf("novel", "light novel", "web novel", "ranobe", "roman")
+            return (genre + source).any { value ->
+                val normalized = value.lowercase()
+                tokens.any(normalized::contains)
+            }
+        }
+
     val isAdultContent: Boolean
         get() {
             val adultTokens = listOf("hentai", "porn", "doujin", "adult", "18+", "xxx")
@@ -86,6 +95,8 @@ class MangaPage(
 
     /** Yerel arşiv dosyası yolu (ZIP/CBZ/RAR içindeki sayfa) — null ise normal HTTP akışı. */
     var archivePath: String? = null
+    /** HTML/EPUB/metin bölümleri için ayrıştırılmış paragraflar; görsel sayfalarda null. */
+    var textParagraphs: List<String>? = null
 
     /**
      * Ready olduğunda diske yazılmış gerçek görsel dosyası.

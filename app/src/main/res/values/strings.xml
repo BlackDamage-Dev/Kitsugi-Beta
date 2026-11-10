@@ -5000,7 +5000,25 @@ Eklentiler ekranından eklenti etkinleştirin.</string>
 
 
 	<!-- Auto-extracted UI strings (hardcoded TR -> localized) -->
-	<string name="kapat">Kapat</string>
+    <string name="kapat">Kapat</string>
+    <string name="okuyucu_add_bookmark">Yer imi ekle veya kaldır</string>
+    <string name="okuyucu_bookmarks">Yer imleri</string>
+    <string name="okuyucu_speech">Sesli oku veya duraklat</string>
+    <string name="okuyucu_stop_speech">Sesli okumayı durdur</string>
+    <string name="okuyucu_share_page">Sayfayı paylaş</string>
+    <string name="okuyucu_search_text">Bölümde ara</string>
+    <string name="okuyucu_no_bookmarks">Henüz yer imi yok. Okuduğun sayfayı Hızlı Araçlar panelinden kaydedebilirsin.</string>
+    <string name="okuyucu_page_number">Sayfa %1$d</string>
+    <string name="okuyucu_theme_black">Siyah</string>
+    <string name="okuyucu_theme_dark">Koyu</string>
+    <string name="okuyucu_theme_white">Beyaz</string>
+    <string name="okuyucu_theme_sepia">Sepya</string>
+    <string name="okuyucu_font_sans">Sans</string>
+    <string name="okuyucu_font_serif">Serif</string>
+    <string name="okuyucu_font_mono">Tek aralıklı</string>
+    <string name="okuyucu_align_start">Başa hizalı</string>
+    <string name="okuyucu_align_justify">İki yana yaslı</string>
+    <string name="okuyucu_align_center">Ortalı</string>
 	<string name="iptal">İptal</string>
 	<string name="geri">Geri</string>
 	<string name="temizle">Temizle</string>
@@ -19343,4 +19361,33 @@ Eklentiler ekranından eklenti etkinleştirin.</string>
     <string name="ambient_audio_duration_unknown">Süre bilinmiyor</string>
     <string name="ambient_audio_live_radio">Canlı radyo</string>
     <string name="ambient_audio_open_source">Kaynağı aç</string>
+
+    <!-- TTS ve Novel Okuyucu -->
+    <string name="tts_notification_channel_name">Sesli Okuma (TTS)</string>
+    <string name="tts_notification_channel_desc">Kitap ve novel sesli okuma kontrolleri</string>
+    <string name="tts_action_play">Oynat</string>
+    <string name="tts_action_pause">Duraklat</string>
+    <string name="tts_action_stop">Durdur</string>
+    <string name="tts_action_previous">Önceki</string>
+    <string name="tts_action_next">Sonraki</string>
+    <string name="tts_speed_title">Sesli Okuma Hızı</string>
+    <string name="tts_voice_title">Sesli Okuma Sesi</string>
+    <string name="tts_voice_default">Sistem Varsayılanı</string>
+    <string name="tts_highlight_sentence">Okunan Cümleyi Vurgula</string>
+    <string name="epub_toc_title">İçindekiler</string>
+    <string name="epub_no_chapters">İçindekiler tablosu bulunamadı</string>
+    <string name="manga_tts_prev_sentence">Önceki cümle</string>
+    <string name="manga_tts_next_sentence">Sonraki cümle</string>
+    <string name="manga_bionic_reading">Bionic Okuma</string>
+    <string name="manga_bionic_reading_desc">Kelimelerin ilk harflerini belirginleştirerek odaklanmayı artırır</string>
+    <string name="manga_novel_clock">Saat Göstergesi</string>
+    <string name="manga_novel_clock_desc">Novel okurken üst köşede saati gösterir</string>
+    <string name="reader_series_custom_title">Bu Seriye Özel Ayarla</string>
+    <string name="reader_series_custom_desc">Bu serinin ayarlarını genel tercihlerden bağımsız saklar</string>
+    <string name="reader_series_reset_to_global">Genel Ayarlara Sıfırla</string>
+    <string name="reader_crop_webtoon_title">Webtoon Kenarlarını Kırp</string>
+    <string name="reader_crop_webtoon_desc">Dikey webtoon sayfalarının beyaz kenarlarını kırpar</string>
+    <string name="reader_save_gallery">Galeriye Kaydet</string>
+    <string name="reader_save_wallpaper">Duvar Kağıdı Yap</string>
+    <string name="reader_saved_to_gallery">Sayfa galeriye kaydedildi</string>
 </resources>

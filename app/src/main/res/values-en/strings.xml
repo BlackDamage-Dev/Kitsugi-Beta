@@ -4999,6 +4999,24 @@
 
 	<!-- Auto-extracted UI strings (hardcoded TR -> localized) -->
 	<string name="kapat">Close</string>
+    <string name="okuyucu_add_bookmark">Add or remove bookmark</string>
+    <string name="okuyucu_bookmarks">Bookmarks</string>
+    <string name="okuyucu_speech">Read aloud or pause</string>
+    <string name="okuyucu_stop_speech">Stop reading aloud</string>
+    <string name="okuyucu_share_page">Share page</string>
+    <string name="okuyucu_search_text">Search in chapter</string>
+    <string name="okuyucu_no_bookmarks">No bookmarks yet. Save the current page from Quick Tools.</string>
+    <string name="okuyucu_page_number">Page %1$d</string>
+    <string name="okuyucu_theme_black">Black</string>
+    <string name="okuyucu_theme_dark">Dark</string>
+    <string name="okuyucu_theme_white">White</string>
+    <string name="okuyucu_theme_sepia">Sepia</string>
+    <string name="okuyucu_font_sans">Sans</string>
+    <string name="okuyucu_font_serif">Serif</string>
+    <string name="okuyucu_font_mono">Monospace</string>
+    <string name="okuyucu_align_start">Start aligned</string>
+    <string name="okuyucu_align_justify">Justified</string>
+    <string name="okuyucu_align_center">Centered</string>
 	<string name="iptal">Cancel</string>
 	<string name="geri">Back</string>
 	<string name="temizle">Clear</string>
@@ -19337,4 +19355,33 @@
     <string name="ambient_audio_duration_unknown">Duration unknown</string>
     <string name="ambient_audio_live_radio">Live radio</string>
     <string name="ambient_audio_open_source">Open source page</string>
+
+    <!-- TTS and Novel Reader -->
+    <string name="tts_notification_channel_name">Text to Speech (TTS)</string>
+    <string name="tts_notification_channel_desc">Book and novel speech playback controls</string>
+    <string name="tts_action_play">Play</string>
+    <string name="tts_action_pause">Pause</string>
+    <string name="tts_action_stop">Stop</string>
+    <string name="tts_action_previous">Previous</string>
+    <string name="tts_action_next">Next</string>
+    <string name="tts_speed_title">Speech Rate</string>
+    <string name="tts_voice_title">Speech Voice</string>
+    <string name="tts_voice_default">System Default</string>
+    <string name="tts_highlight_sentence">Highlight Spoken Sentence</string>
+    <string name="epub_toc_title">Table of Contents</string>
+    <string name="epub_no_chapters">No table of contents found</string>
+    <string name="manga_tts_prev_sentence">Previous sentence</string>
+    <string name="manga_tts_next_sentence">Next sentence</string>
+    <string name="manga_bionic_reading">Bionic Reading</string>
+    <string name="manga_bionic_reading_desc">Bolds initial letters of words to guide eye focus</string>
+    <string name="manga_novel_clock">Clock Indicator</string>
+    <string name="manga_novel_clock_desc">Displays clock in the top corner during novel reading</string>
+    <string name="reader_series_custom_title">Custom for This Series</string>
+    <string name="reader_series_custom_desc">Saves settings independently for this series</string>
+    <string name="reader_series_reset_to_global">Reset to Global Defaults</string>
+    <string name="reader_crop_webtoon_title">Crop Webtoon Borders</string>
+    <string name="reader_crop_webtoon_desc">Crops white margins in vertical webtoon mode</string>
+    <string name="reader_save_gallery">Save to Gallery</string>
+    <string name="reader_save_wallpaper">Set as Wallpaper</string>
+    <string name="reader_saved_to_gallery">Page saved to gallery</string>
 </resources>
