@@ -535,7 +535,8 @@ object P2pStreamingEngine {
                             uploadSpeed = aggregate.uploadRateBytesPerSecond,
                             peers = aggregate.connectedPeers,
                             seeds = aggregate.connectedSeeds,
-                            bufferProgress = route?.bufferProgress ?: latestState.bufferProgress,
+                            bufferProgress = normalizeP2pBufferProgress(route?.bufferProgress)
+                                ?: latestState.bufferProgress,
                             totalProgress = route?.fileProgress ?: latestState.totalProgress,
                             downloadedBytes = (aggregate.totalPayloadDownloadBytes - payloadDownloadBaseline).coerceAtLeast(0L),
                             verifiedBytes = route?.verifiedFileBytes ?: latestState.verifiedBytes,

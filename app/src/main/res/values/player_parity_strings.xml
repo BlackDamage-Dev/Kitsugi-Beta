@@ -53,4 +53,48 @@
     <string name="player_advanced_tap_center">Orta bölge</string>
     <string name="player_advanced_tap_right">Sağ bölge</string>
     <string name="player_advanced_not_set">Belirtilmedi</string>
+
+    <!-- v2.4.341 — Oynatıcıdan otomatik liste takibi -->
+    <string name="player_advanced_autotrack">Otomatik liste takibi</string>
+    <string name="auto_track_enabled">Oynatınca listeye işle</string>
+    <string name="auto_track_add_new">Listede yoksa otomatik ekle</string>
+    <string name="auto_track_respect_dropped">Bıraktığım yapımlara dokunma</string>
+    <string name="auto_track_sync_sources">Değişiklikleri tüm bağlı kaynaklara yaz</string>
+    <string name="auto_track_min_seconds">En kısa takip süresi: %1$d sn</string>
+    <string name="quick_rate_enabled">Bitişte hızlı puanlama çubuğu</string>
+    <string name="quick_rate_seconds">Çubuk ekranda kalsın: %1$d sn</string>
+    <string name="quick_rate_hint">Bitti! Kısayoldan puan ver</string>
+    <string name="quick_rate_dismiss">Kapat</string>
+    <string name="quick_rate_score">%1$d puan ver</string>
+    <string name="quick_rate_existing">Mevcut puanın: %1$d</string>
+    <string name="auto_track_synced_all">Tüm bağlı kaynaklara yazıldı</string>
+    <string name="auto_track_synced_local">Yerel listeye yazıldı</string>
+    <string name="quick_rate_episode">Bölüm %1$d</string>
+    <string name="quick_rate_saved">Puanın kaydedildi: %1$d</string>
+    <string name="settings_experimental_title">Deneysel Özellikler</string>
+    <string name="settings_experimental_section_about">Deneysel</string>
+    <string name="settings_experimental_desc">Beta aşamasındaki, davranışı değişebilecek özellikler. Varsayılan olarak kapalıdır; yalnızca sen açtığında çalışır.</string>
+    <string name="settings_experimental_section_tracking">Otomatik liste takibi</string>
+    <string name="experimental_autotrack_title">Oynatınca otomatik listeye işle</string>
+    <string name="experimental_autotrack_desc">Hangi kaynaktan (AniList, MyAnimeList, Kitsu, Shikimori, Bangumi, Simkl, TMDB veya eklentiler) açarsan aç: oynatılan bölüm/film listene işlenir, bittiğinde izlenen bölüm sayısı artar ve son bölümde kayıt tamamlanır.</string>
+    <string name="experimental_autotrack_confirm_title">Deneysel özelliği aç?</string>
+    <string name="experimental_autotrack_confirm_message">Otomatik liste takibi beta aşamasındadır ve bağlı hesaplarındaki listeleri DEĞİŞTİRİR.
+
+• Oynattığın içerik listene \"İzleniyor\" olarak eklenebilir.
+• Bölüm bitince izlenen bölüm sayısı listeye yazılır; bu işlem geri alınmaz (listede elle düzeltmen gerekir).
+• Değişiklikler bağlı olduğun tüm platformlara yayılır (ayrı bir anahtarla kapatılabilir).
+• Fragman ve klipler takip edilmez; \"Bırakıldı\" işaretli kayıtlar korunur.
+
+Yanlış eşleşme gibi bir sorun görürsen özelliği aynı yerden kapatabilirsin.</string>
+    <string name="experimental_autotrack_confirm_accept">Riski anladım, aç</string>
+    <string name="experimental_autotrack_on">Otomatik takip açık</string>
+    <string name="experimental_autotrack_off">Otomatik takip kapatıldı</string>
+    <string name="experimental_autotrack_badge">Deneysel</string>
+    <string name="experimental_autotrack_cancel">Vazgeç</string>
+    <string name="auto_track_add_new_desc">Listende olmayan bir yapımı oynattığında otomatik olarak eklenir.</string>
+    <string name="auto_track_sync_sources_desc">Durum/ilerleme yalnızca bu cihazda kalmaz; bağlı olduğun tüm platformlara (AniList, MAL, Kitsu, Shikimori, Bangumi, Simkl) yazılır.</string>
+    <string name="auto_track_respect_dropped_desc">\"Bırakıldı\" olarak işaretlediğin yapımlar yeniden oynatılsa bile listede değiştirilmez.</string>
+    <string name="quick_rate_enabled_desc">Bölüm/film bittiğinde oynatıcının altında küçük bir puanlama çubuğu çıkar (tam ekran pencere açılmaz).</string>
+    <string name="experimental_autotrack_off_hint">Kapalıyken otomatik liste durumu/ilerlemesi yazılmaz ve hızlı puanlama çıkmaz. Oynatımın normal devam etme konumu yine kaydedilir.</string>
+    <string name="settings_experimental_entry_desc">Beta aşamasındaki özellikler. Varsayılan olarak kapalıdır; onay verdikten sonra açılır.</string>
 </resources>

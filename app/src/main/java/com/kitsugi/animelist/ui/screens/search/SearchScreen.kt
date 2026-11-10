@@ -3,6 +3,7 @@
 package com.kitsugi.animelist.ui.screens.search
 
 import com.kitsugi.animelist.ui.theme.gradient.FloatingActionButton
+import com.kitsugi.animelist.ui.utils.uniqueItems
 import com.kitsugi.animelist.ui.components.PlatformErrorCodeChip
 import com.kitsugi.animelist.ui.components.PlatformErrorExplanationBlock
 import com.kitsugi.animelist.ui.theme.gradient.Icon
@@ -28,13 +29,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowUpward
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Extension
-import androidx.compose.material.icons.filled.FilterList
-import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material.icons.rounded.SearchOff
+import com.kitsugi.animelist.ui.icons.KitsugiEmojiIcons
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -56,6 +52,8 @@ import com.kitsugi.animelist.model.MediaEntry
 import com.kitsugi.animelist.model.MediaType
 import com.kitsugi.animelist.ui.components.KitsugiEmptyState
 import com.kitsugi.animelist.ui.components.KitsugiPlatformLogo
+import com.kitsugi.animelist.ui.components.KitsugiTopAction
+import com.kitsugi.animelist.ui.components.KitsugiTopActionRow
 import com.kitsugi.animelist.ui.components.KitsugiShimmerProvider
 import com.kitsugi.animelist.ui.components.KitsugiShimmerSearchResultList
 import com.kitsugi.animelist.ui.components.KitsugiShimmerResponsiveMediaRow
@@ -87,15 +85,10 @@ import com.kitsugi.animelist.ui.utils.kitsugiLazyKey
 import com.kitsugi.animelist.ui.utils.tvClickable
 import com.kitsugi.animelist.ui.utils.dpadVerticalFastScroll
 import com.lagradost.cloudstream3.APIHolder
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import androidx.compose.ui.res.stringResource
 import com.kitsugi.animelist.R
-
-/**
- * Kullanıcı bir kez kaydırdığında otomatik çekilebilecek azami sayfa sayısı.
- * Sonsuz sayfalama döngüsünü (bkz. `shouldLoadMore`) normal kaydırmayı bozmadan kapatır.
- */
-private const val AUTO_LOAD_BUDGET_PER_SCROLL = 3
 
 @Composable
 fun SearchScreen(
@@ -104,7 +97,7 @@ fun SearchScreen(
     onOpenApiDetail: (JikanSearchResult) -> Unit,
     onAddSelectionToList: (ApiSearchSelection) -> Unit,
     viewModel: SearchViewModel = viewModel(),
-    titleLanguage: String = "ROMAJI",
+    titleLanguage: String = "ENGLISH",
     staffNameLanguage: String = com.kitsugi.animelist.data.settings.KitsugiContentPrefs.staffNameLanguage,
     scoreFormat: String = "POINT_10",
     hideScores: Boolean = false,
@@ -117,9 +110,16 @@ fun SearchScreen(
     onOpenPluginPicker: () -> Unit = {},
     // Eklenti Keşfet tam ekran navigasyonu
     onOpenAddonExplore: (String) -> Unit = {},
+    // Akıllı bildirim butonu — seçili kaynağın bildirimleri doğrudan açılır
+    isNotificationsVisible: Boolean = false,
+    onOpenNotifications: () -> Unit = {},
     // AniHyou Karakter ve Personel detay yönlendirmeleri
-    onOpenCharacterDetail: ((characterId: Int, name: String?, imageUrl: String?) -> Unit)? = null,
-    onOpenStaffDetail: ((staffId: Int, name: String?, imageUrl: String?) -> Unit)? = null,
+    // ⚠️ `source` ZORUNLU olarak taşınır: Bangumi/MAL/Kitsu satırlarındaki `malId` o kaynağın
+    // **kendi** kimlik uzayındadır (Bangumi karakter id'si ≠ AniList karakter id'si).
+    // Kaynak iletilmediğinde detay ekranı "anilist" varsayıp **başka bir karakteri**
+    // gösteriyordu (bkz. R28).
+    onOpenCharacterDetail: ((characterId: Int, name: String?, imageUrl: String?, source: String?) -> Unit)? = null,
+    onOpenStaffDetail: ((staffId: Int, name: String?, imageUrl: String?, source: String?) -> Unit)? = null,
     onOpenStudioDetail: ((studioId: Int, source: String, name: String?, imageUrl: String?) -> Unit)? = null,
     isBottomBarVisible: Boolean = true,
     bottomBarScrollState: com.kitsugi.animelist.utils.ScrollVisibilityState? = null,
@@ -127,7 +127,10 @@ fun SearchScreen(
     // "Tümünü Gör" → kaynağa özel tam arama sayfasını ayrı ekranda açar
     onOpenSourceSearch: (SearchSourceEngine, SearchScope, List<JikanSearchResult>) -> Unit = { _, _, _ -> },
     // Alt sayfa olarak kullanıldığında büyük başlığı gizlemek için null verilebilir
-    pageTitle: String? = "Arama"
+    pageTitle: String? = "Arama",
+
+    onOpenWatchHistory: (() -> Unit)? = null,
+    onOpenDownloads: (() -> Unit)? = null
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val accentColor = LocalKitsugiAccent.current
@@ -137,11 +140,20 @@ fun SearchScreen(
     )
     val scope = rememberCoroutineScope()
     val keyboardController = LocalSoftwareKeyboardController.current
+    val searchBarFocusRequester = remember { FocusRequester() }
     val context = androidx.compose.ui.platform.LocalContext.current
-    // Otomatik sayfalama emniyeti (bkz. aşağıdaki shouldLoadMore açıklaması).
-    var autoLoadBudget by remember { mutableIntStateOf(AUTO_LOAD_BUDGET_PER_SCROLL) }
-    var lastAutoLoadLoadedCount by remember { mutableIntStateOf(-1) }
     val isStudioSearch = uiState.selectedScope == SearchScope.STUDIO
+    // "Tümünü Gör" geçişinde ortak filtre setini hedef sayfaya devret.
+    // Hedef sayfa ayrı bir ViewModel örneği kullandığı için seçimler ancak bu
+    // devir (SearchFilterHandoff) ile taşınabilir; aksi hâlde tür/etiket/kurum
+    // seçimleri kayboluyordu.
+    val openSourceSearchWithCarry: (SearchSourceEngine, SearchScope, List<JikanSearchResult>) -> Unit =
+        { targetEngine, targetScope, shelf ->
+            SearchFilterHandoff.publish(
+                SearchCommonFiltersBridge.harvest(viewModel.uiState.value)
+            )
+            onOpenSourceSearch(targetEngine, targetScope, shelf)
+        }
     val onSearchResultClick: (JikanSearchResult) -> Unit = { result ->
         if (isStudioSearch && onOpenStudioDetail != null) {
             onOpenStudioDetail(result.malId, result.source, result.title, result.imageUrl)
@@ -153,16 +165,12 @@ fun SearchScreen(
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
 
     LaunchedEffect(lazyListState) {
-        snapshotFlow { lazyListState.firstVisibleItemIndex to lazyListState.firstVisibleItemScrollOffset }
-            .collect { (firstIndex, scrollOffset) ->
-                // Kullanıcı kaydırdı: otomatik sayfalama bütçesi yenilenir (normal sonsuz
-                // kaydırma birebir korunur; yalnızca kaydırma olmadan zincirlenen istek
-                // döngüsü engellenir).
-                if (autoLoadBudget != AUTO_LOAD_BUDGET_PER_SCROLL || lastAutoLoadLoadedCount != -1) {
-                    autoLoadBudget = AUTO_LOAD_BUDGET_PER_SCROLL
-                    lastAutoLoadLoadedCount = -1
-                }
-                if (firstIndex == 0 && scrollOffset == 0) {
+        snapshotFlow {
+            lazyListState.firstVisibleItemIndex == 0 && lazyListState.firstVisibleItemScrollOffset == 0
+        }
+            .distinctUntilChanged()
+            .collect { atTop ->
+                if (atTop) {
                     onScrollReset?.invoke()
                 }
             }
@@ -170,27 +178,26 @@ fun SearchScreen(
 
     // AniHyou Infinite Scroll (OnBottomReached)
     //
-    // EMNİYET KEMERİ: İstemcide sayfalama "sona ulaşıldı" koşulu yükleme bayrağını da
-    // içerdiği için, her sayfa yüklemesi bittiğinde koşul yeniden true oluyor ve efekti
-    // tekrar tetikliyordu. Sonuç: kullanıcı kaydırmasa bile art arda sayfa çekilmesi
-    // (filtre nedeniyle görünen liste büyümediğinde hiç bitmeyen döngü → API 429 +
-    // kaydırma kasması). Artık aynı sonuç kümesi için bir kez tetiklenir ve kaydırma
-    // başına bütçe ile sınırlanır; kullanıcı kaydırınca bütçe yenilenir.
+    // "Tümü" sekmesi (isShelfMode) çoklu kaynak raf görünümüdür; sayfalanmış liste
+    // değildir. Bu modda aşağı kaydırmak yalnızca mevcut rafları kaydırır — yeni
+    // sayfa çekip rafları shimmer'a düşürmez. Sayfalama sadece tek-kaynak veya
+    // Karakter/Personel listesinde çalışır; mükerrer istek koruması ViewModel
+    // içindeki `lastRequestedPage` + `loadMoreJob` ile yapılır.
     val shouldLoadMore by remember {
         derivedStateOf {
             val total = lazyListState.layoutInfo.totalItemsCount
             val lastVisible = lazyListState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
-            total > 0 && lastVisible >= total - 3 && !uiState.isLoading && !uiState.isLoadingMore && uiState.hasNextPage
+            !uiState.isShelfMode &&
+                total > 0 &&
+                lastVisible >= total - 3 &&
+                !uiState.isLoading &&
+                !uiState.isLoadingMore &&
+                uiState.hasNextPage
         }
     }
-    LaunchedEffect(shouldLoadMore, autoLoadBudget, uiState.results.size) {
+    LaunchedEffect(shouldLoadMore, uiState.results.size, uiState.page) {
         if (shouldLoadMore) {
-            val loadedCount = uiState.results.size
-            if (autoLoadBudget > 0 && loadedCount != lastAutoLoadLoadedCount) {
-                autoLoadBudget -= 1
-                lastAutoLoadLoadedCount = loadedCount
-                viewModel.loadMore()
-            }
+            viewModel.loadMore()
         }
     }
 
@@ -255,6 +262,17 @@ fun SearchScreen(
 
     var showEnginePickerSheet by remember { mutableStateOf(false) }
     var showSourceEngineFilterSheet by remember { mutableStateOf(false) }
+    // Ortak filtre çatısı: kurum (stüdyo/yapımcı/şirket) seçim sheet'i
+    var showInstitutionFilterSheet by remember { mutableStateOf(false) }
+    var showOrgFilterSheet by remember { mutableStateOf(false) }
+    val filterEditorOpen = showSourceEngineFilterSheet ||
+        uiState.isFilterSheetOpen ||
+        openTmdbFormatDialog ||
+        openTmdbGenreDialog ||
+        showInstitutionFilterSheet
+    LaunchedEffect(filterEditorOpen) {
+        viewModel.setFilterEditing(filterEditorOpen)
+    }
 
     // Keep canonical English values in state/API filters; localize only the visible labels.
     val tmdbGenres = listOf(
@@ -282,19 +300,49 @@ fun SearchScreen(
                 .then(if (isTv) Modifier.dpadVerticalFastScroll(lazyListState) else Modifier)
         ) {
             // Title & Search Input Section
-            item {
-                if (pageTitle != null) {
-                    Spacer(modifier = Modifier.height(28.dp))
-                    Text(
-                        text = pageTitle,
-                        color = KitsugiColors.TextPrimary,
-                        style = MaterialTheme.typography.headlineLarge,
-                        fontWeight = FontWeight.Bold
+            item(key = "search_title_and_bar") {
+                // ── Başlık + sağ üst aksiyonlar (tek satır) ──────────────────
+                Spacer(modifier = Modifier.height(if (pageTitle != null) 24.dp else 10.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    if (pageTitle != null) {
+                        Text(
+                            text = pageTitle,
+                            color = KitsugiColors.TextPrimary,
+                            style = MaterialTheme.typography.headlineLarge,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                    } else {
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
+
+                    KitsugiTopActionRow(
+                        actions = buildList {
+                            add(KitsugiTopAction.FILTER)
+                            if (onOpenWatchHistory != null) add(KitsugiTopAction.HISTORY)
+                            if (onOpenDownloads != null) add(KitsugiTopAction.DOWNLOADS)
+                            add(KitsugiTopAction.EXTENSIONS)
+                            if (isNotificationsVisible) add(KitsugiTopAction.NOTIFICATIONS)
+                        },
+                        onActionClick = { action ->
+                            when (action) {
+                                KitsugiTopAction.FILTER -> showSourceEngineFilterSheet = true
+                                KitsugiTopAction.HISTORY -> onOpenWatchHistory?.invoke()
+                                KitsugiTopAction.DOWNLOADS -> onOpenDownloads?.invoke()
+                                KitsugiTopAction.EXTENSIONS -> onOpenPluginPicker()
+                                KitsugiTopAction.NOTIFICATIONS -> onOpenNotifications()
+                                else -> Unit
+                            }
+                        }
                     )
-                    Spacer(modifier = Modifier.height(18.dp))
-                } else {
-                    Spacer(modifier = Modifier.height(12.dp))
                 }
+                Spacer(modifier = Modifier.height(14.dp))
 
                 val placeholder = if (uiState.selectedEngine == SearchSourceEngine.ALL) {
                     stringResource(R.string.search_placeholder_all_sources)
@@ -306,54 +354,29 @@ fun SearchScreen(
                     )
                 }
 
-                // Uiverse Lakshay-art Cosmic Search Bar & Companion Button
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    KitsugiCosmicSearchBar(
-                        query = uiState.query,
-                        onQueryChange = viewModel::setQuery,
-                        onSearch = {
-                            // Arama yalnızca burada tetiklenir (buton veya klavyedeki
-                            // "Ara" onay tuşu) — yazarken kendiliğinden arama yok.
-                            viewModel.onSearchAction()
-                            keyboardController?.hide()
-                        },
-                        onClearQuery = {
-                            viewModel.clearQuery()
-                            keyboardController?.hide()
-                        },
-                        placeholder = placeholder,
-                        leadingContent = {
-                            SourceEngineSelectorPill(
-                                selectedEngine = uiState.selectedEngine,
-                                onClick = { showEnginePickerSheet = true },
-                                // Yazarken motor adı gizlenir → arama butonuna yer açılır.
-                                compact = uiState.query.isNotBlank()
-                            )
-                        },
-                        onFilterClick = {
-                            showSourceEngineFilterSheet = true
-                        },
-                        isFilterActive = uiState.hasFiltersApplied,
-                        modifier = Modifier.weight(1f)
-                    )
-
-                    // Eklenti Portalı butonu (Uiverse cosmic companion button)
-                    CosmicCompanionButton(
-                        onClick = { onOpenPluginPicker() },
-                        icon = {
-                            Icon(
-                                imageVector = Icons.Default.Extension,
-                                contentDescription = stringResource(R.string.eklenti_portali),
-                                tint = KitsugiColors.TextMuted,
-                                modifier = Modifier.size(22.dp)
-                            )
-                        }
-                    )
-                }
+                // Arama çubuğu artık tam genişlikte
+                KitsugiCosmicSearchBar(
+                    query = uiState.query,
+                    onQueryChange = viewModel::setQuery,
+                    onSearch = {
+                        viewModel.onSearchAction()
+                        keyboardController?.hide()
+                    },
+                    onClearQuery = {
+                        viewModel.clearQuery()
+                        keyboardController?.hide()
+                    },
+                    placeholder = placeholder,
+                    leadingContent = {
+                        SourceEngineSelectorPill(
+                            selectedEngine = uiState.selectedEngine,
+                            onClick = { showEnginePickerSheet = true },
+                            compact = uiState.query.isNotBlank()
+                        )
+                    },
+                    focusRequester = searchBarFocusRequester,
+                    modifier = Modifier.fillMaxWidth()
+                )
                 Spacer(modifier = Modifier.height(10.dp))
             }
 
@@ -362,27 +385,66 @@ fun SearchScreen(
             // çubuğunun sağındaki butonda (SourceEngineFilterSheet) toplandı;
             // ana sayfa dağınık bırakılmaz. Bu satır yalnızca varsayılandan
             // farklı bir ayar aktifse görünür ve aktif durumu özetler.
-            item {
+            item(key = "search_options_summary") {
                 SearchOptionsSummaryRow(
                     uiState = uiState,
                     onClick = { showSourceEngineFilterSheet = true }
                 )
             }
-
+            if (uiState.organizations.isNotEmpty()) {
+                item(key = "selected_organizations") {
+                    SearchOrganizationChips(
+                        organizations = uiState.organizations,
+                        onRemove = { filter ->
+                            viewModel.updateOrganizations(uiState.organizations - filter)
+                        }
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+            }
 
             // Active Filters Inline Dismissible Chips Row
             // (Active filter pills removed – chips themselves show active state)
 
-            // Search History Section
-            if (showIdleContent && uiState.searchHistory.isNotEmpty()) {
-                item {
+            // Search History Section (Tarayıcı tarzı kompakt geçmiş & canlı öneriler)
+            val shouldRenderHistoryBlock = showIdleContent && (
+                uiState.searchHistory.isNotEmpty() ||
+                    !uiState.searchHistoryEnabled ||
+                    uiState.lastDeletedHistoryItem != null
+                )
+            if (shouldRenderHistoryBlock) {
+                item(key = "search_history_section") {
                     SearchHistorySection(
                         history = uiState.searchHistory,
+                        currentQuery = uiState.query,
+                        currentEngine = uiState.selectedEngine,
+                        currentScope = uiState.selectedScope,
+                        searchHistoryEnabled = uiState.searchHistoryEnabled,
+                        lastDeletedItem = uiState.lastDeletedHistoryItem,
                         onHistoryItemClick = viewModel::applyHistoryItem,
+                        onApplyWithSource = viewModel::applyHistoryItemWithSource,
+                        onFillQuery = { text ->
+                            viewModel.fillQueryFromHistory(text)
+                            scope.launch {
+                                if (lazyListState.firstVisibleItemIndex > 0 || lazyListState.firstVisibleItemScrollOffset > 0) {
+                                    lazyListState.animateScrollToItem(0)
+                                }
+                                kotlinx.coroutines.delay(40)
+                                runCatching { searchBarFocusRequester.requestFocus() }
+                                keyboardController?.show()
+                            }
+                        },
+                        onTogglePin = viewModel::togglePinHistoryItem,
                         onRemoveItem = viewModel::removeHistoryItem,
-                        onClearAll = viewModel::clearHistory
+                        onUndoDelete = viewModel::undoRemoveHistoryItem,
+                        onDismissUndo = viewModel::dismissUndoHistory,
+                        onClearAll = viewModel::clearHistory,
+                        onClearHistoryConfirmed = { keepPinned ->
+                            viewModel.clearHistory(keepPinned = keepPinned)
+                        },
+                        onToggleHistoryRecording = viewModel::toggleSearchHistoryRecording
                     )
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(20.dp))
                 }
             }
 
@@ -402,14 +464,21 @@ fun SearchScreen(
                 uiState.currentTab != KitsugiSearchTab.All &&
                 uiState.results.isEmpty()
             if (showResultShimmer) {
-                item {
-                    KitsugiShimmerSearchResultList(itemCount = 4)
+                item(key = "result_shimmer") {
+                    val isPerson = uiState.currentTab == KitsugiSearchTab.Character ||
+                        uiState.currentTab == KitsugiSearchTab.Staff ||
+                        uiState.selectedScope == SearchScope.STUDIO
+                    KitsugiShimmerSearchResultList(
+                        itemCount = if (isPerson) 6 else 4,
+                        isPerson = isPerson,
+                        showAddButton = !isPerson
+                    )
                 }
             }
 
             // Kaynak hataları: hangi kaynağın bu aramayı etkilediğini kod rozetleriyle göster
             if (!uiState.isLoading && uiState.sourceErrorCodes.isNotEmpty()) {
-                item {
+                item(key = "source_error_codes") {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -417,21 +486,39 @@ fun SearchScreen(
                             .padding(horizontal = 16.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        uiState.sourceErrorCodes.values.distinct().forEach { code ->
-                            PlatformErrorCodeChip(code = code)
+                        uiState.sourceErrorCodes.forEach { (platform, code) ->
+                            PlatformErrorCodeChip(code = code, platform = platform)
                         }
                     }
                     Spacer(modifier = Modifier.height(8.dp))
                 }
             }
 
+            // Seçili filtreleri desteklemediği için bilinçli olarak atlanan kaynaklar
+            if (!uiState.isLoading && uiState.hasSearched && uiState.skippedSourceIds.isNotEmpty()) {
+                item(key = "search_skipped_sources") {
+                    val skippedLabels = uiState.skippedSourceIds
+                        .mapNotNull { SearchSourceEngine.fromId(it) }
+                        .map { it.localizedLabel() }
+                        .joinToString(", ")
+                    Text(
+                        text = stringResource(R.string.search_skipped_sources_notice, skippedLabels),
+                        color = KitsugiColors.TextMuted,
+                        fontSize = 11.sp,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 4.dp, vertical = 4.dp)
+                    )
+                }
+            }
+
             // Empty / Error State
             if (!uiState.isLoading && uiState.hasSearched && uiState.errorMessage != null) {
-                item {
+                item(key = "empty_or_error_state") {
                     KitsugiEmptyState(
                         title = stringResource(R.string.sonuc_bulunamadi),
                         subtitle = uiState.errorMessage,
-                        icon = Icons.Rounded.SearchOff
+                        icon = Icons.SearchOff
                     )
                     uiState.platformErrorCode?.let { code ->
                         Spacer(modifier = Modifier.height(12.dp))
@@ -448,7 +535,7 @@ fun SearchScreen(
             // Search Results List (AniHyou-style filtered by adult and onMyList)
             if (uiState.currentTab == KitsugiSearchTab.All) {
                 // Çoklu Platform Rafları (Seçenek C: All-in-One Multi Platform Search)
-                item {
+                item(key = "shelf_anilist") {
                     MultiSearchSection(
                         title = "AniList",
                         platformId = "anilist",
@@ -457,14 +544,14 @@ fun SearchScreen(
                         isAlreadyInList = isSearchResultAlreadyInList,
                         getMediaEntry = getSearchResultMediaEntry,
                         onItemClick = onSearchResultClick,
-                        onSeeAllClick = { onOpenSourceSearch(SearchSourceEngine.ANILIST, uiState.selectedScope, uiState.multiResults.aniListResults) },
+                        onSeeAllClick = { openSourceSearchWithCarry(SearchSourceEngine.ANILIST, uiState.selectedScope, uiState.multiResults.aniListResults) },
                         titleLanguage = titleLanguage,
                         scoreFormat = scoreFormat,
                         hideScores = hideScores
                     )
                 }
 
-                item {
+                item(key = "shelf_mal") {
                     MultiSearchSection(
                         title = "MyAnimeList",
                         platformId = "mal",
@@ -473,14 +560,14 @@ fun SearchScreen(
                         isAlreadyInList = isSearchResultAlreadyInList,
                         getMediaEntry = getSearchResultMediaEntry,
                         onItemClick = onSearchResultClick,
-                        onSeeAllClick = { onOpenSourceSearch(SearchSourceEngine.MAL, uiState.selectedScope, uiState.multiResults.malResults) },
+                        onSeeAllClick = { openSourceSearchWithCarry(SearchSourceEngine.MAL, uiState.selectedScope, uiState.multiResults.malResults) },
                         titleLanguage = titleLanguage,
                         scoreFormat = scoreFormat,
                         hideScores = hideScores
                     )
                 }
 
-                item {
+                item(key = "shelf_tmdb") {
                     MultiSearchSection(
                         title = stringResource(R.string.search_section_tmdb),
                         platformId = "tmdb",
@@ -489,14 +576,14 @@ fun SearchScreen(
                         isAlreadyInList = isSearchResultAlreadyInList,
                         getMediaEntry = getSearchResultMediaEntry,
                         onItemClick = onSearchResultClick,
-                        onSeeAllClick = { onOpenSourceSearch(SearchSourceEngine.TMDB, uiState.selectedScope, uiState.multiResults.tmdbResults) },
+                        onSeeAllClick = { openSourceSearchWithCarry(SearchSourceEngine.TMDB, uiState.selectedScope, uiState.multiResults.tmdbResults) },
                         titleLanguage = titleLanguage,
                         scoreFormat = scoreFormat,
                         hideScores = hideScores
                     )
                 }
 
-                item {
+                item(key = "shelf_shikimori") {
                     MultiSearchSection(
                         title = stringResource(R.string.search_section_shikimori),
                         platformId = "shikimori",
@@ -505,14 +592,14 @@ fun SearchScreen(
                         isAlreadyInList = isSearchResultAlreadyInList,
                         getMediaEntry = getSearchResultMediaEntry,
                         onItemClick = onSearchResultClick,
-                        onSeeAllClick = { onOpenSourceSearch(SearchSourceEngine.SHIKIMORI, uiState.selectedScope, uiState.multiResults.shikimoriResults) },
+                        onSeeAllClick = { openSourceSearchWithCarry(SearchSourceEngine.SHIKIMORI, uiState.selectedScope, uiState.multiResults.shikimoriResults) },
                         titleLanguage = titleLanguage,
                         scoreFormat = scoreFormat,
                         hideScores = hideScores
                     )
                 }
 
-                item {
+                item(key = "shelf_kitsu") {
                     MultiSearchSection(
                         title = "Kitsu",
                         platformId = "kitsu",
@@ -521,14 +608,14 @@ fun SearchScreen(
                         isAlreadyInList = isSearchResultAlreadyInList,
                         getMediaEntry = getSearchResultMediaEntry,
                         onItemClick = onSearchResultClick,
-                        onSeeAllClick = { onOpenSourceSearch(SearchSourceEngine.KITSU, uiState.selectedScope, uiState.multiResults.kitsuResults) },
+                        onSeeAllClick = { openSourceSearchWithCarry(SearchSourceEngine.KITSU, uiState.selectedScope, uiState.multiResults.kitsuResults) },
                         titleLanguage = titleLanguage,
                         scoreFormat = scoreFormat,
                         hideScores = hideScores
                     )
                 }
 
-                item {
+                item(key = "shelf_simkl") {
                     MultiSearchSection(
                         title = "Simkl",
                         platformId = "simkl",
@@ -537,14 +624,14 @@ fun SearchScreen(
                         isAlreadyInList = isSearchResultAlreadyInList,
                         getMediaEntry = getSearchResultMediaEntry,
                         onItemClick = onSearchResultClick,
-                        onSeeAllClick = { onOpenSourceSearch(SearchSourceEngine.SIMKL, uiState.selectedScope, uiState.multiResults.simklResults) },
+                        onSeeAllClick = { openSourceSearchWithCarry(SearchSourceEngine.SIMKL, uiState.selectedScope, uiState.multiResults.simklResults) },
                         titleLanguage = titleLanguage,
                         scoreFormat = scoreFormat,
                         hideScores = hideScores
                     )
                 }
 
-                item {
+                item(key = "shelf_bangumi") {
                     MultiSearchSection(
                         title = stringResource(R.string.search_section_bangumi),
                         platformId = "bangumi",
@@ -553,14 +640,14 @@ fun SearchScreen(
                         isAlreadyInList = isSearchResultAlreadyInList,
                         getMediaEntry = getSearchResultMediaEntry,
                         onItemClick = onSearchResultClick,
-                        onSeeAllClick = { onOpenSourceSearch(SearchSourceEngine.BANGUMI, uiState.selectedScope, uiState.multiResults.bangumiResults) },
+                        onSeeAllClick = { openSourceSearchWithCarry(SearchSourceEngine.BANGUMI, uiState.selectedScope, uiState.multiResults.bangumiResults) },
                         titleLanguage = titleLanguage,
                         scoreFormat = scoreFormat,
                         hideScores = hideScores
                     )
                 }
             } else if (uiState.currentTab == KitsugiSearchTab.Character || uiState.currentTab == KitsugiSearchTab.Staff) {
-                items(
+                uniqueItems(
                     items = filteredResults,
                     key = { "char_${it.source}_${it.type}_${it.malId}_${it.tmdbId ?: 0}" },
                     contentType = { _ -> "char_staff_row" }
@@ -585,17 +672,19 @@ fun SearchScreen(
                         ),
                         isStaff = uiState.currentTab == KitsugiSearchTab.Staff,
                         onClick = {
+                            // Kaynak kimliği birlikte geçilir; aksi hâlde Bangumi karakteri
+                            // AniList kimliği sanılıp yanlış detay açılıyordu (R28).
                             if (uiState.currentTab == KitsugiSearchTab.Staff) {
-                                onOpenStaffDetail?.invoke(result.malId, displayName, result.imageUrl)
+                                onOpenStaffDetail?.invoke(result.malId, displayName, result.imageUrl, result.source)
                             } else {
-                                onOpenCharacterDetail?.invoke(result.malId, displayName, result.imageUrl)
+                                onOpenCharacterDetail?.invoke(result.malId, displayName, result.imageUrl, result.source)
                             }
                         }
                     )
                     Spacer(modifier = Modifier.height(10.dp))
                 }
             } else {
-                items(
+                uniqueItems(
                     items = filteredResults,
                     key = { "res_${it.source}_${it.type}_${it.malId}_${it.tmdbId ?: 0}_${it.cs3Url.orEmpty().hashCode()}" },
                     contentType = { _ -> "search_row" }
@@ -625,7 +714,7 @@ fun SearchScreen(
 
             // Infinite scroll loading spinner
             if (uiState.isLoadingMore) {
-                item {
+                item(key = "load_more_spinner") {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -639,7 +728,7 @@ fun SearchScreen(
                 }
             }
 
-            item { Spacer(modifier = Modifier.height(90.dp)) }
+            item(key = "bottom_spacer") { Spacer(modifier = Modifier.height(90.dp)) }
         }
 
         // Scroll to Top FAB
@@ -676,20 +765,60 @@ fun SearchScreen(
                 showSourceEngineFilterSheet = false
                 viewModel.setFilterSheetOpen(true)
             },
+            onOpenInstitutions = {
+                showSourceEngineFilterSheet = false
+                viewModel.clearInstitutionSearch()
+                showInstitutionFilterSheet = true
+            },
             onDismiss = { showSourceEngineFilterSheet = false }
+        )
+    }
+
+    // Ortak filtre çatısı: kurum seçim sheet'i (motor duyarlı)
+    if (showInstitutionFilterSheet) {
+        InstitutionFilterSheet(
+            uiState = uiState,
+            viewModel = viewModel,
+            onDismiss = { showInstitutionFilterSheet = false }
+        )
+    }
+
+    // Yerele kurum kataloğu (9.457 kayıt) — InstitutionFilterSheet artık kendi
+    // kataloğunu yüklediği için bu giriş noktası yalnızca kanonik anahtar
+    // seçimine (filtre çipi + "Tününü temizle") doğrudan erişim sağlar.
+    // Eskiden bu bayrak hiçbir yerde true yapılmıyordu: 9.457 kayıtlık katalog
+    // derlemede ölü kod olarak kalıyordu.
+    if (showOrgFilterSheet) {
+        OrgFilterSheet(
+            currentFilters = uiState.toLegacyFilters(),
+            onApplyFilters = { applied ->
+                viewModel.updateOrganizations(applied)
+                showOrgFilterSheet = false
+            },
+            onDismiss = { showOrgFilterSheet = false }
         )
     }
 
     // Genres Bottom Sheet Dialog
     if (uiState.isFilterSheetOpen) {
+        // Sheet kanonik setten beslenir: seçili motorun kendi paketinde tür/etiket
+        // varsa (ör. detay sayfasından gelen) [harvest] bunları da birleştirir.
+        val sheetFilters = SearchCommonFiltersBridge.harvest(uiState)
         GenresTagsSheet(
             currentFilters = SearchFilters(
-                genres = uiState.genres,
-                excludedGenres = uiState.excludedGenres,
-                tags = uiState.tags
+                genres = sheetFilters.genres,
+                excludedGenres = sheetFilters.excludedGenres,
+                tags = sheetFilters.tags,
+                organizations = uiState.organizations
             ),
-            onApplyFilters = {
-                viewModel.updateFilters(it)
+            onApplyFilters = { applied ->
+                // ⚠️ Bu sheet **yalnız** tür/etiket düzenler; mevcut yıl/sezon/puan
+                // süzgeçleri korunarak yalnızca tür/etiket alanları güncellenir.
+                viewModel.updateGenresTagsFilters(
+                    genres = applied.genres,
+                    excludedGenres = applied.excludedGenres,
+                    tags = applied.tags
+                )
                 viewModel.setFilterSheetOpen(false)
             },
             onDismiss = { viewModel.setFilterSheetOpen(false) }
@@ -747,10 +876,11 @@ fun SearchScreen(
             options = tmdbGenres,
             selectedOption = currentGenre,
             onOptionSelected = { g ->
-                val updated = SearchFilters(
-                    genres = if (g == null || g == "All") emptyList() else listOf(g)
+                viewModel.updateGenresTagsFilters(
+                    genres = if (g == null || g == "All") emptyList() else listOf(g),
+                    excludedGenres = uiState.excludedGenres,
+                    tags = uiState.tags
                 )
-                viewModel.updateFilters(updated)
             },
             onDismiss = { openTmdbGenreDialog = false },
             optionLabel = { if (it == "All") tmdbAllGenreLabel else SearchTranslation.displayLabel(it) }
@@ -870,7 +1000,7 @@ private fun SearchOptionsSummaryRow(
 
     val parts = buildList {
         if (scopeChanged) add(uiState.selectedScope.localizedDisplayLabel())
-        if (sortChanged) add(localizedSourceSearchLabel(getSortDisplayLabel(uiState)))
+        if (sortChanged) add(KitsugiEmojiIcons.stripLeadingEmoji(localizedSourceSearchLabel(getSortDisplayLabel(uiState))))
         if (activeFilterCount > 0) add(activeFilterCountLabel)
     }
 
@@ -1014,7 +1144,7 @@ fun ActiveFilterChip(
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = Icons.Default.Close,
+                imageVector = Icons.Close,
                 contentDescription = stringResource(R.string.temizle),
                 tint = KitsugiColors.TextMuted,
                 modifier = Modifier.size(14.dp)
@@ -1023,171 +1153,4 @@ fun ActiveFilterChip(
     }
 }
 
-/**
- * All-in-One Çoklu Platform Arama Bölümü (Yatay Kart Listesi - Keşfet Sayfası ile Birebir Aynı Mekanik ve Görünüm)
- */
-@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class, androidx.compose.ui.ExperimentalComposeUiApi::class)
-@Composable
-private fun MultiSearchSection(
-    title: String,
-    platformId: String,
-    results: List<JikanSearchResult>,
-    isLoading: Boolean,
-    isAlreadyInList: (JikanSearchResult) -> Boolean,
-    getMediaEntry: (JikanSearchResult) -> MediaEntry? = { null },
-    onItemClick: (JikanSearchResult) -> Unit,
-    onSeeAllClick: () -> Unit,
-    titleLanguage: String = "ROMAJI",
-    scoreFormat: String = "POINT_10",
-    hideScores: Boolean = false,
-    blurAdultMedia: Boolean = false
-) {
-    if (results.isEmpty() && !isLoading) return
-
-    val accentColor = LocalKitsugiAccent.current
-    val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
-    val isTvDevice = LocalIsTvDevice.current
-    val isTv = LocalIsTv.current
-    val cardWidth = if (isLandscape) 260.dp else 180.dp
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 12.dp)
-    ) {
-        // Platform Logosu + Başlık & "Tümünü Gör" Header Row
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 4.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            KitsugiPlatformLogo(
-                platformId = platformId,
-                size = 24.dp,
-                cornerRadius = 6.dp
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = title,
-                color = KitsugiColors.TextPrimary,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.weight(1f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-
-            if (results.isNotEmpty()) {
-                TextButton(
-                    onClick = onSeeAllClick,
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
-                ) {
-                    Text(
-                        text = stringResource(R.string.tumunu_gor),
-                        color = accentColor,
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        when {
-            isLoading && results.isEmpty() -> {
-                // Gerçek kartlarla aynı yön, genişlik ve yatay kaydırma davranışı:
-                // portrede 2:3 poster; yatayda poster + metin düzeni.
-                KitsugiShimmerResponsiveMediaRow(
-                    cardCount = 5,
-                    cardWidth = cardWidth,
-                    isLandscape = isLandscape && !isTv,
-                    contentPadding = PaddingValues(horizontal = 4.dp),
-                    cardSpacing = 12.dp,
-                )
-            }
-
-            else -> {
-                val lazyListState = androidx.compose.runtime.saveable.rememberSaveable(title, saver = LazyListState.Saver) { LazyListState() }
-
-                if (isTvDevice) {
-                    val tvSpec = KitsugiScrollDefaults.rememberTvCenteredSpec()
-                    val lastFocusedIndex = remember(results) { mutableStateOf(0) }
-                    val focusRequesters = remember(results) { mutableMapOf<Int, FocusRequester>() }
-                    val rowFocusRequester = remember { FocusRequester() }
-                    CompositionLocalProvider(LocalBringIntoViewSpec provides tvSpec) {
-                        LazyRow(
-                            state = lazyListState,
-                            modifier = Modifier
-                                .focusRequester(rowFocusRequester)
-                                .focusRestorer {
-                                    focusRequesters[lastFocusedIndex.value] ?: FocusRequester.Default
-                                }
-                                .focusGroup(),
-                            contentPadding = PaddingValues(horizontal = 4.dp),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            itemsIndexed(
-                                items = results,
-                                // DİKKAT: anahtarda `type` ZORUNLU — "Tümünü Gör" rafı karma
-                                // anime+manga listesi taşıyabilir; aynı kaynak+id iki farklı
-                                // yapımı gösterebilir (bkz. KitsugiLazyKeys).
-                                key = { idx, result -> result.kitsugiLazyKey("sr_tv", idx) },
-                                contentType = { _, _ -> "h_media_card" }
-                            ) { index, result ->
-                                val requester = focusRequesters.getOrPut(index) { FocusRequester() }
-                                KitsugiExploreMediaCard(
-                                    result = result,
-                                    alreadyInList = isAlreadyInList(result),
-                                    mediaEntry = getMediaEntry(result),
-                                    modifier = Modifier
-                                        .width(cardWidth)
-                                        .focusRequester(requester)
-                                        .onFocusChanged { state ->
-                                            if (state.isFocused) {
-                                                lastFocusedIndex.value = index
-                                            }
-                                        },
-                                    onClick = { onItemClick(result) },
-                                    titleLanguage = titleLanguage,
-                                    scoreFormat = scoreFormat,
-                                    hideScores = hideScores,
-                                    blurAdultMedia = blurAdultMedia,
-                                    forceVertical = false
-                                )
-                            }
-                        }
-                    }
-                } else {
-                    LazyRow(
-                        state = lazyListState,
-                        flingBehavior = com.kitsugi.animelist.ui.utils.KitsugiScrollDefaults.rememberRowSnapFling(lazyListState),
-                        contentPadding = PaddingValues(horizontal = 4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        itemsIndexed(
-                            items = results,
-                            key = { idx, result -> result.kitsugiLazyKey("sr", idx) },
-                            contentType = { _, _ -> "h_media_card" }
-                        ) { _, result ->
-                            KitsugiExploreMediaCard(
-                                result = result,
-                                alreadyInList = isAlreadyInList(result),
-                                mediaEntry = getMediaEntry(result),
-                                modifier = Modifier.width(cardWidth),
-                                onClick = { onItemClick(result) },
-                                titleLanguage = titleLanguage,
-                                scoreFormat = scoreFormat,
-                                hideScores = hideScores,
-                                blurAdultMedia = blurAdultMedia,
-                                forceVertical = false
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
 

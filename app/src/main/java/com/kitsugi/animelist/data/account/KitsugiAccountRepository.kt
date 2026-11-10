@@ -3,6 +3,7 @@ package com.kitsugi.animelist.data.account
 import android.content.Context
 import com.kitsugi.animelist.data.local.SearchHistoryDao
 import com.kitsugi.animelist.data.local.SearchHistoryEntity
+import com.kitsugi.animelist.data.local.SearchHistoryMapper
 import com.kitsugi.animelist.data.notifications.NotificationArchiveStore
 import com.kitsugi.animelist.data.settings.SettingsDataStore
 import io.github.jan.supabase.auth.OtpType
@@ -50,7 +51,7 @@ object KitsugiAccountRepository {
     private const val TABLE = "user_data"
     private const val KEY_SEARCH_HISTORY = "search_history"
     private const val KEY_NOTIFICATIONS = "notifications"
-    private const val SEARCH_HISTORY_LIMIT = 20
+    private const val SEARCH_HISTORY_LIMIT = 50
     private val json = Json { ignoreUnknownKeys = true }
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var settingsObserver: Job? = null
@@ -177,7 +178,7 @@ object KitsugiAccountRepository {
         }.getOrThrow()
     }
 
-    /** Executes selected categories independently; a locked vault never blocks the other two. */
+    /** Executes selected categories independently; a locked vault never blocks search/notification sync. */
     suspend fun syncSelected(
         context: Context,
         dao: SearchHistoryDao,
@@ -194,9 +195,50 @@ object KitsugiAccountRepository {
         }
         if (includeVault && settings.accountBackupEnabled) steps[AccountSyncSection.VAULT] = {
             if (owner == null) Result.failure(AccountSessionChangedException())
-            else LinkedAccountVault.backupNow(context, expectedOwner = owner)
+            else LinkedAccountVault.backupNow(
+                context,
+                expectedOwner = owner,
+                syncScope = VaultSyncScope.LINKED_ACCOUNTS
+            )
+        }
+        if (settings.accountAddonSyncEnabled) steps[AccountSyncSection.ADDONS] = {
+            if (owner == null) Result.failure(AccountSessionChangedException())
+            else LinkedAccountVault.backupNow(
+                context,
+                expectedOwner = owner,
+                syncScope = VaultSyncScope.ADDONS
+            )
         }
         runAccountSyncSteps(steps)
+    }
+
+    /** Re-install binaries from trusted repositories only after an explicit in-screen confirmation. */
+    suspend fun restorePendingAddons(context: Context): Result<AddonRestoreReport> = accountResult {
+        val owner = currentUserId() ?: throw AccountSessionChangedException()
+        LinkedAccountVault.changeSession {
+            requireOwner(owner)
+            if (!LinkedAccountVault.hasLocalVault(context)) throw VaultLockedException()
+            if (!SettingsDataStore(context).settingsFlow.first().accountAddonSyncEnabled) {
+                throw IllegalStateException("Eklenti eşitlemesi kapalı.")
+            }
+            val report = AddonVaultBackup.restorePending(context, owner)
+            requireOwner(owner)
+            report
+        }
+    }
+
+    suspend fun trustPendingAddonSources(context: Context): Result<Int> = accountResult {
+        val owner = currentUserId() ?: throw AccountSessionChangedException()
+        LinkedAccountVault.changeSession {
+            requireOwner(owner)
+            if (!LinkedAccountVault.hasLocalVault(context)) throw VaultLockedException()
+            if (!SettingsDataStore(context).settingsFlow.first().accountAddonSyncEnabled) {
+                throw IllegalStateException("Eklenti eşitlemesi kapalı.")
+            }
+            val trustedCount = AddonVaultBackup.trustPendingSources(context, owner)
+            requireOwner(owner)
+            trustedCount
+        }
     }
 
     /** Keep explicit local deletion semantics; the session gate serializes pushes and pulls. */
@@ -221,9 +263,22 @@ object KitsugiAccountRepository {
             // A malformed response must not be mistaken for an empty cloud backup and overwritten.
             val remote = remoteValue?.let { json.decodeFromJsonElement(searchListSerializer, it) }.orEmpty()
             val local = dao.getRecentSearchHistory().first().map { RemoteSearchEntry(it.query, it.type, it.timestamp) }
-            val merged = (local + remote).groupBy { it.query }
-                .map { (_, entries) -> entries.maxBy { it.timestamp } }
-                .sortedByDescending { it.timestamp }.take(SEARCH_HISTORY_LIMIT)
+            val merged = (local + remote).groupBy { it.query.trim().lowercase(java.util.Locale.ROOT) }
+                .map { (_, entries) ->
+                    val newest = entries.maxBy { it.timestamp }
+                    val anyPinned = entries.any { SearchHistoryMapper.isPinnedType(it.type) }
+                    if (anyPinned && !SearchHistoryMapper.isPinnedType(newest.type)) {
+                        val pinnedSource = entries.first { SearchHistoryMapper.isPinnedType(it.type) }
+                        newest.copy(type = pinnedSource.type)
+                    } else {
+                        newest
+                    }
+                }
+                .sortedWith(
+                    compareByDescending<RemoteSearchEntry> { SearchHistoryMapper.isPinnedType(it.type) }
+                        .thenByDescending { it.timestamp }
+                )
+                .take(SEARCH_HISTORY_LIMIT)
             requireOwner(uid)
             merged.forEach { entry ->
                 dao.insertSearchQuery(SearchHistoryEntity(query = entry.query, timestamp = entry.timestamp, type = entry.type))

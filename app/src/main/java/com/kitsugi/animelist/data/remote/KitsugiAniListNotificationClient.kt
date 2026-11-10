@@ -1,5 +1,6 @@
 package com.kitsugi.animelist.data.remote
 
+import com.kitsugi.animelist.data.auth.AniListGate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -84,7 +85,13 @@ class KitsugiAniListNotificationClient {
                 }
             """.trimIndent()
             runCatching {
-                val response = KitsugiApiBase.executeAniListQuery(query, JSONObject(), accessToken)
+                // Arka plan sorgusu: kullanıcıya ayrılmış kota payını tüketmemeli.
+                val response = KitsugiApiBase.executeAniListQuery(
+                    query = query,
+                    variables = JSONObject(),
+                    accessToken = accessToken,
+                    priority = AniListGate.Priority.BACKGROUND
+                )
                     ?: return@runCatching null
                 JSONObject(response)
                     .optJSONObject("data")
@@ -236,7 +243,9 @@ class KitsugiAniListNotificationClient {
                     query = query,
                     variables = variables,
                     accessToken = accessToken,
-                    throwOnServiceDown = true
+                    throwOnServiceDown = true,
+                    // Bildirim listesi arka planda da çekilir → kullanıcı kotasına dokunmaz.
+                    priority = AniListGate.Priority.BACKGROUND
                 )
                     ?: throw AniListNotificationException(
                         "AniList bildirim isteği yanıtsız kaldı (ağ/sunucu hatası)."

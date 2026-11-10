@@ -14,6 +14,8 @@ import com.kitsugi.animelist.data.auth.ExternalAuthManager
 import com.kitsugi.animelist.data.auth.KitsuApiClient
 import com.kitsugi.animelist.data.auth.MalImportManager
 import com.kitsugi.animelist.data.auth.ShikimoriApiClient
+import com.kitsugi.animelist.data.auth.TmdbAuthStore
+import com.kitsugi.animelist.data.notifications.NotifSeenStore
 import com.kitsugi.animelist.data.notifications.NotificationArchiveStore
 import com.kitsugi.animelist.data.notifications.NotificationDiagnostics
 import com.kitsugi.animelist.data.remote.BangumiIdNamespace
@@ -151,7 +153,16 @@ class KitsugiNotificationsViewModel(application: Application) : AndroidViewModel
     private val _aniListStates = AniListFilter.entries.associateWith { MutableStateFlow(NotifUiState()) }
     val aniListStates: Map<AniListFilter, StateFlow<NotifUiState>> = _aniListStates.mapValues { it.value.asStateFlow() }
 
-    fun getAniListState(filter: AniListFilter): StateFlow<NotifUiState> = _aniListStates[filter]!!.asStateFlow()
+    /**
+     * Filtre başına SABİT akış döner.
+     *
+     * Daha önce her çağrıda `asStateFlow()` ile yeni bir sarmalayıcı üretiliyordu; Compose
+     * `collectAsState(flow)` akış kimliği değişince aboneliği yeniden kurduğu için sekme
+     * geçişlerinde liste bir an boş görünüp yeniden doluyordu. Artık haritadaki akış
+     * doğrudan paylaşılır.
+     */
+    fun getAniListState(filter: AniListFilter): StateFlow<NotifUiState> =
+        aniListStates[filter] ?: _aniListStates.getValue(filter).asStateFlow()
 
     /** AniList okunmamış bildirim sayısı (sekme rozeti için). */
     private val _aniListUnread = MutableStateFlow<Int?>(null)
@@ -184,6 +195,10 @@ class KitsugiNotificationsViewModel(application: Application) : AndroidViewModel
     // ── TMDB+Simkl ──
     private val _tmdbSimkl = MutableStateFlow(NotifUiState())
     val tmdbSimkl: StateFlow<NotifUiState> = _tmdbSimkl.asStateFlow()
+
+    // ── TMDB account changes (locally archived; TMDB has no notification API) ──
+    private val _tmdbAccount = MutableStateFlow(NotifUiState())
+    val tmdbAccount: StateFlow<NotifUiState> = _tmdbAccount.asStateFlow()
 
     // ── Kitsu ──
     private val _kitsu = MutableStateFlow(NotifUiState())
@@ -245,9 +260,10 @@ class KitsugiNotificationsViewModel(application: Application) : AndroidViewModel
     private fun archiveAndMerge(
         source: String,
         live: List<NotifItem>,
-        retainOldWhere: ((NotificationArchiveStore.ArchivedNotif) -> Boolean)? = null
+        retainOldWhere: ((NotificationArchiveStore.ArchivedNotif) -> Boolean)? = null,
+        writeLive: Boolean = true
     ): List<NotifItem> {
-        writeArchive(source, live, retainOldWhere = retainOldWhere)
+        if (writeLive) writeArchive(source, live, retainOldWhere = retainOldWhere)
 
         val liveIds = live.map { it.id }.toSet()
         val stored = NotificationArchiveStore.loadSource(ctx, source)
@@ -255,11 +271,76 @@ class KitsugiNotificationsViewModel(application: Application) : AndroidViewModel
             .filter { (retainOldWhere == null || retainOldWhere(it)) && it.id !in liveIds }
             .map { it.toNotifItem() }
 
-        val merged = live + fromArchive
-        return if (fromArchive.isEmpty()) merged
-        else merged.sortedWith(
+        // Ortak sözleşme: TÜM kaynaklar yeni → eski sıralanır; tarihi olmayanlar
+        // (örn. Kitsu "listede" kayıtları) en sonda kalır. Eskiden sıralama yalnızca
+        // arşiv doluyken uygulanıyordu; ilk açılışta kaynak sırası neyse o görünüyordu.
+        return (live + fromArchive).sortedWith(
             compareByDescending<NotifItem> { it.tsMs ?: Long.MIN_VALUE }
         )
+    }
+
+    // ─── "Gördüm" defteri (sunucuda okundu durumu olmayan kaynaklar) ─────────
+
+    /**
+     * Kaydın `isUnread` değerini yerel deftere göre yeniden hesaplar.
+     *
+     * [serverState] true ise sunucunun `read` alanı esas alınır (Shikimori): kayıt
+     * yalnızca sunucu "okunmadı" diyorsa **ve** yerelde görülmemişse yeni kalır.
+     * false ise (Simkl / Kitsu / Bangumi / MAL türetilmiş kayıtlar) yenilik tamamen
+     * yerel defterden gelir: görülmemiş + son 72 saat.
+     */
+    private fun List<NotifItem>.withLocalSeen(
+        sourceKey: String,
+        serverState: Boolean = false
+    ): List<NotifItem> = NotifSeenStore.applyTo(
+        context = ctx,
+        source = sourceKey,
+        items = this,
+        idOf = { it.id },
+        tsOf = { it.tsMs },
+        unreadOf = { it.isUnread },
+        hadServerState = serverState,
+        copy = { item, unread -> if (item.isUnread == unread) item else item.copy(isUnread = unread) }
+    )
+
+    /** Bir bildirim açıldığında çağrılır: rozet düşsün, "Okunmamış" sekmesinden çıksın. */
+    fun markNotificationSeen(item: NotifItem, sourceKey: String) {
+        NotifSeenStore.markSeen(ctx, sourceKey, item.id)
+        markSeenInState(sourceKey, setOf(item.id))
+    }
+
+    /** Kaynağın yüklü tüm bildirimlerini okundu sayar ("Tümünü okundu işaretle"). */
+    fun markAllNotificationsSeen(sourceKey: String) {
+        val current = when (sourceKey) {
+            "simkl" -> _tmdbSimkl.value
+            "kitsu" -> _kitsu.value
+            "shikimori" -> _shikimori.value
+            "bangumi" -> _bangumi.value
+            "anilist" -> getAniListState(AniListFilter.ALL).value
+            else -> null
+        } ?: return
+        val ids = current.items.filter { it.isUnread }.map { it.id }.toSet()
+        if (ids.isEmpty()) return
+        NotifSeenStore.markAllSeen(ctx, sourceKey, ids)
+        markSeenInState(sourceKey, ids)
+    }
+
+    /** Yüklü listelerde isUnread=false yapar (ağ isteği yok). */
+    private fun markSeenInState(sourceKey: String, ids: Set<String>) {
+        fun NotifUiState.cleared(): NotifUiState =
+            copy(items = items.map { if (it.id in ids && it.isUnread) it.copy(isUnread = false) else it })
+
+        when (sourceKey) {
+            "simkl" -> _tmdbSimkl.value = _tmdbSimkl.value.cleared()
+            "kitsu" -> _kitsu.value = _kitsu.value.cleared()
+            "shikimori" -> _shikimori.value = _shikimori.value.cleared()
+            "bangumi" -> _bangumi.value = _bangumi.value.cleared()
+            "anilist" -> AniListFilter.entries.forEach { filter ->
+                val flow = _aniListStates.getValue(filter)
+                flow.value = flow.value.cleared()
+            }
+            "mal" -> _mal.value = _mal.value.cleared()
+        }
     }
 
     private fun NotifItem.toArchived(): NotificationArchiveStore.ArchivedNotif =
@@ -396,7 +477,9 @@ class KitsugiNotificationsViewModel(application: Application) : AndroidViewModel
             imageUrl = mediaCoverUrl ?: userAvatarUrl,
             title = mediaTitle ?: userName ?: threadTitle ?: "AniList",
             body = body,
-            dateText = dateText,
+            // Ortak tarih sözleşmesi: AniList de artık tsMs taşır ve diğer
+            // kaynaklarla aynı birleşik biçimde ("Bugün 14:32" vb.) gösterilir.
+            dateText = createdAt?.let { formatNotifTimestamp(it * 1000L) } ?: dateText,
             mediaId = mediaId,
             activityId = activityId,
             mediaType = mediaType?.lowercase(),
@@ -404,6 +487,10 @@ class KitsugiNotificationsViewModel(application: Application) : AndroidViewModel
             userId = userId,
             userName = userName,
             userAvatarUrl = userAvatarUrl,
+            // AniList `createdAt` değeri epoch SANİYEDİR; zaman grupları (Bugün/Dün/…)
+            // ve "en yeni önce" sıralaması bu alan olmadan çalışamıyordu (tüm satırlar
+            // "Tarihsiz" oluyordu).
+            tsMs = createdAt?.let { if (it > 10_000_000_000L) it else it * 1000L },
             source = "AniList"
         )
     }
@@ -789,6 +876,13 @@ class KitsugiNotificationsViewModel(application: Application) : AndroidViewModel
         }
     }
 
+    /**
+     * Okunmamış MAL bildirimi sayısı — kategori filtresinden BAĞIMSIZ ham listeden
+     * hesaplanır; böylece başlıktaki "47 bildirim • 25 yeni" özeti seçili kategoriyle
+     * birlikte yanlış sayı göstermez.
+     */
+    fun getMalUnreadCount(): Int = malUnfilteredItems.count { it.isUnread }
+
     fun getMalCategoryCounts(): Map<MalNotificationCategory, Int> {
         if (malUnfilteredItems.isEmpty() && malSidebarCounts.isEmpty()) return emptyMap()
         val localCounts = mutableMapOf<MalNotificationCategory, Int>()
@@ -928,7 +1022,7 @@ class KitsugiNotificationsViewModel(application: Application) : AndroidViewModel
                     ctx.getString(R.string.notif_mal_episode_released, entry.episode)
                 else
                     ctx.getString(R.string.notif_mal_episode_upcoming, entry.episode),
-                dateText = formatEpochSec(entry.airingAt),
+                dateText = formatNotifTimestamp(entry.airingAt * 1000L),
                 tsMs = entry.airingAt * 1000L,
                 mediaId = entry.malId,
                 mediaType = "anime",
@@ -970,9 +1064,11 @@ class KitsugiNotificationsViewModel(application: Application) : AndroidViewModel
             imageUrl = resolvedImage,
             title = cardTitle,
             body = cardBody,
-            dateText = createdAtForDisplay?.takeIf(String::isNotBlank)
-                ?: date?.takeIf(String::isNotBlank)
-                ?: createdAtMs?.let(::formatEpochMs),
+            // Birleşik biçim önceliklidir; sunucu metni yalnızca tarih
+            // çözülemediğinde yedek olarak kalır (tüm kaynaklarda aynı görünüm).
+            dateText = createdAtMs?.let(::formatNotifTimestamp)
+                ?: createdAtForDisplay?.takeIf(String::isNotBlank)
+                ?: date?.takeIf(String::isNotBlank),
             isUnread = !isRead,
             mediaId = mediaId,
             mediaType = mediaType,
@@ -1060,16 +1156,18 @@ class KitsugiNotificationsViewModel(application: Application) : AndroidViewModel
                                 )
                                 if (entry.isFinale) append(" • ").append(ctx.getString(R.string.notif_badge_finale))
                             },
-                            dateText = formatEpochMs(entry.airingAtMs),
+                            dateText = formatNotifTimestamp(entry.airingAtMs),
                             tsMs = entry.airingAtMs,
                             mediaId = entry.simklId,
                             mediaType = if (entry.isMovie) "movie" else "tv",
+                            // Ortak filtre şeridi (Yayınlanan / Yaklaşan) bu alanı kullanır.
+                            typeIdentifier = if (aired) "aired" else "upcoming",
                             source = "Simkl"
                         )
                     }
 
                 _tmdbSimkl.value = NotifUiState(
-                    items = archiveAndMerge("Simkl", items),
+                    items = archiveAndMerge("Simkl", items).withLocalSeen("simkl"),
                     isLoading = false,
                     hasMore = false,
                     notice = notice
@@ -1124,10 +1222,11 @@ class KitsugiNotificationsViewModel(application: Application) : AndroidViewModel
                                     else R.string.notif_kitsu_episode_upcoming,
                                     entry.progress + 1
                                 ),
-                                dateText = formatEpochMs(releaseMs),
+                                dateText = formatNotifTimestamp(releaseMs),
                                 tsMs = releaseMs,
                                 mediaId = entry.animeId ?: entry.mangaId,
                                 mediaType = if (entry.animeId != null) "anime" else "manga",
+                                typeIdentifier = "release",
                                 source = "Kitsu"
                             )
                         )
@@ -1151,6 +1250,7 @@ class KitsugiNotificationsViewModel(application: Application) : AndroidViewModel
                                     tsMs = null,
                                     mediaId = entry.animeId ?: entry.mangaId,
                                     mediaType = if (entry.animeId != null) "anime" else "manga",
+                                    typeIdentifier = "list",
                                     source = "Kitsu"
                                 )
                             )
@@ -1172,6 +1272,7 @@ class KitsugiNotificationsViewModel(application: Application) : AndroidViewModel
                                 dateText = null,
                                 mediaId = me.malId ?: me.id,
                                 mediaType = "anime",
+                                typeIdentifier = "list",
                                 source = "Kitsu"
                             )
                         )
@@ -1184,7 +1285,7 @@ class KitsugiNotificationsViewModel(application: Application) : AndroidViewModel
                     ctx.getString(R.string.notif_notice_kitsu_api)
 
                 _kitsu.value = NotifUiState(
-                    items = archiveAndMerge("Kitsu", items),
+                    items = archiveAndMerge("Kitsu", items).withLocalSeen("kitsu"),
                     isLoading = false,
                     hasMore = false,
                     notice = notice
@@ -1278,10 +1379,8 @@ class KitsugiNotificationsViewModel(application: Application) : AndroidViewModel
             // çapraz kimlik + takvim); çözümleyici burada ÖN PLAN modunda (background=false)
             // çalıştırılır ki ilk açılışta da doğru dil görünsün, sonraki ziyaretler önbellekten
             // anında gelir.
-            // `listMode`: yalnızca kalıcı önbellek + AniList toplu araması. Bildirim listesi
-            // satır başına Bangumi infobox isteği beklemez; bulunamayan başlık özgün adıyla
-            // gösterilir, detay açıldığında kalıcı önbelleğe yazılır.
-            runCatching { BangumiSubjectTitleResolver.resolve(pendingRequests, listMode = true) }
+            // Bangumi infobox isteği yerine öncelikle önbellek ve AniList toplu araması kullanılır.
+            runCatching { BangumiSubjectTitleResolver.resolve(pendingRequests, background = false) }
             for (w in uniqueWatching) {
                 val rawId = BangumiIdNamespace.rawIdOrNull(w.stableId)
                 val base = resolvedTitles[w.stableId] ?: w.title
@@ -1291,6 +1390,38 @@ class KitsugiNotificationsViewModel(application: Application) : AndroidViewModel
             }
         }
         return resolvedTitles
+    }
+
+    fun loadTmdbAccount() {
+        if (_tmdbAccount.value.isLoading) return
+        viewModelScope.launch {
+            _tmdbAccount.value = _tmdbAccount.value.copy(isLoading = true, error = null, errorCode = null)
+            try {
+                val notificationsEnabled = settingsDataStore.settingsFlow.first().tmdbNotificationsEnabled
+                val live = if (TmdbAuthStore.isConnected(ctx) && notificationsEnabled) {
+                    val result = com.kitsugi.animelist.core.notifications.TmdbAccountNotificationPoller.poll(ctx) { polled ->
+                        com.kitsugi.animelist.core.notifications.archiveTmdbAccountNotifications(
+                            ctx, polled.archivedNotifications
+                        )
+                    }
+                    result.archivedNotifications.map { it.toNotifItem() }
+                } else emptyList()
+                _tmdbAccount.value = NotifUiState(
+                    items = archiveAndMerge("TMDB", live, writeLive = false),
+                    isLoading = false,
+                    hasMore = false,
+                    notice = ctx.getString(R.string.notif_notice_tmdb_account)
+                )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _tmdbAccount.value = _tmdbAccount.value.copy(
+                    isLoading = false,
+                    error = ctx.getString(R.string.notif_error_load, e.message ?: e.javaClass.simpleName),
+                    errorCode = PlatformFailureRegistry.reportAndResolve("tmdb", e)
+                )
+            }
+        }
     }
 
     fun loadBangumi(mediaEntries: List<MediaEntry> = emptyList(), titleLanguage: String? = null) {
@@ -1303,7 +1434,7 @@ class KitsugiNotificationsViewModel(application: Application) : AndroidViewModel
                     runCatching { BangumiAuthStore.resolveUsername(ctx) }.getOrNull()
                 } else null
                 val resolvedTitleLanguage = titleLanguage
-                    ?: runCatching { settingsDataStore.settingsFlow.first().titleLanguage }.getOrDefault("ROMAJI")
+                    ?: runCatching { settingsDataStore.settingsFlow.first().titleLanguage }.getOrDefault("ENGLISH")
 
                 val watching = mutableListOf<BangumiWatching>()
 
@@ -1401,10 +1532,12 @@ class KitsugiNotificationsViewModel(application: Application) : AndroidViewModel
                                 ctx.getString(R.string.notif_mal_episode_released, entry.episode)
                             else
                                 ctx.getString(R.string.notif_mal_episode_upcoming, entry.episode),
-                            dateText = formatEpochSec(entry.airingAt),
+                            dateText = formatNotifTimestamp(entry.airingAt * 1000L),
                             tsMs = entry.airingAt * 1000L,
                             mediaId = entry.malId?.let { malToStable[it] },
                             mediaType = "anime",
+                            // Ortak filtre şeridi (Yayın / İlerleme) bu alanı kullanır.
+                            typeIdentifier = "airing",
                             source = "Bangumi"
                         )
                     )
@@ -1423,10 +1556,11 @@ class KitsugiNotificationsViewModel(application: Application) : AndroidViewModel
                                     ctx.getString(R.string.notif_kitsu_progress, w.progress)
                                 else
                                     ctx.getString(R.string.notif_bangumi_in_list),
-                                dateText = w.updatedAtMs?.let { formatEpochMs(it) },
+                                dateText = w.updatedAtMs?.let { formatNotifTimestamp(it) },
                                 tsMs = w.updatedAtMs,
                                 mediaId = w.stableId,
                                 mediaType = "anime",
+                                typeIdentifier = "watching",
                                 source = "Bangumi"
                             )
                         )
@@ -1439,7 +1573,7 @@ class KitsugiNotificationsViewModel(application: Application) : AndroidViewModel
                 }
 
                 _bangumi.value = NotifUiState(
-                    items = archiveAndMerge("Bangumi", items),
+                    items = archiveAndMerge("Bangumi", items).withLocalSeen("bangumi"),
                     isLoading = false,
                     hasMore = false,
                     notice = notice
@@ -1505,7 +1639,7 @@ class KitsugiNotificationsViewModel(application: Application) : AndroidViewModel
                     } ?: ""
 
                     _shikimori.value = NotifUiState(
-                        items = items,
+                        items = items.withLocalSeen("shikimori", serverState = true),
                         isLoading = false,
                         hasMore = false,
                         notice = ctx.getString(R.string.notif_notice_shikimori_real, items.size) + unreadText
@@ -1516,14 +1650,19 @@ class KitsugiNotificationsViewModel(application: Application) : AndroidViewModel
                 // Gerçek bildirim yok / izin yok → izleme geçmişi (history) akışına düş.
                 val history = ShikimoriApiClient.fetchUserHistory(token, userId, limit = 40)
                 val historyItems = history.map { h ->
+                    val historyTsMs = parseIsoToEpochMs(h.createdAt)
                     NotifItem(
                         id = "shikimori_${h.id}",
                         imageUrl = h.targetImageUrl,
                         title = h.targetTitle,
                         body = h.description.ifBlank { ctx.getString(R.string.notif_shikimori_activity_fallback) },
-                        dateText = h.createdAt.take(10),
+                        // Eskiden ham "2026-10-21" metni gösteriliyordu; artık
+                        // diğer kaynaklarla aynı birleşik biçim + tsMs sıralaması.
+                        dateText = historyTsMs?.let { formatNotifTimestamp(it) } ?: h.createdAt.take(10),
+                        tsMs = historyTsMs,
                         mediaId = h.targetId?.toInt(),
                         mediaType = h.targetType ?: "anime",
+                        typeIdentifier = "history",
                         source = "Shikimori"
                     )
                 }
@@ -1534,7 +1673,9 @@ class KitsugiNotificationsViewModel(application: Application) : AndroidViewModel
                     ctx.getString(R.string.notif_notice_shikimori_history_only)
 
                 _shikimori.value = NotifUiState(
-                    items = historyItems,
+                    items = historyItems.sortedWith(
+                        compareByDescending<NotifItem> { it.tsMs ?: Long.MIN_VALUE }
+                    ),
                     isLoading = false,
                     hasMore = false,
                     notice = notice
@@ -1556,6 +1697,7 @@ class KitsugiNotificationsViewModel(application: Application) : AndroidViewModel
             else -> ctx.getString(R.string.notif_shikimori_kind_generic)
         }
         val text = stripBbcode(body).ifBlank { stripHtml(htmlBody) }
+        val messageTsMs = parseIsoToEpochMs(createdAt)
         return NotifItem(
             id = "shikimori_msg_${type}_${id}",
             imageUrl = targetImageUrl ?: fromAvatarUrl,
@@ -1564,23 +1706,48 @@ class KitsugiNotificationsViewModel(application: Application) : AndroidViewModel
                 append(kindLabel)
                 if (text.isNotBlank()) append(" • ").append(text.take(160))
             },
-            dateText = parseIsoToEpochMs(createdAt)?.let { formatEpochMs(it) } ?: createdAt.take(10),
+            dateText = messageTsMs?.let { formatNotifTimestamp(it) } ?: createdAt.take(10),
+            tsMs = messageTsMs,
             isUnread = !read,
             mediaId = linkedId?.toInt(),
             mediaType = linkedType?.lowercase(),
             userId = fromUserId,
             userName = fromNickname,
             userAvatarUrl = fromAvatarUrl,
+            // Ortak filtre şeridi (Bildirimler / Haberler) bu alanı kullanır.
+            typeIdentifier = type,
             source = "Shikimori"
         )
     }
 
     // ─── Yardımcılar ─────────────────────────────────────────────────────────
 
-    private fun formatEpochMs(ms: Long): String =
-        SimpleDateFormat("dd MMM yyyy HH:mm", Locale.getDefault()).format(Date(ms))
-
-    private fun formatEpochSec(sec: Long): String = formatEpochMs(sec * 1000L)
+    /**
+     * Tum kaynaklarda tek tarih bicimi: bugun -> "Bugun 14:32", dun -> "Dun 09:10",
+     * ayni yil -> "12 Eki 14:32", daha eski -> "12 Eki 2025 14:32".
+     * Eskiden her kaynak kendi bicimini kullaniyordu (MAL sunucu metni, Shikimori
+     * ham "2026-10-21", digerleri "dd MMM yyyy HH:mm").
+     */
+    private fun formatNotifTimestamp(ms: Long): String {
+        val nowCal = java.util.Calendar.getInstance()
+        val cal = java.util.Calendar.getInstance().apply { timeInMillis = ms }
+        fun startOfDay(c: java.util.Calendar): Long =
+            (c.clone() as java.util.Calendar).apply {
+                set(java.util.Calendar.HOUR_OF_DAY, 0)
+                set(java.util.Calendar.MINUTE, 0)
+                set(java.util.Calendar.SECOND, 0)
+                set(java.util.Calendar.MILLISECOND, 0)
+            }.timeInMillis
+        val dayDiff = (startOfDay(nowCal) - startOfDay(cal)) / 86_400_000L
+        val timeText = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(ms))
+        return when {
+            dayDiff == 0L -> ctx.getString(R.string.notif_date_today, timeText)
+            dayDiff == 1L -> ctx.getString(R.string.notif_date_yesterday, timeText)
+            cal.get(java.util.Calendar.YEAR) == nowCal.get(java.util.Calendar.YEAR) ->
+                SimpleDateFormat("dd MMM HH:mm", Locale.getDefault()).format(Date(ms))
+            else -> SimpleDateFormat("dd MMM yyyy HH:mm", Locale.getDefault()).format(Date(ms))
+        }
+    }
 
     private fun parseIsoToEpochMs(raw: String?): Long? {
         if (raw.isNullOrBlank()) return null

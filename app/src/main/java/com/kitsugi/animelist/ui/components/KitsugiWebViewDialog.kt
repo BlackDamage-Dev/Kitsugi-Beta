@@ -8,10 +8,7 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.OpenInNew
-import androidx.compose.material.icons.rounded.Refresh
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -38,19 +35,37 @@ fun KitsugiWebViewDialog(
     onUrlRedirect: ((String) -> Boolean)? = null,
     onPageFinished: ((String) -> Unit)? = null,
     onOpenInBrowser: (() -> Unit)? = null,
+    /** Additional source domains whose cookies must reach OkHttp after cross-domain login. */
+    cookieSyncUrls: List<String> = emptyList(),
     onDismiss: () -> Unit
 ) {
     val accentColor = LocalKitsugiAccent.current
+    val context = androidx.compose.ui.platform.LocalContext.current
     val currentOnPageFinished by rememberUpdatedState(onPageFinished)
     var webViewInstance by remember { mutableStateOf<WebView?>(null) }
     var progress by remember { mutableStateOf(0) }
     var isLoading by remember { mutableStateOf(true) }
+    var currentUrl by remember(url) { mutableStateOf(url) }
+
+    fun synchronizeCookies() {
+        runCatching {
+            CookieManager.getInstance().flush()
+            val network = try {
+                uy.kohesive.injekt.Injekt.get(NetworkHelper::class.java)
+            } catch (_: Exception) {
+                NetworkHelper(context)
+            }
+            (cookieSyncUrls + currentUrl).distinct().forEach(network.cookieJar::syncFromWebView)
+        }
+    }
+
+    fun closeDialog() {
+        synchronizeCookies()
+        onDismiss()
+    }
 
     Dialog(
-        onDismissRequest = {
-            CookieManager.getInstance().flush()
-            onDismiss()
-        },
+        onDismissRequest = { closeDialog() },
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
         Surface(
@@ -88,13 +103,10 @@ fun KitsugiWebViewDialog(
                     }
                     Spacer(Modifier.width(8.dp))
                     IconButton(onClick = { webViewInstance?.reload() }) {
-                        Icon(Icons.Rounded.Refresh, contentDescription = stringResource(R.string.yenile), tint = KitsugiColors.TextSecondary)
+                        Icon(Icons.Refresh, contentDescription = stringResource(R.string.yenile), tint = KitsugiColors.TextSecondary)
                     }
-                    IconButton(onClick = {
-                        CookieManager.getInstance().flush()
-                        onDismiss()
-                    }) {
-                        Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.kapat), tint = KitsugiColors.TextPrimary)
+                    IconButton(onClick = { closeDialog() }) {
+                        Icon(Icons.Close, contentDescription = stringResource(R.string.kapat), tint = KitsugiColors.TextPrimary)
                     }
                 }
 
@@ -132,6 +144,7 @@ fun KitsugiWebViewDialog(
                                 }
                                 webViewClient = object : WebViewClient() {
                                     override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
+                                        if (url != null) currentUrl = url
                                         if (interceptRedirect(url)) {
                                             view?.stopLoading()
                                             return
@@ -155,18 +168,10 @@ fun KitsugiWebViewDialog(
 
                                     override fun onPageFinished(view: WebView?, pageUrl: String?) {
                                         isLoading = false
-                                        // WebView cookie'lerini OkHttp CookieJar'a aktar (Cloudflare bypass için kritik)
-                                        val finalUrl = pageUrl ?: url
-                                        try {
-                                            CookieManager.getInstance().flush()
-                                            // Injekt singleton NetworkHelper üzerinden cookieJar'ı güncelle
-                                            val nh = try {
-                                                uy.kohesive.injekt.Injekt.get(NetworkHelper::class.java)
-                                            } catch (_: Exception) {
-                                                NetworkHelper(context)
-                                            }
-                                            nh.cookieJar.syncFromWebView(finalUrl)
-                                        } catch (_: Exception) {}
+                                        // WebView cookie'lerini OkHttp CookieJar'a aktar (Cloudflare ve hesap oturumu).
+                                        val finalUrl = pageUrl ?: currentUrl
+                                        currentUrl = finalUrl
+                                        synchronizeCookies()
                                         runCatching { currentOnPageFinished?.invoke(finalUrl) }
                                     }
 
@@ -242,13 +247,13 @@ fun KitsugiWebViewDialog(
                     if (onOpenInBrowser != null) {
                         OutlinedButton(
                             onClick = {
-                                CookieManager.getInstance().flush()
+                                synchronizeCookies()
                                 onOpenInBrowser()
                             },
                             shape = RoundedCornerShape(16.dp)
                         ) {
                             Icon(
-                                Icons.Rounded.OpenInNew,
+                                Icons.OpenInNew,
                                 contentDescription = null,
                                 modifier = Modifier.size(16.dp),
                                 tint = accentColor
@@ -264,10 +269,7 @@ fun KitsugiWebViewDialog(
                         }
                     }
                     KitsugiButton(
-                        onClick = {
-                            CookieManager.getInstance().flush()
-                            onDismiss()
-                        },
+                        onClick = { closeDialog() },
                         shape = RoundedCornerShape(16.dp)
                     ) {
                         Text(stringResource(R.string.tamamlandi), color = KitsugiColors.Surface, fontWeight = FontWeight.Bold)

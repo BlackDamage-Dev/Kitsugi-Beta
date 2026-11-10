@@ -17,8 +17,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.*
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -105,7 +104,7 @@ internal fun UserMediaGridCard(
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
-                            imageVector = Icons.Rounded.Star,
+                            imageVector = Icons.Star,
                             contentDescription = null,
                             tint = KitsugiColors.AccentYellow,
                             modifier = Modifier.size(10.dp)
@@ -228,7 +227,7 @@ internal fun UserMediaRowCard(
                     .padding(horizontal = 8.dp, vertical = 4.dp)
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.Star,
+                    imageVector = Icons.Star,
                     contentDescription = null,
                     tint = KitsugiColors.AccentYellow,
                     modifier = Modifier.size(12.dp)
@@ -264,12 +263,12 @@ internal fun UserMediaListStatusBottomSheet(
     val droppedCount = items.count { it.status == WatchStatus.Dropped }
 
     val statusItems = listOf(
-        Triple(null, stringResource(R.string.notif_filter_all), Icons.Rounded.FormatListBulleted to totalCount),
-        Triple(WatchStatus.Watching, if (mediaType == MediaType.Anime) stringResource(R.string.izliyor) else "Okuyor", Icons.Rounded.PlayCircle to watchingCount),
-        Triple(WatchStatus.Completed, stringResource(R.string.cs_diag_completed), Icons.Rounded.CheckCircle to completedCount),
-        Triple(WatchStatus.Planned, "Planlanan", Icons.Rounded.Schedule to plannedCount),
-        Triple(WatchStatus.Paused, "Durduruldu", Icons.Rounded.PauseCircle to pausedCount),
-        Triple(WatchStatus.Dropped, stringResource(R.string.system_status_dropped), Icons.Rounded.StopCircle to droppedCount)
+        Triple(null, stringResource(R.string.notif_filter_all), Icons.FormatListBulleted to totalCount),
+        Triple(WatchStatus.Watching, if (mediaType == MediaType.Anime) stringResource(R.string.izliyor) else "Okuyor", Icons.PlayCircle to watchingCount),
+        Triple(WatchStatus.Completed, stringResource(R.string.cs_diag_completed), Icons.CheckCircle to completedCount),
+        Triple(WatchStatus.Planned, "Planlanan", Icons.Schedule to plannedCount),
+        Triple(WatchStatus.Paused, "Durduruldu", Icons.PauseCircle to pausedCount),
+        Triple(WatchStatus.Dropped, stringResource(R.string.system_status_dropped), Icons.StopCircle to droppedCount)
     )
 
     KitsugiSheetOrDialog(onDismiss = onDismissRequest) {

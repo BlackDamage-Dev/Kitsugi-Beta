@@ -1,5 +1,7 @@
 package com.kitsugi.animelist.data.remote
 
+import com.kitsugi.animelist.data.auth.AniListGate
+
 import com.kitsugi.animelist.data.auth.BangumiApiClient
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -115,8 +117,13 @@ object KitsugiPersonImageAggregator {
                 enqueue { aniListImage(kind, aniListId, nameCandidates) }
             }
             when (kind) {
-                PersonKind.CHARACTER -> enqueue {
-                    kitsuCharacterImage(knownId = id.takeIf { canonical == "kitsu" && it > 0 }, names = nameCandidates)
+                PersonKind.CHARACTER -> {
+                    enqueue {
+                        kitsuCharacterImage(knownId = id.takeIf { canonical == "kitsu" && it > 0 }, names = nameCandidates)
+                    }
+                    if (nameCandidates.isNotEmpty()) {
+                        enqueue { wikipediaCharacterImage(nameCandidates) }
+                    }
                 }
                 PersonKind.PERSON -> Unit // Kitsu personel görseli sağlamaz
             }
@@ -193,6 +200,7 @@ object KitsugiPersonImageAggregator {
                 enqueue { aniListImage(PersonKind.CHARACTER, null, nameCandidates).firstOrNull()?.url }
             }
             enqueue { bangumiImage(PersonKind.CHARACTER, knownId = null, names = nameCandidates).firstOrNull()?.url }
+            enqueue { wikipediaCharacterImage(nameCandidates).firstOrNull()?.url }
 
             val deadline = System.currentTimeMillis() + budgetMs
             var finished = 0
@@ -213,6 +221,39 @@ object KitsugiPersonImageAggregator {
             nameCandidates.firstOrNull()?.let { DetailCache.propagateCharacterPortrait(it, winner) }
         }
         return winner
+    }
+
+    private val FICTIONAL_CHAR_DESC_HINTS = listOf(
+        "fictional", "character", "protagonist", "antagonist", "animated",
+        "simpsons", "sitcom", "series", "comic", "manga", "anime",
+        "kurgusal", "karakter", "kahraman", "animasyon", "çizgi"
+    )
+
+    private suspend fun wikipediaCharacterImage(names: List<String>): List<SourceImage> {
+        val cleanNames = names.map { it.substringBefore("/").trim() }
+            .filter { it.length >= 2 }
+            .distinct()
+            .take(3)
+        if (cleanNames.isEmpty()) return emptyList()
+        val out = mutableListOf<SourceImage>()
+        for (wikiId in listOf("wikipedia.en", "wikipedia.tr")) {
+            val lookups = runCatching {
+                com.kitsugi.animelist.data.fandom.FandomApi.lookupTitles(wikiId, cleanNames)
+            }.getOrNull().orEmpty()
+            for (name in cleanNames) {
+                val hit = lookups[name]?.takeIf { it.exists && !it.isDisambiguation } ?: continue
+                val thumb = hit.thumbnailUrl?.takeIf { it.isNotBlank() } ?: continue
+                val desc = hit.description?.lowercase().orEmpty()
+                if (FICTIONAL_CHAR_DESC_HINTS.any { hint -> desc.contains(hint) }) {
+                    out += SourceImage(
+                        url = thumb,
+                        source = if (wikiId == "wikipedia.tr") "Vikipedi" else "Wikipedia"
+                    )
+                }
+            }
+            if (out.isNotEmpty()) break
+        }
+        return out
     }
 
     /**
@@ -351,7 +392,12 @@ object KitsugiPersonImageAggregator {
         val directImage = if (aniListId != null && aniListId > 0) {
             runCatching {
                 val query = "query (\$id: Int) { $node(id: \$id) { image { large } } }"
-                val response = KitsugiApiBase.executeAniListQuery(query, JSONObject().put("id", aniListId))
+                // Kişi görseli zenginleştirmesi: kullanıcı kotasına dokunmaz, kıtlıkta atlanır.
+                val response = KitsugiApiBase.executeAniListQuery(
+                    query = query,
+                    variables = JSONObject().put("id", aniListId),
+                    priority = AniListGate.Priority.BACKGROUND
+                )
                 response?.let {
                     JSONObject(it).optJSONObject("data")?.optJSONObject(node)
                         ?.optJSONObject("image")?.optNullableString("large")
@@ -376,7 +422,11 @@ object KitsugiPersonImageAggregator {
                 }
             """.trimIndent()
             val response = runCatching {
-                KitsugiApiBase.executeAniListQuery(query, JSONObject().put("search", name))
+                KitsugiApiBase.executeAniListQuery(
+                    query = query,
+                    variables = JSONObject().put("search", name),
+                    priority = AniListGate.Priority.BACKGROUND
+                )
             }.getOrNull() ?: continue
             val arr = runCatching {
                 JSONObject(response).optJSONObject("data")?.optJSONObject("Page")?.optJSONArray(pageField)

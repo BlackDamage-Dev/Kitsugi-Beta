@@ -14,8 +14,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.*
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -29,19 +28,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import androidx.media3.common.MediaItem
-import androidx.media3.common.MimeTypes
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
-import androidx.media3.exoplayer.source.MergingMediaSource
 import androidx.media3.ui.PlayerView
 import com.kitsugi.animelist.data.trailer.InAppYouTubeExtractor
 import com.kitsugi.animelist.data.trailer.TrailerPlaybackSource
-import com.kitsugi.animelist.data.trailer.YouTubeRequestPolicy
-import com.kitsugi.animelist.data.trailer.YoutubeChunkedDataSourceFactory
-import com.kitsugi.animelist.core.player.PlayerMediaSourceFactory
+import com.kitsugi.animelist.data.trailer.playbackCandidates
 import com.kitsugi.animelist.ui.screens.detail.rememberInlinePlayerResumed
 import com.kitsugi.animelist.ui.theme.KitsugiColors
 import kotlinx.coroutines.CancellationException
@@ -119,32 +112,21 @@ fun SharedTrailerOverlay(
         }
     }
 
-    // Load source into player
-    LaunchedEffect(playbackSource) {
-        val source = playbackSource ?: return@LaunchedEffect
+    val sourceCandidates = remember(playbackSource) { playbackSource?.playbackCandidates().orEmpty() }
+    var activeSourceIndex by remember(playbackSource) { mutableIntStateOf(0) }
+
+    // Load source into player. A CDN/signature failure advances to a different URL instead
+    // of retrying the same expired source in a new player instance.
+    LaunchedEffect(playbackSource, activeSourceIndex) {
+        val source = sourceCandidates.getOrNull(activeSourceIndex) ?: return@LaunchedEffect
         exoPlayer.stop()
         exoPlayer.clearMediaItems()
 
-        val isHls = PlayerMediaSourceFactory.isHlsUrl(source.videoUrl)
-        val factory = YoutubeChunkedDataSourceFactory(
-            chunkGoogleVideoStreams = !isHls,
-            requestHeaders = YouTubeRequestPolicy.headersForInlineUrl(source.videoUrl)
+        // setMediaItem() would use ExoPlayer's default factory and silently bypass the
+        // source headers, HLS MIME type, and range policy configured by the shared factory.
+        exoPlayer.setMediaSource(
+            com.kitsugi.animelist.core.player.TrailerMediaSourceFactory.create(context, source)
         )
-        val mediaSourceFactory = DefaultMediaSourceFactory(factory)
-        val videoItem = MediaItem.Builder()
-            .setUri(Uri.parse(source.videoUrl))
-            .apply { if (isHls) setMimeType(MimeTypes.APPLICATION_M3U8) }
-            .build()
-        val videoSource = mediaSourceFactory.createMediaSource(videoItem)
-
-        if (!source.audioUrl.isNullOrBlank() && source.audioUrl != source.videoUrl) {
-            val audioSource = mediaSourceFactory.createMediaSource(MediaItem.fromUri(Uri.parse(source.audioUrl)))
-            exoPlayer.setMediaSource(MergingMediaSource(videoSource, audioSource))
-        } else {
-            // setMediaItem() would use ExoPlayer's default factory and silently bypass the
-            // YouTube headers, HLS MIME type, and range policy configured above.
-            exoPlayer.setMediaSource(videoSource)
-        }
         exoPlayer.prepare()
     }
 
@@ -193,15 +175,33 @@ fun SharedTrailerOverlay(
         }
     }
 
-    // Player ended → dismiss
-    DisposableEffect(Unit) {
+    // Player ended → dismiss; source errors → try the next independent signed URL.
+    DisposableEffect(exoPlayer, playbackSource) {
         val listener = object : Player.Listener {
             override fun onPlaybackStateChanged(state: Int) {
                 if (state == Player.STATE_ENDED) onDismiss()
             }
+
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                if (activeSourceIndex + 1 < sourceCandidates.size) {
+                    activeSourceIndex++
+                } else {
+                    InAppYouTubeExtractor.shared.extractVideoId(trailerUrl)
+                        ?.let(InAppYouTubeExtractor.shared::invalidatePlaybackSource)
+                    errorMessage = KitsugiStrings.get(R.string.inline_failed_to_load_trailer_cc304f6)
+                }
+            }
         }
         exoPlayer.addListener(listener)
         onDispose { exoPlayer.removeListener(listener) }
+    }
+
+    // Stop from a later main-loop turn, never from inside Media3's error callback.
+    LaunchedEffect(errorMessage) {
+        if (errorMessage != null) {
+            exoPlayer.stop()
+            exoPlayer.clearMediaItems()
+        }
     }
 
     // ── Dialog ────────────────────────────────────────────────────────────────
@@ -282,7 +282,7 @@ fun SharedTrailerOverlay(
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.ErrorOutline,
+                        imageVector = Icons.ErrorOutline,
                         contentDescription = null,
                         tint = Color.White.copy(alpha = 0.7f),
                         modifier = Modifier.size(48.dp)
@@ -339,7 +339,7 @@ fun SharedTrailerOverlay(
                     }
                     IconButton(onClick = onDismiss) {
                         Icon(
-                            imageVector = Icons.Rounded.Close,
+                            imageVector = Icons.Close,
                             contentDescription = stringResource(R.string.kapat),
                             tint = Color.White
                         )
@@ -362,7 +362,7 @@ fun SharedTrailerOverlay(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = if (isPaused) Icons.Rounded.PlayArrow else Icons.Rounded.Pause,
+                        imageVector = if (isPaused) Icons.PlayArrow else Icons.Pause,
                         contentDescription = null,
                         tint = Color.White,
                         modifier = Modifier.size(36.dp)
@@ -390,7 +390,7 @@ fun SharedTrailerOverlay(
                     ) {
                         Icon(
                             imageVector = if (seekFeedback?.startsWith("+") == true)
-                                Icons.Rounded.FastForward else Icons.Rounded.FastRewind,
+                                Icons.FastForward else Icons.FastRewind,
                             contentDescription = null,
                             tint = Color.White,
                             modifier = Modifier.size(20.dp)

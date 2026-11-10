@@ -608,11 +608,11 @@ CODES = [
     dict(
         key="smk_8004", platform=SIMKL, severity="WARNING", retryable=True,
         tr=("Simkl hız sınırı",
-            "Simkl saniyede 1 istek kabul ediyor; daha hızlı gönderilen istekler 429 ile döner.",
-            "Bekleyin, istekler otomatik olarak 1 sn aralıkla seyreltilir."),
+            "Simkl isteği HTTP 429 (hız sınırı) veya senkron yazım kilidi için HTTP 400 rate_limit döndürdü. Uygulamanın tüm ekranları aynı API kotasını paylaşır.",
+            "İstekler uygulama genelinde sıraya alınır, Retry-After süresi uygulanır ve yazım kilidi için bir kez yeniden denenir. Uyarı sürerse biraz bekleyin; peş peşe yenilemeyin."),
         en=("Simkl rate limit",
-            "Simkl accepts one request per second; faster bursts return 429.",
-            "Wait — requests are automatically paced to 1 second apart."),
+            "Simkl rejected a request with HTTP 429 or a sync write lock with HTTP 400 rate_limit. All app screens share the same API quota.",
+            "Requests are paced app-wide, Retry-After is honored, and a write-lock response is retried once. If the warning persists, wait before retrying and avoid repeated refreshes."),
     ),
     dict(
         key="smk_8005", platform=SIMKL, severity="WARNING", retryable=True,

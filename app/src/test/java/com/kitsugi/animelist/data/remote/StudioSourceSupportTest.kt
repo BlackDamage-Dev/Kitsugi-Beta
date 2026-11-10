@@ -83,4 +83,70 @@ class StudioSourceSupportTest {
         assertTrue(StudioSourceSupport.namesMatch("Kyoto Animation Co., Ltd.", "Kyoto Animation"))
         assertFalse(StudioSourceSupport.namesMatch("Aniplex", "BONES"))
     }
+
+    @Test
+    fun productionCommitteesAreNotCompanyPages() {
+        assertTrue(
+            StudioSourceSupport.isCommitteeName(
+                "とらぶるダークネス2nd製作委員会"
+            )
+        )
+        assertTrue(StudioSourceSupport.isCommitteeName("とある魔術の禁書目録製作委員会"))
+        assertTrue(StudioSourceSupport.isCommitteeName("某动画制作委员会"))
+        assertFalse(StudioSourceSupport.isCommitteeName("XEBEC"))
+        assertFalse(StudioSourceSupport.isCommitteeName("ジェネオン・ユニバーサル・エンターテイメント"))
+    }
+
+    @Test
+    fun orgNameVariantsBridgeJapaneseAndLatinSpellings() {
+        // Parantez içi takma ad ayrı bir arama yazımı olarak sunulur.
+        val variants = StudioSourceSupport.orgNameVariants(
+            "ジェネオン・ユニバーサル・エンターテイメント(NBCユニバーサル・エンターテイメントジャパン)"
+        )
+        assertTrue(variants.any { it.contains("ジェネオン") })
+        assertTrue(variants.any { it.contains("NBCユニバーサル") })
+        // Sözlük köprüsü: bilinen kurumun küresel İngilizce adı da denenir.
+        assertTrue(variants.any { it.equals("NBCUniversal Entertainment Japan", ignoreCase = true) })
+
+        // Infobox'ın kapattığı parantez eksik olsa bile takma ad yakalanır.
+        val unterminated = StudioSourceSupport.orgNameVariants(
+            "ジェネオン・ユニバーサル・エンターテイメント(NBCユニバーサル・エンターテイメントジャパン"
+        )
+        assertTrue(unterminated.any { it.contains("NBCユニバーサル") })
+        assertTrue(unterminated.any { it.equals("NBCUniversal Entertainment Japan", ignoreCase = true) })
+    }
+
+    @Test
+    fun dictionaryBridgeMakesCrossLanguageNamesMatch() {
+        // Aynı kurumun farklı dildeki yazımları "farklı şirket" sayılmamalı; aksi halde
+        // doğru kurum sayfası "isim uyuşmadı" diye reddediliyordu.
+        assertTrue(StudioSourceSupport.namesMatch("SHUEISHA", "集英社"))
+        assertTrue(StudioSourceSupport.namesMatch("集英社", "Shueisha"))
+        assertTrue(
+            StudioSourceSupport.namesMatch(
+                "ジェネオン・ユニバーサル・エンターテイメント(NBCユニバーサル・エンターテイメントジャパン)",
+                "NBCUniversal Entertainment Japan"
+            )
+        )
+        // Farklı şirketler eşleşmemeye devam eder.
+        assertFalse(StudioSourceSupport.namesMatch("SHUEISHA", "XEBEC"))
+    }
+
+    @Test
+    fun sameCompanyHasSingleDictionaryIdentity() {
+        val shueisha = StudioSourceSupport.orgIdentityKey("SHUEISHA")
+        val shueishaJp = StudioSourceSupport.orgIdentityKey("集英社")
+        assertEquals(shueisha, shueishaJp)
+        assertTrue(shueisha != null && shueisha.startsWith("bangumi_"))
+
+        // Üretim komitesi sözlükte yok → kendi kimliği de yok (tıklanamaz çip).
+        assertEquals(null, StudioSourceSupport.orgIdentityKey("とらぶるダークネス2nd製作委員会"))
+    }
+
+    @Test
+    fun latinCompanyNameResolvesToBangumiLocalName() {
+        // Infobox kurumu Latin adla verir (SHUEISHA); Bangumi kaydı 集英社 adıyla açılır.
+        val variants = StudioSourceSupport.orgNameVariants("SHUEISHA")
+        assertTrue(variants.any { it.contains("集英社") })
+    }
 }

@@ -4,6 +4,7 @@ import kotlinx.coroutines.CancellationException
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.io.IOException
@@ -42,6 +43,21 @@ class PlatformFailureRegistryTest {
 
         val unauthorized = PlatformFailureRegistry.reportHttp("api.simkl.com", 401, "/sync/activities")
         assertEquals(PlatformErrorCode.SMK_8002, unauthorized)
+    }
+
+    @Test
+    fun simklWriteLockHttp400MapsToRateLimitWithoutStoringResponseBody() {
+        val code = PlatformFailureRegistry.reportHttp(
+            host = "api.simkl.com",
+            httpCode = 400,
+            path = "/sync/history",
+            diagnosticHint = "rate_limit",
+        )
+
+        assertEquals(PlatformErrorCode.SMK_8004, code)
+        val reason = PlatformFailureRegistry.latest("simkl")?.rawReason.orEmpty()
+        assertTrue(reason.contains("rate_limit"))
+        assertFalse(reason.contains("access_token"))
     }
 
     @Test

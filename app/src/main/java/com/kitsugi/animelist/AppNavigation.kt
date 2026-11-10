@@ -22,11 +22,28 @@ sealed interface DetailScreen {
     data object About : DetailScreen
     data class UserProfile(val userId: Int, val username: String? = null, val avatarUrl: String? = null, val source: String = "anilist") : DetailScreen
     data class UserMediaList(val userId: Int, val username: String, val initialMediaType: com.kitsugi.animelist.model.MediaType) : DetailScreen
-    data object Notifications : DetailScreen
+    /**
+     * Bildirimler sayfası.
+     *
+     * [preferredSource]: Butona hangi sekmeden basıldıysa orada seçili olan kaynağın
+     * kimliği (anilist / mal / tmdb / simkl / kitsu / shikimori / bangumi).
+     * Sayfa doğrudan bu kaynağın bildirim sekmesiyle açılır; `null` ise eski
+     * davranış korunur (bağlı olan ilk hesabın bildirimleri).
+     */
+    data class Notifications(val preferredSource: String? = null) : DetailScreen
     data object Downloads : DetailScreen
     data object WatchHistory : DetailScreen
     data object PluginPicker : DetailScreen
-    data class AddonExplore(val apiName: String) : DetailScreen
+    data class AddonExplore(val apiName: String, val initialQuery: String = "") : DetailScreen
+    /**
+     * Eklenti portalındaki bir **manga** eklentisinin kendi Keşfet sayfası.
+     *
+     * Video eklentilerindeki [AddonExplore] ile aynı mantık; ancak kaynak
+     * nesnesi (MangaSource bir interface) burada taşınamadığı için kararlı
+     * kaynak anahtarı ([com.kitsugi.animelist.data.manga.stableSourceKey])
+     * saklanır ve ekran açılırken kurulu kaynak listesinden çözülür.
+     */
+    data class MangaSourceExplore(val sourceKey: String) : DetailScreen
     /** "Tümünü Gör" → kaynağa özel filtreler + arama sonuçlarının ayrı sayfada açılması. */
     data class SourceSearchPage(val engine: SearchSourceEngine, val query: String, val scope: SearchScope, val shelfResults: List<JikanSearchResult>) : DetailScreen
 }
@@ -48,17 +65,19 @@ sealed interface AppStateKey {
     data class MangaDetail(override val depth: Int) : AppStateKey
     data class MangaReader(override val depth: Int) : AppStateKey
     data class MangaSourceHealth(override val depth: Int) : AppStateKey
+    data class MangaLibraryState(override val depth: Int) : AppStateKey
     data class AiringCalendar(override val depth: Int, val preferredSource: String? = null) : AppStateKey
     data class Stats(override val depth: Int) : AppStateKey
     data class Favourites(override val depth: Int) : AppStateKey
     data class About(override val depth: Int) : AppStateKey
     data class UserProfile(val userId: Int, override val depth: Int, val username: String? = null, val avatarUrl: String? = null, val source: String = "anilist") : AppStateKey
     data class UserMediaList(val userId: Int, override val depth: Int, val username: String, val initialMediaType: com.kitsugi.animelist.model.MediaType) : AppStateKey
-    data class Notifications(override val depth: Int) : AppStateKey
+    data class Notifications(override val depth: Int, val preferredSource: String? = null) : AppStateKey
     data class Downloads(override val depth: Int) : AppStateKey
     data class WatchHistory(override val depth: Int) : AppStateKey
     data class PluginPicker(override val depth: Int) : AppStateKey
-    data class AddonExplore(val apiName: String, override val depth: Int) : AppStateKey
+    data class AddonExplore(val apiName: String, override val depth: Int, val initialQuery: String = "") : AppStateKey
+    data class MangaSourceExplore(val sourceKey: String, override val depth: Int) : AppStateKey
     data class SourceSearchPage(val engine: SearchSourceEngine, val query: String, val scope: SearchScope, val shelfResults: List<JikanSearchResult>, override val depth: Int) : AppStateKey
 }
 

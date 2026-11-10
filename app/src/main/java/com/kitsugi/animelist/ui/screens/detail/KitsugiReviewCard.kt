@@ -7,8 +7,7 @@ import com.kitsugi.animelist.ui.utils.tvClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.*
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -35,6 +34,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.ui.res.stringResource
 import com.kitsugi.animelist.R
 
+private val REVIEW_MARKDOWN_STRIP_REGEX = Regex("[*_`~]")
+
 /**
  * İnceleme (review) kart bileşeni.
  * ReviewsTab.kt dosyasından çıkarılmıştır.
@@ -52,6 +53,9 @@ internal fun KitsugiReviewCard(
 ) {
     val accentColor = LocalKitsugiAccent.current
     val displaySummary = rev.summary ?: ""
+    val cleanedSummary = remember(displaySummary) {
+        if (displaySummary.isEmpty()) "" else displaySummary.replace(REVIEW_MARKDOWN_STRIP_REGEX, "")
+    }
 
     Column(
         modifier = modifier
@@ -64,7 +68,7 @@ internal fun KitsugiReviewCard(
     ) {
         // Center-aligned italic summary text
         Text(
-            text = displaySummary.replace(Regex("[*_`~]"), ""),
+            text = cleanedSummary,
             color = KitsugiColors.TextPrimary,
             fontSize = 13.sp,
             fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
@@ -89,7 +93,7 @@ internal fun KitsugiReviewCard(
                 if (rev.score != null) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
-                            imageVector = Icons.Rounded.Star,
+                            imageVector = Icons.Star,
                             contentDescription = stringResource(R.string.detail_stat_score),
                             tint = accentColor,
                             modifier = Modifier.size(14.dp)
@@ -128,7 +132,7 @@ internal fun KitsugiReviewCard(
                             .padding(horizontal = 4.dp, vertical = 2.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.ThumbUp,
+                            imageVector = Icons.ThumbUp,
                             contentDescription = stringResource(R.string.faydali),
                             tint = if (rev.userRating == "UP_VOTE") accentColor else KitsugiColors.TextSecondary,
                             modifier = Modifier.size(12.dp)

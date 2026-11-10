@@ -17,8 +17,10 @@ interface PendingSyncDao {
     @Query("DELETE FROM pending_syncs WHERE id = :id")
     suspend fun deleteById(id: Int)
 
-    @Query("DELETE FROM pending_syncs WHERE retryCount >= :maxRetries")
-    suspend fun deleteStale(maxRetries: Int = 5)
+    // Bütçesi dolan işleri toplu silen bir metot BİLİNÇLİ OLARAK YOKTUR (eski
+    // `deleteStale` kaldırıldı — hiç çağrılmıyordu): retryCount tavanı yalnız otomatik
+    // denemeyi durdurur, kullanıcı niyeti kaydı asla sessizce yok edilmez;
+    // `freshBudget` (yeniden bağlanma / uygulama açılışı) işleri yeniden canlandırır.
 
     @Query("UPDATE pending_syncs SET retryCount = retryCount + 1 WHERE id = :id")
     suspend fun incrementRetry(id: Int)

@@ -126,6 +126,8 @@ object KitsugiSpoilerRules {
 
     private val WRAPPER_REGEX = Regex("[【】（）()\\[\\]「」『』《》〈〉\"'`´]+")
     private val WHITESPACE_REGEX = Regex("\\s+")
+    private val canonicalKeyMemo = java.util.concurrent.ConcurrentHashMap<String, String>()
+    private val intrinsicSpoilerMemo = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
 
     /**
      * Etiket veya tür metnini karşılaştırma için normalize eder.
@@ -151,24 +153,33 @@ object KitsugiSpoilerRules {
     fun canonicalTagKey(raw: String?): String {
         val trimmed = raw?.trim().orEmpty()
         if (trimmed.isEmpty()) return ""
+        val cacheKey = "${java.util.Locale.getDefault().language}:$trimmed"
+        canonicalKeyMemo[cacheKey]?.let { return it }
 
-        // 1) BangumiTagDictionary kanonik anahtarı (CJK + EN + TR destekler)
-        BangumiTagDictionary.entryFor(trimmed)?.let { return it.key }
+        val computed = run {
+            // 1) BangumiTagDictionary kanonik anahtarı (CJK + EN + TR destekler)
+            BangumiTagDictionary.entryFor(trimmed)?.let { return@run it.key }
 
-        // 2) SearchTranslation üzerinden İngilizce karşılığı
-        val en = SearchTranslation.translateToEnglishForSearch(trimmed).trim()
-        if (en.isNotEmpty() && !en.equals(trimmed, ignoreCase = true)) {
-            BangumiTagDictionary.entryFor(en)?.let { return it.key }
-            return normalizeLabel(en)
+            // 1b) Rusça (Shikimori) sözlük anahtarı — `Экшен` ≡ `Action` ≡ `Aksiyon`
+            RussianTaxonomyDictionary.entryFor(trimmed)?.let { return@run it.key }
+
+            // 2) SearchTranslation üzerinden İngilizce karşılığı
+            val en = SearchTranslation.translateToEnglishForSearch(trimmed).trim()
+            if (en.isNotEmpty() && !en.equals(trimmed, ignoreCase = true)) {
+                BangumiTagDictionary.entryFor(en)?.let { return@run it.key }
+                return@run normalizeLabel(en)
+            }
+
+            // 3) Yerelleştirilmiş etiket üzerinden sözlük eşlemesi
+            val localized = trimmed.toLocalizedTagLabel().trim()
+            if (localized.isNotEmpty() && !localized.equals(trimmed, ignoreCase = true)) {
+                BangumiTagDictionary.entryFor(localized)?.let { return@run it.key }
+            }
+
+            normalizeLabel(trimmed)
         }
-
-        // 3) Yerelleştirilmiş etiket üzerinden sözlük eşlemesi
-        val localized = trimmed.toLocalizedTagLabel().trim()
-        if (localized.isNotEmpty() && !localized.equals(trimmed, ignoreCase = true)) {
-            BangumiTagDictionary.entryFor(localized)?.let { return it.key }
-        }
-
-        return normalizeLabel(trimmed)
+        if (canonicalKeyMemo.size < 8192) canonicalKeyMemo[cacheKey] = computed
+        return computed
     }
 
     /**
@@ -177,7 +188,14 @@ object KitsugiSpoilerRules {
     fun isIntrinsicSpoiler(label: String?): Boolean {
         val trimmed = label?.trim().orEmpty()
         if (trimmed.isEmpty()) return false
+        intrinsicSpoilerMemo[trimmed]?.let { return it }
 
+        val computed = computeIntrinsicSpoiler(trimmed)
+        if (intrinsicSpoilerMemo.size < 8192) intrinsicSpoilerMemo[trimmed] = computed
+        return computed
+    }
+
+    private fun computeIntrinsicSpoiler(trimmed: String): Boolean {
         val normalized = normalizeLabel(trimmed)
         if (normalized in SAFE_PRIMARY_GENRE_KEYS) return false
         if (normalized in INTRINSIC_SPOILER_LABELS) return true

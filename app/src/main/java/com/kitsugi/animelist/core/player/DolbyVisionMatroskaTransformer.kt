@@ -32,6 +32,9 @@ internal class DolbyVisionMatroskaTransformer(
     private val stripHdr10PlusSei: Boolean = false,
 ) : MatroskaExtractor.DolbyVisionSampleTransformer {
 
+    override fun useHevcBaseLayer(codecs: String?): Boolean =
+        stripRpuOnly && resolveProfile(codecs, null) == 7
+
     private var lastTransformedLength = 0
 
     // Reused across samples; grows to the largest frame once.
@@ -43,18 +46,16 @@ internal class DolbyVisionMatroskaTransformer(
         dolbyVisionConfigBytes: ByteArray?
     ): ByteArray? {
         if (blockAdditionalData == null) return null
-        if (stripRpuOnly) return ByteArray(0)
         val profile = resolveProfile(null, dolbyVisionConfigBytes)
+        if (stripRpuOnly) return if (profile == 7) ByteArray(0) else null
         if (!config.shouldConvert(profile)) return null
         return convertRpuNal(blockAdditionalData, config.conversionMode(profile))
     }
 
     override fun shouldTransform(codecs: String?, dolbyVisionConfigBytes: ByteArray?): Boolean {
         if (stripHdr10PlusSei) return true
-        val isDv = codecs?.startsWith("dv", ignoreCase = true) == true ||
-                (dolbyVisionConfigBytes != null && dolbyVisionConfigBytes.isNotEmpty())
-        if (stripRpuOnly) return isDv
         val profile = resolveProfile(codecs, dolbyVisionConfigBytes)
+        if (stripRpuOnly) return profile == 7
         return config.shouldConvert(profile)
     }
 
@@ -81,7 +82,7 @@ internal class DolbyVisionMatroskaTransformer(
         lastTransformedLength = sampleLength
 
         if (stripRpuOnly) {
-            if (profile == 5) {
+            if (profile != 7) {
                 return stripHdr10PlusIfEnabled(sample, sampleLength, nalUnitLengthFieldLength) ?: sample
             }
             // Use the shared ExposedByteArrayOutputStream scratch buffer to avoid GC allocations on every frame

@@ -34,13 +34,16 @@ data class JikanSearchResult(
     val cs3Url: String? = null,
     val cs3ApiName: String? = null,
     val genres: List<String> = emptyList(),
+    val genreIds: List<Int> = emptyList(),
     /** Bangumi subject namespace type (2=anime, 1=book, 6=real); null for other sources. */
     val bangumiSubjectType: Int? = null
 )
 
 data class KitsugiTheme(
     val label: String,       // Görüntülenecek metin: "We Are!" by Hiroshi Kitadani (OP1)
-    val videoUrl: String?    // animethemes.moe direkt .webm linki (yoksa null → YouTube araması)
+    val videoUrl: String?,   // animethemes.moe direkt .webm linki (yoksa null → YouTube araması)
+    val source: String = "",
+    val alternateVideoUrls: List<String> = emptyList()
 )
 
 enum class StudioRole {
@@ -115,6 +118,7 @@ data class KitsugiMediaDetail(
     val openings: List<KitsugiTheme> = emptyList(),
     val endings: List<KitsugiTheme> = emptyList(),
     val trailerUrl: String? = null,
+    val trailerSource: String = "",
     val title: String? = null,
     val imageUrl: String? = null,
     val bannerImage: String? = null,
@@ -159,7 +163,18 @@ data class KitsugiMediaDetail(
     val rawStatus: String? = null,
     val rawSourceMaterial: String? = null,
     val rawSeason: String? = null,
-    val seasonYear: Int? = null
+    val seasonYear: Int? = null,
+    /** Shikimori gibi sağlayıcıların ayrıntı yanıtında taşıdığı ek alanlar. */
+    val titleRussian: String? = null,
+    val episodesAired: Int? = null,
+    // Nullable kalır: Gson, eski kalıcı önbellek JSON'larında olmayan non-null List
+    // alanlarına emptyList() yerine null koyar; eski MAL/AniList kayıtları da güvenli okunur.
+    val publishers: List<String>? = null,
+    val licensors: List<String>? = null,
+    val fansubbers: List<String>? = null,
+    val fandubbers: List<String>? = null,
+    /** Kaynağın kendi topluluk istatistikleri; çapraz-servis yedeğinden önce kullanılır. */
+    val nativeStats: KitsugiStats? = null
 )
 
 data class KitsugiStreamingEpisode(
@@ -363,6 +378,33 @@ data class KitsugiReview(
     val source: String = "anilist"
 )
 
+/**
+ * İncelemenin liste/seçim kimliği (LazyRow anahtarı, açık detay sayfasının geri bulunması,
+ * çeviri önbelleği anahtarı).
+ *
+ * TMDB (metin/hex yorum kimliği), MAL/Jikan ve Bangumi incelemeleri sayısal kimlik
+ * taşımaz → [KitsugiReview.id] `null` kalır. Eskiden anahtar `"${source}_${id}"` olduğu için
+ * bu kaynaklardaki HER inceleme aynı `"tmdb_null"` / `"jikan_null"` / `"bangumi_null"`
+ * anahtarını alıyor ve ikinci kart ölçülürken uygulama çöküyordu (v2.4.369 raporu).
+ * Kimlik yoksa yazar + tarih + metin özeti parmak izi kullanılır.
+ *
+ * NOT: API aynı incelemeyi iki kez döndürebileceği için bu değer tek başına benzersizlik
+ * GARANTİSİ vermez; Lazy listelerde `uniqueItems` / `uniqueLazyKeys` ile birlikte kullanın.
+ */
+fun KitsugiReview.stableKey(): String {
+    val src = source.trim().lowercase(java.util.Locale.ROOT).ifEmpty { "unknown" }
+    id?.let { return "rev:$src:$it" }
+    val fingerprint = buildString {
+        append(username.trim().lowercase(java.util.Locale.ROOT))
+        append('\u0001').append(dateText.orEmpty().trim())
+        append('\u0001').append(summary.trim().take(REVIEW_FINGERPRINT_CHARS))
+        append('\u0001').append(fullText.trim().take(REVIEW_FINGERPRINT_CHARS))
+    }
+    return "rev:$src:h${Integer.toHexString(fingerprint.hashCode())}"
+}
+
+private const val REVIEW_FINGERPRINT_CHARS = 160
+
 data class KitsugiForumTopic(
     val id: Int,
     val title: String,
@@ -429,6 +471,7 @@ fun canonicalMediaSourceId(source: String): String = when (source.trim().lowerca
     "mal", "myanimelist", "jikan", "jikan (mal)", "mal (jikan)" -> "mal"
     "simkl" -> "simkl"
     "tmdb", "themoviedb" -> "tmdb"
+    "tmdb_account" -> "tmdb_account"
     "kitsu" -> "kitsu"
     "shikimori", "shiki" -> "shikimori"
     "bangumi", "bgm", "bgm.tv" -> "bangumi"
@@ -442,12 +485,23 @@ fun canonicalMediaSourceId(source: String): String = when (source.trim().lowerca
  */
 fun MediaEntry.matchesInSource(result: JikanSearchResult): Boolean {
     if (canonicalMediaSourceId(source) != canonicalMediaSourceId(result.source)) return false
-    return matchesProviderIdentity(result) || matchesTitleVariant(result)
+    if (matchesProviderIdentity(result)) return true
+    // Same-title remakes are different titles. Title fallback is only an identity hint when
+    // neither side carries a conflicting ID in the provider namespace being queried.
+    if (hasConflictingProviderId(result)) return false
+    return matchesTitleVariant(result)
 }
 
 fun MediaEntry.matchesInSource(mediaId: Int, mediaSource: String): Boolean {
-    if (canonicalMediaSourceId(source) != canonicalMediaSourceId(mediaSource)) return false
-    return matchesProviderId(mediaId, mediaSource)
+    val entrySource = canonicalMediaSourceId(source)
+    val querySource = canonicalMediaSourceId(mediaSource)
+    if (entrySource == querySource) {
+        return matchesProviderId(mediaId, mediaSource)
+    }
+    if (entrySource == "simkl" && querySource == "tmdb") {
+        return tmdbId != null && tmdbId == mediaId
+    }
+    return false
 }
 
 fun List<MediaEntry>.firstMatchingInSource(result: JikanSearchResult): MediaEntry? =
@@ -455,6 +509,89 @@ fun List<MediaEntry>.firstMatchingInSource(result: JikanSearchResult): MediaEntr
 
 fun List<MediaEntry>.firstMatchingInSource(mediaId: Int, mediaSource: String): MediaEntry? =
     firstOrNull { it.matchesInSource(mediaId, mediaSource) }
+
+/**
+ * Ekleme/favorileme hedef kaynağında (`targetSource`) zaten kayıt var mı kontrolü.
+ *
+ * Örneğin kullanıcı TMDB keşfet/detay ekranından (`result.source = "tmdb"`) bir film veya
+ * anime filmi eklediğinde kayıt `primarySource = "simkl"` altında saklanır. Yalnızca
+ * `matchesInSource(result)` çağrıldığında `"simkl" != "tmdb"` yüzünden her tıklama yeni bir
+ * Simkl satırı açıyordu (Simkl sekmesinde birebir aynı kartın yan yana çoğalması).
+ *
+ * Bu yardımcı yalnızca hedef sağlayıcı (`targetSource`) ve sonuç sağlayıcısı (`result.source`)
+ * kapsamındaki kayıtları denetler; alakasız üçüncü bir sağlayıcının kaydını ödünç almaz.
+ */
+fun MediaEntry.matchesTargetSource(result: JikanSearchResult, targetSource: String): Boolean {
+    val entryCanon = canonicalMediaSourceId(source)
+    val targetCanon = canonicalMediaSourceId(targetSource)
+    if (entryCanon != targetCanon) return false
+    if (canonicalMediaSourceId(result.source) == targetCanon && matchesInSource(result)) return true
+
+    val resultCanon = canonicalMediaSourceId(result.source)
+    val resultTmdb = result.tmdbId?.takeIf { it > 0 }
+        ?: if (resultCanon == "tmdb") result.malId.takeIf { it > 0 } else null
+    if (tmdbId != null && tmdbId > 0 && resultTmdb != null && tmdbId == resultTmdb) {
+        if (type == result.type || isCompatibleAnimeMovieType(type, result.type, total, progress)) {
+            return true
+        }
+    }
+
+    val resultMal = when {
+        result.realMalId != null && result.realMalId in 1..99_999_999 -> result.realMalId
+        resultCanon == "mal" && result.malId in 1..99_999_999 -> result.malId
+        resultCanon == "anilist" && result.malId in 1..99_999_999 -> result.malId
+        else -> null
+    }
+    val entryRealMal = com.kitsugi.animelist.model.MediaIdentity.realMalId(this)
+    if (entryRealMal != null && resultMal != null && entryRealMal == resultMal) {
+        if (type == result.type || isCompatibleAnimeMovieType(type, result.type, total, progress)) {
+            return true
+        }
+    }
+
+    if (targetCanon == "simkl" && resultCanon == "simkl" && simklId != null && simklId == result.malId) {
+        return true
+    }
+
+    return matchesTitleVariantAllowingAnimeMovie(result)
+}
+
+fun List<MediaEntry>.firstMatchingInTargetOrResultSource(
+    result: JikanSearchResult,
+    targetSource: String
+): MediaEntry? =
+    firstOrNull { it.matchesTargetSource(result, targetSource) }
+        ?: firstOrNull { it.matchesInSource(result) }
+
+private fun isCompatibleAnimeMovieType(
+    entryType: MediaType,
+    resultType: MediaType,
+    entryTotal: Int?,
+    entryProgress: Int
+): Boolean {
+    val pair = (entryType == MediaType.Anime && resultType == MediaType.Movie) ||
+        (entryType == MediaType.Movie && resultType == MediaType.Anime)
+    if (!pair) return false
+    return entryType != MediaType.Anime || ((entryTotal == null || entryTotal <= 1) && entryProgress <= 1)
+}
+
+private fun MediaEntry.matchesTitleVariantAllowingAnimeMovie(result: JikanSearchResult): Boolean {
+    if (type != result.type && !isCompatibleAnimeMovieType(type, result.type, total, progress)) {
+        return false
+    }
+    val entryTitles = listOfNotNull(title, titleEnglish, titleJapanese)
+        .flatMap { com.kitsugi.animelist.model.MediaIdentity.normalizedTitleVariants(it) }
+        .filter { it.length >= 2 }
+        .toSet()
+    val resultTitles = listOfNotNull(result.title, result.titleEnglish, result.titleJapanese, result.titleRomaji)
+        .flatMap { com.kitsugi.animelist.model.MediaIdentity.normalizedTitleVariants(it) }
+        .filter { it.length >= 2 }
+        .toSet()
+    if (entryTitles.none { it in resultTitles }) return false
+    val entryYear = year
+    val resultYear = result.year
+    return entryYear == null || resultYear == null || kotlin.math.abs(entryYear - resultYear) <= 1
+}
 
 fun MediaEntry.matches(result: JikanSearchResult): Boolean {
     // Aynı sağlayıcıdaki doğrudan ID ve başlık eşleşmeleri.
@@ -484,6 +621,7 @@ fun MediaEntry.matches(result: JikanSearchResult): Boolean {
 
 private fun MediaEntry.matchesProviderIdentity(result: JikanSearchResult): Boolean =
     matchesProviderId(result.malId, result.source) ||
+        (result.tmdbId?.let { matchesProviderId(it, "tmdb") } == true) ||
         (canonicalMediaSourceId(source) == "simkl" && (
             (simklId != null && simklId == result.malId) ||
             (result.realMalId != null && malId != null && malId == result.realMalId)
@@ -491,12 +629,42 @@ private fun MediaEntry.matchesProviderIdentity(result: JikanSearchResult): Boole
 
 private fun MediaEntry.matchesProviderId(mediaId: Int, mediaSource: String): Boolean {
     if (canonicalMediaSourceId(source) != canonicalMediaSourceId(mediaSource)) return false
-    if (canonicalMediaSourceId(source) == "anilist") {
-        val rawEntryId = malId?.let { if (it >= 100_000_000) it - 100_000_000 else it }
-        val rawResultId = if (mediaId >= 100_000_000) mediaId - 100_000_000 else mediaId
-        return rawEntryId != null && rawEntryId == rawResultId
+    if (mediaId <= 0) return false
+    val entrySource = canonicalMediaSourceId(source)
+    return when (entrySource) {
+        "anilist" -> {
+            val rawEntryId = malId?.let { if (it >= 100_000_000) it - 100_000_000 else it }
+            val rawResultId = if (mediaId >= 100_000_000) mediaId - 100_000_000 else mediaId
+            rawEntryId != null && rawEntryId == rawResultId
+        }
+        "simkl" -> simklId == mediaId || malId == mediaId
+        "tmdb", "tmdb_account" -> tmdbId == mediaId || malId == mediaId
+        else -> malId == mediaId
     }
-    return malId == mediaId || (canonicalMediaSourceId(source) == "simkl" && simklId == mediaId)
+}
+
+private fun MediaEntry.hasConflictingProviderId(result: JikanSearchResult): Boolean {
+    if (result.malId <= 0 && result.tmdbId == null) return false
+    val resultSource = canonicalMediaSourceId(result.source)
+    val entrySource = canonicalMediaSourceId(source)
+    return when (resultSource) {
+        "tmdb", "tmdb_account" -> {
+            val resultId = result.tmdbId ?: result.malId.takeIf { it > 0 }
+            val entryId = tmdbId ?: if (entrySource == "tmdb" || entrySource == "tmdb_account") malId?.takeIf { it > 0 } else null
+            resultId != null && entryId != null && resultId != entryId
+        }
+        "anilist" -> {
+            val resultId = result.malId.let { if (it >= 100_000_000) it - 100_000_000 else it }
+            val entryId = malId?.let { if (it >= 100_000_000) it - 100_000_000 else it }
+            resultId > 0 && entryId != null && entryId > 0 && resultId != entryId
+        }
+        "simkl" -> {
+            val resultId = result.malId.takeIf { it > 0 }
+            val entryId = simklId ?: if (entrySource == "simkl") malId?.takeIf { it > 0 } else null
+            resultId != null && entryId != null && resultId != entryId
+        }
+        else -> result.malId > 0 && malId != null && malId != result.malId
+    }
 }
 
 private fun MediaEntry.matchesTitleVariant(result: JikanSearchResult): Boolean {
@@ -505,11 +673,11 @@ private fun MediaEntry.matchesTitleVariant(result: JikanSearchResult): Boolean {
     // normalize edip karşılaştır; sağlayıcı kapsamı matchesInSource() tarafından korunur.
     if (type != result.type) return false
     val entryTitles = listOfNotNull(title, titleEnglish, titleJapanese)
-        .map { com.kitsugi.animelist.model.MediaIdentity.normalizedTitle(it) }
+        .flatMap { com.kitsugi.animelist.model.MediaIdentity.normalizedTitleVariants(it) }
         .filter { it.length >= 2 }
         .toSet()
     val resultTitles = listOfNotNull(result.title, result.titleEnglish, result.titleJapanese, result.titleRomaji)
-        .map { com.kitsugi.animelist.model.MediaIdentity.normalizedTitle(it) }
+        .flatMap { com.kitsugi.animelist.model.MediaIdentity.normalizedTitleVariants(it) }
         .filter { it.length >= 2 }
         .toSet()
     if (entryTitles.none { it in resultTitles }) return false

@@ -27,12 +27,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Link
-import androidx.compose.material.icons.filled.PhoneAndroid
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Wifi
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import com.kitsugi.animelist.ui.theme.gradient.Text
 import androidx.compose.runtime.Composable
@@ -159,7 +154,7 @@ fun TvCompanionQrScreen(
                 // Title
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
-                        imageVector = Icons.Filled.PhoneAndroid,
+                        imageVector = Icons.PhoneAndroid,
                         contentDescription = null,
                         tint = CompanionAccent,
                         modifier = Modifier.size(36.dp)
@@ -183,7 +178,7 @@ fun TvCompanionQrScreen(
 
                 // URL card
                 CompanionInfoCard(
-                    icon = Icons.Filled.Wifi,
+                    icon = Icons.Wifi,
                     label = stringResource(R.string.baglanti_adresi),
                     value = companionUrl
                 )
@@ -205,7 +200,7 @@ fun TvCompanionQrScreen(
                             focusedContentColor = Color.White
                         )
                     ) {
-                        Icon(Icons.Filled.Refresh, contentDescription = null)
+                        Icon(Icons.Refresh, contentDescription = null)
                         Spacer(Modifier.width(8.dp))
                         Text(stringResource(R.string.yeni_qr))
                     }
@@ -218,7 +213,7 @@ fun TvCompanionQrScreen(
                             focusedContentColor = Color.White
                         )
                     ) {
-                        Icon(Icons.Filled.Close, contentDescription = null)
+                        Icon(Icons.Close, contentDescription = null)
                         Spacer(Modifier.width(8.dp))
                         Text(stringResource(R.string.action_close))
                     }
@@ -304,13 +299,13 @@ private fun CompanionInfoCard(
 private fun CompanionStatusBadge(state: TvCompanionSessionManager.ConnectionState) {
     val (color, label, icon) = when (state) {
         TvCompanionSessionManager.ConnectionState.IDLE ->
-            Triple(CompanionSubtext, stringResource(R.string.baglanti_bekleniyor), Icons.Filled.Wifi)
+            Triple(CompanionSubtext, stringResource(R.string.baglanti_bekleniyor), Icons.Wifi)
         TvCompanionSessionManager.ConnectionState.PENDING_APPROVAL ->
-            Triple(CompanionOrange, stringResource(R.string.onay_bekliyor_tv_den_onaylayin), Icons.Filled.Link)
+            Triple(CompanionOrange, stringResource(R.string.onay_bekliyor_tv_den_onaylayin), Icons.Link)
         TvCompanionSessionManager.ConnectionState.CONNECTED ->
-            Triple(CompanionGreen, stringResource(R.string.notif_diag_connected), Icons.Filled.PhoneAndroid)
+            Triple(CompanionGreen, stringResource(R.string.notif_diag_connected), Icons.PhoneAndroid)
         TvCompanionSessionManager.ConnectionState.EXPIRED ->
-            Triple(CompanionRed, stringResource(R.string.oturum_suresi_doldu_yeni_qr_olusturun), Icons.Filled.Refresh)
+            Triple(CompanionRed, stringResource(R.string.oturum_suresi_doldu_yeni_qr_olusturun), Icons.Refresh)
     }
 
     Row(

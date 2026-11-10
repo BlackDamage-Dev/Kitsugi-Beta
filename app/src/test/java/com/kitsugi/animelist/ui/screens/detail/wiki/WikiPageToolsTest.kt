@@ -1,5 +1,6 @@
 package com.kitsugi.animelist.ui.screens.detail.wiki
 
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -36,6 +37,59 @@ class WikiPageToolsTest {
         assertNull(WikiDomTranslationBatch.unpack("⟪K1⟫world⟪/K1⟫⟪K0⟫Hello⟪/K0⟫", 2))
         assertNull(WikiDomTranslationBatch.unpack("⟪K0⟫Hello⟪/K0⟫", 2))
         assertNull(WikiDomTranslationBatch.unpack("⟪K0⟫Hello⟪/K0⟫⟪K0⟫world⟪/K0⟫", 2))
+    }
+
+    @Test fun cachedRowsSkipTheNetworkAndFreshRowsAreStoredIndividually() = runBlocking {
+        val rows = listOf(
+            WikiDomText(1, 0, "Cached hello"),
+            WikiDomText(2, 0, "Fresh world"),
+            WikiDomText(3, 0, "Cached hello")
+        )
+        val networkCalls = mutableListOf<String>()
+        val stored = mutableListOf<Pair<String, String>>()
+        val results = WikiDomTranslationBatch.translate(
+            rows,
+            cached = { text -> if (text == "Cached hello") "Önbellek merhaba" else null },
+            store = { stored.addAll(it) }
+        ) { text ->
+            networkCalls.add(text)
+            "Çevrildi: $text"
+        }
+        assertEquals(
+            listOf("Önbellek merhaba", "Çevrildi: Fresh world", "Önbellek merhaba"),
+            results.map { it.translated }
+        )
+        // Yalnızca eksik ve tekilleştirilmiş metin ağa gitti.
+        assertEquals(listOf("Fresh world"), networkCalls)
+        assertEquals(listOf("Fresh world" to "Çevrildi: Fresh world"), stored)
+    }
+
+    @Test fun packedBatchUsesOneRequestAndKeepsSlotOrder() = runBlocking {
+        val rows = listOf(WikiDomText(1, 0, "Hello"), WikiDomText(2, 0, "world"))
+        var calls = 0
+        val results = WikiDomTranslationBatch.translate(rows) { text ->
+            calls++
+            text.replace("Hello", "Merhaba").replace("world", "dünya")
+        }
+        assertEquals(listOf("Merhaba", "dünya"), results.map { it.translated })
+        assertEquals(1, calls)
+    }
+
+    @Test fun mangledDelimitersFallBackPerRowWithoutGuessing() = runBlocking {
+        val rows = listOf(WikiDomText(1, 0, "Hello"), WikiDomText(2, 0, "world"))
+        val results = WikiDomTranslationBatch.translate(rows) { text ->
+            // Paket çağrısında ayraçları boz; tekil çağrılarda düz çevir.
+            if (text.contains("⟪K")) "Merhaba dünya" else "TR:$text"
+        }
+        assertEquals(listOf("TR:Hello", "TR:world"), results.map { it.translated })
+    }
+
+    @Test fun outageDoesNotFanOutAndResultsStayNull() = runBlocking {
+        val rows = listOf(WikiDomText(1, 0, "Hello"), WikiDomText(2, 0, "world"))
+        var calls = 0
+        val results = WikiDomTranslationBatch.translate(rows) { calls++; null }
+        assertEquals(listOf(null, null), results.map { it.translated })
+        assertEquals(1, calls)
     }
 
     @Test fun invalidLanguageValuesNeverEnterTranslationUrl() {

@@ -14,9 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.ArrowDropDown
-import androidx.compose.material.icons.rounded.Check
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.ExperimentalMaterial3Api
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.MaterialTheme
@@ -88,7 +86,7 @@ fun SourceEngineSelectorPill(
             )
         }
         Icon(
-            imageVector = Icons.Rounded.ArrowDropDown,
+            imageVector = Icons.ArrowDropDown,
             contentDescription = stringResource(R.string.search_engine_picker_accessibility),
             tint = accentColor,
             modifier = Modifier.size(16.dp)
@@ -208,7 +206,7 @@ fun SourceEnginePickerSheet(
                     if (isSelected) {
                         Spacer(modifier = Modifier.width(8.dp))
                         Icon(
-                            imageVector = Icons.Rounded.Check,
+                            imageVector = Icons.Check,
                             contentDescription = stringResource(R.string.secili),
                             tint = accentColor,
                             modifier = Modifier.size(20.dp)

@@ -1,5 +1,6 @@
 package com.kitsugi.animelist.ui.screens.detail.wiki
 
+import com.kitsugi.animelist.ui.components.KitsugiChevronIcon
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -14,10 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.ExpandLess
-import androidx.compose.material.icons.rounded.ExpandMore
-import androidx.compose.material.icons.automirrored.rounded.MenuBook
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -82,7 +80,7 @@ fun MediaWikiSectionCard(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
-                imageVector = Icons.AutoMirrored.Rounded.MenuBook,
+                imageVector = Icons.MenuBook,
                 contentDescription = null,
                 tint = accentColor,
                 modifier = Modifier.size(20.dp)
@@ -103,8 +101,8 @@ fun MediaWikiSectionCard(
                     )
                 }
             }
-            Icon(
-                imageVector = if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+            KitsugiChevronIcon(
+                expanded = expanded,
                 contentDescription = null,
                 tint = accentColor,
                 modifier = Modifier.size(22.dp)

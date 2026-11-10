@@ -1,6 +1,7 @@
 package com.kitsugi.animelist.ui.components
 
 import com.kitsugi.animelist.ui.theme.gradient.Icon
+import com.kitsugi.animelist.ui.utils.uniqueItems
 import com.kitsugi.animelist.ui.theme.gradient.Text
 
 import android.content.Context
@@ -13,8 +14,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.*
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -53,7 +53,7 @@ fun KitsugiAllActivitiesBottomSheet(
     apiClient: JikanApiClient,
     tmdbId: Int? = null,
     realMalId: Int? = null,
-    titleLanguage: String = "ROMAJI",
+    titleLanguage: String = "ENGLISH",
     onUserProfileClick: ((userId: Int?, username: String, avatarUrl: String?, source: String) -> Unit)? = null,
     onDismiss: () -> Unit
 ) {
@@ -158,7 +158,7 @@ fun KitsugiAllActivitiesBottomSheet(
                     )
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.Close,
+                        imageVector = Icons.Close,
                         contentDescription = stringResource(R.string.kapat),
                         tint = KitsugiColors.TextPrimary
                     )
@@ -193,7 +193,7 @@ fun KitsugiAllActivitiesBottomSheet(
                         .weight(1f),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    items(activitiesList, key = { it.id }) { act ->
+                    uniqueItems(activitiesList, key = { it.id }) { act ->
                         // Resolve title according to user's titleLanguage preference
                         val localizedTitle = when (titleLanguage) {
                             "ENGLISH" -> act.mediaTitleEnglish?.takeIf { it.isNotBlank() }
@@ -358,7 +358,7 @@ fun KitsugiAllActivitiesBottomSheet(
                                         modifier = Modifier.size(28.dp)
                                     ) {
                                         Icon(
-                                            imageVector = Icons.Rounded.ContentCopy,
+                                            imageVector = Icons.ContentCopy,
                                             contentDescription = KitsugiStrings.get(R.string.action_copy),
                                             tint = KitsugiColors.TextSecondary,
                                             modifier = Modifier.size(14.dp)
@@ -389,7 +389,7 @@ fun KitsugiAllActivitiesBottomSheet(
                                     }
                                 ) {
                                     Icon(
-                                        imageVector = if (act.isLiked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                                        imageVector = if (act.isLiked) Icons.Favorite else Icons.FavoriteBorder,
                                         contentDescription = stringResource(R.string.begeni),
                                         tint = if (act.isLiked) accentColor else KitsugiColors.TextSecondary,
                                         modifier = Modifier.size(14.dp)

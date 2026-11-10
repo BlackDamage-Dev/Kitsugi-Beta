@@ -1,6 +1,7 @@
 package com.kitsugi.animelist.data.remote
 
 import android.util.Log
+import com.kitsugi.animelist.core.memory.BoundedCache
 import com.kitsugi.animelist.model.MediaType
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -15,7 +16,6 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.net.URL
 import java.net.URLEncoder
-import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.abs
 import kotlin.math.ln
 
@@ -75,7 +75,8 @@ object KitsugiHeroArtworkResolver {
         val score: Int
     )
 
-    private val cache = ConcurrentHashMap<String, HeroArtwork>()
+    // Artwork entries retain multiple candidate URLs; cap this process-wide cache to limit heap growth.
+    private val cache = BoundedCache<String, HeroArtwork>("heroArtwork", 300)
     private val inFlightMutex = Mutex()
     private val inFlight = HashMap<String, Deferred<HeroArtwork>>()
     private val resolverScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)

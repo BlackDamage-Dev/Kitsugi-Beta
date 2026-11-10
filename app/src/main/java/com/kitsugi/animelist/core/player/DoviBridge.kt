@@ -202,9 +202,12 @@ object DoviBridge {
     // demand if the native side reports a larger required size (see negative-return contract
     // in [convertDv7RpuToDv81NonAllocating]). Read by the transformer on the same thread that made
     // the call, immediately after it returns.
-    @JvmField
-    @Volatile
-    var rpuOutBuffer = ByteArray(4096)
+    // Extractors can run simultaneously (e.g. preload or separate media sources).
+    // Each call and its consumer must see the same thread's result, not a global frame.
+    private val outputBuffers = ThreadLocal.withInitial { ByteArray(4096) }
+    var rpuOutBuffer: ByteArray
+        get() = outputBuffers.get()!!
+        private set(value) { outputBuffers.set(value) }
 
     /**
      * Converts a DV7 RPU NAL to DV8.1 into [rpuOutBuffer] with no per-call JVM allocation.

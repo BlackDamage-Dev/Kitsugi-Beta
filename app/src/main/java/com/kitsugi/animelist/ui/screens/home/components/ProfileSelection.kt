@@ -42,7 +42,14 @@ fun ProfileSelection(
             columns = GridCells.Fixed(3),
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
-            modifier = Modifier.width(360.dp)
+            // NOT: Bu ızgara bir LazyColumn item içine gömülürse maxHeight = ∞ gelir ve
+            // "Vertically scrollable component was measured with an infinity maximum
+            // height" çökmesi oluşur (wrapContentHeight() ∞'ü sınırlamaz). Bu yüzden
+            // yükseklik açıkça sınırlandırılır — bkz.
+            // KOK_NEDEN_RAPORU_LAZY_GRID_SONSUZ_YUKSEKLIK_2026-10-22.md
+            modifier = Modifier
+                .width(360.dp)
+                .heightIn(max = 520.dp)
         ) {
             items(profiles) { profile ->
                 val isSelected = profile == selectedProfile

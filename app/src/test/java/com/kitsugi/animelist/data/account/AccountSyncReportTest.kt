@@ -25,6 +25,16 @@ class AccountSyncReportTest {
         assertSame(failure, report.results[AccountSyncSection.NOTIFICATIONS]?.exceptionOrNull())
     }
 
+    @Test fun addonFailureIsReportedIndependentlyOfTheLinkedAccountVault() = runBlocking {
+        val report = runAccountSyncSteps(linkedMapOf(
+            AccountSyncSection.VAULT to { Result.success(Unit) },
+            AccountSyncSection.ADDONS to { Result.failure(IllegalStateException("addon failure")) }
+        ))
+        assertTrue(report.hasFailures)
+        assertEquals(setOf(AccountSyncSection.VAULT), report.completed)
+        assertTrue(report.results[AccountSyncSection.ADDONS]?.isFailure == true)
+    }
+
     @Test fun lockedVaultDoesNotPreventTheOtherCategoriesFromRunning() = runBlocking {
         val report = runAccountSyncSteps(linkedMapOf(
             AccountSyncSection.VAULT to { throw VaultLockedException() },

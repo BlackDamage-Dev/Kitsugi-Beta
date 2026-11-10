@@ -1,8 +1,12 @@
 package com.kitsugi.animelist.data.remote
 
 import com.kitsugi.animelist.model.MediaType
+import com.kitsugi.animelist.core.memory.BoundedCache
 import org.json.JSONObject
 import okhttp3.Request
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.kitsugi.animelist.utils.*
 import com.kitsugi.animelist.utils.KitsugiStrings
 import com.kitsugi.animelist.R
@@ -23,8 +27,11 @@ internal data class SimklCrossIds(
  */
 internal object KitsugiSimklDetailClient {
 
-    private val rawJsonCache = java.util.concurrent.ConcurrentHashMap<String, JSONObject>()
-    private val crossIdCache = java.util.concurrent.ConcurrentHashMap<String, SimklCrossIds>()
+    // extended=full objects may include relations/recommendations; keep the working set bounded
+    // and let KitsugiMemoryGuard shrink it under Android memory pressure.
+    private val rawJsonCache = BoundedCache<String, JSONObject>("simkl.rawJson", 250)
+    private val crossIdCache = BoundedCache<String, SimklCrossIds>("simkl.crossIds", 1_000)
+    private val externalSimklIdCache = BoundedCache<String, Int>("simkl.extId", 1_000)
 
     private fun parseOptionalId(ids: JSONObject?, key: String): Int? {
         if (ids == null) return null
@@ -55,18 +62,25 @@ internal object KitsugiSimklDetailClient {
             .header("Accept", "application/json")
             .build()
 
-        return try {
-            com.kitsugi.animelist.core.network.KitsugiHttpClient.client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) return null
-                val text = response.body?.string()?.takeIf { it.isNotBlank() && it.trim().startsWith("{") } ?: return null
-                val obj = JSONObject(text)
-                if (obj.length() == 0) return null
-                rawJsonCache[cacheKey] = obj
-                obj
+        // This suspend function is often called from Compose/ViewModel Main context. OkHttp's
+        // execute() is blocking, so always move both socket I/O and response parsing off Main.
+        return withContext(Dispatchers.IO) {
+            try {
+                com.kitsugi.animelist.core.network.KitsugiHttpClient.metadataClient.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) return@withContext null
+                    val text = response.body?.string()?.takeIf { it.isNotBlank() && it.trim().startsWith("{") }
+                        ?: return@withContext null
+                    val obj = JSONObject(text)
+                    if (obj.length() == 0) return@withContext null
+                    rawJsonCache[cacheKey] = obj
+                    obj
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                android.util.Log.w("KitsugiSimklDetailClient", "fetchSimklRawJson simklId=$simklId failed: ${e.message}")
+                null
             }
-        } catch (e: Exception) {
-            android.util.Log.w("KitsugiSimklDetailClient", "fetchSimklRawJson simklId=$simklId failed: ${e.message}")
-            null
         }
     }
 
@@ -398,6 +412,32 @@ internal object KitsugiSimklDetailClient {
                     )
                 }
 
+            // Simkl stüdyo/yapımcı **yayınlamaz** (API'de alan yok) ama `network`
+            // alanını döndürür. Daha önce hiç okunmuyordu → Simkl kaynaklı
+            // sayfalarda kanal listesi boştu.
+            val simklNetworks = mutableListOf<KitsugiStudio>()
+            fun addSimklNetwork(rawName: String?) {
+                val name = rawName?.trim().orEmpty()
+                if (name.isEmpty() || name == "null") return
+                if (simklNetworks.any { it.name.equals(name, ignoreCase = true) }) return
+                simklNetworks.add(
+                    KitsugiStudio(
+                        id = 0,
+                        name = name,
+                        isMain = false,
+                        source = "simkl",
+                        role = StudioRole.NETWORK
+                    )
+                )
+            }
+            addSimklNetwork(obj.optString("network", ""))
+            obj.optJSONArray("networks")?.let { arr ->
+                for (i in 0 until arr.length()) {
+                    val item = arr.optJSONObject(i)
+                    addSimklNetwork(if (item != null) item.optString("name", "") else arr.optString(i, ""))
+                }
+            }
+
             KitsugiMediaDetail(
                 synopsis = overview,
                 genres = genresList.toTurkishGenres(),
@@ -406,6 +446,7 @@ internal object KitsugiSimklDetailClient {
                 sourceMaterial = null,
                 studios = emptyList(),
                 producers = emptyList(),
+                networks = simklNetworks,
                 rating = if (ratingScore > 0.0) ratingScore.toString() else null,
                 broadcast = null,
                 episodeDuration = if (runtime > 0) "$runtime min".toTurkishDuration() else null,
@@ -413,15 +454,18 @@ internal object KitsugiSimklDetailClient {
                 endDate = obj.optString("last_aired", "").takeIf { it.isNotBlank() && it != "null" }?.take(10),
                 titleEnglish = resolvedTitleEnglish,
                 titleJapanese = resolvedTitleJapanese,
-                titleRomaji = null,
-                titleNative = simklNative,
+                // 2026-11-02: Burada `null` bırakılıyordu → Simkl kaydından açılan akışta
+                // AniList/MAL kaydına göre DAHA AZ arama varyantı oluşuyordu. Romaji alanı
+                // Simkl'in kendi romaji alanından doldurulur (yoksa boş kalır).
+                titleRomaji = simklRomaji,
+                titleNative = simklNative ?: resolvedTitleJapanese,
                 synonyms = listOfNotNull(simklRomaji, simklTitle.takeIf { it != resolvedTitle })
                     .map { it.trim() }
                     .filter { it.isNotBlank() }
                     .distinct(),
                 openings = emptyList(),
                 endings = emptyList(),
-                trailerUrl = null,
+                trailerUrl = extractSimklTrailerVideos(obj, simklId).firstOrNull()?.videoUrl,
                 title = resolvedTitle,
                 imageUrl = if (poster.isNotEmpty()) "https://simkl.in/posters/${poster}_m.jpg" else null,
                 score = if (ratingScore > 0.0) (ratingScore * 10).toInt() else null,
@@ -438,7 +482,8 @@ internal object KitsugiSimklDetailClient {
                 pictures = simklPictures,
                 rank = rankVal,
                 members = votesCount,
-                type = mediaType
+                type = mediaType,
+                countryOfOrigin = obj.optString("country", "").trim().takeIf { it.isNotEmpty() && it != "null" }
             )
         } catch (e: Exception) {
             // T3-05: printStackTrace → Log.e
@@ -454,28 +499,138 @@ internal object KitsugiSimklDetailClient {
      * ilk adımı TMDB üzerinden tamamlanır. Tek bir hafif istek yapılır; aktif dil zaten
      * İngilizce ise ya da TMDB anahtarı yoksa istek atlanır.
      */
-    private fun fetchTmdbLocalizedTitle(tmdbId: Int, isMovie: Boolean): String? {
-        val language = TmdbApiClient.getActiveLanguage()
-        if (language.startsWith("en", ignoreCase = true)) return null
-        val apiKey = TmdbApiClient.getActiveApiKey()
-        if (apiKey.isBlank()) return null
-        val typePath = if (isMovie) "movie" else "tv"
-        val url = "https://api.themoviedb.org/3/$typePath/$tmdbId?api_key=$apiKey&language=$language"
-        return try {
+    private suspend fun fetchTmdbLocalizedTitle(tmdbId: Int, isMovie: Boolean): String? =
+        withContext(Dispatchers.IO) {
+            val language = TmdbApiClient.getActiveLanguage()
+            if (language.startsWith("en", ignoreCase = true)) return@withContext null
+            val apiKey = TmdbApiClient.getActiveApiKey()
+            if (apiKey.isBlank()) return@withContext null
+            val typePath = if (isMovie) "movie" else "tv"
+            val url = "https://api.themoviedb.org/3/$typePath/$tmdbId?api_key=$apiKey&language=$language"
+            try {
+                val request = Request.Builder()
+                    .url(url)
+                    .header("Accept", "application/json")
+                    .build()
+                com.kitsugi.animelist.core.network.KitsugiHttpClient.metadataClient.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) return@withContext null
+                    val text = response.body?.string() ?: return@withContext null
+                    val obj = JSONObject(text)
+                    val title = if (isMovie) obj.optString("title", "") else obj.optString("name", "")
+                    MediaTitleResolver.latin(title)
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                android.util.Log.w("KitsugiSimklDetailClient", "TMDB yerelleştirilmiş başlık alınamadı (tmdb=$tmdbId): ${e.message}")
+                null
+            }
+        }
+
+    internal fun extractSimklTrailerVideos(obj: JSONObject?, simklId: Int): List<MediaVideoItem> {
+        val arr = obj?.optJSONArray("trailers") ?: return emptyList()
+        val list = mutableListOf<MediaVideoItem>()
+        for (i in 0 until arr.length()) {
+            val item = arr.optJSONObject(i) ?: continue
+            val rawYt = item.optString("youtube", "").trim()
+            val ytId = extractCanonicalYouTubeId(rawYt) ?: continue
+            val rawName = item.optString("name", "").trim()
+            val label = rawName.ifBlank { KitsugiStrings.get(R.string.source_video_trailer) }
+            list += MediaVideoItem(
+                key = "simkl_trailer_${simklId}_$ytId",
+                title = label,
+                videoUrl = "https://www.youtube.com/watch?v=$ytId",
+                category = MediaVideoCategory.TRAILER,
+                source = "simkl"
+            )
+        }
+        return list
+    }
+
+    /**
+     * Harici kimliklerden (MAL / AniList / TMDB / IMDb) Simkl kimliğini çözümler.
+     */
+    suspend fun resolveSimklIdByExternalIds(
+        malId: Int? = null,
+        aniListId: Int? = null,
+        tmdbId: Int? = null,
+        imdbId: String? = null,
+        mediaType: MediaType = MediaType.Anime
+    ): Int? = withContext(Dispatchers.IO) {
+        if (mediaType == MediaType.Manga) return@withContext null
+        val clientId = com.kitsugi.animelist.BuildConfig.SIMKL_CLIENT_ID
+        if (clientId.isBlank()) return@withContext null
+
+        val queryPair: Pair<String, String> = when {
+            malId != null && malId in 1..99_999_999 -> "mal" to malId.toString()
+            aniListId != null && aniListId > 0 -> "anilist" to aniListId.toString()
+            !imdbId.isNullOrBlank() -> "imdb" to imdbId.trim()
+            tmdbId != null && tmdbId > 0 -> "tmdb" to tmdbId.toString()
+            else -> return@withContext null
+        }
+
+        val typeHint = when (mediaType) {
+            MediaType.Movie -> "movie"
+            MediaType.TvShow -> "tv"
+            else -> "anime"
+        }
+        val cacheKey = "$typeHint:${queryPair.first}:${queryPair.second}"
+        externalSimklIdCache[cacheKey]?.let { cached ->
+            return@withContext if (cached > 0) cached else null
+        }
+
+        val extraType = if (queryPair.first == "tmdb") "&type=$typeHint" else ""
+        val urlString = "https://api.simkl.com/search/id?${queryPair.first}=${queryPair.second}$extraType&client_id=$clientId"
+        val found = try {
+            com.kitsugi.animelist.data.auth.PlatformRateLimiter.acquire("simkl")
             val request = Request.Builder()
-                .url(url)
+                .url(urlString)
                 .header("Accept", "application/json")
                 .build()
-            com.kitsugi.animelist.core.network.KitsugiHttpClient.client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) return null
-                val text = response.body?.string() ?: return null
-                val obj = JSONObject(text)
-                val title = if (isMovie) obj.optString("title", "") else obj.optString("name", "")
-                MediaTitleResolver.latin(title)
+            com.kitsugi.animelist.core.network.KitsugiHttpClient.metadataClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext null
+                val body = response.body?.string()?.trim() ?: return@withContext null
+                if (!body.startsWith("[")) return@withContext null
+                val arr = org.json.JSONArray(body)
+                var resolved = 0
+                for (i in 0 until arr.length()) {
+                    val entry = arr.optJSONObject(i) ?: continue
+                    val id = parseOptionalId(entry.optJSONObject("ids"), "simkl") ?: 0
+                    if (id > 0) {
+                        resolved = id
+                        break
+                    }
+                }
+                resolved
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
-            android.util.Log.w("KitsugiSimklDetailClient", "TMDB yerelleştirilmiş başlık alınamadı (tmdb=$tmdbId): ${e.message}")
-            null
+            android.util.Log.w("KitsugiSimklDetailClient", "resolveSimklIdByExternalIds failed: ${e.message}")
+            return@withContext null
         }
+
+        externalSimklIdCache[cacheKey] = found
+        found.takeIf { it > 0 }
+    }
+
+    /**
+     * Simkl `extended=full` yanıtından fragman videolarını döndürür.
+     */
+    suspend fun fetchSimklVideos(
+        simklId: Int,
+        mediaType: MediaType
+    ): List<MediaVideoItem> {
+        if (simklId <= 0 || mediaType == MediaType.Manga) return emptyList()
+        val cacheKey = when (mediaType) {
+            MediaType.Movie -> "movies:$simklId"
+            MediaType.TvShow -> "tv:$simklId"
+            else -> "anime:$simklId"
+        }
+        if (!rawJsonCache.containsKey(cacheKey)) {
+            com.kitsugi.animelist.data.auth.PlatformRateLimiter.acquire("simkl")
+        }
+        val obj = fetchSimklRawJson(simklId, mediaType) ?: return emptyList()
+        return extractSimklTrailerVideos(obj, simklId)
     }
 }

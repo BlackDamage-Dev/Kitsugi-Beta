@@ -78,6 +78,8 @@ fun TvSettingsScreen(
     onNavigateToAddons: () -> Unit = {},
     onNavigateToMangaExtension: () -> Unit = {},
     onNavigateToMangaSourceHealth: () -> Unit = {},
+    /** Manga kitaplığını açar (mobil ile aynı ekran). */
+    onNavigateToMangaLibrary: () -> Unit = {},
     onNavigateToCompanion: () -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -455,6 +457,16 @@ fun TvSettingsScreen(
                                 description = stringResource(R.string.tv_manga_health_desc),
                                 actionText = stringResource(R.string.tv_view),
                                 onClick = onNavigateToMangaSourceHealth
+                            )
+                        }
+
+                        item {
+                            // Manga kitaplığı: TV'de de takip edilen serilere erişim.
+                            TvSettingsActionRow(
+                                title = stringResource(R.string.manga_library_title),
+                                description = stringResource(R.string.manga_library_empty_body),
+                                actionText = stringResource(R.string.tv_view),
+                                onClick = onNavigateToMangaLibrary
                             )
                         }
 

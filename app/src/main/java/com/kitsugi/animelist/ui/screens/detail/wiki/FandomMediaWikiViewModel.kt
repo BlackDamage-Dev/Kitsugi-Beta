@@ -450,7 +450,15 @@ class FandomMediaWikiViewModel(application: Application) : AndroidViewModel(appl
 
     /** Orijinal / çeviri geçişi: bu anahtar için orijinal metnin gösterilip gösterilmeyeceğini değiştirir. */
     fun toggleOriginal(key: String) {
+        val wasOriginal = key in _originalKeys.value
         _originalKeys.update { if (key in it) it - key else it + key }
+        // If Original was selected while a structured section was still translating,
+        // returning to Translation should immediately resume/request that section.
+        if (wasOriginal && !_translations.value.hasWikiTranslation(key)) {
+            viewModelScope.launch {
+                if (isAutoTranslateEnabled()) translate(key)
+            }
+        }
     }
 
     private fun rebind() {
@@ -1693,42 +1701,6 @@ class FandomMediaWikiViewModel(application: Application) : AndroidViewModel(appl
         if (clean.isEmpty()) return
         openReaderLocationInNewTab(FandomReaderLocation(
             readerBrowserController.activeLocation?.wikiId ?: ready.ref.wikiId, clean))
-    }
-
-    /**
-     * WebView içinde DOKUNULAN bir wiki bağlantısını yeni sekmede açar (Chrome davranışı).
-     *
-     * Dönüş değeri WebView'e "bu navigasyonu ben hallettim" demektir:
-     *  - `true`  → yeni sekme açıldı; WebView aynı sayfada gezinmeyi iptal eder.
-     *  - `false` → makale olmayan sayfa (Special:, File:, Category: …), aynı sayfa ya da
-     *              12 sekme sınırı; bağlantı mevcut sekmede normal şekilde yüklenir.
-     *
-     * Böylece bir bağlantıya dokunmak okuduğun sayfayı kaybetmez: kaynak sekme yerinde
-     * kalır, hedef hemen sağında açılır.
-     */
-    fun openReaderWebLink(url: String): Boolean {
-        val ready = _state.value as? UiState.Ready ?: return false
-        val active = readerBrowserController.activeLocation
-        val activeWiki = active?.wikiId ?: ready.ref.wikiId
-        // Yalnızca DÜZ makale bağlantıları sekme olur. `#bölüm`, `?action=edit`,
-        // `?diff=`/`?oldid=`, Special:/File:/Category: ve Fandom dışı adresler mevcut
-        // sekmede yüklenmeye devam eder: bunların sekme kimliği (wiki + başlık) yok ve
-        // sekme açmak bilgiyi kaybettirirdi (diff görünümü, düzenleme ekranı…).
-        val resolved = FandomUrls.readerLinkTarget(url, activeWiki, active?.title.orEmpty())
-            ?: return false
-        resolved.articleTitle ?: return false
-        val parsed = FandomUrls.parseArticleUrl(resolved.url, activeWiki) ?: return false
-        val location = FandomReaderLocation(parsed.first, parsed.second)
-        if (active != null && active.wikiId.equals(location.wikiId, ignoreCase = true) &&
-            active.title.replace('_', ' ').trim()
-                .equals(location.title.replace('_', ' ').trim(), ignoreCase = true)
-        ) return false
-        if (readerBrowserController.snapshot.tabs.size >= FandomReaderBrowserController.MAX_TABS) {
-            return false
-        }
-        val before = readerBrowserController.snapshot.activeTabId
-        openReaderLocationInNewTab(location)
-        return readerBrowserController.snapshot.activeTabId != before
     }
 
     private fun openReaderLocationInNewTab(location: FandomReaderLocation) {

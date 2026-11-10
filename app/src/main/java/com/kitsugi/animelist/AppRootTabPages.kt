@@ -4,6 +4,7 @@ import com.kitsugi.animelist.utils.KitsugiStrings
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import com.kitsugi.animelist.ui.app.AppNavigationState
 import com.kitsugi.animelist.ui.app.AppViewModel
@@ -30,8 +31,20 @@ import com.kitsugi.animelist.data.remote.canonicalMediaSourceId
 import com.kitsugi.animelist.data.remote.ApiSearchSelection
 import com.kitsugi.animelist.ui.navigation.MainTab
 import com.kitsugi.animelist.ui.screens.explore.ExploreScreen
+import com.kitsugi.animelist.ui.screens.explore.mobile.openMobileExploreShelf
+import com.kitsugi.animelist.ui.screens.notifications.notificationSourceId
+import com.kitsugi.animelist.ui.screens.notifications.notificationSourceIdForMyListTab
+import com.kitsugi.animelist.ui.screens.notifications.notificationSourceIdForProfileTab
 import com.kitsugi.animelist.ui.screens.mylist.MyListScreen
+import com.kitsugi.animelist.ui.screens.mylist.MY_LIST_ANILIST_TAB_INDEX
+import com.kitsugi.animelist.ui.screens.mylist.MY_LIST_MAL_TAB_INDEX
+import com.kitsugi.animelist.ui.screens.mylist.MY_LIST_SIMKL_TAB_INDEX
+import com.kitsugi.animelist.ui.screens.mylist.MY_LIST_KITSU_TAB_INDEX
+import com.kitsugi.animelist.ui.screens.mylist.MY_LIST_SHIKIMORI_TAB_INDEX
+import com.kitsugi.animelist.ui.screens.mylist.MY_LIST_BANGUMI_TAB_INDEX
+import com.kitsugi.animelist.ui.screens.mylist.MY_LIST_TMDB_TAB_INDEX
 import com.kitsugi.animelist.ui.screens.search.SearchScreen
+import com.kitsugi.animelist.ui.screens.mylist.MyListViewModel
 import com.kitsugi.animelist.ui.components.BackupImportMode
 import kotlinx.coroutines.CoroutineScope
 import androidx.compose.runtime.rememberCoroutineScope
@@ -43,6 +56,8 @@ import com.kitsugi.animelist.R
 
 data class TabPagesContext(
     val mediaEntries: List<MediaEntry>,
+    val mediaEntriesLoaded: Boolean = true,
+    val myListViewModel: MyListViewModel,
     val appSettings: AppSettings,
     val settingsDataStore: SettingsDataStore,
     val appViewModel: AppViewModel,
@@ -98,6 +113,8 @@ fun AppRootTabPages(
         MainTab.MyList -> {
             ctx.navState.stateHolder.SaveableStateProvider(key = "root_tab_mylist") {
                 MyListTabPageWrapper(
+                    mediaEntriesLoaded = ctx.mediaEntriesLoaded,
+                    myListViewModel = ctx.myListViewModel,
                     appSettings = ctx.appSettings,
                     settingsDataStore = ctx.settingsDataStore,
                     coroutineScope = ctx.coroutineScope,
@@ -130,6 +147,8 @@ fun AppRootTabPages(
                     isKitsuConnected = ctx.authViewModel.isKitsuConnected,
                     isShikimoriConnected = ctx.authViewModel.isShikimoriConnected,
                     isBangumiConnected = ctx.authViewModel.isBangumiConnected,
+                    isTmdbConnected = ctx.authViewModel.isTmdbConnected,
+                    tmdbUsername = ctx.authViewModel.tmdbUsername,
                     profileName = ctx.appSettings.profileName,
                     listTitle = ctx.appSettings.listTitle,
                     profileImageUri = ctx.appSettings.profileImageUri,
@@ -144,6 +163,7 @@ fun AppRootTabPages(
                     onLoginAniList = { ctx.authViewModel.startExternalAuth("anilist") },
                     onLoginMal = { ctx.authViewModel.startMalOAuthWebSession() },
                     onLoginSimkl = { ctx.authViewModel.startExternalAuth("simkl") },
+                    onLoginTmdb = { ctx.authViewModel.startExternalAuth("tmdb") },
                     onLoginKitsu = {},
                     onLoginShikimori = {},
                     onKitsuAuthSubmit = { username, password, onComplete ->
@@ -222,8 +242,18 @@ fun AppRootTabPages(
                     onOpenStatsClick = {
                         ctx.navState.navigateToDetail(DetailScreen.Stats)
                     },
-                    isNotificationsVisible = ctx.authViewModel.isAniListConnected || ctx.authViewModel.isMalConnected || ctx.authViewModel.isSimklConnected,
-                    onOpenNotifications = { ctx.navState.navigateToDetail(DetailScreen.Notifications) },
+                    isNotificationsVisible = ctx.authViewModel.isAniListConnected || ctx.authViewModel.isMalConnected || ctx.authViewModel.isSimklConnected || ctx.authViewModel.isTmdbConnected,
+                    // AKILLI BİLDİRİM: profilde hangi kaynak seçiliyse (AniList / MAL / Simkl /
+                    // Kitsu / Shikimori / Bangumi) bildirimler doğrudan o kaynakla açılır.
+                    onOpenNotifications = {
+                        ctx.navState.navigateToDetail(
+                            DetailScreen.Notifications(
+                                preferredSource = notificationSourceIdForProfileTab(ctx.kitsugiProfileViewModel.activeSubTab)
+                            )
+                        )
+                    },
+                    onOpenWatchHistory = { ctx.navState.navigateToDetail(DetailScreen.WatchHistory) },
+                    onOpenDownloads = { ctx.navState.navigateToDetail(DetailScreen.Downloads) },
                     onGenreClick = ctx.onSearchByGenre,
                     onTagClick = ctx.onSearchByTag,
                     onUserProfileClick = { userId, username, avatarUrl ->
@@ -260,7 +290,11 @@ private fun ExploreTabPage(ctx: TabPagesContext) {
         blurAdultMedia = ctx.appSettings.blurAdultMedia,
         onAddSelectionToList = ctx.onAddApiSelectionToList,
         onSeeAllSection = ctx.onSeeAllSection,
+        onOpenMobileShelf = { shelf, title ->
+            ctx.navState.openMobileExploreShelf(shelf, title)
+        },
         onNavigateToWatchHistory = ctx.onNavigateToWatchHistory,
+        onNavigateToDownloads = { ctx.navState.navigateToDetail(DetailScreen.Downloads) },
         onOpenApiDetail = ctx.onOpenApiDetail,
         onOpenMangaReader = ctx.onOpenMangaReader,
         onEditEntry = ctx.onEditEntry,
@@ -291,8 +325,17 @@ private fun ExploreTabPage(ctx: TabPagesContext) {
         scoreFormat = ctx.appSettings.scoreFormat,
         hideScores = ctx.appSettings.hideScores,
         separateNovelsManga = ctx.appSettings.separateNovelsManga,
-        onOpenNotifications = { ctx.navState.navigateToDetail(DetailScreen.Notifications) },
-        isNotificationsVisible = ctx.authViewModel.isAniListConnected || ctx.authViewModel.isMalConnected || ctx.authViewModel.isSimklConnected,
+        // AKILLI BİLDİRİM: keşfet sayfasında seçili kaynak hangisiyse (Tümü / AniList / MAL /
+        // TMDB / Kitsu / Shikimori / Simkl / Bangumi) bildirimler doğrudan o kaynakla açılır.
+        onOpenNotifications = {
+            ctx.navState.navigateToDetail(
+                DetailScreen.Notifications(
+                    preferredSource = ctx.exploreViewModel.selectedPlatform.notificationSourceId()
+                )
+            )
+        },
+        isNotificationsVisible = ctx.authViewModel.isAniListConnected || ctx.authViewModel.isMalConnected || ctx.authViewModel.isSimklConnected || ctx.authViewModel.isTmdbConnected,
+        onOpenDownloads = { ctx.navState.navigateToDetail(DetailScreen.Downloads) },
         showAnimeLogos = ctx.appSettings.showAnimeLogos,
         isSimklConnected = ctx.authViewModel.isSimklConnected,
         // TMDB hata yönlendirmesi: Ayarlar → Entegrasyonlar bölümüne git
@@ -328,6 +371,8 @@ private fun SearchTabPage(ctx: TabPagesContext) {
         hideScores = ctx.appSettings.hideScores,
         bottomBarScrollState = ctx.bottomBarScrollState,
         onScrollReset = ctx.onScrollReset,
+        onOpenWatchHistory = { ctx.navState.navigateToDetail(DetailScreen.WatchHistory) },
+        onOpenDownloads = { ctx.navState.navigateToDetail(DetailScreen.Downloads) },
         onOpenSourceSearch = { engine, scope, shelfResults ->
             // "Tümünü Gör": kaynağın filtreleri + sonuçları ayrı sayfada açılır
             ctx.navState.navigateToDetail(
@@ -353,21 +398,32 @@ private fun SearchTabPage(ctx: TabPagesContext) {
         onAddonExploreOpenChange = { open -> ctx.navState.addonExploreOpen = open },
         onOpenPluginPicker = { ctx.navState.navigateToDetail(com.kitsugi.animelist.DetailScreen.PluginPicker) },
         onOpenAddonExplore = { apiName -> ctx.navState.navigateToDetail(com.kitsugi.animelist.DetailScreen.AddonExplore(apiName)) },
-        onOpenCharacterDetail = { characterId, name, imageUrl ->
+        // AKILLI BİLDİRİM: arama sayfasında seçili kaynak hangisiyse (Tümü / AniList / MAL /
+        // TMDB / Shikimori / Kitsu / Simkl / Bangumi) bildirimler doğrudan o kaynakla açılır.
+        isNotificationsVisible = ctx.authViewModel.isAniListConnected || ctx.authViewModel.isMalConnected || ctx.authViewModel.isSimklConnected,
+        onOpenNotifications = {
+            ctx.navState.navigateToDetail(
+                com.kitsugi.animelist.DetailScreen.Notifications(
+                    preferredSource = ctx.searchViewModel.uiState.value.selectedEngine.id
+                )
+            )
+        },
+        onOpenCharacterDetail = { characterId, name, imageUrl, source ->
             ctx.navState.navigateToDetail(
                 com.kitsugi.animelist.DetailScreen.CharacterDetail(
                     characterId = characterId,
-                    source = "anilist",
+                    // Kaynak satırdan gelir (bangumi/mal/kitsu/anilist); boşsa eski varsayılan.
+                    source = source?.takeIf { it.isNotBlank() } ?: "anilist",
                     name = name,
                     imageUrl = imageUrl
                 )
             )
         },
-        onOpenStaffDetail = { staffId, name, imageUrl ->
+        onOpenStaffDetail = { staffId, name, imageUrl, source ->
             ctx.navState.navigateToDetail(
                 com.kitsugi.animelist.DetailScreen.StaffDetail(
                     staffId = staffId,
-                    source = "anilist",
+                    source = source?.takeIf { it.isNotBlank() } ?: "anilist",
                     name = name,
                     imageUrl = imageUrl
                 )
@@ -425,6 +481,8 @@ private fun SettingsTabPage(
 
 @Composable
 private fun MyListTabPageWrapper(
+    mediaEntriesLoaded: Boolean,
+    myListViewModel: MyListViewModel,
     appSettings: AppSettings,
     settingsDataStore: SettingsDataStore,
     coroutineScope: CoroutineScope,
@@ -437,13 +495,65 @@ private fun MyListTabPageWrapper(
     isBottomBarVisible: Boolean,
     onScrollReset: () -> Unit
 ) {
-    MyListScreen(
-        selectedListLayoutId = appSettings.selectedListLayoutId,
-        onListLayoutChange = { layoutId ->
+    val latestContext = androidx.compose.runtime.rememberUpdatedState(context)
+
+    val stableOnListLayoutChange = remember(coroutineScope, settingsDataStore) {
+        { layoutId: String ->
             coroutineScope.launch {
                 settingsDataStore.setSelectedListLayoutId(layoutId)
             }
-        },
+            Unit
+        }
+    }
+    val stableOnTabIndexChange = remember(appViewModel) {
+        { idx: Int -> appViewModel.updateMyListTabIndex(latestContext.value, idx) }
+    }
+    val stableOnSearchQueryChange = remember(appViewModel) {
+        { q: String -> appViewModel.updateMyListSearchQuery(q) }
+    }
+    val stableOnStatusFilterChange = remember(appViewModel) {
+        { id: String -> appViewModel.updateMyListStatusFilter(latestContext.value, id) }
+    }
+    val stableOnTypeFilterChange = remember(appViewModel) {
+        { id: String -> appViewModel.updateMyListTypeFilter(latestContext.value, id) }
+    }
+    val stableOnFavoriteFilterChange = remember(appViewModel) {
+        { id: String -> appViewModel.updateMyListFavoriteFilter(latestContext.value, id) }
+    }
+    val stableOnScoreFilterChange = remember(appViewModel) {
+        { id: String -> appViewModel.updateMyListScoreFilter(latestContext.value, id) }
+    }
+    val stableOnYearFilterChange = remember(appViewModel) {
+        { id: String -> appViewModel.updateMyListYearFilter(latestContext.value, id) }
+    }
+    val stableOnExtraFilterChange = remember(appViewModel) {
+        { id: String -> appViewModel.updateMyListExtraFilter(latestContext.value, id) }
+    }
+    val stableOnSortChange = remember(appViewModel) {
+        { id: String -> appViewModel.updateMyListSort(latestContext.value, id) }
+    }
+    val stableOnGroupChange = remember(appViewModel) {
+        { id: String -> appViewModel.updateMyListGroup(latestContext.value, id) }
+    }
+    val stableOnScrollPositionChange = remember(appViewModel) {
+        { index: Int, offset: Int -> appViewModel.updateMyListScrollPosition(index, offset) }
+    }
+    val stableOnExternalSyncMessage = remember(appViewModel) {
+        { msg: String -> appViewModel.showSnackbarMessage(msg) }
+    }
+    val stableOnEntryClick = remember(navState) {
+        { entry: MediaEntry -> navState.navigateToDetail(DetailScreen.MediaDetail(entry.id)) }
+    }
+    val stableOnSettingsClick = remember(appViewModel) {
+        { appViewModel.selectTab(MainTab.Settings) }
+    }
+
+    MyListScreen(
+        viewModel = myListViewModel,
+        entries = mediaEntries,
+        entriesLoaded = mediaEntriesLoaded,
+        selectedListLayoutId = appSettings.selectedListLayoutId,
+        onListLayoutChange = stableOnListLayoutChange,
         showAdultContent = appSettings.showAdultContent,
         appSettings = appSettings,
         searchQuery = appViewModel.myListSearchQuery,
@@ -454,22 +564,22 @@ private fun MyListTabPageWrapper(
         selectedYearFilterId = appViewModel.myListYearFilterId,
         selectedExtraFilterId = appViewModel.myListExtraFilterId,
         selectedSortId = appViewModel.myListSortId,
+        selectedGroupId = appViewModel.myListGroupId,
         initialScrollIndex = appViewModel.myListScrollIndex,
         initialScrollOffset = appViewModel.myListScrollOffset,
         selectedTabIndex = appViewModel.myListTabIndex,
-        onTabIndexChange = { appViewModel.updateMyListTabIndex(context, it) },
-        onSearchQueryChange = { appViewModel.updateMyListSearchQuery(it) },
-        onStatusFilterChange = { appViewModel.updateMyListStatusFilter(context, it) },
-        onTypeFilterChange = { appViewModel.updateMyListTypeFilter(context, it) },
-        onFavoriteFilterChange = { appViewModel.updateMyListFavoriteFilter(context, it) },
-        onScoreFilterChange = { appViewModel.updateMyListScoreFilter(context, it) },
-        onYearFilterChange = { appViewModel.updateMyListYearFilter(context, it) },
-        onExtraFilterChange = { appViewModel.updateMyListExtraFilter(context, it) },
-        onSortChange = { appViewModel.updateMyListSort(context, it) },
-        onScrollPositionChange = { index, offset ->
-            appViewModel.updateMyListScrollPosition(index, offset)
-        },
-        onExternalSyncMessage = { appViewModel.showSnackbarMessage(it) },
+        onTabIndexChange = stableOnTabIndexChange,
+        onSearchQueryChange = stableOnSearchQueryChange,
+        onStatusFilterChange = stableOnStatusFilterChange,
+        onTypeFilterChange = stableOnTypeFilterChange,
+        onFavoriteFilterChange = stableOnFavoriteFilterChange,
+        onScoreFilterChange = stableOnScoreFilterChange,
+        onYearFilterChange = stableOnYearFilterChange,
+        onExtraFilterChange = stableOnExtraFilterChange,
+        onSortChange = stableOnSortChange,
+        onGroupChange = stableOnGroupChange,
+        onScrollPositionChange = stableOnScrollPositionChange,
+        onExternalSyncMessage = stableOnExternalSyncMessage,
         isAniListConnected = authViewModel.isAniListConnected,
         isMalConnected = authViewModel.isMalConnected,
         isSimklConnected = authViewModel.isSimklConnected,
@@ -477,6 +587,9 @@ private fun MyListTabPageWrapper(
         isKitsuConnected = authViewModel.isKitsuConnected,
         isShikimoriConnected = authViewModel.isShikimoriConnected,
         isBangumiConnected = authViewModel.isBangumiConnected,
+        isTmdbConnected = authViewModel.isTmdbConnected,
+        tmdbUsername = authViewModel.tmdbUsername,
+        onLoginTmdb = { authViewModel.startExternalAuth("tmdb") },
         onLoginAniList = { authViewModel.startExternalAuth("anilist") },
         onLoginMal = { authViewModel.startMalOAuthWebSession() },
         onLoginSimkl = { authViewModel.startExternalAuth("simkl") },
@@ -486,6 +599,43 @@ private fun MyListTabPageWrapper(
         onSyncKitsu = { authViewModel.importKitsuList(mediaEntries, mediaRepository) },
         onSyncShikimori = { authViewModel.importShikimoriList(mediaEntries, mediaRepository) },
         onSyncBangumi = { authViewModel.importBangumiList(mediaEntries, mediaRepository) },
+        // Birleşik liste yenilemesi: kaynaklar sırayla, tek akışta ve her kaynağın kendi
+        // TTL'ine göre. (Eskiden altı içe aktarma aynı anda tetikleniyordu.)
+        onSyncAll = { authViewModel.syncAllLists(mediaRepository) },
+        // Pull-to-refresh göstergesi gerçek senkron durumuna bağlanır: sekmenin kaynağı
+        // yenileniyorsa spinner görünür kalır ("Tümü" sekmesinde herhangi bir kaynak).
+        isTabSyncing = { tabIndex ->
+            when (tabIndex) {
+                MY_LIST_ANILIST_TAB_INDEX -> authViewModel.isAniListImportRunning
+                MY_LIST_MAL_TAB_INDEX -> authViewModel.isMalImportRunning
+                MY_LIST_SIMKL_TAB_INDEX -> authViewModel.isSimklImportRunning
+                MY_LIST_KITSU_TAB_INDEX -> authViewModel.isKitsuImportRunning
+                MY_LIST_SHIKIMORI_TAB_INDEX -> authViewModel.isShikimoriImportRunning
+                MY_LIST_BANGUMI_TAB_INDEX -> authViewModel.isBangumiImportRunning
+                MY_LIST_TMDB_TAB_INDEX -> authViewModel.isTmdbImportRunning
+                else -> authViewModel.isSyncAllListsRunning ||
+                    authViewModel.isAniListImportRunning || authViewModel.isMalImportRunning ||
+                    authViewModel.isSimklImportRunning || authViewModel.isKitsuImportRunning ||
+                    authViewModel.isShikimoriImportRunning || authViewModel.isBangumiImportRunning ||
+                    authViewModel.isTmdbImportRunning
+            }
+        },
+        onSyncTmdb = { authViewModel.importTmdbWatchlist(mediaEntries, mediaRepository) },
+        onAddTmdbApiSelectionToList = { selection ->
+            appViewModel.addApiSelectionToList(
+                selection = selection,
+                isAniListConnected = authViewModel.isAniListConnected,
+                isMalConnected = authViewModel.isMalConnected,
+                isSimklConnected = authViewModel.isSimklConnected,
+                isKitsuConnected = authViewModel.isKitsuConnected,
+                isShikimoriConnected = authViewModel.isShikimoriConnected,
+                isBangumiConnected = authViewModel.isBangumiConnected,
+                isTmdbConnected = authViewModel.isTmdbConnected,
+                currentEntries = mediaEntries,
+                repository = mediaRepository,
+                preferredSource = com.kitsugi.animelist.data.auth.TMDB_ACCOUNT_SOURCE
+            )
+        },
         onKitsuAuthSubmit = { username, password, onComplete ->
             authViewModel.loginKitsu(
                 username = username,
@@ -512,15 +662,22 @@ private fun MyListTabPageWrapper(
                 onError = { onComplete(false, it) }
             )
         },
-        onEntryClick = { entry ->
-            navState.navigateToDetail(DetailScreen.MediaDetail(entry.id))
-        },
-        onSettingsClick = {
-            appViewModel.selectTab(MainTab.Settings)
-        },
+        onEntryClick = stableOnEntryClick,
+        onSettingsClick = stableOnSettingsClick,
         isBottomBarVisible = isBottomBarVisible,
         onScrollReset = onScrollReset,
-        isNotificationsVisible = authViewModel.isAniListConnected || authViewModel.isMalConnected || authViewModel.isSimklConnected,
-        onOpenNotifications = { navState.navigateToDetail(DetailScreen.Notifications) }
+        isNotificationsVisible = authViewModel.isAniListConnected || authViewModel.isMalConnected || authViewModel.isSimklConnected || authViewModel.isTmdbConnected,
+        // AKILLI BİLDİRİM: listem sayfasında seçili kaynak sekmesi hangisiyse (AniList / MAL /
+        // Simkl / Kitsu / Shikimori / Bangumi / TMDB) bildirimler doğrudan o kaynakla açılır.
+        // "Tümü" (birleşik liste) seçiliyse tek bir kaynak yoktur → varsayılan seçim.
+        onOpenNotifications = {
+            navState.navigateToDetail(
+                DetailScreen.Notifications(
+                    preferredSource = notificationSourceIdForMyListTab(appViewModel.myListTabIndex)
+                )
+            )
+        },
+        onOpenWatchHistory = { navState.navigateToDetail(DetailScreen.WatchHistory) },
+        onOpenDownloads = { navState.navigateToDetail(DetailScreen.Downloads) }
     )
 }

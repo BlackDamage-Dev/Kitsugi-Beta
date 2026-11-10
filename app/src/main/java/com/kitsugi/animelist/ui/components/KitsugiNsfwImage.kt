@@ -9,7 +9,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import com.kitsugi.animelist.ui.theme.gradient.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
@@ -125,6 +127,9 @@ fun Modifier.safeBlur(radius: Dp, enabled: Boolean = true): Modifier {
  */
 private const val AMBIENT_DECODE_WIDTH_PX = 960
 private const val AMBIENT_DECODE_HEIGHT_PX = 540
+
+/** Tüm küçük resimlerin ortak kullandığı tekil ana iş parçacığı Handler'ı (nesne tahsisini sıfırlar). */
+private val SharedNsfwMainHandler = Handler(Looper.getMainLooper())
 
 /**
  * Centralized NSFW-aware image composable.
@@ -259,26 +264,33 @@ fun KitsugiNsfwImage(
         contentAlignment = Alignment.Center
     ) {
         if (imageModel != null) {
-            val nsfwMainHandler = remember { Handler(Looper.getMainLooper()) }
-            // PERF: callback'ler her recomposition'da yeni lambda üretmesin;
+            val latestAspectCallback by rememberUpdatedState(onImageAspectResolved)
+            val latestFailedCallback by rememberUpdatedState(onLoadingFailed)
+            // PERF: callback'ler çağıran inline lambda geçse bile yeniden üretilmez;
             // ayrıca AsyncImage onSuccess/onError çağrılarını çizim evresinde
             // tetikleyebildiği için state değişikliğini bir kare sonraya post'luyoruz
             // → RenderThread libhwui.so SIGSEGV (fault_addr=0x20) yarışı kapanır.
-            val successCallback = remember(onImageAspectResolved, nsfwMainHandler) {
-                onImageAspectResolved?.let { cb ->
+            val hasAspectCallback = onImageAspectResolved != null
+            val hasFailedCallback = onLoadingFailed != null
+            val successCallback = remember(hasAspectCallback) {
+                if (!hasAspectCallback) {
+                    null
+                } else {
                     { state: coil3.compose.AsyncImagePainter.State.Success ->
                         val size = state.painter.intrinsicSize
                         if (size.width > 0f && size.height > 0f && size.width.isFinite() && size.height.isFinite()) {
                             val ratio = size.width / size.height
-                            nsfwMainHandler.post { cb(ratio) }
+                            SharedNsfwMainHandler.post { latestAspectCallback?.invoke(ratio) }
                         }
                     }
                 }
             }
-            val errorCallback = remember(onLoadingFailed, nsfwMainHandler) {
-                onLoadingFailed?.let { cb ->
+            val errorCallback = remember(hasFailedCallback) {
+                if (!hasFailedCallback) {
+                    null
+                } else {
                     { _: coil3.compose.AsyncImagePainter.State.Error ->
-                        nsfwMainHandler.post { cb() }
+                        SharedNsfwMainHandler.post { latestFailedCallback?.invoke() }
                         Unit
                     }
                 }

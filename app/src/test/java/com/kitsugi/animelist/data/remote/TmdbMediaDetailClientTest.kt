@@ -139,47 +139,6 @@ class TmdbMediaDetailClientTest {
 
         val detail = requireNotNull(detailResult)
         assertNull(detail.nextAiringEpisode)
-        assertEquals("en", detail.originalLanguage)
-    }
-
-    @Test
-    fun movieOriginCountryAndOriginalLanguageAreExtractedWithoutExtraRequests() = runBlocking {
-        val requestedUrls = mutableListOf<String>()
-        val detail = requireNotNull(
-            TmdbMediaDetailClient.fetchMediaDetail(
-                tmdbId = 372058,
-                isMovie = true,
-                apiKey = "test-key",
-                language = "en-US",
-                features = TmdbDetailFeatures(
-                    useBasicInfo = true,
-                    useDetails = true,
-                    useReleaseDates = false,
-                    useArtwork = false,
-                    useTrailers = false,
-                    useProductions = false,
-                    useNetworks = false
-                ),
-                executeGet = { url ->
-                    requestedUrls += url
-                    """
-                        {
-                          "id":372058,
-                          "title":"Senin Adın",
-                          "original_title":"君の名は。",
-                          "original_language":"ja",
-                          "origin_country":["JP"],
-                          "release_date":"2016-08-26",
-                          "genres":[{"id":16,"name":"Animasyon"},{"id":10749,"name":"Romantik"}]
-                        }
-                    """.trimIndent()
-                }
-            )
-        )
-        assertEquals(1, requestedUrls.size)
-        assertEquals("JP", detail.countryOfOrigin)
-        assertEquals("ja", detail.originalLanguage)
-        assertEquals("君の名は。", detail.titleJapanese)
     }
 
     private val baseTvResponse = """

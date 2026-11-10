@@ -15,7 +15,8 @@ fun KitsugiSearchField(
     value: String,
     onValueChange: (String) -> Unit,
     placeholder: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    debounceMillis: Long = 80L
 ) {
     KitsugiCosmicSearchBar(
         query = value,
@@ -24,6 +25,7 @@ fun KitsugiSearchField(
         onClearQuery = { onValueChange("") },
         placeholder = placeholder,
         height = 52.dp,
+        debounceMillis = debounceMillis,
         modifier = modifier.fillMaxWidth()
     )
 }

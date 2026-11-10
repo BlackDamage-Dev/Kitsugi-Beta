@@ -139,5 +139,32 @@ fun main() {
         check(PlayerUiPolicy.computeSkipCountdownRemainingSec(false, true, 5, 2) == null)
         check(DoubleTapGestureAction.fromString("PLAY_PAUSE", DoubleTapGestureAction.SEEK) == DoubleTapGestureAction.PLAY_PAUSE)
     }
+    test("Dolby Vision stream hint detection") {
+        check(DolbyVisionStreamHints.detect("2160p DSNP WEB-DL DDP5.1 Atmos DV HDR10")?.profile == null)
+        check(DolbyVisionStreamHints.detect("show.dvh1.05.mkv")?.profile == 5)
+        check(DolbyVisionStreamHints.detect("remux dvhe.07.06")?.profile == 7)
+        check(DolbyVisionStreamHints.detect("4K DV5 DDP5.1")?.profile == 5)
+        check(DolbyVisionStreamHints.detect("Movie 2004 DVDRip XviD") == null)
+        check(DolbyVisionStreamHints.detect("Show 2160p WEB-DL HDR10+ DDP5.1") == null)
+    }
+    test("MPV Dolby Vision vo/hwdec plan") {
+        check(MpvDolbyVisionPolicy.resolve(null, true, "gpu", "auto-safe", true) == MpvDolbyVisionOptions.NONE)
+        val p5 = MpvDolbyVisionPolicy.resolve(
+            DolbyVisionHint(5, "dv"), true, "gpu", "auto-safe", true
+        )
+        check(p5.vo == "gpu-next" && p5.hwdec == "no")
+        val p8 = MpvDolbyVisionPolicy.resolve(
+            DolbyVisionHint(8, "dv"), true, "gpu", "auto-safe", true
+        )
+        check(p8.vo == "gpu-next" && p8.hwdec == null)
+        val noGpuNext = MpvDolbyVisionPolicy.resolve(
+            DolbyVisionHint(5, "dv"), true, "gpu", "auto-safe", false
+        )
+        check(noGpuNext.vo == null && noGpuNext.hwdec == null)
+        val disabled = MpvDolbyVisionPolicy.resolve(
+            DolbyVisionHint(5, "dv"), false, "gpu", "auto-safe", true
+        )
+        check(disabled.vo == null && disabled.hwdec == null)
+    }
     println("$count player policy checks passed (real production Kotlin; not Android/JNI/device tests).")
 }

@@ -1,5 +1,7 @@
 package com.kitsugi.animelist.ui.screens.detail
 
+import androidx.compose.ui.graphics.vector.ImageVector
+import com.kitsugi.animelist.ui.components.KitsugiChevronIcon
 import com.kitsugi.animelist.ui.components.animateDetailContentSize
 import com.kitsugi.animelist.ui.theme.gradient.background
 import com.kitsugi.animelist.ui.utils.tvClickable
@@ -18,14 +20,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.ContentCopy
-import androidx.compose.material.icons.rounded.KeyboardArrowDown
-import androidx.compose.material.icons.rounded.KeyboardArrowUp
-import androidx.compose.material.icons.rounded.Translate
-import androidx.compose.material.icons.rounded.Settings
-import androidx.compose.material.icons.rounded.Visibility
-import androidx.compose.material.icons.rounded.VisibilityOff
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.HorizontalDivider
@@ -51,6 +46,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.kitsugi.animelist.data.remote.JikanSearchResult
+import com.kitsugi.animelist.data.remote.MdbListQuota
+import com.kitsugi.animelist.data.remote.MdbListQuotaCenter
 import com.kitsugi.animelist.data.remote.MdbListRatings
 import com.kitsugi.animelist.utils.toTurkishGenre
 import com.kitsugi.animelist.utils.toEnglishGenreForSearch
@@ -71,6 +68,8 @@ import androidx.compose.ui.res.stringResource
 import com.kitsugi.animelist.R
 import com.kitsugi.animelist.utils.toLocalizedOrgName
 
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -351,6 +350,13 @@ private fun ApiMiniStatCard(
     }
 }
 
+/**
+ * Açıklama iskeleti yalnızca gösterilecek metin henüz yokken kullanılır.
+ * Otomatik çeviri yavaşlasa bile kaynaktan gelen ham metin ekranda kalır.
+ */
+internal fun shouldShowApiSynopsisSkeleton(synopsis: String?, isDetailLoading: Boolean): Boolean =
+    synopsis.isNullOrBlank() && isDetailLoading
+
 @Composable
 internal fun ApiSynopsisCard(
     synopsis: String?,
@@ -406,7 +412,7 @@ internal fun ApiSynopsisCard(
             if (onCopyClick != null && !synopsis.isNullOrBlank()) {
                 IconButton(onClick = onCopyClick) {
                     Icon(
-                        imageVector = Icons.Rounded.ContentCopy,
+                        imageVector = Icons.ContentCopy,
                         contentDescription = stringResource(R.string.action_copy),
                         tint = KitsugiColors.TextSecondary
                     )
@@ -414,7 +420,7 @@ internal fun ApiSynopsisCard(
             }
         }
 
-        if (isLoading) {
+        if (shouldShowApiSynopsisSkeleton(synopsis, isLoading)) {
             DetailSynopsisLoadingSkeleton()
         } else if (synopsis.isNullOrBlank()) {
             Text(
@@ -468,7 +474,7 @@ internal fun ApiSynopsisCard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
-                        imageVector = if (isExpanded) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
+                        imageVector = if (isExpanded) Icons.VisibilityOff else Icons.Visibility,
                         contentDescription = null,
                         tint = LocalKitsugiAccent.current,
                         modifier = Modifier.size(16.dp)
@@ -532,10 +538,11 @@ internal fun ApiTrailerCard(
                     .background(accentColor.copy(alpha = 0.15f))
                     .padding(10.dp)
             ) {
-                Text(
-                    text = "▶",
-                    color = accentColor,
-                    style = MaterialTheme.typography.titleMedium
+                Icon(
+                    imageVector = Icons.Play,
+                    contentDescription = null,
+                    tint = accentColor,
+                    modifier = Modifier.size(18.dp)
                 )
             }
         }
@@ -564,74 +571,15 @@ internal fun ApiInfoSection(
     onSearchQuery: (String) -> Unit = {},
     onSeasonClick: (com.kitsugi.animelist.ui.screens.search.DetailSeasonMetadata) -> Unit = {}
 ) {
-    val seasonMetadata = com.kitsugi.animelist.ui.screens.search.resolveDetailSeasonMetadata(
-        rawSeason = detail.rawSeason ?: detail.season,
-        displayedSeason = detail.season,
-        seasonYear = detail.seasonYear,
-        startDate = detail.startDate,
-        fallbackYear = detail.year ?: fallbackYear,
-        deriveFromDate = mediaType == MediaType.Anime
+    // Arama sonucu detayında ve kütüphane detayında aynı alanlar gösterilir.
+    // İki kartın farklı kurallarla çatallanmasını önlemek için ortak bileşen kullanılır.
+    EntryInfoSection(
+        detail = detail,
+        mediaType = mediaType,
+        fallbackYear = fallbackYear,
+        onSearchQuery = onSearchQuery,
+        onSeasonClick = onSeasonClick
     )
-    SelectionContainer {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(22.dp))
-                .background(KitsugiColors.Surface)
-        ) {
-            Text(
-                text = stringResource(R.string.detail_info_header),
-                color = KitsugiColors.TextPrimary,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 8.dp)
-            )
-
-            val synonymNames = cleanDetailSynonyms(detail.synonyms)
-            val aliasesLabel = stringResource(R.string.detail_info_aliases)
-            val rows = buildList {
-                if (!detail.status.isNullOrBlank()) add(stringResource(R.string.detail_info_status) to detail.status)
-                seasonMetadata.displayLabel?.let { add(stringResource(R.string.detail_info_season) to it) }
-                if (!detail.startDate.isNullOrBlank()) add(stringResource(R.string.detail_date_start) to detail.startDate)
-                if (!detail.endDate.isNullOrBlank()) add(stringResource(R.string.detail_date_end) to detail.endDate)
-                if (!detail.sourceMaterial.isNullOrBlank()) add(stringResource(R.string.detail_info_source) to detail.sourceMaterial)
-                if (mediaType == MediaType.Anime) {
-                    if (detail.studios.isNotEmpty()) add(stringResource(R.string.detail_info_studio) to detail.studios.joinToString(", ") { it.name.toLocalizedOrgName() })
-                    if (!detail.episodeDuration.isNullOrBlank()) add(stringResource(R.string.detail_info_duration) to detail.episodeDuration)
-                    if (!detail.broadcast.isNullOrBlank()) add(stringResource(R.string.detail_info_broadcast) to detail.broadcast)
-                    if (!detail.rating.isNullOrBlank()) add(stringResource(R.string.detail_info_rating) to detail.rating)
-                }
-                if (!detail.titleEnglish.isNullOrBlank()) add(stringResource(R.string.detail_info_english) to detail.titleEnglish)
-                if (!detail.titleJapanese.isNullOrBlank()) add(stringResource(R.string.detail_info_japanese) to detail.titleJapanese)
-                if (synonymNames.isNotEmpty()) add(aliasesLabel to synonymNames.joinToString(", "))
-            }
-
-            rows.forEachIndexed { index, (label, value) ->
-                val onValueClick = if (
-                    label == stringResource(R.string.detail_info_season) && seasonMetadata.apiSeason != null && seasonMetadata.year != null
-                ) {
-                    { onSeasonClick(seasonMetadata) }
-                } else {
-                    null
-                }
-                DetailInfoValueRow(
-                    label = label,
-                    value = value,
-                    names = if (label == aliasesLabel) synonymNames else emptyList(),
-                    onValueClick = onValueClick
-                )
-                if (index < rows.lastIndex) {
-                    HorizontalDivider(
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                        color = KitsugiColors.Background.copy(alpha = 0.5f),
-                        thickness = 0.5.dp
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-        }
-    }
 }
 
 @Composable
@@ -686,8 +634,8 @@ internal fun ApiThemesList(
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Bold
                         )
-                        com.kitsugi.animelist.ui.theme.gradient.Icon(
-                            imageVector = if (openingsExpanded) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.KeyboardArrowDown,
+                        KitsugiChevronIcon(
+                            expanded = openingsExpanded,
                             contentDescription = null,
                             tint = accentColor,
                             modifier = Modifier.size(16.dp)
@@ -712,10 +660,11 @@ internal fun ApiThemesList(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(
-                        text = if (!theme.videoUrl.isNullOrBlank()) "▶" else "🔍",
-                        color = accentColor,
-                        style = MaterialTheme.typography.labelSmall
+                    Icon(
+                        imageVector = if (!theme.videoUrl.isNullOrBlank()) Icons.Play else Icons.Search,
+                        contentDescription = null,
+                        tint = accentColor,
+                        modifier = Modifier.size(14.dp)
                     )
                     Text(
                         text = theme.label,
@@ -760,8 +709,8 @@ internal fun ApiThemesList(
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Bold
                         )
-                        com.kitsugi.animelist.ui.theme.gradient.Icon(
-                            imageVector = if (endingsExpanded) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.KeyboardArrowDown,
+                        KitsugiChevronIcon(
+                            expanded = endingsExpanded,
                             contentDescription = null,
                             tint = accentColor,
                             modifier = Modifier.size(16.dp)
@@ -786,10 +735,11 @@ internal fun ApiThemesList(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(
-                        text = if (!theme.videoUrl.isNullOrBlank()) "▶" else "🔍",
-                        color = accentColor.copy(alpha = 0.8f),
-                        style = MaterialTheme.typography.labelSmall
+                    Icon(
+                        imageVector = if (!theme.videoUrl.isNullOrBlank()) Icons.Play else Icons.Search,
+                        contentDescription = null,
+                        tint = accentColor.copy(alpha = 0.8f),
+                        modifier = Modifier.size(14.dp)
                     )
                     Text(
                         text = theme.label,
@@ -900,7 +850,8 @@ internal fun ApiDetailPill(
  * Letterboxd, TMDB, Trakt).
  */
 internal data class MdbRatingItem(
-    val emoji: String,
+    /** Marka ikonu (HD vektör) — emoji yerine. */
+    val icon: ImageVector,
     val label: String,
     val value: String,
     val accent: Color,
@@ -958,7 +909,7 @@ private fun buildMdbRatingItems(
         if (showImdb && imdbScore != null && imdbScore > 0.0) {
             add(
                 MdbRatingItem(
-                    emoji = "⭐",
+                    icon = Icons.StarSolid,
                     label = "IMDb",
                     value = String.format("%.1f", imdbScore),
                     accent = MdbImdbAccent,
@@ -975,7 +926,7 @@ private fun buildMdbRatingItems(
         if (showTomatoes && tomatoScore != null && tomatoScore > 0) {
             add(
                 MdbRatingItem(
-                    emoji = "🍅",
+                    icon = Icons.CircleCheck,
                     label = "Tomatometer",
                     value = "$tomatoScore%",
                     accent = MdbTomatoAccent,
@@ -988,7 +939,7 @@ private fun buildMdbRatingItems(
         if (showAudience && audienceScore != null && audienceScore > 0) {
             add(
                 MdbRatingItem(
-                    emoji = "🍿",
+                    icon = Icons.Popcorn,
                     label = "Audience",
                     value = "$audienceScore%",
                     accent = MdbAudienceAccent,
@@ -1001,7 +952,7 @@ private fun buildMdbRatingItems(
         if (showMetacritic && metacriticScore != null && metacriticScore > 0) {
             add(
                 MdbRatingItem(
-                    emoji = "🎖️",
+                    icon = Icons.Award,
                     label = "Metacritic",
                     value = "$metacriticScore",
                     accent = mdbMetacriticAccent(metacriticScore),
@@ -1014,7 +965,7 @@ private fun buildMdbRatingItems(
         if (showLetterboxd && letterboxdScore != null && letterboxdScore > 0.0) {
             add(
                 MdbRatingItem(
-                    emoji = "📽️",
+                    icon = Icons.Clapperboard,
                     label = "Letterboxd",
                     value = String.format("%.1f", letterboxdScore),
                     accent = MdbLetterboxdAccent,
@@ -1031,7 +982,7 @@ private fun buildMdbRatingItems(
         if (showTmdb && tmdbScore != null && tmdbScore > 0.0) {
             add(
                 MdbRatingItem(
-                    emoji = "🎬",
+                    icon = Icons.Film,
                     label = "TMDB",
                     value = String.format("%.1f", tmdbScore),
                     accent = MdbTmdbAccent,
@@ -1044,7 +995,7 @@ private fun buildMdbRatingItems(
         if (showTrakt && traktScore != null && traktScore > 0.0) {
             add(
                 MdbRatingItem(
-                    emoji = "📺",
+                    icon = Icons.Tv,
                     label = "Trakt",
                     value = String.format("%.0f%%", traktScore),
                     accent = MdbTraktAccent,
@@ -1086,6 +1037,24 @@ internal fun ApiMdbListRatingCard(
     val accentColor = LocalKitsugiAccent.current
     val uriHandler = LocalUriHandler.current
 
+    // Kota tek bir merkezden gelir: aynı anahtar için Ayarlar sayfası ve bu kart aynı sayıyı
+    // gösterir. Günlük sıfırlanma geçtiyse bayat "0" yerine yenilenmiş değer çizilir.
+    val storedQuota by MdbListQuotaCenter.quota.collectAsState()
+    val quota = remember(storedQuota) { storedQuota?.rolledOver() }
+    val exhaustedQuota = quota?.takeIf { it.isExhausted }
+    val context = LocalContext.current
+
+    // Kota dolduğu anda tek seferlik uyarı (ayarlar paneliyle ortak bayrak).
+    LaunchedEffect(exhaustedQuota != null, exhaustedQuota?.resetAtEpochSeconds) {
+        if (exhaustedQuota != null && MdbListQuotaCenter.consumeExhaustedNotice()) {
+            android.widget.Toast.makeText(
+                context,
+                context.getString(R.string.mdblist_quota_exhausted_toast),
+                android.widget.Toast.LENGTH_LONG
+            ).show()
+        }
+    }
+
     val ratingItems = buildMdbRatingItems(
         ratings = ratings,
         mediaTitle = mediaTitle,
@@ -1099,8 +1068,10 @@ internal fun ApiMdbListRatingCard(
         showTrakt = showTrakt
     )
 
-    // Yükleniyor değilken gösterilecek puan yoksa kart tamamen gizlenir.
-    if (!isLoading && ratingItems.isEmpty()) return
+    // Yükleniyor değilken gösterilecek puan yoksa kart gizlenir. Tek istisna: günlük kota
+    // bittiyse uyarı yine gösterilir; aksi hâlde kullanıcı puanların neden gelmediğini
+    // hiçbir yerde göremezdi.
+    if (!isLoading && ratingItems.isEmpty() && exhaustedQuota == null) return
 
     Column(
         modifier = Modifier
@@ -1141,13 +1112,18 @@ internal fun ApiMdbListRatingCard(
                     )
                 }
 
+                // Kalan günlük kota: puanların neden gelmediğini tek bakışta anlatır.
+                if (quota != null && (quota.isKnown || quota.isExhausted)) {
+                    MdbQuotaBadge(quota = quota)
+                }
+
                 if (onSettingsClick != null) {
                     IconButton(
                         onClick = onSettingsClick,
                         modifier = Modifier.size(26.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.Settings,
+                            imageVector = Icons.Settings,
                             contentDescription = stringResource(R.string.ayarlar),
                             tint = KitsugiColors.TextSecondary,
                             modifier = Modifier.size(16.dp)
@@ -1157,11 +1133,126 @@ internal fun ApiMdbListRatingCard(
             }
         }
 
+        if (exhaustedQuota != null) {
+            MdbQuotaExhaustedNotice(quota = exhaustedQuota)
+        }
+
         // ── Gövde ────────────────────────────────────────────────────────────
         if (isLoading) {
             DetailRatingBadgesLoadingSkeleton()
-        } else {
+        } else if (ratingItems.isNotEmpty()) {
             MdbRatingGrid(items = ratingItems)
+        }
+    }
+}
+
+/** Kota sayılarını yerel binlik ayırıcısıyla yazar (1.000 / 25.000). */
+private fun formatMdbQuotaCount(value: Int): String =
+    java.text.NumberFormat.getIntegerInstance().format(value)
+
+/** Sıfırlanma anını kullanıcının yerel saatinde kısa biçimde yazar. */
+private fun formatMdbQuotaReset(epochSeconds: Long?): String? {
+    val epoch = epochSeconds?.takeIf { it > 0L } ?: return null
+    return runCatching {
+        java.time.Instant.ofEpochSecond(epoch)
+            .atZone(java.time.ZoneId.systemDefault())
+            .format(
+                java.time.format.DateTimeFormatter.ofPattern(
+                    "d MMM HH:mm",
+                    java.util.Locale.getDefault()
+                )
+            )
+    }.getOrNull()
+}
+
+/**
+ * Kart başlığındaki küçük kota rozeti.
+ *
+ * - Normal: "998/1.000" (nötr renk)
+ * - Yüzde 10 ve altı: turuncu
+ * - Tükendi: kırmızı "Kota doldu"
+ *
+ * Limit API'den geldiği için ücretsiz ve ücretli hesaplar aynı rozetle çalışır.
+ */
+@Composable
+private fun MdbQuotaBadge(quota: MdbListQuota) {
+    val exhausted = quota.isExhausted
+    val color = when {
+        exhausted -> KitsugiColors.AccentRed
+        quota.isLow -> KitsugiColors.AccentOrange
+        else -> KitsugiColors.TextSecondary
+    }
+    val label = if (exhausted) {
+        stringResource(R.string.mdblist_quota_exhausted_inline)
+    } else {
+        stringResource(
+            R.string.mdblist_quota_remaining_short,
+            formatMdbQuotaCount(quota.remaining ?: 0),
+            formatMdbQuotaCount(quota.limit ?: 0)
+        )
+    }
+
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(7.dp))
+            .background(color.copy(alpha = 0.14f))
+            .padding(horizontal = 7.dp, vertical = 3.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (exhausted) {
+            Icon(
+                imageVector = Icons.Rounded.WarningAmber,
+                contentDescription = null,
+                tint = color,
+                modifier = Modifier.size(11.dp)
+            )
+            Spacer(Modifier.width(3.dp))
+        }
+        Text(
+            text = label,
+            color = color,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Black
+        )
+    }
+}
+
+/** Günlük kota bittiğinde kart gövdesinde gösterilen uyarı. */
+@Composable
+private fun MdbQuotaExhaustedNotice(quota: MdbListQuota) {
+    val warningColor = KitsugiColors.AccentRed
+    val resetLabel = formatMdbQuotaReset(quota.resetAtEpochSeconds)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(warningColor.copy(alpha = 0.12f))
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        Icon(
+            imageVector = Icons.Rounded.WarningAmber,
+            contentDescription = null,
+            tint = warningColor,
+            modifier = Modifier.size(16.dp)
+        )
+        Spacer(Modifier.width(8.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                text = stringResource(R.string.mdblist_quota_exhausted_title),
+                color = warningColor,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = if (resetLabel != null) {
+                    stringResource(R.string.mdblist_quota_exhausted_desc, resetLabel)
+                } else {
+                    stringResource(R.string.mdblist_quota_exhausted_desc_unknown)
+                },
+                color = KitsugiColors.TextSecondary,
+                style = MaterialTheme.typography.bodySmall
+            )
         }
     }
 }
@@ -1251,10 +1342,11 @@ private fun MdbRatingBadge(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(3.dp)
         ) {
-            Text(
-                text = item.emoji,
-                fontSize = 10.sp,
-                lineHeight = 12.sp
+            Icon(
+                imageVector = item.icon,
+                contentDescription = null,
+                tint = accent,
+                modifier = Modifier.size(11.dp)
             )
             Text(
                 text = item.label,

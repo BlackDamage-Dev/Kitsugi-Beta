@@ -1,6 +1,9 @@
 package com.kitsugi.animelist.ui.screens.search.components
 
+import com.kitsugi.animelist.ui.components.KitsugiEmojiLabel
+import com.kitsugi.animelist.ui.icons.KitsugiEmojiIcons
 import com.kitsugi.animelist.ui.theme.gradient.Icon
+import com.kitsugi.animelist.ui.utils.uniqueItems
 import com.kitsugi.animelist.ui.theme.gradient.Text
 
 import android.util.Log
@@ -20,11 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Extension
-import androidx.compose.material.icons.filled.Search
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -211,13 +210,13 @@ fun PluginPickerBottomSheet(
             ) {
                 IconButton(onClick = onDismissRequest) {
                     Icon(
-                        imageVector = Icons.Default.ArrowBack,
+                        imageVector = Icons.ArrowBack,
                         contentDescription = stringResource(R.string.geri),
                         tint = KitsugiColors.TextPrimary
                     )
                 }
                 Icon(
-                    imageVector = Icons.Default.Extension,
+                    imageVector = Icons.Extension,
                     contentDescription = null,
                     tint = accentColor,
                     modifier = Modifier.size(22.dp)
@@ -236,70 +235,31 @@ fun PluginPickerBottomSheet(
                 )
             }
 
-            // ── Premium Arama Çubuğu ──────────────────────────────────────
-            Box(
+            // ── Arama Çubuğu — ana arama sayfasıyla BİREBİR AYNI bileşen ─────
+            com.kitsugi.animelist.ui.components.KitsugiCosmicSearchBar(
+                query = queryText,
+                onQueryChange = {
+                    queryText = it
+                    if (it.isBlank()) {
+                        searchResults = emptyList()
+                        hasSearched = false
+                    }
+                },
+                onSearch = {
+                    if (queryText.isNotBlank()) performSearch()
+                },
+                onClearQuery = {
+                    queryText = ""
+                    searchResults = emptyList()
+                    hasSearched = false
+                },
+                placeholder = KitsugiStrings.get(R.string.eklentilerde_ara_x_eklenti, activeApis.size),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 6.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(KitsugiColors.Surface)
-                    .border(1.dp, KitsugiColors.Border, RoundedCornerShape(16.dp))
-                    .padding(horizontal = 14.dp, vertical = 12.dp)
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Search,
-                        contentDescription = null,
-                        tint = KitsugiColors.TextMuted,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    
-                    BasicTextField(
-                        value = queryText,
-                        onValueChange = {
-                            queryText = it
-                            if (it.isBlank()) {
-                                searchResults = emptyList()
-                                hasSearched = false
-                            }
-                        },
-                        textStyle = androidx.compose.ui.text.TextStyle(
-                            color = KitsugiColors.TextPrimary,
-                            fontSize = 14.sp
-                        ),
-                        cursorBrush = SolidColor(accentColor),
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                        keyboardActions = KeyboardActions(onSearch = {
-                            if (queryText.isNotBlank()) {
-                                performSearch()
-                            }
-                        }),
-                        modifier = Modifier.weight(1f)
-                    )
-                    
-                    if (queryText.isNotEmpty()) {
-                        IconButton(
-                            onClick = {
-                                queryText = ""
-                                searchResults = emptyList()
-                                hasSearched = false
-                            },
-                            modifier = Modifier.size(20.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Close,
-                                contentDescription = stringResource(R.string.temizle),
-                                tint = KitsugiColors.TextMuted,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
-                    }
-                }
-            }
+
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
+            )
+
 
             Spacer(modifier = Modifier.height(8.dp))
 
@@ -392,7 +352,7 @@ fun PluginPickerBottomSheet(
                                 )
                             }
 
-                            items(filteredApis, key = { "${java.io.File(it.sourcePlugin ?: "").nameWithoutExtension}_${it.name}" }) { api ->
+                            uniqueItems(filteredApis, key = { "${java.io.File(it.sourcePlugin ?: "").nameWithoutExtension}_${it.name}" }) { api ->
                                 PluginListItem(
                                     api = api,
                                     accentColor = accentColor,
@@ -442,58 +402,16 @@ fun PluginPickerBottomSheet(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .weight(1f),
-                            contentPadding = PaddingValues(bottom = 24.dp)
+                            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 24.dp)
                         ) {
+                            // Ana arama sayfası görünümüyle aynı bölüm düzeni
                             grouped.forEach { (api, items) ->
                                 item(key = api.name) {
-                                    Column(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(vertical = 8.dp)
-                                    ) {
-                                        // Plugin Header Row
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(horizontal = 16.dp, vertical = 6.dp),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                        ) {
-                                            val langFlag = SubtitleHelperCompat.getFlagFromIso(api.lang) ?: "🌐"
-                                            Text(text = langFlag, fontSize = 16.sp)
-                                            Text(
-                                                text = api.name,
-                                                color = KitsugiColors.TextPrimary,
-                                                fontSize = 15.sp,
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                            Spacer(modifier = Modifier.weight(1f))
-                                            Text(
-                                                text = stringResource(R.string.inline_1_s_results_b4b4d39, items.size),
-                                                color = KitsugiColors.TextMuted,
-                                                fontSize = 12.sp
-                                            )
-                                        }
-
-                                        // Horizontal row of media response cards
-                                        LazyRow(
-                                            contentPadding = PaddingValues(horizontal = 16.dp),
-                                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                            modifier = Modifier.fillMaxWidth()
-                                        ) {
-                                            items(items) { (_, response) ->
-                                                PortalResultItemCard(
-                                                    title = response.name,
-                                                    imageUrl = response.posterUrl,
-                                                    apiName = api.name,
-                                                    quality = null,
-                                                    onClick = {
-                                                        activeDetailItem = api to response
-                                                    }
-                                                )
-                                            }
-                                        }
-                                    }
+                                    AddonSearchResultSection(
+                                        api = api,
+                                        results = items.map { it.second },
+                                        onItemClick = { a, response -> activeDetailItem = a to response }
+                                    )
                                 }
                             }
                         }
@@ -547,10 +465,12 @@ private fun PluginTypeChip(
             .padding(horizontal = 14.dp, vertical = 8.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = "$emoji $label",
+        KitsugiEmojiLabel(
+            label = label,
+            icon = KitsugiEmojiIcons.forEmoji(emoji),
+            iconSize = 13.dp,
             color = textColor,
-            fontSize = 13.sp,
+            style = MaterialTheme.typography.bodyMedium,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
         )
     }
@@ -563,8 +483,8 @@ private fun PluginListItem(
     onClick: () -> Unit
 ) {
     val langFlag = try {
-        SubtitleHelperCompat.getFlagFromIso(api.lang) ?: "🌐"
-    } catch (_: Exception) { "🌐" }
+        SubtitleHelperCompat.getFlagFromIso(api.lang)
+    } catch (_: Exception) { null }
 
     Row(
         modifier = Modifier
@@ -582,7 +502,16 @@ private fun PluginListItem(
                 .background(accentColor.copy(alpha = 0.12f)),
             contentAlignment = Alignment.Center
         ) {
-            Text(text = langFlag, fontSize = 18.sp)
+            if (langFlag != null) {
+                Text(text = langFlag, fontSize = 18.sp)
+            } else {
+                Icon(
+                    imageVector = Icons.Globe,
+                    contentDescription = null,
+                    tint = accentColor,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
         }
 
         Column(modifier = Modifier.weight(1f)) {
@@ -636,7 +565,12 @@ private fun AllPluginsListItem(
                 .background(accentColor.copy(alpha = 0.12f)),
             contentAlignment = Alignment.Center
         ) {
-            Text(text = "🌐", fontSize = 18.sp)
+            Icon(
+                    imageVector = Icons.Globe,
+                    contentDescription = null,
+                    tint = KitsugiColors.TextMuted,
+                    modifier = Modifier.size(18.dp)
+                )
         }
 
         Column(modifier = Modifier.weight(1f)) {
@@ -721,7 +655,7 @@ private fun PortalResultItemCard(
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Extension,
+                            imageVector = Icons.Extension,
                             contentDescription = null,
                             tint = KitsugiColors.TextMuted,
                             modifier = Modifier.size(36.dp)

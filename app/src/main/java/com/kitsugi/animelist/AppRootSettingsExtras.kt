@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import com.kitsugi.animelist.ui.screens.settings.SettingsScreen
 import kotlinx.coroutines.launch
 import com.kitsugi.animelist.utils.KitsugiStrings
+import com.kitsugi.animelist.data.manga.stableSourceKey
 import com.kitsugi.animelist.R
 
 /**
@@ -90,12 +91,17 @@ internal fun SettingsContext.buildSettingsParams() =
             onKitsuNotificationsChanged = { onKitsuNotificationsChanged(it) },
             shikimoriNotificationsEnabled = appSettings.shikimoriNotificationsEnabled,
             onShikimoriNotificationsChanged = { onShikimoriNotificationsChanged(it) },
+            tmdbNotificationsEnabled = appSettings.tmdbNotificationsEnabled,
+            onTmdbNotificationsChanged = { onTmdbNotificationsChanged(it) },
+            bangumiNotificationsEnabled = appSettings.bangumiNotificationsEnabled,
+            onBangumiNotificationsChanged = { onBangumiNotificationsChanged(it) },
             isAniListConnected = authViewModel.isAniListConnected,
             isMalConnected = authViewModel.isMalConnected,
             isSimklConnected = authViewModel.isSimklConnected,
             isKitsuConnected = authViewModel.isKitsuConnected,
             isShikimoriConnected = authViewModel.isShikimoriConnected,
             isBangumiConnected = authViewModel.isBangumiConnected,
+            isTmdbConnected = authViewModel.isTmdbConnected,
             notificationInterval = appSettings.notificationInterval,
             onNotificationIntervalChanged = { onNotificationIntervalChanged(it) },
             splashAnimationEnabled = appSettings.splashAnimationEnabled,
@@ -109,10 +115,24 @@ internal fun SettingsContext.buildSettingsParams() =
             mangaColorFilter = appSettings.mangaColorFilter,
             mangaFitMode = appSettings.mangaFitMode,
             mangaBrightness = appSettings.mangaBrightness,
+            mangaKeepScreenOn = appSettings.mangaKeepScreenOn,
             onMangaReadingModeSelected = { onMangaReadingModeSelected(it) },
             onMangaColorFilterSelected = { onMangaColorFilterSelected(it) },
             onMangaFitModeSelected = { onMangaFitModeSelected(it) },
             onMangaBrightnessChanged = { onMangaBrightnessChanged(it) },
+            onMangaKeepScreenOnChanged = { onMangaKeepScreenOnChanged(it) },
+            mangaSearchTitleLanguage = appSettings.mangaSearchTitleLanguage,
+            onMangaSearchTitleLanguageSelected = { onMangaSearchTitleLanguageSelected(it) },
+            mangaSearchFollowTitleLanguage = appSettings.mangaSearchFollowTitleLanguage,
+            onMangaSearchFollowTitleLanguageChanged = { onMangaSearchFollowTitleLanguageChanged(it) },
+            mangaChapterSort = appSettings.mangaChapterSort,
+            mangaChapterDisplayMode = appSettings.mangaChapterDisplayMode,
+            mangaSkipReadChapters = appSettings.mangaSkipReadChapters,
+            mangaAutoAdvanceChapter = appSettings.mangaAutoAdvanceChapter,
+            onMangaChapterSortSelected = { onMangaChapterSortSelected(it) },
+            onMangaChapterDisplayModeSelected = { onMangaChapterDisplayModeSelected(it) },
+            onMangaSkipReadChaptersChanged = { onMangaSkipReadChaptersChanged(it) },
+            onMangaAutoAdvanceChapterChanged = { onMangaAutoAdvanceChapterChanged(it) },
             autoUpdateCheckEnabled = appSettings.autoUpdateCheckEnabled,
             onAutoUpdateCheckEnabledChanged = { onAutoUpdateCheckEnabledChanged(it) },
             onCheckForUpdatesClick = { onCheckForUpdatesClick() },
@@ -142,6 +162,11 @@ internal fun SettingsContext.buildSettingsParams() =
             simklUsername = appSettings.simklUsername,
             isSimklImportRunning = authViewModel.isSimklImportRunning,
             isSimklSessionExpired = authViewModel.isSimklSessionExpired,
+            isAniListSessionExpired = authViewModel.isAniListSessionExpired,
+            isMalSessionExpired = authViewModel.isMalSessionExpired,
+            isKitsuSessionExpired = authViewModel.isKitsuSessionExpired,
+            isShikimoriSessionExpired = authViewModel.isShikimoriSessionExpired,
+            isBangumiSessionExpired = authViewModel.isBangumiSessionExpired,
             onProfileInfoSave = { name, title -> onProfileInfoSave(name, title) },
             onPickProfileImageClick = onPickProfileImageClick,
             onPickBannerImageClick = onPickBannerImageClick,
@@ -157,6 +182,13 @@ internal fun SettingsContext.buildSettingsParams() =
             onMalImportClick = { onMalImportClick() },
             onSimklAuthClick = { onSimklAuthClick() },
             onSimklImportClick = { onSimklImportClick() },
+            isTmdbConnected = authViewModel.isTmdbConnected,
+            tmdbUsername = authViewModel.tmdbUsername,
+            isTmdbImportRunning = authViewModel.isTmdbImportRunning,
+            onTmdbAuthClick = { onTmdbAuthClick() },
+            onTmdbImportClick = { authViewModel.importTmdbWatchlist(mediaEntries, mediaRepository) },
+            syncEnabledTmdb = appSettings.syncEnabledTmdb,
+            onSyncEnabledTmdbChanged = { onSyncEnabledTmdbChanged(it) },
             onDeleteAllEntries = { onDeleteAllEntries() },
             onCreateBackupText = { onCreateBackupText() },
             onImportBackupText = { onImportBackupText() },
@@ -180,7 +212,7 @@ internal fun SettingsContext.buildSettingsParams() =
             kitsuUsername = appSettings.kitsuUsername,
             isKitsuImportRunning = authViewModel.isKitsuImportRunning,
             onKitsuAuthClick = { authViewModel.disconnectExternalAccount("kitsu") },
-            onKitsuImportClick = { authViewModel.importKitsuList(mediaEntries, mediaRepository) },
+            onKitsuImportClick = { authViewModel.importKitsuList(mediaEntries, mediaRepository, com.kitsugi.animelist.data.sync.ListRefreshMode.USER_FORCE) },
             syncEnabledKitsu = appSettings.syncEnabledKitsu,
             onSyncEnabledKitsuChanged = { onSyncEnabledKitsuChanged(it) },
             onLoginKitsu = { username, password, onComplete ->
@@ -195,7 +227,7 @@ internal fun SettingsContext.buildSettingsParams() =
             shikimoriUsername = appSettings.shikimoriUsername,
             isShikimoriImportRunning = authViewModel.isShikimoriImportRunning,
             onShikimoriAuthClick = { authViewModel.disconnectExternalAccount("shikimori") },
-            onShikimoriImportClick = { authViewModel.importShikimoriList(mediaEntries, mediaRepository) },
+            onShikimoriImportClick = { authViewModel.importShikimoriList(mediaEntries, mediaRepository, com.kitsugi.animelist.data.sync.ListRefreshMode.USER_FORCE) },
             syncEnabledShikimori = appSettings.syncEnabledShikimori,
             onSyncEnabledShikimoriChanged = { onSyncEnabledShikimoriChanged(it) },
             onLoginShikimori = { clientId, clientSecret, authCode, onComplete ->
@@ -211,7 +243,7 @@ internal fun SettingsContext.buildSettingsParams() =
             bangumiUsername = appSettings.bangumiUsername,
             isBangumiImportRunning = authViewModel.isBangumiImportRunning,
             onBangumiAuthClick = { authViewModel.disconnectExternalAccount("bangumi") },
-            onBangumiImportClick = { authViewModel.importBangumiList(mediaEntries, mediaRepository) },
+            onBangumiImportClick = { authViewModel.importBangumiList(mediaEntries, mediaRepository, com.kitsugi.animelist.data.sync.ListRefreshMode.USER_FORCE) },
             syncEnabledBangumi = appSettings.syncEnabledBangumi,
             onSyncEnabledBangumiChanged = { onSyncEnabledBangumiChanged(it) },
             onLoginBangumi = { clientId, clientSecret, authCode, onComplete ->
@@ -355,6 +387,19 @@ internal fun SettingsContext.buildSettingsParams() =
             mangaSources = mangaViewModel.mangaSources,
             onInstallMangaExtension = { mangaViewModel.installMangaExtension(it) },
             onDeleteMangaExtension = { mangaViewModel.deleteMangaExtension(it) },
+            onUninstallAllMangaExtensions = { mangaViewModel.uninstallAllMangaExtensions() },
+            onDeleteMangaExtensions = { sources, done -> mangaViewModel.deleteMangaExtensions(sources, done) },
+            onGetMangaSourceEnabled = { mangaViewModel.isMangaSourceEnabled(it) },
+            onToggleMangaSource = { source, enabled -> mangaViewModel.toggleMangaSource(source, enabled) },
+            // Manga > Kurulu > Toplu Sil: callback'ler doğrudan ViewModel'e bağlı.
+            // (CS eklentilerinde bu iki satır eksik olduğu için çöp kutusu ölüydü;
+            //  aynı hata burada tekrarlanmasın.)
+            mangaBulkDelete = com.kitsugi.animelist.ui.components.addons.MangaBulkDeleteState(
+                isDeleting = mangaViewModel.mangaIsBulkDeleting,
+                hiddenBuiltInCount = mangaViewModel.mangaBulkDeleteHiddenBuiltInCount,
+                onDeleteAll = { mangaViewModel.deleteAllMangaExtensions() },
+                onRestoreBuiltIns = { mangaViewModel.restoreBulkDeletedMangaBuiltIns() }
+            ),
             mangaRepos = mangaViewModel.mangaReposState,
             mangaRepoExtensions = mangaViewModel.mangaRepoExtensionsState,
             mangaRepoLoadingState = mangaViewModel.mangaRepoLoadingState,
@@ -392,7 +437,7 @@ internal fun SettingsContext.buildSettingsParams() =
             untrustedSignatureToConfirm = mangaViewModel.untrustedSignatureToConfirm,
             onConfirmUntrustedRepo = { mangaViewModel.addMangaRepo(it, force = true) },
             onDismissUntrustedRepo = { mangaViewModel.clearUntrustedRepoConfirm() },
-            onConfirmUntrustedSignature = { ext, hash -> mangaViewModel.installMangaApk(ext, force = true) },
+            onConfirmUntrustedSignature = { ext, hash -> mangaViewModel.installMangaApk(ext, force = true, approvedSignature = hash) },
             onDismissUntrustedSignature = { mangaViewModel.clearUntrustedSignatureConfirm() }
         ),
         integrations = com.kitsugi.animelist.ui.screens.settings.IntegrationsSettings(
@@ -468,7 +513,41 @@ internal fun SettingsContext.buildSettingsParams() =
             fanartTvEnabled = appSettings.fanartTvEnabled,
             onFanartTvEnabledChanged = { onFanartTvEnabledChanged(it) },
             fanartTvApiKey = appSettings.fanartTvApiKey,
-            onFanartTvApiKeyChanged = { onFanartTvApiKeyChanged(it) }
+            onFanartTvApiKeyChanged = { onFanartTvApiKeyChanged(it) },
+            musicEnabled = appSettings.musicEnabled,
+            onMusicEnabledChanged = { onMusicEnabledChanged(it) },
+            musicAutoRecommend = appSettings.musicAutoRecommend,
+            onMusicAutoRecommendChanged = { onMusicAutoRecommendChanged(it) },
+            musicAutoPlay = appSettings.musicAutoPlay,
+            onMusicAutoPlayChanged = { onMusicAutoPlayChanged(it) },
+            musicAutoPlayDelay = appSettings.musicAutoPlayDelaySeconds,
+            onMusicAutoPlayDelayChanged = { onMusicAutoPlayDelayChanged(it) },
+            musicContinueOnExit = appSettings.musicContinueOnExit,
+            onMusicContinueOnExitChanged = { onMusicContinueOnExitChanged(it) },
+            musicMasterVolume = appSettings.musicMasterVolume,
+            onMusicMasterVolumeChanged = { onMusicMasterVolumeChanged(it) },
+            musicChannelVolume = appSettings.musicChannelVolume,
+            onMusicChannelVolumeChanged = { onMusicChannelVolumeChanged(it) },
+            musicAmbientVolume = appSettings.musicAmbientVolume,
+            onMusicAmbientVolumeChanged = { onMusicAmbientVolumeChanged(it) },
+            musicJamendoEnabled = appSettings.musicJamendoEnabled,
+            onMusicJamendoEnabledChanged = { onMusicJamendoEnabledChanged(it) },
+            musicJamendoClientId = appSettings.musicJamendoClientId,
+            onMusicJamendoClientIdChanged = { onMusicJamendoClientIdChanged(it) },
+            musicFreesoundEnabled = appSettings.musicFreesoundEnabled,
+            onMusicFreesoundEnabledChanged = { onMusicFreesoundEnabledChanged(it) },
+            musicFreesoundApiKey = appSettings.musicFreesoundApiKey,
+            onMusicFreesoundApiKeyChanged = { onMusicFreesoundApiKeyChanged(it) },
+            musicOpenverseEnabled = appSettings.musicOpenverseEnabled,
+            onMusicOpenverseEnabledChanged = { onMusicOpenverseEnabledChanged(it) },
+            musicOpenverseToken = appSettings.musicOpenverseToken,
+            onMusicOpenverseTokenChanged = { onMusicOpenverseTokenChanged(it) },
+            musicArchiveEnabled = appSettings.musicArchiveEnabled,
+            onMusicArchiveEnabledChanged = { onMusicArchiveEnabledChanged(it) },
+            musicAudiusEnabled = appSettings.musicAudiusEnabled,
+            onMusicAudiusEnabledChanged = { onMusicAudiusEnabledChanged(it) },
+            musicAudiusApiKey = appSettings.musicAudiusApiKey,
+            onMusicAudiusApiKeyChanged = { onMusicAudiusApiKeyChanged(it) }
         ),
         download = com.kitsugi.animelist.ui.screens.settings.DownloadSettings(
             customImageDownloadUri = appSettings.customImageDownloadUri,
@@ -535,6 +614,13 @@ internal fun SettingsContext.buildSettingsParams() =
         onExplorePlugin = { pluginName ->
             navState.navigateToDetail(DetailScreen.AddonExplore(pluginName))
         },
+        onExploreMangaSource = { source ->
+            navState.navigateToDetail(
+                DetailScreen.MangaSourceExplore(
+                    sourceKey = source.stableSourceKey()
+                )
+            )
+        },
         onOpenPluginPicker = {
             navState.navigateToDetail(DetailScreen.PluginPicker)
         },
@@ -595,6 +681,11 @@ internal fun SettingsContext.onMalReconnectClick() {
 internal fun SettingsContext.onSimklAuthClick() {
     if (authViewModel.isSimklConnected) authViewModel.disconnectExternalAccount("simkl")
     else authViewModel.startExternalAuth("simkl")
+}
+
+internal fun SettingsContext.onTmdbAuthClick() {
+    if (authViewModel.isTmdbConnected) authViewModel.disconnectExternalAccount("tmdb")
+    else authViewModel.startExternalAuth("tmdb")
 }
 
 internal fun SettingsContext.onAdultContentChanged(show: Boolean) {
@@ -705,6 +796,40 @@ internal fun SettingsContext.onShikimoriNotificationsChanged(enabled: Boolean) {
     }
 }
 
+internal fun SettingsContext.onTmdbNotificationsChanged(enabled: Boolean) {
+    coroutineScope.launch {
+        if (enabled && !authViewModel.isTmdbConnected) {
+            appViewModel.showSnackbarMessage(
+                KitsugiStrings.get(R.string.settings_notifications_connect_account, "TMDB")
+            )
+            return@launch
+        }
+        settingsDataStore.setTmdbNotificationsEnabled(enabled)
+        appViewModel.showSnackbarMessage(
+            if (enabled) KitsugiStrings.get(R.string.tmdb_bildirimleri_etkinlestirildi)
+            else KitsugiStrings.get(R.string.tmdb_bildirimleri_devre_disi_birakildi)
+        )
+        com.kitsugi.animelist.core.notifications.NotificationScheduler.reconcile(context)
+    }
+}
+
+internal fun SettingsContext.onBangumiNotificationsChanged(enabled: Boolean) {
+    coroutineScope.launch {
+        if (enabled && !authViewModel.isBangumiConnected) {
+            appViewModel.showSnackbarMessage(
+                KitsugiStrings.get(R.string.settings_notifications_connect_account, "Bangumi")
+            )
+            return@launch
+        }
+        settingsDataStore.setBangumiNotificationsEnabled(enabled)
+        appViewModel.showSnackbarMessage(
+            if (enabled) KitsugiStrings.get(R.string.bangumi_bildirimleri_etkinlestirildi)
+            else KitsugiStrings.get(R.string.bangumi_bildirimleri_devre_disi_birakildi)
+        )
+        com.kitsugi.animelist.core.notifications.NotificationScheduler.reconcile(context)
+    }
+}
+
 internal fun SettingsContext.onNotificationIntervalChanged(minutes: Int) {
     coroutineScope.launch {
         settingsDataStore.setNotificationInterval(minutes)
@@ -777,15 +902,15 @@ internal fun SettingsContext.onOpenMangaSourceHealthScreen() {
 }
 
 internal fun SettingsContext.onAniListImportClick() {
-    authViewModel.importAniListAnimeList(mediaEntries, mediaRepository)
+    authViewModel.importAniListAnimeList(mediaEntries, mediaRepository, com.kitsugi.animelist.data.sync.ListRefreshMode.USER_FORCE)
 }
 
 internal fun SettingsContext.onMalImportClick() {
-    authViewModel.importMalAnimeList(mediaEntries, mediaRepository)
+    authViewModel.importMalAnimeList(mediaEntries, mediaRepository, com.kitsugi.animelist.data.sync.ListRefreshMode.USER_FORCE)
 }
 
 internal fun SettingsContext.onSimklImportClick() {
-    authViewModel.importSimklList(mediaEntries, mediaRepository)
+    authViewModel.importSimklList(mediaEntries, mediaRepository, com.kitsugi.animelist.data.sync.ListRefreshMode.USER_FORCE)
 }
 
 internal fun SettingsContext.onThemeSelected(themeId: String) {
@@ -1143,6 +1268,83 @@ internal fun SettingsContext.onMangaFitModeSelected(fitMode: String) {
     }
 }
 
+/**
+ * Kaynak arama dili (ENGLISH / ROMAJI / NATIVE / LOCAL).
+ *
+ * "Oku" butonu ve tüm manga/manhwa/manhua kaynak aramaları bu dili kullanır;
+ * böylece başlık dili İngilizce seçiliyken arama da İngilizce adla yapılır.
+ */
+internal fun SettingsContext.onMangaSearchTitleLanguageSelected(language: String) {
+    coroutineScope.launch {
+        settingsDataStore.setMangaSearchTitleLanguage(language)
+        appViewModel.showSnackbarMessage(
+            KitsugiStrings.get(R.string.manga_search_language_changed, language)
+        )
+    }
+}
+
+/** Arama dili genel başlık dilini takip etsin mi. */
+internal fun SettingsContext.onMangaSearchFollowTitleLanguageChanged(follow: Boolean) {
+    coroutineScope.launch {
+        settingsDataStore.setMangaSearchFollowTitleLanguage(follow)
+        appViewModel.showSnackbarMessage(
+            KitsugiStrings.get(
+                if (follow) R.string.manga_search_follow_enabled else R.string.manga_search_follow_disabled
+            )
+        )
+    }
+}
+
+internal fun SettingsContext.onMangaKeepScreenOnChanged(enabled: Boolean) {
+    coroutineScope.launch {
+        settingsDataStore.setMangaKeepScreenOn(enabled)
+        appViewModel.showSnackbarMessage(
+            if (enabled) KitsugiStrings.get(R.string.manga_keep_screen_on_on)
+            else KitsugiStrings.get(R.string.manga_keep_screen_on_off)
+        )
+    }
+}
+
+/**
+ * Bölüm listesi sıralaması tercihi.
+ *
+ * "Eski → Yeni (1 → N)" seçildiğinde kullanıcıya kısa bir onay gösterilir: şikâyet edilen
+ * davranışın (listenin 386'dan başlaması) gerçekten düzeldiğini görmesi için.
+ */
+internal fun SettingsContext.onMangaChapterSortSelected(sortName: String) {
+    coroutineScope.launch {
+        settingsDataStore.setMangaChapterSort(sortName)
+        val label = when (sortName) {
+            "NewestFirst" -> KitsugiStrings.get(R.string.manga_sort_label_newest)
+            "RecentlyUpdated" -> KitsugiStrings.get(R.string.manga_sort_label_recent)
+            else -> KitsugiStrings.get(R.string.manga_sort_label_oldest)
+        }
+        appViewModel.showSnackbarMessage(label)
+    }
+}
+
+internal fun SettingsContext.onMangaChapterDisplayModeSelected(modeName: String) {
+    coroutineScope.launch {
+        settingsDataStore.setMangaChapterDisplayMode(modeName)
+    }
+}
+
+internal fun SettingsContext.onMangaSkipReadChaptersChanged(enabled: Boolean) {
+    coroutineScope.launch {
+        settingsDataStore.setMangaSkipReadChapters(enabled)
+        appViewModel.showSnackbarMessage(
+            if (enabled) KitsugiStrings.get(R.string.manga_skip_read_chapters)
+            else KitsugiStrings.get(R.string.manga_auto_advance_chapter)
+        )
+    }
+}
+
+internal fun SettingsContext.onMangaAutoAdvanceChapterChanged(enabled: Boolean) {
+    coroutineScope.launch {
+        settingsDataStore.setMangaAutoAdvanceChapter(enabled)
+    }
+}
+
 internal fun SettingsContext.onMangaBrightnessChanged(brightness: Float) {
     coroutineScope.launch {
         settingsDataStore.setMangaBrightness(brightness)
@@ -1206,6 +1408,17 @@ internal fun SettingsContext.onSyncEnabledBangumiChanged(enabled: Boolean) {
     coroutineScope.launch {
         settingsDataStore.setSyncEnabledBangumi(enabled)
         appViewModel.showSnackbarMessage(if (enabled) KitsugiStrings.get(R.string.bangumi_esitlemesi_acildi) else KitsugiStrings.get(R.string.bangumi_esitlemesi_kapatildi))
+    }
+}
+
+internal fun SettingsContext.onSyncEnabledTmdbChanged(enabled: Boolean) {
+    coroutineScope.launch {
+        settingsDataStore.setSyncEnabledTmdb(enabled)
+        appViewModel.showSnackbarMessage(
+            if (enabled) KitsugiStrings.get(R.string.tmdb_esitlemesi_acildi)
+            else KitsugiStrings.get(R.string.tmdb_esitlemesi_kapatildi)
+        )
+        com.kitsugi.animelist.core.notifications.NotificationScheduler.reconcile(context)
     }
 }
 
@@ -1307,6 +1520,76 @@ internal fun SettingsContext.onDownloadNewUnseenEpisodesOnlyChanged(enabled: Boo
 }
 internal fun SettingsContext.onSubtitleDownloadLanguagesChanged(langs: String) {
     coroutineScope.launch { settingsDataStore.setSubtitleDownloadLanguages(langs) }
+}
+
+// ─── Okuyucu Ortam Sesi (Ambient) ────────────────────────────────────────
+
+internal fun SettingsContext.onMusicEnabledChanged(enabled: Boolean) {
+    coroutineScope.launch { settingsDataStore.setMusicEnabled(enabled) }
+}
+
+internal fun SettingsContext.onMusicAutoRecommendChanged(enabled: Boolean) {
+    coroutineScope.launch { settingsDataStore.setMusicAutoRecommend(enabled) }
+}
+
+internal fun SettingsContext.onMusicAutoPlayChanged(enabled: Boolean) {
+    coroutineScope.launch { settingsDataStore.setMusicAutoPlay(enabled) }
+}
+
+internal fun SettingsContext.onMusicAutoPlayDelayChanged(seconds: Int) {
+    coroutineScope.launch { settingsDataStore.setMusicAutoPlayDelay(seconds) }
+}
+
+internal fun SettingsContext.onMusicContinueOnExitChanged(enabled: Boolean) {
+    coroutineScope.launch { settingsDataStore.setMusicContinueOnExit(enabled) }
+}
+
+internal fun SettingsContext.onMusicMasterVolumeChanged(value: Float) {
+    coroutineScope.launch { settingsDataStore.setMusicMasterVolume(value) }
+}
+
+internal fun SettingsContext.onMusicChannelVolumeChanged(value: Float) {
+    coroutineScope.launch { settingsDataStore.setMusicChannelVolume(value) }
+}
+
+internal fun SettingsContext.onMusicAmbientVolumeChanged(value: Float) {
+    coroutineScope.launch { settingsDataStore.setMusicAmbientVolume(value) }
+}
+
+internal fun SettingsContext.onMusicJamendoEnabledChanged(enabled: Boolean) {
+    coroutineScope.launch { settingsDataStore.setMusicJamendoEnabled(enabled) }
+}
+
+internal fun SettingsContext.onMusicJamendoClientIdChanged(clientId: String) {
+    coroutineScope.launch { settingsDataStore.setMusicJamendoClientId(clientId) }
+}
+
+internal fun SettingsContext.onMusicFreesoundEnabledChanged(enabled: Boolean) {
+    coroutineScope.launch { settingsDataStore.setMusicFreesoundEnabled(enabled) }
+}
+
+internal fun SettingsContext.onMusicFreesoundApiKeyChanged(key: String) {
+    coroutineScope.launch { settingsDataStore.setMusicFreesoundApiKey(key) }
+}
+
+internal fun SettingsContext.onMusicOpenverseEnabledChanged(enabled: Boolean) {
+    coroutineScope.launch { settingsDataStore.setMusicOpenverseEnabled(enabled) }
+}
+
+internal fun SettingsContext.onMusicOpenverseTokenChanged(token: String) {
+    coroutineScope.launch { settingsDataStore.setMusicOpenverseToken(token) }
+}
+
+internal fun SettingsContext.onMusicArchiveEnabledChanged(enabled: Boolean) {
+    coroutineScope.launch { settingsDataStore.setMusicArchiveEnabled(enabled) }
+}
+
+internal fun SettingsContext.onMusicAudiusEnabledChanged(enabled: Boolean) {
+    coroutineScope.launch { settingsDataStore.setMusicAudiusEnabled(enabled) }
+}
+
+internal fun SettingsContext.onMusicAudiusApiKeyChanged(key: String) {
+    coroutineScope.launch { settingsDataStore.setMusicAudiusApiKey(key) }
 }
 
 internal fun SettingsContext.onUseGithubProxyChanged(enabled: Boolean) {

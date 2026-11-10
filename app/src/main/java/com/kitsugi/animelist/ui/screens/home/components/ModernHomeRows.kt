@@ -1,5 +1,7 @@
 package com.kitsugi.animelist.ui.screens.home.components
 
+import com.kitsugi.animelist.ui.components.KitsugiEmojiLabel
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.Text
 
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -87,7 +89,27 @@ fun ModernHomeRows(
         val rowState = androidx.compose.runtime.saveable.rememberSaveable(title, saver = androidx.compose.foundation.lazy.LazyListState.Saver) { androidx.compose.foundation.lazy.LazyListState() }
         when {
             isLoading && results.isEmpty() -> {
-                KitsugiShimmerMediaRow(cardCount = 5)
+                // Match the poster-only cards used by this shelf, including custom widths.
+                com.kitsugi.animelist.ui.components.KitsugiShimmerProvider {
+                    val brush = com.kitsugi.animelist.ui.components.LocalShimmerBrush.current ?: com.kitsugi.animelist.ui.components.rememberKitsugiShimmerBrush()
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        items(5) {
+                            Box(Modifier.size(width = cardWidth, height = cardWidth * 1.5f)) {
+                                com.kitsugi.animelist.ui.components.KitsugiShimmerBlock(brush, Modifier.fillMaxSize(), 10.dp)
+                                Column(
+                                    modifier = Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(6.dp),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                                ) {
+                                    com.kitsugi.animelist.ui.components.KitsugiShimmerBlock(brush, Modifier.fillMaxWidth(0.8f).height(12.dp), 4.dp)
+                                    com.kitsugi.animelist.ui.components.KitsugiShimmerBlock(brush, Modifier.fillMaxWidth(0.4f).height(10.dp), 4.dp)
+                                }
+                            }
+                        }
+                    }
+                }
             }
             results.isEmpty() -> {
                 Text(
@@ -165,8 +187,10 @@ private fun ModernHomeMediaCard(
                         overflow = TextOverflow.Ellipsis
                     )
                     if (item.score != null && item.score > 0.0) {
-                        Text(
-                            text = "⭐ ${"%.1f".format(item.score)}",
+                        KitsugiEmojiLabel(
+                            label = "%.1f".format(item.score),
+                            icon = Icons.StarSolid,
+                            iconSize = 9.dp,
                             style = MaterialTheme.typography.labelSmall,
                             color = Color.White.copy(alpha = 0.8f)
                         )

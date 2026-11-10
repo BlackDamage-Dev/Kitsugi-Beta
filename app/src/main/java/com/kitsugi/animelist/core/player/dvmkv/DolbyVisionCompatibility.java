@@ -64,12 +64,8 @@ public final class DolbyVisionCompatibility {
     if (sampleMimeType != null && !Objects.equals(sampleMimeType, MimeTypes.VIDEO_DOLBY_VISION)) {
       return false;
     }
-    if (codecs == null || codecs.trim().isEmpty()) {
-      // If we already know this is a Dolby Vision track by mime type, allow fallback mapping even
-      // without an explicit codec string.
-      return Objects.equals(sampleMimeType, MimeTypes.VIDEO_DOLBY_VISION);
-    }
-    return extractDolbyVisionCodec(codecs) != null;
+    // Unknown profiles and profile 5 must not be relabeled as HEVC/HDR10.
+    return isDolbyVisionProfile7(codecs);
   }
 
   public static boolean isDolbyVisionProfile7(@Nullable String codecs) {

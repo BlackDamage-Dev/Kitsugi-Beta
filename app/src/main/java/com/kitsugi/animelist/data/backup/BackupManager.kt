@@ -7,6 +7,7 @@ import com.google.gson.reflect.TypeToken
 import com.kitsugi.animelist.data.local.AnimeDownloadStore
 import com.kitsugi.animelist.data.local.KitsugiDatabase
 import com.kitsugi.animelist.data.model.AnimeDownload
+import com.kitsugi.animelist.data.model.rehydrated
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
@@ -90,7 +91,10 @@ class BackupManager(private val context: Context) {
                         val json = String(zis.readBytes(), Charsets.UTF_8)
                         runCatching {
                             val type = object : TypeToken<List<AnimeDownload>>() {}.type
-                            val restoredList: List<AnimeDownload> = gson.fromJson(json, type) ?: emptyList()
+                            val restoredList: List<AnimeDownload> = gson
+                                .fromJson<List<AnimeDownload>>(json, type)
+                                .orEmpty()
+                                .map { it.rehydrated() }
                             val downloadStore = AnimeDownloadStore(context)
                             downloadStore.saveDownloads(restoredList)
                             Log.i(TAG, "İndirme listesi geri yüklendi: ${restoredList.size} öğe")

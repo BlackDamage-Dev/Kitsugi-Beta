@@ -111,28 +111,29 @@ class TvTrailerPlayerPool(private val context: Context) {
     private fun buildPlayer(): ExoPlayer {
         Log.d(TAG, "Creating shared TV trailer ExoPlayer instance")
 
-        // TV-optimised buffer settings: larger buffers for smooth trailer autoplay
+        // Preview startup should not wait for a full 5 seconds of a high-bitrate WebM.
+        // Fullscreen playback keeps its own larger user-configured buffers.
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(
-                /* minBufferMs             = */ 30_000,
-                /* maxBufferMs             = */ 120_000,
-                /* bufferForPlaybackMs     = */ 5_000,
-                /* bufferForPlaybackAfterRebufferMs = */ 10_000
+                /* minBufferMs             = */ 10_000,
+                /* maxBufferMs             = */ 45_000,
+                /* bufferForPlaybackMs     = */ 1_000,
+                /* bufferForPlaybackAfterRebufferMs = */ 2_000
             )
             .build()
 
-        // Force highest bitrate from start — TV displays are large; quality matters more than start-up time
+        // Start at a sustainable estimate and let adaptive HLS move up after throughput
+        // is measured. Forcing 50 Mbps selected the heaviest variant before any sample.
         val bandwidthMeter = DefaultBandwidthMeter.Builder(context)
-            .setInitialBitrateEstimate(50_000_000L) // 50 Mbps: forces highest HLS variant immediately
+            .setInitialBitrateEstimate(5_000_000L)
             .build()
 
-        // Track selector: allow all resolutions; adaptive quality on TV is preferable
         val trackSelector = DefaultTrackSelector(context).apply {
             setParameters(
                 buildUponParameters()
                     .clearVideoSizeConstraints()
-                    .setForceHighestSupportedBitrate(true)
-                    .setMaxVideoSize(Int.MAX_VALUE, Int.MAX_VALUE)
+                    .setForceHighestSupportedBitrate(false)
+                    .setMaxVideoSize(1920, 1080)
             )
         }
 

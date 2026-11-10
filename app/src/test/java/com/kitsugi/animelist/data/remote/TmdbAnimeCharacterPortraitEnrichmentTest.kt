@@ -347,4 +347,54 @@ class TmdbAnimeCharacterPortraitEnrichmentTest {
         assertEquals("https://jikan/taki_portrait.jpg", updated?.imageUrl)
         assertEquals(false, updated?.isRealMediaRole)
     }
+
+    @Test
+    fun detailCachePropagateCharacterPortraitRejectsVoiceActorPhotoAcrossTmdbSizes() {
+        val actorW185 = "https://image.tmdb.org/t/p/w185/castellaneta.jpg"
+        val actorW300 = "https://image.tmdb.org/t/p/w300/castellaneta.jpg"
+        val homerPortrait = "https://upload.wikimedia.org/wikipedia/en/0/02/Homer_Simpson_2006.png"
+
+        DetailCache.putMediaCharacters(
+            source = "simkl",
+            id = 700_045_600,
+            list = listOf(
+                KitsugiCharacter(
+                    id = 198,
+                    name = "Homer Simpson / Abe Simpson / Barney Gumble / Krusty the Clown",
+                    role = "Ana Karakter",
+                    imageUrl = null,
+                    source = "tmdb",
+                    isVoiceRole = true,
+                    isRealMediaRole = false,
+                    voiceActors = listOf(
+                        KitsugiVoiceActor(
+                            id = 198,
+                            name = "Dan Castellaneta",
+                            language = "Oyuncu",
+                            imageUrl = actorW185,
+                            source = "tmdb"
+                        )
+                    )
+                )
+            )
+        )
+
+        // Attempting to propagate the actor's w300 photo must be rejected!
+        DetailCache.propagateCharacterPortrait(
+            "Homer Simpson / Abe Simpson / Barney Gumble / Krusty the Clown",
+            actorW300
+        )
+        val afterActorAttempt = DetailCache.getMediaCharacters("simkl", 700_045_600)?.single()
+        assertNull(afterActorAttempt?.imageUrl)
+        assertNull(DetailCache.getCachedCharacterPortrait("Homer Simpson"))
+
+        // Propagating the actual character portrait by primary name updates the multi-role row!
+        DetailCache.propagateCharacterPortrait("Homer Simpson", homerPortrait)
+        val afterRealPortrait = DetailCache.getMediaCharacters("simkl", 700_045_600)?.single()
+        assertEquals(homerPortrait, afterRealPortrait?.imageUrl)
+        assertEquals(
+            homerPortrait,
+            DetailCache.getCachedCharacterPortrait("Homer Simpson / Abe Simpson / Barney Gumble / Krusty the Clown")
+        )
+    }
 }

@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.ui.components
+﻿package com.kitsugi.animelist.ui.components
 
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import com.kitsugi.animelist.ui.theme.gradient.Text
@@ -20,9 +20,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.*
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -114,7 +113,7 @@ fun KitsugiShikimoriLoginDialog(
                         .border(1.dp, shikimoriBrandColor.copy(alpha = 0.45f), RoundedCornerShape(16.dp)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(text = "🌸", fontSize = 26.sp)
+                    KitsugiPlatformLogo(platformId = "shikimori", size = 32.dp, fallbackTint = shikimoriBrandColor)
                 }
 
                 Spacer(modifier = Modifier.height(10.dp))
@@ -141,7 +140,7 @@ fun KitsugiShikimoriLoginDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f, fill = false)
-                        .verticalScroll(scrollState),
+                        .kitsugiVerticalScroll(scrollState),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     if (errorMessage != null) {
@@ -157,7 +156,7 @@ fun KitsugiShikimoriLoginDialog(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(
-                                    Icons.Rounded.ErrorOutline,
+                                    Icons.ErrorOutline,
                                     contentDescription = null,
                                     tint = KitsugiColors.AccentRed,
                                     modifier = Modifier.size(18.dp)
@@ -186,7 +185,7 @@ fun KitsugiShikimoriLoginDialog(
                         Column(modifier = Modifier.padding(14.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(
-                                    Icons.Rounded.VpnKey,
+                                    Icons.VpnKey,
                                     contentDescription = null,
                                     tint = shikimoriBrandColor,
                                     modifier = Modifier.size(18.dp)
@@ -229,7 +228,7 @@ fun KitsugiShikimoriLoginDialog(
                                 shape = RoundedCornerShape(10.dp),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Icon(Icons.Rounded.Bolt, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Icon(Icons.Bolt, contentDescription = null, modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
                                     text = stringResource(R.string.s1_tik_otomatik_giris_onerilen),
@@ -261,7 +260,7 @@ fun KitsugiShikimoriLoginDialog(
                                     contentColor = shikimoriBrandColor
                                 )
                             ) {
-                                Icon(Icons.Rounded.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Icon(Icons.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
                                     text = stringResource(R.string.inline_open_in_browser_get_code_be59fc3),
@@ -329,7 +328,7 @@ fun KitsugiShikimoriLoginDialog(
                         Column(modifier = Modifier.padding(14.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(
-                                    Icons.Rounded.ContentPaste,
+                                    Icons.ContentPaste,
                                     contentDescription = null,
                                     tint = KitsugiColors.TextPrimary,
                                     modifier = Modifier.size(18.dp)
@@ -374,7 +373,7 @@ fun KitsugiShikimoriLoginDialog(
                                         shape = RoundedCornerShape(8.dp),
                                         modifier = Modifier.padding(end = 6.dp)
                                     ) {
-                                        Icon(Icons.Rounded.ContentPaste, contentDescription = null, modifier = Modifier.size(14.dp))
+                                        Icon(Icons.ContentPaste, contentDescription = null, modifier = Modifier.size(14.dp))
                                         Spacer(modifier = Modifier.width(4.dp))
                                         Text(stringResource(R.string.yapistir), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                                     }
@@ -407,7 +406,7 @@ fun KitsugiShikimoriLoginDialog(
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(
-                                    Icons.Rounded.Tune,
+                                    Icons.Tune,
                                     contentDescription = null,
                                     tint = KitsugiColors.TextSecondary,
                                     modifier = Modifier.size(16.dp)
@@ -421,8 +420,8 @@ fun KitsugiShikimoriLoginDialog(
                                     )
                                 )
                             }
-                            Icon(
-                                if (showAdvanced) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                            KitsugiChevronIcon(
+                                expanded = showAdvanced,
                                 contentDescription = null,
                                 tint = KitsugiColors.TextSecondary,
                                 modifier = Modifier.size(20.dp)
@@ -476,7 +475,7 @@ fun KitsugiShikimoriLoginDialog(
                                     },
                                     modifier = Modifier.align(Alignment.End)
                                 ) {
-                                    Icon(Icons.Rounded.RestartAlt, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Icon(Icons.RestartAlt, contentDescription = null, modifier = Modifier.size(16.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
                                     Text(stringResource(R.string.inline_restore_default_keys_ada2a26), fontSize = 11.sp)
                                 }

@@ -13,11 +13,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Extension
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.rounded.Star
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -40,6 +36,8 @@ import com.kitsugi.animelist.data.cloudstream.CsStreamRunner
 import com.kitsugi.animelist.ui.theme.KitsugiColors
 import com.kitsugi.animelist.ui.theme.LocalKitsugiAccent
 import com.kitsugi.animelist.ui.components.KitsugiPlasmaLoader
+import com.kitsugi.animelist.ui.components.kitsugiNeonGlow
+import com.kitsugi.animelist.ui.theme.gradient.border
 import com.kitsugi.animelist.model.MediaType
 import com.lagradost.cloudstream3.*
 import kotlinx.coroutines.Dispatchers
@@ -153,7 +151,7 @@ fun KitsugiAddonDetailDialog(
                         .padding(16.dp)
                         .background(Color.Black.copy(alpha = 0.5f), CircleShape)
                 ) {
-                    Icon(Icons.Default.Close, contentDescription = stringResource(R.string.kapat), tint = Color.White)
+                    Icon(Icons.Close, contentDescription = stringResource(R.string.kapat), tint = Color.White)
                 }
             }
         }
@@ -259,20 +257,21 @@ private fun DetailContent(
         LazyColumn(
             modifier = Modifier.fillMaxSize()
         ) {
-            // ── Hero Section (Poster + Title + Metadata) ─────────────────────
+            // ── Hero Section (Poster + Title + Metadata) — Keşfet/Arama detay hero’suyla aynı
             item {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
+                        .padding(horizontal = 20.dp),
                     horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    // Poster Card
+                    // Poster Card — aynı 12dp radius, aynı elevation
                     Card(
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(16.dp),
                         modifier = Modifier
                             .width(110.dp)
-                            .height(160.dp),
+                            .height(160.dp)
+                            .kitsugiNeonGlow(RoundedCornerShape(16.dp)),
                         elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
                     ) {
                         com.kitsugi.animelist.ui.components.KitsugiNsfwImage(
@@ -289,10 +288,19 @@ private fun DetailContent(
                         modifier = Modifier.weight(1f),
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        // Extension Badge
+                        // Extension Badge — aynı platform rozeti stili
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Icon(Icons.Default.Extension, contentDescription = null, tint = accentColor, modifier = Modifier.size(14.dp))
-                            Text(api.name, color = accentColor, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(accentColor.copy(alpha = 0.15f))
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Icon(Icons.Extension, contentDescription = null, tint = accentColor, modifier = Modifier.size(12.dp))
+                                    Text(api.name, color = accentColor, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                                }
+                            }
                         }
 
                         Text(
@@ -322,7 +330,7 @@ private fun DetailContent(
                                     horizontalArrangement = Arrangement.spacedBy(2.dp)
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Rounded.Star,
+                                        imageVector = Icons.Star,
                                         contentDescription = null,
                                         tint = Color(0xFFFFC107),
                                         modifier = Modifier.size(14.dp)
@@ -336,7 +344,7 @@ private fun DetailContent(
                             }
                         }
 
-                        // Tags/Genres (doğal spoiler etiketler gizlenir)
+                        // Tags/Genres — aynı çip dili: 20dp radius, Surface, TextSecondary
                         val tags = loadResponse.tags
                             ?.filterNot { com.kitsugi.animelist.utils.KitsugiSpoilerRules.isIntrinsicSpoiler(it) }
                         if (!tags.isNullOrEmpty()) {
@@ -348,11 +356,12 @@ private fun DetailContent(
                                 tags.take(4).forEach { tag ->
                                     Box(
                                         modifier = Modifier
-                                            .clip(RoundedCornerShape(6.dp))
+                                            .clip(RoundedCornerShape(20.dp))
                                             .background(KitsugiColors.Surface)
-                                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                                            .border(1.dp, KitsugiColors.Border, RoundedCornerShape(20.dp))
+                                            .padding(horizontal = 10.dp, vertical = 4.dp)
                                     ) {
-                                        Text(tag, color = KitsugiColors.TextSecondary, fontSize = 10.sp)
+                                        Text(tag, color = KitsugiColors.TextSecondary, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Medium)
                                     }
                                 }
                             }
@@ -368,19 +377,19 @@ private fun DetailContent(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 20.dp)
+                            .padding(horizontal = 20.dp, vertical = 20.dp)
                     ) {
                         Text(
                             text = stringResource(R.string.aciklama),
                             color = KitsugiColors.TextPrimary,
-                            fontSize = 16.sp,
+                            style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
-                        Spacer(modifier = Modifier.height(6.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
                         Text(
                             text = plot,
                             color = KitsugiColors.TextSecondary,
-                            fontSize = 14.sp,
+                            style = MaterialTheme.typography.bodyMedium,
                             lineHeight = 20.sp
                         )
                     }
@@ -391,28 +400,30 @@ private fun DetailContent(
 
             // ── Interactive Selectors (DubStatus and Seasons) ────────────────
             if (isEpisodeBased) {
-                // Dub Status Selector pills
+                // Dub Status Selector pills — SearchTypeChip ile birebir aynı
                 if (dubStatuses.size > 1) {
                     item {
                         LazyRow(
-                            contentPadding = PaddingValues(horizontal = 16.dp),
+                            contentPadding = PaddingValues(horizontal = 20.dp),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             modifier = Modifier.padding(bottom = 12.dp)
                         ) {
                             itemsIndexed(dubStatuses) { _, status ->
                                 val selected = selectedDubStatus == status
+                                val shape = RoundedCornerShape(14.dp)
                                 Box(
                                     modifier = Modifier
-                                        .clip(RoundedCornerShape(20.dp))
+                                        .clip(shape)
                                         .background(if (selected) accentColor else KitsugiColors.Surface)
+                                        .border(1.dp, if (selected) Color.Transparent else KitsugiColors.Border, shape)
                                         .clickable { selectedDubStatus = status }
-                                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                                        .padding(horizontal = 14.dp, vertical = 8.dp)
                                 ) {
                                     Text(
                                         text = status.name,
                                         color = if (selected) Color.White else KitsugiColors.TextPrimary,
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.Bold
+                                        style = MaterialTheme.typography.labelLarge,
+                                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
                                     )
                                 }
                             }
@@ -420,28 +431,30 @@ private fun DetailContent(
                     }
                 }
 
-                // Season Selector pills
+                // Season Selector pills — aynı 14dp SearchTypeChip stili
                 if (seasons.size > 1) {
                     item {
                         LazyRow(
-                            contentPadding = PaddingValues(horizontal = 16.dp),
+                            contentPadding = PaddingValues(horizontal = 20.dp),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             modifier = Modifier.padding(bottom = 16.dp)
                         ) {
                             itemsIndexed(seasons) { _, seasonNum ->
                                 val selected = selectedSeason == seasonNum
+                                val shape = RoundedCornerShape(14.dp)
                                 Box(
                                     modifier = Modifier
-                                        .clip(RoundedCornerShape(20.dp))
+                                        .clip(shape)
                                         .background(if (selected) accentColor else KitsugiColors.Surface)
+                                        .border(1.dp, if (selected) Color.Transparent else KitsugiColors.Border, shape)
                                         .clickable { selectedSeason = seasonNum }
-                                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                                        .padding(horizontal = 14.dp, vertical = 8.dp)
                                 ) {
                                     Text(
                                         text = "${seasonNum}. Sezon",
                                         color = if (selected) Color.White else KitsugiColors.TextPrimary,
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.Bold
+                                        style = MaterialTheme.typography.labelLarge,
+                                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
                                     )
                                 }
                             }
@@ -450,14 +463,13 @@ private fun DetailContent(
                 }
             }
 
-            // ── Episodes / Direct Play ───────────────────────────────────────
+            // ── Episodes / Direct Play — Arama/Keşfet detayıyla aynı
             if (!isEpisodeBased) {
-                // Direct play button for Movies, Torrents, LiveStreams
                 item {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 24.dp),
+                            .padding(horizontal = 20.dp, vertical = 24.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         KitsugiButton(
@@ -472,33 +484,32 @@ private fun DetailContent(
                                     mediaType = streamMediaType,
                                     title = loadResponse.name,
                                     posterUrl = loadResponse.posterUrl,
+                                    startYear = loadResponse.year,
                                     cs3Url = loadResponse.url,
                                     cs3ApiName = api.name
                                 )
-                                // Dialog'u kapatma — stream'den geri gelince bilgi sayfası açık kalsın
                             },
-                            shape = RoundedCornerShape(8.dp),
+                            shape = RoundedCornerShape(16.dp),
                             modifier = Modifier.fillMaxWidth().height(50.dp)
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.White)
-                                Text(stringResource(R.string.oynat), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                                Icon(Icons.PlayArrow, contentDescription = null, tint = Color.White)
+                                Text(stringResource(R.string.oynat), color = Color.White, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
                             }
                         }
                     }
                 }
             } else {
-                // Episodes header
                 item {
                     Text(
                         text = stringResource(R.string.inline_episodes_1_s_b40a1e6, displayEpisodes.size),
                         color = KitsugiColors.TextPrimary,
-                        fontSize = 16.sp,
+                        style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp)
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)
                     )
                 }
 
@@ -521,12 +532,14 @@ private fun DetailContent(
                         val epName = CsEpisodeMatcher.getEpisodeName(ep)
                         val epPlot = getEpisodeDescription(ep)
 
+                        val shape = RoundedCornerShape(16.dp)
                         Card(
-                            shape = RoundedCornerShape(8.dp),
-                            colors = CardDefaults.cardColors(containerColor = KitsugiColors.SurfaceStrong.copy(alpha = 0.5f)),
+                            shape = shape,
+                            colors = CardDefaults.cardColors(containerColor = KitsugiColors.Surface),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 6.dp)
+                                .padding(horizontal = 20.dp, vertical = 6.dp)
+                                .kitsugiNeonGlow(shape)
                                 .clickable {
                                     com.kitsugi.animelist.ui.screens.stream.KitsugiStreamActivity.start(
                                         context = context,
@@ -538,10 +551,10 @@ private fun DetailContent(
                                         mediaType = streamMediaType,
                                         title = loadResponse.name,
                                         posterUrl = loadResponse.posterUrl,
+                                        startYear = loadResponse.year,
                                         cs3Url = loadResponse.url,
                                         cs3ApiName = api.name
                                     )
-                                    // Dialog'u kapatma — stream'den geri gelince bilgi sayfası açık kalsın
                                 }
                         ) {
                             Column(
@@ -553,26 +566,41 @@ private fun DetailContent(
                                     verticalAlignment = Alignment.CenterVertically,
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(accentColor.copy(alpha = 0.15f)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.PlayArrow,
+                                            contentDescription = null,
+                                            tint = accentColor,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(12.dp))
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(
                                             text = stringResource(R.string.inline_1_s_episode_6f7288b, epNum),
                                             color = KitsugiColors.TextPrimary,
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 14.sp
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.Bold
                                         )
                                         if (!epName.isNullOrBlank()) {
                                             Spacer(modifier = Modifier.height(2.dp))
                                             Text(
                                                 text = epName,
                                                 color = KitsugiColors.TextSecondary,
-                                                fontSize = 12.sp,
+                                                style = MaterialTheme.typography.bodySmall,
                                                 maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis
                                             )
                                         }
                                     }
                                     Icon(
-                                        imageVector = Icons.Default.PlayArrow,
+                                        imageVector = Icons.PlayArrow,
                                         contentDescription = stringResource(R.string.oynat),
                                         tint = accentColor,
                                         modifier = Modifier.size(24.dp)
@@ -583,7 +611,7 @@ private fun DetailContent(
                                     Text(
                                         text = epPlot,
                                         color = KitsugiColors.TextMuted,
-                                        fontSize = 12.sp,
+                                        style = MaterialTheme.typography.bodySmall,
                                         maxLines = 3,
                                         overflow = TextOverflow.Ellipsis,
                                         lineHeight = 16.sp

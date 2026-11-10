@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  AnimeThemes (animethemes.moe) marka rozeti: koyu lacivert-arduvaz (#181C2E) zemin
+  üzerinde AnimeThemes'in turkuaz (#2EC4B6) oynatma üçgeni ve beyaz müzik notası işareti.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#181C2E"
+        android:pathData="M5,0 L19,0 A5,5 0 0 1 24,5 L24,19 A5,5 0 0 1 19,24 L5,24 A5,5 0 0 1 0,19 L0,5 A5,5 0 0 1 5,0 Z" />
+    <path
+        android:fillColor="#2EC4B6"
+        android:pathData="M5.5,6.2 L14.8,12 L5.5,17.8 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M16.2,6.2 L20,5.2 L20,8.2 L17.8,8.8 L17.8,15.6 A2.4,2.4 0 1 1 15.4,13.3 C15.7,13.3 15.95,13.35 16.2,13.45 Z" />
+</vector>

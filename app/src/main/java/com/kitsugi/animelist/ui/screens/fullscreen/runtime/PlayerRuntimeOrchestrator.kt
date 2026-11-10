@@ -68,6 +68,14 @@ class PlayerRuntimeOrchestrator(
     val scrobble: PlayerScrobbleController =
         PlayerScrobbleController(scope, context, getAniListToken)
 
+    /**
+     * Otomatik liste takibi: **hangi kaynaktan** açılırsa açılsın oynatılan içeriği
+     * listeye işler ve altı kaynağa yayar. [scrobble]'dan farkı, tek bir platforma
+     * bağlı olmaması ve ilerlemeyi bölüm numarasına göre yazmasıdır.
+     */
+    val autoTrack: PlayerAutoTrackController =
+        PlayerAutoTrackController(scope, context)
+
     val autoplay: PlayerAutoplayController =
         PlayerAutoplayController(
             scope = scope,
@@ -110,6 +118,7 @@ class PlayerRuntimeOrchestrator(
         Log.d(TAG, "Stopping all runtime controllers")
         audio.stopObserving()
         scrobble.clear()
+        autoTrack.clear()
         autoplay.cancelCountdown()
         live.stop()
     }

@@ -10,8 +10,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.BugReport
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -116,7 +115,7 @@ fun KitsugiCrashAnimation(
         } else {
             // Beklenmeyen oynatma hatasında çökme ekranının kendisi bozulmasın
             Icon(
-                Icons.Rounded.BugReport,
+                Icons.BugReport,
                 contentDescription = null,
                 tint = KitsugiColors.AccentRed,
                 modifier = Modifier.size(38.dp)

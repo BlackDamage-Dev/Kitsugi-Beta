@@ -61,6 +61,20 @@ object MangaTitleMatcher {
         return finalScore
     }
 
+    /**
+     * Ana başlık ve varsa alternatif başlıklar (İngilizce/Romaji/Korece/Japonca)
+     * arasındaki en yüksek benzerlik skorunu döndürür.
+     */
+    fun getBestSimilarityScore(query: String, manga: MangaDetails): Double {
+        var best = getSimilarityScore(query, manga.title)
+        for (alt in manga.alternativeTitles) {
+            if (alt.isBlank()) continue
+            val altScore = getSimilarityScore(query, alt)
+            if (altScore > best) best = altScore
+        }
+        return best
+    }
+
     private fun simplifyTitle(title: String): String {
         return title
             .replace(Regex("[^a-zA-Z0-9\\sçÇğĞıİöÖşŞüÜ]"), " ")

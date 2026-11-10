@@ -29,7 +29,10 @@ class AllSourcesExploreTest {
             ExploreSourceState(payload(listOf(item)).copy(trendingAnime = listOf(item)))
         }
         val sections = allSourceSections(states, false)
-        assertEquals(ExplorePlatform.sources.flatMap { listOf(it, it) }, sections.map { it.platform })
+        val expectedPlatformOrder = ExplorePlatform.sources.flatMap { platform ->
+            List(if (platform == ExplorePlatform.AniList) ANILIST_EXPLORE_SHELF_CATEGORIES.size else 2) { platform }
+        }
+        assertEquals(expectedPlatformOrder, sections.map { it.platform })
         assertEquals(sections.size, sections.map { it.key }.distinct().size)
         assertEquals(ExplorePlatform.sources.size, allSourceHeroes(states, false).size)
     }
@@ -63,7 +66,7 @@ class AllSourcesExploreTest {
         val states = mapOf(ExplorePlatform.AniList to ExploreSourceState(payload(listOf(adult)).copy(topRatedAnime = listOf(adult))))
         assertTrue(allSourceSections(states, false).isEmpty())
         assertTrue(allSourceHeroes(states, false).isEmpty())
-        assertEquals(2, allSourceSections(states, true).size)
+        assertEquals(2, allSourceSections(states, true).count { it.results.isNotEmpty() })
         assertEquals(listOf(adult), allSourceHeroes(states, true))
     }
 
@@ -106,13 +109,53 @@ class AllSourcesExploreTest {
         assertTrue(p.forSource(ExplorePlatform.MAL).bangumiTvShows.orEmpty().isEmpty())
     }
 
+    @Test fun bangumiNewlyAddedMangaIsNotDroppedFromTheContentSections() {
+        val newlyAdded = media("bangumi", id = 91, type = MediaType.Manga)
+        val p = payload(emptyList()).copy(newlyAddedManga = listOf(newlyAdded))
+
+        val section = allSourceSections(
+            mapOf(ExplorePlatform.BANGUMI to ExploreSourceState(p)),
+            showAdultContent = false
+        ).single()
+
+        assertEquals(ExploreCategoryType.NEWLY_ADDED_MANGA, section.category)
+        assertEquals(listOf(newlyAdded), section.results)
+    }
+
     @Test fun scoreChartsAreDistinctFromPopularityCharts() {
         val popular = media()
         val rated = media(id = 2)
         val states = mapOf(ExplorePlatform.AniList to ExploreSourceState(payload(listOf(popular)).copy(topRatedAnime = listOf(rated))))
-        val sections = allSourceSections(states, false)
+        val sections = allSourceSections(states, false).filter { it.results.isNotEmpty() }
         assertEquals(listOf(ExploreCategoryType.TOP_ANIME, ExploreCategoryType.TOP_RATED_ANIME), sections.map { it.category })
         assertEquals(listOf(rated), sections.last().results)
+    }
+
+    @Test fun anilistKeepsItsFullCategoryModelWhileInitialNetworkBatchStaysSmall() {
+        val categories = sourceSections(ExplorePlatform.AniList, payload(emptyList())).map { it.category }
+        assertEquals(ANILIST_EXPLORE_SHELF_CATEGORIES, categories)
+        assertEquals(6, ANILIST_INITIAL_EXPLORE_CATEGORIES.size)
+        assertEquals(6, aniListExploreShelfRequests(ANILIST_INITIAL_EXPLORE_CATEGORIES, "FALL", 2026).size)
+    }
+
+    @Test fun anilistUnrequestedShelvesRemainAsLazyRowsAfterInitialCatalogLoad() {
+        val sections = allSourceSections(
+            mapOf(ExplorePlatform.AniList to ExploreSourceState(payload(listOf(media())))),
+            showAdultContent = false
+        )
+        assertEquals(ANILIST_EXPLORE_SHELF_CATEGORIES.size, sections.size)
+        assertEquals(listOf(media()), sections.first().results)
+        assertTrue(sections.drop(1).all { it.results.isEmpty() })
+    }
+
+    @Test fun anilistManhwaShelfQueriesBothKoreanAndChineseOrigins() {
+        val requests = aniListExploreShelfRequests(
+            listOf(ExploreCategoryType.MANHWA_MANHUA),
+            season = "FALL",
+            seasonYear = 2026
+        )
+        assertEquals(listOf("KR", "CN"), requests.map { it.spec.countryOfOrigin })
+        assertTrue(requests.all { it.category == ExploreCategoryType.MANHWA_MANHUA })
     }
 
     @Test fun standardSourcesKeepAnimeAndMangaShelvesInALogicalStableOrder() {
@@ -199,7 +242,7 @@ class AllSourcesExploreTest {
         val states = ExplorePlatform.sources.associateWith { ExploreSourceState(payload(listOf(media(it.name.lowercase())))) }
         val sections = allSourceSections(states, false).groupBy { it.platform }
         val expanded = allSourceHeaderIndices(sections, emptySet(), startIndex = 2)
-        assertEquals(listOf(4, 7, 10, 13, 16, 19, 22), ExplorePlatform.sources.map { expanded[it] })
+        assertEquals(listOf(4, 21, 24, 27, 30, 33, 36), ExplorePlatform.sources.map { expanded[it] })
         val collapsed = allSourceHeaderIndices(sections, setOf(ExplorePlatform.AniList), startIndex = 2)
         assertEquals(5, collapsed[ExplorePlatform.MAL])
         val empty = allSourceHeaderIndices(emptyMap(), emptySet(), startIndex = 1)
@@ -287,28 +330,33 @@ class AllSourcesExploreTest {
         assertFalse(diskRead)
     }
 
-    @Test fun nativeKindShelvesAppearOnlyWhenSourceSupportsThem() {
-        // Desteklemeyen kaynak (Kitsu): raf null/boş → bölüm YOK.
-        val kitsuState = ExploreSourceState(payload(listOf(media("kitsu"))))
-        assertTrue(
-            allSourceSections(mapOf(ExplorePlatform.KITSU to kitsuState), false)
-                .none { it.category == ExploreCategoryType.MANHWA_MANHUA || it.category == ExploreCategoryType.NOVELS }
+    @Test fun nativeKindShelvesAppearWhenTheirProviderReturnsData() {
+        // Kitsu/MAL/Shikimori/AniList expose both kinds; Bangumi provides its BOOK_NOVEL subtype.
+        val kitsuManhwa = media("kitsu", 7, MediaType.Manga)
+        val kitsuNovel = media("kitsu", 8, MediaType.Manga)
+        val kitsuState = ExploreSourceState(
+            payload(listOf(media("kitsu"))).copy(manhwaManhua = listOf(kitsuManhwa), novels = listOf(kitsuNovel))
         )
-
-        // Destekleyen kaynak (Shikimori): dolu raflar kendi kaynağı altında görünür.
-        val manhwa = media("shikimori", 7, MediaType.Manga)
-        val novel = media("shikimori", 8, MediaType.Manga)
-        val shikiState = ExploreSourceState(
-            payload(listOf(media("shikimori")))
-                .copy(manhwaManhua = listOf(manhwa), novels = listOf(novel))
-        )
-        val sections = allSourceSections(mapOf(ExplorePlatform.SHIKIMORI to shikiState), false)
+        val kitsuSections = allSourceSections(mapOf(ExplorePlatform.KITSU to kitsuState), false)
         assertEquals(
             listOf(ExploreCategoryType.MANHWA_MANHUA, ExploreCategoryType.NOVELS),
-            sections.filter { it.category == ExploreCategoryType.MANHWA_MANHUA || it.category == ExploreCategoryType.NOVELS }
+            kitsuSections.filter { it.category == ExploreCategoryType.MANHWA_MANHUA || it.category == ExploreCategoryType.NOVELS }
                 .map { it.category }
         )
-        assertTrue(sections.all { it.platform == ExplorePlatform.SHIKIMORI })
+        assertTrue(kitsuSections.all { it.platform == ExplorePlatform.KITSU })
+
+        // Bangumi has a separate official BOOK_NOVEL subtype; its manga/date shelf stays distinct.
+        val recentManga = media("bangumi", 9, MediaType.Manga)
+        val bangumiNovel = media("bangumi", 10, MediaType.Manga)
+        val bangumi = payload(listOf(media("bangumi"))).copy(
+            newlyAddedManga = listOf(recentManga), novels = listOf(bangumiNovel)
+        )
+        val bangumiSections = allSourceSections(mapOf(ExplorePlatform.BANGUMI to ExploreSourceState(bangumi)), false)
+        assertEquals(
+            listOf(ExploreCategoryType.NEWLY_ADDED_MANGA, ExploreCategoryType.NOVELS),
+            bangumiSections.filter { it.category == ExploreCategoryType.NEWLY_ADDED_MANGA || it.category == ExploreCategoryType.NOVELS }
+                .map { it.category }
+        )
     }
 
     @Test fun fastAndFailedSourcesDoNotWaitForSlowSource() = runBlocking {

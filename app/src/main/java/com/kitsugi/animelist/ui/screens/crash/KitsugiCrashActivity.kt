@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.ui.screens.crash
+﻿package com.kitsugi.animelist.ui.screens.crash
 
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import com.kitsugi.animelist.ui.theme.gradient.Text
@@ -28,10 +28,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.Send
-import androidx.compose.material.icons.rounded.*
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -163,7 +161,7 @@ class KitsugiCrashActivity : ComponentActivity() {
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Rounded.Info, null, tint = activeAccentColor, modifier = Modifier.size(14.dp))
+                            Icon(Icons.Info, null, tint = activeAccentColor, modifier = Modifier.size(14.dp))
                             Text(
                                 "v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE}) · ${BuildConfig.BUILD_TYPE}",
                                 color = KitsugiColors.TextSecondary,
@@ -286,7 +284,7 @@ class KitsugiCrashActivity : ComponentActivity() {
                                     lineHeight = 15.sp,
                                     modifier = Modifier
                                         .fillMaxSize()
-                                        .verticalScroll(rememberScrollState())
+                                        .kitsugiVerticalScroll(rememberScrollState())
                                         .padding(12.dp)
                                 )
                             }
@@ -313,7 +311,7 @@ class KitsugiCrashActivity : ComponentActivity() {
                                     shape = RoundedCornerShape(12.dp),
                                     modifier = Modifier.weight(1f)
                                 ) {
-                                    Icon(Icons.Rounded.ContentCopy, null, modifier = Modifier.size(15.dp))
+                                    Icon(Icons.ContentCopy, null, modifier = Modifier.size(15.dp))
                                     Spacer(Modifier.width(5.dp))
                                     Text(KitsugiStrings.get(R.string.action_copy), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                                 }
@@ -330,7 +328,7 @@ class KitsugiCrashActivity : ComponentActivity() {
                                     shape = RoundedCornerShape(12.dp),
                                     modifier = Modifier.weight(1f)
                                 ) {
-                                    Icon(Icons.Rounded.Share, null, modifier = Modifier.size(15.dp))
+                                    Icon(Icons.Share, null, modifier = Modifier.size(15.dp))
                                     Spacer(Modifier.width(5.dp))
                                     Text(stringResource(R.string.paylas), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                                 }
@@ -349,7 +347,7 @@ class KitsugiCrashActivity : ComponentActivity() {
                                 shape = RoundedCornerShape(12.dp),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Icon(Icons.Rounded.Download, null, modifier = Modifier.size(15.dp))
+                                Icon(Icons.Download, null, modifier = Modifier.size(15.dp))
                                 Spacer(Modifier.width(6.dp))
                                 Text(KitsugiStrings.get(R.string.inline_save_file_to_downloads_txt_d3606fb), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                             }
@@ -382,7 +380,7 @@ class KitsugiCrashActivity : ComponentActivity() {
                                                 appendLine("Android  : ${android.os.Build.VERSION.RELEASE} (API ${android.os.Build.VERSION.SDK_INT})")
                                                 appendLine("ABI      : ${android.os.Build.SUPPORTED_ABIS.joinToString()}")
                                                 appendLine("Üretici  : ${android.os.Build.MANUFACTURER}")
-                                                appendLine("Bellek   : ${Runtime.getRuntime().let { "${(it.totalMemory() - it.freeMemory()) / 1024 / 1024}MB / ${it.maxMemory() / 1024 / 1024}MB" }}")
+                                                appendLine("Uygulama JVM belleği : ${Runtime.getRuntime().let { "${(it.totalMemory() - it.freeMemory()) / 1024 / 1024}MB / ${it.maxMemory() / 1024 / 1024}MB" }}")
                                                 appendLine("Saat     : ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())}")
                                             })
                                             addFileIfExists(infoFile)
@@ -403,6 +401,14 @@ class KitsugiCrashActivity : ComponentActivity() {
 
                                             // 5. FileLoggingTree debug log
                                             addFileIfExists(com.kitsugi.animelist.core.diagnostics.FileLoggingTree.getLogFile(context))
+
+                                            // 5b. v2.4.342: kalıcı uygulama günlüğü (eşitleme, ağ, donma,
+                                            // arka plan işleri). Çökme raporuyla birlikte paylaşılır.
+                                            runCatching {
+                                                com.kitsugi.animelist.core.diagnostics.KitsugiLog
+                                                    .logFile(context)
+                                                    ?.let { addFileIfExists(it) }
+                                            }
 
                                             // 6. Anlık logcat dökümü (şimdiki)
                                             val liveLogcatFile = File(context.filesDir, "live_logcat_report.txt")
@@ -439,7 +445,7 @@ class KitsugiCrashActivity : ComponentActivity() {
                                 shape = RoundedCornerShape(12.dp),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Icon(Icons.AutoMirrored.Rounded.Send, null, modifier = Modifier.size(15.dp))
+                                Icon(Icons.Send, null, modifier = Modifier.size(15.dp))
                                 Spacer(Modifier.width(6.dp))
                                 Text(KitsugiStrings.get(R.string.inline_send_to_developer_all_files_0f054f6), fontSize = 13.sp, fontWeight = FontWeight.Bold)
                             }
@@ -459,7 +465,7 @@ class KitsugiCrashActivity : ComponentActivity() {
                                         shape = RoundedCornerShape(12.dp),
                                         modifier = Modifier.weight(1f)
                                     ) {
-                                        Icon(Icons.Rounded.DeleteSweep, null, modifier = Modifier.size(15.dp))
+                                        Icon(Icons.DeleteSweep, null, modifier = Modifier.size(15.dp))
                                         Spacer(Modifier.width(5.dp))
                                         Text(stringResource(R.string.gecmisi_temizle), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                                     }
@@ -482,7 +488,7 @@ class KitsugiCrashActivity : ComponentActivity() {
                                     shape = RoundedCornerShape(12.dp),
                                     modifier = if (historyExists) Modifier.weight(1f) else Modifier.fillMaxWidth()
                                 ) {
-                                    Icon(Icons.Rounded.RestartAlt, null, modifier = Modifier.size(15.dp))
+                                    Icon(Icons.RestartAlt, null, modifier = Modifier.size(15.dp))
                                     Spacer(Modifier.width(5.dp))
                                     Text(KitsugiStrings.get(R.string.inline_restart_836b2de), fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                 }

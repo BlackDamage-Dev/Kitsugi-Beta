@@ -26,7 +26,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.kitsugi.animelist.R
 import com.kitsugi.animelist.ui.components.KitsugiShimmerBlock
-import com.kitsugi.animelist.ui.components.rememberKitsugiShimmerBrush
+import com.kitsugi.animelist.ui.components.KitsugiShimmerProvider
+import com.kitsugi.animelist.ui.components.LocalShimmerBrush
 import com.kitsugi.animelist.ui.theme.KitsugiColors
 
 /**
@@ -35,68 +36,70 @@ import com.kitsugi.animelist.ui.theme.KitsugiColors
  */
 @Composable
 internal fun WikiTabSkeleton(accentColor: Color, modifier: Modifier = Modifier) {
-    val brush = rememberKitsugiShimmerBrush()
-    Column(
-        modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
+    KitsugiShimmerProvider {
+        val brush = LocalShimmerBrush.current ?: return@KitsugiShimmerProvider
+        Column(
+            modifier = modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(16.dp),
-                color = accentColor,
-                strokeWidth = 2.dp
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = stringResource(R.string.fandom_tab_loading),
-                color = KitsugiColors.TextMuted,
-                style = MaterialTheme.typography.bodySmall
-            )
-        }
-
-        // Bilgi kutusu kartı iskeleti
-        WikiSkeletonCard {
-            Row {
-                KitsugiShimmerBlock(
-                    brush = brush,
-                    modifier = Modifier.width(92.dp).height(126.dp),
-                    cornerRadius = 14.dp
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(16.dp),
+                    color = accentColor,
+                    strokeWidth = 2.dp
                 )
-                Spacer(modifier = Modifier.width(14.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    KitsugiShimmerBlock(brush, Modifier.fillMaxWidth(0.7f).height(18.dp), 8.dp)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    KitsugiShimmerBlock(brush, Modifier.fillMaxWidth(0.45f).height(12.dp), 8.dp)
-                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = stringResource(R.string.fandom_tab_loading),
+                    color = KitsugiColors.TextMuted,
+                    style = MaterialTheme.typography.bodySmall
+                )
             }
-            Spacer(modifier = Modifier.height(14.dp))
-            SkeletonFieldLine(brush)
-            SkeletonFieldLine(brush)
-            SkeletonFieldLine(brush)
-            SkeletonFieldLine(brush)
-        }
 
-        // Özet kartı iskeleti
-        WikiSkeletonCard {
-            KitsugiShimmerBlock(brush, Modifier.fillMaxWidth(0.35f).height(16.dp), 8.dp)
-            Spacer(modifier = Modifier.height(10.dp))
-            KitsugiShimmerBlock(brush, Modifier.fillMaxWidth().height(12.dp), 8.dp)
-            Spacer(modifier = Modifier.height(6.dp))
-            KitsugiShimmerBlock(brush, Modifier.fillMaxWidth().height(12.dp), 8.dp)
-            Spacer(modifier = Modifier.height(6.dp))
-            KitsugiShimmerBlock(brush, Modifier.fillMaxWidth(0.8f).height(12.dp), 8.dp)
-        }
+            // Bilgi kutusu kartı iskeleti
+            WikiSkeletonCard {
+                Row {
+                    KitsugiShimmerBlock(
+                        brush = brush,
+                        modifier = Modifier.width(92.dp).height(126.dp),
+                        cornerRadius = 14.dp
+                    )
+                    Spacer(modifier = Modifier.width(14.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        KitsugiShimmerBlock(brush, Modifier.fillMaxWidth(0.7f).height(18.dp), 8.dp)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        KitsugiShimmerBlock(brush, Modifier.fillMaxWidth(0.45f).height(12.dp), 8.dp)
+                    }
+                }
+                Spacer(modifier = Modifier.height(14.dp))
+                SkeletonFieldLine(brush)
+                SkeletonFieldLine(brush)
+                SkeletonFieldLine(brush)
+                SkeletonFieldLine(brush)
+            }
 
-        // İçindekiler kartı iskeleti
-        WikiSkeletonCard {
-            KitsugiShimmerBlock(brush, Modifier.fillMaxWidth(0.3f).height(16.dp), 8.dp)
-            Spacer(modifier = Modifier.height(10.dp))
-            repeat(5) {
-                KitsugiShimmerBlock(brush, Modifier.fillMaxWidth(0.6f).height(14.dp), 8.dp)
+            // Özet kartı iskeleti
+            WikiSkeletonCard {
+                KitsugiShimmerBlock(brush, Modifier.fillMaxWidth(0.35f).height(16.dp), 8.dp)
                 Spacer(modifier = Modifier.height(10.dp))
+                KitsugiShimmerBlock(brush, Modifier.fillMaxWidth().height(12.dp), 8.dp)
+                Spacer(modifier = Modifier.height(6.dp))
+                KitsugiShimmerBlock(brush, Modifier.fillMaxWidth().height(12.dp), 8.dp)
+                Spacer(modifier = Modifier.height(6.dp))
+                KitsugiShimmerBlock(brush, Modifier.fillMaxWidth(0.8f).height(12.dp), 8.dp)
+            }
+
+            // İçindekiler kartı iskeleti
+            WikiSkeletonCard {
+                KitsugiShimmerBlock(brush, Modifier.fillMaxWidth(0.3f).height(16.dp), 8.dp)
+                Spacer(modifier = Modifier.height(10.dp))
+                repeat(5) {
+                    KitsugiShimmerBlock(brush, Modifier.fillMaxWidth(0.6f).height(14.dp), 8.dp)
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
             }
         }
     }
@@ -116,11 +119,10 @@ private fun WikiSkeletonCard(content: @Composable androidx.compose.foundation.la
 
 @Composable
 private fun SkeletonFieldLine(brush: androidx.compose.ui.graphics.Brush) {
-    Row(modifier = Modifier.fillMaxWidth()) {
+    Row(modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp)) {
         KitsugiShimmerBlock(brush, Modifier.width(90.dp).height(12.dp), 8.dp)
         Spacer(modifier = Modifier.width(12.dp))
         KitsugiShimmerBlock(brush, Modifier.weight(1f).height(12.dp), 8.dp)
-        Spacer(modifier = Modifier.height(6.dp))
     }
 }
 

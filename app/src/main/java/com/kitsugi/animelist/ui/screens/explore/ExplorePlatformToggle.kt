@@ -1,7 +1,7 @@
-package com.kitsugi.animelist.ui.screens.explore
+﻿package com.kitsugi.animelist.ui.screens.explore
 
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
 import com.kitsugi.animelist.ui.theme.gradient.background
 import com.kitsugi.animelist.ui.theme.gradient.border
 import androidx.compose.foundation.clickable
@@ -19,9 +19,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.ArrowDropDown
-import androidx.compose.material.icons.rounded.Check
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.ExperimentalMaterial3Api
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.MaterialTheme
@@ -112,7 +110,7 @@ fun ExploreSourceEngineSelectorPill(
             )
         }
         Icon(
-            imageVector = Icons.Rounded.ArrowDropDown,
+            imageVector = Icons.ArrowDropDown,
             contentDescription = stringResource(R.string.explore_source_platform_select),
             tint = accentColor,
             modifier = Modifier.size(18.dp)
@@ -153,7 +151,7 @@ fun ExploreSourcePickerSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
+                .kitsugiVerticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp)
                 .padding(bottom = 32.dp)
         ) {
@@ -221,7 +219,7 @@ fun ExploreSourcePickerSheet(
                     if (isSelected) {
                         Spacer(modifier = Modifier.width(8.dp))
                         Icon(
-                            imageVector = Icons.Rounded.Check,
+                            imageVector = Icons.Check,
                             contentDescription = stringResource(R.string.secili),
                             tint = accentColor,
                             modifier = Modifier.size(20.dp)

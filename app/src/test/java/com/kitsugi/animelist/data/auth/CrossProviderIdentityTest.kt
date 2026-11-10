@@ -144,6 +144,65 @@ class CrossProviderIdentityTest {
     }
 
     @Test
+    fun simklMovieIdentityIsIncompleteUntilConnectedBangumiIsResolved() {
+        val connected = ConnectedSources(
+            aniList = false,
+            mal = false,
+            kitsu = false,
+            shikimori = false,
+            simkl = true,
+            bangumi = true
+        )
+        val simklOnly = CrossProviderIds(simklId = 123_456, tmdbId = 15_539)
+
+        assertFalse(
+            "Simkl/TMDB kimliği, bağlı Bangumi aramasını erken bitirmemeli",
+            CrossSyncPolicy.isIdentityComplete(MediaType.Movie, simklOnly, connected)
+        )
+        assertTrue(
+            CrossSyncPolicy.isIdentityComplete(
+                MediaType.Movie,
+                simklOnly.copy(bangumiSubjectId = 103_470),
+                connected
+            )
+        )
+        assertTrue(
+            "Bangumi bağlı değilse Simkl/TMDB kimliği tek başına yeterli",
+            CrossSyncPolicy.isIdentityComplete(
+                MediaType.Movie,
+                simklOnly,
+                connected.copy(bangumi = false)
+            )
+        )
+    }
+
+    @Test
+    fun bangumiMovieIdentityDoesNotWaitForDisconnectedSimkl() {
+        val bangumiOnlyConnection = ConnectedSources(
+            aniList = false,
+            mal = false,
+            kitsu = false,
+            shikimori = false,
+            simkl = false,
+            bangumi = true
+        )
+        assertTrue(
+            CrossSyncPolicy.isIdentityComplete(
+                MediaType.Movie,
+                CrossProviderIds(bangumiSubjectId = 103_470),
+                bangumiOnlyConnection
+            )
+        )
+        assertFalse(
+            CrossSyncPolicy.isIdentityComplete(
+                MediaType.Movie,
+                CrossProviderIds(),
+                bangumiOnlyConnection
+            )
+        )
+    }
+
+    @Test
     fun bangumiRowFansOutOnlyWithVerifiedIdentity() {
         val bangumiOnly = CrossProviderIds(bangumiSubjectId = 35_658)
         assertFalse(CrossSyncPolicy.allowFanOut(isBangumiRow = true, ids = bangumiOnly))

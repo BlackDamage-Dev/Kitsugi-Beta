@@ -83,7 +83,9 @@ object StremioStreamRouting {
                 val ownPrefixes = stringList(res["idPrefixes"])
                 return StreamResourceSpec(
                     types = ownTypes.takeIf { it.isNotEmpty() } ?: manifestTypes.takeIf { it.isNotEmpty() },
-                    idPrefixes = ownPrefixes.takeIf { it.isNotEmpty() } ?: manifestIdPrefixes.takeIf { it.isNotEmpty() }
+                    // A full resource object with no idPrefixes is explicitly unrestricted;
+                    // only the short string form inherits the manifest-level prefix list.
+                    idPrefixes = if (res.containsKey("idPrefixes")) ownPrefixes else null
                 )
             }
         }
@@ -120,19 +122,28 @@ data class StremioStreamTask(
 )
 
 /**
- * Her addon × her video ID çifti için uygun istek görevlerini üretir.
- * Kitsu ve IMDb kimlikleri bağımsız değerlendirilir: addon hangisinin prefix'ini kabul ediyorsa
- * o ID ile sorgulanır (ikisi birden kabul ediyorsa ikisiyle de).
+ * Her addon × manifestte desteklediği video ID ailesi için istek görevi üretir.
+ * Prefix'i olmayan kaynaklarda kanıtı olmayan özel namespace'leri tahmin etmez; yaygın IMDb/Kitsu
+ * kimlikleriyle güvenli fallback yapar.
  */
 fun buildStremioStreamTasks(
     routes: List<StremioAddonRoute>,
     contentType: String,
     imdbVideoId: String?,
-    kitsuVideoId: String?
+    kitsuVideoId: String?,
+    additionalVideoIds: List<String> = emptyList()
 ): List<StremioStreamTask> {
     val tasks = ArrayList<StremioStreamTask>()
+    val allCandidates = (listOfNotNull(kitsuVideoId, imdbVideoId) + additionalVideoIds).distinct()
     for (route in routes) {
-        for (videoId in listOfNotNull(kitsuVideoId, imdbVideoId)) {
+        val candidates = if (route.idPrefixes.isEmpty()) {
+            // No manifest filter has no evidence that a plugin understands custom namespaces.
+            // Preserve the common Kitsu/IMDb fallback, and only send other families by prefix.
+            listOfNotNull(kitsuVideoId, imdbVideoId)
+        } else {
+            allCandidates
+        }
+        for (videoId in candidates) {
             val requestType = requestTypeFor(route, contentType, videoId) ?: continue
             tasks += StremioStreamTask(route.name, route.manifestUrl, requestType, videoId)
         }

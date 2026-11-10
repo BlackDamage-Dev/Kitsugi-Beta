@@ -72,13 +72,15 @@ media content oynatmayı destekler:
 | Dosya | Açıklama |
 |---|---|
 | `DolbyVisionBaseLayerPolicy.kt` | AUTO modunda DV7 → DV8.1 / HDR10 / Native kararı |
-| `DolbyVisionCodecFallback.kt` | Decoder fallback zinciri |
-| `DolbyVisionExtractorsFactory.kt` | RPU NAL sıyırma / dönüştürme extractor factory |
-| `DolbyVisionMatroskaTransformer.kt` | MKV container DV track işleme |
+| `DolbyVisionCodecFallback.kt` | Decoder fallback zinciri (gizli DV çözücüleri) |
+| `DolbyVisionExtractorsFactory.kt` | RPU NAL sıyırma / dönüştürme extractor factory, DV5 koruması |
+| `DolbyVisionMatroskaTransformer.kt` | MKV container DV track işleme, DV5 SEI kararı |
+| `DolbyVisionStreamHints.kt` | Akış başlığından DV/profil ipucu çıkarma (MPV planı için) |
 | `DoviBridge.kt` | libdovi JNI köprüsü |
-| `HevcDvRpuStripper.kt` | HEVC bitstream DV RPU kaldırma |
+| `HevcDvRpuStripper.kt` | HEVC bitstream DV RPU kaldırma + HDR10 statik SEI taraması |
 | `HevcHdr10PlusStripper.kt` | HEVC HDR10+ SEI NAL kaldırma |
-| `dvmkv/DolbyVisionCompatibility.kt` | HDR10 base-layer mod bayrağı |
+| `dvmkv/DolbyVisionCompatibility.kt` | HDR10 base-layer mod bayrağı, bayat MKV DV config tespiti |
+| `engine/MpvDolbyVisionPolicy.kt` | DV içerikte MPV `vo`/`hwdec` planı (gpu-next + yazılım çözme) |
 
 ---
 
@@ -92,7 +94,7 @@ KitsugiPlayerViewModel.loadStream(url, headers, subs)
       ├── PlayerAfrPreflight.run()               ──► AFR + display switch
       │
       ├── PlayerMediaSourceFactory.create()
-      │       ├── buildExtractorsFactory()        ──► DV7 modu kararı
+      │       ├── buildExtractorsFactory()        ──► DV7 modu kararı (DV5 korumalı)
       │       ├── buildDataSourceFactory()        ──► OkHttp + ParallelRange
       │       └── create()                        ──► MediaSource/MergingMediaSource
       │
@@ -111,6 +113,7 @@ KitsugiPlayerViewModel.loadStream(url, headers, subs)
 | `playerPreference` | Media3 / MPV / External seçimi |
 | `decoderPriority` | `DefaultRenderersFactory.setExtensionRendererMode()` |
 | `dv7HandlingMode` | `DolbyVisionBaseLayerPolicy` kararı |
+| `mpvDolbyVisionAutoFix` | `MpvDolbyVisionPolicy` → `vo=gpu-next`, P5'te `hwdec=no` |
 | `stripHdr10PlusSei` | `DolbyVisionExtractorsFactory` SEI sıyırma |
 | `frameRateMatchingMode` | `PlayerAfrPreflight` display mode switch |
 | `resolutionMatchingEnabled` | `DisplayCapabilities` resolution switch |

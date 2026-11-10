@@ -58,7 +58,7 @@ internal object KitsugiAniListPersonBridge {
     private fun isLatinName(text: String): Boolean =
         com.kitsugi.animelist.utils.PreferenceHelpers.isLatinText(text)
 
-    private fun normalizeKey(text: String): String? {
+    internal fun normalizeKey(text: String): String? {
         val normalized = Normalizer.normalize(text.trim(), Normalizer.Form.NFKC)
             .lowercase()
             .replace(Regex("[\\s\\p{Punct}]+"), "")

@@ -1,6 +1,7 @@
 package com.kitsugi.animelist.ui.screens.detail.wiki
 
 import androidx.compose.foundation.background
+import com.kitsugi.animelist.ui.utils.uniqueItems
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,8 +20,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.OpenInNew
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -148,7 +148,7 @@ internal fun WikiPagePreviewCard(
                 }
                 Spacer(modifier = Modifier.weight(1f))
                 Icon(
-                    imageVector = Icons.Rounded.OpenInNew,
+                    imageVector = Icons.OpenInNew,
                     contentDescription = null,
                     tint = accentColor,
                     modifier = Modifier.size(14.dp)
@@ -291,9 +291,12 @@ internal fun <T> WikiPreviewStripRow(
         contentPadding = PaddingValues(0.dp),
         modifier = modifier.fillMaxWidth()
     ) {
-        items(
-            items = items,
-            key = key
-        ) { item -> itemContent(item) }
+        if (key == null) {
+            items(items = items) { item -> itemContent(item) }
+        } else {
+            // Fandom sayfaları aynı başlıklı bölüm/bağlantıyı birden çok kez içerebiliyor
+            // (ör. iki "Trivia" veya aynı karaktere iki bağlantı) → çökmeyen anahtar.
+            uniqueItems(items = items, key = key) { item -> itemContent(item) }
+        }
     }
 }

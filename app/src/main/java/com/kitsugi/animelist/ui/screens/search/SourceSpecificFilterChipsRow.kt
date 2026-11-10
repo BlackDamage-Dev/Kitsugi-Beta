@@ -15,8 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Check
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.MaterialTheme
 import com.kitsugi.animelist.ui.theme.gradient.Text
@@ -27,6 +26,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.kitsugi.animelist.ui.components.KitsugiEmojiLabel
 import com.kitsugi.animelist.ui.components.KitsugiPlatformLogo
 import com.kitsugi.animelist.ui.theme.KitsugiColors
 import com.kitsugi.animelist.ui.theme.LocalKitsugiAccent
@@ -91,6 +91,7 @@ internal fun localizedSourceSearchLabel(label: String): String {
         "👥 Popülerlik (Üye Sayısı)" -> R.string.search_ui_popularity_members
         "📅 Yayın Tarihi: Yeniden Eskiye" -> R.string.search_ui_release_date_new_old
         "📅 Çıkış Tarihi: En Yeniler" -> R.string.search_ui_release_date_newest
+        "📜 Çıkış Tarihi: En Eskiler" -> R.string.search_ui_release_date_oldest
         "💰 Gişe / Hasılat" -> R.string.search_ui_box_office
         "👥 Kullanıcı Sayısı (Popülerlik)" -> R.string.search_ui_user_count
         "🏆 Genel Sıralama" -> R.string.search_ui_overall_ranking
@@ -569,12 +570,11 @@ private fun QuickFilterToggleChip(
             .padding(horizontal = 10.dp, vertical = 6.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = localizedSourceSearchLabel(label),
-            style = MaterialTheme.typography.labelSmall.copy(
-                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                color = if (selected) accentColor else KitsugiColors.TextSecondary
-            )
+        KitsugiEmojiLabel(
+            label = localizedSourceSearchLabel(label),
+            color = if (selected) accentColor else KitsugiColors.TextSecondary,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
         )
     }
 }
@@ -602,6 +602,7 @@ fun getSortDisplayLabel(uiState: SearchUiState): String {
                 "TRENDING_DESC" -> "🔥 Trendler"
                 "FAVOURITES_DESC" -> "💖 Favoriler"
                 "START_DATE_DESC" -> "📅 Yeni Çıkanlar"
+                "START_DATE_ASC" -> "📜 En Eskiler (Klasikler)"
                 "TITLE_ROMAJI" -> "🔤 İsim: A-Z"
                 else -> "👥 Popülerlik"
             }
@@ -620,7 +621,8 @@ fun getSortDisplayLabel(uiState: SearchUiState): String {
             when (uiState.tmdbSpecificFilters.sortBy) {
                 "popularity.desc" -> "👥 Popülerlik"
                 "vote_average.desc" -> "⭐ Puan"
-                "primary_release_date.desc" -> "📅 Yeni Çıkanlar"
+                "primary_release_date.desc", "first_air_date.desc" -> "📅 Yeni Çıkanlar"
+                "primary_release_date.asc", "first_air_date.asc" -> "📜 En Eskiler (Klasikler)"
                 "revenue.desc" -> "💰 Hasılat"
                 else -> "👥 Popülerlik"
             }
@@ -640,6 +642,7 @@ fun getSortDisplayLabel(uiState: SearchUiState): String {
                 "-userCount" -> "👥 Popülerlik"
                 "-averageRating" -> "⭐ Puan"
                 "-createdAt" -> "📅 Yeni Eklenenler"
+                "createdAt" -> "📜 En Eskiler (Klasikler)"
                 else -> "🔥 Trendler"
             }
         }
@@ -676,29 +679,12 @@ fun getCurrentSortKey(uiState: SearchUiState): String {
 }
 
 fun applyEngineSort(engine: SearchSourceEngine, sortKey: String, viewModel: SearchViewModel) {
-    when (engine) {
-        SearchSourceEngine.ANILIST, SearchSourceEngine.ALL -> {
-            viewModel.updateAniListFilters(viewModel.uiState.value.aniListSpecificFilters.copy(sort = sortKey))
-        }
-        SearchSourceEngine.MAL -> {
-            viewModel.updateMalFilters(viewModel.uiState.value.malSpecificFilters.copy(orderBy = sortKey, sortDirection = "desc"))
-        }
-        SearchSourceEngine.TMDB -> {
-            viewModel.updateTmdbFilters(viewModel.uiState.value.tmdbSpecificFilters.copy(sortBy = sortKey))
-        }
-        SearchSourceEngine.SHIKIMORI -> {
-            viewModel.updateShikimoriFilters(viewModel.uiState.value.shikimoriSpecificFilters.copy(order = sortKey))
-        }
-        SearchSourceEngine.KITSU -> {
-            viewModel.updateKitsuFilters(viewModel.uiState.value.kitsuSpecificFilters.copy(sort = sortKey))
-        }
-        SearchSourceEngine.SIMKL -> {
-            viewModel.updateSimklFilters(viewModel.uiState.value.simklSpecificFilters.copy(sort = sortKey))
-        }
-        SearchSourceEngine.BANGUMI -> {
-            viewModel.updateBangumiFilters(viewModel.uiState.value.bangumiSpecificFilters.copy(sort = sortKey))
-        }
-    }
+    // Sıralama artık ViewModel üzerinden uygulanır: seçilen anahtar hem motorun
+    // paketine hem de kanonik (ortak) sıralamaya yazılır. Önceden yalnızca
+    // AniList paketi güncelleniyordu; "Tümü" aramasında diğer 6 kaynak kendi
+    // popülerlik sırasında kalıyor ve "Tümünü Gör" sayfası seçilen sıralamayı
+    // devralmıyordu.
+    viewModel.applySortKey(engine, sortKey)
 }
 
 /**
@@ -726,6 +712,7 @@ fun sortOptionsForEngine(engine: SearchSourceEngine): List<Pair<String, String>>
             "popularity.desc" to "👥 Popülerlik",
             "vote_average.desc" to "⭐ Puan: Yüksekten Düşüğe",
             "primary_release_date.desc" to "📅 Çıkış Tarihi: En Yeniler",
+            "primary_release_date.asc" to "📜 Çıkış Tarihi: En Eskiler",
             "revenue.desc" to "💰 Gişe / Hasılat"
         )
         SearchSourceEngine.SHIKIMORI -> listOf(
@@ -806,17 +793,16 @@ fun SortOptionsContent(
                     .padding(horizontal = 14.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = localizedSourceSearchLabel(label),
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                        color = if (isSelected) accentColor else KitsugiColors.TextPrimary
-                    ),
+                KitsugiEmojiLabel(
+                    label = localizedSourceSearchLabel(label),
+                    color = if (isSelected) accentColor else KitsugiColors.TextPrimary,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                     modifier = Modifier.weight(1f)
                 )
                 if (isSelected) {
                     Icon(
-                        imageVector = Icons.Rounded.Check,
+                        imageVector = Icons.Check,
                         contentDescription = stringResource(R.string.secili),
                         tint = accentColor,
                         modifier = Modifier.size(18.dp)

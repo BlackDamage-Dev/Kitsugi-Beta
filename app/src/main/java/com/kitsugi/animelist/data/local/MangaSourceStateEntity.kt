@@ -49,6 +49,10 @@ interface MangaSourceStateDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(entity: MangaSourceStateEntity)
 
+    /** Toplu silme / geri getirme: tek seferde N satır yazar (N ayrı coroutine açılmaz). */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAll(entities: List<MangaSourceStateEntity>)
+
     @Query("SELECT * FROM manga_source_state WHERE sourceKey = :sourceKey LIMIT 1")
     suspend fun getByKey(sourceKey: String): MangaSourceStateEntity?
 

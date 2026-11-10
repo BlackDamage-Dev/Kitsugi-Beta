@@ -30,8 +30,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.firstOrNull
 import com.kitsugi.animelist.model.MediaType
 
-/** AniList keşfet toplu raf sorgusu için kısaltma (bkz. AniListSearchClient.ExploreShelfSpec). */
-private typealias AniListShelfSpec = com.kitsugi.animelist.data.remote.AniListSearchClient.ExploreShelfSpec
+private fun <T> Set<T>.snapshot(): Set<T> = synchronized(this) { toSet() }
 
 /** Filter on the source's stable Turkish labels first, then localize only the visible subtitle. */
 private fun localizedSimklStatusItems(
@@ -55,9 +54,12 @@ enum class ExploreErrorType { None, TmdbError, AniListError, MalError }
  * Bangumi Keşfet şeridi başına üst süre sınırı.
  *
  * Şeritler paralel çalışır; bu tavan **toplam** süreyi değil, en yavaş şeridin süresini
- * sınırlar. Asılı bir istek tüm vitrini dakikalarca boş bırakmasın diye 15 sn seçildi.
+ * sınırlar. Asılı bir istek tüm vitrini dakikalarca boş bırakmasın diye 30 sn seçildi
+ * (önceki 15 sn, Bangumi hız sınırlayıcısı + AniList başlık çözümlemesi birlikte
+ * olduğunda özellikle sezon şeritlerinde yetmiyordu — “geri kalan kısımlar gelmiyor”
+ * şikayetinin kök nedeni).
  */
-private const val BANGUMI_SHELF_TIMEOUT_MS = 15_000L
+private const val BANGUMI_SHELF_TIMEOUT_MS = 30_000L
 
 class ExploreViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -99,6 +101,18 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
     var allSourceStates by mutableStateOf<Map<ExplorePlatform, ExploreSourceState>>(emptyMap())
         private set
 
+    /** AniList shelves are fetched in small batches as their rows enter the viewport. */
+    var aniListLoadedCategories by mutableStateOf(Companion.loadedAniListCategories.snapshot())
+        private set
+    var aniListLoadingCategories by mutableStateOf(emptySet<ExploreCategoryType>())
+        private set
+    var aniListFailedCategories by mutableStateOf(Companion.failedAniListCategories.snapshot())
+        private set
+
+    private val pendingAniListCategoryLock = Any()
+    private val pendingAniListCategories = linkedSetOf<ExploreCategoryType>()
+    private var aniListCategoryQueueJob: Job? = null
+
     private fun cancelLoads() {
         requestGeneration++
         heroPreparationGeneration++
@@ -109,7 +123,15 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
         loadJob = null
         sourceJobs.values.forEach { it.cancel() }
         sourceJobs.clear()
+        cancelAniListCategoryLoads()
         isLoading = false
+    }
+
+    private fun cancelAniListCategoryLoads() {
+        aniListCategoryQueueJob?.cancel()
+        aniListCategoryQueueJob = null
+        synchronized(pendingAniListCategoryLock) { pendingAniListCategories.clear() }
+        aniListLoadingCategories = emptySet()
     }
 
     /**
@@ -381,6 +403,7 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
         simklPlannedMovies = payload.simklPlannedMovies
         simklContinueSeries = payload.simklContinueSeries
         simklPlannedSeries = payload.simklPlannedSeries
+        if (selectedPlatform == ExplorePlatform.AniList) recordLoadedAniListShelves(payload)
     }
 
     /** Platform değişiminde UI'daki eski veriyi siler, loading skeleton gösterilir. */
@@ -412,10 +435,208 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
         exploreErrorType = ExploreErrorType.None
     }
 
+    private fun resetAniListShelfState() {
+        Companion.loadedAniListCategories.clear()
+        Companion.failedAniListCategories.clear()
+        aniListLoadedCategories = emptySet()
+        aniListFailedCategories = emptySet()
+        aniListLoadingCategories = emptySet()
+    }
+
+    private fun recordLoadedAniListShelves(payload: ExplorePayload) {
+        val found = ExploreCategoryType.entries.filter { category ->
+            when (category) {
+                ExploreCategoryType.TOP_ANIME -> payload.topAnime.isNotEmpty()
+                ExploreCategoryType.TOP_RATED_ANIME -> payload.topRatedAnime.orEmpty().isNotEmpty()
+                ExploreCategoryType.TRENDING_ANIME -> payload.trendingAnime.isNotEmpty()
+                ExploreCategoryType.AIRING_ANIME -> payload.airingAnime.isNotEmpty()
+                ExploreCategoryType.UPCOMING_ANIME -> payload.upcomingAnime.isNotEmpty()
+                ExploreCategoryType.MOVIE_ANIME -> payload.movieAnime.isNotEmpty()
+                ExploreCategoryType.SEASONAL_ANIME -> payload.seasonalAnime.isNotEmpty()
+                ExploreCategoryType.NEWLY_ADDED_ANIME -> payload.newlyAddedAnime.isNotEmpty()
+                ExploreCategoryType.TOP_MANGA -> payload.topManga.isNotEmpty()
+                ExploreCategoryType.TRENDING_MANGA -> payload.trendingManga.isNotEmpty()
+                ExploreCategoryType.TOP_RATED_MANGA -> payload.topRatedManga.orEmpty().isNotEmpty()
+                ExploreCategoryType.PUBLISHING_MANGA -> payload.publishingManga.isNotEmpty()
+                ExploreCategoryType.NEWLY_ADDED_MANGA -> payload.newlyAddedManga.isNotEmpty()
+                ExploreCategoryType.MANHWA_MANHUA -> payload.manhwaManhua.orEmpty().isNotEmpty()
+                ExploreCategoryType.NOVELS -> payload.novels.orEmpty().isNotEmpty()
+                ExploreCategoryType.BANGUMI_TV,
+                ExploreCategoryType.BANGUMI_MOVIES,
+                ExploreCategoryType.UPCOMING_MEDIA_TMDB -> false
+            }
+        }.filter { it in ANILIST_EXPLORE_SHELF_CATEGORIES }
+        if (found.isNotEmpty()) {
+            Companion.loadedAniListCategories.addAll(found)
+            aniListLoadedCategories = aniListLoadedCategories + found
+            aniListFailedCategories = aniListFailedCategories - found
+            Companion.failedAniListCategories.removeAll(found.toSet())
+        }
+    }
+
+    /** Triggered by a shelf entering view or by an explicit shelf retry. */
+    fun loadExploreSection(platform: ExplorePlatform, category: ExploreCategoryType) {
+        enqueueAniListCategory(platform, category, retry = false)
+    }
+
+    fun retryExploreSection(platform: ExplorePlatform, category: ExploreCategoryType) {
+        enqueueAniListCategory(platform, category, retry = true)
+    }
+
+    private fun enqueueAniListCategory(
+        platform: ExplorePlatform,
+        category: ExploreCategoryType,
+        retry: Boolean
+    ) {
+        if (platform != ExplorePlatform.AniList || category !in ANILIST_EXPLORE_SHELF_CATEGORIES) return
+        if (selectedPlatform != ExplorePlatform.AniList && selectedPlatform != ExplorePlatform.ALL) return
+        if (category in aniListLoadedCategories || category in aniListLoadingCategories) return
+        if (category in aniListFailedCategories && !retry) return
+
+        if (retry) {
+            Companion.failedAniListCategories.remove(category)
+            aniListFailedCategories = aniListFailedCategories - category
+        }
+        aniListLoadingCategories = aniListLoadingCategories + category
+        synchronized(pendingAniListCategoryLock) { pendingAniListCategories.add(category) }
+        if (aniListCategoryQueueJob?.isActive != true) {
+            val generation = requestGeneration
+            aniListCategoryQueueJob = viewModelScope.launch {
+                drainAniListCategoryQueue(generation)
+            }
+        }
+    }
+
+    private suspend fun drainAniListCategoryQueue(generation: Int) {
+        try {
+            while (generation == requestGeneration) {
+                kotlinx.coroutines.delay(ANILIST_SHELF_BATCH_DEBOUNCE_MS)
+                val batch = synchronized(pendingAniListCategoryLock) {
+                    pendingAniListCategories.toList().also { pendingAniListCategories.clear() }
+                }
+                if (batch.isEmpty()) break
+                if (selectedPlatform != ExplorePlatform.AniList && selectedPlatform != ExplorePlatform.ALL) break
+
+                val (season, year) = currentAniListSeasonAndYear()
+                val requests = aniListExploreShelfRequests(batch, season, year)
+                try {
+                    val response = apiClient.aniListExploreShelves(requests.map { it.spec }, showAdultContentState)
+                    val successful = batch.filter { category ->
+                        val categoryRequests = requests.filter { it.category == category }
+                        categoryRequests.isNotEmpty() && categoryRequests.all { response.containsKey(it.spec.alias) }
+                    }
+                    val failed = batch - successful.toSet()
+                    val existing = platformCache[ExplorePlatform.AniList]
+                        ?: allSourceStates[ExplorePlatform.AniList]?.payload
+                    if (existing == null) {
+                        markAniListCategoriesFailed(batch)
+                        continue
+                    }
+                    val updated = successful.fold(existing) { payload, category ->
+                        val items = requests.asSequence()
+                            .filter { it.category == category }
+                            .flatMap { response[it.spec.alias].orEmpty().asSequence() }
+                            .distinctBy { it.exploreIdentity() }
+                            .toList()
+                        payload.withAniListShelf(category, items)
+                    }
+                    if (successful.isNotEmpty()) {
+                        publishAniListPayload(updated)
+                        Companion.loadedAniListCategories.addAll(successful)
+                        Companion.failedAniListCategories.removeAll(successful.toSet())
+                        aniListLoadedCategories = aniListLoadedCategories + successful
+                        aniListFailedCategories = aniListFailedCategories - successful.toSet()
+                    }
+                    if (failed.isNotEmpty()) markAniListCategoriesFailed(failed)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Throwable) {
+                    markAniListCategoriesFailed(batch)
+                    android.util.Log.w("ExploreViewModel", "AniList shelf batch failed: ${batch.joinToString()}", e)
+                } finally {
+                    aniListLoadingCategories = aniListLoadingCategories - batch.toSet()
+                }
+            }
+        } finally {
+            aniListCategoryQueueJob = null
+            val hasPending = synchronized(pendingAniListCategoryLock) { pendingAniListCategories.isNotEmpty() }
+            if (hasPending && (selectedPlatform == ExplorePlatform.AniList || selectedPlatform == ExplorePlatform.ALL)) {
+                val generation = requestGeneration
+                aniListCategoryQueueJob = viewModelScope.launch { drainAniListCategoryQueue(generation) }
+            }
+        }
+    }
+
+    private fun markAniListCategoriesFailed(categories: Collection<ExploreCategoryType>) {
+        Companion.failedAniListCategories.addAll(categories)
+        aniListFailedCategories = aniListFailedCategories + categories
+        aniListLoadingCategories = aniListLoadingCategories - categories.toSet()
+    }
+
+    private fun publishAniListPayload(payload: ExplorePayload) {
+        platformCache[ExplorePlatform.AniList] = payload
+        loadedPlatforms.add(ExplorePlatform.AniList)
+        recordLoadedAniListShelves(payload)
+        if (selectedPlatform == ExplorePlatform.AniList) applyPayload(payload)
+        allSourceStates[ExplorePlatform.AniList]?.let { state ->
+            allSourceStates = allSourceStates + (ExplorePlatform.AniList to state.copy(payload = payload))
+        }
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching {
+                val db = com.kitsugi.animelist.data.local.KitsugiDatabase.getDatabase(getApplication())
+                db.exploreCacheDao().insertCategory(
+                    com.kitsugi.animelist.data.local.ExploreCacheEntity(
+                        categoryKey = exploreCacheKey(ExplorePlatform.AniList),
+                        payloadJson = com.google.gson.Gson().toJson(payload),
+                        cachedAtMs = System.currentTimeMillis()
+                    )
+                )
+            }
+        }
+    }
+
+    private fun ExplorePayload.withAniListShelf(
+        category: ExploreCategoryType,
+        items: List<JikanSearchResult>
+    ): ExplorePayload = when (category) {
+        ExploreCategoryType.TOP_ANIME -> copy(topAnime = items)
+        ExploreCategoryType.TOP_RATED_ANIME -> copy(topRatedAnime = items)
+        ExploreCategoryType.TRENDING_ANIME -> copy(trendingAnime = items)
+        ExploreCategoryType.AIRING_ANIME -> copy(airingAnime = items)
+        ExploreCategoryType.UPCOMING_ANIME -> copy(upcomingAnime = items)
+        ExploreCategoryType.MOVIE_ANIME -> copy(movieAnime = items)
+        ExploreCategoryType.SEASONAL_ANIME -> copy(seasonalAnime = items)
+        ExploreCategoryType.NEWLY_ADDED_ANIME -> copy(newlyAddedAnime = items)
+        ExploreCategoryType.TOP_MANGA -> copy(topManga = items)
+        ExploreCategoryType.TRENDING_MANGA -> copy(trendingManga = items)
+        ExploreCategoryType.TOP_RATED_MANGA -> copy(topRatedManga = items)
+        ExploreCategoryType.PUBLISHING_MANGA -> copy(publishingManga = items)
+        ExploreCategoryType.NEWLY_ADDED_MANGA -> copy(newlyAddedManga = items)
+        ExploreCategoryType.MANHWA_MANHUA -> copy(manhwaManhua = items)
+        ExploreCategoryType.NOVELS -> copy(novels = items)
+        ExploreCategoryType.BANGUMI_TV,
+        ExploreCategoryType.BANGUMI_MOVIES,
+        ExploreCategoryType.UPCOMING_MEDIA_TMDB -> this
+    }
+
+    private fun currentAniListSeasonAndYear(): Pair<String, Int> {
+        val calendar = java.util.Calendar.getInstance()
+        val season = when (calendar.get(java.util.Calendar.MONTH)) {
+            java.util.Calendar.DECEMBER, java.util.Calendar.JANUARY, java.util.Calendar.FEBRUARY -> "WINTER"
+            java.util.Calendar.MARCH, java.util.Calendar.APRIL, java.util.Calendar.MAY -> "SPRING"
+            java.util.Calendar.JUNE, java.util.Calendar.JULY, java.util.Calendar.AUGUST -> "SUMMER"
+            else -> "FALL"
+        }
+        return season to calendar.get(java.util.Calendar.YEAR)
+    }
+
     fun loadData(forceRefresh: Boolean = false) {
         // Eğer forceRefresh değilse ve zaten data yüklüyse veya yükleniyorsa bir şey yapma
         if (!forceRefresh && (isDataLoaded || isLoading)) return
 
+        if (forceRefresh && (selectedPlatform == ExplorePlatform.AniList || selectedPlatform == ExplorePlatform.ALL)) {
+            resetAniListShelfState()
+        }
         cancelLoads()
         if (forceRefresh) homeHeroArtworkLoader.retryFailures()
         if (selectedPlatform == ExplorePlatform.ALL) {
@@ -462,14 +683,20 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
                 throw e
             } catch (e: Exception) {
                 if (selectedPlatform == platformSnapshot && generation == requestGeneration) {
-                    // Try to fall back to local offline database cache
-                    val db = com.kitsugi.animelist.data.local.KitsugiDatabase.getDatabase(getApplication())
-                    val cached = runCatching { db.exploreCacheDao().getCategory(exploreCacheKey(platformSnapshot)) }.getOrNull()
+                    // Try to fall back to local offline database cache — Room + Gson parse
+                    // ana thread'de yapılmaz (viewModelScope Main üzerinde koşar).
+                    val cached = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        runCatching {
+                            val db = com.kitsugi.animelist.data.local.KitsugiDatabase.getDatabase(getApplication())
+                            db.exploreCacheDao().getCategory(exploreCacheKey(platformSnapshot))
+                        }.getOrNull()
+                    }
                     currentCoroutineContext().ensureActive()
                     if (generation != requestGeneration || selectedPlatform != platformSnapshot) return@launch
                     if (cached != null) {
-                        val gson = com.google.gson.Gson()
-                        val payload = runCatching { gson.fromJson(cached.payloadJson, ExplorePayload::class.java) }.getOrNull()
+                        val payload = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                            runCatching { com.google.gson.Gson().fromJson(cached.payloadJson, ExplorePayload::class.java) }.getOrNull()
+                        }
                         if (payload != null) {
                             android.util.Log.d("ExploreViewModel", "Serving offline explore cache for ${platformSnapshot.name}")
                             isShowingCachedData = true
@@ -540,6 +767,7 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
                 isCached = platformCache[platform] == null && allSourceStates[platform]?.isCached == true
             )
         }
+        allSourceStates[ExplorePlatform.AniList]?.payload?.let(::recordLoadedAniListShelves)
         isLoading = true
         ExplorePlatform.sources.forEach { launchSource(it, forceRefresh) }
     }
@@ -548,6 +776,10 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
     fun retrySource(platform: ExplorePlatform) {
         if (selectedPlatform != ExplorePlatform.ALL || platform == ExplorePlatform.ALL ||
             allSourceStates[platform]?.isLoading == true) return
+        if (platform == ExplorePlatform.AniList) {
+            cancelAniListCategoryLoads()
+            resetAniListShelfState()
+        }
         allSourceStates = allSourceStates + (platform to
             (allSourceStates[platform] ?: ExploreSourceState()).copy(isLoading = true, error = null))
         isLoading = true
@@ -576,17 +808,27 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
                 platformLabel = platform.label,
                 cached = cached,
                 forceRefresh = needsFetch,
-                fetch = { fetchPlatform(platform, allowFallback = false).forSource(platform) },
+                // Ağdan dönen payload'un forSource kopyası + Room/Gson okuması ana
+                // thread'de yapılmaz; viewModelScope Main üzerinde koştuğu için yükleme
+                // sırasında her kaynak tamamlandığında UI donuyordu.
+                fetch = {
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                        fetchPlatform(platform, allowFallback = false)
+                    }.forSource(platform)
+                },
                 readOffline = {
-                    val db = com.kitsugi.animelist.data.local.KitsugiDatabase.getDatabase(getApplication())
-                    db.exploreCacheDao().getCategory(exploreCacheKey(platform))?.let {
-                        com.google.gson.Gson().fromJson(it.payloadJson, ExplorePayload::class.java)?.forSource(platform)
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        val db = com.kitsugi.animelist.data.local.KitsugiDatabase.getDatabase(getApplication())
+                        db.exploreCacheDao().getCategory(exploreCacheKey(platform))?.let {
+                            com.google.gson.Gson().fromJson(it.payloadJson, ExplorePayload::class.java)?.forSource(platform)
+                        }
                     }
                 },
                 context = getApplication()
             )
             currentCoroutineContext().ensureActive()
             if (generation != requestGeneration || selectedPlatform != ExplorePlatform.ALL) return@launch
+            if (platform == ExplorePlatform.AniList) state.payload?.let(::recordLoadedAniListShelves)
             allSourceStates = allSourceStates + (platform to state)
             isLoading = allSourceStates.values.any { it.isLoading }
             // Never mark a failed/empty/offline response as a successful in-memory load.
@@ -847,6 +1089,8 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
         val publishingMangaDeferred = async { runCatching { com.kitsugi.animelist.data.remote.KitsuExploreClient.publishingManga(20) }.getOrDefault(emptyList()) }
         val trendingMangaDeferred = async { runCatching { com.kitsugi.animelist.data.remote.KitsuExploreClient.trendingManga(20) }.getOrDefault(emptyList()) }
         val newlyAddedMangaDeferred = async { runCatching { com.kitsugi.animelist.data.remote.KitsuExploreClient.newlyAddedManga(20) }.getOrDefault(emptyList()) }
+        val manhwaManhuaDeferred = async { runCatching { com.kitsugi.animelist.data.remote.KitsuExploreClient.manhwaManhua(20) }.getOrDefault(emptyList()) }
+        val novelsDeferred = async { runCatching { com.kitsugi.animelist.data.remote.KitsuExploreClient.novelsShelf(20) }.getOrDefault(emptyList()) }
         // Kitsu bölüm yayın saati sağlamaz → geri sayımlı şerit ortak takvim verisinden beslenir
         val airingSoonDeferred = async { fetchSharedAiringSoon() }
 
@@ -869,6 +1113,8 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
             seasonalAnime = seasonalAnimeDeferred.await(),
             topRatedAnime = topRatedAnimeDeferred.await(),
             topRatedManga = topRatedMangaDeferred.await(),
+            manhwaManhua = manhwaManhuaDeferred.await(),
+            novels = novelsDeferred.await(),
             airingSoonAnime = runCatching { airingSoonDeferred.await() }.getOrDefault(emptyList())
         )
     }
@@ -896,7 +1142,13 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
             block: suspend () -> List<com.kitsugi.animelist.data.remote.JikanSearchResult>
         ): List<com.kitsugi.animelist.data.remote.JikanSearchResult> =
             withTimeoutOrNull(BANGUMI_SHELF_TIMEOUT_MS) {
-                runCatching { block() }.getOrDefault(emptyList())
+                try {
+                    block()
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    emptyList()
+                }
             } ?: emptyList()
 
         val topAnimeDeferred = async { shelf { bangumi.topAnime(20, context) } }
@@ -913,6 +1165,8 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
         val publishingMangaDeferred = async { shelf { bangumi.publishingManga(20, context) } }
         val trendingMangaDeferred = async { shelf { bangumi.trendingManga(20, context) } }
         val topRatedMangaDeferred = async { shelf { bangumi.topRatedManga(20, context) } }
+        val newlyAddedMangaDeferred = async { shelf { bangumi.newlyAddedManga(20, context) } }
+        val novelsDeferred = async { shelf { bangumi.novelsShelf(20, context) } }
         // Bangumi bölüm yayın saati sağlamaz → geri sayımlı şerit ortak takvim verisinden beslenir
         val airingSoonDeferred = async {
             withTimeoutOrNull(BANGUMI_SHELF_TIMEOUT_MS) { fetchSharedAiringSoon() }.orEmpty()
@@ -936,6 +1190,8 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
             newlyAddedAnime = newlyAddedAnimeDeferred.await(),
             topRatedAnime = topRatedAnimeDeferred.await(),
             topRatedManga = topRatedMangaDeferred.await(),
+            newlyAddedManga = publishingMangaDeferred.await(),
+            novels = novelsDeferred.await(),
             airingSoonAnime = airingSoonDeferred.await()
         )
     }
@@ -959,6 +1215,17 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
             runCatching {
                 com.kitsugi.animelist.data.remote.KitsugiShikimoriClient.topAnime(limit = 20, censored = censored)
             }.getOrDefault(emptyList())
+        }
+        // Shikimori's catalogue id order is creation order; preserve both new anime/manga shelves.
+        val newlyAddedAnimeDeferred = async {
+            com.kitsugi.animelist.data.remote.KitsugiShikimoriClient.searchMediaAdvanced(
+                MediaType.Anime, order = "id_desc", limit = 20, censored = censored
+            )
+        }
+        val newlyAddedMangaDeferred = async {
+            com.kitsugi.animelist.data.remote.KitsugiShikimoriClient.searchMediaAdvanced(
+                MediaType.Manga, order = "id_desc", limit = 20, censored = censored
+            )
         }
         val trendingAnimeDeferred = async {
             runCatching {
@@ -1050,6 +1317,8 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
             trendingAnime = trendingAnimeDeferred.await(),
             movieAnime = movieAnimeDeferred.await(),
             seasonalAnime = seasonalAnimeDeferred.await(),
+            newlyAddedAnime = newlyAddedAnimeDeferred.await(),
+            newlyAddedManga = newlyAddedMangaDeferred.await(),
             manhwaManhua = manhwaManhuaDeferred.await(),
             novels = novelsDeferred.await(),
             airingSoonAnime = runCatching { airingSoonDeferred.await() }.getOrDefault(emptyList())
@@ -1192,140 +1461,71 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
 
     private suspend fun loadAniListData(allowFallback: Boolean = true): ExplorePayload = supervisorScope {
         val showAdult = showAdultContentState
-        val serviceError = java.util.concurrent.atomic.AtomicReference<Throwable?>(null)
-        fun <T> Result<T>.orDefaultTracking(d: T): T {
-            exceptionOrNull()?.let { ex ->
-                if (ex is com.kitsugi.animelist.data.remote.AniListServiceDownException)
-                    serviceError.compareAndSet(null, ex)
+        val initialCategories = ANILIST_INITIAL_EXPLORE_CATEGORIES
+        val (season, year) = currentAniListSeasonAndYear()
+        val requests = aniListExploreShelfRequests(initialCategories, season, year)
+        aniListLoadingCategories = aniListLoadingCategories + initialCategories
+
+        val shelves = try {
+            apiClient.aniListExploreShelves(requests.map { it.spec }, showAdult)
+        } catch (e: CancellationException) {
+            aniListLoadingCategories = aniListLoadingCategories - initialCategories.toSet()
+            throw e
+        } catch (e: Throwable) {
+            markAniListCategoriesFailed(initialCategories)
+            if (allowFallback) {
+                android.util.Log.w("ExploreViewModel", "AniList initial shelves unavailable; using Kitsu fallback", e)
+                return@supervisorScope loadKitsuData()
             }
-            return getOrDefault(d) ?: d
+            throw e
         }
 
-        // Raflar GraphQL alias öbekleriyle 3 istekte çekilir; eskiden 14 ayrı istek
-        // AniList'in 700ms kuyruğunda ~10-11 sn'ye diziliyordu. Toplu sorguda bir
-        // öbek başarısız olursa o raflar kendi eski tekil yollarından tamamlanır.
-        val shelfSpecs = run {
-            val cal = java.util.Calendar.getInstance()
-            val month = cal.get(java.util.Calendar.MONTH)
-            val year = cal.get(java.util.Calendar.YEAR)
-            val season = when (month) {
-                java.util.Calendar.DECEMBER, java.util.Calendar.JANUARY, java.util.Calendar.FEBRUARY -> "WINTER"
-                java.util.Calendar.MARCH, java.util.Calendar.APRIL, java.util.Calendar.MAY -> "SPRING"
-                java.util.Calendar.JUNE, java.util.Calendar.JULY, java.util.Calendar.AUGUST -> "SUMMER"
-                else -> "FALL"
-            }
-            listOf(
-                AniListShelfSpec("topAnime", MediaType.Anime, listOf("POPULARITY_DESC")),
-                AniListShelfSpec("topRatedAnime", MediaType.Anime, listOf("SCORE_DESC")),
-                AniListShelfSpec("topRatedManga", MediaType.Manga, listOf("SCORE_DESC")),
-                AniListShelfSpec("trendingAnime", MediaType.Anime, listOf("TRENDING_DESC")),
-                AniListShelfSpec("seasonalAnime", MediaType.Anime, listOf("POPULARITY_DESC"), season = season, seasonYear = year),
-                AniListShelfSpec("movieAnime", MediaType.Anime, listOf("POPULARITY_DESC"), format = "MOVIE"),
-                AniListShelfSpec("airingAnime", MediaType.Anime, listOf("POPULARITY_DESC"), status = "RELEASING"),
-                AniListShelfSpec("upcomingAnime", MediaType.Anime, listOf("POPULARITY_DESC"), status = "NOT_YET_RELEASED"),
-                AniListShelfSpec("topManga", MediaType.Manga, listOf("POPULARITY_DESC")),
-                AniListShelfSpec("publishingManga", MediaType.Manga, listOf("POPULARITY_DESC"), status = "RELEASING"),
-                AniListShelfSpec("trendingManga", MediaType.Manga, listOf("TRENDING_DESC", "POPULARITY_DESC")),
-                AniListShelfSpec("newlyAddedAnime", MediaType.Anime, listOf("ID_DESC")),
-                AniListShelfSpec("newlyAddedManga", MediaType.Manga, listOf("ID_DESC")),
-                // AniList'in yerel ek tür rafı: NOVEL formatı (light novel & romanlar).
-                AniListShelfSpec("novels", MediaType.Manga, listOf("POPULARITY_DESC"), format = "NOVEL")
-            )
+        val loaded = initialCategories.filter { category ->
+            val categoryRequests = requests.filter { it.category == category }
+            categoryRequests.isNotEmpty() && categoryRequests.all { shelves.containsKey(it.spec.alias) }
         }
-        val shelfBatch = async {
-            try {
-                apiClient.aniListExploreShelves(shelfSpecs, showAdult)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Throwable) {
-                serviceError.compareAndSet(null, e)
-                null
-            }
+        val failed = initialCategories - loaded.toSet()
+        val results = loaded.associateWith { category ->
+            requests.asSequence()
+                .filter { it.category == category }
+                .flatMap { shelves[it.spec.alias].orEmpty().asSequence() }
+                .distinctBy { it.exploreIdentity() }
+                .toList()
+        }
+        if (loaded.isNotEmpty()) {
+            Companion.loadedAniListCategories.addAll(loaded)
+            Companion.failedAniListCategories.removeAll(loaded.toSet())
+            aniListLoadedCategories = aniListLoadedCategories + loaded
+            aniListFailedCategories = aniListFailedCategories - loaded.toSet()
+        }
+        if (failed.isNotEmpty()) markAniListCategoriesFailed(failed)
+        aniListLoadingCategories = aniListLoadingCategories - initialCategories.toSet()
+
+        if (results.values.none { it.isNotEmpty() }) {
+            val emptyFailure = IllegalStateException("AniList keşfet rafları boş döndü")
+            if (allowFallback) return@supervisorScope loadKitsuData()
+            throw emptyFailure
         }
 
-        fun shelf(alias: String, fallback: suspend () -> List<JikanSearchResult>) = async {
-            val batch = shelfBatch.await()
-            batch?.get(alias)?.let { return@async it }
-            if (serviceError.get() != null || com.kitsugi.animelist.data.remote.KitsugiApiBase.isAniListUnavailableNow()) {
-                return@async emptyList()
-            }
-            fallback()
-        }
-
-        val topAnimeDeferred = shelf("topAnime") { apiClient.aniListTopAnime(showAdultContent = showAdult) }
-        val topRatedAnimeDeferred = shelf("topRatedAnime") { apiClient.aniListTopRated(MediaType.Anime, showAdultContent = showAdult) }
-        val topRatedMangaDeferred = shelf("topRatedManga") { apiClient.aniListTopRated(MediaType.Manga, showAdultContent = showAdult) }
-        val trendingAnimeDeferred = shelf("trendingAnime") { apiClient.aniListTrendingAnime(showAdultContent = showAdult) }
-        val seasonalAnimeDeferred = shelf("seasonalAnime") { apiClient.aniListSeasonalAnime(showAdultContent = showAdult) }
-        val movieAnimeDeferred = shelf("movieAnime") { apiClient.aniListMovieAnime(showAdultContent = showAdult) }
-        val airingAnimeDeferred = shelf("airingAnime") { apiClient.aniListAiringAnime(showAdultContent = showAdult) }
-        val upcomingAnimeDeferred = shelf("upcomingAnime") { apiClient.aniListUpcomingAnime(showAdultContent = showAdult) }
-        val topMangaDeferred = shelf("topManga") { apiClient.aniListTopManga(showAdultContent = showAdult) }
-        val publishingMangaDeferred = shelf("publishingManga") { apiClient.aniListPublishingManga(showAdultContent = showAdult) }
-        val trendingMangaDeferred = shelf("trendingManga") { apiClient.aniListTrendingManga(showAdultContent = showAdult) }
-        val newlyAddedAnimeDeferred = shelf("newlyAddedAnime") { apiClient.aniListNewlyAddedAnime(showAdultContent = showAdult) }
-        val newlyAddedMangaDeferred = shelf("newlyAddedManga") { apiClient.aniListNewlyAddedManga(showAdultContent = showAdult) }
-        val novelsDeferred = shelf("novels") { apiClient.aniListNovels(showAdultContent = showAdult) }
-
-        val airingSoonDeferred = async {
-            val cal = com.kitsugi.animelist.data.remote.KitsugiAiringCalendarClient()
-            val upcoming = runCatching { cal.fetchUpcomingSchedule(limit = 15) }.getOrNull() ?: emptyList()
-            val nowSec = System.currentTimeMillis() / 1000L
-            upcoming.filter { it.airingAt > nowSec }.sortedBy { it.airingAt }.take(15)
-                .map { e ->
-                    JikanSearchResult(
-                        malId = e.malId ?: e.aniListId, title = e.getDisplayTitle(),
-                        subtitle = getApplication<Application>().getString(R.string.explore_episode_subtitle, e.episode), type = MediaType.Anime,
-                        total = null, score = e.averageScore, isAdult = e.isAdult,
-                        imageUrl = e.coverUrl, year = null, source = "anilist",
-                        realMalId = e.malId, titleEnglish = e.titleEnglish,
-                        titleJapanese = e.titleNative,
-                        nextAiringEpisode = "${e.episode}|${e.airingAt}"
-                    )
-                }
-        }
-
-        val topAnime        = runCatching { topAnimeDeferred.await() }.orDefaultTracking(emptyList())
-        val airingAnime     = runCatching { airingAnimeDeferred.await() }.orDefaultTracking(emptyList())
-        val upcomingAnime   = runCatching { upcomingAnimeDeferred.await() }.orDefaultTracking(emptyList())
-        val topManga        = runCatching { topMangaDeferred.await() }.orDefaultTracking(emptyList())
-        val publishingManga = runCatching { publishingMangaDeferred.await() }.orDefaultTracking(emptyList())
-        val trendingManga   = runCatching { trendingMangaDeferred.await() }.orDefaultTracking(emptyList())
-        val newlyAddedAnime = runCatching { newlyAddedAnimeDeferred.await() }.orDefaultTracking(emptyList())
-        val newlyAddedManga = runCatching { newlyAddedMangaDeferred.await() }.orDefaultTracking(emptyList())
-        val airingSoon      = runCatching { airingSoonDeferred.await() }.getOrDefault(emptyList())
-
-        // AniList veri vermezse veya servis hatası tespit edildiyse Kitsu tam fallback
-        val isAniListEmpty = topAnime.isEmpty() && airingAnime.isEmpty() && upcomingAnime.isEmpty()
-        if (allowFallback && (serviceError.get() != null || isAniListEmpty)) {
-            android.util.Log.w("ExploreViewModel", "AniList veri vermedi veya servis hatası (boş=$isAniListEmpty) → Kitsu fallback")
-            return@supervisorScope loadKitsuData()
-        }
-        if (!allowFallback && isAniListEmpty) {
-            serviceError.get()?.let { throw it }
-        }
-
-        // Kısmi boşlukları Kitsu ile tamamla
-        val needsKitsuFill = topAnime.isEmpty() || airingAnime.isEmpty() || upcomingAnime.isEmpty() ||
-            topManga.isEmpty() || publishingManga.isEmpty() || trendingManga.isEmpty()
-        val kitsuFill = if (allowFallback && needsKitsuFill) runCatching { loadKitsuData() }.getOrNull() else null
-
+        val airingSoon = runCatching { fetchSharedAiringSoon() }.getOrDefault(emptyList())
         ExplorePayload(
-            topAnime = topAnime.ifEmpty { kitsuFill?.topAnime ?: emptyList() },
-            airingAnime = airingAnime.ifEmpty { kitsuFill?.airingAnime ?: emptyList() },
-            upcomingAnime = upcomingAnime.ifEmpty { kitsuFill?.upcomingAnime ?: emptyList() },
-            topManga = topManga.ifEmpty { kitsuFill?.topManga ?: emptyList() },
-            publishingManga = publishingManga.ifEmpty { kitsuFill?.publishingManga ?: emptyList() },
-            trendingManga = trendingManga.ifEmpty { kitsuFill?.trendingManga ?: emptyList() },
-            newlyAddedAnime = newlyAddedAnime.ifEmpty { kitsuFill?.newlyAddedAnime ?: emptyList() },
-            newlyAddedManga = newlyAddedManga.ifEmpty { kitsuFill?.newlyAddedManga ?: emptyList() },
-            trendingAnime = runCatching { trendingAnimeDeferred.await() }.orDefaultTracking(emptyList()),
-            movieAnime = runCatching { movieAnimeDeferred.await() }.orDefaultTracking(emptyList()),
-            seasonalAnime = runCatching { seasonalAnimeDeferred.await() }.orDefaultTracking(emptyList()),
-            topRatedAnime = runCatching { topRatedAnimeDeferred.await() }.orDefaultTracking(emptyList()),
-            topRatedManga = runCatching { topRatedMangaDeferred.await() }.orDefaultTracking(emptyList()),
-            novels = runCatching { novelsDeferred.await() }.orDefaultTracking(emptyList()),
-            airingSoonAnime = airingSoon
+            topAnime = results[ExploreCategoryType.TOP_ANIME].orEmpty(),
+            airingAnime = results[ExploreCategoryType.AIRING_ANIME].orEmpty(),
+            upcomingAnime = results[ExploreCategoryType.UPCOMING_ANIME].orEmpty(),
+            topManga = emptyList(),
+            publishingManga = emptyList(),
+            trendingAnime = results[ExploreCategoryType.TRENDING_ANIME].orEmpty(),
+            movieAnime = results[ExploreCategoryType.MOVIE_ANIME].orEmpty(),
+            seasonalAnime = emptyList(),
+            airingSoonAnime = airingSoon,
+            topRatedAnime = results[ExploreCategoryType.TOP_RATED_ANIME].orEmpty(),
+            // Remaining supported AniList shelves are fetched only when their row is approached.
+            topRatedManga = null,
+            trendingManga = emptyList(),
+            newlyAddedAnime = emptyList(),
+            newlyAddedManga = emptyList(),
+            manhwaManhua = null,
+            novels = null
         )
     }
 
@@ -1364,6 +1564,8 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
     companion object {
         val platformCache = java.util.concurrent.ConcurrentHashMap<ExplorePlatform, ExplorePayload>()
         val loadedPlatforms = java.util.Collections.synchronizedSet(mutableSetOf<ExplorePlatform>())
+        internal val loadedAniListCategories = java.util.Collections.synchronizedSet(mutableSetOf<ExploreCategoryType>())
+        internal val failedAniListCategories = java.util.Collections.synchronizedSet(mutableSetOf<ExploreCategoryType>())
         
         private val isPrefetchStarted = java.util.concurrent.atomic.AtomicBoolean(false)
         @Volatile

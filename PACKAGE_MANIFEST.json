@@ -1,226 +1,201 @@
 {
-  "repository": "f26901964-eng/Kitsugi-Beta",
-  "branch": "arena/9615ba68-kitsugi-beta",
-  "base_commit": "7db552159f1c581cd2c7d379e04faba801617c19",
-  "date": "2026-10-21",
-  "scope": "Changed and new files, not a full repository or APK",
-  "file_count": 43,
-  "deleted_paths": [],
+  "archive": "Kitsugi-Golge-Bahcesi-integration-2026-10-26.zip",
+  "scope": "Changed and newly added repository files plus current plan/task document; not a full repository or APK.",
   "files": [
     {
-      "path": "PLAN_TASK_WIKI_ORIGINAL_CEVIRI_TEMA_2026-10-21.md",
-      "size": 5690,
-      "sha256": "874b0a1e881cab9e9e1f20b036321109226c7c397dd2033e08df011b1da2ebab"
+      "path": "PLAN_TASK_GOLGE_BAHCESI_ENTEGRASYONU_2026-10-26.md",
+      "size_bytes": 2667,
+      "sha256": "a7e6ce7041b2164b6e01e501ffd6f9f54961cd8bdae63e49010478fa72341404"
     },
     {
-      "path": "app/src/main/assets/wiki/NOTICE.md",
-      "size": 1459,
-      "sha256": "792a05f48b0073973799ba93b0aeb602555ea9eb8b2e076a1581f29dc6871c71"
+      "path": "app/build.gradle.kts",
+      "size_bytes": 21197,
+      "sha256": "2d41edb68ff916715bf9a86319e62f2696ae78adc50fae397a28a5b1a0230ba6"
     },
     {
-      "path": "app/src/main/assets/wiki/STEVENBLACK-LICENSE.txt",
-      "size": 1086,
-      "sha256": "8fea4b3d2ea66f1186ab6a029231441d6f3a9b4a36648d63711eb25f9eb72aa5"
+      "path": "app/proguard-rules.pro",
+      "size_bytes": 13244,
+      "sha256": "4ef41edc3f93940175beefa18ae17f5e2a48050d8203a3fd008efa80aec7fe3c"
     },
     {
-      "path": "app/src/main/assets/wiki/adblock-cosmetic.js",
-      "size": 940,
-      "sha256": "51e6ef0e7eb111e838fa586b8f5a3f86ca4ba8c94c69600758ea67b937683918"
+      "path": "app/src/main/java/com/kitsugi/animelist/AppRootSettingsExtras.kt",
+      "size_bytes": 72306,
+      "sha256": "ac2a8b315c5e4e39275f6b884637f4a3439ea08f226463f679a29b9b3de7a28f"
     },
     {
-      "path": "app/src/main/assets/wiki/dom-translator.js",
-      "size": 10772,
-      "sha256": "78d5101d4951e0d6cd516bf7b3928c2d126b49625361c7ab40c884c837740803"
+      "path": "app/src/main/java/com/kitsugi/animelist/KitsugiApplication.kt",
+      "size_bytes": 48582,
+      "sha256": "3f6d1e6c48b6edac2a3729e73903fb684e2fc2f3f9be170213f5db70923e48ec"
     },
     {
-      "path": "app/src/main/assets/wiki/hosts-source.json",
-      "size": 385,
-      "sha256": "39d00252262693dc43a0656cb4d0f42caf952b49a46a20935489c7d0e3f5cca8"
+      "path": "app/src/main/java/com/kitsugi/animelist/core/network/GolgeBahcesiImageHeaders.kt",
+      "size_bytes": 2162,
+      "sha256": "1e40cfca278369385fdce9df2c79f578132e5e922005e2a8b21e6ff62d53fe17"
     },
     {
-      "path": "app/src/main/assets/wiki/page-appearance.js",
-      "size": 3673,
-      "sha256": "055c7ae23664bd7048f17eda07e56dce090dc88217f93b1128135e2e0156da8b"
+      "path": "app/src/main/java/com/kitsugi/animelist/core/network/KitsugiHttpClient.kt",
+      "size_bytes": 6490,
+      "sha256": "7f994b7422d5cfd45a8793a6045637c8b8b55182c23a86a7622134ff9358fc76"
     },
     {
-      "path": "app/src/main/assets/wiki/stevenblack-hosts.txt",
-      "size": 96862,
-      "sha256": "7292b5c7a3fa892eef4407806e7cb31ecc6f5d730f116eb81287f94243c320be"
+      "path": "app/src/main/java/com/kitsugi/animelist/data/manga/KitsugiMangaDefaultProfile.kt",
+      "size_bytes": 8216,
+      "sha256": "4e00d8db19cc0b6a4ee1590a4edb5391e576361c5ad3681483d6fefa963deac1"
     },
     {
-      "path": "app/src/main/java/com/kitsugi/animelist/data/local/TranslationManager.kt",
-      "size": 32203,
-      "sha256": "d440dfaba426d208568370c393f9fa9c66177c9bb383e4b64cdae970412a071e"
+      "path": "app/src/main/java/com/kitsugi/animelist/data/manga/KotatsuExtensionAdapter.kt",
+      "size_bytes": 27255,
+      "sha256": "60d9d5774f6f6ac10a2dac27a7b208dcef4c42e1c787671d340dc16801f013d5"
     },
     {
-      "path": "app/src/main/java/com/kitsugi/animelist/data/settings/AppSettings.kt",
-      "size": 31620,
-      "sha256": "e4bed45b9fe64c3b38a9361d6093c0dc6574e0d101448e180045d485d080e804"
+      "path": "app/src/main/java/com/kitsugi/animelist/data/manga/MangaExtensionAutoUpdater.kt",
+      "size_bytes": 10010,
+      "sha256": "d5fd0082064c9f2c35bf88c370699e5541b1f69aa32064311e682241aa92c7ed"
     },
     {
-      "path": "app/src/main/java/com/kitsugi/animelist/data/settings/SettingsDataStore.kt",
-      "size": 105074,
-      "sha256": "f874b4b23739be81ec3258ab1cb3417069dfc084e3a1a700caf4079ab11f03f6"
+      "path": "app/src/main/java/com/kitsugi/animelist/data/manga/MangaExtensionLoader.kt",
+      "size_bytes": 33252,
+      "sha256": "c7338afdf0dc50f772c9cb68cf2405a81e2e9c87a4794cb9339c92f1ad18c939"
     },
     {
-      "path": "app/src/main/java/com/kitsugi/animelist/ui/screens/detail/CharacterDetailPage.kt",
-      "size": 50883,
-      "sha256": "03bf31c50c3ed3be35a2a82055f64d727e57972d628d46e7aeeaf8cf537dc504"
+      "path": "app/src/main/java/com/kitsugi/animelist/data/manga/MangaModels.kt",
+      "size_bytes": 2920,
+      "sha256": "d32ee7023ae19d88d7638409d00d4e5d372c7d8d41ece6e8f69f2e3114ecfd7f"
     },
     {
-      "path": "app/src/main/java/com/kitsugi/animelist/ui/screens/detail/wiki/CharacterWikiTabSlot.kt",
-      "size": 10079,
-      "sha256": "ab5293cb6503953b525779eec954cce6ddcb8183823581e1429c8831544628b4"
+      "path": "app/src/main/java/com/kitsugi/animelist/data/manga/MangaSource.kt",
+      "size_bytes": 5758,
+      "sha256": "9bd155a6c0196d4f04e4494761c7d9b7aefaa43b3169b15ab544a753631cab23"
     },
     {
-      "path": "app/src/main/java/com/kitsugi/animelist/ui/screens/detail/wiki/FandomCharacterWikiViewModel.kt",
-      "size": 52259,
-      "sha256": "728d6d1488f31259adf2e85f229c02206e319250f8336d5a3d44d37172ada90f"
+      "path": "app/src/main/java/com/kitsugi/animelist/data/manga/MangaSourceRepository.kt",
+      "size_bytes": 18544,
+      "sha256": "b049a04cc47970b2c7f91e760ed2dc64663163a080e1a261206e7f9ca588a7f4"
     },
     {
-      "path": "app/src/main/java/com/kitsugi/animelist/ui/screens/detail/wiki/FandomMediaWikiViewModel.kt",
-      "size": 85677,
-      "sha256": "eabaf6d9b417e88e4f6f1220a5a0871cec9ba50752d7446a416fda2e951c0680"
+      "path": "app/src/main/java/com/kitsugi/animelist/data/manga/MangaTitleMatcher.kt",
+      "size_bytes": 4316,
+      "sha256": "a988f6eab076076ecc265037a5c1c62b78601a3298bbfa0b01199b7a196e8b9d"
     },
     {
-      "path": "app/src/main/java/com/kitsugi/animelist/ui/screens/detail/wiki/FandomReaderBrowser.kt",
-      "size": 9249,
-      "sha256": "9f80a6fb12195d75a1da16aa867d229b71db9942271b90d667bd87b16d07cac4"
+      "path": "app/src/main/java/com/kitsugi/animelist/data/manga/SearchResultScorer.kt",
+      "size_bytes": 4388,
+      "sha256": "24470a47c8069cfe13af2d14625dd1ba2b0c43d39c8de6928bf452cebfd76574"
     },
     {
-      "path": "app/src/main/java/com/kitsugi/animelist/ui/screens/detail/wiki/FandomWikiReader.kt",
-      "size": 84585,
-      "sha256": "bca7418c1e309bcfa672fac2ea6028ccb3c61ac80d524608d4bf691b76b79636"
+      "path": "app/src/main/java/com/kitsugi/animelist/data/manga/SourceHealthService.kt",
+      "size_bytes": 5818,
+      "sha256": "85e923dbe0c1bc557309c469f84cd8971662cbb85824c82d6fef39943200e54f"
     },
     {
-      "path": "app/src/main/java/com/kitsugi/animelist/ui/screens/detail/wiki/MediaWikiTabContent.kt",
-      "size": 85903,
-      "sha256": "4b9aa608d1748fd86fb38bebe9e0e5202c37f7b3a7451f49363d067fe6123164"
+      "path": "app/src/main/java/com/kitsugi/animelist/data/manga/TurkishSourceRegistry.kt",
+      "size_bytes": 6277,
+      "sha256": "c0823c9ad2f3355369aa25fc1060d5e6305ac33d3992b98f3e387fde8e0505fb"
     },
     {
-      "path": "app/src/main/java/com/kitsugi/animelist/ui/screens/detail/wiki/WikiAdBlockRules.kt",
-      "size": 3031,
-      "sha256": "7db0bc7222b4e970c41f772bf05f32013a5329dc11bc3db7c3fa50b65752df83"
+      "path": "app/src/main/java/com/kitsugi/animelist/data/manga/loader/MangaCache.kt",
+      "size_bytes": 9525,
+      "sha256": "e93b6a68e8e865c66ce46858ce003243da5d3374ee997b39f7756e1d4fc54c10"
     },
     {
-      "path": "app/src/main/java/com/kitsugi/animelist/ui/screens/detail/wiki/WikiDomTranslationBatch.kt",
-      "size": 2420,
-      "sha256": "dcfcbac413459032602ee7bd28a137eece3abe07177cbfe602b847cdbdc89294"
+      "path": "app/src/main/java/com/kitsugi/animelist/data/manga/loader/MangaPageLoaderV2.kt",
+      "size_bytes": 12530,
+      "sha256": "d6894f3730d8d5bcfc5500783824e466db7acf68a801ccc11182aeb95b642410"
     },
     {
-      "path": "app/src/main/java/com/kitsugi/animelist/ui/screens/detail/wiki/WikiFindBar.kt",
-      "size": 4541,
-      "sha256": "145fb15f9eb37047f9250b7402d5a10579a07bdde16e6afce8c3a68af7decca8"
+      "path": "app/src/main/java/com/kitsugi/animelist/data/manga/sources/golgebahcesi/GolgeBahcesiDtos.kt",
+      "size_bytes": 12428,
+      "sha256": "9bbde65e749456fc970314cf51c42b5647dbb7a08386ac28bacf7a519251288b"
     },
     {
-      "path": "app/src/main/java/com/kitsugi/animelist/ui/screens/detail/wiki/WikiOriginalPage.kt",
-      "size": 26217,
-      "sha256": "e3f9eeaf5744e4283a763a30aad22aa939301306f61236d55ad694520db4fab4"
+      "path": "app/src/main/java/com/kitsugi/animelist/data/manga/sources/golgebahcesi/GolgeBahcesiReaderScripts.kt",
+      "size_bytes": 17371,
+      "sha256": "27214fa3667ea15b615161118f25cde7e8450ea16b1ebfd5952851b113a94f00"
     },
     {
-      "path": "app/src/main/java/com/kitsugi/animelist/ui/screens/detail/wiki/WikiOriginalPagePolicy.kt",
-      "size": 1821,
-      "sha256": "ce844e2428c43654b6283af00681a0411ea9366911dbaaef1fc601d093f2fe11"
+      "path": "app/src/main/java/com/kitsugi/animelist/data/manga/sources/golgebahcesi/GolgeBahcesiSecureSessionManager.kt",
+      "size_bytes": 25268,
+      "sha256": "b3f2bf5a71cf9c5000105db4baa61db504e8c6b941549285c49e39871aa90ed1"
     },
     {
-      "path": "app/src/main/java/com/kitsugi/animelist/ui/screens/detail/wiki/WikiPageEnhancements.kt",
-      "size": 13197,
-      "sha256": "2d8a8ba1be6b2446f82dd9b7d16d13fe063ce822e684b8fcdbb021b75f0eeaf2"
+      "path": "app/src/main/java/com/kitsugi/animelist/data/manga/sources/golgebahcesi/GolgeBahcesiSource.kt",
+      "size_bytes": 16724,
+      "sha256": "edf6d6ebb98d438e9dbdefaae461fd14a2f4f5f3db447d643f2471902d4e1be4"
     },
     {
-      "path": "app/src/main/java/com/kitsugi/animelist/ui/screens/detail/wiki/WikiPageToolPolicy.kt",
-      "size": 1484,
-      "sha256": "d89de61b09c2f6f9c61879fd1b693ff5fb0b7207c3105fd9e4050bbeb520f2c4"
+      "path": "app/src/main/java/com/kitsugi/animelist/data/remote/MangaRepoClient.kt",
+      "size_bytes": 22341,
+      "sha256": "0712a667b154ea3ab35c5050a8fdf68b265711d4780e6ffc7c52f1e858211d1e"
     },
     {
-      "path": "app/src/main/java/com/kitsugi/animelist/ui/screens/detail/wiki/WikiPageTools.kt",
-      "size": 11507,
-      "sha256": "be0a68568b433517eafafb53179d14d2d8d736060856cf4562d54d8dd9914eaa"
+      "path": "app/src/main/java/com/kitsugi/animelist/ui/app/MangaViewModel.kt",
+      "size_bytes": 27803,
+      "sha256": "a38bd0459969d9d10cbdc6415fee7c5b4ca00b111eac1352e507d226cfa0aed3"
     },
     {
-      "path": "app/src/main/java/com/kitsugi/animelist/ui/screens/detail/wiki/WikiReadingAppearance.kt",
-      "size": 893,
-      "sha256": "e2555f766732c36b14c1e66f8278ddab971f55de93f8088c7df16a546826686b"
+      "path": "app/src/main/java/com/kitsugi/animelist/ui/components/KitsugiAddonsSettingsDialog.kt",
+      "size_bytes": 24651,
+      "sha256": "5aab21451c2b0edb392fe9482c2949f5a58854d72d6db5724a284030600ae3a4"
     },
     {
-      "path": "app/src/main/res/values-en/strings.xml",
-      "size": 1316796,
-      "sha256": "152041ce231a7e344137c7717f369efa413cfab230afc30c3fcff209425524ee"
+      "path": "app/src/main/java/com/kitsugi/animelist/ui/components/addons/MangaExtensionTab.kt",
+      "size_bytes": 85901,
+      "sha256": "3847d311baa8e594843a22949571637594ccd354a80ceec750dd1132ec5c44ef"
     },
     {
-      "path": "app/src/main/res/values/strings.xml",
-      "size": 1337685,
-      "sha256": "33194f2de826fda288ee371ed0297ad42f8e21e6e1e0a3ae79e372c8acb18f6a"
+      "path": "app/src/main/java/com/kitsugi/animelist/ui/screens/manga/MangaBrowseScreen.kt",
+      "size_bytes": 34595,
+      "sha256": "2ae8520b8534bfbe9f4292a595591141b635cf74c757c8e00b6474df05410b0e"
     },
     {
-      "path": "app/src/test/java/com/kitsugi/animelist/ui/screens/detail/wiki/FandomReaderBrowserTest.kt",
-      "size": 10448,
-      "sha256": "ba6336feb5159abd1e5ad79a1430e2ac7edb52752e0f18667702bd46e81b3d1f"
+      "path": "app/src/main/java/com/kitsugi/animelist/ui/screens/more/AboutScreen.kt",
+      "size_bytes": 50281,
+      "sha256": "06da97bfcbb101bc3d9e7cd2c7cc33542fee20c6212ae5c2a15476385d3b6d07"
     },
     {
-      "path": "app/src/test/java/com/kitsugi/animelist/ui/screens/detail/wiki/WikiOriginalPagePolicyTest.kt",
-      "size": 2015,
-      "sha256": "20b7a10bdf59c0123d106519493f095a671fe8a0c8465143577d0408d2ca2d60"
+      "path": "app/src/main/java/com/kitsugi/animelist/ui/screens/settings/SettingsScreen.kt",
+      "size_bytes": 68349,
+      "sha256": "9220bbc2fced832db3770d7aebd8323d1432be7b9d510032b709e9852657c641"
     },
     {
-      "path": "app/src/test/java/com/kitsugi/animelist/ui/screens/detail/wiki/WikiPageToolsTest.kt",
-      "size": 2680,
-      "sha256": "acafde957db882e8463efbcf7c9accc8eddbe6cdc77edba80c95cbeb69e697bf"
+      "path": "app/src/main/java/com/kitsugi/animelist/ui/screens/settings/SettingsScreenParameters.kt",
+      "size_bytes": 30275,
+      "sha256": "9708e69e27a0e52acb097383893f753a4d8e9aa2bc23903cb859a38a66aaded9"
     },
     {
-      "path": "app/src/test/java/com/kitsugi/animelist/ui/screens/detail/wiki/WikiReadingAppearanceTest.kt",
-      "size": 1489,
-      "sha256": "3a5d11115b0adc36e74155690e2fa82de90bb428c236c7286ce1c484efa7fc0d"
+      "path": "app/src/main/java/com/kitsugi/animelist/ui/tv/TvRootScreen.kt",
+      "size_bytes": 49463,
+      "sha256": "6db3f5886ea3cb0aa03d7d1cd0cf1f6ea68874e929e622928acedebc1330d1b5"
     },
     {
-      "path": "docs/WIKI_DOM_TRANSLATION_ADBLOCK_2026-10-21.md",
-      "size": 16365,
-      "sha256": "2721dd49da74e2a5d0338608d6c195667970692fad892628e2dad259002134ef"
+      "path": "app/src/main/java/com/kitsugi/animelist/ui/tv/manga/TvMangaBrowseScreen.kt",
+      "size_bytes": 24270,
+      "sha256": "09bc2c469b0138e1a58d7a0b2f601af44fc83490ad3805d33936159ecaca1630"
     },
     {
-      "path": "docs/WIKI_ORIGINAL_LAYOUT_2026-10-21.md",
-      "size": 15645,
-      "sha256": "8411cbf3e69ff6333011f89548bbe373c0cf3412a058023af70e0fd5df3275a9"
+      "path": "app/src/main/java/com/kitsugi/animelist/ui/tv/manga/TvMangaExtensionScreen.kt",
+      "size_bytes": 55795,
+      "sha256": "bc078ecdfd8a37e3137d1a9dc0630d1b4b45dc106d32e9ac36859d766af07dc5"
     },
     {
-      "path": "docs/WIKI_READING_USABILITY_2026-10-21.md",
-      "size": 7920,
-      "sha256": "6c8b97bf3292d9dfb711def6c9f24d5d68d0e07376f8691620c927c0e39bdd65"
+      "path": "app/src/test/java/com/kitsugi/animelist/core/network/GolgeBahcesiImageHeadersTest.kt",
+      "size_bytes": 1814,
+      "sha256": "ff53a9a8d6903c525efe000ad63ac1cd216076af8db5522c330e9058724a4ab0"
     },
     {
-      "path": "scripts/tests/WikiOriginalPageChecks.kt",
-      "size": 6792,
-      "sha256": "802db0c431921c1e27ea2770bae7f9c310e407350133237fd61471e86ef0c3de"
+      "path": "app/src/test/java/com/kitsugi/animelist/data/manga/GolgeBahcesiIntegrationPolicyTest.kt",
+      "size_bytes": 5214,
+      "sha256": "2b2ccd910d47da2871c1577ca161c31f66d1a79baa22fd37c3727f47c7b2a999"
     },
     {
-      "path": "scripts/tests/WikiPageToolsChecks.kt",
-      "size": 7801,
-      "sha256": "4ff7b696b7583d7c164cf336dcb2d3e25e9a231d2edf7dea6ca1c16fd451b827"
+      "path": "app/src/test/java/com/kitsugi/animelist/data/manga/sources/golgebahcesi/GolgeBahcesiParserTest.kt",
+      "size_bytes": 7399,
+      "sha256": "042840c0acb780379ca3e13fc0ecaeac98693139a9010bc7f351d4bfb9e32e44"
     },
     {
-      "path": "scripts/tests/WikiReadingAppearanceChecks.kt",
-      "size": 2800,
-      "sha256": "a82bdf76f65bb06b5649fe3e0c34871245ff15a63bb45940d86880be9d25582b"
-    },
-    {
-      "path": "scripts/tests/wiki-dom-tools.cjs",
-      "size": 14864,
-      "sha256": "3ef23abb83586feff7954c8e396fa4c0e6fce911c191885f392007510108428e"
-    },
-    {
-      "path": "scripts/tests/wiki-original-viewport.cjs",
-      "size": 4029,
-      "sha256": "1be913af609180fcdd224dfed460b4066620062a748b5d581a91383d5343ea09"
-    },
-    {
-      "path": "scripts/tests/wiki-page-appearance.cjs",
-      "size": 6339,
-      "sha256": "d95568d64ff5a92dc328303e6cbea57314e56d152bc31059ffe566b6b6c103c5"
-    },
-    {
-      "path": "scripts/update_wiki_ad_hosts.py",
-      "size": 3508,
-      "sha256": "6ffcde51c81cc1d8da1a41e3879153a23f2152bc334a64c167e9800d9f334003"
+      "path": "gradle/libs.versions.toml",
+      "size_bytes": 7188,
+      "sha256": "68eb65c702beab9a5560ea6cc22f3a8680add9af3b5cf2531c61ae5246967aec"
     }
   ]
 }

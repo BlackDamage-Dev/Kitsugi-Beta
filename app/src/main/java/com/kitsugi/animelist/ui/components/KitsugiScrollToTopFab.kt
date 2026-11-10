@@ -14,12 +14,12 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.KeyboardArrowUp
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.Icon
 import com.kitsugi.animelist.ui.theme.gradient.FloatingActionButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.graphicsLayer
@@ -45,14 +45,20 @@ fun KitsugiScrollToTopFab(
     bottomBarScrollState: ScrollVisibilityState?,
     fallbackBottomBarVisible: Boolean,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /**
+     * Alt barın gerçek yüksekliği. Varsayılan 88dp, alt barda ekstra satır bulunan
+     * ekranlarda (ör. manga okuyucudaki sayfa şeridi) düğme barın üstüne taşmasın diye
+     * artırılabilir.
+     */
+    bottomBarHeight: Dp = 88.dp
 ) {
     val bottomBarVisible = bottomBarScrollState?.isVisible ?: fallbackBottomBarVisible
     val navigationPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val bottomPadding by animateDpAsState(
         targetValue = when {
             isLandscape -> 20.dp
-            bottomBarVisible -> 88.dp + navigationPadding
+            bottomBarVisible -> bottomBarHeight + navigationPadding
             else -> 24.dp + navigationPadding
         },
         animationSpec = tween(220),
@@ -85,7 +91,7 @@ fun KitsugiScrollToTopFab(
                 }
         ) {
             Icon(
-                imageVector = Icons.Default.KeyboardArrowUp,
+                imageVector = Icons.KeyboardArrowUp,
                 contentDescription = stringResource(R.string.yukari_cik),
                 modifier = Modifier.size(30.dp)
             )

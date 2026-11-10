@@ -55,7 +55,7 @@ object ShikimoriApiClient {
      * elle takip edilir.
      */
     private val shikimoriHttpClient: OkHttpClient by lazy {
-        KitsugiHttpClient.client.newBuilder()
+        KitsugiHttpClient.syncClient.newBuilder()
             .followRedirects(false)
             .followSslRedirects(false)
             .build()
@@ -103,14 +103,64 @@ object ShikimoriApiClient {
     }
 
     /**
+     * Yanıtın bir ISP/WAF HTML engelleme sayfası veya geçici ağ geçidi hatası (Cloudflare
+     * 52x / 502..504 / 451) olup olmadığını gövdeyi tüketmeden (`peekBody`) kontrol eder.
+     * Bu durumda diğer Shikimori aynasına (`shikimori.one` / `shikimori.tv`) geçilir (`E100`).
+     */
+    internal fun shouldFailOverResponse(request: Request, response: Response): Boolean {
+        val code = response.code
+        if (code in 502..504 || code in 520..529 || code == 451) return true
+        val path = request.url.encodedPath
+        val expectsJson = path.startsWith("/api/") || path.startsWith("/oauth/token")
+        if (!expectsJson) return false
+        if (code == 200 || code == 403) {
+            val contentType = response.header("Content-Type")?.lowercase().orEmpty()
+            if (contentType.contains("text/html")) return true
+            val snippet = runCatching { response.peekBody(256).string().trimStart() }.getOrDefault("")
+            if (snippet.startsWith("<!DOCTYPE", ignoreCase = true) ||
+                snippet.startsWith("<html", ignoreCase = true)
+            ) {
+                return true
+            }
+        }
+        return false
+    }
+
+    /**
      * Shikimori isteklerini çalıştırır. Sunucu yönlendirme (301/302/303/307/308)
      * döndürürse, isteği orijinal Authorization header'ı korunarak yeni adrese
-     * yeniden gönderir (en fazla 3 atlayış). Dönen response'u çağıran kapatmalıdır.
+     * yeniden gönderir (en fazla 3 atlayış). Erişim engeli / HTML blok sayfası / 502-52x
+     * durumunda aday domain'ler arasında otomatik geçiş yapar (`E100`).
+     * Dönen response'u çağıran kapatmalıdır.
      */
-    internal fun executeShikimori(request: Request, maxHops: Int = 3): Response {
+    internal fun executeShikimori(
+        request: Request,
+        maxHops: Int = 3,
+        candidateBaseUrls: List<String> = baseUrlCandidates()
+    ): Response {
         var current = request
         var hops = 0
-        val triedHosts = mutableSetOf(current.url.host)
+        val triedTargets = mutableSetOf("${current.url.scheme}://${current.url.host}:${current.url.port}")
+        fun nextMirrorRequest(): Request? {
+            val nextUrlObj = candidateBaseUrls.asSequence()
+                .mapNotNull { candidate -> runCatching { okhttp3.HttpUrl.Builder().run {
+                    val uri = java.net.URI(candidate)
+                    scheme(uri.scheme ?: "https")
+                    host(uri.host ?: return@mapNotNull null)
+                    if (uri.port > 0) port(uri.port)
+                    build()
+                } }.getOrNull() }
+                .firstOrNull { candidate ->
+                    "${candidate.scheme}://${candidate.host}:${candidate.port}" !in triedTargets
+                } ?: return null
+            triedTargets += "${nextUrlObj.scheme}://${nextUrlObj.host}:${nextUrlObj.port}"
+            val rebuiltUrl = current.url.newBuilder()
+                .scheme(nextUrlObj.scheme)
+                .host(nextUrlObj.host)
+                .port(nextUrlObj.port)
+                .build()
+            return current.newBuilder().url(rebuiltUrl).build()
+        }
         while (true) {
             val response = try {
                 shikimoriHttpClient.newCall(current).execute()
@@ -118,15 +168,7 @@ object ShikimoriApiClient {
                 // Erişilemiyor (DNS/TLS/bağlantı — ülke-ölçeği kısıt dahil):
                 // Shikimori domain adayları arasında sırayla geç.
                 if (!isReachabilityFailure(e)) throw e
-                val nextBase = baseUrlCandidates().firstOrNull { candidate ->
-                    val h = candidate.removePrefix("https://")
-                    h.isNotEmpty() && h !in triedHosts
-                } ?: throw e
-                val nextHost = nextBase.removePrefix("https://")
-                current = current.newBuilder()
-                    .url(current.url.newBuilder().host(nextHost).build())
-                    .build()
-                triedHosts += nextHost
+                current = nextMirrorRequest() ?: throw e
                 continue
             }
             if (response.code in 300..399 && hops < maxHops) {
@@ -146,8 +188,15 @@ object ShikimoriApiClient {
                     }
                 }
             }
-            if (response.isSuccessful && current.url.host.startsWith("shikimori")) {
-                rememberWorkingBaseUrl("https://" + current.url.host)
+            if (shouldFailOverResponse(current, response)) {
+                val fallback = nextMirrorRequest()
+                if (fallback != null) {
+                    response.close()
+                    current = fallback
+                    continue
+                }
+            } else if (response.isSuccessful && current.url.host.startsWith("shikimori")) {
+                rememberWorkingBaseUrl("${current.url.scheme}://${current.url.host}")
             }
             return response
         }
@@ -205,6 +254,8 @@ object ShikimoriApiClient {
         val startYear: Int? = null,
         /** Shikimori `english` dizisinin ilk öğesi (varsa); user_rates yanıtında her zaman gelmez */
         val titleEnglish: String? = null,
+        /** Shikimori `japanese` dizisinin ilk öğesi (varsa); CJK/Kana başlık köprüsü için (`E99`) */
+        val titleJapanese: String? = null,
         /** Shikimori rating, when included in the user-rate response. */
         val ageRating: String? = null,
         /** +18 içerik mi? (`rating == "rx"` / hentai türü) — bulanıklık için kullanılır */
@@ -214,7 +265,9 @@ object ShikimoriApiClient {
         /** Tekrar izleme/okuma sayısı (`rewatches`). */
         val rewatches: Int = 0,
         /** Okunan cilt sayısı (`volumes`, yalnızca manga). */
-        val volumes: Int = 0
+        val volumes: Int = 0,
+        /** Kayıt zamanı (`created_at`, epoch sn; 0 = bilinmiyor) — "Son eklenen" anahtarı. */
+        val createdAt: Long = 0L
     )
 
     const val DEFAULT_CLIENT_ID = "poB5DHHfiPP-DiphGJoelAnUeQ3PNkhPXwuUgXusl20"
@@ -301,7 +354,9 @@ object ShikimoriApiClient {
         val isInvalidGrant: Boolean = false,
         /** Sunucunun döndürdüğü HTTP durum kodu (0 = ağ/istemci kaynaklı hata). */
         val status: Int = 0
-    ) : Exception(message)
+    ) : Exception(message) {
+        constructor(status: Int, message: String) : this(message, false, status)
+    }
 
     /**
      * OAuth yetki kodunu (authorization code) access token ile takas eder.
@@ -512,7 +567,7 @@ object ShikimoriApiClient {
                 Thread.sleep(if (attempt == 1) 700L else 1500L)
             }
             val request = Request.Builder()
-                .url("$BASE_URL/api/users/whoami")
+                .url("${preferredBaseUrl()}/api/users/whoami")
                 .addHeader("User-Agent", USER_AGENT)
                 .addHeader("Authorization", "Bearer $token")
                 .get()
@@ -553,7 +608,7 @@ object ShikimoriApiClient {
      */
     suspend fun fetchFullUserProfile(token: String, userId: Int): ShikimoriFullProfile = withContext(Dispatchers.IO) {
         val request = Request.Builder()
-            .url("$BASE_URL/api/users/$userId")
+            .url("${preferredBaseUrl()}/api/users/$userId")
             .addHeader("User-Agent", USER_AGENT)
             .addHeader("Authorization", "Bearer $token")
             .get()
@@ -681,7 +736,7 @@ object ShikimoriApiClient {
             var page = 1
             val limit = 500
             while (true) {
-                val url = "$BASE_URL/api/users/$userId/$ep?page=$page&limit=$limit"
+                val url = "${preferredBaseUrl()}/api/users/$userId/$ep?page=$page&limit=$limit"
                 val request = Request.Builder()
                     .url(url)
                     .addHeader("User-Agent", USER_AGENT)
@@ -715,6 +770,10 @@ object ShikimoriApiClient {
                             val updatedAt = runCatching {
                                 java.time.Instant.parse(updatedAtStr).epochSecond
                             }.getOrDefault(0L)
+                            val createdAtStr = item.optString("created_at", "")
+                            val createdAt = runCatching {
+                                java.time.Instant.parse(createdAtStr).epochSecond
+                            }.getOrDefault(0L)
 
                             val mediaObj = if (targetType == "Anime") item.optJSONObject("anime") else item.optJSONObject("manga")
                             val targetId = mediaObj?.optInt("id", 0)?.takeIf { it > 0 } ?: item.optInt("target_id", 0)
@@ -736,6 +795,8 @@ object ShikimoriApiClient {
                                 ?.takeIf { it.isNotBlank() && it != "null" }
                                 ?.take(4)?.toIntOrNull()?.takeIf { it in 1900..2100 }
                             val englishTitle = mediaObj?.optJSONArray("english")
+                                ?.let { arr -> (0 until arr.length()).map { arr.optString(it, "") }.firstOrNull { it.isNotBlank() && it != "null" } }
+                            val japaneseTitle = mediaObj?.optJSONArray("japanese")
                                 ?.let { arr -> (0 until arr.length()).map { arr.optString(it, "") }.firstOrNull { it.isNotBlank() && it != "null" } }
                             val ageRating = mediaObj?.optString("rating")
                                 ?.takeIf { it.isNotBlank() && it != "null" }
@@ -764,11 +825,13 @@ object ShikimoriApiClient {
                                     episodes = episodes,
                                     chapters = chapters,
                                     updatedAt = updatedAt,
+                                    createdAt = createdAt,
                                     title = title,
                                     imageUrl = imgUrl,
                                     total = total,
                                     startYear = startYear,
                                     titleEnglish = englishTitle,
+                                    titleJapanese = japaneseTitle,
                                     ageRating = ageRating,
                                     isAdult = isAdult,
                                     notes = rateNotes,
@@ -832,7 +895,8 @@ object ShikimoriApiClient {
         targetId: Int, // MAL ID
         targetType: String, // "Anime" veya "Manga"
         status: String,
-        score: Int,
+        /** `null` = puana DOKUNMA (0 göndermek Shikimori'deki puanı siler). */
+        score: Int?,
         progress: Int,
         text: String? = null,
         rewatches: Int? = null,
@@ -844,7 +908,7 @@ object ShikimoriApiClient {
                 put("target_id", targetId)
                 put("target_type", targetType)
                 put("status", status)
-                put("score", score.coerceIn(0, 10))
+                score?.let { put("score", it.coerceIn(0, 10)) }
                 if (targetType == "Anime") put("episodes", progress)
                 else put("chapters", progress)
                 text?.takeIf { it.isNotBlank() }?.let { put("text", it) }
@@ -854,7 +918,7 @@ object ShikimoriApiClient {
         }
 
         val request = Request.Builder()
-            .url("$BASE_URL/api/v2/user_rates")
+            .url("${preferredBaseUrl()}/api/v2/user_rates")
             .addHeader("User-Agent", USER_AGENT)
             .addHeader("Content-Type", "application/json")
             .addHeader("Authorization", "Bearer $token")
@@ -863,12 +927,88 @@ object ShikimoriApiClient {
 
         executeShikimori(request).use { response ->
             val body = response.body?.string().orEmpty()
+            if (response.code == 401) {
+                throw ShikimoriTokenException(401, "Shikimori HTTP 401 Unauthorized")
+            }
             if (response.isSuccessful) {
                 JSONObject(body).optInt("id", 0).takeIf { it > 0 }
             } else {
                 Log.e(TAG, "createUserRate failed: ${response.code} $body")
                 null
             }
+        }
+    }
+
+    /**
+     * Kullanıcının bu yapı için VAR OLAN liste kaydının kimliğini bulur.
+     *
+     * Neden gerekli: yerel önbellekte rate kimliği yokken (kayıt Shikimori web'inde
+     * oluşturulmuş, satır başka bir kaynaktan gelmiş) doğrudan `POST /user_rates` göndermek
+     * "zaten var" hatasına düşerse kayıt **hiç eşitlenmez**. MAL-Sync de her yazımdan önce
+     * bu sorguyu yapar (`_update` → `v2/user_rates?target_id=..&user_id=..&target_type=..`).
+     *
+     * @return kayıt varsa `rate id`, yoksa `null` (ağ hatası da `null`).
+     */
+    suspend fun fetchUserRateId(
+        token: String,
+        userId: Int,
+        targetId: Int,
+        targetType: String
+    ): Int? = withContext(Dispatchers.IO) {
+        val url = "${preferredBaseUrl()}/api/v2/user_rates?user_id=$userId&target_id=$targetId" +
+            "&target_type=$targetType&limit=1"
+        val request = Request.Builder()
+            .url(url)
+            .addHeader("User-Agent", USER_AGENT)
+            .addHeader("Authorization", "Bearer $token")
+            .get()
+            .build()
+        try {
+            executeShikimori(request).use { response ->
+                if (response.code == 401) {
+                    throw ShikimoriTokenException(401, "Shikimori HTTP 401 Unauthorized")
+                }
+                if (!response.isSuccessful) return@use null
+                val body = response.body?.string().orEmpty()
+                if (body.isBlank()) return@use null
+                val array = org.json.JSONArray(body)
+                if (array.length() == 0) null
+                else array.getJSONObject(0).optInt("id", 0).takeIf { it > 0 }
+            }
+        } catch (authErr: ShikimoriTokenException) {
+            throw authErr
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /**
+     * Shikimori liste kaydına YALNIZCA verilen alanları yazar (`PATCH /api/v2/user_rates/{id}`).
+     *
+     * Alan bazlı eşitlemenin temeli: gönderilmeyen alan Shikimori'de değişmez. `score` 0
+     * göndermek kayıtlı puanı siler; bu yüzden puan yalnızca kullanıcı gerçekten
+     * değiştirdiğinde gönderilir.
+     */
+    suspend fun patchUserRate(
+        token: String,
+        rateId: Int,
+        attributes: JSONObject
+    ): Boolean = withContext(Dispatchers.IO) {
+        if (attributes.length() == 0) return@withContext true
+        val payload = JSONObject().put("user_rate", attributes)
+        val request = Request.Builder()
+            .url("${preferredBaseUrl()}/api/v2/user_rates/$rateId")
+            .addHeader("User-Agent", USER_AGENT)
+            .addHeader("Content-Type", "application/json")
+            .addHeader("Authorization", "Bearer $token")
+            .patch(payload.toString().toRequestBody(JSON_MEDIA_TYPE))
+            .build()
+
+        executeShikimori(request).use { response ->
+            if (response.code == 401) {
+                throw ShikimoriTokenException(401, "Shikimori HTTP 401 Unauthorized")
+            }
+            response.isSuccessful
         }
     }
 
@@ -893,7 +1033,7 @@ object ShikimoriApiClient {
         }
 
         val request = Request.Builder()
-            .url("$BASE_URL/api/v2/user_rates/$rateId")
+            .url("${preferredBaseUrl()}/api/v2/user_rates/$rateId")
             .addHeader("User-Agent", USER_AGENT)
             .addHeader("Content-Type", "application/json")
             .addHeader("Authorization", "Bearer $token")
@@ -901,6 +1041,9 @@ object ShikimoriApiClient {
             .build()
 
         executeShikimori(request).use { response ->
+            if (response.code == 401) {
+                throw ShikimoriTokenException(401, "Shikimori HTTP 401 Unauthorized")
+            }
             response.isSuccessful
         }
     }
@@ -910,13 +1053,16 @@ object ShikimoriApiClient {
      */
     suspend fun deleteUserRate(token: String, rateId: Int): Boolean = withContext(Dispatchers.IO) {
         val request = Request.Builder()
-            .url("$BASE_URL/api/v2/user_rates/$rateId")
+            .url("${preferredBaseUrl()}/api/v2/user_rates/$rateId")
             .addHeader("User-Agent", USER_AGENT)
             .addHeader("Authorization", "Bearer $token")
             .delete()
             .build()
 
         executeShikimori(request).use { response ->
+            if (response.code == 401) {
+                throw ShikimoriTokenException(401, "Shikimori HTTP 401 Unauthorized")
+            }
             response.isSuccessful || response.code == 404
         }
     }
@@ -938,7 +1084,7 @@ object ShikimoriApiClient {
      * Shikimori kullanıcısının geçmiş hareketlerini (izlenen/okunan/puanlanan kayıtlar) çeker.
      */
     suspend fun fetchUserHistory(token: String, userId: Int, limit: Int = 30): List<ShikimoriHistoryItem> = withContext(Dispatchers.IO) {
-        val url = "$BASE_URL/api/users/$userId/history?limit=$limit"
+        val url = "${preferredBaseUrl()}/api/users/$userId/history?limit=$limit"
         val request = Request.Builder()
             .url(url)
             .addHeader("User-Agent", USER_AGENT)
@@ -1032,7 +1178,7 @@ object ShikimoriApiClient {
         page: Int = 1
     ): List<ShikimoriMessage> = withContext(Dispatchers.IO) {
         val safeLimit = limit.coerceIn(1, 100)
-        val url = "$BASE_URL/api/users/$userId/messages?limit=$safeLimit&page=$page&type=$type"
+        val url = "${preferredBaseUrl()}/api/users/$userId/messages?limit=$safeLimit&page=$page&type=$type"
         val request = Request.Builder()
             .url(url)
             .addHeader("User-Agent", USER_AGENT)
@@ -1092,7 +1238,7 @@ object ShikimoriApiClient {
      */
     suspend fun fetchUnreadCounts(token: String, userId: Int): ShikimoriUnread? = withContext(Dispatchers.IO) {
         val request = Request.Builder()
-            .url("$BASE_URL/api/users/$userId/unread_messages")
+            .url("${preferredBaseUrl()}/api/users/$userId/unread_messages")
             .addHeader("User-Agent", USER_AGENT)
             .addHeader("Authorization", "Bearer $token")
             .addHeader("Accept", "application/json")
@@ -1123,7 +1269,7 @@ object ShikimoriApiClient {
      * Shikimori kullanıcısının favorilerini (anime, manga, karakterler) çeker.
      */
     suspend fun fetchUserFavorites(token: String, userId: Int): List<com.kitsugi.animelist.ui.app.ProfileFavoriteItem> = withContext(Dispatchers.IO) {
-        val url = "$BASE_URL/api/users/$userId/favourites"
+        val url = "${preferredBaseUrl()}/api/users/$userId/favourites"
         val request = Request.Builder()
             .url(url)
             .addHeader("User-Agent", USER_AGENT)

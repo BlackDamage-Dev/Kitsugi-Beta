@@ -1,77 +1,60 @@
 @file:Suppress("UNUSED_PARAMETER")
 package com.kitsugi.animelist.ui.screens.search.components
 
-import com.kitsugi.animelist.ui.theme.gradient.Icon
-import com.kitsugi.animelist.ui.theme.gradient.Text
-
 import com.kitsugi.animelist.core.memory.BoundedCache
-
+import com.kitsugi.animelist.ui.utils.uniqueItems
 import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.foundation.ExperimentalFoundationApi
-import com.kitsugi.animelist.ui.theme.gradient.background
-import com.kitsugi.animelist.ui.theme.gradient.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Extension
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.Search
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.input.ImeAction
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
-import com.kitsugi.animelist.ui.components.KitsugiPlasmaLoader
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
-import coil.compose.AsyncImage
+import com.kitsugi.animelist.R
 import com.kitsugi.animelist.data.cloudstream.CsPluginStatusTracker
 import com.kitsugi.animelist.data.cloudstream.CsStreamRunner
-import com.kitsugi.animelist.ui.theme.KitsugiColors
+import com.kitsugi.animelist.ui.components.*
 import com.kitsugi.animelist.ui.components.errors.PlatformErrorCodeHint
 import com.kitsugi.animelist.data.diagnostics.PlatformErrorCode
+import com.kitsugi.animelist.ui.theme.KitsugiColors
 import com.kitsugi.animelist.ui.theme.LocalKitsugiAccent
+import com.kitsugi.animelist.ui.theme.gradient.background
+import com.kitsugi.animelist.ui.theme.gradient.border
+import com.kitsugi.animelist.ui.theme.gradient.Icon
+import com.kitsugi.animelist.ui.theme.gradient.Text
 import com.lagradost.cloudstream3.HomePageList
 import com.lagradost.cloudstream3.MainAPI
 import com.lagradost.cloudstream3.MainPageRequest
 import com.lagradost.cloudstream3.SearchResponse
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.util.concurrent.ConcurrentHashMap
 import androidx.compose.ui.res.stringResource
-import com.kitsugi.animelist.R
+import com.kitsugi.animelist.ui.utils.tvClickable
 
 // ─────────────────────────────────────────────────────────────────────────────
 // In-memory cache
@@ -85,19 +68,20 @@ object AddonExploreCache {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Main Dialog
+// Main Page — Keşfet / Arama sayfalarıyla birebir aynı tema
 // ─────────────────────────────────────────────────────────────────────────────
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun AddonExplorePage(
     api: MainAPI,
     onBackClick: () -> Unit,
     onSeeAllClick: ((title: String, mainPageData: String, horizontalImages: Boolean, initialItems: List<SearchResponse>) -> Unit)? = null,
-    titleLanguage: String = "ROMAJI",
+    titleLanguage: String = "ENGLISH",
     scoreFormat: String = "POINT_10",
     hideScores: Boolean = false,
-    blurAdultMedia: Boolean = false
+    blurAdultMedia: Boolean = false,
+    initialQuery: String = ""
 ) {
     val context = LocalContext.current
     val accentColor = LocalKitsugiAccent.current
@@ -112,13 +96,10 @@ fun AddonExplorePage(
     var hasSearched by remember { mutableStateOf(false) }
     var activeDetailUrl by remember { mutableStateOf<String?>(null) }
 
-    // +18 UYUMU (2026-10-14): eklenti portalı da uygulamanın geri kalanıyla aynı
-    // göster/gizle sözleşmesine uyar — yetişkin sonuçlar ayar kapalıyken elenir.
     val showAdultContent = com.kitsugi.animelist.ui.theme.LocalShowAdultContent.current
     val visibleSearchResults = remember(searchResults, showAdultContent) {
         if (showAdultContent) searchResults else searchResults.filter { !isAddonAdultResponse(it) }
     }
-
 
     BackHandler {
         when {
@@ -144,8 +125,6 @@ fun AddonExplorePage(
                 val dataList = withContext(Dispatchers.IO) {
                     val list = mutableListOf<HomePageList>()
                     try {
-                        // v2.4.239: vitrin (Öne Çıkan) yüklemesi de gate'li — CF korumalı
-                        // eklentide ana sayfa istekleri clearance'siz başlayıp 403 yemesin.
                         runCatching { CsStreamRunner.ensureCfClearance(api) }
                         for (pageData in api.mainPage) {
                             try {
@@ -185,9 +164,6 @@ fun AddonExplorePage(
             scope.launch {
                 val results = withContext(Dispatchers.IO) {
                     try {
-                        // v2.4.239: eklenti sayfası araması da CF gate'li — çıplak isim
-                        // sorgusundan önce clearance çözülür (sağlıklı sitede 0 ms);
-                        // boş sonuç + challenge kanıtı halinde sabırlı yeniden deneme yapılır.
                         runCatching { CsStreamRunner.ensureCfClearance(api) }
                         CsStreamRunner.searchWithCfRetry(api, searchQuery)
                     } catch (t: Throwable) {
@@ -204,7 +180,15 @@ fun AddonExplorePage(
         }
     }
 
-    // Vitrin öğeleri — ana sayfa (Keşfet) vitriniyle aynı model üzerinden beslenir.
+    // "Tümünü Gör" ile önceden doldurulmuş sorgu geldiyse otomatik arama yap
+    // (ana aramadaki kaynağa özel "Tümünü Gör" sayfasının eklenti karşılığı).
+    LaunchedEffect(api.name, initialQuery) {
+        if (initialQuery.isNotBlank()) {
+            searchQuery = initialQuery
+            performSearch()
+        }
+    }
+
     val heroResults = remember(homeLists, showAdultContent) {
         homeLists.asSequence()
             .map { shelf -> shelf.list.filter { showAdultContent || !isAddonAdultResponse(it) } }
@@ -218,135 +202,276 @@ fun AddonExplorePage(
         CsStreamRunner.CF_PROTECTED_PLUGINS.contains(api.name) || api.usesWebView
     }
 
-    Surface(
-            modifier = Modifier.fillMaxSize(),
-            color = KitsugiColors.Background
-        ) {
-            Box(modifier = Modifier.fillMaxSize()) {
+    val lazyListState = com.kitsugi.animelist.ui.utils.rememberRetainedLazyListState(
+        contentReady = homeLists.isNotEmpty() || hasSearched
+    )
+    val pullRefreshState = rememberPullToRefreshState()
+    val isLandscape = androidx.compose.ui.platform.LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+    val showFab by remember { derivedStateOf { lazyListState.firstVisibleItemIndex > 1 } }
+    val anyLoading = isHomeLoading || isSearchLoading
+    val placeholder = stringResource(R.string.search_placeholder_default)
 
-                // ── Content area ───────────────────────────────────────────
-                when {
-                    isHomeLoading && homeLists.isEmpty() -> {
-                        // Initial loading spinner
-                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                KitsugiPlasmaLoader(size = 48.dp)
-                                Spacer(Modifier.height(16.dp))
-                                Text(stringResource(R.string.api_name_yukleniyor, api.name), color = KitsugiColors.TextMuted, fontSize = 14.sp)
+    KitsugiShimmerProvider(active = anyLoading) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(KitsugiColors.Background)
+        ) {
+            PullToRefreshBox(
+                isRefreshing = isHomeLoading,
+                onRefresh = { loadHomeFeed(true) },
+                modifier = Modifier.fillMaxSize(),
+                state = pullRefreshState,
+                indicator = {
+                    KitsugiPullToRefreshIndicator(
+                        state = pullRefreshState,
+                        isRefreshing = isHomeLoading,
+                        modifier = Modifier.align(Alignment.TopCenter)
+                    )
+                }
+            ) {
+                LazyColumn(
+                    state = lazyListState,
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(bottom = 90.dp)
+                ) {
+                    // ── Üst Başlık: Geri + Eklenti adı + açıklama — Keşfet başlığıyla aynı stil
+                    item(key = "addon_top_header") {
+                        // Keşfet başlığıyla birebir: 28dp üst boşluk, headlineLarge kalın, 18dp alt boşluk
+                        Spacer(modifier = Modifier.height(28.dp))
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 20.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            IconButton(onClick = onBackClick, modifier = Modifier.size(40.dp)) {
+                                Icon(
+                                    imageVector = Icons.ArrowBack,
+                                    contentDescription = stringResource(R.string.geri),
+                                    tint = KitsugiColors.TextPrimary
+                                )
+                            }
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Extension,
+                                        contentDescription = null,
+                                        tint = accentColor,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Text(
+                                        text = api.name,
+                                        color = KitsugiColors.TextPrimary,
+                                        style = MaterialTheme.typography.headlineSmall,
+                                        fontWeight = FontWeight.Black,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                                Text(
+                                    text = api.mainUrl,
+                                    color = KitsugiColors.TextMuted,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
                             }
                         }
+                        Spacer(modifier = Modifier.height(18.dp))
                     }
 
-                    hasSearched -> {
-                        // Search results
-                        when {
-                            isSearchLoading -> {
-                                Box(
-                                    Modifier.fillMaxSize().padding(top = 88.dp),
-                                    contentAlignment = Alignment.Center
-                                ) { KitsugiPlasmaLoader(size = 48.dp) }
-                            }
-                            visibleSearchResults.isEmpty() -> {
-                                Box(
-                                    Modifier.fillMaxSize().padding(top = 88.dp),
-                                    contentAlignment = Alignment.Center
+                    // ── Arama çubuğu — Ana Arama sayfasındaki KitsugiCosmicSearchBar ile birebir aynı
+                    item(key = "addon_search_bar") {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 20.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            KitsugiCosmicSearchBar(
+                                query = searchQuery,
+                                onQueryChange = { searchQuery = it },
+                                onSearch = { performSearch() },
+                                onClearQuery = {
+                                    searchQuery = ""
+                                    searchResults = emptyList()
+                                    hasSearched = false
+                                    keyboardController?.hide()
+                                },
+                                placeholder = if (searchQuery.isBlank()) "${api.name} içinde ara…" else placeholder,
+                                modifier = Modifier.weight(1f)
+                            )
+                            CosmicCompanionButton(
+                                onClick = { loadHomeFeed(true) },
+                                icon = {
+                                    Icon(
+                                        imageVector = Icons.Refresh,
+                                        contentDescription = stringResource(R.string.yenile),
+                                        tint = KitsugiColors.TextMuted,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
+
+                    when {
+                        isHomeLoading && homeLists.isEmpty() && !hasSearched -> {
+                            item(key = "addon_initial_loading") {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 48.dp, horizontal = 20.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
                                 ) {
-                                    Text(stringResource(R.string.inline_no_results_found_for_1_3ed9f56, searchQuery), color = KitsugiColors.TextMuted)
+                                    KitsugiPlasmaLoader(size = 48.dp)
+                                    Spacer(Modifier.height(16.dp))
+                                    Text(
+                                        text = stringResource(R.string.api_name_yukleniyor, api.name),
+                                        color = KitsugiColors.TextMuted,
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
                                 }
                             }
-                            else -> {
-                                LazyColumn(
-                                    modifier = Modifier.fillMaxSize().padding(top = 88.dp),
-                                    contentPadding = PaddingValues(12.dp),
-                                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                                ) {
-                                    item {
+                        }
+
+                        hasSearched -> {
+                            when {
+                                isSearchLoading -> {
+                                    item(key = "addon_search_loading") {
+                                        // Arama sayfasındaki shimmer ile birebir aynı
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 20.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                                KitsugiShimmerSearchResultList(itemCount = 4)
+                                            }
+                                        }
+                                    }
+                                }
+                                visibleSearchResults.isEmpty() -> {
+                                    item(key = "addon_search_empty") {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 20.dp, vertical = 32.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            KitsugiEmptyState(
+                                                title = stringResource(R.string.sonuc_bulunamadi),
+                                                subtitle = stringResource(R.string.inline_no_results_found_for_1_3ed9f56, searchQuery),
+                                                icon = Icons.SearchOff
+                                            )
+                                        }
+                                    }
+                                }
+                                else -> {
+                                    item(key = "addon_search_header") {
                                         Text(
-                                            stringResource(R.string.inline_1_s_2_s_results_1656e6f, searchQuery, visibleSearchResults.size),
+                                            text = stringResource(R.string.inline_1_s_2_s_results_1656e6f, searchQuery, visibleSearchResults.size),
                                             color = KitsugiColors.TextPrimary,
-                                            fontSize = 15.sp,
+                                            style = MaterialTheme.typography.titleMedium,
                                             fontWeight = FontWeight.Bold,
-                                            modifier = Modifier.padding(horizontal = 4.dp)
+                                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
                                         )
                                     }
-                                    items(visibleSearchResults.chunked(3)) { row ->
-                                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                            row.forEach { item ->
-                                                Box(Modifier.weight(1f)) {
-                                                    com.kitsugi.animelist.ui.components.KitsugiExploreMediaCard(
-                                                        result = item.toAddonSearchResult(),
-                                                        onClick = {
-                                                            activeDetailUrl = item.url
-                                                        },
-                                                        titleLanguage = titleLanguage,
-                                                        scoreFormat = scoreFormat,
-                                                        hideScores = hideScores,
-                                                        blurAdultMedia = blurAdultMedia,
-                                                        forceVertical = true
-                                                    )
-                                                }
-                                            }
-                                            repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
+                                    // Sonuçlar — Ana Arama'daki SearchResultRow ile birebir aynı kart
+                                    uniqueItems(
+                                        items = visibleSearchResults,
+                                        key = { it.url }
+                                    ) { item ->
+                                        val result = item.toAddonSearchResult()
+                                        Box(modifier = Modifier.padding(horizontal = 20.dp, vertical = 5.dp)) {
+                                            com.kitsugi.animelist.ui.screens.search.SearchResultRow(
+                                                result = result,
+                                                alreadyInList = false,
+                                                mediaEntry = null,
+                                                onItemClick = { activeDetailUrl = item.url },
+                                                onAddClick = { activeDetailUrl = item.url },
+                                                titleLanguage = titleLanguage,
+                                                scoreFormat = scoreFormat,
+                                                hideScores = hideScores,
+                                                showAddButton = false
+                                            )
                                         }
                                     }
                                 }
                             }
                         }
-                    }
 
-                    else -> {
-                        // Home feed — ana sayfa (Keşfet) ile birebir aynı bileşenler:
-                        // KitsugiHeroSection vitrini + KitsugiHorizontalMediaSection rafları.
-                        LazyColumn(
-                            modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(bottom = 32.dp)
-                        ) {
-                            // Vitrin (hero carousel) — ana sayfadakiyle aynı sunum
-                            item(key = "hero") {
-                                com.kitsugi.animelist.ui.components.KitsugiHeroSection(
-                                    items = heroResults,
-                                    alreadyInList = { false },
-                                    onInfoClick = { item ->
-                                        item.cs3Url?.let { activeDetailUrl = it }
-                                    },
-                                    titleLanguage = titleLanguage,
-                                    scoreFormat = scoreFormat,
-                                    hideScores = hideScores,
-                                    blurAdultMedia = blurAdultMedia,
-                                    isVisible = true
-                                )
-                                Spacer(modifier = Modifier.height(6.dp))
-                            }
-
-                            // Warning pill (CF / blocked)
-                            if (isBlocked || isCfProtected || errorCode != null) {
-                                item(key = "warning") {
-                                    AddonStatusPill(
-                                        isBlocked = isBlocked,
-                                        blockReason = if (isBlocked || errorCode != null)
-                                            CsPluginStatusTracker.getErrorMessage(api.name) ?: "Ağ hatası"
-                                        else null,
-                                        errorCode = errorCode,
+                        else -> {
+                            // ── Vitrin — Keşfet'teki KitsugiHeroSection ile birebir aynı
+                            if (heroResults.isNotEmpty()) {
+                                item(key = "hero") {
+                                    KitsugiHeroSection(
+                                        items = heroResults,
+                                        alreadyInList = { false },
+                                        onInfoClick = { item ->
+                                            item.cs3Url?.let { activeDetailUrl = it }
+                                        },
+                                        titleLanguage = titleLanguage,
+                                        scoreFormat = scoreFormat,
+                                        hideScores = hideScores,
+                                        blurAdultMedia = blurAdultMedia,
+                                        isVisible = true
                                     )
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                }
+                            } else if (isHomeLoading) {
+                                item(key = "hero_shimmer") {
+                                    KitsugiShimmerHeroSection()
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                }
+                            } else {
+                                item(key = "hero_spacer") {
+                                    Spacer(modifier = Modifier.height(8.dp))
                                 }
                             }
 
-                            // Empty state
-                            if (homeLists.isEmpty() && !isHomeLoading) {
-                                item(key = "empty") {
-                                    Box(
-                                        Modifier.fillMaxWidth().padding(vertical = 48.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(stringResource(R.string.kesfet_icerigi_yuklenemedi), color = KitsugiColors.TextMuted)
+                            // Uyarı şeridi — Arama/Keşfet hata bandıyla aynı
+                            if (isBlocked || isCfProtected || errorCode != null) {
+                                item(key = "warning") {
+                                    Box(modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)) {
+                                        AddonStatusPill(
+                                            isBlocked = isBlocked,
+                                            blockReason = if (isBlocked || errorCode != null)
+                                                CsPluginStatusTracker.getErrorMessage(api.name) ?: "Ağ hatası"
+                                            else null,
+                                            errorCode = errorCode,
+                                        )
                                     }
                                 }
                             }
 
-                            // Kategori rafları — ana sayfadaki yatay medya raflarıyla aynı:
-                            // aynı kutucuk (KitsugiExploreMediaCard), aynı kaydırma/snap
-                            // mekaniği, aynı "Tümünü Gör" sözleşmesi.
-                            items(homeLists, key = { "cat_${homeLists.indexOf(it)}_${it.name}" }) { homeList ->
+                            if (homeLists.isEmpty() && !isHomeLoading) {
+                                item(key = "empty") {
+                                    Box(
+                                        Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 48.dp, horizontal = 20.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        KitsugiEmptyState(
+                                            title = stringResource(R.string.kesfet_icerigi_yuklenemedi),
+                                            subtitle = stringResource(R.string.inline_no_results_found_03b621d),
+                                            icon = Icons.SearchOff
+                                        )
+                                    }
+                                }
+                            }
+
+                            // Raflar — Keşfet'teki KitsugiHorizontalMediaSection ile birebir aynı
+                            uniqueItems(homeLists, key = { "cat_${it.name}" }) { homeList ->
                                 val rowResults = remember(homeList, showAdultContent) {
                                     homeList.list.map { it.toAddonSearchResult() }
                                         .filter { showAdultContent || !it.isAdult }
@@ -355,7 +480,7 @@ fun AddonExplorePage(
                                     val matchingPage = remember(homeList.name) {
                                         api.mainPage.firstOrNull { it.name == homeList.name }
                                     }
-                                    com.kitsugi.animelist.ui.components.KitsugiHorizontalMediaSection(
+                                    KitsugiHorizontalMediaSection(
                                         title = homeList.name,
                                         results = rowResults,
                                         isLoading = isHomeLoading,
@@ -384,37 +509,23 @@ fun AddonExplorePage(
                         }
                     }
                 }
-
-                // ── Floating search bar (always on top) ────────────────────
-                AddonFloatingSearchBar(
-                    apiName = api.name,
-                    searchQuery = searchQuery,
-                    hasSearched = hasSearched,
-                    onQueryChange = { searchQuery = it },
-                    onSearch = { performSearch() },
-                    onClear = {
-                        searchQuery = ""
-                        searchResults = emptyList()
-                        hasSearched = false
-                        keyboardController?.hide()
-                    },
-                    onBack = {
-                        if (hasSearched) {
-                            searchQuery = ""
-                            searchResults = emptyList()
-                            hasSearched = false
-                            keyboardController?.hide()
-                        } else {
-                            onBackClick()
-                        }
-                    },
-                    onRefresh = { loadHomeFeed(true) },
-                    modifier = Modifier.align(Alignment.TopCenter)
-                )
             }
-        }
 
-    // ── Detail Dialog (opens when a content card is tapped) ──────────────────
+            // ── Yukarı Çık FAB — Keşfet/Arama sayfalarıyla aynı
+            KitsugiScrollToTopFab(
+                visible = showFab,
+                isLandscape = isLandscape,
+                bottomBarScrollState = null,
+                fallbackBottomBarVisible = true,
+                onClick = {
+                    scope.launch { lazyListState.animateScrollToItem(0) }
+                },
+                modifier = Modifier.align(Alignment.BottomEnd)
+            )
+        }
+    }
+
+    // ── Detay Diyaloğu
     activeDetailUrl?.let { detailUrl ->
         KitsugiAddonDetailDialog(
             api = api,
@@ -431,107 +542,17 @@ fun AddonExplorePage(
 fun AddonExploreDialog(
     api: MainAPI,
     onDismissRequest: () -> Unit,
-    onSeeAllClick: ((title: String, mainPageData: String, horizontalImages: Boolean, initialItems: List<SearchResponse>) -> Unit)? = null
+    onSeeAllClick: ((title: String, mainPageData: String, horizontalImages: Boolean, initialItems: List<SearchResponse>) -> Unit)? = null,
+    initialQuery: String = ""
 ) {
     AddonExplorePage(
         api = api,
         onBackClick = onDismissRequest,
-        onSeeAllClick = onSeeAllClick
+        onSeeAllClick = onSeeAllClick,
+        initialQuery = initialQuery
     )
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Floating Search Bar — üstte sabit, transparan arka plan
-// ─────────────────────────────────────────────────────────────────────────────
-
-@Composable
-private fun AddonFloatingSearchBar(
-    apiName: String,
-    searchQuery: String,
-    hasSearched: Boolean,
-    onQueryChange: (String) -> Unit,
-    onSearch: () -> Unit,
-    onClear: () -> Unit,
-    onBack: () -> Unit,
-    onRefresh: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val accentColor = LocalKitsugiAccent.current
-
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .statusBarsPadding()
-            .padding(horizontal = 10.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        // Geri / Temizle butonu
-        Box(
-            modifier = Modifier
-                .size(42.dp)
-                .clip(CircleShape)
-                .background(Color.Black.copy(0.45f))
-                .clickable { if (hasSearched) onClear() else onBack() },
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(Icons.Default.ArrowBack, "Geri", tint = Color.White, modifier = Modifier.size(20.dp))
-        }
-
-        // Arama alanı
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .height(46.dp)
-                .clip(RoundedCornerShape(23.dp))
-                .background(Color.Black.copy(0.55f))
-                .padding(horizontal = 14.dp),
-            contentAlignment = Alignment.CenterStart
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Icon(Icons.Rounded.Search, null, tint = Color.White.copy(0.65f), modifier = Modifier.size(18.dp))
-                BasicTextField(
-                    value = searchQuery,
-                    onValueChange = onQueryChange,
-                    modifier = Modifier.weight(1f),
-                    singleLine = true,
-                    cursorBrush = SolidColor(accentColor),
-                    textStyle = MaterialTheme.typography.bodyMedium.copy(color = Color.White),
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                    keyboardActions = KeyboardActions(onSearch = { onSearch() }),
-                    decorationBox = { inner ->
-                        if (searchQuery.isEmpty()) Text(stringResource(R.string.ara), color = Color.White.copy(0.45f), style = MaterialTheme.typography.bodyMedium)
-                        inner()
-                    }
-                )
-                if (searchQuery.isNotEmpty()) {
-                    Box(
-                        Modifier.size(26.dp).clip(CircleShape).background(Color.White.copy(0.2f)).clickable { onClear() },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Default.Close, null, tint = Color.White, modifier = Modifier.size(14.dp))
-                    }
-                }
-            }
-        }
-
-        // Yenile butonu
-        Box(
-            modifier = Modifier
-                .size(42.dp)
-                .clip(CircleShape)
-                .background(Color.Black.copy(0.45f))
-                .clickable { onRefresh() },
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(Icons.Default.Refresh, "Yenile", tint = Color.White, modifier = Modifier.size(20.dp))
-        }
-    }
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Status Warning Pill — küçük uyarı satırı
@@ -561,11 +582,10 @@ private fun AddonStatusPill(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 14.dp, vertical = 6.dp)
-            .clip(RoundedCornerShape(10.dp))
+            .clip(RoundedCornerShape(12.dp))
             .background(bgColor)
-            .border(1.dp, borderColor, RoundedCornerShape(10.dp))
-            .padding(10.dp)
+            .border(1.dp, borderColor, RoundedCornerShape(12.dp))
+            .padding(12.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -576,7 +596,7 @@ private fun AddonStatusPill(
                 text,
                 modifier = Modifier.weight(1f),
                 color = borderColor,
-                fontSize = 12.sp,
+                style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.Medium,
             )
             if (errorCode != null) PlatformErrorCodeHint(code = errorCode)

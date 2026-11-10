@@ -17,6 +17,107 @@ internal object HevcDvRpuStripper {
     private const val NAL_TYPE_DV_RPU = 62
     private const val NAL_TYPE_DV_EL = 63
 
+    private const val NAL_TYPE_PREFIX_SEI = 39
+    private const val SEI_PAYLOAD_TYPE_MASTERING_DISPLAY = 137
+    private const val SEI_PAYLOAD_TYPE_CONTENT_LIGHT_LEVEL = 144
+
+    // ── HDR10 static metadata probe (NuvioTV paritesi) ────────────────────────
+    // Dolby Vision profil 5'in kendi başına görüntülenebilir bir HDR10 katmanı
+    // YOKTUR: pikseller IPTPQc2 renk uzayındadır. RPU'yu sıyırmak görüntüyü
+    // yeşil/mor yapar. Ancak hibrit remux'larda P5 taban katmanı, kendi HDR10
+    // statik metadatasını (Mastering Display / Content Light Level SEI) taşır;
+    // YALNIZCA o durumda sıyırma güvenlidir. Bu yardımcı, sıyırma kararının
+    // gerçek ayırt edicisidir: her P5 karesinde RPU vardır, bu bir sinyal değil.
+
+    /** Length-delimited (MP4/fMP4) örnekte HDR10 statik metadata SEI'si var mı? */
+    fun containsHdr10StaticMetadataSei(
+        sample: ByteArray,
+        sampleLength: Int,
+        nalUnitLengthFieldLength: Int
+    ): Boolean {
+        if (nalUnitLengthFieldLength !in 1..4) return false
+        var offset = 0
+        while (offset + nalUnitLengthFieldLength <= sampleLength) {
+            var nalSize = 0
+            for (i in 0 until nalUnitLengthFieldLength) {
+                nalSize = (nalSize shl 8) or (sample[offset + i].toInt() and 0xFF)
+            }
+            offset += nalUnitLengthFieldLength
+            if (nalSize <= 0 || offset + nalSize > sampleLength) break
+            val nalType = (sample[offset].toInt() ushr 1) and 0x3F
+            if (nalType == NAL_TYPE_PREFIX_SEI && hasStaticMetadataPayload(sample, offset, nalSize)) {
+                return true
+            }
+            offset += nalSize
+        }
+        return false
+    }
+
+    /** Annex-B (TS/raw HEVC) örnekte HDR10 statik metadata SEI'si var mı? */
+    fun containsHdr10StaticMetadataSeiAnnexB(sample: ByteArray, sampleLength: Int): Boolean {
+        var scan = 0
+        while (scan < sampleLength) {
+            val startCode = findStartCode(sample, scan, sampleLength)
+            if (startCode < 0) break
+            val scLen = startCodeLength(sample, startCode, sampleLength)
+            val nalBegin = startCode + scLen
+            val nextStartCode = findStartCode(sample, nalBegin + 2, sampleLength)
+            val nalEnd = if (nextStartCode < 0) sampleLength else nextStartCode
+            if (nalBegin < nalEnd) {
+                val nalType = (sample[nalBegin].toInt() ushr 1) and 0x3F
+                if (nalType == NAL_TYPE_PREFIX_SEI &&
+                    hasStaticMetadataPayload(sample, nalBegin, nalEnd - nalBegin)
+                ) {
+                    return true
+                }
+            }
+            scan = nalEnd
+        }
+        return false
+    }
+
+    /**
+     * Prefix SEI NAL içeriğinde (2 baytlık NAL başlığından sonra) Mastering
+     * Display Colour Volume (137) veya Content Light Level Info (144) var mı?
+     *
+     * SEI mesajları `payloadType` (+0xFF uzatması) ve `payloadSize` ile
+     * zincirlenir; tek bir karede birden fazla mesaj olabilir, bu yüzden
+     * zinciri sonuna kadar yürüyoruz.
+     */
+    private fun hasStaticMetadataPayload(data: ByteArray, nalStart: Int, nalSize: Int): Boolean {
+        var pos = nalStart + 2 // HEVC NAL başlığı 2 bayt
+        val end = nalStart + nalSize
+        while (pos < end) {
+            var payloadType = 0
+            while (pos < end && (data[pos].toInt() and 0xFF) == 0xFF) {
+                payloadType += 255
+                pos++
+            }
+            if (pos >= end) return false
+            payloadType += data[pos].toInt() and 0xFF
+            pos++
+
+            var payloadSize = 0
+            while (pos < end && (data[pos].toInt() and 0xFF) == 0xFF) {
+                payloadSize += 255
+                pos++
+            }
+            if (pos >= end) return false
+            payloadSize += data[pos].toInt() and 0xFF
+            pos++
+
+            if (payloadType == SEI_PAYLOAD_TYPE_MASTERING_DISPLAY ||
+                payloadType == SEI_PAYLOAD_TYPE_CONTENT_LIGHT_LEVEL
+            ) {
+                return true
+            }
+            pos += payloadSize
+            // rbsp_trailing_bits: sonraki mesaj yok
+            if (pos < end && (data[pos].toInt() and 0xFF) == 0x80) return false
+        }
+        return false
+    }
+
     /**
      * Rewrites a length-delimited (MP4/fMP4) sample directly into a reusable
      * ExposedByteArrayOutputStream, removing any NAL unit whose type is 62 (DV RPU).

@@ -7,12 +7,11 @@ import com.kitsugi.animelist.ui.theme.gradient.border
 import com.kitsugi.animelist.ui.utils.tvClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
+import com.kitsugi.animelist.data.remote.stableKey
+import com.kitsugi.animelist.ui.utils.uniqueItems
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.List
-import androidx.compose.material.icons.rounded.*
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -67,7 +66,7 @@ fun ReviewsTabContent(
     apiClient: JikanApiClient,
     tmdbId: Int? = null,
     realMalId: Int? = null,
-    titleLanguage: String = "ROMAJI",
+    titleLanguage: String = "ENGLISH",
     preferredTranslator: String = "DEFAULT",
     onUserProfileClick: (userId: Int, username: String, avatarUrl: String?, source: String) -> Unit,
     onImageGalleryRequest: ((urls: List<String>, index: Int) -> Unit)? = null
@@ -173,7 +172,7 @@ fun ReviewsTabContent(
     // Korunan alt detay sayfalarının nesnelerini listelerden geri bul.
     val activeReviewForDetail: KitsugiReview? = remember(activeReviewDetailKey, reviewsList) {
         if (activeReviewDetailKey.isEmpty()) null
-        else reviewsList.find { "${it.source}_${it.id ?: it.username.hashCode()}" == activeReviewDetailKey }
+        else reviewsList.find { it.stableKey() == activeReviewDetailKey }
     }
     val activeTopicForDetail: KitsugiForumTopic? = remember(activeTopicDetailKey, forumTopics) {
         if (activeTopicDetailKey.isEmpty()) null
@@ -219,7 +218,7 @@ fun ReviewsTabContent(
                         modifier = Modifier.size(32.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Rounded.List,
+                            imageVector = Icons.List,
                             contentDescription = stringResource(R.string.tumunu_gor),
                             tint = KitsugiColors.TextPrimary,
                             modifier = Modifier.size(16.dp)
@@ -234,7 +233,12 @@ fun ReviewsTabContent(
                     contentPadding = PaddingValues(horizontal = 14.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    items(forumTopics) { topic ->
+                    // API sayfaları çakışırsa aynı konu iki kez gelebilir → çökmeyen anahtar.
+                    uniqueItems(
+                        items = forumTopics,
+                        key = { topic -> "topic_${topic.source}_${topic.id}" },
+                        contentType = { "forum_topic_card" }
+                    ) { topic ->
                         TopicCard(
                             topic = topic,
                             onUserProfileClick = handleUserProfileClick,
@@ -301,7 +305,7 @@ fun ReviewsTabContent(
                         modifier = Modifier.size(32.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Rounded.List,
+                            imageVector = Icons.List,
                             contentDescription = stringResource(R.string.tumunu_gor),
                             tint = KitsugiColors.TextPrimary,
                             modifier = Modifier.size(16.dp)
@@ -316,7 +320,11 @@ fun ReviewsTabContent(
                     contentPadding = PaddingValues(horizontal = 14.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    items(activitiesList) { activity ->
+                    uniqueItems(
+                        items = activitiesList,
+                        key = { activity -> "activity_${activity.id}" },
+                        contentType = { "activity_card" }
+                    ) { activity ->
                         ActivityCard(
                             activity = activity,
                             titleLanguage = titleLanguage,
@@ -382,7 +390,7 @@ fun ReviewsTabContent(
                     modifier = Modifier.size(32.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.AutoMirrored.Rounded.List,
+                        imageVector = Icons.List,
                         contentDescription = stringResource(R.string.tumunu_gor),
                         tint = KitsugiColors.TextPrimary,
                         modifier = Modifier.size(16.dp)
@@ -426,14 +434,20 @@ fun ReviewsTabContent(
                             contentPadding = PaddingValues(horizontal = 14.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            items(reviewsList) { rev ->
+                            // v2.4.369 ÇÖKMESİ: TMDB / MAL(Jikan) / Bangumi incelemelerinde id=null →
+                            // her kart "tmdb_null" anahtarını alıp LazyRow'u çökertiyordu.
+                            uniqueItems(
+                                items = reviewsList,
+                                key = { rev -> rev.stableKey() },
+                                contentType = { "review_card" }
+                            ) { rev ->
                                 KitsugiReviewCard(
                                     rev = rev,
                                     modifier = Modifier.width(280.dp),
                                     preferredTranslator = preferredTranslator,
                                     backgroundColor = KitsugiColors.SurfaceSoft,
                                     onUserProfileClick = handleUserProfileClick,
-                                    onClick = { activeReviewDetailKey = "${rev.source}_${rev.id ?: rev.username.hashCode()}" },
+                                    onClick = { activeReviewDetailKey = rev.stableKey() },
                                     onHelpfulClick = {
                                         if (rev.id == null || rev.source != "anilist") {
                                             Toast.makeText(context, KitsugiStrings.get(R.string.begeni_sadece_anilist_incelemelerinde_desteklenir), Toast.LENGTH_SHORT).show()
@@ -594,7 +608,7 @@ private fun TopicCard(
                         modifier = Modifier.tvClickable(shape = RoundedCornerShape(8.dp), onClick = onLikeClick)
                     ) {
                         Icon(
-                            imageVector = if (topic.isLiked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                            imageVector = if (topic.isLiked) Icons.Favorite else Icons.FavoriteBorder,
                             contentDescription = null,
                             tint = if (topic.isLiked) accentColor else KitsugiColors.TextMuted,
                             modifier = Modifier.size(12.dp)
@@ -613,7 +627,7 @@ private fun TopicCard(
                     horizontalArrangement = Arrangement.spacedBy(3.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.ChatBubbleOutline,
+                        imageVector = Icons.ChatBubbleOutline,
                         contentDescription = null,
                         tint = KitsugiColors.TextMuted,
                         modifier = Modifier.size(12.dp)
@@ -632,7 +646,7 @@ private fun TopicCard(
                         horizontalArrangement = Arrangement.spacedBy(3.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.Visibility,
+                            imageVector = Icons.Visibility,
                             contentDescription = null,
                             tint = KitsugiColors.TextMuted,
                             modifier = Modifier.size(12.dp)
@@ -701,7 +715,7 @@ private fun TopicCard(
 @Composable
 private fun ActivityCard(
     activity: KitsugiActivity,
-    titleLanguage: String = "ROMAJI",
+    titleLanguage: String = "ENGLISH",
     onUserProfileClick: ((userId: Int?, username: String, avatarUrl: String?, source: String) -> Unit)? = null,
     onClick: () -> Unit,
     onLikeClick: () -> Unit,
@@ -788,7 +802,7 @@ private fun ActivityCard(
                     modifier = Modifier.tvClickable(shape = RoundedCornerShape(8.dp), onClick = onLikeClick)
                 ) {
                     Icon(
-                        imageVector = if (activity.isLiked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                        imageVector = if (activity.isLiked) Icons.Favorite else Icons.FavoriteBorder,
                         contentDescription = null,
                         tint = if (activity.isLiked) accentColor else KitsugiColors.TextMuted,
                         modifier = Modifier.size(12.dp)

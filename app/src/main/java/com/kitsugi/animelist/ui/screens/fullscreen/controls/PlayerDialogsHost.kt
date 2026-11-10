@@ -18,10 +18,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.rounded.Close
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -48,6 +49,7 @@ import androidx.compose.ui.window.Dialog
 import coil.compose.AsyncImage
 import com.kitsugi.animelist.data.remote.KitsugiStreamingEpisode
 import com.kitsugi.animelist.ui.screens.fullscreen.KitsugiDialogs
+import com.kitsugi.animelist.ui.screens.fullscreen.controls.components.KeyboardShortcutsDialog
 import androidx.compose.ui.res.stringResource
 import com.kitsugi.animelist.R
 
@@ -59,6 +61,12 @@ fun PlayerDialogsHost(
     onPlayEpisode: (Int) -> Unit,
     onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier,
+    /** Bölüm listesi arka planda çözülüyor mu? (boş çekmece yerine yükleme göstergesi) */
+    episodesLoading: Boolean = false,
+    /** Film gibi bölümü olmayan içeriklerde boş liste yerine açıklama gösterilir. */
+    isMovie: Boolean = false,
+    /** Boş/eksik listede "Yeniden Dene" — tüm kaynaklar sıfırdan denenir. */
+    onRetryEpisodes: (() -> Unit)? = null,
 ) {
     when (dialogShown) {
         is KitsugiDialogs.None -> Unit
@@ -67,6 +75,15 @@ fun PlayerDialogsHost(
                 episodes = episodes,
                 currentEpisode = currentEpisode,
                 onPlayEpisode = onPlayEpisode,
+                onDismissRequest = onDismissRequest,
+                modifier = modifier,
+                isLoading = episodesLoading,
+                isMovie = isMovie,
+                onRetryEpisodes = onRetryEpisodes,
+            )
+        }
+        is KitsugiDialogs.KeyboardShortcuts -> {
+            KeyboardShortcutsDialog(
                 onDismissRequest = onDismissRequest,
                 modifier = modifier,
             )
@@ -87,6 +104,9 @@ fun EpisodeListDialog(
     onPlayEpisode: (Int) -> Unit,
     onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier,
+    isLoading: Boolean = false,
+    isMovie: Boolean = false,
+    onRetryEpisodes: (() -> Unit)? = null,
 ) {
     Dialog(onDismissRequest = onDismissRequest) {
         Card(
@@ -120,7 +140,7 @@ fun EpisodeListDialog(
                         modifier = Modifier.size(32.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.Close,
+                            imageVector = Icons.Close,
                             contentDescription = stringResource(R.string.kapat),
                             tint = Color.White.copy(alpha = 0.75f),
                             modifier = Modifier.size(18.dp)
@@ -128,7 +148,94 @@ fun EpisodeListDialog(
                     }
                 }
 
+                // Liste çözülürken kısa bir bilgi satırı (liste zaten doluysa üstte kalır).
+                if (episodes.isNotEmpty() && isLoading) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(14.dp),
+                            strokeWidth = 1.5.dp,
+                            color = Color.White.copy(alpha = 0.7f)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = stringResource(R.string.bolum_listesi_guncelleniyor),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.White.copy(alpha = 0.7f)
+                        )
+                    }
+                }
+
+                // Bölüm listesi HİÇBİR ZAMAN boş ekran olarak açılmaz:
+                //  - liste hazırlanıyorsa yükleme göstergesi,
+                //  - film ise açıklama,
+                //  - liste gerçekten çözülemediyse sebep + "Yeniden Dene".
+                if (episodes.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.padding(horizontal = 16.dp)
+                        ) {
+                            if (isLoading) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(34.dp),
+                                    strokeWidth = 3.dp,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Text(
+                                    text = stringResource(R.string.bolum_listesi_yukleniyor),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = Color.White.copy(alpha = 0.75f)
+                                )
+                            } else if (isMovie) {
+                                Text(
+                                    text = stringResource(R.string.bolum_listesi_film),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = Color.White.copy(alpha = 0.75f)
+                                )
+                            } else {
+                                Text(
+                                    text = stringResource(R.string.bolum_listesi_bos),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color.White.copy(alpha = 0.85f)
+                                )
+                                Text(
+                                    text = stringResource(R.string.bolum_listesi_bos_ipucu),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color.White.copy(alpha = 0.6f)
+                                )
+                                if (onRetryEpisodes != null) {
+                                    TextButton(onClick = onRetryEpisodes) {
+                                        Text(
+                                            text = stringResource(R.string.yeniden_dene),
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else {
+                val episodeListState = rememberLazyListState()
+                LaunchedEffect(episodes.size, currentEpisode) {
+                    val index = episodes.indexOfFirst { it.episodeNumber == currentEpisode }
+                    if (index > 0) {
+                        episodeListState.scrollToItem(index)
+                    }
+                }
                 LazyColumn(
+                    state = episodeListState,
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxWidth(),
@@ -181,7 +288,7 @@ fun EpisodeListDialog(
                             }
                             if (isCurrent) {
                                 Icon(
-                                    imageVector = Icons.Default.PlayArrow,
+                                    imageVector = Icons.PlayArrow,
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.size(24.dp)
@@ -189,6 +296,7 @@ fun EpisodeListDialog(
                             }
                         }
                     }
+                }
                 }
 
                 Spacer(modifier = Modifier.height(8.dp))

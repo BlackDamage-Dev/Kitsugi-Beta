@@ -12,33 +12,19 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withTimeoutOrNull
-import org.json.JSONArray
+import kotlinx.coroutines.CancellationException
 
-/**
- * S01 – SubtitleRepositoryImpl
- *
- * NuvioTV SubtitleRepositoryImpl.kt mantığı referans alınarak yeniden yazıldı.
- * Enabled subtitle addon'larını paralel olarak sorgular.
- *
- * Düzeltmeler (NuvioTV karşılaştırması):
- * 1. idPrefixes filtreleme: Addon yalnızca belirli ID prefix'lerini destekliyorsa
- *    (örn: OpenSubtitles → "tt"), queryId ile eşleştir.
- * 2. subtitleTypes tip kontrolü: Addon hangi içerik tipini (movie/series) destekliyorsa ona sor.
- * 3. Detaylı logging: Hangi addon'dan kaç altyazı geldi, hangi URL'e istek gitti.
+/** Searches enabled subtitle addons in parallel, isolating provider/query failures.
+ * Stream-specific manifest ID prefixes are not used to filter subtitle resources.
  */
 class SubtitleRepositoryImpl(private val context: Context) {
 
     companion object {
         private const val TAG = "SubtitleRepository"
-        private const val PER_ADDON_TIMEOUT_MS = 20_000L
-
-        data class CircuitBreakerState(
-            var failureCount: Int = 0,
-            var lastFailureTimeMs: Long = 0L
-        )
-
-        private val circuitBreakers = java.util.concurrent.ConcurrentHashMap<String, CircuitBreakerState>()
+        private const val PER_ADDON_TIMEOUT_MS = 45_000L
     }
+
+    data class Query(val type: String, val id: String)
 
     private val database = KitsugiDatabase.getDatabase(context.applicationContext)
     private val addonDao = database.managedAddonDao()
@@ -62,151 +48,83 @@ class SubtitleRepositoryImpl(private val context: Context) {
         aniListId: Int? = null,
         animeTitle: String? = null,
         episode: Int? = null
+    ): List<Subtitle> = getSubtitlesForQueries(
+        listOf(Query(type, id)), videoUrl, videoHeaders, filename, aniListId, animeTitle, episode
+    )
+
+    /** Search all enabled providers once per playback; one provider failing must not hide others. */
+    suspend fun getSubtitlesForQueries(
+        queries: List<Query>,
+        videoUrl: String? = null,
+        videoHeaders: Map<String, String>? = null,
+        filename: String? = null,
+        aniListId: Int? = null,
+        animeTitle: String? = null,
+        episode: Int? = null
     ): List<Subtitle> = coroutineScope {
-
-        val normalizedType = if (type.equals("tv", ignoreCase = true)) "series" else type.lowercase()
-
-        // 1. Altyazı destekleyen enabled addon'ları al + filtrele
-        val allAddons = addonDao.getEnabledAddons()
-        val subtitleAddons = allAddons.filter { addon ->
-            // subtitleTypes kontrolü:
-            // null = "bilinmiyor" (eski DB kaydı veya manifest parse edilemedi)
-            //   → Addon adı/URL'si altyazı ile ilgiliyse dahil et, aksi halde DENE (atma)
-            // Not-null = manifest'ten kesin olarak parse edildi
-            if (addon.subtitleTypes != null) {
-                // subtitleTypes tip kontrolü: "movie,series" içinde requestedType var mı?
-                val supportedTypes = addon.subtitleTypes.split(",").map { it.trim().lowercase() }
-                if (supportedTypes.isNotEmpty() && normalizedType !in supportedTypes) {
-                    Log.d(TAG, "Addon '${addon.name}' atlandı: type=$normalizedType desteklenmiyor (desteklenenler: ${addon.subtitleTypes})")
-                    return@filter false
-                }
-            } else {
-                // subtitleTypes = null → Stream addon'u veya bilinmeyen. İsim/URL kontrolü yap:
-                // Eğer kesinlikle stream-only addon ise (stream türü var ama altyazı ilgisi yok), atla
-                val looksLikeSubtitleAddon = looksLikeSubtitleAddon(addon)
-                if (!looksLikeSubtitleAddon && addon.streamTypes != null) {
-                    Log.d(TAG, "Addon '${addon.name}' atlandı: subtitleTypes=null ve stream-only addon gibi görünüyor")
-                    return@filter false
-                }
-                Log.d(TAG, "Addon '${addon.name}' dahil edildi: subtitleTypes=null ama altyazı addon'u olabilir")
-            }
-
-            // NOT: idPrefixes filtresi altyazı addon'ları için UYGULANMIYOR.
-            // NuvioTV kaynak kodu incelemesinde görüldüğü üzere, altyazı eklentileri
-            // top-level idPrefixes=["tt"] tanımlayabilir ama bu yalnızca stream resource içindir.
-            // Subtitle resource'unun kendi idPrefixes'i yoksa tüm ID'lerle denenmelidir.
-            // (örn: türkçealtyazi.org, YTS Subtitle eklentileri "tt" prefix tanımlıyor
-            //  ama bu kitsu:/anilist: ID'leriyle de sorgulanabilmeleri için engel değil)
-            true
+        val normalizedQueries = queries.map {
+            Query(if (it.type.equals("tv", true)) "series" else it.type.lowercase(), it.id.trim())
+        }.filter { it.id.isNotEmpty() }.distinct()
+        if (normalizedQueries.isEmpty()) return@coroutineScope emptyList()
+        val addons = addonDao.getEnabledAddons().filter { addon ->
+            addon.subtitleTypes != null || addon.streamTypes == null || looksLikeSubtitleAddon(addon)
         }
+        if (addons.isEmpty()) Log.w(TAG, "No enabled subtitle providers")
 
-        if (subtitleAddons.isEmpty()) {
-            Log.w(TAG, "Hiç aktif altyazı addon'u bulunamadı — type=$normalizedType, id=$id")
-            return@coroutineScope emptyList()
-        }
-
-        Log.d(TAG, "Altyazı fetch başlatılıyor: ${subtitleAddons.size} addon, type=$normalizedType, id=$id, filename=$filename")
-
-        // 2. OpenSubtitles hash hesapla (arka planda, addon fetch'iyle eş zamanlı)
+        // Hash once, not once per ID/provider. Failure must never prevent ID-only searches.
         val hashJob = async(Dispatchers.IO) {
-            if (videoUrl.isNullOrBlank()) return@async null
-            try {
-                val result = OpenSubtitlesHasher.compute(videoUrl, videoHeaders)
-                if (result != null) {
-                    Log.d(TAG, "OpenSubtitles hash: hash=${result.hash}, size=${result.size}")
-                }
-                result
-            } catch (e: Exception) {
-                Log.w(TAG, "Hash hesaplanamadı: ${e.message}")
-                null
-            }
+            if (videoUrl.isNullOrBlank()) null else OpenSubtitlesHasher.compute(videoUrl, videoHeaders)
         }
-
-        // 3. Her addon için paralel fetch
-        val deferredResults = subtitleAddons.map { addon ->
+        val hash = hashJob.await()
+        val extras = buildMap<String, String> {
+            if (hash != null) {
+                put("videoHash", hash.hash)
+                put("videoSize", hash.size.toString())
+            }
+            if (!filename.isNullOrBlank()) put("filename", filename)
+        }
+        addons.map { addon ->
             async(Dispatchers.IO) {
-                val manifestUrl = addon.manifestUrl
-                val cbState = circuitBreakers.getOrPut(manifestUrl) { CircuitBreakerState() }
-                val now = System.currentTimeMillis()
-                if (cbState.failureCount >= 3 && now - cbState.lastFailureTimeMs < 5 * 60 * 1000) {
-                    Log.w(TAG, "Circuit breaker tripped for addon '${addon.name}' (${manifestUrl}). Skipping query.")
-                    return@async emptyList()
-                }
-
-                val hashResult = try { hashJob.await() } catch (_: Exception) { null }
-
-                val extraParams = buildMap<String, String> {
-                    if (hashResult != null) {
-                        put("videoHash", hashResult.hash)
-                        put("videoSize", hashResult.size.toString())
-                    }
-                    if (!filename.isNullOrBlank()) put("filename", filename)
-                }
-
-                var querySuccess = false
-                var errorType: String? = null
-
-                val subtitles = withTimeoutOrNull(PER_ADDON_TIMEOUT_MS) {
-                    try {
-                        val items = addonClient.fetchSubtitles(
-                            context = context,
-                            manifestUrl = addon.manifestUrl,
-                            type = normalizedType,
-                            id = id,
-                            extraParams = extraParams.ifEmpty { null },
-                            aniListId = aniListId,
-                            animeTitle = animeTitle,
-                            episode = episode
-                        )
-                        querySuccess = true
-                        Log.d(TAG, "Addon '${addon.name}': ${items.size} altyazı döndü")
-                        items.mapNotNull { item ->
-                            val url = item.url ?: return@mapNotNull null
-                            val lang = item.lang ?: "unknown"
-                            Subtitle(
-                                id = item.id ?: url,
-                                url = url,
-                                lang = lang,
-                                addonName = addon.name,
-                                addonLogo = addon.icon,
-                                format = guessFormat(url)
-                            )
+                val supported = addon.subtitleTypes?.split(',')?.map { it.trim().lowercase() }
+                val applicable = normalizedQueries.filter {
+                    supported == null || "*" in supported || it.type in supported
+                }.let { if (addon.manifestUrl.contains("anisub.co", ignoreCase = true)) it.take(1) else it }
+                applicable.map { query ->
+                    async {
+                        withTimeoutOrNull(PER_ADDON_TIMEOUT_MS) {
+                            try {
+                                addonClient.fetchSubtitles(
+                                    context, addon.manifestUrl, query.type, query.id,
+                                    extras.ifEmpty { null }, aniListId, animeTitle, episode
+                                ).mapNotNull { item ->
+                                    if (!com.kitsugi.animelist.core.player.SubtitleEpisodeValidator.isCompatible(
+                                            query.type, query.id, item.season.subtitleIntOrNull(), item.episode.subtitleIntOrNull(), item.subtitleFileName, item.movieReleaseName
+                                        )) return@mapNotNull null
+                                    val url = item.url?.trim()?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+                                    Subtitle(
+                                        item.id ?: url, url, item.lang ?: "unknown", addon.name, addon.icon,
+                                        guessFormat(url),
+                                        listOf(item.label, item.releaseInfo, item.subtitleFileName, item.title, item.movieReleaseName)
+                                            .firstOrNull { !it.isNullOrBlank() }
+                                    )
+                                }
+                            } catch (e: CancellationException) {
+                                throw e
+                            } catch (e: Exception) {
+                                Log.w(TAG, "Subtitle provider '${addon.name}' failed for ${query.type}/${query.id}: ${e.message}")
+                                emptyList()
+                            }
+                        } ?: run {
+                            Log.w(TAG, "Subtitle provider '${addon.name}' timed out for ${query.type}/${query.id}")
+                            emptyList()
                         }
-                    } catch (e: Exception) {
-                        errorType = "EXCEPTION: ${e.javaClass.simpleName} - ${e.message}"
-                        Log.e(TAG, "Addon '${addon.name}' fetch hatası: $errorType")
-                        emptyList()
                     }
-                } ?: run {
-                    errorType = "TIMEOUT (${PER_ADDON_TIMEOUT_MS}ms)"
-                    Log.w(TAG, "Addon '${addon.name}' ${PER_ADDON_TIMEOUT_MS}ms timeout")
-                    emptyList()
-                }
-
-                val targetCbState = circuitBreakers.getOrPut(manifestUrl) { CircuitBreakerState() }
-                if (querySuccess) {
-                    targetCbState.failureCount = 0
-                } else {
-                    targetCbState.failureCount += 1
-                    targetCbState.lastFailureTimeMs = System.currentTimeMillis()
-                    Log.w(TAG, "Addon '${addon.name}' failure registered ($errorType). Failure count: ${targetCbState.failureCount}/3")
-                }
-
-                subtitles
+                }.awaitAll().flatten()
             }
+        }.awaitAll().flatten().distinctBy {
+            // AltyaziDB signs different URLs for IMDb and TMDB but keeps a stable subtitle ID.
+            it.addonName to if (it.id.startsWith("altyazidb:")) it.id else it.url
         }
-
-        val allSubtitles = deferredResults.awaitAll().flatten()
-        Log.d(TAG, "Toplam ${allSubtitles.size} altyazı bulundu (${subtitleAddons.size} addon sorgulandı)")
-
-        // 4. ID'ye göre dedup
-        val seen = LinkedHashSet<String>()
-        val deduped = mutableListOf<Subtitle>()
-        for (sub in allSubtitles) {
-            if (seen.add(sub.id)) deduped += sub
-        }
-
-        deduped
     }
 
     /**
@@ -225,21 +143,6 @@ class SubtitleRepositoryImpl(private val context: Context) {
     }
 
     /**
-     * Addon'un idPrefixes JSON array'ini parse eder.
-     * Null → prefix filtresi yok (her ID ile eşleşir).
-     */
-    private fun parseIdPrefixes(addon: ManagedAddonEntity): List<String>? {
-        val json = addon.idPrefixes ?: return null
-        return try {
-            val arr = JSONArray(json)
-            (0 until arr.length()).map { arr.getString(it) }.filter { it.isNotBlank() }
-        } catch (e: Exception) {
-            Log.w(TAG, "idPrefixes parse hatası (addon='${addon.name}'): ${e.message}")
-            null
-        }
-    }
-
-    /**
      * URL uzantısından format tahmin eder.
      */
     private fun guessFormat(url: String): String {
@@ -252,3 +155,9 @@ class SubtitleRepositoryImpl(private val context: Context) {
         }
     }
 }
+
+/** Tolerate optional metadata encoded as a JSON number, string, null, or object. */
+private fun com.google.gson.JsonElement?.subtitleIntOrNull(): Int? =
+    if (this != null && isJsonPrimitive && asJsonPrimitive.isNumber) runCatching { asInt }.getOrNull()
+    else if (this != null && isJsonPrimitive && asJsonPrimitive.isString) asString.toIntOrNull()
+    else null

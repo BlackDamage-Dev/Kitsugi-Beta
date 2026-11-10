@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="manga_direction_webtoon">Kesintisiz dikey (Webtoon)</string>
+    <string name="manga_auto_fullscreen">Okuyucuyu tam ekran başlat</string>
+    <string name="manga_enter_fullscreen">Tam ekrana geç</string>
+    <string name="manga_exit_fullscreen">Tam ekrandan çık</string>
+    <string name="manga_chapter_search">Bölüm ara (ör. 42)</string>
+    <string name="manga_clear_search">Aramayı temizle</string>
+    <string name="manga_sort_oldest">Eski → Yeni (1 → N)</string>
+    <string name="manga_sort_newest">Yeni → Eski (N → 1)</string>
+    <string name="manga_sort_updated">Son güncellenen</string>
+    <string name="manga_compact_chapters">Kompakt bölüm görünümü</string>
+    <string name="manga_filter_read">Okunan</string>
+    <string name="manga_chapter_no_results">Filtrelere uygun bölüm bulunamadı.</string>
+</resources>

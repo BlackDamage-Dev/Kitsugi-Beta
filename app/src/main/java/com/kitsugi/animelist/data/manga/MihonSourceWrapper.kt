@@ -10,6 +10,9 @@ import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.HttpSource
 import android.util.Log
 import tachiyomi.core.common.util.lang.awaitSingle
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 /**
  * MihonSourceWrapper
@@ -35,6 +38,10 @@ class MihonSourceWrapper(
     private val httpSource: HttpSource? get() = mihonSource as? HttpSource
     private val sourceConfigStore = SourceConfigStore(context)
     private val mirrorResolver = SourceMirrorResolver(context, sourceConfigStore)
+    // KeiSource rejects concurrent updates for the same manga URL. Use bounded
+    // striped locks so detail and chapter requests cannot collide or leak keys.
+    private val mangaUpdateLocks = Array(32) { Mutex() }
+    private fun updateLock(url: String): Mutex = mangaUpdateLocks[(url.hashCode() and Int.MAX_VALUE) % mangaUpdateLocks.size]
 
     // ── Lazy Fallback Engine'ler ───────────────────────────────────────────────
 
@@ -64,9 +71,19 @@ class MihonSourceWrapper(
 
     override val originalBaseUrl: String get() = rawBaseUrl()
 
-    /** Read the public contract; subclasses need not declare a baseUrl field. */
+    /**
+     * Yürürlükteki adres: kullanıcının seçtiği alan adı (varsa) yoksa eklentinin kendi adresi.
+     *
+     * ⚠️ Bu getter `SourceConfigStore`'a, orası da `stableSourceKey()` üzerinden kaynağın
+     * kimliğine gider. Kimlik artık `originalBaseUrl` kullandığı için döngü oluşmaz; yine de
+     * eklenti/SharedPreferences tarafındaki beklenmedik bir hata tüm manga akışını
+     * düşürmesin diye sonuç güvenli biçimde ham adrese düşürülür (StackOverflowError raporu).
+     */
     override val baseUrl: String
-        get() = sourceConfigStore.getPreferredBaseUrl(this, rawBaseUrl()) ?: rawBaseUrl()
+        get() = runCatching { sourceConfigStore.getPreferredBaseUrl(this, rawBaseUrl()) }
+            .getOrNull()
+            ?.takeIf { it.isNotBlank() }
+            ?: rawBaseUrl()
 
     private fun rawBaseUrl(): String = httpSource?.baseUrl.orEmpty()
 
@@ -87,6 +104,15 @@ class MihonSourceWrapper(
         maybeSlowdown()
         return try {
             block()
+        } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
+            val timeout = java.net.SocketTimeoutException("Zaman aşımı (${mihonSource.name}): ${e.message}").apply {
+                initCause(e)
+            }
+            val switched = mirrorResolver.tryResolveAndActivateMirror(this, timeout)
+            if (!switched) throw timeout
+            applyRuntimeSourceConfig()
+            maybeSlowdown()
+            block()
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
             val switched = mirrorResolver.tryResolveAndActivateMirror(this, e)
@@ -94,6 +120,43 @@ class MihonSourceWrapper(
             applyRuntimeSourceConfig()
             maybeSlowdown()
             block()
+        }
+    }
+
+    // ── Son Güncellemeler (Mihon supportsLatest) ──────────────────────────────
+
+    /**
+     * Mihon/Tachiyomi eklentisi "son güncellemeler" rafını destekliyor mu?
+     *
+     * `Source.supportsLatest` bayrağı okunur; eklenti bu bayrağı uygulamıyorsa
+     * (eski/eğreti derlenmiş APK) güvenli tarafta kalıp `false` döneriz.
+     */
+    override val supportsLatest: Boolean
+        get() = try {
+            mihonSource.supportsLatest
+        } catch (_: Throwable) {
+            false
+        }
+
+    override suspend fun fetchLatestManga(page: Int): MangaSourceResult = withRecovery {
+        val t0 = System.currentTimeMillis()
+        try {
+            val pageResult = mihonSource.getLatestUpdates(page)
+            val result = MangaSourceResult(
+                mangas = pageResult.mangas.map { it.toMangaDetails() },
+                hasNextPage = pageResult.hasNextPage
+            )
+            MangaLogger.logPopular(
+                context, mihonSource.name, success = true,
+                resultCount = result.mangas.size, elapsedMs = System.currentTimeMillis() - t0
+            )
+            result
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            Log.w(TAG, "${mihonSource.name} APK son güncellemeler başarısız (engine=$engineType): ${e.message}")
+            // Bazı eklentilerde latest ucu bozuk/kapalı; keşfet sayfası boş kalmasın
+            // diye popüler listeye düşeriz (aynı davranış MangaBrowse'da da var).
+            fetchPopularManga(page)
         }
     }
 
@@ -127,6 +190,22 @@ class MihonSourceWrapper(
                     elapsedMs = System.currentTimeMillis() - t0, error = e)
                 throw e
             }
+        }
+    }
+
+    override suspend fun authentication(): MangaSourceAuthentication? =
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val configurable = mihonSource as? eu.kanade.tachiyomi.source.ConfigurableSource
+                ?: return@withContext null
+            val fields = MihonSourceAuthentication.fields(context, configurable)
+            if (fields.isEmpty()) null else MangaSourceAuthentication(credentialFields = fields)
+        }
+
+    override suspend fun saveCredentials(values: Map<String, String>) {
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val configurable = mihonSource as? eu.kanade.tachiyomi.source.ConfigurableSource
+                ?: throw UnsupportedOperationException("${mihonSource.name} hesap tercihlerini desteklemiyor")
+            MihonSourceAuthentication.save(context, configurable, values)
         }
     }
 
@@ -172,15 +251,19 @@ class MihonSourceWrapper(
             withRecovery {
                 // extensionLib 1.6+: getMangaUpdate (suspend API) — KeiSource/Madara/Themesia'nın tek desteklediği yol.
                 // extensionLib 1.4: getMangaUpdate'in CatalogueSource varsayılan impl'i fetchMangaDetails().awaitSingle()'a köprüler.
-                val update = kotlinx.coroutines.withTimeout(20_000L) {
-                    mihonSource.getMangaUpdate(
-                        manga        = stub,
-                        chapters     = emptyList(),
-                        fetchDetails = true,
-                        fetchChapters = false
-                    )
+                val update = updateLock(mangaUrl).withLock {
+                    kotlinx.coroutines.withTimeout(20_000L) {
+                        mihonSource.getMangaUpdate(
+                            manga        = stub,
+                            chapters     = emptyList(),
+                            fetchDetails = true,
+                            fetchChapters = false
+                        )
+                    }
                 }
-                val details = update.manga.toMangaDetails()
+                // Manga-TR's update parser creates a fresh SManga without assigning
+                // its lateinit url. Preserve the URL used for this exact request.
+                val details = update.manga.toMangaDetails(fallbackUrl = mangaUrl)
                 MangaLogger.logMangaDetails(context, mihonSource.name, mangaUrl, success = true)
                 details
             }
@@ -219,20 +302,22 @@ class MihonSourceWrapper(
 
                 // extensionLib 1.6+: getMangaUpdate ile hem detay hem bölüm tek seferde.
                 // fetchDetails=true alarak mangaTitle'ı da çekiyoruz (ChapterRecognition için).
-                val update = kotlinx.coroutines.withTimeout(45_000L) {
-                    mihonSource.getMangaUpdate(
-                        manga         = stub,
-                        chapters      = emptyList(),
-                        fetchDetails  = true,
-                        fetchChapters = true
-                    )
+                val update = updateLock(mangaUrl).withLock {
+                    kotlinx.coroutines.withTimeout(180_000L) {
+                        mihonSource.getMangaUpdate(
+                            manga         = stub,
+                            chapters      = emptyList(),
+                            fetchDetails  = true,
+                            fetchChapters = true
+                        )
+                    }
                 }
 
                 val mangaTitle = update.manga.title.takeIf { it.isNotBlank() && !it.startsWith("/") } ?: ""
                 val rawChapters = update.chapters
 
                 Log.d(TAG, "${mihonSource.name}: ${rawChapters.size} bölüm alındı — $mangaUrl")
-                val mapped = rawChapters.map { it.toMangaChapter(mangaUrl, mangaTitle) }
+                val mapped = rawChapters.distinctBy { it.url }.map { it.toMangaChapter(mangaUrl, mangaTitle) }
                     .sortedWith(
                         compareByDescending<MangaChapter> {
                             if (it.chapterNumber >= 0f) it.chapterNumber else Float.NEGATIVE_INFINITY
@@ -269,11 +354,7 @@ class MihonSourceWrapper(
     // CatalogueSource.getPageList() → fetchPageList().awaitSingle() köprüsü devreye girer,
     // bu da HttpSource.fetchPageList() → HTTP isteği + pageListParse() zincirini tetikler.
     override suspend fun fetchPageList(chapter: MangaChapter): List<MangaPage> {
-        val sChapter = SChapter.create().apply {
-            url = chapter.url
-            name = chapter.name
-            chapter_number = chapter.chapterNumber
-        }
+        val sChapter = chapter.toExtensionChapter()
         val t0 = System.currentTimeMillis()
         return try {
             withRecovery {
@@ -291,6 +372,7 @@ class MihonSourceWrapper(
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
             val msg = e.message?.lowercase() ?: ""
+            if (isMangaTrLoginRequired(pkgName, e.message)) throw e
             val isCaptcha = msg.contains("captcha") || msg.contains("webview") ||
                 msg.contains("doğrula") || msg.contains("verify") || msg.contains("challenge")
             if (isCaptcha) {
@@ -329,30 +411,43 @@ class MihonSourceWrapper(
     }
 
     override suspend fun getImage(page: MangaPage): java.io.InputStream {
-        applyRuntimeSourceConfig()
-        maybeSlowdown()
-        val source = httpSource ?: return super<MangaSource>.getImage(page)
-        // Do not rebuild the request/client: imageRequest overrides can carry chapter
-        // referers, signed URLs, decryption interceptors and the source cookie jar.
-        val response = source.getImage(eu.kanade.tachiyomi.source.model.Page(
-            index = page.index, url = page.url, imageUrl = page.imageUrl
-        ))
-        val body = response.body
-        if (!response.isSuccessful || body == null) {
-            response.close()
-            throw java.io.IOException("Görsel isteği başarısız: HTTP ${response.code}")
-        }
-        return object : java.io.FilterInputStream(body.byteStream()) {
-            override fun close() {
-                try { super.close() } finally { response.close() }
+        try {
+            applyRuntimeSourceConfig()
+            maybeSlowdown()
+            val source = httpSource ?: return super<MangaSource>.getImage(page)
+            if (pkgName.endsWith(".mangatr", ignoreCase = true) &&
+                isInvalidMangaTrImageOrder(page.imageUrl?.toHttpUrlOrNull()?.fragment)
+            ) {
+                throw java.io.IOException("Eklenti geçersiz görsel parça sırası döndürdü; sayfa işlenemiyor")
             }
+            // Do not rebuild the request/client: imageRequest overrides can carry chapter
+            // referers, signed URLs, decryption interceptors and the source cookie jar.
+            val response = source.getImage(eu.kanade.tachiyomi.source.model.Page(
+                index = page.index, url = page.url, imageUrl = page.imageUrl
+            ))
+            val body = response.body
+            if (!response.isSuccessful || body == null) {
+                response.close()
+                throw java.io.IOException("Görsel isteği başarısız: HTTP ${response.code}")
+            }
+            return object : java.io.FilterInputStream(body.byteStream()) {
+                override fun close() {
+                    try { super.close() } finally { response.close() }
+                }
+            }
+        } catch (e: LinkageError) {
+            throw java.io.IOException("Eklenti çalışma zamanı uyumsuzluğu: ${e.javaClass.simpleName}: ${e.message.orEmpty()}", e)
         }
     }
 
     // ── Dönüşüm Yardımcıları ──────────────────────────────────────────────────
 
-    private fun SManga.toMangaDetails(): MangaDetails = MangaDetails(
-        url = url,
+    private fun SManga.toMangaDetails(fallbackUrl: String? = null): MangaDetails = MangaDetails(
+        url = try {
+            url.takeIf { it.isNotBlank() } ?: fallbackUrl.orEmpty()
+        } catch (e: UninitializedPropertyAccessException) {
+            fallbackUrl ?: throw e
+        },
         title = title,
         author = author,
         artist = artist,
@@ -390,6 +485,6 @@ class MihonSourceWrapper(
             scanlator = scanlator,
             uploadDate = date_upload,
             mangaUrl = mangaUrl
-        )
+        ).apply { extensionMemo = this@toMangaChapter.memo }
     }
 }

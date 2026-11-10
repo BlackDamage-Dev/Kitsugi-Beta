@@ -69,7 +69,9 @@ internal object HeroArtworkImagePolicy {
     fun request(context: Context, url: String): ImageRequest =
         ImageRequest.Builder(context)
             .data(url)
-            .allowHardware(false)
+            // Dönüşümsüz vitrin GPU'da hardware bitmap olarak çizilebilir. Bitmap blur
+            // uygulanan istekler KitsugiNsfwImage içinde ayrıca software moda alınır.
+            .allowHardware(true)
             .allowRgb565(false)
             .precision(Precision.EXACT)
             .size(targetWidthPx(context), targetHeightPx(context))
@@ -77,10 +79,10 @@ internal object HeroArtworkImagePolicy {
             .build()
 
     /**
-     * Sayfa açılmadan **ÖNCE** vitrin görselini indirip decode eder.
+     * Vitrin görselini arka planda indirip decode eder.
      *
-     * Amaç: detay sayfası render olduğunda görsel zaten hazır olsun; kullanıcı ne düşük
-     * çözünürlüklü kaynak görselini ne de boş/placeholder kare görsün.
+     * Amaç: yüksek kaliteli aday seçildiğinde ekrandaki istekle aynı bellek önbelleğini
+     * hazırlamak; birincil detayın ilk karesini bu işlem için bekletmemek.
      *
      * Başarısızlık veya uzun sürme sessizce yok sayılır — vitrin kendi isteğiyle de
      * yüklenmeye devam eder.

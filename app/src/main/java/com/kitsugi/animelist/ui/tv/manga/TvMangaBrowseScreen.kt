@@ -1,6 +1,11 @@
 package com.kitsugi.animelist.ui.tv.manga
 
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
+import com.kitsugi.animelist.ui.screens.manga.LocalComicReader
+import com.kitsugi.animelist.ui.screens.manga.LocalPdfReader
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import com.kitsugi.animelist.ui.theme.gradient.background
@@ -24,12 +29,7 @@ import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.Book
-import androidx.compose.material.icons.rounded.Extension
-import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material.icons.rounded.TravelExplore
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.CircularProgressIndicator
 import com.kitsugi.animelist.ui.components.KitsugiPlasmaLoader
 import com.kitsugi.animelist.ui.theme.gradient.Icon
@@ -61,6 +61,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.MaterialTheme
 import com.kitsugi.animelist.ui.theme.gradient.Text
+import com.kitsugi.animelist.ui.theme.gradient.Button
+import com.kitsugi.animelist.data.manga.stableSourceKey
+import com.kitsugi.animelist.ui.screens.manga.SourceSelectFiltersDialog
 import coil3.compose.AsyncImage
 import com.kitsugi.animelist.data.manga.MangaDetails
 import com.kitsugi.animelist.data.manga.MangaSource
@@ -89,10 +92,49 @@ import com.kitsugi.animelist.R
 @Composable
 fun TvMangaBrowseScreen(
     repository: MangaSourceRepository,
-    vm: MangaBrowseViewModel = viewModel(factory = MangaBrowseViewModel.Factory(repository)),
+    vm: MangaBrowseViewModel = viewModel(
+        factory = MangaBrowseViewModel.Factory(
+            repository,
+            androidx.compose.ui.platform.LocalContext.current.applicationContext,
+        )
+    ),
+    /** "Oku" akışından gelen ilk arama (null = tarayıcı normal açılır). */
+    initialQuery: String? = null,
+    /** Dil sırasına göre yedek adlar. */
+    initialQueryVariants: List<String> = emptyList(),
+    /** Seçili arama dili (ENGLISH / ROMAJI / NATIVE / LOCAL) — bilgi amaçlı. */
+    initialSearchLanguage: String? = null,
     onMangaClick: (MangaSource, MangaDetails) -> Unit = { _, _ -> },
-    onBack: () -> Unit = {}
+    onBack: () -> Unit = {},
+    /** Manga kitaplığını açar (takip edilen seriler). */
+    onOpenMangaLibrary: () -> Unit = {}
 ) {
+    // "Oku" ile gelindiyse aramayı kendiliğinden başlat (mobil akışla aynı davranış).
+    LaunchedEffect(initialQuery, initialQueryVariants, initialSearchLanguage) {
+        if (!initialQuery.isNullOrBlank() && vm.lastInitialQuery != initialQuery) {
+            vm.lastInitialQuery = initialQuery
+            vm.search(initialQuery, initialQueryVariants)
+        }
+    }
+    val context = LocalContext.current
+    var localComic by remember { mutableStateOf<android.net.Uri?>(null) }
+    var localPdf by remember { mutableStateOf<android.net.Uri?>(null) }
+    val openComic = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            try { context.contentResolver.takePersistableUriPermission(uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+            catch (_: SecurityException) { }
+            localComic = uri
+        }
+    }
+    val openPdf = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            try { context.contentResolver.takePersistableUriPermission(uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+            catch (_: SecurityException) { }
+            localPdf = uri
+        }
+    }
+    localComic?.let { uri -> LocalComicReader(uri, onDismiss = { localComic = null }, tv = true) }
+    localPdf?.let { uri -> LocalPdfReader(uri, onDismiss = { localPdf = null }, tv = true) }
     val ui by vm.ui.collectAsState()
     val gridState = rememberLazyGridState()
 
@@ -102,6 +144,10 @@ fun TvMangaBrowseScreen(
     val gridFocusRequester    = remember { FocusRequester() }
 
     var searchFocused by remember { mutableStateOf(false) }
+    var showSourceFilters by remember { mutableStateOf(false) }
+
+    // Seçili arama dili: "Oku" akışından geldiyse o değer gösterilir.
+    val activeSearchLanguage = initialSearchLanguage ?: "ROMAJI"
 
     BackHandler(enabled = true) { onBack() }
 
@@ -111,25 +157,25 @@ fun TvMangaBrowseScreen(
     val selFilter = ui.selectedSourceFilter
     val popular   = ui.popularMangas
 
-    val mergedMangas = remember(states, selFilter, query, popular) {
+    val searchTitles = ui.searchTitles
+    val mergedMangas = remember(states, selFilter, query, popular, searchTitles) {
         val raw = if (query.isNotBlank()) {
+            // Eser, kaynağın kendi dilindeki adla gelebilir: sıralama/puanlama
+            // denenen TÜM başlıklara göre yapılır.
+            val matchTitles = searchTitles.ifEmpty { listOf(query) }
+            fun bestScore(title: String): Double = matchTitles.maxOf { candidate ->
+                com.kitsugi.animelist.data.manga.MangaTitleMatcher.getSimilarityScore(candidate, title)
+            }
             val src = selFilter
             if (src != null) {
                 (states.firstOrNull { it.source.name == src.name }?.mangas ?: emptyList())
-                    .sortedByDescending {
-                        com.kitsugi.animelist.data.manga.MangaTitleMatcher.getSimilarityScore(query, it.title)
-                    }
+                    .sortedByDescending { bestScore(it.title) }
             } else {
-                val minScore = if (query.trim().length <= 3) 0.15 else 0.30
-                states.flatMap { st ->
-                    st.mangas.map { manga ->
-                        val score = com.kitsugi.animelist.data.manga.MangaTitleMatcher.getSimilarityScore(query, manga.title)
-                        Triple(manga, score, st.source)
-                    }
-                }
-                .filter { (_, score, _) -> score >= minScore }
-                .sortedByDescending { it.second }
-                .map { it.first }
+                // Eleme ViewModel'de yapıldı (çok dilli arama sonuçları burada
+                // benzerlik eşiğine takılıp kaybolmasın) — burada yalnızca sıralanır.
+                states.flatMap { st -> st.mangas.map { manga -> manga to bestScore(manga.title) } }
+                    .sortedByDescending { it.second }
+                    .map { it.first }
             }
         } else popular
         raw.distinctBy { "${it.source}_${it.url}" }
@@ -188,7 +234,7 @@ fun TvMangaBrowseScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        Icons.AutoMirrored.Rounded.ArrowBack,
+                        Icons.ArrowBack,
                         contentDescription = stringResource(R.string.geri),
                         tint = KitsugiColors.TextPrimary,
                         modifier = Modifier.size(20.dp)
@@ -202,15 +248,55 @@ fun TvMangaBrowseScreen(
                     fontWeight = FontWeight.Bold
                 )
                 Spacer(Modifier.weight(1f))
+                // Kitaplık kısayolu — kumandayla erişilebilir, odak halkası standart.
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(KitsugiColors.SurfaceStrong.copy(0.5f))
+                        .tvClickable(shape = RoundedCornerShape(8.dp)) { onOpenMangaLibrary() }
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.CollectionsBookmark,
+                        contentDescription = null,
+                        tint = KitsugiColors.Accent,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        text = stringResource(R.string.manga_library_title),
+                        color = KitsugiColors.TextPrimary,
+                        style = androidx.compose.material3.MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+                Spacer(Modifier.width(12.dp))
                 Icon(
-                    Icons.Rounded.TravelExplore,
+                    Icons.TravelExplore,
                     contentDescription = null,
-                    tint = KitsugiColors.AccentBlue,
+                    tint = KitsugiColors.Accent,
                     modifier = Modifier.size(24.dp)
                 )
             }
 
             Spacer(Modifier.height(16.dp))
+
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                TvLocalDocumentButton(stringResource(R.string.reader_comic_open)) {
+                    try { openComic.launch(arrayOf("application/vnd.comicbook+zip", "application/zip", "application/x-cbz", "application/vnd.comicbook-rar", "application/vnd.rar", "application/x-rar-compressed", "application/octet-stream")) }
+                    catch (_: android.content.ActivityNotFoundException) {
+                        android.widget.Toast.makeText(context, R.string.reader_document_picker_unavailable, android.widget.Toast.LENGTH_LONG).show()
+                    }
+                }
+                TvLocalDocumentButton(stringResource(R.string.reader_pdf_open)) {
+                    try { openPdf.launch(arrayOf("application/pdf")) }
+                    catch (_: android.content.ActivityNotFoundException) {
+                        android.widget.Toast.makeText(context, R.string.reader_document_picker_unavailable, android.widget.Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
+            Spacer(Modifier.height(12.dp))
 
             // ── Arama alanı ──────────────────────────────────────────────────
             val searchBorderAlpha by animateFloatAsState(
@@ -218,17 +304,34 @@ fun TvMangaBrowseScreen(
                 animationSpec = tween(200),
                 label = "searchBorderAlpha"
             )
+            // ── Arama dili bilgisi (mobil tarayıcıdaki çiple aynı bilgi) ──────
+            // TV'de metin girişi klavye ile yapıldığı için burada yalnızca
+            // bilgilendirme amaçlı gösterilir; dil Ayarlar'dan değiştirilir.
+            if (query.isNotBlank()) {
+                val languageText = when (activeSearchLanguage.uppercase()) {
+                    "ENGLISH", "EN" -> stringResource(R.string.manga_search_lang_english)
+                    "NATIVE", "ORIGINAL" -> stringResource(R.string.manga_search_lang_native)
+                    "LOCAL", "TURKISH" -> stringResource(R.string.manga_search_lang_local)
+                    else -> stringResource(R.string.manga_search_lang_romaji)
+                }
+                com.kitsugi.animelist.ui.theme.gradient.Text(
+                    text = stringResource(R.string.manga_search_language_chip, languageText),
+                    color = KitsugiColors.Accent,
+                    style = MaterialTheme.typography.labelSmall,
+                    modifier = Modifier.padding(bottom = 6.dp)
+                )
+            }
             OutlinedTextField(
                 value = query,
                 onValueChange = { vm.search(it) },
                 placeholder = { Text(stringResource(R.string.manga_ara), color = KitsugiColors.TextMuted, style = MaterialTheme.typography.bodyMedium) },
-                leadingIcon  = { Icon(Icons.Rounded.Search, null, tint = KitsugiColors.TextMuted) },
+                leadingIcon  = { Icon(Icons.Search, null, tint = KitsugiColors.TextMuted) },
                 singleLine   = true,
                 shape        = RoundedCornerShape(10.dp),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor    = KitsugiColors.AccentBlue.copy(alpha = searchBorderAlpha),
+                    focusedBorderColor    = KitsugiColors.Accent.copy(alpha = searchBorderAlpha),
                     unfocusedBorderColor  = KitsugiColors.Border.copy(alpha = searchBorderAlpha),
-                    cursorColor           = KitsugiColors.AccentBlue,
+                    cursorColor           = KitsugiColors.Accent,
                     focusedTextColor      = KitsugiColors.TextPrimary,
                     unfocusedTextColor    = KitsugiColors.TextPrimary,
                     focusedContainerColor    = KitsugiColors.Surface.copy(0.6f),
@@ -240,6 +343,18 @@ fun TvMangaBrowseScreen(
                     .onFocusChanged { searchFocused = it.isFocused }
             )
 
+            if (query.isBlank() && selFilter is com.kitsugi.animelist.data.manga.MihonSourceWrapper) {
+                val filters = remember(selFilter) { runCatching { selFilter.selectFilters() }.getOrDefault(emptyList()) }
+                if (filters.isNotEmpty()) {
+                    Button(onClick = { showSourceFilters = true }) { Text("Kaynak filtreleri") }
+                    if (showSourceFilters) {
+                        SourceSelectFiltersDialog(filters, ui.sourceFilterSelections, onDismiss = { showSourceFilters = false }, onApply = {
+                            showSourceFilters = false
+                            vm.applySourceFilters(it)
+                        })
+                    }
+                }
+            }
             Spacer(Modifier.height(12.dp))
 
             // ── Kaynak chip satırı ────────────────────────────────────────────
@@ -280,10 +395,19 @@ fun TvMangaBrowseScreen(
                             )
                         }
                     } else {
+                        item {
+                            TvMangaSourceChip(
+                                label      = stringResource(R.string.tumu),
+                                count      = popular.size,
+                                isLoading  = ui.isLoadingPopular && selFilter == null,
+                                isSelected = selFilter == null,
+                                onClick    = { vm.selectSourceFilter(null) }
+                            )
+                        }
                         items(ui.sources) { src ->
                             TvMangaSourceChip(
                                 label      = "${src.name}  [${src.lang.uppercase()}]",
-                                count      = if (selFilter?.name == src.name) popular.size else 0,
+                                count      = popular.count { it.source.equals(src.name, ignoreCase = true) },
                                 isLoading  = selFilter?.name == src.name && ui.isLoadingPopular,
                                 isSelected = selFilter?.name == src.name,
                                 onClick    = { vm.selectSourceFilter(src) }
@@ -321,22 +445,30 @@ fun TvMangaBrowseScreen(
                         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Icon(
-                                    Icons.Rounded.Extension,
+                                    Icons.Extension,
                                     contentDescription = null,
                                     tint = KitsugiColors.TextMuted,
                                     modifier = Modifier.size(56.dp)
                                 )
                                 Spacer(Modifier.height(12.dp))
-                                Text(
-                                    stringResource(R.string.inline_no_manga_found_1c8e980),
-                                    color = KitsugiColors.TextSecondary,
-                                    style = MaterialTheme.typography.bodyLarge
-                                )
-                                Text(
-                                    stringResource(R.string.ayarlardan_manga_eklentisi_ekle),
-                                    color = KitsugiColors.TextMuted,
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
+                                val failures = states.filter { it.error != null && (selFilter == null || it.source.stableSourceKey() == selFilter.stableSourceKey()) }
+                                if (query.isNotBlank() && failures.isNotEmpty()) {
+                                    Text("Arama tamamlanamadı", color = KitsugiColors.TextPrimary, style = MaterialTheme.typography.bodyLarge)
+                                    failures.take(3).forEach { failure ->
+                                        Text("${failure.source.name}${failure.errorCode?.let { " ($it)" } ?: ""}: ${failure.error.orEmpty().take(240)}", color = KitsugiColors.TextSecondary, maxLines = 4)
+                                    }
+                                    Button(onClick = { vm.retrySearch() }) { Text("Tekrar dene") }
+                                } else if (query.isNotBlank() && states.isEmpty() && ui.sources.isNotEmpty()) {
+                                    Text("Kaynaklar şu anda aramaya alınmadı; elle tekrar deneyebilirsiniz.", color = KitsugiColors.TextSecondary, style = MaterialTheme.typography.bodyMedium)
+                                    Button(onClick = { vm.retrySearch() }) { Text("Tekrar dene") }
+                                } else {
+                                    Text(ui.popularError ?: stringResource(R.string.inline_no_manga_found_1c8e980), color = KitsugiColors.TextSecondary, style = MaterialTheme.typography.bodyLarge)
+                                }
+                                if (query.isBlank() && ui.popularError != null) {
+                                    Button(onClick = { vm.retryBrowsePage() }) { Text("Tekrar dene") }
+                                } else if (query.isBlank() && ui.hasNextPage) {
+                                    Button(onClick = { vm.loadNextPage() }) { Text("Devamını Göster") }
+                                }
                             }
                         }
                     }
@@ -420,7 +552,7 @@ private fun TvMangaCard(
                 .align(Alignment.BottomCenter)
                 .background(
                     Brush.verticalGradient(
-                        listOf(Color.Transparent, Color.Black.copy(0.92f))
+                        listOf(Color.Transparent, KitsugiColors.Scrim.copy(alpha = 0.92f))
                     )
                 )
                 .padding(8.dp)
@@ -428,7 +560,7 @@ private fun TvMangaCard(
             Column {
                 Text(
                     manga.title,
-                    color = Color.White,
+                    color = KitsugiColors.TextPrimary,
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 2,
@@ -437,7 +569,7 @@ private fun TvMangaCard(
                 if (!manga.source.isNullOrBlank()) {
                     Text(
                         manga.source,
-                        color = KitsugiColors.AccentBlue,
+                        color = KitsugiColors.Accent,
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
@@ -451,7 +583,7 @@ private fun TvMangaCard(
         if (manga.thumbnailUrl.isNullOrBlank()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Icon(
-                    Icons.Rounded.Book,
+                    Icons.Book,
                     contentDescription = null,
                     tint = KitsugiColors.TextMuted,
                     modifier = Modifier.size(40.dp)
@@ -490,9 +622,9 @@ private fun TvMangaSourceChip(
 ) {
     val chipShape = RoundedCornerShape(999.dp)
     val bg = when {
-        isSelected -> KitsugiColors.AccentBlue.copy(0.35f)
-        count > 0  -> KitsugiColors.AccentBlue.copy(0.12f)
-        else       -> Color.White.copy(0.08f)
+        isSelected -> KitsugiColors.Accent.copy(0.35f)
+        count > 0  -> KitsugiColors.Accent.copy(0.12f)
+        else       -> KitsugiColors.Surface.copy(0.92f)
     }
 
     Row(
@@ -510,7 +642,7 @@ private fun TvMangaSourceChip(
                 Modifier
                     .size(7.dp)
                     .clip(RoundedCornerShape(999.dp))
-                    .background(KitsugiColors.AccentBlue)
+                    .background(KitsugiColors.Accent)
             )
             else -> Box(
                 Modifier
@@ -525,5 +657,14 @@ private fun TvMangaSourceChip(
             style = MaterialTheme.typography.labelMedium,
             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
         )
+    }
+}
+
+@Composable
+private fun TvLocalDocumentButton(label: String, onClick: () -> Unit) {
+    Box(Modifier.clip(RoundedCornerShape(8.dp)).background(KitsugiColors.SurfaceStrong)
+        .tvClickable(shape = RoundedCornerShape(8.dp), onClick = onClick)
+        .padding(horizontal = 16.dp, vertical = 10.dp)) {
+        Text(label, color = KitsugiColors.TextPrimary, style = MaterialTheme.typography.bodyMedium)
     }
 }

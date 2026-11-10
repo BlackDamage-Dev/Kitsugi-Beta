@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.ui.screens.account
+﻿package com.kitsugi.animelist.ui.screens.account
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -6,12 +6,14 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.AccountCircle
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -40,6 +42,7 @@ import com.kitsugi.animelist.data.account.AccountErrorFormatter
 import com.kitsugi.animelist.data.account.AccountFormValidation
 import com.kitsugi.animelist.data.account.AccountSyncReport
 import com.kitsugi.animelist.data.account.AccountSyncSection
+import com.kitsugi.animelist.data.account.AddonVaultBackup
 import com.kitsugi.animelist.data.account.KitsugiAccountClient
 import com.kitsugi.animelist.data.account.KitsugiAccountRepository
 import com.kitsugi.animelist.data.account.LinkedAccountVault
@@ -75,6 +78,7 @@ fun KitsugiAccountContent() {
     val initializing = authSessionStatus is SessionStatus.Initializing
     val vaultStatus by LinkedAccountVault.status.collectAsState()
     val vaultConflicts by LinkedAccountVault.conflicts.collectAsState()
+    val addonRestoreState by AddonVaultBackup.restoreState.collectAsState()
     val unlockedOwner by LinkedAccountVault.unlockedOwner.collectAsState()
     val vaultReady = owner != null && owner == unlockedOwner
 
@@ -90,6 +94,8 @@ fun KitsugiAccountContent() {
     var message by remember { mutableStateOf<String?>(null) }
     var isError by remember { mutableStateOf(false) }
     var passwordDialog by remember { mutableStateOf(false) }
+    var addonRestoreConfirm by remember { mutableStateOf(false) }
+    var addonTrustConfirm by remember { mutableStateOf(false) }
     var currentPassword by remember { mutableStateOf("") }
     var newPassword by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
@@ -102,6 +108,7 @@ fun KitsugiAccountContent() {
         } while (resendSeconds > 0)
     }
     LaunchedEffect(owner) {
+        AddonVaultBackup.refreshPending(context, owner)
         if (owner != null) {
             password = ""
             registrationConfirmation = ""
@@ -122,6 +129,7 @@ fun KitsugiAccountContent() {
         AccountSyncSection.SEARCH_HISTORY -> R.string.account_toggle_search_title
         AccountSyncSection.NOTIFICATIONS -> R.string.account_toggle_notif_title
         AccountSyncSection.VAULT -> R.string.account_toggle_backup_title
+        AccountSyncSection.ADDONS -> R.string.account_toggle_addons_title
     })
 
     fun showSyncReport(report: AccountSyncReport, prefix: String = "") {
@@ -204,6 +212,62 @@ fun KitsugiAccountContent() {
         }
     }
 
+    fun trustAddonSources() {
+        if (busy || owner == null || !vaultReady || !accountSettings.accountAddonSyncEnabled) return
+        addonTrustConfirm = false
+        busy = true
+        message = null
+        scope.launch {
+            try {
+                KitsugiAccountRepository.trustPendingAddonSources(context)
+                    .onSuccess { count ->
+                        isError = false
+                        message = context.getString(R.string.account_addon_trusted_result, count)
+                        AddonVaultBackup.refreshPending(context, owner)
+                    }
+                    .onFailure { showError(context.getString(R.string.account_addon_trust_failed), it) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                showError(context.getString(R.string.account_addon_trust_failed), e)
+            } finally { busy = false }
+        }
+    }
+
+    fun restoreAddons() {
+        if (busy || owner == null || !vaultReady || !accountSettings.accountAddonSyncEnabled) return
+        addonRestoreConfirm = false
+        busy = true
+        message = null
+        scope.launch {
+            try {
+                KitsugiAccountRepository.restorePendingAddons(context)
+                    .onSuccess { report ->
+                        isError = report.remainingCloudstream + report.remainingManga + report.remainingRepositories > 0
+                        message = context.getString(
+                            R.string.account_addon_restore_result,
+                            report.restoredCloudstream,
+                            report.restoredManga,
+                            report.restoredRepositories,
+                            report.remainingCloudstream,
+                            report.remainingManga,
+                            report.remainingRepositories,
+                            report.blockedByTrust
+                        )
+                        AddonVaultBackup.refreshPending(context, owner)
+                    }
+                    .onFailure { showError(context.getString(R.string.account_addon_restore_failed), it) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                showError(context.getString(R.string.account_addon_restore_failed), e)
+            } finally {
+                AddonVaultBackup.refreshPending(context, owner)
+                busy = false
+            }
+        }
+    }
+
     fun saveSetting(update: suspend () -> Unit) {
         if (busy) return
         busy = true
@@ -232,6 +296,65 @@ fun KitsugiAccountContent() {
                 }.onFailure { showError(context.getString(R.string.account_signout_failed), it) }
             } finally { busy = false }
         }
+    }
+
+    if (addonRestoreConfirm) {
+        AlertDialog(
+            onDismissRequest = { if (!busy) addonRestoreConfirm = false },
+            title = { Text(stringResource(R.string.account_addon_restore_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(stringResource(
+                        R.string.account_addon_restore_confirm,
+                        addonRestoreState.pendingCloudstream,
+                        addonRestoreState.pendingManga,
+                        addonRestoreState.pendingRepositories
+                    ))
+                    Text(stringResource(R.string.account_addon_restore_safety_note), style = MaterialTheme.typography.bodySmall)
+                }
+            },
+            confirmButton = {
+                TextButton(enabled = !busy, onClick = { restoreAddons() }) {
+                    Text(stringResource(R.string.account_addon_restore_action))
+                }
+            },
+            dismissButton = {
+                TextButton(enabled = !busy, onClick = { addonRestoreConfirm = false }) {
+                    Text(stringResource(R.string.vazgec))
+                }
+            }
+        )
+    }
+
+    if (addonTrustConfirm) {
+        AlertDialog(
+            onDismissRequest = { if (!busy) addonTrustConfirm = false },
+            title = { Text(stringResource(R.string.account_addon_trust_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(stringResource(R.string.account_addon_trust_confirm))
+                    Column(
+                        modifier = Modifier.heightIn(max = 180.dp).kitsugiVerticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        addonRestoreState.pendingTrustHosts.forEach { host ->
+                            Text(host, style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                    Text(stringResource(R.string.account_addon_trust_safety_note), style = MaterialTheme.typography.bodySmall)
+                }
+            },
+            confirmButton = {
+                TextButton(enabled = !busy, onClick = { trustAddonSources() }) {
+                    Text(stringResource(R.string.account_addon_trust_action))
+                }
+            },
+            dismissButton = {
+                TextButton(enabled = !busy, onClick = { addonTrustConfirm = false }) {
+                    Text(stringResource(R.string.vazgec))
+                }
+            }
+        )
     }
 
     if (passwordDialog) {
@@ -299,7 +422,7 @@ fun KitsugiAccountContent() {
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Icon(Icons.Rounded.AccountCircle, contentDescription = null, tint = accent, modifier = Modifier.size(48.dp))
+            Icon(Icons.AccountCircle, contentDescription = null, tint = accent, modifier = Modifier.size(48.dp))
             Column {
                 Text(
                     loggedInEmail ?: stringResource(R.string.ui_account_signed_out),
@@ -327,6 +450,10 @@ fun KitsugiAccountContent() {
                 accountSettings.accountBackupEnabled, !busy
             ) { enabled -> saveSetting { settingsDataStore.setAccountBackupEnabled(enabled) } }
             AccountSwitchRow(
+                stringResource(R.string.account_toggle_addons_title), stringResource(R.string.account_toggle_addons_desc),
+                accountSettings.accountAddonSyncEnabled, !busy
+            ) { enabled -> saveSetting { settingsDataStore.setAccountAddonSyncEnabled(enabled) } }
+            AccountSwitchRow(
                 stringResource(R.string.account_toggle_search_title), stringResource(R.string.account_toggle_search_desc),
                 accountSettings.accountSearchSyncEnabled, !busy
             ) { enabled -> saveSetting { settingsDataStore.setAccountSearchSyncEnabled(enabled) } }
@@ -334,6 +461,40 @@ fun KitsugiAccountContent() {
                 stringResource(R.string.account_toggle_notif_title), stringResource(R.string.account_toggle_notif_desc),
                 accountSettings.accountNotificationSyncEnabled, !busy
             ) { enabled -> saveSetting { settingsDataStore.setAccountNotificationSyncEnabled(enabled) } }
+            if (accountSettings.accountAddonSyncEnabled && addonRestoreState.ownerId == owner &&
+                addonRestoreState.pendingTotal == 0 && addonRestoreState.message != null) {
+                Text(addonRestoreState.message!!, style = MaterialTheme.typography.bodySmall, color = KitsugiColors.TextSecondary)
+            }
+            if (accountSettings.accountAddonSyncEnabled && addonRestoreState.ownerId == owner && addonRestoreState.pendingTotal > 0) {
+                Text(
+                    stringResource(
+                        R.string.account_addon_pending_summary,
+                        addonRestoreState.pendingCloudstream,
+                        addonRestoreState.pendingManga,
+                        addonRestoreState.pendingRepositories
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = KitsugiColors.TextSecondary
+                )
+                addonRestoreState.message?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = KitsugiColors.TextSecondary) }
+                if (addonRestoreState.pendingTrustHosts.isNotEmpty()) {
+                    Text(
+                        stringResource(R.string.account_addon_untrusted_hosts, addonRestoreState.pendingTrustHosts.size),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = KitsugiColors.TextSecondary
+                    )
+                    OutlinedButton(
+                        enabled = !busy && vaultReady && !addonRestoreState.isRestoring,
+                        onClick = { addonTrustConfirm = true },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text(stringResource(R.string.account_addon_trust_action)) }
+                }
+                OutlinedButton(
+                    enabled = !busy && vaultReady && !addonRestoreState.isRestoring,
+                    onClick = { addonRestoreConfirm = true },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text(stringResource(R.string.account_addon_restore_action)) }
+            }
 
             if (!vaultReady) {
                 Text(stringResource(R.string.account_vault_locked_hint), style = MaterialTheme.typography.bodySmall, color = KitsugiColors.TextSecondary)
@@ -365,11 +526,17 @@ fun KitsugiAccountContent() {
             Text(stringResource(R.string.account_sync_selected_hint), style = MaterialTheme.typography.bodySmall, color = KitsugiColors.TextSecondary)
             Button(
                 onClick = { syncNow() },
-                enabled = !busy && (accountSettings.accountBackupEnabled || accountSettings.accountSearchSyncEnabled || accountSettings.accountNotificationSyncEnabled),
+                enabled = !busy && (accountSettings.accountBackupEnabled || accountSettings.accountAddonSyncEnabled || accountSettings.accountSearchSyncEnabled || accountSettings.accountNotificationSyncEnabled),
                 modifier = Modifier.fillMaxWidth()
             ) { Text(stringResource(R.string.inline_sync_now_2f993db)) }
             if (vaultConflicts.isNotEmpty()) {
-                Text(stringResource(R.string.inline_conflicting_accounts_1_s_0c4c670, vaultConflicts.joinToString()), color = KitsugiColors.AccentRed)
+                Text(
+                    stringResource(
+                        R.string.inline_conflicting_accounts_1_s_0c4c670,
+                        vaultConflicts.map { if (it.startsWith("addons:")) context.getString(R.string.account_addon_conflict_label) else it.removePrefix("service:").removePrefix("settings:") }.distinct().joinToString()
+                    ),
+                    color = KitsugiColors.AccentRed
+                )
                 OutlinedButton(enabled = !busy, onClick = { conflictChoice = true }) { Text(stringResource(R.string.inline_keep_accounts_on_this_device_fd2ebcf)) }
                 OutlinedButton(enabled = !busy, onClick = { conflictChoice = false }) { Text(stringResource(R.string.inline_keep_cloud_accounts_47e2ee5)) }
             }

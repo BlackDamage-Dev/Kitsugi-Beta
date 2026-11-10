@@ -73,7 +73,7 @@ class StremioStreamRoutingTest {
     }
 
     @Test
-    fun fullStreamResourceWithoutOwnFieldsInheritsManifestLevel() {
+    fun fullStreamResourceWithoutOwnPrefixesDoesNotInheritTopLevelIdFilter() {
         val resources: List<Any> = listOf(mapOf("name" to "stream"))
         val spec = StremioStreamRouting.parseStreamResource(
             resources = resources,
@@ -81,7 +81,7 @@ class StremioStreamRoutingTest {
             manifestIdPrefixes = listOf("kitsu:")
         )
         assertEquals(listOf("series"), spec?.types)
-        assertEquals(listOf("kitsu:"), spec?.idPrefixes)
+        assertNull(spec?.idPrefixes)
     }
 
     @Test
@@ -152,6 +152,26 @@ class StremioStreamRoutingTest {
     }
 
     @Test
+    fun manifestCanRouteTmdbAnilistAndMalIdsIndependently() {
+        val routes = listOf(
+            torrentioLike.copy(name = "TMDB", idPrefixes = listOf("tmdb:")),
+            torrentioLike.copy(name = "AniList", idPrefixes = listOf("anilist:")),
+            torrentioLike.copy(name = "MAL", idPrefixes = listOf("myanimelist:"))
+        )
+        val tasks = buildStremioStreamTasks(
+            routes = routes,
+            contentType = "series",
+            imdbVideoId = "tt1234567:2:8",
+            kitsuVideoId = "kitsu:42:8",
+            additionalVideoIds = listOf("tmdb:101:2:8", "anilist:202:8", "myanimelist:303:8")
+        )
+        assertEquals(
+            listOf("tmdb:101:2:8", "anilist:202:8", "myanimelist:303:8"),
+            tasks.map { it.videoId }
+        )
+    }
+
+    @Test
     fun animeOnlyKitsuAddonGetsTaskWithAnimeRequestType() {
         val kitsuAddon = StremioAddonRoute(
             name = "Kitsu Stream",
@@ -182,6 +202,25 @@ class StremioStreamRoutingTest {
             kitsuVideoId = "kitsu:42"
         )
         assertEquals(listOf("tt1234567"), tasks.map { it.videoId })
+    }
+
+    @Test
+    fun unrestrictedStreamAddonDoesNotReceiveUnadvertisedCustomIdentityFamilies() {
+        val addon = StremioAddonRoute(
+            name = "NoPrefix",
+            manifestUrl = "https://no-prefix.example/manifest.json",
+            streamTypes = "series",
+            idPrefixes = emptyList(),
+            subtitleTypes = null
+        )
+        val tasks = buildStremioStreamTasks(
+            routes = listOf(addon),
+            contentType = "series",
+            imdbVideoId = "tt1234567:1:5",
+            kitsuVideoId = "kitsu:42:5",
+            additionalVideoIds = listOf("tmdb:101:1:5", "anilist:202:5", "simkl:303:1:5")
+        )
+        assertEquals(listOf("kitsu:42:5", "tt1234567:1:5"), tasks.map { it.videoId })
     }
 
     @Test

@@ -12,9 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Replay
-import androidx.compose.material.icons.rounded.SkipNext
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.Button
 import androidx.compose.material3.ButtonDefaults
 import com.kitsugi.animelist.ui.theme.gradient.Icon
@@ -69,7 +67,7 @@ fun PlaybackEndedOverlay(
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.Replay,
+                        imageVector = Icons.Replay,
                         contentDescription = stringResource(R.string.yeniden_oynat),
                         modifier = Modifier.size(20.dp)
                     )
@@ -87,7 +85,7 @@ fun PlaybackEndedOverlay(
                         shape = RoundedCornerShape(8.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.SkipNext,
+                            imageVector = Icons.SkipNext,
                             contentDescription = stringResource(R.string.sonraki_bolum),
                             modifier = Modifier.size(20.dp)
                         )

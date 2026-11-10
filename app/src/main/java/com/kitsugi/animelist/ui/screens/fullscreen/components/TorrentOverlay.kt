@@ -13,9 +13,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.CloudDownload
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -85,7 +83,7 @@ fun TorrentOverlay(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.CloudDownload,
+                            imageVector = Icons.CloudDownload,
                             contentDescription = "Torrent",
                             tint = KitsugiColors.Accent,
                             modifier = Modifier.size(16.dp)
@@ -103,7 +101,7 @@ fun TorrentOverlay(
                             modifier = Modifier.size(20.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Rounded.Close,
+                                imageVector = Icons.Close,
                                 contentDescription = stringResource(R.string.gizle),
                                 tint = Color.White.copy(alpha = 0.6f),
                                 modifier = Modifier.size(14.dp)

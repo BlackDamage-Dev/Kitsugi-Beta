@@ -36,7 +36,7 @@ import java.util.Locale
  *    (dizi birleştir → işlem sırası: atob / reverse / rot(replace) → modulo unmix),
  *  - olmazsa JSON-LD `contentUrl`,
  *  - olmazsa sayfada `master.txt` / `.m3u8` ara,
- *  - master listesini açıp EN YÜKSEK çözünürlüklü varyantı seç ve
+ *  - master listesindeki tüm kalite varyantlarını ve adaptif bağlantıyı koru;
  *    Origin/Referer'ı GERÇEK yayın host'una sabitle (yoksa CDN 5004 ile düşürüyor).
  */
 class KitsugiCdnJwExtractor(
@@ -97,18 +97,18 @@ class KitsugiCdnJwExtractor(
             }
 
             if (!realUrl.isNullOrBlank() && realUrl.startsWith("http")) {
-                val (streamUrl, streamHeaders) = resolveMasterPlaylist(realUrl, pageHeaders)
-                    ?: (realUrl to pageHeaders)
-
-                val type = if (looksLikeHls(streamUrl)) ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO
-                callback.invoke(
-                    newExtractorLink(source = name, name = name, url = streamUrl, type = type) {
-                        quality = Qualities.P1080.value
-                        headers = streamHeaders
-                    }
-                )
-                Log.d(TAG, "[$name] çözüldü → ${streamUrl.take(110)}")
-                com.kitsugi.animelist.data.cloudstream.diag.CsTrace.info(name, "extract", "çözüldü → ${streamUrl.take(110)} (kaynak=${url.take(70)})")
+                val streams = resolveMasterPlaylist(realUrl, pageHeaders)
+                for ((variant, streamHeaders) in streams) {
+                    val streamUrl = variant.url
+                    val type = if (looksLikeHls(realUrl) || looksLikeHls(streamUrl)) ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO
+                    val label = variant.height?.let { "${it}p" } ?: "Auto"
+                    callback.invoke(
+                        newExtractorLink(source = name, name = "$name $label", url = streamUrl, type = type) {
+                            quality = variant.height ?: Qualities.Unknown.value
+                            headers = streamHeaders
+                        }
+                    )
+                }
             } else {
                 val msg = "[$name] gerçek URL bulunamadı/deşifre edilemedi: url=${url.take(90)} origin=$origin htmlLen=${html.length}"
                 Log.w(TAG, msg)
@@ -126,43 +126,37 @@ class KitsugiCdnJwExtractor(
         }
     }
 
-    /** master.txt / master.m3u8 listesini açıp içindeki gerçek varyantı seçer. */
+    /** Keep the adaptive master and expose every independent source quality, not just 1080p. */
     private suspend fun resolveMasterPlaylist(
         playlistUrl: String,
         headers: Map<String, String>
-    ): Pair<String, Map<String, String>>? {
-        if (!playlistUrl.contains("master.txt") && !playlistUrl.contains(".m3u8")) return null
+    ): List<Pair<PlaylistVariant, Map<String, String>>> {
+        val fallback = listOf(PlaylistVariant(playlistUrl, null) to headers)
+        if (!looksLikeHls(playlistUrl)) return fallback
         return try {
-            val listText = app.get(playlistUrl, headers = headers).text
-            if (listText.isBlank()) {
-                val msg = "[$name] master listesi boş döndü (403?) url=${playlistUrl.take(110)}"
-                Log.w(TAG, msg)
-                com.kitsugi.animelist.data.cloudstream.diag.CsTrace.warn(name, "master", msg)
-                mirrorToAliasTags("master", msg, null)
-                return null
+            val response = app.get(playlistUrl, headers = headers)
+            val listText = response.text
+            val variants = parseVariants(listText, playlistUrl)
+            if (variants.isEmpty()) return fallback
+            val adaptive = listText.lineSequence().any { it.trim().startsWith("#EXT-X-STREAM-INF:") }
+            // Keep HLS renditions inside the active video. Emitting child URLs as
+            // sources makes autoplay choose a fixed variant and hides the other
+            // resolutions (and potentially alternate audio/subtitles) from the player.
+            if (adaptive || listText.lineSequence().any { it.trim().startsWith("#EXT-X-MEDIA:") } ||
+                com.kitsugi.animelist.core.download.HlsManifestParser.hasDetachedAudioRendition(listText)
+            ) return fallback
+            val links = variants.map { variant ->
+                val streamOrigin = originOf(variant.url)
+                val streamHeaders = if (streamOrigin != null && streamOrigin != originOf(playlistUrl)) {
+                    headersFor(streamOrigin)
+                } else headers
+                variant to streamHeaders
             }
-            val chosen = pickVariant(listText, playlistUrl)
-            if (chosen == null) {
-                val msg = "[$name] master varyant seçilemedi — liste parse edilemedi url=${playlistUrl.take(110)} ilkSatır=${listText.lineSequence().firstOrNull()?.take(80)}"
-                Log.w(TAG, msg)
-                com.kitsugi.animelist.data.cloudstream.diag.CsTrace.warn(name, "master", msg)
-                mirrorToAliasTags("master", msg, null)
-                return null
-            }
-            Log.d(TAG, "[$name] master listesi çözüldü: $chosen")
-            com.kitsugi.animelist.data.cloudstream.diag.CsTrace.info(name, "master", "çözüldü: $chosen")
-            // Oynatıcının Origin/Referer'ı liste host'u değil GERÇEK yayın host'u olmalı.
-            val streamOrigin = originOf(chosen)
-            val streamHeaders = if (streamOrigin != null && streamOrigin != originOf(playlistUrl)) {
-                headersFor(streamOrigin)
-            } else {
-                headers
-            }
-            chosen to streamHeaders
+            links
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
             reportExtractorError(stage = "master", url = playlistUrl, referer = headers["Referer"], origin = headers["Origin"], error = e)
-            null
+            fallback
         }
     }
 
@@ -208,7 +202,11 @@ class KitsugiCdnJwExtractor(
         val REGISTRATIONS: List<Pair<String, String>> = listOf(
             "KitsugiCloseLoad" to "https://closeload.",
             "KitsugiRapidrame" to "https://rapidrame.",
-            "KitsugiRplayer" to "https://rplayer."
+            "KitsugiRplayer" to "https://rplayer.",
+            "KitsugiHdfcEmbed" to "https://hdfilmcehennemi.mobi",
+            "KitsugiFmRapid" to "https://rapid.filmmakinesi.to",
+            "KitsugiHdfcRplayerNl" to "https://www.hdfilmcehennemi.nl/rplayer/",
+            "KitsugiHdfcRplayerBare" to "https://hdfilmcehennemi.nl/rplayer/"
         )
 
         /**
@@ -246,12 +244,32 @@ class KitsugiCdnJwExtractor(
                 lower.contains("playlist.txt") || lower.contains("/hls/")
         }
 
-        /**
-         * HLS master listesinden en yüksek çözünürlüklü varyantı seçer.
-         * playmix/closeload bazen `#EXT-X-STREAM-INF` bloğu yerine çıplak `.m3u8` satırı
-         * döndürür; o yüzden hem etiketler hem düz satırlar taranır.
-         * Çözülemezse null (çağıran ham adresle devam eder).
-         */
+        /** A source quality; unknown resolution is never fabricated as 1080p. */
+        data class PlaylistVariant(val url: String, val height: Int?)
+
+        fun parseVariants(listText: String, baseUrl: String): List<PlaylistVariant> {
+            val result = mutableListOf<PlaylistVariant>()
+            var pending: String? = null
+            // Media playlist segments must never become selectable video sources.
+            if (listText.contains("#EXTINF:")) return emptyList()
+            for (line in listText.lineSequence().map { it.trim() }.filter { it.isNotEmpty() }) {
+                if (line.startsWith("#EXT-X-STREAM-INF:")) {
+                    pending = line
+                    continue
+                }
+                if (line.startsWith("#")) continue
+                val info = pending
+                pending = null
+                val candidate = absolutize(line, baseUrl) ?: continue
+                if (!candidate.startsWith("https://") && !candidate.startsWith("http://")) continue
+                if (info == null && !looksLikeHls(candidate)) continue
+                val height = info?.let { Regex("RESOLUTION=\\d+x(\\d+)").find(it)?.groupValues?.get(1)?.toIntOrNull() }
+                    ?: Regex("(\\d{3,4})p", RegexOption.IGNORE_CASE).find(candidate)?.groupValues?.get(1)?.toIntOrNull()
+                result += PlaylistVariant(candidate, height?.takeIf { it > 0 })
+            }
+            return result.distinctBy { it.url }
+        }
+
         fun pickVariant(listText: String, baseUrl: String): String? {
             val lines = listText.lines().map { it.trim() }.filter { it.isNotEmpty() }
             var bestUrl: String? = null

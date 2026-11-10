@@ -37,7 +37,7 @@ import com.kitsugi.animelist.ui.theme.KitsugiColors
 @Composable
 fun KitsugiAiringCalendarScreen(
     currentEntries: List<MediaEntry> = emptyList(),
-    titleLanguage: String = "ROMAJI",
+    titleLanguage: String = "ENGLISH",
     onOpenAiringEntry: (AiringEntry) -> Unit = {},
     onBackClick: () -> Unit = {},
     preferredSource: String = "anilist",

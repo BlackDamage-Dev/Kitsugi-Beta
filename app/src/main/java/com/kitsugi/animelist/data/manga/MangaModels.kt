@@ -17,7 +17,8 @@ data class MangaDetails(
     val genre: List<String> = emptyList(),
     val thumbnailUrl: String? = null,
     val status: MangaStatus = MangaStatus.Unknown,
-    val source: String = ""
+    val source: String = "",
+    val alternativeTitles: List<String> = emptyList()
 ) {
     /**
      * +18 içerik mi? Manga kaynaklarında net bir API bayrağı olmadığı için
@@ -41,7 +42,18 @@ data class MangaChapter(
     val scanlator: String? = null,
     val uploadDate: Long = 0L,
     val mangaUrl: String = ""
-)
+) {
+    /** Opaque source metadata (e.g. Mangitto mangaSlug). Not a signed page URL. */
+    var extensionMemo: kotlinx.serialization.json.JsonObject = kotlinx.serialization.json.JsonObject(emptyMap())
+}
+
+/** Search the fully loaded extension list without collapsing translations with equal numbers. */
+fun MangaChapter.matchesChapterQuery(query: String): Boolean {
+    val term = query.trim()
+    return term.isEmpty() || name.contains(term, ignoreCase = true) ||
+        scanlator?.contains(term, ignoreCase = true) == true ||
+        (chapterNumber >= 0f && chapterNumber.toString().removeSuffix(".0").contains(term, ignoreCase = true))
+}
 
 /**
  * Bir bölümdeki tek bir sayfayı temsil eder.
@@ -57,33 +69,42 @@ class MangaPage(
     // Compose must observe the status itself, not a shallow copy of that list.
     var status: MangaPageStatus by mutableStateOf(status)
 
+    /** Stable source error for page-level actions such as re-authentication. */
+    var errorCode: String? by mutableStateOf(null)
+
+    // A URL supplied in the page list cannot necessarily be re-resolved with getImageUrl.
+    val sourceProvidedImageUrl: Boolean = !imageUrl.isNullOrBlank()
+
+    /** Chapter identity isolates source responses that depend on referer or chapter context. */
+    var cacheContext: String = ""
+
+    /** Source-processed image file; the UI must never refetch imageUrl independently. */
+    var localFile: java.io.File? = null
+    var aspectRatio: Float? by mutableStateOf(null)
+    var imageInfo: MangaImageInfo? by mutableStateOf(null)
+    var cachedImageFile: java.io.File? = null
+
     /** Yerel arşiv dosyası yolu (ZIP/CBZ/RAR içindeki sayfa) — null ise normal HTTP akışı. */
     var archivePath: String? = null
-}
 
-/**
- * Okuma modunu belirleyen enum.
- * Pager: Yatay/Dikey sayfalama (Manga, Manhua)
- * Webtoon: Sürekli dikey kaydırma (Manhwa, Webtoon)
- */
-enum class ReadingMode {
-    LeftToRight,   // Soldan Sağa (Manhua)
-    RightToLeft,   // Sağdan Sola (Manga - Japonca)
-    Vertical,      // Dikey Pager
-    Webtoon        // Kesintisiz dikey kaydırma (Manhwa)
-}
+    /**
+     * Ready olduğunda diske yazılmış gerçek görsel dosyası.
+     * `imageUrl` her zaman mevcut olmayabilir (ZIP/CBZ arşivinde sadece entry adı var);
+     * UI bu dosyayı doğrudan kullanmalı, URL'den yeniden türetmemelidir.
+     */
+    var cachedFile: java.io.File? = null
 
-enum class ColorFilterType {
-    Normal,
-    Grayscale,
-    Sepia,
-    Invert
-}
+    /** Durable downloaded page (content/file URI), outside the evictable reader cache. */
+    var localUri: String? = null
 
-enum class MangaFitMode {
-    FitScreen,
-    FitWidth,
-    FitHeight
+    /**
+     * Akıllı zemin (Smart background) için sayfa tonu — 0..1.
+     *
+     * Sayfa başına tutulur. Önceden tek bir uiState.pageLuminance vardı ve
+     * okuyucu hangi sayfada olursa olsun aynı tonu tüm sayfalara uyguluyordu;
+     * Smart zeminde her sayfa aynı renge boyanıyordu. null = henüz örneklenmedi.
+     */
+    var luminance: Float? by mutableStateOf(null)
 }
 
 enum class MangaStatus {

@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.ui.screens.detail
+﻿package com.kitsugi.animelist.ui.screens.detail
 
 import com.kitsugi.animelist.ui.components.KitsugiGalleryIconButton
 import com.kitsugi.animelist.ui.components.KitsugiOriginalToggleButton
@@ -19,14 +19,20 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import com.kitsugi.animelist.ui.theme.gradient.Text
 import androidx.compose.material3.IconButton
 import com.kitsugi.animelist.ui.theme.gradient.Icon
+import com.kitsugi.animelist.ui.components.GalleryThumbnailImagePolicy
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -58,19 +64,12 @@ import androidx.compose.ui.res.stringResource
 import com.kitsugi.animelist.R
 
 // Icon extension imports
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.Share
-import androidx.compose.material.icons.rounded.Favorite
-import androidx.compose.material.icons.rounded.FavoriteBorder
-import androidx.compose.material.icons.rounded.Image
-import androidx.compose.material.icons.rounded.Translate
-import androidx.compose.material.icons.rounded.ContentCopy
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 
 @Composable
 internal fun StaffCharacterRoleCard(
     role: com.kitsugi.animelist.data.remote.KitsugiStaffCharacterRole,
-    titleLanguage: String = "ROMAJI",
+    titleLanguage: String = "ENGLISH",
     onCharacterClick: (characterId: Int, characterSource: String, name: String?, imageUrl: String?) -> Unit,
     onMediaClick: (mediaId: Int, mediaType: String, mediaSource: String) -> Unit
 ) {
@@ -96,8 +95,13 @@ internal fun StaffCharacterRoleCard(
                 .background(KitsugiColors.SurfaceSoft)
         ) {
             if (!role.characterImageUrl.isNullOrBlank()) {
+                val roleThumb = GalleryThumbnailImagePolicy.rememberThumbnailImageRequest(
+                    url = role.characterImageUrl,
+                    widthDp = 52.dp,
+                    heightDp = 52.dp
+                )
                 AsyncImage(
-                    model = role.characterImageUrl,
+                    model = roleThumb ?: role.characterImageUrl,
                     contentDescription = role.characterName,
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
@@ -138,7 +142,7 @@ internal fun StaffCharacterRoleCard(
 @Composable
 internal fun StaffMediaWorkRow(
     work: com.kitsugi.animelist.data.remote.KitsugiStaffMediaWork,
-    titleLanguage: String = "ROMAJI",
+    titleLanguage: String = "ENGLISH",
     onMediaClick: (mediaId: Int, mediaType: String, mediaSource: String) -> Unit
 ) {
     val displayTitle = work.getDisplayTitle(titleLanguage)
@@ -158,8 +162,13 @@ internal fun StaffMediaWorkRow(
                 .background(KitsugiColors.SurfaceSoft)
         ) {
             if (!work.mediaImageUrl.isNullOrBlank()) {
+                val workThumb = GalleryThumbnailImagePolicy.rememberThumbnailImageRequest(
+                    url = work.mediaImageUrl,
+                    widthDp = 52.dp,
+                    heightDp = 52.dp
+                )
                 AsyncImage(
-                    model = work.mediaImageUrl,
+                    model = workThumb ?: work.mediaImageUrl,
                     contentDescription = displayTitle,
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
@@ -215,7 +224,7 @@ internal fun StaffDetailLeftPanel(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
+            .kitsugiVerticalScroll(rememberScrollState())
     ) {
         Box(
             modifier = Modifier
@@ -282,7 +291,7 @@ internal fun StaffDetailLeftPanel(
                 ) {
                     IconButton(onClick = onBackClick) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                            imageVector = Icons.ArrowBack,
                             contentDescription = stringResource(R.string.action_back),
                             tint = KitsugiColors.TextPrimary
                         )
@@ -319,7 +328,7 @@ internal fun StaffDetailLeftPanel(
                             com.kitsugi.animelist.utils.ShareUtils.shareText(context, detail.name, url)
                         }) {
                             Icon(
-                                imageVector = Icons.Rounded.Share,
+                                imageVector = Icons.Share,
                                 contentDescription = stringResource(R.string.action_share),
                                 tint = KitsugiColors.TextPrimary
                             )
@@ -336,7 +345,7 @@ internal fun StaffDetailLeftPanel(
                         ) {
                             IconButton(onClick = onToggleFavourite) {
                                 Icon(
-                                    imageVector = if (isFavourite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                                    imageVector = if (isFavourite) Icons.Favorite else Icons.FavoriteBorder,
                                     contentDescription = if (isFavourite) stringResource(R.string.action_favourite_remove) else stringResource(R.string.action_favourite_add),
                                     tint = if (isFavourite) accentColor else KitsugiColors.TextPrimary
                                 )
@@ -470,7 +479,7 @@ internal fun StaffAboutTabContent(
                             modifier = Modifier.size(36.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Rounded.ContentCopy,
+                                imageVector = Icons.ContentCopy,
                                 contentDescription = stringResource(R.string.action_copy),
                                 tint = KitsugiColors.TextSecondary
                             )
@@ -504,7 +513,8 @@ internal fun StaffCharacterRolesTabContent(
     titleLanguage: String,
     onCharacterClick: (characterId: Int, characterSource: String, name: String?, imageUrl: String?) -> Unit,
     onMediaClick: (mediaId: Int, mediaType: String, mediaSource: String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    pagingActive: Boolean = true
 ) {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         if (detail.characterRoles.isEmpty()) {
@@ -515,7 +525,7 @@ internal fun StaffCharacterRolesTabContent(
                 modifier = Modifier.padding(vertical = 16.dp)
             )
         } else {
-            detail.characterRoles.forEach { role ->
+            DetailAutoPagingColumn(items = detail.characterRoles, active = pagingActive) { role ->
                 StaffCharacterRoleCard(
                     role = role,
                     titleLanguage = titleLanguage,
@@ -532,7 +542,8 @@ internal fun StaffMediaWorksTabContent(
     detail: KitsugiStaffDetail,
     titleLanguage: String,
     onMediaClick: (mediaId: Int, mediaType: String, mediaSource: String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    pagingActive: Boolean = true
 ) {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         if (detail.mediaWorks.isEmpty()) {
@@ -543,7 +554,7 @@ internal fun StaffMediaWorksTabContent(
                 modifier = Modifier.padding(vertical = 16.dp)
             )
         } else {
-            detail.mediaWorks.forEach { work ->
+            DetailAutoPagingColumn(items = detail.mediaWorks, active = pagingActive) { work ->
                 StaffMediaWorkRow(
                     work = work,
                     titleLanguage = titleLanguage,
@@ -635,7 +646,7 @@ internal fun StaffPortraitHeroSection(
             ) {
                 IconButton(onClick = onBackClick) {
                     Icon(
-                        imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                        imageVector = Icons.ArrowBack,
                         contentDescription = stringResource(R.string.action_back),
                         tint = KitsugiColors.TextPrimary
                     )
@@ -673,7 +684,7 @@ internal fun StaffPortraitHeroSection(
                         com.kitsugi.animelist.utils.ShareUtils.shareText(context, detail.name, url)
                     }) {
                         Icon(
-                            imageVector = Icons.Rounded.Share,
+                            imageVector = Icons.Share,
                             contentDescription = stringResource(R.string.action_share),
                             tint = KitsugiColors.TextPrimary
                         )
@@ -690,7 +701,7 @@ internal fun StaffPortraitHeroSection(
                     ) {
                         IconButton(onClick = onToggleFavourite) {
                             Icon(
-                                imageVector = if (isFavourite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                                imageVector = if (isFavourite) Icons.Favorite else Icons.FavoriteBorder,
                                 contentDescription = if (isFavourite) stringResource(R.string.action_favourite_remove) else stringResource(R.string.action_favourite_add),
                                 tint = if (isFavourite) accentColor else KitsugiColors.TextPrimary
                             )
@@ -772,7 +783,7 @@ internal fun StaffDetailStickyHeader(
             ) {
                 IconButton(onClick = onBackClick) {
                     Icon(
-                        imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                        imageVector = Icons.ArrowBack,
                         contentDescription = stringResource(R.string.action_back),
                         tint = KitsugiColors.TextPrimary
                     )
@@ -797,7 +808,7 @@ internal fun StaffDetailStickyHeader(
                     com.kitsugi.animelist.utils.ShareUtils.shareText(context, detail.name, url)
                 }) {
                     Icon(
-                        imageVector = Icons.Rounded.Share,
+                        imageVector = Icons.Share,
                         contentDescription = stringResource(R.string.action_share),
                         tint = KitsugiColors.TextSecondary
                     )
@@ -805,7 +816,7 @@ internal fun StaffDetailStickyHeader(
                 if (showFavouriteButton) {
                     IconButton(onClick = onToggleFavourite) {
                         Icon(
-                            imageVector = if (isFavourite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                            imageVector = if (isFavourite) Icons.Favorite else Icons.FavoriteBorder,
                             contentDescription = if (isFavourite) stringResource(R.string.action_favourite_remove) else stringResource(R.string.action_favourite_add),
                             tint = if (isFavourite) accentColor else KitsugiColors.TextSecondary
                         )

@@ -6,6 +6,8 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import com.kitsugi.animelist.data.local.TranslationManager
 import kotlinx.coroutines.*
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.sync.Semaphore
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.ByteArrayInputStream
@@ -20,7 +22,9 @@ internal class WikiPageAssets private constructor(
     val rules: WikiAdBlockRules,
     val license: String,
     val filterRevision: String,
-    val appearance: String
+    val appearance: String,
+    /** Sayfayı ekrana sığdıran, yıkıcı olmayan düzen katmanı. */
+    val fit: String
 ) {
     companion object {
         @Volatile private var cached: WikiPageAssets? = null
@@ -31,14 +35,22 @@ internal class WikiPageAssets private constructor(
             WikiAdBlockRules.fromHosts(context.assets.open("wiki/stevenblack-hosts.txt").bufferedReader().use { it.readText() }),
             context.assets.open("wiki/STEVENBLACK-LICENSE.txt").bufferedReader().use { it.readText() },
             JSONObject(context.assets.open("wiki/hosts-source.json").bufferedReader().use { it.readText() }).getString("commit").take(12),
-            context.assets.open("wiki/page-appearance.js").bufferedReader().use { it.readText() }
+            context.assets.open("wiki/page-appearance.js").bufferedReader().use { it.readText() },
+            context.assets.open("wiki/page-fit.js").bufferedReader().use { it.readText() }
         ).also { cached = it }
     }
 }
 
+/** Bir çeviri partisinin sonucu; uygulama (DOM'a yazma) ağdan bağımsız ilerler. */
+private class TranslatedBatch(val items: List<WikiDomText>, val results: List<WikiDomResult>)
+
 /** Main-thread DOM coordinator + immutable off-thread request matcher. No JavascriptInterface.
  * Remote documents cannot invoke native APIs. All page text is pulled via bounded evaluateJavascript
  * results and goes to the existing in-app Google service only when automatic/manual translation is on.
+ *
+ * Translation is pipelined: up to [IN_FLIGHT_BATCHES] DOM batches are in flight at once and results
+ * are written as they arrive. Waiting on the network therefore never blocks the WebView, and a
+ * batch that fails (or is deferred because the user is scrolling) does not stall the rest.
  */
 internal class WikiPageEnhancements(
     context: Context,
@@ -47,12 +59,27 @@ internal class WikiPageEnhancements(
     private val assets: WikiPageAssets,
     initialConfig: WikiPageToolConfig
 ) {
+    private companion object {
+        /** Uçuştaki çeviri partisi sayısı: global 4 izinli çeviri kapısıyla aynı. */
+        const val IN_FLIGHT_BATCHES = 4
+        /** DOM köprüsünün tek turda verebileceği en fazla düğüm (dom-translator.js ile aynı). */
+        const val MAX_BATCH_ITEMS = 16
+        /** Çevrilecek metin kalmadığında yoklama aralığı. */
+        const val IDLE_POLL_MS = 450L
+        /** Belge hâlâ taranıyorsa daha sık yokla. */
+        const val SCANNING_POLL_MS = 90L
+        /** Kaydırma sırasında ertelenen DOM yazımını yeniden deneme aralığı. */
+        const val DEFERRED_RETRY_MS = 120L
+    }
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val translator by lazy { TranslationManager(context.applicationContext) }
     private val blocking = AtomicBoolean(initialConfig.blockAds)
     private val blocked = AtomicInteger(0)
+    private val inFlight = AtomicInteger(0)
     private var config = initialConfig
     private var job: Job? = null
+    private var fitJob: Job? = null
     private var runGeneration = 0
     private var appearanceJob: Job? = null
     private var appearanceMode = "SITE"
@@ -75,6 +102,7 @@ internal class WikiPageEnhancements(
 
     fun pageStarted(url: String?) {
         job?.cancel()
+        fitJob?.cancel()
         appearanceJob?.cancel()
         session.pageThemeSupported = true
         documentId = UUID.randomUUID().toString()
@@ -82,6 +110,7 @@ internal class WikiPageEnhancements(
         wikiDocument = url != null && WikiOriginalPagePolicy.destination(url) == WikiOriginalPagePolicy.Destination.WIKI
         blocking.set(android.net.Uri.parse(url.orEmpty()).host.orEmpty().lowercase(java.util.Locale.ROOT) !in config.disabledAdHosts)
         blocked.set(0)
+        inFlight.set(0)
         session.blockedRequests = 0
         session.translating = false
         session.translatedNodes = 0
@@ -100,9 +129,10 @@ internal class WikiPageEnhancements(
     fun documentAvailable(url: String?) {
         if (disposed || url == null || WikiOriginalPagePolicy.destination(url) != WikiOriginalPagePolicy.Destination.WIKI) return
         wikiDocument = true
-        if (ready) { applyAppearance(); return } // Do not erase originals/cache on duplicate finish.
+        if (ready) { applyAppearance(); applyFit(); return } // Do not erase originals/cache on duplicate finish.
         ready = true
         applyAppearance()
+        applyFit()
         restart()
     }
 
@@ -139,6 +169,28 @@ internal class WikiPageEnhancements(
         }
     }
 
+    /**
+     * Görünüm düzeni: mobilde site kendi viewport'unu korur, yalnızca ekrandan geniş
+     * belgeler düzeltilir; masaüstünde 1200 px düzen ekrana sığdırılır. Sayfa metnine,
+     * bağlantılara veya site betiklerine dokunulmaz.
+     */
+    private fun applyFit() {
+        if (disposed || !ready) return
+        fitJob?.cancel()
+        fitJob = scope.launch {
+            try {
+                evaluate(assets.fit)
+                evaluate("window.__kitsugiWikiFitV1(${session.desktop});")
+            } catch (_: TimeoutCancellationException) {
+                // Yavaş DOM: düzen katmanı bir sonraki görünürlük olayında yeniden denenir.
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                // Düzen katmanı çalışmasa bile sayfa okunabilir kalır; kullanıcıya hata gösterilmez.
+            }
+        }
+    }
+
     fun configure(next: WikiPageToolConfig) {
         if (disposed || next == config) return
         val reloadAds = blocking.get() != next.blockAds
@@ -159,8 +211,8 @@ internal class WikiPageEnhancements(
     fun setForeground(value: Boolean) {
         if (foreground == value) return
         foreground = value
-        if (value) { applyAppearance(); restart() }
-        else { runGeneration++; job?.cancel(); appearanceJob?.cancel(); session.translating = false }
+        if (value) { applyAppearance(); applyFit(); restart() }
+        else { runGeneration++; job?.cancel(); fitJob?.cancel(); appearanceJob?.cancel(); session.translating = false }
     }
 
     private fun restart(retry: Boolean = false) {
@@ -180,48 +232,7 @@ internal class WikiPageEnhancements(
                 updateStatus(status)
                 session.documentTextRevision++
                 session.enhancementError = false
-                while (isActive && ready && id == documentId) {
-                    session.blockedRequests = blocked.get()
-                    evaluate("window.__kitsugiWikiAdsV1(${settings.blockAds});")
-                    if (!settings.translate) { delay(1000); continue }
-                    val batch = json("window.__kitsugiWikiDomV1.take(${JSONObject.quote(id)})")
-                    updateStatus(batch.optJSONObject("status"))
-                    val items = decodeItems(batch.optJSONArray("items"))
-                    if (items.isEmpty()) {
-                        delay(if (batch.optJSONObject("status")?.optBoolean("scanning") == true) 120 else 900)
-                        continue
-                    }
-                    session.translating = true
-                    val translated = try {
-                        WikiDomTranslationBatch.translate(items) { text ->
-                            translator.translateWebPageText(text, settings.source, settings.target)
-                        }
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (_: Exception) {
-                        items.map { WikiDomResult(it, null) }
-                    } finally {
-                        if (!disposed && run == runGeneration && id == documentId) session.translating = false
-                    }
-                    ensureActive()
-                    val values = JSONArray().apply {
-                        translated.forEach { result -> put(JSONObject().apply {
-                            put("id", result.item.id)
-                            put("rev", result.item.revision)
-                            put("source", result.item.text)
-                            put("text", result.translated ?: JSONObject.NULL)
-                        }) }
-                    }
-                    // Results are JSON data, never HTML or executable translator output.
-                    var applied: JSONObject
-                    do {
-                        applied = json("window.__kitsugiWikiDomV1.apply(${JSONObject.quote(id)},$values)")
-                        if (applied.optBoolean("deferred")) delay(300)
-                    } while (isActive && applied.optBoolean("deferred"))
-                    updateStatus(applied.optJSONObject("status"))
-                    if (!applied.optBoolean("stale")) session.documentTextRevision++
-                    delay(120)
-                }
+                translatePipeline(id, settings, run)
             } catch (_: TimeoutCancellationException) {
                 if (!disposed && run == runGeneration && id == documentId) session.enhancementError = true
             } catch (e: CancellationException) {
@@ -235,6 +246,134 @@ internal class WikiPageEnhancements(
         }
     }
 
+    /**
+     * DOM metinlerini boru hattı hâlinde çevirir: ağ yanıtı beklerken yeni partiler alınır ve
+     * hazır olan sonuçlar hemen yazılır. Tek bir yavaş/başarısız istek artık tüm sayfayı
+     * sırayla kilitlemez; kaydırma sırasında da çeviri akmaya devam eder.
+     */
+    private suspend fun translatePipeline(id: String, settings: WikiPageToolConfig, run: Int) = coroutineScope {
+        val slots = Semaphore(IN_FLIGHT_BATCHES)
+        val results = Channel<TranslatedBatch>(Channel.UNLIMITED)
+
+        suspend fun alive() = currentCoroutineContext().isActive && ready && id == documentId &&
+            run == runGeneration && config == settings
+        // Kozmetik reklam katmanı saniyede en fazla bir kez tazelenir; her turda JS çağırmak
+        // kaydırma sırasında gereksiz ana iş parçacığı yükü üretiyordu.
+        var adsRefreshedAt = 0L
+
+        val applier = launch {
+            for (batch in results) {
+                if (!alive()) break
+                applyResults(id, batch)
+                if (inFlight.decrementAndGet() == 0) session.translating = false
+            }
+        }
+
+        try {
+            while (alive()) {
+                session.blockedRequests = blocked.get()
+                val now = System.currentTimeMillis()
+                if (now - adsRefreshedAt >= 1000L) {
+                    adsRefreshedAt = now
+                    evaluate("window.__kitsugiWikiAdsV1(${settings.blockAds});")
+                }
+                if (!settings.translate) {
+                    delay(1000)
+                    continue
+                }
+                // Uçuştaki parti sayısı sınırlı: WebView, ağ ve kaydırma boğulmaz.
+                if (!slots.tryAcquire()) {
+                    delay(40)
+                    continue
+                }
+                val batch = try {
+                    json("window.__kitsugiWikiDomV1.take(${JSONObject.quote(id)})")
+                } catch (error: TimeoutCancellationException) {
+                    // Tek bir yavaş DOM turu boru hattını öldürmez; kısa bekleyip yeniden denenir.
+                    slots.release()
+                    delay(200)
+                    continue
+                } catch (error: Exception) {
+                    slots.release()
+                    throw error
+                }
+                updateStatus(batch.optJSONObject("status"))
+                val items = decodeItems(batch.optJSONArray("items"))
+                if (items.isEmpty()) {
+                    slots.release()
+                    // Tarama sürüyorsa hızlı, sayfa tükendiyse seyrek yokla (pil/CPU dostu).
+                    val scanning = batch.optJSONObject("status")?.optBoolean("scanning") == true
+                    delay(if (scanning) SCANNING_POLL_MS else IDLE_POLL_MS)
+                    continue
+                }
+                inFlight.incrementAndGet()
+                session.translating = true
+                launch {
+                    val rows = try {
+                        WikiDomTranslationBatch.translate(
+                            items,
+                            cached = { text ->
+                                translator.cachedWebPageText(text, settings.source, settings.target)
+                            },
+                            store = { pairs ->
+                                translator.storeWebPageTexts(pairs, settings.source, settings.target)
+                            }
+                        ) { text ->
+                            translator.translateWebPageText(text, settings.source, settings.target)
+                        }
+                    } catch (error: CancellationException) {
+                        throw error
+                    } catch (_: Exception) {
+                        // Parti hatası boru hattını durdurmaz; düğümler sonra yeniden denenir.
+                        items.map { WikiDomResult(it, null) }
+                    } finally {
+                        slots.release()
+                    }
+                    results.trySend(TranslatedBatch(items, rows))
+                }
+            }
+        } finally {
+            results.close()
+        }
+        applier.join()
+    }
+
+    /** Sonuçları DOM'a yazar. Kaydırma sürerken yazım ertelenir; sonuç kaybolmaz, yeniden denenir. */
+    private suspend fun applyResults(id: String, batch: TranslatedBatch) {
+        val translated = HashMap<Int, String?>(batch.results.size)
+        batch.results.forEach { translated[it.item.id] = it.translated }
+        val values = JSONArray().apply {
+            batch.items.forEach { item ->
+                put(JSONObject().apply {
+                    put("id", item.id)
+                    put("rev", item.revision)
+                    put("source", item.text)
+                    put("text", translated[item.id] ?: JSONObject.NULL)
+                })
+            }
+        }
+        while (currentCoroutineContext().isActive) {
+            val applied = try {
+                json("window.__kitsugiWikiDomV1.apply(${JSONObject.quote(id)},$values)")
+            } catch (error: TimeoutCancellationException) {
+                // Yazma turu zaman aşımına düştü: kayıtları "bekliyor" durumundan çıkar ki
+                // sonraki turda yeniden istenebilsinler (sonsuz bekleme olmasın).
+                runCatching { evaluate("window.__kitsugiWikiDomV1.release(${JSONObject.quote(id)});") }
+                return
+            } catch (error: Exception) {
+                if (error is CancellationException) throw error
+                return
+            }
+            updateStatus(applied.optJSONObject("status"))
+            if (!applied.optBoolean("deferred")) {
+                // Results are JSON data, never HTML or executable translator output.
+                if (!applied.optBoolean("stale")) session.documentTextRevision++
+                return
+            }
+            delay(DEFERRED_RETRY_MS)
+        }
+    }
+
     private fun updateStatus(status: JSONObject?) {
         if (status == null) return
         session.translatedNodes = status.optInt("translated").coerceIn(0, 6000)
@@ -245,7 +384,7 @@ internal class WikiPageEnhancements(
 
     private fun decodeItems(array: JSONArray?): List<WikiDomText> {
         if (array == null) return emptyList()
-        require(array.length() <= 8)
+        require(array.length() <= MAX_BATCH_ITEMS)
         return (0 until array.length()).map { index ->
             val item = array.getJSONObject(index)
             val text = item.getString("text")

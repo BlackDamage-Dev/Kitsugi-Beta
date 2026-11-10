@@ -86,19 +86,9 @@ internal object BangumiTitleCache {
         native = native?.trim()?.takeIf { it.isNotEmpty() } ?: previous?.native
     )
 
-    /**
-     * Disk önbelleğini bir kez belleğe alır.
-     *
-     * **Ana iş parçacığında asla disk okunmaz.** [get]/[localizedTitleFor] kompozisyon
-     * sırasında (liste kartları) çağrıldığı için burada `SharedPreferences.all` okumak
-     * 1.500 kayıtta kare düşmesine yol açıyordu. Ana iş parçacığından gelen çağrı yalnızca
-     * bellek indeksini kullanır; [`warmUp`] zaten IO kapsamında yüklemeyi başlatmıştır.
-     * Looper bulunmayan thread'lerde (birim testi, IO havuzu) denetim sessizce yok sayılır.
-     */
+    /** Disk önbelleğini bir kez belleğe alır. */
     private fun ensureLoaded() {
         if (loaded) return
-        if (runCatching { android.os.Looper.myLooper() == android.os.Looper.getMainLooper() }
-                .getOrDefault(false)) return
         synchronized(loadLock) {
             if (loaded) return
             val context = appContext()

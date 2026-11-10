@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.ui.components
+﻿package com.kitsugi.animelist.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -23,15 +23,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.CheckCircle
-import androidx.compose.material.icons.rounded.Download
-import androidx.compose.material.icons.rounded.NewReleases
-import androidx.compose.material.icons.rounded.Refresh
-import androidx.compose.material.icons.rounded.SystemUpdate
-import androidx.compose.material.icons.rounded.Warning
-import androidx.compose.material.icons.rounded.AccessTime
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.ButtonDefaults
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import com.kitsugi.animelist.ui.theme.gradient.LinearProgressIndicator
@@ -210,7 +203,7 @@ private fun ColumnScope.UpdateAvailableBottomSheetContent(
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = Icons.Rounded.NewReleases,
+                imageVector = Icons.NewReleases,
                 contentDescription = null,
                 tint = accentColor,
                 modifier = Modifier.size(30.dp)
@@ -255,7 +248,7 @@ private fun ColumnScope.UpdateAvailableBottomSheetContent(
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Icon(
-                imageVector = androidx.compose.material.icons.Icons.Rounded.AccessTime,
+                imageVector = Icons.AccessTime,
                 contentDescription = null,
                 tint = KitsugiColors.TextMuted,
                 modifier = Modifier.size(13.dp)
@@ -280,7 +273,7 @@ private fun ColumnScope.UpdateAvailableBottomSheetContent(
             .background(KitsugiColors.SurfaceSoft)
             .border(1.dp, KitsugiColors.Border.copy(alpha = 0.3f), RoundedCornerShape(16.dp))
             .padding(14.dp)
-            .verticalScroll(rememberScrollState())
+            .kitsugiVerticalScroll(rememberScrollState())
     ) {
         Column {
             Text(
@@ -324,7 +317,7 @@ private fun ColumnScope.UpdateAvailableBottomSheetContent(
             contentPadding = 0.dp
         ) {
             Icon(
-                imageVector = Icons.Rounded.Download,
+                imageVector = Icons.Download,
                 contentDescription = null,
                 tint = Color.White,
                 modifier = Modifier.size(20.dp)
@@ -357,7 +350,7 @@ private fun DownloadingBottomSheetContent(
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = Icons.Rounded.Download,
+                imageVector = Icons.Download,
                 contentDescription = null,
                 tint = accentColor,
                 modifier = Modifier.size(30.dp)
@@ -423,7 +416,7 @@ private fun ReadyToInstallBottomSheetContent(
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = Icons.Rounded.CheckCircle,
+                imageVector = Icons.CheckCircle,
                 contentDescription = null,
                 tint = accentColor,
                 modifier = Modifier.size(32.dp)
@@ -457,7 +450,7 @@ private fun ReadyToInstallBottomSheetContent(
             shape = RoundedCornerShape(14.dp),
             contentPadding = 0.dp
         ) {
-            Icon(Icons.Rounded.SystemUpdate, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+            Icon(Icons.SystemUpdate, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
             Text(stringResource(R.string.inline_start_installation_ba7e65d), color = Color.White, fontWeight = FontWeight.Bold)
         }
     }
@@ -484,7 +477,7 @@ private fun FailedBottomSheetContent(
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = Icons.Rounded.Warning,
+                imageVector = Icons.Warning,
                 contentDescription = null,
                 tint = Color(0xFFFF5252),
                 modifier = Modifier.size(32.dp)
@@ -532,7 +525,7 @@ private fun FailedBottomSheetContent(
                 shape = RoundedCornerShape(14.dp),
                 contentPadding = 0.dp
             ) {
-                Icon(Icons.Rounded.Refresh, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                Icon(Icons.Refresh, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
                 Text("Tekrar Dene", color = Color.White, fontWeight = FontWeight.Bold)
             }
         }

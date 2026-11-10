@@ -51,14 +51,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.datasource.DefaultDataSource
-import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
 import com.kitsugi.animelist.core.player.TvTrailerPlayerPoolHolder
+import com.kitsugi.animelist.core.player.TrailerMediaSourceFactory
 import com.kitsugi.animelist.data.trailer.TrailerPlaybackSource
+import com.kitsugi.animelist.data.trailer.playbackCandidates
 import kotlinx.coroutines.delay
 import androidx.compose.ui.res.stringResource
 import com.kitsugi.animelist.R
@@ -111,13 +110,16 @@ fun TvSharedTrailerOverlay(
     val seekOverlayState = remember { TvTrailerSeekOverlayState() }
     var seekToken by remember { mutableIntStateOf(0) }
     var seekDeltaMs by remember { mutableLongStateOf(0L) }
+    var playbackError by remember(playbackSource) { mutableStateOf<String?>(null) }
+    val effectiveError = errorMessage ?: playbackError
 
-    val canControl = playbackSource != null && !isLoading && errorMessage == null
+    val canControl = playbackSource != null && !isLoading && effectiveError == null
 
     // Reset pause/seek state when source changes
     LaunchedEffect(playbackSource, isLoading, errorMessage) {
         isPaused = false
         seekOverlayVisible = false
+        playbackError = null
     }
 
     // Auto-hide seek overlay after 3 seconds
@@ -169,7 +171,7 @@ fun TvSharedTrailerOverlay(
                 }
         ) {
             // Player surface
-            if (playbackSource != null && errorMessage == null) {
+            if (playbackSource != null && effectiveError == null) {
                 TvTrailerPlayerSurface(
                     context = context,
                     playbackSource = playbackSource,
@@ -181,6 +183,7 @@ fun TvSharedTrailerOverlay(
                         seekOverlayState.durationMs = dur
                     },
                     onEnded = onDismiss,
+                    onError = { playbackError = it },
                     modifier = Modifier.fillMaxSize()
                 )
             }
@@ -216,7 +219,7 @@ fun TvSharedTrailerOverlay(
             }
 
             // Error state
-            if (!errorMessage.isNullOrBlank()) {
+            if (!effectiveError.isNullOrBlank()) {
                 Column(
                     modifier = Modifier
                         .align(Alignment.Center)
@@ -225,12 +228,15 @@ fun TvSharedTrailerOverlay(
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     Text(
-                        text = errorMessage,
+                        text = effectiveError,
                         style = MaterialTheme.typography.bodyMedium,
                         color = Color.White
                     )
                     Button(
-                        onClick = onRetry,
+                        onClick = {
+                            playbackError = null
+                            onRetry()
+                        },
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color.White.copy(alpha = 0.20f)
                         )
@@ -262,10 +268,12 @@ private fun TvTrailerPlayerSurface(
     seekDeltaMs: Long,
     onProgressChanged: (positionMs: Long, durationMs: Long) -> Unit,
     onEnded: () -> Unit,
+    onError: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val onEndedState = rememberUpdatedState(onEnded)
     val onProgressState = rememberUpdatedState(onProgressChanged)
+    val onErrorState = rememberUpdatedState(onError)
     val pool = remember { TvTrailerPlayerPoolHolder.get(context) }
 
     // Apply pause/resume
@@ -292,25 +300,37 @@ private fun TvTrailerPlayerSurface(
         }
     }
 
+    val sourceCandidates = remember(playbackSource) { playbackSource.playbackCandidates() }
+    var activeSourceIndex by remember(playbackSource) { mutableIntStateOf(0) }
+
     // Load and play media
-    LaunchedEffect(playbackSource) {
+    LaunchedEffect(playbackSource, activeSourceIndex) {
         val player = pool.acquire() ?: return@LaunchedEffect
+        val source = sourceCandidates.getOrNull(activeSourceIndex) ?: return@LaunchedEffect
         player.stop()
         player.clearMediaItems()
 
-        val mediaSource = buildMediaSource(context, playbackSource)
-        player.setMediaSource(mediaSource)
+        player.setMediaSource(TrailerMediaSourceFactory.create(context, source))
         player.prepare()
         player.volume = 1f
         player.playWhenReady = true
     }
 
-    // Player ended listener
-    DisposableEffect(Unit) {
+    // Player ended/source-error listener. Callback cleanup is left to recomposition and
+    // onDispose so Media3 never re-enters its own listener through stop().
+    DisposableEffect(pool, playbackSource) {
         val listener = object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
                 if (playbackState == Player.STATE_ENDED) {
                     onEndedState.value()
+                }
+            }
+
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                if (activeSourceIndex + 1 < sourceCandidates.size) {
+                    activeSourceIndex++
+                } else {
+                    onErrorState.value(error.message ?: "Video oynatılamadı")
                 }
             }
         }
@@ -334,26 +354,6 @@ private fun TvTrailerPlayerSurface(
         },
         modifier = modifier
     )
-}
-
-// ─── Media source builder ─────────────────────────────────────────────────────
-
-@OptIn(UnstableApi::class)
-private fun buildMediaSource(
-    context: Context,
-    source: TrailerPlaybackSource
-): androidx.media3.exoplayer.source.MediaSource {
-    val dataSourceFactory = DefaultDataSource.Factory(context)
-    val factory = DefaultMediaSourceFactory(dataSourceFactory)
-
-    // If separate audio track is available, use MergingMediaSource
-    if (!source.audioUrl.isNullOrBlank() && source.audioUrl != source.videoUrl) {
-        val videoSource = factory.createMediaSource(MediaItem.fromUri(source.videoUrl))
-        val audioSource = factory.createMediaSource(MediaItem.fromUri(source.audioUrl))
-        return androidx.media3.exoplayer.source.MergingMediaSource(videoSource, audioSource)
-    }
-
-    return factory.createMediaSource(MediaItem.fromUri(source.videoUrl))
 }
 
 // ─── Key event handler ────────────────────────────────────────────────────────

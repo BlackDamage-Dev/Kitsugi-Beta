@@ -215,4 +215,15 @@ class BangumiSubjectTitleResolverTest {
         assertEquals("Prince of Stride: Alternative", result.resolved[2]?.romaji)
         assertTrue(result.unmatched.isEmpty())
     }
+
+    @Test
+    fun matchAniListResponse_extractsIdMalForBangumiCrosswalkBridge() {
+        val kaijuObj = mediaObject("怪獣８号", "Kaijuu 8-gou", "Kaiju No. 8").put("idMal", 52588)
+        val chunk = listOf(request(400_602, "怪獣8号"))
+        val response = responseFor(1, listOf(listOf(kaijuObj)))
+
+        val result = BangumiSubjectTitleResolver.matchAniListResponse(chunk, response)
+        assertEquals("Kaiju No. 8", result.resolved[400_602]?.english)
+        assertEquals(52588, result.matchedMalIds[400_602])
+    }
 }

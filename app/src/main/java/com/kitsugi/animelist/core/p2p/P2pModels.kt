@@ -105,9 +105,27 @@ val P2pStreamingState.seeds: Int
 
 val P2pStreamingState.bufferProgress: Float
     get() = when (this) {
-        is P2pStreamingState.Streaming -> bufferProgress
+        is P2pStreamingState.Streaming -> normalizeP2pBufferProgress(bufferProgress) ?: 0f
         else -> 0f
     }
+
+/**
+ * Nuvio versions have reported this metric as either a fraction (0..1) or a percent
+ * (0..100). Normalize both formats and reject NaN/invalid samples rather than letting
+ * them make the progress indicator jump to an arbitrary value.
+ */
+internal fun normalizeP2pBufferProgress(value: Float?): Float? {
+    if (value == null || !value.isFinite() || value < 0f) return null
+    val fraction = when {
+        value <= 1f -> value
+        value <= 100f -> value / 100f
+        else -> return null
+    }
+    return fraction.coerceIn(0f, 1f)
+}
+
+fun bufferPercent(value: Float): Int =
+    ((normalizeP2pBufferProgress(value) ?: 0f) * 100f).toInt().coerceIn(0, 100)
 
 class P2pStreamingException(message: String) : Exception(message)
 

@@ -16,6 +16,7 @@ import org.junit.Test
  *
  *  TurkAnime  → AnimeLoadResponse, tüm bölümler DubStatus.None + season=null/1 (flat)
  *  AnimeciX   → AnimeLoadResponse, sezon buketi explicit, episode numaralı
+ *  Anizm / TrAnimeIzle → AnimeLoadResponse, bölüm numarası var ama callback sezonu set etmiyor
  *  DiziBox    → TvSeriesLoadResponse, episode field null, sadece season var (index-based)
  *  Dizilla    → TvSeriesLoadResponse, episode numaralı, season null (flat)
  *  DiziPal    → TvSeriesLoadResponse, season + episode explicit
@@ -34,6 +35,10 @@ class CsEpisodeMatcherTest {
         assertTrue(CsEpisodeMatcher.episodeNameMatchesTarget("第05集", 1, 5))
         assertFalse(CsEpisodeMatcher.episodeNameMatchesTarget("S12E5", 2, 5))
         assertFalse(CsEpisodeMatcher.episodeNameMatchesTarget("2x50", 2, 5))
+        assertFalse(CsEpisodeMatcher.episodeNameMatchesTarget("2. Sezon 5. Bölüm", 1, 5))
+        assertEquals(2, CsTitleMatcher.parseExplicitSeasonFromTitle("2. Sezon 5. Bölüm") ?: -1)
+        assertEquals(2, CsTitleMatcher.parseExplicitSeasonFromTitle("2x05") ?: -1)
+        assertNull("A trailing episode number is not a season", CsTitleMatcher.parseExplicitSeasonFromTitle("Episode 2"))
     }
 
     // ─── MovieLoadResponse Tests ──────────────────────────────────────────────
@@ -126,12 +131,59 @@ class CsEpisodeMatcherTest {
 
     @Test
     fun testAnimeResponseSubPreferredOverDub() {
-        // When both Sub and Dub exist, Sub is preferred
+        // Legacy singular lookup remains Subbed-first.
         val subEps = listOf(buildAnimeEpisode(data = "sub_ep1", episode = 1, season = 1))
         val dubEps = listOf(buildAnimeEpisode(data = "dub_ep1", episode = 1, season = 1))
         val resp = buildAnimeResponse(url = "https://anm.cx/anime/boruto", subbed = subEps, dubbed = dubEps)
         val data = CsEpisodeMatcher.findEpisodeData(resp, season = 1, episode = 1)
         assertEquals("Sub should be preferred over Dub", "sub_ep1", data)
+    }
+
+    @Test
+    fun aniziumV25EpisodeCandidatesIncludeBothSubbedAndDubbedData() {
+        val subEpisode = buildAnimeEpisode(data = "sub_ep1_source", episode = 1, season = 1)
+        val dubEpisode = buildAnimeEpisode(data = "dub_ep1_source", episode = 1, season = 1)
+        val response = buildAnimeResponse(
+            url = "https://api.anizium.co/anime/series-1",
+            subbed = listOf(subEpisode),
+            dubbed = listOf(dubEpisode)
+        )
+
+        assertEquals(
+            listOf("sub_ep1_source", "dub_ep1_source"),
+            CsEpisodeMatcher.findEpisodeDataCandidates(response, season = 1, episode = 1)
+        )
+        assertEquals("sub", CsEpisodeMatcher.findDubStatusForEpisodeData(response, "sub_ep1_source"))
+        assertEquals("dub", CsEpisodeMatcher.findDubStatusForEpisodeData(response, "dub_ep1_source"))
+    }
+
+    @Test
+    fun identicalEpisodeDataAcrossDubStatusBucketsIsLoadedOnlyOnce() {
+        val sharedEpisode = buildAnimeEpisode(data = "same_source", episode = 1, season = 1)
+        val response = buildAnimeResponse(
+            url = "https://api.anizium.co/anime/series-1",
+            subbed = listOf(sharedEpisode),
+            dubbed = listOf(sharedEpisode)
+        )
+
+        assertEquals(
+            listOf("same_source"),
+            CsEpisodeMatcher.findEpisodeDataCandidates(response, season = 1, episode = 1)
+        )
+    }
+
+    @Test
+    fun dubStatusCandidatesStillRespectTheRequestedSeason() {
+        val response = buildAnimeResponse(
+            url = "https://api.anizium.co/anime/series",
+            subbed = listOf(buildAnimeEpisode(data = "s1_sub_e1", episode = 1, season = 1)),
+            dubbed = listOf(buildAnimeEpisode(data = "s2_dub_e1", episode = 1, season = 2))
+        )
+
+        assertEquals(
+            listOf("s2_dub_e1"),
+            CsEpisodeMatcher.findEpisodeDataCandidates(response, season = 2, episode = 1)
+        )
     }
 
     // ─── AnimeLoadResponse: TreatSeason1AsTarget (Flat with foundSeason) ─────
@@ -146,6 +198,62 @@ class CsEpisodeMatcherTest {
         val data = CsEpisodeMatcher.findEpisodeData(resp, season = 2, episode = 7)
         // treatSeason1AsTarget should activate, episodes.season(1) treated as season 2
         assertEquals("s2e7", data)
+    }
+
+    @Test
+    fun testAbsoluteEpisodeNumbersWithoutSeasonDoNotMatchSeasonTwo() {
+        // Mirrors Anizm / TrAnimeIzle callbacks: `episode` is set, `season` is not.
+        val episodes = (1..4).map { ep ->
+            buildAnimeEpisodeWithName(
+                data = "absolute-e$ep",
+                name = "$ep. Bölüm",
+                episode = ep,
+                season = null
+            )
+        }
+        val resp = buildAnimeResponse(
+            url = "https://example.com/anime/series",
+            dubNone = episodes
+        )
+
+        assertEquals("absolute-e2", CsEpisodeMatcher.findEpisodeData(resp, season = 1, episode = 2))
+        assertNull("Unseasoned absolute episode 1 is not evidence for S2E1", CsEpisodeMatcher.findEpisodeData(resp, season = 2, episode = 1))
+    }
+
+    @Test
+    fun testNumberedSingleEpisodeFallbackCannotRelabelEpisodeTwoAsEpisodeOne() {
+        val episode = buildAnimeEpisode(data = "actual-e2", episode = 2, season = 1)
+        val resp = buildAnimeResponse(
+            url = "https://example.com/anime/series",
+            dubNone = listOf(episode)
+        )
+        assertNull(CsEpisodeMatcher.findEpisodeData(resp, season = 1, episode = 1))
+    }
+
+    @Test
+    fun testContiguousNumberedSeasonListDoesNotInventAnAbsoluteOffset() {
+        val episodes = (13..16).map { number ->
+            buildTvEpisode(data = "episode-$number", episode = number, season = 2)
+        }
+        val resp = buildTvSeriesResponse(
+            url = "https://example.com/dizi/series-2-sezon",
+            episodes = episodes
+        )
+        // Contiguity and a season marker do not prove whether these are local or absolute numbers.
+        assertNull(CsEpisodeMatcher.findEpisodeData(resp, season = 2, episode = 2))
+    }
+
+    @Test
+    fun testUnseasonedEpisodeNumbersCanMapWhenPageClearlyIdentifiesSeasonTwo() {
+        val episodes = (1..4).map { ep ->
+            buildAnimeEpisode(data = "season-two-e$ep", episode = ep, season = null)
+        }
+        val resp = buildAnimeResponse(
+            url = "https://example.com/anime/series-2-sezon",
+            dubNone = episodes
+        )
+
+        assertEquals("season-two-e1", CsEpisodeMatcher.findEpisodeData(resp, season = 2, episode = 1))
     }
 
     // ─── AnimeLoadResponse: Name-Based Fallback ───────────────────────────────
@@ -250,6 +358,128 @@ class CsEpisodeMatcherTest {
         val resp = buildTvSeriesResponse(url = "https://dizilla.nl/dizi/mini", episodes = episodes)
         val data = CsEpisodeMatcher.findEpisodeData(resp, season = 1, episode = 1)
         assertEquals("mini_ep", data)
+    }
+
+    @Test
+    fun testConflictingSeasonAndEmptyEpisodeListDisablesPageUrlFallback() {
+        val resp = buildTvSeriesResponse(
+            url = "https://example.com/dizi/series-2-sezon",
+            episodes = emptyList()
+        )
+
+        assertTrue(CsEpisodeMatcher.hasSeasonConflict(resp, season = 1))
+        assertFalse(CsEpisodeMatcher.canUsePageUrlFallback(resp, season = 1))
+        assertNull(CsEpisodeMatcher.findEpisodeData(resp, season = 1, episode = 1))
+    }
+
+    @Test
+    fun testPageUrlFallbackRemainsAllowedWhenSeasonIsUnknown() {
+        val resp = buildTvSeriesResponse(url = "https://example.com/dizi/series", episodes = emptyList())
+        assertFalse(CsEpisodeMatcher.hasSeasonConflict(resp, season = 1))
+        assertTrue(CsEpisodeMatcher.canUsePageUrlFallback(resp, season = 1))
+    }
+
+    @Test
+    fun testSingleUnseasonedAnimeEpisodeDoesNotMatchSeasonTwoWithoutEvidence() {
+        val episode = buildAnimeEpisode(data = "unmarked-e1", episode = 1, season = null)
+        val resp = buildAnimeResponse(
+            url = "https://example.com/anime/series",
+            dubNone = listOf(episode)
+        )
+        assertNull(CsEpisodeMatcher.findEpisodeData(resp, season = 2, episode = 1))
+    }
+
+    @Test
+    fun testSingleUnseasonedAnimeEpisodeCanUseExplicitSeasonPageContext() {
+        val episode = buildAnimeEpisode(data = "season-two-e1", episode = 1, season = null)
+        val resp = buildAnimeResponse(
+            url = "https://example.com/anime/series-2-sezon",
+            dubNone = listOf(episode)
+        )
+        assertEquals("season-two-e1", CsEpisodeMatcher.findEpisodeData(resp, season = 2, episode = 1))
+    }
+
+    @Test
+    fun testIndexFallbackCannotInventSeasonTwoWithoutSeasonEvidence() {
+        val episodes = listOf(
+            buildAnimeEpisode(data = "unmarked-e1", episode = null, season = null),
+            buildAnimeEpisode(data = "unmarked-e2", episode = null, season = null)
+        )
+        val resp = buildAnimeResponse(
+            url = "https://example.com/anime/series",
+            dubNone = episodes
+        )
+        assertNull(CsEpisodeMatcher.findEpisodeData(resp, season = 2, episode = 1))
+    }
+
+    @Test
+    fun testIndexFallbackCanUseExplicitSeasonTwoPageContext() {
+        val episodes = listOf(
+            buildAnimeEpisode(data = "season-two-e1", episode = null, season = null),
+            buildAnimeEpisode(data = "season-two-e2", episode = null, season = null)
+        )
+        val resp = buildAnimeResponse(
+            url = "https://example.com/anime/series-2-sezon",
+            dubNone = episodes
+        )
+        assertEquals("season-two-e2", CsEpisodeMatcher.findEpisodeData(resp, season = 2, episode = 2))
+    }
+
+    @Test
+    fun testTvSeriesIndexFallbackCannotInventSeasonTwoWithoutSeasonEvidence() {
+        val episodes = listOf(
+            buildTvEpisode(data = "unmarked-e1", episode = null, season = null),
+            buildTvEpisode(data = "unmarked-e2", episode = null, season = null)
+        )
+        val resp = buildTvSeriesResponse(
+            url = "https://example.com/dizi/series",
+            episodes = episodes
+        )
+        assertNull(CsEpisodeMatcher.findEpisodeData(resp, season = 2, episode = 1))
+    }
+
+    @Test
+    fun testImplicitSeasonOneMetadataDoesNotOverrideExplicitSeasonTwoPageForSeasonOne() {
+        val episode = buildTvEpisode(data = "season-two-e1", episode = 1, season = 1)
+        val resp = buildTvSeriesResponse(
+            url = "https://example.com/dizi/series-2-sezon",
+            episodes = listOf(episode)
+        )
+
+        assertTrue(CsEpisodeMatcher.hasSeasonConflict(resp, season = 1))
+        assertNull(CsEpisodeMatcher.findEpisodeData(resp, season = 1, episode = 1))
+    }
+
+    @Test
+    fun testExplicitEpisodeSeasonOverridesDefaultSeasonOneField() {
+        val episode = buildAnimeEpisodeWithName(
+            data = "explicit-season-one-e1",
+            name = "1. Sezon 1. Bölüm",
+            episode = 1,
+            season = 1
+        )
+        val resp = buildAnimeResponse(
+            url = "https://example.com/anime/series-2-sezon",
+            dubNone = listOf(episode)
+        )
+
+        assertNull(CsEpisodeMatcher.findEpisodeData(resp, season = 2, episode = 1))
+        assertEquals("explicit-season-one-e1", CsEpisodeMatcher.findEpisodeData(resp, season = 1, episode = 1))
+    }
+
+    @Test
+    fun testExplicitMultiSeasonListCanStillProveSeasonOneOnSeasonTwoTitledPage() {
+        val episodes = listOf(
+            buildTvEpisode(data = "season-one-e1", episode = 1, season = 1),
+            buildTvEpisode(data = "season-two-e1", episode = 1, season = 2)
+        )
+        val resp = buildTvSeriesResponse(
+            url = "https://example.com/dizi/series-2-sezon",
+            episodes = episodes
+        )
+
+        assertFalse(CsEpisodeMatcher.hasSeasonConflict(resp, season = 1))
+        assertEquals("season-one-e1", CsEpisodeMatcher.findEpisodeData(resp, season = 1, episode = 1))
     }
 
     // ─── TvSeriesLoadResponse: TreatSeason1AsTarget ──────────────────────────

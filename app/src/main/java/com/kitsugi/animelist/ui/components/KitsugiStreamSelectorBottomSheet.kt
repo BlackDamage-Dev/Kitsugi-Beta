@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.ui.components
+﻿package com.kitsugi.animelist.ui.components
 
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import com.kitsugi.animelist.ui.theme.gradient.Text
@@ -18,10 +18,8 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.PlayArrow
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -46,6 +44,7 @@ import java.util.Locale
 import androidx.compose.ui.res.stringResource
 import com.kitsugi.animelist.R
 import com.kitsugi.animelist.utils.KitsugiStrings
+import com.kitsugi.animelist.ui.screens.stream.StreamInfoChips
 
 enum class DebridCacheState {
     CACHED,
@@ -235,7 +234,7 @@ fun KitsugiStreamSelectorBottomSheet(
                             )
                         ) {
                             Icon(
-                                imageVector = Icons.Rounded.Close,
+                                imageVector = Icons.Close,
                                 contentDescription = stringResource(R.string.kapat),
                                 tint = KitsugiColors.TextPrimary
                             )
@@ -253,7 +252,7 @@ fun KitsugiStreamSelectorBottomSheet(
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .verticalScroll(rememberScrollState()),
+                                .kitsugiVerticalScroll(rememberScrollState()),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             addonNames.forEach { addon ->
@@ -433,7 +432,7 @@ fun KitsugiStreamSelectorBottomSheet(
                         )
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.Close,
+                            imageVector = Icons.Close,
                             contentDescription = stringResource(R.string.kapat),
                             tint = KitsugiColors.TextPrimary
                         )
@@ -504,7 +503,7 @@ fun KitsugiStreamSelectorBottomSheet(
                                 contentColor = KitsugiColors.TextPrimary
                             )
                         ) {
-                            Icon(Icons.Rounded.Close, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Icon(Icons.Close, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(Modifier.width(6.dp))
                             Text(stringResource(R.string.iptal), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                         }
@@ -593,7 +592,7 @@ private fun StreamItemRow(
     stream: StreamSource,
     onClick: () -> Unit
 ) {
-    val parsedInfo = remember(stream.title) { parseStreamTitle(stream.title) }
+    val parsedInfo = remember(stream) { parseStreamTitle(stream) }
     val accentColor = LocalKitsugiAccent.current
 
     Card(
@@ -678,14 +677,15 @@ private fun StreamItemRow(
                         }
                     }
 
-                    if (parsedInfo.size.isNotBlank()) {
-                        Text(
-                            text = parsedInfo.size,
-                            color = KitsugiColors.TextMuted,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
+                    // Boyut bilinmiyorsa da açıkça yazılır — indirme kararı için kritik bilgi.
+                    Text(
+                        text = parsedInfo.size.ifBlank {
+                            KitsugiStrings.get(R.string.stream_size_unknown)
+                        },
+                        color = KitsugiColors.TextMuted,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(6.dp))
@@ -700,7 +700,16 @@ private fun StreamItemRow(
                     overflow = TextOverflow.Ellipsis
                 )
 
-                // Extra details like dual audio or seeders
+                // Seeder / peer / ses-altyazı dilleri / codec / HDR rozetleri.
+                // Mobil kart ve TV ile AYNI bileşen: kanıt yoksa rozet basılmaz.
+                StreamInfoChips(
+                    stream = stream,
+                    measured = com.kitsugi.animelist.data.repository.StreamProbe.cached(stream.url),
+                    accentColor = accentColor,
+                    modifier = Modifier.padding(top = 6.dp),
+                    gap = 4.dp
+                )
+
                 if (stream.name.isNotBlank()) {
                     Text(
                         text = stream.name.trim(),
@@ -724,7 +733,7 @@ private fun StreamItemRow(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.PlayArrow,
+                    imageVector = Icons.PlayArrow,
                     contentDescription = stringResource(R.string.oynat),
                     tint = accentColor,
                     modifier = Modifier.size(20.dp)
@@ -739,18 +748,17 @@ private data class ParsedStreamInfo(
     val size: String
 )
 
-private fun parseStreamTitle(title: String): ParsedStreamInfo {
-    // Kalite yalnızca başlıkta AÇIKÇA yazıyorsa gösterilir; aksi halde boş bırakılır
-    // (eskiden varsayılan olarak "HD" yazılıyordu — bu yanlış bilgiydi).
+private fun parseStreamTitle(stream: StreamSource): ParsedStreamInfo {
+    // Kalite yalnızca AÇIKÇA yazıyorsa gösterilir; aksi halde boş bırakılır
     val quality = com.kitsugi.animelist.data.repository.StreamInfoResolver
-        .parseHeightFromText(title)
-        ?.let { com.kitsugi.animelist.data.repository.StreamInfoResolver.heightToLabel(it) }
+        .resolveQuality(stream)
+        .label
         ?: ""
 
-    // Size regex like "1.2 GB" or "750 MB" or "1.2gb"
-    val sizeRegex = Regex("""(\d+(?:\.\d+)?\s*(?:gb|mb|gib|mib))""", RegexOption.IGNORE_CASE)
-    val match = sizeRegex.find(title)
-    val size = match?.value?.uppercase(Locale.ROOT) ?: ""
+    // Boyut: kaynağın gerçek verdiği bayt bilgisi varsa o, yoksa başlıktaki açık etiket.
+    val size = com.kitsugi.animelist.data.repository.StreamInfoResolver
+        .resolveSizeLabel(stream)
+        ?: ""
 
     return ParsedStreamInfo(quality, size)
 }

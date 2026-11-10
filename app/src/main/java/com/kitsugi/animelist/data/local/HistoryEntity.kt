@@ -16,5 +16,13 @@ data class HistoryEntity(
     val lastPositionMs: Long,
     val durationMs: Long,
     val lastWatchedAt: Long,
-    val addonName: String? = null
+    val addonName: String? = null,
+    /**
+     * Bölüm izleme eşiğini geçti mi (izlenmiş sayıldı mı)?
+     *
+     * Otomatik liste takibi (`AutoTrackPolicy`) bölümü tamamlandı olarak işaretlediğinde
+     * `true` yazılır. "Devam et" satırı ve `+1` kısayolları bu bayrağa bakarak aynı bölümün
+     * ikinci kez sayılmasını engeller. Eski satırlarda `false` (varsayılan).
+     */
+    val watched: Boolean = false
 )

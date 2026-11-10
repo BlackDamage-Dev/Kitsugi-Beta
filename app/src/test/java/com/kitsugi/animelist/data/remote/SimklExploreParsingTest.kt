@@ -1,6 +1,7 @@
 package com.kitsugi.animelist.data.remote
 
 import com.kitsugi.animelist.model.MediaType
+import com.kitsugi.animelist.utils.PreferenceHelpers.getDisplayTitle
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -91,6 +92,45 @@ class SimklExploreParsingTest {
         )
         assertEquals("Frieren: Beyond Journey's End", items[0].title)
         assertEquals("葬送のフリーレン", items[0].titleJapanese)
+    }
+
+    @Test fun englishTitleIsPreferredWithoutDestroyingRomajiAndNativeTitles() {
+        val items = parseBestMediaArray(
+            """
+            [{
+              "title": "Kaijuu 8 Gou",
+              "en_title": "Kaiju No. 8",
+              "title_romaji": "Kaijuu 8-gou",
+              "title_native": "怪獣8号",
+              "anime_type": "tv",
+              "ids": { "simkl_id": 42 }
+            }]
+            """.trimIndent(),
+            MediaType.Anime,
+            20
+        )
+
+        val kaiju = items.single()
+        assertEquals("Kaiju No. 8", kaiju.title)
+        assertEquals("Kaiju No. 8", kaiju.titleEnglish)
+        assertEquals("Kaijuu 8-gou", kaiju.titleRomaji)
+        assertEquals("怪獣8号", kaiju.titleJapanese)
+        assertEquals("Kaiju No. 8", kaiju.getDisplayTitle("ENGLISH"))
+        assertEquals("Kaijuu 8-gou", kaiju.getDisplayTitle("ROMAJI"))
+        assertEquals("怪獣8号", kaiju.getDisplayTitle("NATIVE"))
+    }
+
+    @Test fun latinRawTitleFallsBackToRomajiInsteadOfPretendingToBeEnglish() {
+        val titles = resolveSimklTitleVariants(
+            org.json.JSONObject(
+                """{"title":"Kaijuu 8 Gou","en_title":null,"title_romaji":null,"title_native":"怪獣8号"}"""
+            )
+        )
+
+        assertEquals("Kaijuu 8 Gou", titles.display)
+        assertNull(titles.english)
+        assertEquals("Kaijuu 8 Gou", titles.romaji)
+        assertEquals("怪獣8号", titles.native)
     }
 
     @Test fun posterAndFanartBecomeSimklCdnUrls() {

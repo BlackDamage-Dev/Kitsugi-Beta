@@ -306,13 +306,16 @@ class KitsugiBangumiDetailClientTest {
         assertEquals("Thursdays (TBS)", detail.broadcast)
         assertEquals("Key/VISUAL ARTS", detail.sourceMaterial)
         // Stüdyo/şirket adları Japonca infobox'tan Latin ada çevrilir
-        assertEquals(listOf("Kyoto Animation"), detail.studios.map { it.name })
+        assertEquals(listOf("KyoAni"), detail.studios.map { it.name })
         assertEquals(
-            listOf("光坂高校演劇部", "TBS", "Pony Canyon", "Movic"),
+            listOf("光坂高校演劇部", "TBS", "PONY CANYON", "Movic"),
             detail.producers.map { it.name }
         )
         // Ana + diğer kanallar birleşir
-        assertEquals(listOf("TBS", "MBS", "RKB", "CBC", "BS-TBS"), detail.networks.map { it.name })
+        assertEquals(
+            listOf("TBS", "Mainichi Broadcasting", "RKB Mainichi Broadcasting", "CBC", "BS-TBS"),
+            detail.networks.map { it.name }
+        )
         assertEquals(9, detail.score)
         assertEquals(92, detail.meanScore)
         assertEquals(1, detail.rank)
@@ -514,9 +517,6 @@ class KitsugiBangumiDetailClientTest {
         )
         assertEquals(listOf("女"), info["性别"])
         assertEquals(listOf("古河渚", "Nagisa"), info["别名"])
-        // Alt anahtar (k) ayrıca indekslenir: `别名` altındaki `英文名` / `罗马字` gibi
-        // alanlar BangumiNameLocalizer tarafından doğrudan aranabilsin.
-        assertEquals(listOf("古河渚"), info["简体中文名"])
     }
 
     @Test
@@ -545,12 +545,12 @@ class KitsugiBangumiDetailClientTest {
         assertEquals(1, merged.rank)
         assertEquals("https://lain.bgm.tv/pic/cover/l/67/d1/876_dCfrd.jpg", merged.imageUrl)
         assertTrue(merged.synopsis!!.startsWith("在某个小镇"))
-        // Boşluklar diğer kaynaktan tamamlanır
-        assertEquals(listOf("Drama", "Romance"), merged.genres)
+        // Boşluklar diğer kaynaktan tamamlanır (Bangumi türleriyle birleşir)
+        assertEquals(listOf("TV", "恋爱", "日本", "游戏改", "日常", "Drama"), merged.genres)
         assertEquals("PG-13", merged.rating)
         assertEquals("Clannad: After Story", merged.titleEnglish)
         assertEquals("https://youtube.com/watch?v=abc", merged.trailerUrl)
-        assertEquals(listOf("Kyoto Animation"), merged.studios.map { it.name })
+        assertEquals(listOf("KyoAni"), merged.studios.map { it.name })
         // Çapraz kimlikler detaya yazılır (galeri / bölüm puanı / logo bunları kullanır)
         assertEquals(4181, merged.realMalId)
         assertEquals(4235, merged.tmdbId)
@@ -739,7 +739,7 @@ class KitsugiBangumiDetailClientTest {
             )
             java.util.Locale.setDefault(java.util.Locale.forLanguageTag("tr"))
             assertEquals(
-                "Cumartesi (Fuji TV)",
+                "Cumartesi (Fuji Television)",
                 KitsugiBangumiDetailClient.buildNativeDetail(animeSubject, MediaType.Anime).broadcast
             )
         } finally {

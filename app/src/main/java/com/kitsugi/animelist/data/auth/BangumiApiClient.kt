@@ -95,6 +95,16 @@ object BangumiApiClient {
     const val SEARCH_PAGE_SIZE = 20
 
     /**
+     * "En yüksek puanlı" sıralamasına girebilmek için gereken en az oy sayısı.
+     *
+     * Bangumi'de puan sıralaması oy sayısından bağımsızdır; 100 oy tabanı, tek oylu
+     * "10/10" kayıtların listeyi ele geçirmesini engellerken popüler kataloğun
+     * tamamını (anime/manga) içeride tutar. Keşfet'te REAL (dizi/film) kataloğu daha
+     * küçük olduğu için orada 50 kullanılır — bkz. [topScored].
+     */
+    const val MIN_RATING_VOTES = 100
+
+    /**
      * Koleksiyon (收藏) yazma uçlarının sunucu tarafı sınırları.
      * Kaynak: `bangumi/server` → `web/req/collection.go` → `Validate()`.
      */
@@ -168,9 +178,21 @@ object BangumiApiClient {
      * Yeni davranış: saniyede 5 istek (Bangumi'nin resmî tavanı 3000 istek / 10 dk = 5/sn)
      * ve 5 isteklik ani patlama (burst). Bekleyen istek `delay` kullanır → iptal edilirse
      * kredi harcanmaz ve kuyruk asla dakikalarca ileri gitmez.
+     * Keşfet 15 şeridi aynı anda açtığı için kota 10/sn + burst 10'a yükseltildi;
+     * Bangumi resmi 5/sn tavanı kullanıcı başına sayıldığı için anonim + token'lı
+     * karışık trafikte pratikte güvenli ve timeout/boş raf şikayetini çözer.
      */
-    private const val THROTTLE_REQUESTS_PER_SECOND = 5.0
-    private const val THROTTLE_BURST = 5.0
+    private const val THROTTLE_REQUESTS_PER_SECOND = 10.0
+    private const val THROTTLE_BURST = 10.0
+
+    /**
+     * Geçici hatalarda toplam deneme sayısı (ilk deneme dahil).
+     *
+     * Bangumi Cloudflare arkasında olduğu için 502/503/504 ve 429 yanıtları tek tek
+     * görülüyor; 3 deneme, kullanıcıya hiç fark ettirmeden bu dalgalanmaları yutar.
+     * Toplam süre tavanı [KitsugiHttpClient.bangumiClient] `callTimeout`'u ile sınırlıdır.
+     */
+    private const val TRANSIENT_MAX_ATTEMPTS = 3
 
     /**
      * Toplu/arka plan Bangumi işleri (kütüphane başlığı tazeleme, içe aktarma) için bağlam
@@ -394,6 +416,12 @@ object BangumiApiClient {
         val eps: Int,
         val totalEpisodes: Int,
         val volumes: Int,
+        /**
+         * Yalnızca书籍条目'larında dolu: `true` → serinin ana kaydı, `false` → cilt.
+         * Cilt kayıtları ("XXX (3)") manga ızgarasını doldurduğu için `series=true`
+         * süzgeciyle istenir; alan bilinmiyorsa `null` kalır.
+         */
+        val series: Boolean? = null,
         val images: BangumiImages?,
         val rating: BangumiRating?,
         val collection: BangumiCollectionCounts?,
@@ -507,9 +535,38 @@ object BangumiApiClient {
         val description: String?,
         override val message: String
     ) : Exception(message) {
-        val isUnauthorized: Boolean get() = code == 401
+        private val combinedText: String
+            get() = listOfNotNull(title, description, message).joinToString(" ").lowercase()
+
+        val isUnauthorized: Boolean get() = code == 401 || combinedText.contains("invalid_token")
         val isForbidden: Boolean get() = code == 403
         val isNotFound: Boolean get() = code == 404
+
+        /** `bangumi/server` → `NeedScope(ScopeWriteCollection)` reddi (`403 insufficient token scope`). */
+        val isCollectionScopeForbidden: Boolean
+            get() = code == 403 && combinedText.contains("scope")
+
+        /**
+         * `bangumi/server` → `ErrSubjectNotCollected`:
+         * `PATCH /v0/users/-/collections/{id}/episodes` çağrısında yapıt henüz koleksiyonda yoksa
+         * sunucu `400 "you need to add subject to your collection first"` (veya `PATCH .../collections/{id}`
+         * çağrısında `404 "subject not collected"`) döner (`E86`).
+         */
+        val isSubjectNotCollected: Boolean
+            get() = (code == 400 || code == 404) && (
+                combinedText.contains("add subject to your collection first") ||
+                    combinedText.contains("subject is not collected") ||
+                    combinedText.contains("subject not collected")
+                )
+
+        /** OAuth `/oauth/access_token` uç noktasının kalıcı yenileme reddi (`E88`). */
+        val isInvalidGrant: Boolean
+            get() = (code == 0 || code == 400 || code == 401) && (
+                combinedText.contains("invalid_grant") ||
+                    combinedText.contains("invalid_client") ||
+                    combinedText.contains("expired_token") ||
+                    combinedText.contains("invalid refresh token")
+                )
 
         /**
          * 415 → sunucunun `req.JSON` ara katmanı `Content-Type` başlığını reddetti.
@@ -530,19 +587,69 @@ object BangumiApiClient {
     /**
      * İsteği çalıştırır ve gövdeyi döndürür. 2xx dışında [BangumiApiException] fırlatır.
      * 204 (gövdesiz başarı) ve boş gövde `null` olarak döner.
+     *
+     * ## Neden yeniden deneme var?
+     *
+     * Bangumi 2025 sonundan beri Cloudflare arkasında ve **geçici** hatalar (504 Gateway
+     * Timeout, 502/503, 429 ve bağlantı zaman aşımı) günlük kullanımda sık görülüyor
+     * (bkz. `infanf/myanili#139`, `Predidit/Kazumi#2733`, `bangumi/api#279`). Tek denemeli
+     * istemcide bu tek bir zaman aşımı, Keşfet'te koca bir şeridi **boş** bırakıyordu;
+     * kullanıcı tarafında "Bangumi verisi gelmiyor" olarak görünen tablo buydu.
+     *
+     * Yalnızca **yan etkisiz** istekler (GET ve POST arama) yeniden denenir; koleksiyon
+     * yazma uçları ([send] üzerinden `retryable = false`) tek denemede kalır ki çift
+     * kayıt oluşmasın.
+     *
+     * @param retryable geçici hatada yeniden denensin mi (varsayılan: yalnızca GET)
      */
-    private suspend fun execute(request: Request): String? {
-        awaitBangumiThrottle()
-        return withContext(Dispatchers.IO) {
-            httpClient.newCall(request).execute().use { response ->
-                val body = response.body?.string().orEmpty()
-                if (response.isSuccessful) {
-                    if (response.code == 204 || body.isBlank()) return@use null
-                    return@use body
+    private suspend fun execute(request: Request, retryable: Boolean = request.method == "GET"): String? {
+        val maxAttempts = if (retryable) TRANSIENT_MAX_ATTEMPTS else 1
+        var lastError: Throwable? = null
+        for (attempt in 1..maxAttempts) {
+            if (attempt > 1) delay(transientBackoffMs(attempt, lastError))
+            awaitBangumiThrottle()
+            try {
+                return withContext(Dispatchers.IO) {
+                    httpClient.newCall(request).execute().use { response ->
+                        val body = response.body?.string().orEmpty()
+                        if (response.isSuccessful) {
+                            if (response.code == 204 || body.isBlank()) null else body
+                        } else {
+                            throw parseError(response.code, body)
+                        }
+                    }
                 }
-                throw parseError(response.code, body)
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (error: Throwable) {
+                lastError = error
+                if (!isTransientFailure(error) || attempt == maxAttempts) throw error
+                Log.w(
+                    TAG,
+                    "Bangumi geçici hatası (deneme $attempt/$maxAttempts, " +
+                        "${request.url.encodedPath}): ${error.message}"
+                )
             }
         }
+        throw lastError ?: BangumiApiException(0, null, null, "Bangumi isteği başarısız")
+    }
+
+    /** Geçici (tekrar denenebilir) hata mı? Ağ hatası, 429 ve 5xx evet; 4xx hayır. */
+    internal fun isTransientFailure(error: Throwable): Boolean = when (error) {
+        is java.io.IOException -> true
+        is BangumiApiException -> error.code == 0 || error.isRateLimited || error.code in 500..599
+        else -> false
+    }
+
+    /**
+     * Yeniden deneme öncesi bekleme: 500 ms → 1 sn → 2 sn (üst sınır 4 sn) + %25 jitter.
+     * 429'da sunucunun ritmini bozmamak için taban süre 1,5 sn'ye çıkar.
+     */
+    private fun transientBackoffMs(attempt: Int, error: Throwable?): Long {
+        val base = if ((error as? BangumiApiException)?.isRateLimited == true) 1_500L else 500L
+        val exponential = base shl (attempt - 2).coerceIn(0, 3)
+        val jitter = (exponential * 0.25).toLong().coerceAtLeast(1L)
+        return (exponential + kotlin.random.Random.nextLong(0L, jitter + 1L)).coerceAtMost(4_000L)
     }
 
     private fun parseError(code: Int, body: String): BangumiApiException {
@@ -604,7 +711,9 @@ object BangumiApiClient {
         path: String,
         jsonBody: JSONObject?,
         token: String?,
-        query: Map<String, String?> = emptyMap()
+        query: Map<String, String?> = emptyMap(),
+        /** POST arama uçları yan etkisizdir → geçici hatada yeniden denenebilir. */
+        retryable: Boolean = false
     ): String? {
         val body = buildJsonRequestBody(jsonBody)
         val request = Request.Builder()
@@ -776,7 +885,8 @@ object BangumiApiClient {
     /** `GET /v0/users/{username}` — başka bir kullanıcının açık profili. */
     suspend fun getUser(token: String?, username: String): BangumiUser? = withContext(Dispatchers.IO) {
         runCatching {
-            val body = get("/v0/users/${URLEncoder.encode(username, "UTF-8")}", token = token) ?: return@runCatching null
+            val encodedUser = URLEncoder.encode(username, "UTF-8")
+            val body = get("/v0/users/$encodedUser", token = token) ?: return@runCatching null
             parseUser(JSONObject(body))
         }.getOrNull()
     }
@@ -784,13 +894,15 @@ object BangumiApiClient {
     /** `GET /v0/users/{username}/collections/-/characters` — kullanıcının karakter favorileri. */
     suspend fun getUserCharacterFavorites(token: String?, username: String): List<BangumiFavoriteItem> =
         withContext(Dispatchers.IO) {
-            fetchFavoriteList("/v0/users/${URLEncoder.encode(username, "UTF-8")}/collections/-/characters", token)
+            val encodedUser = URLEncoder.encode(username, "UTF-8")
+            fetchFavoriteList("/v0/users/$encodedUser/collections/-/characters", token)
         }
 
     /** `GET /v0/users/{username}/collections/-/persons` — kullanıcının kişi (kişi/stüdyo) favorileri. */
     suspend fun getUserPersonFavorites(token: String?, username: String): List<BangumiFavoriteItem> =
         withContext(Dispatchers.IO) {
-            fetchFavoriteList("/v0/users/${URLEncoder.encode(username, "UTF-8")}/collections/-/persons", token)
+            val encodedUser = URLEncoder.encode(username, "UTF-8")
+            fetchFavoriteList("/v0/users/$encodedUser/collections/-/persons", token)
         }
 
     private suspend fun fetchFavoriteList(path: String, token: String?): List<BangumiFavoriteItem> {
@@ -853,16 +965,27 @@ object BangumiApiClient {
         rank: List<String> = emptyList(),
         nsfw: Boolean? = null,
         limit: Int = SEARCH_PAGE_SIZE,
-        offset: Int = 0
+        offset: Int = 0,
+        /** `rating_count` filtresi (`>=200` gibi). "En yüksek puanlı" sıralaması için zorunlu. */
+        ratingCount: List<String> = emptyList(),
+        /**
+         * `meta_tags` filtresi — platform/ortam etiketleri (`电视剧`, `电影`, `WEB`, `剧场版`…).
+         * `type=6` (三次元) içinde dizi ile filmi ayırmanın sunucu tarafındaki tek yolu budur;
+         * `cat` süzgeci arama ucunda yoktur.
+         */
+        metaTags: List<String> = emptyList()
     ): BangumiPage<BangumiSubject> = withContext(Dispatchers.IO) {
         val pageLimit = limit.coerceIn(1, SEARCH_PAGE_SIZE)
-        val payload = buildSearchSubjectsPayload(keyword, sort, types, tags, airDate, rating, rank, nsfw)
+        val payload = buildSearchSubjectsPayload(
+            keyword, sort, types, tags, airDate, rating, rank, nsfw, ratingCount, metaTags
+        )
         val body = send(
             method = "POST",
             path = "/v0/search/subjects",
             jsonBody = payload,
             token = token,
-            query = mapOf("limit" to pageLimit.toString(), "offset" to offset.toString())
+            query = mapOf("limit" to pageLimit.toString(), "offset" to offset.toString()),
+            retryable = true
         ) ?: return@withContext BangumiPage(0, pageLimit, offset, emptyList())
         // Arama ucu `Paged_Subject` döndürür: öğeler TAM条目 modelidir (nsfw, rating, tags dahil).
         parseSubjectPage(JSONObject(body), pageLimit, offset)
@@ -880,7 +1003,11 @@ object BangumiApiClient {
         airDate: List<String>,
         rating: List<String>,
         rank: List<String>,
-        nsfw: Boolean?
+        nsfw: Boolean?,
+        /** `rating_count` (`>=200`…). Puan sıralamasında oy sayısı tabanı budur. */
+        ratingCount: List<String> = emptyList(),
+        /** `meta_tags` (`电视剧`, `电影`, `WEB`…). `type=6` içinde dizi/film ayrımı. */
+        metaTags: List<String> = emptyList()
     ): JSONObject = JSONObject().apply {
         put("keyword", keyword)
         put("sort", sort)
@@ -906,6 +1033,14 @@ object BangumiApiClient {
             filter.put("rank", JSONArray(rank))
             hasFilter = true
         }
+        if (ratingCount.isNotEmpty()) {
+            filter.put("rating_count", JSONArray(ratingCount))
+            hasFilter = true
+        }
+        if (metaTags.isNotEmpty()) {
+            filter.put("meta_tags", JSONArray(metaTags))
+            hasFilter = true
+        }
         if (nsfw != null) {
             filter.put("nsfw", nsfw)
             hasFilter = true
@@ -923,6 +1058,70 @@ object BangumiApiClient {
      *
      * @param type [SubjectType] (null = tümü)
      */
+    /**
+     * "En yüksek puanlı" sıralama — **oy sayısı tabanlı** güvenli yol.
+     *
+     * Bangumi'de `POST /v0/search/subjects` ucunda `sort=score` Meilisearch'te yalnızca
+     * ham `score` alanını sıralar ve oy sayısını (`rating.total`) hesaba katmaz. Tek oylu,
+     * kimsenin bilmediği 10/10 yapıtlar klasiklerin önüne geçiyordu (R1).
+     *
+     * Çözüm sırası:
+     * 1. `sort=rank` + `rating_count>=minVotes` (yalnız sıralı ve yeterli oylular)
+     * 2. `sort=rank` + `rank>=1` (küçük kategorilerde sıralı olanlar)
+     * 3. `sort=score` + `rating_count>=minVotes` (sırasız ama oylu kayıtlar)
+     *
+     * Hiçbiri sonuç vermezse boş sayfa döner. Canlı prob (`probe/result.txt`, A1–A4)
+     * bu sıranın CLANNAD, Gintama, Steins;Gate gibi klasikleri en başa getirdiğini kanıtladı.
+     *
+     * @param minVotes sıralamaya girmek için gereken en az oy sayısı (varsayılan: 100)
+     * @param metaTags sunucu tarafı ortam süzgeci (`电视剧`, `电影`, `漫画`, `小说`…).
+     * Roman rafı ayrımı için gereklidir: Bangumi'de manga ve roman aynı `type=1` (书籍)
+     * altında; `漫画` süzgeci olmadan romanlar "En Yüksek Puanlı Mangalar" rafına
+     * düşüyordu (2026-11-01 probu Q4: `meta_tags=["小说"]` 539 roman).
+     */
+    suspend fun topScored(
+        type: Int,
+        token: String? = null,
+        limit: Int = 20,
+        offset: Int = 0,
+        minVotes: Int = MIN_RATING_VOTES,
+        metaTags: List<String> = emptyList()
+    ): BangumiPage<BangumiSubject> {
+        /*
+         * Sıralama varyantları — en doğrudan "en yüksek puanlı" tanımından en gevşeğe:
+         * 1. `sort=rank` + `rank>=1` + `rating_count>=N` — hem resmi rank'i olan hem de
+         *    oy sayısı barajını aşan klasikler.
+         * 2. `sort=rank` + `rating_count>=N` — rank>0 filtresi olmadan (oy sayısı yeterliyse).
+         * 3. `sort=rank` + `rank>=1` — oy sayısı filtresi boş dönerse (küçük kategoriler).
+         * 4. `sort=score` + `rating_count>=N` — rank alanı boşsa son çare.
+         */
+        val attempts: List<suspend () -> BangumiPage<BangumiSubject>> = listOf(
+            { searchSubjects("", token, listOf(type), SearchSort.RANK, limit = limit, offset = offset, nsfw = false, rank = listOf(">=1"), ratingCount = listOf(">=$minVotes"), metaTags = metaTags) },
+            { searchSubjects("", token, listOf(type), SearchSort.RANK, limit = limit, offset = offset, nsfw = false, ratingCount = listOf(">=$minVotes"), metaTags = metaTags) },
+            { searchSubjects("", token, listOf(type), SearchSort.RANK, limit = limit, offset = offset, nsfw = false, rank = listOf(">=1"), metaTags = metaTags) },
+            { searchSubjects("", token, listOf(type), SearchSort.SCORE, limit = limit, offset = offset, nsfw = false, ratingCount = listOf(">=$minVotes"), metaTags = metaTags) }
+        )
+        var lastError: Throwable? = null
+        for ((index, attempt) in attempts.withIndex()) {
+            val page = try {
+                attempt()
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (error: Throwable) {
+                lastError = error
+                null
+            }
+            if (page != null && page.data.isNotEmpty()) {
+                if (index > 0) {
+                    Log.w(TAG, "topScored(type=$type): ilk sıralama varyantı boştu, #${index + 1} kullanıldı")
+                }
+                return page
+            }
+        }
+        lastError?.let { throw it }
+        return BangumiPage(0, limit, offset, emptyList())
+    }
+
     suspend fun searchSubjectsLegacy(
         keyword: String,
         token: String? = null,
@@ -1010,7 +1209,8 @@ object BangumiApiClient {
             path = "/v0/search/characters",
             jsonBody = payload,
             token = token,
-            query = mapOf("limit" to limit.toString(), "offset" to offset.toString())
+            query = mapOf("limit" to limit.toString(), "offset" to offset.toString()),
+            retryable = true
         ) ?: return@withContext BangumiPage(0, limit, offset, emptyList())
         parseEntityPage(JSONObject(body), limit, offset)
     }
@@ -1045,7 +1245,8 @@ object BangumiApiClient {
             path = "/v0/search/persons",
             jsonBody = payload,
             token = token,
-            query = mapOf("limit" to limit.toString(), "offset" to offset.toString())
+            query = mapOf("limit" to limit.toString(), "offset" to offset.toString()),
+            retryable = true
         ) ?: return@withContext BangumiPage(0, limit, offset, emptyList())
         parseEntityPage(JSONObject(body), limit, offset)
     }
@@ -1109,9 +1310,21 @@ object BangumiApiClient {
         type: Int,
         token: String? = null,
         limit: Int = 25,
-        offset: Int = 0
+        offset: Int = 0,
+        /** `type = 1` (书籍) için kategori süzgeci: `1001` manga, `1002` roman. */
+        cat: String? = null,
+        /** Yalnızca书籍条目'ları için: `true` → ciltler değil **seri** ana kaydı. */
+        series: Boolean? = null
     ): BangumiPage<BangumiSubject> =
-        browseSubjects(type = type, token = token, sort = "rank", limit = limit, offset = offset)
+        browseSubjects(
+            type = type,
+            token = token,
+            cat = cat,
+            sort = "rank",
+            series = series,
+            limit = limit,
+            offset = offset
+        )
 
     /**
      * En çok koleksiyona eklenen ("近期注目" benzeri popülerlik) liste.
@@ -1124,7 +1337,9 @@ object BangumiApiClient {
         type: Int,
         token: String? = null,
         limit: Int = 25,
-        offset: Int = 0
+        offset: Int = 0,
+        /** Isı sıralaması boş/hatalı olursa düşülecek göz atma kategorisi (`cat`). */
+        cat: String? = null
     ): BangumiPage<BangumiSubject> {
         val byHeat = runCatching {
             searchSubjects(
@@ -1138,7 +1353,14 @@ object BangumiApiClient {
         }.getOrNull()
         if (byHeat != null && byHeat.data.isNotEmpty()) return byHeat
         Log.w(TAG, "mostCollected(type=$type): heat araması boş/hatalı, tarih sıralamasına düşülüyor")
-        return browseSubjects(type = type, token = token, sort = "date", limit = limit, offset = offset)
+        return browseSubjects(
+            type = type,
+            token = token,
+            cat = cat,
+            sort = "date",
+            limit = limit,
+            offset = offset
+        )
     }
 
     // ── Detay ────────────────────────────────────────────────────────────────
@@ -1291,7 +1513,8 @@ object BangumiApiClient {
     private suspend fun isFavouriteEntity(kind: String, token: String, username: String, id: Int): Boolean =
         withContext(Dispatchers.IO) {
             try {
-                val path = "/v0/users/${URLEncoder.encode(username, "UTF-8")}/collections/-/$kind/$id"
+                val encodedUser = URLEncoder.encode(username, "UTF-8")
+                val path = "/v0/users/$encodedUser/collections/-/$kind/$id"
                 get(path, token = token) != null
             } catch (e: BangumiApiException) {
                 if (e.isNotFound) false else throw e
@@ -1347,7 +1570,8 @@ object BangumiApiClient {
             "limit" to limit.coerceIn(1, 50).toString(),
             "offset" to offset.toString()
         )
-        val body = get("/v0/users/${URLEncoder.encode(username, "UTF-8")}/collections", query, token)
+        val encodedUser = URLEncoder.encode(username, "UTF-8")
+        val body = get("/v0/users/$encodedUser/collections", query, token)
             ?: return@withContext BangumiPage(0, limit, offset, emptyList())
         val json = JSONObject(body)
         val array = json.optJSONArray("data") ?: JSONArray()
@@ -1391,8 +1615,9 @@ object BangumiApiClient {
         username: String
     ): BangumiUserCollection? = withContext(Dispatchers.IO) {
         try {
+            val encodedUser = URLEncoder.encode(username, "UTF-8")
             val body = get(
-                "/v0/users/${URLEncoder.encode(username, "UTF-8")}/collections/$subjectId",
+                "/v0/users/$encodedUser/collections/$subjectId",
                 token = token
             ) ?: return@withContext null
             parseUserCollection(JSONObject(body))
@@ -1638,8 +1863,10 @@ object BangumiApiClient {
         }
         val episodes = getAllMainEpisodes(subject.id, token)
         if (episodes.isEmpty()) {
-            // Bölüm listesi boşsa (henüz wiki girişi yok) son çare olarak ep_status dene.
-            patchCollection(token, subject.id, epStatus = watchedCount)
+            // `bangumi/server` kitap dışı subject'lerde `PATCH .../collections/{id}` içinde
+            // `ep_status` alanını HTTP 400 ile reddeder; bölüm listesi boşsa doğrudan resmî
+            // `POST /subject/{id}/update/watched_eps` ucu kullanılır.
+            setProgressLegacy(token, subject, watchedCount)
             return
         }
         val targetIds = episodes
@@ -1648,6 +1875,167 @@ object BangumiApiClient {
             .take(watchedCount)
             .map { it.id }
         markEpisodes(token, subject.id, targetIds)
+    }
+
+    // ── Resmî Legacy PHP API yazma yedekleri (`E87`) ─────────────────────────
+    // `bangumi/server` Go `/v0` yazma uçları (`mw.NeedScope(ScopeWriteCollection)`), PHP OAuth
+    // sunucusunun `chii_oauth_access_tokens.scope` sütununa dizi (`[]`) yazdığı normal OAuth
+    // oturumlarını `403 insufficient token scope` ile reddedebiliyor (`TestParseTokenScope_NonObject`).
+    // Aynı Bearer OAuth token'ı resmî Legacy PHP uçlarında (`POST /collection/{id}/update`,
+    // `POST /subject/{id}/update/watched_eps`, `POST /ep/{id}/status/{status}`) doğrudan geçerlidir.
+
+    /** `CollectionType` (`1..5`) → resmî `CollectionStatusType` (`open-api/api.yml`). */
+    internal fun collectionTypeToLegacyStatus(type: Int): String = when (type) {
+        CollectionType.WISH -> "wish"
+        CollectionType.DONE -> "collect"
+        CollectionType.DOING -> "do"
+        CollectionType.ON_HOLD -> "on_hold"
+        CollectionType.DROPPED -> "dropped"
+        else -> "do"
+    }
+
+    /**
+     * Legacy PHP `/collection/{id}/update` gövdesi alan bazlı koruma (`A4`) ile üretilir:
+     * OpenAPI sözleşmesi gereği `rating` ve `privacy` gönderilmezse sunucu bunları `0`a
+     * sıfırladığından, değiştirilmeyen alanlar mevcut [existing] koleksiyon kaydından doldurulur.
+     */
+    internal fun buildLegacyCollectionFormFields(
+        existing: BangumiUserCollection?,
+        type: Int? = null,
+        rate: Int? = null,
+        comment: String? = null,
+        private: Boolean? = null,
+        tags: List<String>? = null
+    ): Map<String, String> {
+        val effectiveType = type ?: existing?.type ?: CollectionType.DOING
+        val effectiveRate = rate ?: existing?.rate
+        val effectiveComment = comment ?: existing?.comment
+        val effectivePrivate = private ?: existing?.private ?: false
+        val effectiveTags = tags ?: existing?.tags
+
+        val fields = linkedMapOf<String, String>()
+        fields["status"] = collectionTypeToLegacyStatus(effectiveType)
+        if (effectiveRate != null && effectiveRate in 1..10) {
+            fields["rating"] = effectiveRate.toString()
+        }
+        sanitizeCommentForWrite(effectiveComment)?.let { cleaned ->
+            fields["comment"] = cleaned
+        }
+        sanitizeTagsForWrite(effectiveTags)?.let { cleanedTags ->
+            if (cleanedTags.isNotEmpty()) {
+                fields["tags"] = cleanedTags.joinToString(" ")
+            }
+        }
+        fields["privacy"] = if (effectivePrivate) "1" else "0"
+        return fields
+    }
+
+    /**
+     * Bangumi Legacy PHP uçları hata durumunda HTTP 200 ile `{"request":"...","code":401,"error":"invalid_token"}`
+     * döndürebilir (`czy0729/Bangumi` `fetch.ts`). Gövde incelenip gerçek hata varsa [BangumiApiException] üretilir.
+     */
+    internal fun parseLegacyWriteError(httpCode: Int, body: String): BangumiApiException? {
+        if (body.isBlank()) {
+            return if (httpCode >= 400) parseError(httpCode, body) else null
+        }
+        val json = runCatching { JSONObject(body) }.getOrNull()
+        val embeddedCode = json?.optInt("code", 200) ?: 200
+        val embeddedError = json?.cleanString("error").orEmpty()
+        // Legacy watched_eps başarısı HTTP 200 + {"code":202,"error":"Accepted"} döner.
+        // `error` alanının varlığı tek başına hata değildir; embedded 2xx önce kabul edilir.
+        // Gerçek transport HTTP 4xx/5xx yanıtını ise embedded değerle maskelemeyiz.
+        if (httpCode < 400 && embeddedCode in 200..299) return null
+        if (httpCode >= 400) return parseError(httpCode, body)
+        if (json == null) return null
+        if (embeddedError.isBlank() && embeddedCode < 400) return null
+        val finalCode = when {
+            embeddedError.equals("invalid_token", ignoreCase = true) -> 401
+            embeddedCode >= 400 -> embeddedCode
+            else -> 400
+        }
+        val detail = embeddedError.ifBlank { "HTTP $finalCode" }
+        return BangumiApiException(
+            code = finalCode,
+            title = embeddedError.ifBlank { null },
+            description = json.cleanString("request").ifBlank { null },
+            message = "Bangumi Legacy API hatası ($finalCode): $detail"
+        )
+    }
+
+    private suspend fun postLegacyForm(
+        pathWithQuery: String,
+        token: String,
+        formFields: Map<String, String>
+    ): String? {
+        awaitBangumiThrottle()
+        val formBuilder = FormBody.Builder()
+        formFields.forEach { (k, v) -> formBuilder.add(k, v) }
+        val request = Request.Builder()
+            .url("$API_BASE$pathWithQuery")
+            .bangumiHeaders(token)
+            .post(formBuilder.build())
+            .build()
+        return withContext(Dispatchers.IO) {
+            httpClient.newCall(request).execute().use { response ->
+                val body = response.body?.string().orEmpty()
+                parseLegacyWriteError(response.code, body)?.let { throw it }
+                body.ifBlank { null }
+            }
+        }
+    }
+
+    /**
+     * `POST /collection/{subject_id}/update` — `/v0` kapsam reddinde (`403 insufficient token scope`)
+     * aynı OAuth token ile koleksiyon oluşturur veya günceller (`E87`).
+     */
+    suspend fun upsertCollectionLegacy(
+        token: String,
+        subjectId: Int,
+        username: String?,
+        type: Int? = null,
+        rate: Int? = null,
+        comment: String? = null,
+        private: Boolean? = null,
+        tags: List<String>? = null
+    ) {
+        val existing = if (!username.isNullOrBlank()) {
+            runCatching { getUserCollection(token, subjectId, username) }.getOrNull()
+        } else {
+            null
+        }
+        val fields = buildLegacyCollectionFormFields(
+            existing = existing,
+            type = type,
+            rate = rate,
+            comment = comment,
+            private = private,
+            tags = tags
+        )
+        postLegacyForm("/collection/$subjectId/update", token, fields)
+    }
+
+    /**
+     * `POST /subject/{subject_id}/update/watched_eps` — `/v0` kapsam reddinde (`403`)
+     * veya bölüm listesi boş yapımlarda ilerlemeyi yazar (`E87`).
+     */
+    suspend fun setProgressLegacy(
+        token: String,
+        subject: BangumiSubject,
+        watchedCount: Int,
+        volumeCount: Int? = null
+    ) {
+        val safeEps = watchedCount.coerceAtLeast(0)
+        val form = linkedMapOf("watched_eps" to safeEps.toString())
+        val queryParts = mutableListOf("watched_eps=$safeEps")
+        if (subject.isBook && volumeCount != null && volumeCount >= 0) {
+            form["watched_vols"] = volumeCount.toString()
+            queryParts += "watched_vols=$volumeCount"
+        }
+        postLegacyForm(
+            pathWithQuery = "/subject/${subject.id}/update/watched_eps?${queryParts.joinToString("&")}",
+            token = token,
+            formFields = form
+        )
     }
 
     // ── Yazma yetkisi tanılaması ─────────────────────────────────────────────
@@ -1969,6 +2357,7 @@ object BangumiApiClient {
             eps = json.optInt("eps", 0),
             totalEpisodes = json.optInt("total_episodes", json.optInt("eps", 0)),
             volumes = json.optInt("volumes", 0),
+            series = if (json.has("series")) json.optBoolean("series", false) else null,
             images = parseImages(json.optJSONObject("images")),
             rating = ratingJson?.let {
                 BangumiRating(

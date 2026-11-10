@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.ui.components
+﻿package com.kitsugi.animelist.ui.components
 
 import com.kitsugi.animelist.ui.theme.gradient.background
 import com.kitsugi.animelist.ui.utils.tvClickable
@@ -12,7 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import com.kitsugi.animelist.ui.theme.gradient.RadioButton
@@ -78,7 +78,7 @@ fun KitsugiExportBackupDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(min = 120.dp, max = 240.dp)
-                        .verticalScroll(rememberScrollState()),
+                        .kitsugiVerticalScroll(rememberScrollState()),
                     colors = TextFieldDefaults.colors(
                         focusedTextColor = KitsugiColors.TextPrimary,
                         unfocusedTextColor = KitsugiColors.TextPrimary,
@@ -178,7 +178,7 @@ fun KitsugiExportBackupDialog(
                         modifier = Modifier
                             .fillMaxWidth()
                             .heightIn(min = 180.dp, max = 360.dp)
-                            .verticalScroll(rememberScrollState()),
+                            .kitsugiVerticalScroll(rememberScrollState()),
                         colors = TextFieldDefaults.colors(
                             focusedTextColor = KitsugiColors.TextPrimary,
                             unfocusedTextColor = KitsugiColors.TextPrimary,
@@ -324,7 +324,7 @@ fun KitsugiImportBackupDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(min = 100.dp, max = 200.dp)
-                        .verticalScroll(rememberScrollState()),
+                        .kitsugiVerticalScroll(rememberScrollState()),
                     placeholder = {
                         Text(
                             text = "{ ... }",
@@ -435,7 +435,7 @@ fun KitsugiImportBackupDialog(
                         modifier = Modifier
                             .fillMaxWidth()
                             .heightIn(min = 160.dp, max = 280.dp)
-                            .verticalScroll(rememberScrollState()),
+                            .kitsugiVerticalScroll(rememberScrollState()),
                         placeholder = {
                             Text(
                                 text = "{ ... }",

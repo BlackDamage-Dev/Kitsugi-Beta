@@ -56,6 +56,9 @@ class PlayerLoadingDiagnostics {
     private var firstFrameMs: Long? = null
     private val bufferingEvents = mutableListOf<BufferingEvent>()
     private var currentBufferingStart: Long? = null
+    private var currentBufferingReason: String = REASON_INITIAL_LOAD
+    /** Oturumda en az bir kez oynatmaya hazır hâle gelindi mi (ilk tamponlama bitti mi)? */
+    private var readyReachedOnce = false
     private var errorCode: Int? = null
     private var errorMessage: String? = null
     private var finalState: String = "IDLE"
@@ -71,6 +74,8 @@ class PlayerLoadingDiagnostics {
         this.firstFrameMs = null
         this.bufferingEvents.clear()
         this.currentBufferingStart = null
+        this.currentBufferingReason = REASON_INITIAL_LOAD
+        this.readyReachedOnce = false
         this.errorCode = null
         this.errorMessage = null
         this.finalState = "LOADING"
@@ -86,19 +91,36 @@ class PlayerLoadingDiagnostics {
         }
     }
 
+    /**
+     * Tamponlama başladı. Etiket çağıranın tahminine değil oturum durumuna göre belirlenir:
+     * oynatma bir kez bile hazır olmadıysa her tamponlama `initial-load`'dur.
+     *
+     * Media3'te `prepare()` sırasında STATE_BUFFERING dinleyicisi ("rebuffer") ve hemen ardından
+     * açık "initial-load" çağrısı aynı milisaniyede geliyordu → günlükte çift ve yanlış etiketli
+     * kayıt. Zaten tamponlanıyorsa ilk başlangıç zamanı korunur, ikinci çağrı yok sayılır.
+     */
     @Synchronized
     fun onBufferingStarted(reason: String = "unknown") {
+        if (currentBufferingStart != null) return
         currentBufferingStart = System.currentTimeMillis()
-        com.kitsugi.animelist.core.diagnostics.FileLoggingTree.d(TAG, "Buffering started: $reason")
+        currentBufferingReason = when {
+            !readyReachedOnce -> REASON_INITIAL_LOAD
+            reason == REASON_INITIAL_LOAD || reason == "unknown" -> REASON_REBUFFER
+            else -> reason
+        }
+        com.kitsugi.animelist.core.diagnostics.FileLoggingTree.d(TAG, "Buffering started: $currentBufferingReason")
     }
 
     @Synchronized
     fun onBufferingEnded() {
         val start = currentBufferingStart ?: return
         val durationMs = System.currentTimeMillis() - start
-        bufferingEvents.add(BufferingEvent(start, durationMs, "rebuffer"))
+        bufferingEvents.add(BufferingEvent(start, durationMs, currentBufferingReason))
         currentBufferingStart = null
-        com.kitsugi.animelist.core.diagnostics.FileLoggingTree.d(TAG, "Buffering ended after ${durationMs} ms")
+        readyReachedOnce = true
+        com.kitsugi.animelist.core.diagnostics.FileLoggingTree.d(
+            TAG, "Buffering ended after ${durationMs} ms ($currentBufferingReason)"
+        )
     }
 
     @Synchronized
@@ -112,6 +134,14 @@ class PlayerLoadingDiagnostics {
         errorCode = code
         errorMessage = message
         finalState = "ERROR"
+        // Hata tamponlama sürerken geldiyse (ör. ilk yüklemede HTTP 429) bu süre özette
+        // kaybolup "0 event(s), total 0 ms" görünüyordu; kesilen tamponlama da kaydedilir.
+        currentBufferingStart?.let { start ->
+            bufferingEvents.add(
+                BufferingEvent(start, System.currentTimeMillis() - start, "$currentBufferingReason (hata ile kesildi)")
+            )
+            currentBufferingStart = null
+        }
         com.kitsugi.animelist.core.diagnostics.FileLoggingTree.e(TAG, "Playback error code=$code msg=$message")
     }
 
@@ -148,5 +178,10 @@ class PlayerLoadingDiagnostics {
         ).also { snapshot ->
             com.kitsugi.animelist.core.diagnostics.FileLoggingTree.i(TAG, snapshot.toLogString())
         }
+    }
+
+    private companion object {
+        const val REASON_INITIAL_LOAD = "initial-load"
+        const val REASON_REBUFFER = "rebuffer"
     }
 }

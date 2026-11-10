@@ -16,7 +16,7 @@ import java.util.concurrent.ConcurrentHashMap
 
 private const val TAG = "TrailerService"
 private const val TMDB_TRAILER_FALLBACK_LANGUAGE = "en-US"
-private val YOUTUBE_SOURCE_CACHE_TTL: Duration = Duration.ofHours(3)
+private val YOUTUBE_SOURCE_CACHE_TTL: Duration = Duration.ofMinutes(15)
 private val YOUTUBE_VIDEO_ID_REGEX = Regex("^[a-zA-Z0-9_-]{11}$")
 
 /**
@@ -26,7 +26,7 @@ private val YOUTUBE_VIDEO_ID_REGEX = Regex("^[a-zA-Z0-9_-]{11}$")
  * - Uses APP's [TmdbApiClient] + [SettingsDataStore] instead of REF's TmdbApi/TmdbSettingsDataStore.
  * - No Hilt — instantiated as a lazy singleton via [TrailerServiceHolder].
  * - Honors tmdbEnabled AND tmdbUseTrailers settings gates (matching APP DataStore keys).
- * - 3-hour TTL YouTube session cache with URL expiry extraction.
+ * - 15-minute TTL YouTube session cache bounded by every signed URL's expiry.
  *
  * Usage: TrailerServiceHolder.get(context).getTrailerPlaybackSource(...)
  */
@@ -86,16 +86,21 @@ class TrailerService(
 
         val cacheKey = "$title|$year|$tmdbId|$type"
         cache[cacheKey]?.let { cached ->
-            val hit = cached !== NEGATIVE_CACHE
-            Log.d(TAG, "Cache hit for $cacheKey: $hit")
-            return@withContext if (hit) cached else null
+            if (cached === NEGATIVE_CACHE) {
+                Log.d(TAG, "Negative trailer lookup cache hit for $cacheKey")
+                return@withContext null
+            }
+            // Signed successes must never bypass the expiry-aware YouTube cache. Drop any
+            // legacy positive entry rather than returning it without checking its expiry.
+            cache.remove(cacheKey, cached)
         }
 
         try {
             Log.d(TAG, "Searching trailer: title=$title year=$year tmdbId=$tmdbId type=$type")
             val source = resolveFromTmdbId(tmdbId = tmdbId, type = type, title = title, year = year)
             if (source != null) {
-                cache[cacheKey] = source
+                // Do not cache signed playback URLs under an unbounded title/TMDB key.
+                // The dedicated YouTube cache below enforces TTL and signature expiry.
                 return@withContext source
             }
 
@@ -190,7 +195,8 @@ class TrailerService(
     fun clearCache() {
         cache.clear()
         youtubeSourceCache.clear()
-        Log.d(TAG, "Cache cleared")
+        inAppYouTubeExtractor.clearPlaybackSourceCache()
+        Log.d(TAG, "Trailer and resolved YouTube source caches cleared")
     }
 
     // ─── Private helpers ──────────────────────────────────────────────────────
@@ -228,18 +234,17 @@ class TrailerService(
     private fun getValidCachedYoutubeSource(youtubeKey: String): TrailerPlaybackSource? {
         val cached = youtubeSourceCache[youtubeKey] ?: return null
         val now = Instant.now()
-        val expired = cached.expiresAt?.let { now.isAfter(it) }
-            ?: (Duration.between(cached.cachedAt, now) > YOUTUBE_SOURCE_CACHE_TTL)
+        val expired = cached.expiresAt?.let { !now.isBefore(it) } == true ||
+            Duration.between(cached.cachedAt, now) >= YOUTUBE_SOURCE_CACHE_TTL
         if (!expired) return cached.playbackSource
         youtubeSourceCache.remove(youtubeKey, cached)
         return null
     }
 
     private fun extractUrlExpireInstant(source: TrailerPlaybackSource): Instant? {
-        val expireRegex = Regex("/expire/(\\d+)/")
-        val match = expireRegex.find(source.videoUrl) ?: return null
-        val epoch = match.groupValues[1].toLongOrNull() ?: return null
-        return Instant.ofEpochSecond(epoch)
+        val earliestExpiry = source.earliestYouTubeExpiryEpochSeconds() ?: return null
+        // Refresh one minute before the first video/audio signature becomes invalid.
+        return Instant.ofEpochSecond(earliestExpiry).minusSeconds(60)
     }
 
     private fun extractYouTubeVideoId(input: String): String? {

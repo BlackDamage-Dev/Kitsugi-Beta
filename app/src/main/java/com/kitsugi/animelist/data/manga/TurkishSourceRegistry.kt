@@ -51,7 +51,9 @@ object TurkishSourceRegistry {
         "gaiatoon"          to 22,
         "garcia"            to 22,
         "ghostoon"          to 22,
-        "golgebahcesi"      to 22,
+        // Kitsugi varsayılan aktif kaynak — en yüksek öncelik
+        "golgebahcesi"      to 90,
+        "gölge bahçesi"     to 90,
         "hattori"           to 20,
         "hattorimanga"      to 20,
         "hattoriscans"      to 20,

@@ -54,4 +54,28 @@ class SimklSyncContractTest {
     @Test fun unsupportedMangaIsNotSilentlyATvShow() {
         assertTrue(runCatching { SimklSyncContract.writeKey("manga") }.isFailure)
     }
+
+    // (E81) `/sync/add-to-list` `to` alanı: Simkl `dropped` değerini reddeder;
+    // bırakılan kovası `notinteresting`dir. Asıl sözleşme çağırandadır
+    // (`SimklSyncManager.watchStatusToSimkl`); bu testler istemci sınırındaki
+    // son çeviriyi kilitler.
+
+    @Test fun droppedIsTranslatedToNotInteresting() {
+        assertEquals("notinteresting", SimklSyncContract.normalizeListStatus("dropped"))
+        assertEquals("notinteresting", SimklSyncContract.normalizeListStatus("Dropped"))
+        assertEquals("notinteresting", SimklSyncContract.normalizeListStatus(" DROPPED "))
+    }
+
+    @Test fun legalBucketsPassThroughUnchanged() {
+        for (bucket in listOf("watching", "plantowatch", "completed", "notinteresting", "hold")) {
+            assertEquals(bucket, SimklSyncContract.normalizeListStatus(bucket))
+        }
+    }
+
+    @Test fun unknownValuesAreNotRewritten() {
+        // Emniyet bir doğrulayıcı değildir: bilinmeyen değeri sessizce başka bir
+        // kovaya çevirmek, hatayı görünmez yapar. Bilinen tek geçersiz eşleme çevrilir.
+        assertEquals("rewatching", SimklSyncContract.normalizeListStatus("rewatching"))
+        assertEquals("", SimklSyncContract.normalizeListStatus(""))
+    }
 }

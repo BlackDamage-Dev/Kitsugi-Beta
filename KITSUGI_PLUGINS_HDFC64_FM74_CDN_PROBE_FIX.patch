@@ -1,0 +1,214 @@
+diff --git a/FilmMakinesi/build.gradle.kts b/FilmMakinesi/build.gradle.kts
+index 0ab8755..6d12471 100644
+--- a/FilmMakinesi/build.gradle.kts
++++ b/FilmMakinesi/build.gradle.kts
+@@ -1,4 +1,4 @@
+-version = 73
++version = 74
+ 
+ dependencies {
+     testImplementation("junit:junit:4.13.2")
+diff --git a/FilmMakinesi/src/main/kotlin/com/keyiflerolsun/PlayerResolver.kt b/FilmMakinesi/src/main/kotlin/com/keyiflerolsun/PlayerResolver.kt
+index b44f7c8..945b792 100644
+--- a/FilmMakinesi/src/main/kotlin/com/keyiflerolsun/PlayerResolver.kt
++++ b/FilmMakinesi/src/main/kotlin/com/keyiflerolsun/PlayerResolver.kt
+@@ -109,11 +109,15 @@ internal object PlayerResolver {
+             return null
+         }
+         val origin = originOf(finalUrl) ?: return null
++
++        // T-IND-1: ölü CDN host'u yerine sayfadaki ilk CANLI master adresini yayınla.
++        val streamFile = pickLiveStreamFile(decoded.file, response.text, finalUrl, origin, displayName)
++
+         val link = newExtractorLink(
+             source = displayName,
+             name = displayName,
+-            url = decoded.file,
+-            type = linkTypeFor(decoded.file)
++            url = streamFile,
++            type = linkTypeFor(streamFile)
+         ) {
+             this.referer = finalUrl
+             this.quality = Qualities.Unknown.value
+@@ -125,7 +129,73 @@ internal object PlayerResolver {
+             )
+         }
+         val subtitles = decoded.tracks.map { newSubtitleFile(subtitleLabel(it), it.file) }
+-        Log.i(TAG, "$displayName -> ${decoded.file} [${decoded.method}, ${subtitles.size} altyazı]")
++        Log.i(TAG, "$displayName -> $streamFile [${decoded.method}, ${subtitles.size} altyazı]")
+         return Resolved(link, subtitles)
+     }
++
++    // ── T-IND-1 (2026-11-09): CDN canlılık doğrulaması ───────────────────────────
++    // Kitsugi-Beta indirme hattı dayanıklılığı ile eşleştirildi: srvN.cdnimagesNNNN.cyou /
++    // sNNN.rapidrame.com host ailesi rotasyonlu; çözücünün ürettiği master adresi daha
++    // kaynak listelenirken ölmüş olabiliyor. Master'ı hızlı probe et, ölüyse sayfadaki
++    // diğer master adaylarını dene; ilk canlı adresi yayınla.
++
++    private val ALT_STREAM_RE = Regex(
++        """https?://[^\s"'<>\\]+?(?:master\.txt|master\.m3u8|playlist\.txt|index\.m3u8)[^\s"'<>\\]*""",
++        RegexOption.IGNORE_CASE
++    )
++
++    /** TUZAK host'lar: playmix.* sahte (trap) adres üretir — asla aday olmaz. */
++    private val TRAP_HOST_MARKS = listOf("playmix.uno", "playmix.")
++
++    fun alternateStreamUrls(html: String, exclude: String): List<String> {
++        val out = LinkedHashSet<String>()
++        for (m in ALT_STREAM_RE.findAll(html)) {
++            val cand = m.value.replace("\\/", "/")
++            if (cand == exclude) continue
++            if (TRAP_HOST_MARKS.any { cand.contains(it, ignoreCase = true) }) continue
++            if (!PlayerDecoder.isPlausibleStreamUrl(cand)) continue
++            out.add(cand)
++            if (out.size >= 4) break
++        }
++        return out.toList()
++    }
++
++    /** Master listesini kısa zaman aşımıyla doğrular: HTTP 2xx + boş olmayan gövde. */
++    suspend fun probeStreamFile(url: String, referer: String, origin: String): Boolean = try {
++        val res = app.get(
++            url,
++            referer = referer,
++            headers = mapOf(
++                "User-Agent" to USER_AGENT,
++                "Origin" to origin,
++                "Accept" to "*/*"
++            ),
++            timeout = 6L
++        )
++        res.isSuccessful && res.text.isNotBlank()
++    } catch (e: Exception) {
++        false
++    }
++
++    /** Birincil master ölüyse sayfadaki yedek master adaylarından ilk canlısını seçer. */
++    suspend fun pickLiveStreamFile(
++        primary: String,
++        html: String,
++        pageUrl: String,
++        origin: String,
++        displayName: String
++    ): String {
++        if (probeStreamFile(primary, pageUrl, origin)) return primary
++        Log.w(TAG, "$displayName: birincil master probe'u başarısız (ölü host?): $primary")
++        for (alt in alternateStreamUrls(html, primary)) {
++            if (probeStreamFile(alt, pageUrl, origin)) {
++                Log.i(TAG, "$displayName: yedek master canlı → $alt")
++                return alt
++            }
++            Log.w(TAG, "$displayName: yedek master adayı da ölü: $alt")
++        }
++        Log.w(TAG, "$displayName: hiçbir master canlı değil; orijinal adresle devam: $primary")
++        return primary
++    }
++
+ }
+diff --git a/HDFilmCehennemi/build.gradle.kts b/HDFilmCehennemi/build.gradle.kts
+index 5444c3a..621a789 100644
+--- a/HDFilmCehennemi/build.gradle.kts
++++ b/HDFilmCehennemi/build.gradle.kts
+@@ -1,4 +1,4 @@
+-version = 63
++version = 64
+ 
+ cloudstream {
+     authors     = listOf("hexated", "keyiflerolsun")
+diff --git a/HDFilmCehennemi/src/main/kotlin/com/keyiflerolsun/PlayerResolver.kt b/HDFilmCehennemi/src/main/kotlin/com/keyiflerolsun/PlayerResolver.kt
+index b44f7c8..945b792 100644
+--- a/HDFilmCehennemi/src/main/kotlin/com/keyiflerolsun/PlayerResolver.kt
++++ b/HDFilmCehennemi/src/main/kotlin/com/keyiflerolsun/PlayerResolver.kt
+@@ -109,11 +109,15 @@ internal object PlayerResolver {
+             return null
+         }
+         val origin = originOf(finalUrl) ?: return null
++
++        // T-IND-1: ölü CDN host'u yerine sayfadaki ilk CANLI master adresini yayınla.
++        val streamFile = pickLiveStreamFile(decoded.file, response.text, finalUrl, origin, displayName)
++
+         val link = newExtractorLink(
+             source = displayName,
+             name = displayName,
+-            url = decoded.file,
+-            type = linkTypeFor(decoded.file)
++            url = streamFile,
++            type = linkTypeFor(streamFile)
+         ) {
+             this.referer = finalUrl
+             this.quality = Qualities.Unknown.value
+@@ -125,7 +129,73 @@ internal object PlayerResolver {
+             )
+         }
+         val subtitles = decoded.tracks.map { newSubtitleFile(subtitleLabel(it), it.file) }
+-        Log.i(TAG, "$displayName -> ${decoded.file} [${decoded.method}, ${subtitles.size} altyazı]")
++        Log.i(TAG, "$displayName -> $streamFile [${decoded.method}, ${subtitles.size} altyazı]")
+         return Resolved(link, subtitles)
+     }
++
++    // ── T-IND-1 (2026-11-09): CDN canlılık doğrulaması ───────────────────────────
++    // Kitsugi-Beta indirme hattı dayanıklılığı ile eşleştirildi: srvN.cdnimagesNNNN.cyou /
++    // sNNN.rapidrame.com host ailesi rotasyonlu; çözücünün ürettiği master adresi daha
++    // kaynak listelenirken ölmüş olabiliyor. Master'ı hızlı probe et, ölüyse sayfadaki
++    // diğer master adaylarını dene; ilk canlı adresi yayınla.
++
++    private val ALT_STREAM_RE = Regex(
++        """https?://[^\s"'<>\\]+?(?:master\.txt|master\.m3u8|playlist\.txt|index\.m3u8)[^\s"'<>\\]*""",
++        RegexOption.IGNORE_CASE
++    )
++
++    /** TUZAK host'lar: playmix.* sahte (trap) adres üretir — asla aday olmaz. */
++    private val TRAP_HOST_MARKS = listOf("playmix.uno", "playmix.")
++
++    fun alternateStreamUrls(html: String, exclude: String): List<String> {
++        val out = LinkedHashSet<String>()
++        for (m in ALT_STREAM_RE.findAll(html)) {
++            val cand = m.value.replace("\\/", "/")
++            if (cand == exclude) continue
++            if (TRAP_HOST_MARKS.any { cand.contains(it, ignoreCase = true) }) continue
++            if (!PlayerDecoder.isPlausibleStreamUrl(cand)) continue
++            out.add(cand)
++            if (out.size >= 4) break
++        }
++        return out.toList()
++    }
++
++    /** Master listesini kısa zaman aşımıyla doğrular: HTTP 2xx + boş olmayan gövde. */
++    suspend fun probeStreamFile(url: String, referer: String, origin: String): Boolean = try {
++        val res = app.get(
++            url,
++            referer = referer,
++            headers = mapOf(
++                "User-Agent" to USER_AGENT,
++                "Origin" to origin,
++                "Accept" to "*/*"
++            ),
++            timeout = 6L
++        )
++        res.isSuccessful && res.text.isNotBlank()
++    } catch (e: Exception) {
++        false
++    }
++
++    /** Birincil master ölüyse sayfadaki yedek master adaylarından ilk canlısını seçer. */
++    suspend fun pickLiveStreamFile(
++        primary: String,
++        html: String,
++        pageUrl: String,
++        origin: String,
++        displayName: String
++    ): String {
++        if (probeStreamFile(primary, pageUrl, origin)) return primary
++        Log.w(TAG, "$displayName: birincil master probe'u başarısız (ölü host?): $primary")
++        for (alt in alternateStreamUrls(html, primary)) {
++            if (probeStreamFile(alt, pageUrl, origin)) {
++                Log.i(TAG, "$displayName: yedek master canlı → $alt")
++                return alt
++            }
++            Log.w(TAG, "$displayName: yedek master adayı da ölü: $alt")
++        }
++        Log.w(TAG, "$displayName: hiçbir master canlı değil; orijinal adresle devam: $primary")
++        return primary
++    }
++
+ }

@@ -4,8 +4,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.MaterialTheme
 import com.kitsugi.animelist.ui.theme.gradient.Text
 import androidx.compose.runtime.Composable
@@ -13,6 +12,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -24,7 +24,10 @@ fun TopLeftPlayerControls(
     mediaTitle: String,
     onTitleClick: () -> Unit,
     onBackClick: () -> Unit,
+    onKeyboardShortcutsClick: () -> Unit = {},
+    showKeyboardHint: Boolean = false,
     modifier: Modifier = Modifier,
+    title: String = animeTitle,
 ) {
     Row(
         modifier = modifier,
@@ -32,29 +35,38 @@ fun TopLeftPlayerControls(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         ControlsButton(
-            icon = Icons.AutoMirrored.Default.ArrowBack,
+            icon = Icons.ArrowBack,
             onClick = onBackClick,
         )
         Column(
-            verticalArrangement = Arrangement.spacedBy(2.dp),
             modifier = Modifier.clickable(onClick = onTitleClick),
         ) {
             Text(
-                text = animeTitle,
-                fontSize = 16.sp,
+                text = title,
+                fontSize = 17.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 color = Color.White,
-                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.bodyMedium,
             )
             Text(
                 text = mediaTitle,
-                fontSize = 14.sp,
+                fontSize = 12.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                color = Color.White.copy(alpha = 0.6f),
+                color = Color.White.copy(alpha = 0.5f),
                 style = MaterialTheme.typography.bodyMedium,
                 fontStyle = FontStyle.Italic,
+            )
+            Text(
+                text = "Klavye: ? veya H • Kısayol rehberi",
+                fontSize = 11.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                color = Color.White.copy(alpha = 0.48f),
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.clickable(onClick = onKeyboardShortcutsClick),
             )
         }
     }

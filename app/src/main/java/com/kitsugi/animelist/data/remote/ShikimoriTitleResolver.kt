@@ -12,15 +12,16 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
-import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.TimeUnit
 
 /**
  * Shikimori kayıtları için İngilizce / Japonca başlık çözücüsü.
  *
  * ## Sorun
- * Shikimori'nin REST `related` / `similar` uçları yalnızca `name` (romaji) ve `russian`
- * (Rusça) alanlarını döndürür. Eskiden Rusça değer `titleEnglish` alanına yazıldığı için
- * başlık dili \"İngilizce\" seçildiğinde ilişki ve öneri kartlarında Rusça adlar görünüyordu.
+ * Shikimori REST arama ve `related` / `similar` uçları çoğunlukla yalnızca `name` (romaji)
+ * ve `russian` alanlarını döndürür; İngilizce/Japonca varyantları içermez. Arama sonuçlarında
+ * `name`'in `titleEnglish` alanında kullanılması İngilizce seçiliyken romaji gösteriyordu.
+ * İlişki/öneri akışında Rusça'yı İngilizce alanına yazmak da aynı dil tercihi hatasına yol açıyordu.
  *
  * ## Çözüm
  * Shikimori GraphQL `animes` / `mangas` sorgusu `english` ve `japanese` alanlarını verir.
@@ -33,8 +34,15 @@ object ShikimoriTitleResolver {
     private const val TAG = "ShikimoriTitles"
     private const val BATCH_SIZE = 50
     private const val CACHE_LIMIT = 6000
+    // Başlık zenginleştirme isteği arama kaynağını bekletmesin; yanıt gelmezse romaji yedeği var.
+    private const val TITLE_CALL_TIMEOUT_SECONDS = 6L
     private const val USER_AGENT = "KitsugiApp/2.4 (Android)"
     private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaTypeOrNull()
+    private val titleHttpClient by lazy {
+        KitsugiHttpClient.client.newBuilder()
+            .callTimeout(TITLE_CALL_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .build()
+    }
 
     /** Çözülmüş adlar. Boş değerler null'dır (ekranda romaji'ye düşülür). */
     data class Names(
@@ -76,6 +84,22 @@ object ShikimoriTitleResolver {
         }
         if (cache.size > CACHE_LIMIT) cache.clear()
         return result
+    }
+
+    /**
+     * Uygulamanın ortak arama modeli Shikimori kimliğini `malId` alanında taşır.
+     * Çözülen başlık varyantlarını aynı kimliğe ekle; kaynak başlığı ve varsa önceden
+     * gelen değerleri koru ki çözümleme başarısız olduğunda da sonuç kullanılabilsin.
+     */
+    internal fun applyToSearchResults(
+        results: List<JikanSearchResult>,
+        namesById: Map<Int, Names>
+    ): List<JikanSearchResult> = results.map { result ->
+        val names = namesById[result.malId] ?: return@map result
+        result.copy(
+            titleEnglish = names.english ?: result.titleEnglish,
+            titleJapanese = names.japanese ?: result.titleJapanese
+        )
     }
 
     private fun cacheKey(kind: ShikimoriPosterResolver.Kind, id: Int): String = "${kind.field}:$id"
@@ -144,7 +168,7 @@ object ShikimoriTitleResolver {
 
         return runCatching {
             PlatformRateLimiter.acquire("shikimori")
-            KitsugiHttpClient.client.newCall(request).execute().use { response ->
+            titleHttpClient.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {
                     Log.w(TAG, "GraphQL başlık isteği başarısız: HTTP ${response.code} (${kind.field}, ${ids.size} kimlik)")
                     return@use null

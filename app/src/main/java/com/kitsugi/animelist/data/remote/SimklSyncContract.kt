@@ -19,6 +19,19 @@ object SimklSyncContract {
     fun readMediaKey(type: String): String = if (type == "movies") "movie" else "show"
 
     /**
+     * Last-resort guard for the `/sync/add-to-list` `to` field (E81).
+     *
+     * Simkl rejects `dropped`; the dropped bucket is `notinteresting` (legal set:
+     * `watching | plantowatch | completed | notinteresting | hold`). The primary
+     * contract lives with callers (`SimklSyncManager.watchStatusToSimkl`); this only
+     * stops a secondary path (e.g. the delete flow) from putting the one known-invalid
+     * enum value on the wire. Anything else passes through unchanged — this is a
+     * translation of a known-invalid mapping, NOT a validator.
+     */
+    fun normalizeListStatus(raw: String): String =
+        if (raw.trim().equals("dropped", ignoreCase = true)) "notinteresting" else raw
+
+    /**
      * One item Simkl echoed back under `not_found`. Simkl returns the identifiers (and title/year
      * when they were part of the request) of every item it could not match, so callers can map the
      * rejection back to the original library record instead of blaming the whole batch.

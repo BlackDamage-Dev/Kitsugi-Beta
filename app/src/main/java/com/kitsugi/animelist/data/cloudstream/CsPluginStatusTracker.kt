@@ -62,7 +62,15 @@ object CsPluginStatusTracker {
      * @param pluginId  Typically api.name — used as the tracking key.
      * @param error     The throwable that was caught.
      */
-    fun recordFailure(pluginId: String, error: Throwable) {
+    fun recordFailure(pluginId: String, error: Throwable) = recordFailure(pluginId, error, blockOnFailure = true)
+
+    // Search variants run concurrently. A query-specific parse/API error must not
+    // block the remaining aliases (or subsequent load calls) for this provider.
+    // Keep the diagnostic and error code, but do not increment the circuit breaker.
+    fun recordSearchFailure(pluginId: String, error: Throwable) =
+        recordFailure(pluginId, error, blockOnFailure = false)
+
+    private fun recordFailure(pluginId: String, error: Throwable, blockOnFailure: Boolean) {
         // Use throwAbleToResource to get enriched classification
         val resource = throwAbleToResource<Any>(error)
         val message = when (resource) {
@@ -82,6 +90,8 @@ object CsPluginStatusTracker {
         } else {
             CsTrace.error(pluginId, "fail", message, error)
         }
+
+        if (!blockOnFailure) return
 
         if (error is kotlin.NotImplementedError) {
             // One more search *method* returned "not implemented".

@@ -140,4 +140,33 @@ class CsStreamSanitizerTest {
         assertTrue(kept.isEmpty())
         assertEquals(0, dropped)
     }
+
+    @Test
+    fun sanitize_keepsSameUrlWhenPlaybackHeadersOrTypeDiffer() {
+        val base = source("https://cdn.example/video.mp4").copy(requestHeaders = mapOf("Referer" to "https://first.example/"))
+        val otherReferer = base.copy(requestHeaders = mapOf("referer" to "https://second.example/"))
+        val sameHeadersDifferentCase = base.copy(requestHeaders = mapOf("referer" to "https://first.example/"))
+        val otherType = base.copy(mediaType = com.kitsugi.animelist.core.player.StreamMediaType.HLS)
+        val (kept, dropped) = CsStreamSanitizer.sanitize(
+            "Anizm", listOf(base, otherReferer, sameHeadersDifferentCase, otherType)
+        )
+        assertEquals(listOf(base, otherReferer, otherType), kept)
+        assertEquals(1, dropped)
+    }
+    @Test
+    fun sanitize_preservesDifferentPlaybackConditions() {
+        val base = source("https://cdn.example/video.mp4").copy(requestHeaders = mapOf("Referer" to "https://one.example/"))
+        val same = base.copy(requestHeaders = mapOf("referer" to "https://one.example/"))
+        val otherRef = base.copy(requestHeaders = mapOf("Referer" to "https://two.example/"))
+        val otherAudio = base.copy(externalAudioUrl = "https://cdn.example/audio.m4a")
+        val otherType = base.copy(csStreamType = "M3U8")
+        val otherData = base.copy(csExtractorData = "interceptor-state")
+        val (kept, dropped) = CsStreamSanitizer.sanitize("Anizm", listOf(base, same, otherRef, otherAudio, otherType, otherData))
+        assertEquals(5, kept.size)
+        assertEquals(1, dropped)
+        assertTrue(kept.contains(otherRef))
+        assertTrue(kept.contains(otherAudio))
+        assertTrue(kept.contains(otherType))
+        assertTrue(kept.contains(otherData))
+    }
 }

@@ -1,5 +1,6 @@
 package com.kitsugi.animelist
 
+import org.junit.Ignore
 import org.junit.Test
 
 import org.junit.Assert.*
@@ -15,6 +16,7 @@ class ExampleUnitTest {
         assertEquals(4, 2 + 2)
     }
 
+    @Ignore("Requires TMDB network access")
     @Test
     fun testTmdbUpcomingMedia() = kotlinx.coroutines.runBlocking {
         val apiKey = "8265bd1679663a7ea12ac168da84d2e8"
@@ -48,6 +50,7 @@ class ExampleUnitTest {
         }
     }
 
+    @Ignore("Requires Jikan network access")
     @Test
     fun testNewlyAddedAnime() = kotlinx.coroutines.runBlocking {
         val client = com.kitsugi.animelist.data.remote.JikanSearchClient()

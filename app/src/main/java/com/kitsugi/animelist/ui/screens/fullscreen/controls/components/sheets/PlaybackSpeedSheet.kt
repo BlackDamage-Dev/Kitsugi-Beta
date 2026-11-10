@@ -11,11 +11,8 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.RestartAlt
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledTonalIconButton
 import com.kitsugi.animelist.ui.theme.gradient.Icon
@@ -64,7 +61,7 @@ fun PlaybackSpeedSheet(
     PlayerSheet(onDismissRequest = onDismissRequest) {
         Column(
             modifier = modifier
-                .verticalScroll(rememberScrollState())
+                .kitsugiVerticalScroll(rememberScrollState())
                 .padding(vertical = 12.dp),
         ) {
             // Speed label + slider
@@ -94,7 +91,7 @@ fun PlaybackSpeedSheet(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 FilledTonalIconButton(onClick = { savePresets(DEFAULT_SPEED_PRESETS) }) {
-                    Icon(Icons.Default.RestartAlt, null)
+                    Icon(Icons.RestartAlt, null)
                 }
                 LazyRow(
                     modifier = Modifier.weight(1f),
@@ -107,7 +104,7 @@ fun PlaybackSpeedSheet(
                             label = { Text("${preset}x") },
                             trailingIcon = {
                                 Icon(
-                                    Icons.Default.Close,
+                                    Icons.Close,
                                     null,
                                     modifier = Modifier.clickable {
                                         savePresets(speedPresets - preset)
@@ -120,7 +117,7 @@ fun PlaybackSpeedSheet(
                 FilledTonalIconButton(onClick = {
                     if (speed !in speedPresets) savePresets(speedPresets + speed.toFixed())
                 }) {
-                    Icon(Icons.Default.Add, null)
+                    Icon(Icons.Add, null)
                 }
             }
 
@@ -134,7 +131,7 @@ fun PlaybackSpeedSheet(
                     onClick = { onSetAsDefault(speed) },
                 ) { Text(stringResource(R.string.inline_make_default_59f76d5)) }
                 FilledIconButton(onClick = { onSpeedChange(1f) }) {
-                    Icon(Icons.Default.RestartAlt, null)
+                    Icon(Icons.RestartAlt, null)
                 }
             }
         }

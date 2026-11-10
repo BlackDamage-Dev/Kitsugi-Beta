@@ -1,6 +1,8 @@
 package com.kitsugi.animelist.data.local
 
 import android.content.Context
+import android.content.SharedPreferences
+import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.kitsugi.animelist.data.model.WatchHistoryEntry
@@ -11,84 +13,88 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-/**
- * İzleme geçmişinin kalıcı deposu (SharedPreferences + Gson).
- *
- * ## Neden debounce
- * Oynatıcı ilerlemeyi saniyede birkaç kez bildiriyor; her bildirimde 200 kayıtlık listenin
- * tamamı serialize edilip SharedPreferences XML'i baştan yazılıyordu. Zayıf cihazlarda bu,
- * tam ekran oynatma sırasında mikro takılmalara ve gereksiz disk yazımına yol açıyordu.
- * [saveHistoryDebounced] aynı pencere içindeki yazmaları tek bir G/Ç işlemine indirger
- * (Gson serialize + dosya yazımı tamamen IO dispatcher'ında).
- *
- * Kritik anlar için [saveHistory] (anında) ve bekleyeni zorlayan [flush] korunmuştur.
- */
-class WatchHistoryStore(context: Context) {
+/** SharedPreferences store with ordered, coalesced writes for player progress. */
+class WatchHistoryStore internal constructor(private val prefs: SharedPreferences) {
+    constructor(context: Context) : this(
+        context.applicationContext.getSharedPreferences("watch_history", Context.MODE_PRIVATE)
+    )
 
-    private val prefs = context.applicationContext
-        .getSharedPreferences("watch_history", Context.MODE_PRIVATE)
     private val gson = Gson()
-
     private val saveScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val lock = Any()
+    private var generation = 0L
     private var pendingJob: Job? = null
     private var pendingEntries: List<WatchHistoryEntry>? = null
 
     fun getHistory(): List<WatchHistoryEntry> {
-        val json = prefs.getString("history_list", null) ?: return emptyList()
         return try {
-            val type = object : TypeToken<List<WatchHistoryEntry>>() {}.type
-            gson.fromJson<List<WatchHistoryEntry>>(json, type) ?: emptyList()
+            val json = prefs.getString("history_list", null) ?: return emptyList()
+            val type = object : TypeToken<List<WatchHistoryEntry?>>() {}.type
+            val entries = gson.fromJson<List<WatchHistoryEntry?>>(json, type).orEmpty().filterNotNull()
+                .filter { runCatching { it.animeId.isNotBlank() && it.animeTitle.isNotBlank() }.getOrDefault(false) }
+            WatchHistoryRules.normalizeIds(entries).take(WatchHistoryRules.MAX_ENTRIES)
         } catch (e: Exception) {
+            Log.w("WatchHistoryStore", "Could not read watch history", e)
             emptyList()
         }
     }
 
-    /** Anında (senkron serialize, IO'da yazma) kaydeder. */
+    /** Critical writes supersede both older IO jobs and any pending progress snapshot. */
     fun saveHistory(entries: List<WatchHistoryEntry>) {
         val snapshot = entries.toList()
-        saveScope.launch { writeNow(snapshot) }
+        synchronized(lock) {
+            val version = ++generation
+            pendingJob?.cancel()
+            pendingJob = null
+            pendingEntries = null
+            saveScope.launch { writeIfCurrent(snapshot, version) }
+        }
     }
 
-    /**
-     * Yazmayı [debounceMs] boyunca toplulaştırır. Aynı pencere içinde gelen son liste kazanır.
-     */
+    /** At most one write per window; the most recent snapshot wins. */
     fun saveHistoryDebounced(entries: List<WatchHistoryEntry>, debounceMs: Long = DEBOUNCE_MS) {
-        val snapshot = entries.toList()
         synchronized(lock) {
-            pendingEntries = snapshot
+            generation++
+            pendingEntries = entries.toList()
             if (pendingJob?.isActive == true) return
             pendingJob = saveScope.launch {
                 delay(debounceMs)
-                val toWrite = synchronized(lock) {
-                    pendingEntries.also { pendingEntries = null }
-                } ?: return@launch
-                writeNow(toWrite)
+                val work = synchronized(lock) {
+                    val snapshot = pendingEntries
+                    pendingEntries = null
+                    pendingJob = null
+                    snapshot?.let { it to generation }
+                }
+                if (work != null) writeIfCurrent(work.first, work.second)
             }
         }
     }
 
-    /** Bekleyen toplulaştırılmış yazmayı hemen uygular (oynatıcıdan çıkış, arka plana geçiş). */
+    /** Request an immediate IO write on player exit/backgrounding. */
     fun flush() {
-        val toWrite = synchronized(lock) {
+        val work = synchronized(lock) {
             pendingJob?.cancel()
             pendingJob = null
-            pendingEntries.also { pendingEntries = null }
+            val snapshot = pendingEntries
+            pendingEntries = null
+            snapshot?.let { it to generation }
         } ?: return
-        saveScope.launch { writeNow(toWrite) }
+        saveScope.launch { writeIfCurrent(work.first, work.second) }
     }
 
-    private fun writeNow(entries: List<WatchHistoryEntry>) {
+    private fun writeIfCurrent(entries: List<WatchHistoryEntry>, version: Long) {
         try {
             val json = gson.toJson(entries)
-            prefs.edit().putString("history_list", json).apply()
-        } catch (_: Exception) {
-            // Geçmiş yazılamazsa sessizce yut: oynatma akışını kesmemeli.
+            synchronized(lock) {
+                // An older serialization may finish after a newer delete, clear or progress update.
+                if (version == generation) prefs.edit().putString("history_list", json).apply()
+            }
+        } catch (e: Exception) {
+            Log.w("WatchHistoryStore", "Could not save watch history", e)
         }
     }
 
     companion object {
-        /** Oynatıcı ilerleme bildirimleri için toplulaştırma penceresi. */
         const val DEBOUNCE_MS = 2500L
     }
 }

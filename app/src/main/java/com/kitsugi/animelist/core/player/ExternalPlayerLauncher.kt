@@ -31,6 +31,7 @@ data class ExternalPlayerInput(
  * Not all players return this — MX Player, VLC, Just Player, mpv-android are known to support it.
  */
 data class ExternalPlayerResult(
+    /** -1 means the player reported completion without a position or duration. */
     val positionMs: Long,
     val durationMs: Long?,
     val endedByUser: Boolean = true
@@ -268,8 +269,8 @@ class ExternalPlayerResultContract : ActivityResultContract<ExternalPlayerInput,
             return null
         }
 
-        // On bare completion signal with no position, use duration so the 90%-check passes
-        val effectivePosition = position ?: duration ?: 0L
+        // Preserve an explicit zero (rewind); an unknown position is not zero.
+        val effectivePosition = position ?: duration ?: -1L
         val endedByUser = !mpvFinishedWithNoData && endBy != "playback_completion"
 
         android.util.Log.d(
@@ -285,8 +286,15 @@ class ExternalPlayerResultContract : ActivityResultContract<ExternalPlayerInput,
     }
 
     // Robust against key+type variants across players
-    private fun parsePosition(data: Intent): Long? =
-        firstPositiveExtra(data, "extra_position", "position")
+    private fun parsePosition(data: Intent): Long? {
+        for (key in arrayOf("extra_position", "position")) {
+            val asLong = data.getLongExtra(key, -1L)
+            if (asLong >= 0L) return asLong
+            val asInt = data.getIntExtra(key, -1)
+            if (asInt >= 0) return asInt.toLong()
+        }
+        return null
+    }
 
     private fun parseDuration(data: Intent): Long? =
         firstPositiveExtra(data, "extra_duration", "duration")

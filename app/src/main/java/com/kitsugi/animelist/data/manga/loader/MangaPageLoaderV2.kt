@@ -32,6 +32,14 @@ class MangaPageLoaderV2(
     var keepBehind: Int = 1,
     /** Yerel ZIP/CBZ arşiv dosyası — null ise normal HTTP scraping akışı devam eder. */
     val archiveFile: java.io.File? = null,
+    /**
+     * Bölüm bazlı arşiv çözücü.
+     *
+     * [archiveFile] sabit bir dosyaya bağlıyken (yerel kaynak), bu lambda her bölüm için
+     * **indirilmiş CBZ** dosyasını bulur. İndirilmiş bölüm varsa ağ hiç kullanılmaz:
+     * kullanıcı çevrimdışıyken de bölümü açabilir (Mihon "downloaded" davranışı).
+     */
+    private val archiveResolver: ((com.kitsugi.animelist.data.manga.MangaChapter) -> java.io.File?)? = null,
 ) {
     companion object {
         private const val TAG = "MangaPageLoaderV2"
@@ -46,8 +54,20 @@ class MangaPageLoaderV2(
     // pageIndex → aktif prefetch job
     private val prefetchJobs = ConcurrentHashMap<Int, Job>()
 
+    /**
+     * O an yüklü bölümün arşiv dosyası (indirilmiş CBZ ya da yerel kaynak dosyası).
+     * [loadPageList] tarafından set edilir; sayfa okurken ağa düşmemek için kullanılır.
+     */
+    @Volatile
+    private var activeArchive: java.io.File? = null
+
     private val _pages = MutableStateFlow<List<MangaPage>>(emptyList())
     val pages: StateFlow<List<MangaPage>> = _pages.asStateFlow()
+
+    /** A URL alone is not a unique image: source interceptors may transform identical URLs. */
+    fun cacheKey(page: MangaPage, imageUrl: String): String =
+        "${source.pkgName.length}:${source.pkgName}:${source.name.length}:${source.name}:" +
+            "${page.cacheContext.length}:${page.cacheContext}:${page.url.length}:${page.url}:${page.index}:$imageUrl"
 
     // ─── Sayfa listesi yükleme ────────────────────────────────────────────────
 
@@ -58,8 +78,13 @@ class MangaPageLoaderV2(
                 resetQueue()
                 _pages.value = emptyList()
 
-                if (archiveFile != null) {
-                    val archiveLoader = ArchivePageLoader(context, archiveFile)
+                // İndirilmiş bölüm varsa doğrudan arşivden oku (ağ yok, çevrimdışı çalışır).
+                val resolvedArchive = archiveFile
+                    ?: runCatching { archiveResolver?.invoke(chapter) }.getOrNull()
+
+                activeArchive = resolvedArchive
+                if (resolvedArchive != null) {
+                    val archiveLoader = ArchivePageLoader(context, resolvedArchive)
                     val entryNames = archiveLoader.loadPageList()
                     if (entryNames.isEmpty()) throw java.io.IOException("Arşivde sayfa bulunamadı")
                     _pages.value = entryNames.mapIndexed { index, entryName ->
@@ -68,6 +93,7 @@ class MangaPageLoaderV2(
                             url = entryName
                         ).apply {
                             archivePath = entryName
+                            cacheContext = chapter.url
                         }
                     }
                     val elapsed = System.currentTimeMillis() - t0
@@ -83,6 +109,7 @@ class MangaPageLoaderV2(
                 } ?: throw java.io.IOException("Bölüm sayfaları alınırken zaman aşımı")
                 kotlinx.coroutines.currentCoroutineContext().ensureActive()
                 if (fetched.isEmpty()) throw java.io.IOException("Kaynak bu bölüm için sayfa döndürmedi")
+                fetched.forEach { it.cacheContext = chapter.url }
                 _pages.value = fetched
                 val elapsed = System.currentTimeMillis() - t0
                 sourceStateStore.recordOperationSuccess(source, "pages", elapsed)
@@ -109,12 +136,12 @@ class MangaPageLoaderV2(
      * Keep-alive penceresi: [currentIndex - keepBehind .. currentIndex + preloadAhead]
      * Bu pencere dışındaki tüm devam eden prefetch'ler iptal edilir.
      */
-    fun onPageChanged(currentIndex: Int) {
+    fun onPageChanged(currentIndex: Int, lastVisibleIndex: Int = currentIndex) {
         val allPages = _pages.value
         if (allPages.isEmpty()) return
 
         val windowStart = (currentIndex - keepBehind).coerceAtLeast(0)
-        val windowEnd   = (currentIndex + preloadAhead).coerceAtMost(allPages.size - 1)
+        val windowEnd   = maxOf(currentIndex + preloadAhead, lastVisibleIndex).coerceAtMost(allPages.size - 1)
 
         // Pencere dışı işleri iptal et
         val outsideKeys = prefetchJobs.keys.filter { it < windowStart || it > windowEnd }
@@ -124,7 +151,7 @@ class MangaPageLoaderV2(
         // Önce currentIndex, sonra +1, +2, +3, sonra -1
         val priority = buildList {
             add(currentIndex)
-            for (i in 1..preloadAhead) {
+            for (i in 1..(windowEnd - currentIndex)) {
                 val next = currentIndex + i
                 if (next <= windowEnd) add(next)
             }
@@ -138,7 +165,7 @@ class MangaPageLoaderV2(
     /** Register before starting, and only remove our own job on completion. */
     fun loadPage(page: MangaPage) {
         synchronized(prefetchJobs) {
-            if (page.status == MangaPageStatus.Ready || prefetchJobs.containsKey(page.index)) return
+            if (isReady(page) || prefetchJobs.containsKey(page.index)) return
             val job = scope.launch(start = kotlinx.coroutines.CoroutineStart.LAZY) {
                 loadPageInternal(page)
             }
@@ -148,39 +175,73 @@ class MangaPageLoaderV2(
         }
     }
 
-    fun retryPage(page: MangaPage) {
-        val previous = prefetchJobs.remove(page.index)
-        previous?.cancel()
-        scope.launch {
-            previous?.join()
+    fun retryPage(page: MangaPage, invalidateCache: Boolean = false) {
+        synchronized(prefetchJobs) {
+            val previous = prefetchJobs.remove(page.index)
+            previous?.cancel()
             page.status = MangaPageStatus.Queue
-            loadPage(page)
+            // Reserve the slot before suspension: prefetch must not reuse the bad file
+            // while a retry waits for the previous download to stop and evicts it.
+            val job = scope.launch(start = kotlinx.coroutines.CoroutineStart.LAZY) {
+                previous?.join()
+                if (invalidateCache) page.imageUrl?.let { cache.removeImage(cacheKey(page, it)) }
+                if (page.archivePath == null && !page.sourceProvidedImageUrl) {
+                    // Refresh resolved URLs (e.g. expired signed CDN addresses).
+                    page.imageUrl = null
+                }
+                loadPageInternal(page)
+            }
+            prefetchJobs[page.index] = job
+            job.invokeOnCompletion { prefetchJobs.remove(page.index, job) }
+            job.start()
         }
     }
 
     // ─── İç yükleme mantığı ───────────────────────────────────────────────────
 
     private suspend fun loadPageInternal(page: MangaPage) {
-        if (page.status == MangaPageStatus.Ready) return
+        if (isReady(page)) return
+        page.errorCode = null
 
-        if (page.archivePath != null && archiveFile != null) {
-            val archiveLoader = ArchivePageLoader(context, archiveFile)
-            val stream = archiveLoader.loadPage(page.archivePath!!)
-            if (stream != null) {
-                page.stream = { stream }
-                page.status = MangaPageStatus.Ready
-                Log.v(TAG, "Archive page ready [${page.index}]: ${page.archivePath}")
-                return
+        if (page.archivePath != null && (activeArchive != null || archiveFile != null)) {
+            semaphore.withPermit {
+                try {
+                    val entry = page.archivePath!!
+                    val archive = activeArchive ?: archiveFile ?: throw java.io.IOException("Arşiv dosyası bulunamadı")
+                    val archiveKey = "archive:${archive.absolutePath}:${archive.lastModified()}:$entry"
+                    page.imageUrl = archiveKey
+                    val storedKey = cacheKey(page, archiveKey)
+                    if (!cache.isImageInCache(storedKey)) {
+                        page.status = MangaPageStatus.DownloadImage
+                        val stream = ArchivePageLoader(context, archive).loadPage(entry)
+                            ?: throw java.io.IOException("Arşiv sayfası okunamadı: $entry")
+                        stream.use { cache.putImageToCache(storedKey, it) }
+                    }
+                    kotlinx.coroutines.currentCoroutineContext().ensureActive()
+                    val file = cache.getImageFile(storedKey)
+                    if (!file.exists() || file.length() <= 0L) {
+                        throw java.io.IOException("Arşiv sayfası diske yazılamadı: $entry")
+                    }
+                    publishReady(page, file)
+                    Log.v(TAG, "Archive page ready [${page.index}]: $entry")
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    page.status = MangaPageStatus.Queue
+                    throw e
+                } catch (e: Exception) {
+                    page.status = MangaPageStatus.Error
+                    MangaLogger.logImageFetch(context, source.name, page.index,
+                        page.archivePath, success = false, error = e)
+                    Log.e(TAG, "Archive page error [${page.index}]: ${page.archivePath}", e)
+                }
             }
-            page.status = MangaPageStatus.Error
-            Log.e(TAG, "Archive page error [${page.index}]: ${page.archivePath}")
             return
         }
 
         semaphore.withPermit {
             val t0 = System.currentTimeMillis()
+            val timeoutMs = source.imageFetchTimeoutMs.coerceAtLeast(IMAGE_TIMEOUT_MS)
             try {
-                kotlinx.coroutines.withTimeout(IMAGE_TIMEOUT_MS) {
+                kotlinx.coroutines.withTimeout(timeoutMs) {
                     // 1. Sayfa URL'ini çöz (gerekiyorsa)
                     if (page.imageUrl.isNullOrEmpty()) {
                         page.status = MangaPageStatus.LoadPage
@@ -190,11 +251,11 @@ class MangaPageLoaderV2(
                     val imageUrl = page.imageUrl?.takeIf { it.isNotBlank() }
                         ?: throw java.io.IOException("Kaynak boş görsel adresi döndürdü")
 
+                    val storedKey = cacheKey(page, imageUrl)
                     // 2. Disk cache'te var mı kontrol et
-                    if (cache.isImageInCache(imageUrl)) {
-                        page.stream = { cache.getImageFile(imageUrl).inputStream() }
-                        page.status = MangaPageStatus.Ready
-                        Log.v(TAG, "Cache hit [${page.index}]: $imageUrl")
+                    if (cache.isImageInCache(storedKey)) {
+                        publishReady(page, cache.getImageFile(storedKey))
+                        Log.v(TAG, "Cache hit [${page.index}]")
                         return@withTimeout
                     }
 
@@ -204,27 +265,27 @@ class MangaPageLoaderV2(
                     page.status = MangaPageStatus.DownloadImage
 
                     source.getImage(page).use { stream ->
-                        cache.putImageToCache(imageUrl, stream)
+                        cache.putImageToCache(storedKey, stream)
                     }
                     kotlinx.coroutines.currentCoroutineContext().ensureActive()
 
-                    val file = cache.getImageFile(imageUrl)
+                    val file = cache.getImageFile(storedKey)
                     if (file.exists() && file.length() > 0L) {
-                        page.stream = { file.inputStream() }
-                        page.status = MangaPageStatus.Ready
+                        publishReady(page, file)
 
                         val elapsed = System.currentTimeMillis() - t0
                         sourceStateStore.recordOperationSuccess(source, "image", elapsed)
-                        Log.v(TAG, "Sayfa hazır [${page.index}] (${elapsed}ms): $imageUrl")
+                        Log.v(TAG, "Sayfa hazır [${page.index}] (${elapsed}ms)")
                     } else {
-                        throw java.io.IOException("Cache file not found or empty for $imageUrl")
+                        throw java.io.IOException("Cache file not found or empty")
                     }
                 }
             } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
                 page.status = MangaPageStatus.Error
+                page.errorCode = SourceFailureClassifier.classifyCode(e)
                 MangaLogger.logImageFetch(context, source.name, page.index,
-                    page.imageUrl, success = false, elapsedMs = IMAGE_TIMEOUT_MS, isTimeout = true)
-                Log.e(TAG, "Timeout [${page.index}] — ${IMAGE_TIMEOUT_MS}ms aşıldı")
+                    page.imageUrl, success = false, elapsedMs = timeoutMs, isTimeout = true)
+                Log.e(TAG, "Timeout [${page.index}] — ${timeoutMs}ms aşıldı")
             } catch (e: kotlinx.coroutines.CancellationException) {
                 if (prefetchJobs[page.index] === kotlinx.coroutines.currentCoroutineContext()[Job]) {
                     page.status = MangaPageStatus.Queue
@@ -233,13 +294,28 @@ class MangaPageLoaderV2(
             } catch (e: Exception) {
                 val elapsed = System.currentTimeMillis() - t0
                 page.status = MangaPageStatus.Error
+                page.errorCode = SourceFailureClassifier.classifyCode(e)
                 sourceStateStore.recordOperationFailure(source, "image",
-                    reason = e.message, statusOverride = classifyStatus(e), elapsedMs = elapsed)
+                    reason = e.javaClass.simpleName, statusOverride = classifyStatus(e), elapsedMs = elapsed)
                 MangaLogger.logImageFetch(context, source.name, page.index,
                     page.imageUrl, success = false, elapsedMs = elapsed, error = e)
-                Log.e(TAG, "Sayfa hatası [${page.index}]: ${e.message}")
+                Log.e(TAG, "Sayfa hatası [${page.index}]: ${e.javaClass.simpleName}")
             }
         }
+    }
+
+    private fun isReady(page: MangaPage): Boolean = page.status == MangaPageStatus.Ready &&
+        page.cachedImageFile != null && page.imageInfo != null
+
+    private fun publishReady(page: MangaPage, file: java.io.File) {
+        val header = MangaImageTileDecoder.readHeader(file)
+        page.imageInfo = header
+        page.aspectRatio = (header.width.toFloat() / header.height).coerceIn(0.02f, 100f)
+        page.localFile = file
+        page.cachedFile = file
+        page.cachedImageFile = file
+        page.stream = { file.inputStream() }
+        page.status = MangaPageStatus.Ready
     }
 
     // ─── Yardımcı fonksiyonlar ────────────────────────────────────────────────

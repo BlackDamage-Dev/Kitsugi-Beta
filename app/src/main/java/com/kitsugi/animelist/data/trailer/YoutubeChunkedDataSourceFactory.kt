@@ -147,7 +147,12 @@ class YoutubeChunkedDataSourceFactory(
                     }
                 } catch (e: Exception) {
                     Log.w(TAG, "Failed to open next chunk at $currentChunkStart: ${e.message}")
-                    C.RESULT_END_OF_INPUT
+                    // A failed CDN request is not end-of-media. Silently returning EOF used
+                    // to freeze/end playback without giving the source fallback a chance.
+                    throw if (e is java.io.IOException) e else java.io.IOException(
+                        "Failed to open YouTube chunk at $currentChunkStart",
+                        e
+                    )
                 }
             }
 

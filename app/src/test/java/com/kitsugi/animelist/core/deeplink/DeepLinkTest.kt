@@ -124,4 +124,36 @@ class DeepLinkTest {
         assertEquals(peeked, drained)
         assertEquals(null, DeepLinkHandler.peekPending())
     }
+
+    @Test
+    fun testParseAuthorityVersionedLinks() {
+        // Uygulamanın kendi ürettiği biçim: sürüm AUTHORITY'de (Kitsugianimelist://v1/...).
+        val detailUri = mockUri("Kitsugianimelist", "v1", listOf("detail", "anilist", "456"))
+        val detail = DeepLinkParser.parse(detailUri)
+        assertTrue(detail is TvDeepLink.Detail)
+        assertEquals("anilist", (detail as TvDeepLink.Detail).source)
+        assertEquals("456", detail.mediaId)
+
+        val playUri = mockUri("Kitsugianimelist", "v1", listOf("play", "mal", "789"))
+        assertTrue(DeepLinkParser.parse(playUri) is TvDeepLink.Play)
+    }
+
+    @Test
+    fun testParseNotificationsLink() {
+        val withSource = mockUri(
+            scheme = "Kitsugianimelist",
+            host = "v1",
+            pathSegments = listOf("notifications"),
+            queryParams = mapOf("source" to "mal")
+        )
+        val parsed = DeepLinkParser.parse(withSource)
+        assertTrue(parsed is TvDeepLink.Notifications)
+        assertEquals("mal", (parsed as TvDeepLink.Notifications).source)
+
+        // Kaynak belirtilmemişse sayfa varsayılan sekmeyle açılır.
+        val withoutSource = mockUri("Kitsugianimelist", "v1", listOf("notifications"))
+        val parsedNoSource = DeepLinkParser.parse(withoutSource)
+        assertTrue(parsedNoSource is TvDeepLink.Notifications)
+        assertEquals(null, (parsedNoSource as TvDeepLink.Notifications).source)
+    }
 }

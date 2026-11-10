@@ -1,12 +1,11 @@
 package com.kitsugi.animelist.ui.screens.detail.wiki
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.KeyboardArrowDown
-import androidx.compose.material.icons.rounded.KeyboardArrowUp
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -19,6 +18,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.kitsugi.animelist.R
 import com.kitsugi.animelist.ui.theme.KitsugiColors
+import com.kitsugi.animelist.ui.theme.LocalKitsugiAccent
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.collect
@@ -46,19 +46,28 @@ internal fun WikiFindBar(session: WikiOriginalSession) {
     if (!session.findOpen) return
     val focus = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
+    val accent = LocalKitsugiAccent.current
     LaunchedEffect(Unit) { focus.requestFocus() }
-    Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp)) {
+    // 2026-10-23: arama çubuğu uygulama temasına bağlandı — vurgu renkli odak
+    // çerçevesi, yuvarlatılmış alan ve sayfa yüzeyinden ayrılan tek parça zemin.
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .background(KitsugiColors.Surface)
+            .padding(horizontal = 10.dp, vertical = 6.dp)
+    ) {
         OutlinedTextField(
             value = session.findQuery,
             onValueChange = { session.findQuery = it.take(256) },
             modifier = Modifier.fillMaxWidth().focusRequester(focus),
+            shape = RoundedCornerShape(12.dp),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedTextColor = KitsugiColors.TextPrimary,
                 unfocusedTextColor = KitsugiColors.TextPrimary,
-                cursorColor = KitsugiColors.TextPrimary,
-                focusedBorderColor = KitsugiColors.TextPrimary,
-                unfocusedBorderColor = KitsugiColors.TextSecondary,
-                focusedLabelColor = KitsugiColors.TextPrimary,
+                cursorColor = accent,
+                focusedBorderColor = accent.copy(alpha = 0.7f),
+                unfocusedBorderColor = KitsugiColors.Border,
+                focusedLabelColor = accent,
                 unfocusedLabelColor = KitsugiColors.TextSecondary
             ),
             label = { Text(stringResource(R.string.wiki_find_in_page)) },
@@ -74,13 +83,13 @@ internal fun WikiFindBar(session: WikiOriginalSession) {
                 session.findActiveMatch, session.findMatches), modifier = Modifier.weight(1f),
                 style = MaterialTheme.typography.labelSmall, color = KitsugiColors.TextSecondary)
             IconButton(onClick = { session.view?.findNext(false) }, enabled = session.findMatches > 0) {
-                Icon(Icons.Rounded.KeyboardArrowUp, stringResource(R.string.wiki_find_previous), tint = if (session.findMatches > 0) KitsugiColors.TextSecondary else KitsugiColors.TextMuted)
+                Icon(Icons.KeyboardArrowUp, stringResource(R.string.wiki_find_previous), tint = if (session.findMatches > 0) KitsugiColors.TextSecondary else KitsugiColors.TextMuted)
             }
             IconButton(onClick = { session.view?.findNext(true) }, enabled = session.findMatches > 0) {
-                Icon(Icons.Rounded.KeyboardArrowDown, stringResource(R.string.wiki_find_next), tint = if (session.findMatches > 0) KitsugiColors.TextSecondary else KitsugiColors.TextMuted)
+                Icon(Icons.KeyboardArrowDown, stringResource(R.string.wiki_find_next), tint = if (session.findMatches > 0) KitsugiColors.TextSecondary else KitsugiColors.TextMuted)
             }
             IconButton(onClick = { session.closeFind(); keyboard?.hide() }) {
-                Icon(Icons.Rounded.Close, stringResource(R.string.wiki_find_close), tint = KitsugiColors.TextPrimary)
+                Icon(Icons.Close, stringResource(R.string.wiki_find_close), tint = KitsugiColors.TextPrimary)
             }
         }
     }

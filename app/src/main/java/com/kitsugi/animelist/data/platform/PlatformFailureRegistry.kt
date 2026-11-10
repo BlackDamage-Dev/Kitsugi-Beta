@@ -31,6 +31,32 @@ object PlatformFailureRegistry {
 
     private val latestByPlatform = ConcurrentHashMap<ListPlatform, Failure>()
 
+    /** Bilinen medya/CDN alan adları (API değil). */
+    private val MEDIA_HOSTS = setOf(
+        "image.tmdb.org",
+        "api-cdn.myanimelist.net",
+        "cdn.myanimelist.net",
+        "media.kitsu.app",
+        "media.kitsu.io",
+        "simkl.in",
+        "img.anili.st",
+        "lain.bgm.tv",
+    )
+
+    /** CDN olduğu alan adı ön ekinden anlaşılan host'lar (`media.*`, `img1.*`, `cdn.*`…). */
+    private val MEDIA_HOST_PREFIXES = listOf(
+        "media.", "img.", "img", "cdn.", "static.", "images.", "image.", "assets.",
+    )
+
+    /** AniList poster CDN'i `s4.anilist.co` gibi numaralı alt alan adları kullanır. */
+    private val ANILIST_CDN_HOST = Regex("^s\\d+\\.anilist\\.co$")
+
+    /** Statik medya dosya uzantıları (sorgu dizesi hariç yol üzerinden bakılır). */
+    private val MEDIA_EXTENSIONS = listOf(
+        ".jpg", ".jpeg", ".png", ".webp", ".gif", ".avif", ".bmp", ".svg", ".ico",
+        ".mp4", ".webm", ".m3u8", ".mpd", ".vtt", ".srt", ".ass",
+    )
+
     /**
      * Bir başarısızlığı kaydeder ve sınıflandırılmış kodu döndürür.
      *
@@ -55,12 +81,51 @@ object PlatformFailureRegistry {
         return record(platform, error, httpCode, rawMessage)
     }
 
-    /** Ağ katmanından: istek ana bilgisayarına göre platform bulunur. */
-    fun reportHttp(host: String?, httpCode: Int, path: String?): PlatformErrorCode? {
+    /**
+     * Ağ katmanından: istek ana bilgisayarına göre platform bulunur.
+     *
+     * Görsel/video CDN istekleri (poster, kapak, altyazı) buraya **kaydedilmez**:
+     * bozuk tek bir poster 404'ü, kaynağın tamamı çökmüş gibi görünmesine yol açıyordu
+     * (bkz. [isMediaAssetRequest]).
+     */
+    fun reportHttp(
+        host: String?,
+        httpCode: Int,
+        path: String?,
+        diagnosticHint: String? = null,
+    ): PlatformErrorCode? {
+        if (isMediaAssetRequest(host, path)) return null
         val platform = ListPlatform.fromHost(host)
         if (platform == ListPlatform.GENERIC) return null
-        val raw = "HTTP $httpCode · ${host.orEmpty()}${path.orEmpty()}"
+        // Keep this an allow-listed marker rather than arbitrary response text. Simkl returns
+        // HTTP 400 for its sync write-lock limit, which cannot be identified from status alone.
+        val safeHint = diagnosticHint?.takeIf { it.equals("rate_limit", ignoreCase = true) }
+        val raw = buildString {
+            append("HTTP ").append(httpCode).append(" · ").append(host.orEmpty()).append(path.orEmpty())
+            safeHint?.let { append(" · ").append(it) }
+        }
         return record(platform, error = null, httpCode = httpCode, rawMessage = raw)
+    }
+
+    /**
+     * İstek bir API çağrısı değil de statik medya (poster/kapak/video/altyazı) mı?
+     *
+     * NEDEN: [ListPlatform.fromHost] alan adı son ekiyle eşleşir; bu yüzden
+     * `media.kitsu.app`, `s4.anilist.co`, `image.tmdb.org` gibi CDN'ler de
+     * Kitsu/AniList/TMDB sayılıyordu. Süresi geçmiş tek bir poster URL'si 404
+     * döndüğünde arama ekranı "Kayıt bulunamadı (HTTP 404)" rozeti basıyor,
+     * sonuçlar ise sorunsuz listeleniyordu.
+     */
+    internal fun isMediaAssetRequest(host: String?, path: String?): Boolean {
+        val normalizedHost = host?.trim()?.lowercase(java.util.Locale.ROOT)?.trimEnd('.').orEmpty()
+        if (normalizedHost.isNotEmpty()) {
+            if (MEDIA_HOSTS.contains(normalizedHost)) return true
+            if (MEDIA_HOST_PREFIXES.any { normalizedHost.startsWith(it) }) return true
+            if (ANILIST_CDN_HOST.matches(normalizedHost)) return true
+        }
+        val normalizedPath = path?.trim()?.lowercase(java.util.Locale.ROOT).orEmpty()
+        if (normalizedPath.isEmpty()) return false
+        return MEDIA_EXTENSIONS.any { normalizedPath.endsWith(it) }
     }
 
     /**
@@ -146,6 +211,19 @@ object PlatformFailureRegistry {
             rawReason = rawMessage?.takeIf { it.isNotBlank() } ?: error?.message,
             atMillis = now,
         )
+        // v2.4.342: tanı kaydı **kalıcı** günlüğe de yazılır. Kullanıcı sonradan
+        // "hangi kaynak, hangi kod, ne zaman" sorusunu günlükten cevaplayabilir.
+        runCatching {
+            com.kitsugi.animelist.core.diagnostics.KitsugiLog.log(
+                level = com.kitsugi.animelist.core.diagnostics.KitsugiLog.Level.WARN,
+                channel = com.kitsugi.animelist.core.diagnostics.KitsugiLog.Channel.NET,
+                tag = platform.name.lowercase(),
+                message = "hata kodu ${code.code} · ${platform.codePrefix}",
+                detail = rawMessage?.takeIf { it.isNotBlank() }
+                    ?: error?.let { "${it.javaClass.simpleName}: ${it.message}" },
+                throwable = null
+            )
+        }
         return code
     }
 }

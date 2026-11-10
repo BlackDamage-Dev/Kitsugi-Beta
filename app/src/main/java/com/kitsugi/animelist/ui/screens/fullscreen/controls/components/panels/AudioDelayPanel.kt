@@ -6,8 +6,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -94,7 +93,7 @@ private fun AudioDelayCardTitle(
             color = Color.White
         )
         IconButton(onClose) {
-            Icon(Icons.Default.Close, null, modifier = Modifier.size(32.dp), tint = Color.White)
+            Icon(Icons.Close, null, modifier = Modifier.size(32.dp), tint = Color.White)
         }
     }
 }

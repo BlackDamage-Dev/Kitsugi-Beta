@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- İŞ 2 — Mobile Explore visual components (V2, approved design). English. -->
+<resources>
+    <string name="mobile_explore_brand">KITSUGI</string>
+    <string name="mobile_explore_source_all">All</string>
+    <string name="mobile_explore_source_select">Select source</string>
+    <string name="mobile_explore_tab_series">Series</string>
+    <string name="mobile_explore_tab_movies">Movies</string>
+    <string name="mobile_explore_tab_anime">Anime</string>
+    <string name="mobile_explore_tab_manga">Manga</string>
+    <string name="mobile_explore_hero_caption">Discover new stories</string>
+    <string name="mobile_explore_hero_cta">Explore</string>
+    <string name="mobile_explore_see_all">See all</string>
+    <string name="mobile_explore_in_list">In your list</string>
+    <string name="mobile_explore_score_cd">Score: %1$s</string>
+    <string name="mobile_explore_loading">Loading</string>
+    <string name="explore_tab_unsupported_title">%1$s does not have a %2$s tab</string>
+    <string name="explore_tab_unsupported_desc">You can switch to other supported tabs for this source or choose All sources.</string>
+</resources>

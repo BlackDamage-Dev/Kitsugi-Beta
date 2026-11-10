@@ -50,13 +50,7 @@ class KitsugiMediaRelationsClient {
         mediaType: MediaType,
         tmdbId: Int? = null,
         realMalId: Int? = null,
-        title: String? = null,
-        /**
-         * `false` → Bangumi ilişkileri **ham** (kanji) başlıklarla hemen döner. Latin
-         * başlıklar ayrı arka plan geçişinde
-         * [KitsugiBangumiDetailClient.enrichRelationListTitles] ile eklenir.
-         */
-        enrichTitles: Boolean = true
+        title: String? = null
     ): List<KitsugiRelation> {
         return withContext(Dispatchers.IO) {
             if (externalId == null || externalId <= 0) return@withContext emptyList()
@@ -64,9 +58,8 @@ class KitsugiMediaRelationsClient {
             when (MalJikanMediaSupport.canonicalSource(source)) {
                 "bangumi" -> {
                     // 1) Bangumi'nin KENDİ ilişki ucu (p1 /relations): ön/devam, yan hikaye, uyarlama ...
-                    val native = runCatching {
-                        KitsugiBangumiDetailClient.fetchRelations(externalId, mediaType, enrichTitles)
-                    }.getOrNull().orEmpty()
+                    val native = runCatching { KitsugiBangumiDetailClient.fetchRelations(externalId, mediaType) }
+                        .getOrNull().orEmpty()
                     if (native.isNotEmpty()) return@withContext native
 
                     // 2) Yedek: Çözülen MAL / AniList kimliği (Bangumi stableId'si MAL ID DEĞİLDİR).
@@ -520,9 +513,7 @@ class KitsugiMediaRelationsClient {
         mediaType: MediaType,
         tmdbId: Int? = null,
         realMalId: Int? = null,
-        title: String? = null,
-        /** Bkz. [fetchRelations]; `false` → öneriler ham başlıklarla hemen döner. */
-        enrichTitles: Boolean = true
+        title: String? = null
     ): List<KitsugiRelation> {
         return withContext(Dispatchers.IO) {
             if (source.equals("anilist", ignoreCase = true) && (externalId == null || externalId <= 0)) {
@@ -536,9 +527,8 @@ class KitsugiMediaRelationsClient {
             when (MalJikanMediaSupport.canonicalSource(source)) {
                 "bangumi" -> {
                     // 1) Bangumi'nin kendi önerileri (p1 /recs; sunucu en fazla 10 kayıt verir).
-                    val native = runCatching {
-                        KitsugiBangumiDetailClient.fetchRecommendations(externalId, mediaType, enrichTitles)
-                    }.getOrNull().orEmpty()
+                    val native = runCatching { KitsugiBangumiDetailClient.fetchRecommendations(externalId, mediaType) }
+                        .getOrNull().orEmpty()
                     if (native.size >= 4) return@withContext native
 
                     // 2) Az/boşsa MAL / AniList / TMDB önerileriyle tamamla (çözülen kimliklerle).

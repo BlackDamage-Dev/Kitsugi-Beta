@@ -1,0 +1,115 @@
+mal_id	key	turkish	english	aliases	status
+1	action	Aksiyon	Action	Экшен | Экшн | Боевик | Акшен	aktif
+2	adventure	Macera	Adventure	Приключения | Приключение | Приключенческое	aktif
+3	racing	Yarış	Racing	Гонки | Гонка | Автогонки	aktif
+4	comedy	Komedi	Comedy	Комедия | Комедии | Юмор	aktif
+5	avant_garde	Avangart	Avant Garde	Авангард | Авангардный	aktif
+6	mythology	Mitoloji	Mythology	Мифология | Мифы	aktif
+7	mystery	Gizem	Mystery	Тайна | Мистика | Загадка | Детективная тайна	aktif
+8	drama	Dram	Drama	Драма | Драмы	aktif
+9	ecchi	Ecchi	Ecchi	Этти | Эчи | Этчи	aktif
+10	fantasy	Fantastik	Fantasy	Фэнтези | Фентези | Фэнтэзи	aktif
+11	strategy_game	Strateji Oyunu	Strategy Game	Стратегические игры | Стратегия | Стратегическая игра	aktif
+12	hentai	Hentai	Hentai	Хентай | Хентайный	aktif
+13	historical	Tarihi	Historical	Исторический | История | Историческое	aktif
+14	horror	Korku	Horror	Ужасы | Хоррор | Ужас	aktif
+15	kids	Çocuklara Yönelik	Kids	Детское | Детский | Для детей	aktif
+16	magic	Büyü	Magic	Магия | Волшебство	aktif
+17	martial_arts	Dövüş Sanatları	Martial Arts	Боевые искусства | Боевые исскуства | Единоборства	aktif
+18	mecha	Mecha	Mecha	Меха | Роботы | Мехи	aktif
+19	music	Müzik	Music	Музыка | Музыкальный	aktif
+20	parody	Parodi	Parody	Пародия | Пародийный	aktif
+21	samurai	Samuray	Samurai	Самураи | Самурай | Самурайский	aktif
+22	romance	Romantik	Romance	Романтика | Романтическое | Романтичный	aktif
+23	school	Okul	School	Школа | Школьный | Школьная жизнь	aktif
+24	sci_fi	Bilim Kurgu	Sci-Fi	Фантастика | Научная фантастика | Фантастическое	aktif
+25	shoujo	Shōjo	Shoujo	Сёдзё | Сёдзе | Шёдзё | Седзе	aktif
+26	shoujo_ai	Shoujo Ai	Shoujo Ai	Сёдзё-ай | Сёдзе-ай | Шёдзё-ай	aktif
+27	shounen	Shōnen	Shounen	Сёнен | Сёнэн | Шонен | Сенен	aktif
+28	shounen_ai	Shounen Ai	Shounen Ai	Сёнен-ай | Сёнэн-ай | Шонен-ай	aktif
+29	space	Uzay	Space	Космос | Космический | Космоопера	aktif
+30	sports	Spor	Sports	Спорт | Спортивный | Спортивные	aktif
+31	super_power	Süper Güç	Super Power	Супер сила | Суперсила | Сверхспособности | Сверхсила	aktif
+32	vampire	Vampir	Vampire	Вампиры | Вампир	aktif
+33	yaoi	Yaoi	Yaoi	Яой	aktif
+34	yuri	Yuri	Yuri	Юри	aktif
+35	harem	Harem	Harem	Гарем | Гаремный	aktif
+36	slice_of_life	Günlük Yaşam	Slice of Life	Повседневность | Слайс оф лайф | Повседневная жизнь	aktif
+37	supernatural	Doğaüstü	Supernatural	Сверхъестественное | Мистическое | Паранормальное	aktif
+38	military	Askeri	Military	Военное | Военный | Война | Армия	aktif
+39	detective	Dedektif	Detective	Детектив | Детективный	aktif
+40	psychological	Psikolojik	Psychological	Психологическое | Психология | Психологический	aktif
+42	seinen	Seinen	Seinen	Сэйнэн | Сейнен | Сэйнэн	aktif
+43	josei	Josei	Josei	Дзёсей | Джосей | Дзёсэй | Джосэй	aktif
+44	gender_bender	Cinsiyet Değişimi	Gender Bender	Смена пола | Гендерная интрига	aktif
+102	team_sports	Takım Sporu	Team Sports	Командный спорт	aktif
+103	video_game	Video Oyunu	Video Game	Видеоигры | Видеоигра | Игры | Игра | Game	aktif
+104	adult_cast	Yetişkin Kadro	Adult Cast	Взрослые персонажи | Взрослый состав	aktif
+105	gore	Kan ve Şiddet	Gore	Жестокость | Кровь | Гор | Насилие	aktif
+106	reincarnation	Reenkarnasyon	Reincarnation	Реинкарнация | Перерождение | Реинкарнация в другом мире	aktif
+107	love_polygon	Aşk Çokgeni	Love Polygon	Любовный многоугольник | Любовный треугольник	aktif
+108	visual_arts	Görsel Sanatlar	Visual Arts	Изобразительное искусство | Живопись	aktif
+111	time_travel	Zaman Yolculuğu	Time Travel	Путешествие во времени | Тайм-тревел | Перемещение во времени	aktif
+112	gag_humor	Şakacı Mizah	Gag Humor	Гэг-юмор | Гэги	aktif
+114	award_winning	Ödüllü	Award Winning	Удостоено наград | Отмечено наградами	aktif
+117	thriller	Gerilim	Thriller	Триллер | Триллеры	aktif
+118	combat_sports	Dövüş Sporları	Combat Sports	Спортивные единоборства | Боевой спорт	aktif
+119	cgdct	CGDCT	CGDCT	CGDCT	aktif
+124	mahou_shoujo	Sihirli Kız	Mahou Shoujo	Махо-сёдзё | Махо-сёдзе | Девочка-волшебница	aktif
+125	reverse_harem	Ters Harem	Reverse Harem	Реверс-гарем | Обратный гарем	aktif
+130	isekai	Isekai	Isekai	Исэкай | Исекай | Другой мир	aktif
+131	delinquents	Asi Gençler	Delinquents	Хулиганы | Правонарушители	aktif
+134	childcare	Çocuk Bakımı	Childcare	Забота о детях | Воспитание детей	aktif
+135	magical_sex_shift	Büyülü Cinsiyet Değişimi	Magical Sex Shift	Магическая смена пола	aktif
+136	showbiz	Şov Dünyası	Showbiz	Шоу-бизнес | Сценическая жизнь	aktif
+137	otaku_culture	Otaku Kültürü	Otaku Culture	Культура отаку | Отаку	aktif
+138	organized_crime	Organize Suç	Organized Crime	Организованная преступность | Мафия	aktif
+139	workplace	İş Yeri	Workplace	Работа | Офис | Рабочие будни	aktif
+140	iyashikei	Iyashikei	Iyashikei	Иясикэй | Ияшикей | Исцеляющее	aktif
+141	survival	Hayatta Kalma	Survival	Выживание | На выживание	aktif
+142	performing_arts	Sahne Sanatları	Performing Arts	Исполнительское искусство | Сценическое искусство	aktif
+143	anthropomorphic	Antropomorfik	Anthropomorphic	Антропоморфизм | Очеловечивание	aktif
+144	crossdressing	Zıt Cins Kılığı	Crossdressing	Кроссдрессинг | Переодевание	aktif
+145	idols_female	İdoller (Kadın)	Idols (Female)	Идолы (Жен.) | Идолы женские | Женские идолы	aktif
+146	high_stakes_game	Yüksek Riskli Oyun	High Stakes Game	Игра с высокими ставками | Азартные игры	aktif
+147	medical	Tıp	Medical	Медицина | Медицинский	aktif
+148	pets	Evcil Hayvanlar	Pets	Питомцы | Домашние животные	aktif
+149	educational	Eğitici	Educational	Образовательное | Обучающее	aktif
+150	idols_male	İdoller (Erkek)	Idols (Male)	Идолы (Муж.) | Идолы мужские | Мужские идолы	aktif
+151	romantic_subtext	Romantik Alt Metin	Romantic Subtext	Романтический подтекст	aktif
+543	gourmet	Gurme	Gourmet	Гурман | Кулинария | Еда	aktif
+	erotica	Erotik	Erotica	Эротика | Эротическое	aktif
+	demons	İblisler	Demons	Демоны | Демон	aktif
+	police	Polis	Police	Полиция | Полицейский	aktif
+	post_apocalypse	Kıyamet Sonrası	Post-Apocalyptic	Постапокалипсис | Апокалипсис	aktif
+	cyberpunk	Cyberpunk	Cyberpunk	Киберпанк | Сайберпанк	aktif
+	steampunk	Steampunk	Steampunk	Стимпанк	aktif
+	idol	Idol	Idol	Идолы | Идол	aktif
+	ninja	Ninja	Ninja	Ниндзя	aktif
+	pirate	Korsan	Pirate	Пираты | Пират	aktif
+	zombie	Zombi	Zombie	Зомби	aktif
+	ghost	Hayalet	Ghost	Призраки | Призрак	aktif
+	dragon	Ejderha	Dragon	Драконы | Дракон	aktif
+	angel	Melek	Angel	Ангелы | Ангел	aktif
+	aliens	Uzaylılar	Aliens	Пришельцы | Инопланетяне	aktif
+	military_academy	Askeri Akademi	Military Academy	Военная академия	aktif
+	fake_relationship	Sahte İlişki	Fake Relationship	Фальшивые отношения	aktif
+	childhood_friend	Çocukluk Arkadaşı	Childhood Friend	Друг детства	aktif
+	episodic	Vaka Anlatısı	Episodic	Эпизодическое	aktif
+	coming_of_age	Olgunlaşma	Coming of Age	Взросление | Становление личности	aktif
+	tragedy	Trajedi	Tragedy	Трагедия | Трагическое	aktif
+	betrayal	İhanet	Betrayal	Предательство	aktif
+	amnesia	Amnezi	Amnesia	Амнезия | Потеря памяти	aktif
+	suicide	İntihar	Suicide	Самоубийство	aktif
+	bullying	Zorbalık	Bullying	Травля | Издевательства	aktif
+	nudity	Çıplaklık	Nudity	Нагота | Обнажённость	aktif
+	proxy_battle	Vekil Dövüş	Proxy Battle	Битва призывателей	aktif
+	travel	Gezi	Travel	Путешествие | Путешествия	aktif
+	cooking	Yemek Pişirme	Cooking	Готовка | Приготовление еды | Cookery	aktif
+	video_game_isekai	Oyun Dünyası Isekai	Video Game Isekai	Исэкай в игре	aktif
+	hollywood	Hollywood	Hollywood	Голливуд	aktif
+	short_film	Kısa Film	Short Film	Короткометражка | Короткометражный фильм	aktif
+	web	Web	Web	Веб | Онлайн | ОНА | ONA	aktif
+	ova	OVA	OVA	ОВА | OVA	aktif
+	movie	Film	Movie	Фильм | Полнометражный фильм	aktif
+	tv	TV	TV	ТВ | Сериал | ТВ-сериал	aktif

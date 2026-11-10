@@ -1,7 +1,6 @@
 package com.kitsugi.animelist.data.remote
 
 import com.kitsugi.animelist.model.MediaType
-import com.kitsugi.animelist.utils.MediaTitleResolver
 import com.kitsugi.animelist.model.WatchStatus
 import com.kitsugi.animelist.model.MediaEntry
 import kotlinx.coroutines.async
@@ -23,48 +22,6 @@ private data class SimklTrendingCacheEntry(
     val fetchedAtMillis: Long,
     val items: List<JikanSearchResult>
 )
-
-/**
- * Simkl başlık alanlarını Türkçe → İngilizce → Romaji zinciriyle çözer.
- *
- * Simkl `title` alanı bazı kayıtlarda doğrudan Japonca/Çince gelebilir. Bu
- * durumda sırasıyla `title_en`/`en_title`, `title_romaji` ve Latin orijinal
- * başlık denenir; ekranlarda CJK başlık görünmesi engellenir.
- */
-internal fun resolveSimklTitle(obj: JSONObject): String {
-    val raw = obj.optString("title", "")
-    val english = MediaTitleResolver.nonBlank(
-        obj.optString("title_en"),
-        obj.optString("en_title"),
-        obj.optString("title_english")
-    )
-    val romaji = MediaTitleResolver.nonBlank(
-        obj.optString("title_romaji"),
-        obj.optString("romaji")
-    )
-    val native = MediaTitleResolver.nonBlank(
-        obj.optString("title_native"),
-        obj.optString("ja_title"),
-        obj.optString("title_japanese")
-    )
-    return MediaTitleResolver.resolve(
-        localized = MediaTitleResolver.latin(raw),
-        english = english,
-        romaji = romaji,
-        original = native ?: raw
-    )
-}
-
-/** Simkl kaydındaki yerel (Japonca/Çince/Korece) başlık — yoksa null. */
-internal fun simklNativeTitle(obj: JSONObject): String? {
-    val native = MediaTitleResolver.nonBlank(
-        obj.optString("title_native"),
-        obj.optString("ja_title"),
-        obj.optString("title_japanese"),
-        obj.optString("title")
-    )
-    return native?.takeIf { MediaTitleResolver.hasCjk(it) }
-}
 
 /**
  * Simkl yanıtlarındaki kimlik alanlarını okur. Değerler sayı **ya da metin**
@@ -107,7 +64,8 @@ internal fun parseBestMediaArray(
     val results = mutableListOf<JikanSearchResult>()
     for (i in 0 until minOf(array.length(), limit)) {
         val obj = array.optJSONObject(i) ?: continue
-        val title = resolveSimklTitle(obj)
+        val titles = resolveSimklTitleVariants(obj)
+        val title = titles.display
         if (title.isBlank()) continue
         val ids = obj.optJSONObject("ids")
         val simklId = simklOptionalId(ids, "simkl_id", "simkl") ?: (i + 1)
@@ -152,8 +110,9 @@ internal fun parseBestMediaArray(
                 year = year,
                 source = "simkl",
                 realMalId = malId.takeIf { it > 0 },
-                titleEnglish = title,
-                titleJapanese = simklNativeTitle(obj),
+                titleEnglish = titles.english,
+                titleRomaji = titles.romaji,
+                titleJapanese = titles.native,
                 backdropUrl = backdropUrl,
                 tmdbId = tmdbId
             )
@@ -167,31 +126,8 @@ class SimklApiClient(
 ) {
     private val client = com.kitsugi.animelist.core.network.KitsugiHttpClient.client
 
-    // ── Resmî saniyelik limitler (api.simkl.org/resources/rate-limits) ─────────
-    // 10 GET/sn ve 1 POST/sn (client_id + kullanıcı token'ı). GET aşımı 429;
-    // POST aşımı token/client_id'i GEÇİCİ THROTLE-BLOĞUNA alır, tekrarlayan
-    // aşım bloğu uzatır; sürekli aşım uyarı-sız askıya almaya kadar gider.
-    // Gönderim öncesi aralık burada zorlanır; günlük kota/429 kuyruk olarak işlenir.
-    private val simklRateLock = Any()
-    private var lastSimklGetAt = 0L
-    private var lastSimklPostAt = 0L
-    private fun awaitSimklRateLimit(request: Request) {
-        val waitMs = synchronized(simklRateLock) {
-            val now = android.os.SystemClock.elapsedRealtime()
-            if (request.method == "GET") {
-                val earliest = lastSimklGetAt + 120L
-                lastSimklGetAt = if (earliest > now) earliest else now
-                earliest - now
-            } else {
-                val earliest = lastSimklPostAt + 1000L
-                lastSimklPostAt = if (earliest > now) earliest else now
-                earliest - now
-            }
-        }
-        if (waitMs > 0) {
-            runCatching { Thread.sleep(waitMs) }
-        }
-    }
+    // Simkl pacing lives in SimklRateLimitInterceptor, shared by every API caller and client
+    // instance. A per-instance delay here was bypassed by parallel screens and import/profile flows.
     // T3-01: BuildConfig'den alınır
     private val clientId get() = com.kitsugi.animelist.BuildConfig.SIMKL_CLIENT_ID
     private val requiredQueryParams
@@ -250,11 +186,12 @@ class SimklApiClient(
             "tv", "shows", "series" -> "tv"
             else -> "anime"
         }
-        val url = "https://api.simkl.com/search/$endpoint?q=$encoded&$requiredQueryParams&page=${page.coerceAtLeast(1)}&limit=$limit"
+        // Anime'nin ayrı `title_en` / `title_romaji` alanları yalnızca full yanıtta garanti
+        // edilir. Her kart için ayrı summary isteği atmadan seçili başlık dilini besler.
+        val url = "https://api.simkl.com/search/$endpoint?q=$encoded&$requiredQueryParams&extended=full&page=${page.coerceAtLeast(1)}&limit=$limit"
         val request = jsonRequest(url)
 
         return try {
-            awaitSimklRateLimit(request)
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {
                     android.util.Log.e("SimklApiClient", "search $endpoint HTTP ${response.code}")
@@ -267,7 +204,8 @@ class SimklApiClient(
 
                 for (i in 0 until minOf(jsonArray.length(), limit)) {
                     val obj = jsonArray.getJSONObject(i)
-                    val title = resolveSimklTitle(obj)
+                    val titles = resolveSimklTitleVariants(obj)
+                    val title = titles.display
                     val ids = obj.optJSONObject("ids") ?: continue
 
                     val simklId = ids.optInt("simkl_id", 0).takeIf { it > 0 }
@@ -306,8 +244,9 @@ class SimklApiClient(
                             year = if (year > 0) year else null,
                             source = "simkl",
                             realMalId = if (malId > 0) malId else null,
-                            titleEnglish = title,
-                            titleJapanese = simklNativeTitle(obj),
+                            titleEnglish = titles.english,
+                            titleRomaji = titles.romaji,
+                            titleJapanese = titles.native,
                             tmdbId = if (tmdbId > 0) tmdbId else null
                         )
                     )
@@ -345,7 +284,6 @@ class SimklApiClient(
         val cdnUrl = "https://data.simkl.in/discover/trending/$cdnType/${periodKey}_500.json?$requiredQueryParams"
         val request = jsonRequest(cdnUrl)
         try {
-            awaitSimklRateLimit(request)
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) return@withContext emptyList()
                 val responseText = response.body?.string().orEmpty()
@@ -383,7 +321,9 @@ class SimklApiClient(
         page: Int = 1,
         network: String? = null
     ): List<JikanSearchResult> = withContext(Dispatchers.IO) {
-        if (query.isNotBlank()) {
+        val hasDiscoveryFilters = subtype != null || genre != null || country != null || year != null ||
+            !network.isNullOrBlank() || (!sort.isNullOrBlank() && sort != "rank")
+        if (query.isNotBlank() && !hasDiscoveryFilters) {
             return@withContext search(query, type, limit, page)
         }
         val safeType = when (type.lowercase()) {
@@ -415,12 +355,40 @@ class SimklApiClient(
         val url = "https://api.simkl.com/$safeType/genres/$path?$requiredQueryParams&page=${page.coerceAtLeast(1)}&limit=$limit"
         val request = jsonRequest(url)
         try {
-            awaitSimklRateLimit(request)
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) return@withContext emptyList()
                 val responseText = response.body?.string().orEmpty()
-                parseSimklArray(responseText, safeType, limit)
+                val firstPage = parseSimklArray(responseText, safeType, limit)
+                if (query.isBlank()) {
+                    firstPage
+                } else {
+                    val pagesToInspect = (page.coerceAtLeast(1) * 3).coerceAtMost(20)
+                    val candidates = buildList {
+                        addAll(firstPage)
+                        for (candidatePage in 2..pagesToInspect) {
+                            val candidateUrl = url.substringBefore("&page=") + "&page=$candidatePage&limit=$limit"
+                            val candidateRequest = jsonRequest(candidateUrl)
+                            client.newCall(candidateRequest).execute().use { candidateResponse ->
+                                if (candidateResponse.isSuccessful) {
+                                    addAll(parseSimklArray(candidateResponse.body?.string().orEmpty(), safeType, limit))
+                                }
+                            }
+                        }
+                    }
+                    val terms = query.trim().lowercase(java.util.Locale.ROOT).split(Regex("\\s+"))
+                        .filter { it.isNotBlank() }
+                    candidates.distinctBy { "${it.source}:${it.type}:${it.malId}:${it.tmdbId ?: 0}" }
+                        .filter { item ->
+                            val haystack = listOf(item.title, item.titleEnglish, item.titleJapanese, item.subtitle)
+                                .filterNotNull().joinToString(" ").lowercase(java.util.Locale.ROOT)
+                            terms.all { term -> haystack.contains(term) }
+                        }
+                        .drop((page - 1).coerceAtLeast(0) * limit)
+                        .take(limit)
+                }
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             emptyList()
         }
@@ -449,7 +417,6 @@ class SimklApiClient(
         val url = "https://api.simkl.com/$safeType/genres/$path?$requiredQueryParams&page=$safePage&limit=$safeLimit"
         val request = jsonRequest(url)
         try {
-            awaitSimklRateLimit(request)
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) return@withContext emptyList()
                 parseSimklArray(response.body?.string().orEmpty(), safeType, safeLimit)
@@ -477,7 +444,6 @@ class SimklApiClient(
         val url = "https://api.simkl.com/$safeType/premieres/$safePremiere?$requiredQueryParams&page=$safePage&limit=$safeLimit"
         val request = jsonRequest(url)
         try {
-            awaitSimklRateLimit(request)
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) return@withContext emptyList()
                 parseSimklArray(response.body?.string().orEmpty(), safeType, safeLimit)
@@ -494,7 +460,6 @@ class SimklApiClient(
         val url = "https://api.simkl.com/$safeType/airing?$requiredQueryParams&sort=rank"
         val request = jsonRequest(url)
         try {
-            awaitSimklRateLimit(request)
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) return@withContext emptyList()
                 parseSimklArray(response.body?.string().orEmpty(), safeType, Int.MAX_VALUE)
@@ -511,7 +476,8 @@ class SimklApiClient(
         val results = mutableListOf<JikanSearchResult>()
         for (i in 0 until minOf(jsonArray.length(), limit)) {
             val obj = jsonArray.getJSONObject(i)
-            val title = resolveSimklTitle(obj)
+            val titles = resolveSimklTitleVariants(obj)
+            val title = titles.display
             val ids = obj.optJSONObject("ids") ?: continue
             val simklId = ids.optInt("simkl_id", 0).takeIf { it > 0 } ?: ids.optInt("simkl", 0)
             if (simklId <= 0) continue
@@ -544,8 +510,9 @@ class SimklApiClient(
                     year = if (year > 0) year else null,
                     source = "simkl",
                     realMalId = if (malId > 0) malId else null,
-                    titleEnglish = title,
-                    titleJapanese = simklNativeTitle(obj),
+                    titleEnglish = titles.english,
+                    titleRomaji = titles.romaji,
+                    titleJapanese = titles.native,
                     tmdbId = if (tmdbId > 0) tmdbId else null
                 )
             )
@@ -564,7 +531,6 @@ class SimklApiClient(
         val request = jsonRequest(cdnUrl)
 
         try {
-            awaitSimklRateLimit(request)
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {
                     android.util.Log.e("SimklApiClient", "getTrending $cdnType HTTP ${response.code}")
@@ -576,7 +542,8 @@ class SimklApiClient(
 
                 for (i in 0 until minOf(jsonArray.length(), 500)) {
                     val obj = jsonArray.getJSONObject(i)
-                    val title = resolveSimklTitle(obj)
+                    val titles = resolveSimklTitleVariants(obj)
+                    val title = titles.display
                     val ids = obj.optJSONObject("ids") ?: continue
 
                     // CDN response'unda ids iÃ§inde "simkl_id" veya "simkl" olabilir (NyanTV referans)
@@ -620,8 +587,9 @@ class SimklApiClient(
                             year = if (year > 0) year else null,
                             source = "simkl",
                             realMalId = if (malId > 0) malId else null,
-                            titleEnglish = title,
-                            titleJapanese = simklNativeTitle(obj),
+                            titleEnglish = titles.english,
+                            titleRomaji = titles.romaji,
+                            titleJapanese = titles.native,
                             tmdbId = if (tmdbId > 0) tmdbId else null
                         )
                     )
@@ -642,7 +610,6 @@ class SimklApiClient(
             .build()
 
         try {
-            awaitSimklRateLimit(request)
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) return@withContext emptyList()
                 val responseText = response.body?.string().orEmpty()
@@ -651,7 +618,8 @@ class SimklApiClient(
 
                 for (i in 0 until minOf(jsonArray.length(), 20)) {
                     val obj = jsonArray.getJSONObject(i)
-                    val title = resolveSimklTitle(obj)
+                    val titles = resolveSimklTitleVariants(obj)
+                    val title = titles.display
                     val ids = obj.optJSONObject("ids") ?: continue
                     val simklId = ids.optInt("simkl", 0)
                     val tmdbId = ids.optInt("tmdb", 0)
@@ -671,8 +639,9 @@ class SimklApiClient(
                             year = if (year > 0) year else null,
                             source = "simkl",
                             realMalId = null,
-                            titleEnglish = title,
-                            titleJapanese = simklNativeTitle(obj),
+                            titleEnglish = titles.english,
+                            titleRomaji = titles.romaji,
+                            titleJapanese = titles.native,
                             tmdbId = if (tmdbId > 0) tmdbId else null
                         )
                     )
@@ -694,7 +663,6 @@ class SimklApiClient(
             .build()
 
         try {
-            awaitSimklRateLimit(request)
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) return@withContext emptyList()
                 val responseText = response.body?.string().orEmpty()
@@ -712,7 +680,8 @@ class SimklApiClient(
 
                 for (i in 0 until jsonArray.length()) {
                     val obj = jsonArray.getJSONObject(i)
-                    val title = resolveSimklTitle(obj)
+                    val titles = resolveSimklTitleVariants(obj)
+                    val title = titles.display
                     val typeStr = obj.optString("type", "")
                     val ids = obj.optJSONObject("ids") ?: continue
                     val simklId = ids.optInt("simkl", 0)
@@ -740,8 +709,9 @@ class SimklApiClient(
                             year = if (year > 0) year else null,
                             source = "simkl",
                             realMalId = ids.optInt("mal", 0).takeIf { it > 0 },
-                            titleEnglish = title,
-                            titleJapanese = simklNativeTitle(obj),
+                            titleEnglish = titles.english,
+                            titleRomaji = titles.romaji,
+                            titleJapanese = titles.native,
                             tmdbId = if (tmdbId > 0) tmdbId else null
                         )
                     )
@@ -807,7 +777,6 @@ class SimklApiClient(
             .build()
 
         try {
-            awaitSimklRateLimit(request)
             client.newCall(request).execute().use { response ->
                 checkResponseAndThrow(response)
                 response.isSuccessful
@@ -837,7 +806,6 @@ class SimklApiClient(
             .build()
 
         try {
-            awaitSimklRateLimit(request)
             client.newCall(request).execute().use { response ->
                 checkResponseAndThrow(response)
                 if (!response.isSuccessful) return@withContext emptyList()
@@ -854,7 +822,8 @@ class SimklApiClient(
                     val simklId = ids.optInt("simkl", 0).takeIf { it > 0 } ?: continue
                     val tmdbId = ids.optInt("tmdb", 0)
                     val malId = ids.optInt("mal", 0)
-                    val title = resolveSimklTitle(mediaObj)
+                    val titles = resolveSimklTitleVariants(mediaObj)
+                    val title = titles.display
                     val poster = mediaObj.optString("poster", "")
                     val year = mediaObj.optInt("year", 0)
                     val status = entry.optString("status", "")
@@ -881,8 +850,9 @@ class SimklApiClient(
                             year = if (year > 0) year else null,
                             source = "simkl",
                             realMalId = if (malId > 0) malId else null,
-                            titleEnglish = title,
-                            titleJapanese = simklNativeTitle(mediaObj),
+                            titleEnglish = titles.english,
+                            titleRomaji = titles.romaji,
+                            titleJapanese = titles.native,
                             tmdbId = if (tmdbId > 0) tmdbId else null
                         )
                     )
@@ -911,7 +881,6 @@ class SimklApiClient(
             .header("Accept", "application/json")
             .build()
         try {
-            awaitSimklRateLimit(request)
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) return@withContext emptyList()
                 val responseText = response.body?.string().orEmpty()
@@ -972,7 +941,12 @@ class SimklApiClient(
          * Anime için Simkl/MAL kimliği yokken başlıkla eşleştirme, aynı adlı dizileri/filmleri
          * kullanıcının listesine ekleyebildiği için kapatılır. Başlık rapor/teşhis için yine taşınır.
          */
-        val titleMatchingAllowed: Boolean = true
+        val titleMatchingAllowed: Boolean = true,
+        /**
+         * Simkl liste kaydının özel notu (`private_memo`). Yalnız `null` DEĞİLSE gönderilir;
+         * `add-to-list` gövdesinde taşınır (Simkl notu liste kaydının parçası olarak tutar).
+         */
+        val privateMemo: String? = null
     )
 
     /**
@@ -1038,7 +1012,9 @@ class SimklApiClient(
 
         entries.forEach { entry ->
             val idObj = buildSimklIds(entry)
-            val itemObj = JSONObject().put("to", entry.status)
+            // (E81) Son emniyet: `to` alanına geçersiz `dropped` enum'u hiç gitmez
+            // (asıl sözleşme çağıranda — bkz. SimklSyncContract.normalizeListStatus).
+            val itemObj = JSONObject().put("to", SimklSyncContract.normalizeListStatus(entry.status))
             if (idObj.length() > 0) {
                 itemObj.put("ids", idObj)
             }
@@ -1049,6 +1025,7 @@ class SimklApiClient(
                     itemObj.put("year", entry.year)
                 }
             }
+            entry.privateMemo?.let { itemObj.put("private_memo", it) }
             if (idObj.length() > 0 || titleAllowed) {
                 when (SimklSyncContract.writeKey(entry.type)) {
                     "movies" -> moviesArray.put(itemObj)
@@ -1085,7 +1062,8 @@ class SimklApiClient(
 
     /**
      * Shared POST + receipt handling for /sync/add-to-list, /sync/history and /sync/ratings.
-     * Retries 429 and transient transport errors; never reports a partial receipt as a transport failure.
+     * HTTP 429 and Simkl's HTTP 400 `rate_limit` response are retried once by the shared HTTP
+     * layer; do not start another independent retry loop here.
      */
     private suspend fun postSyncEnvelope(
         endpoint: String,
@@ -1108,14 +1086,11 @@ class SimklApiClient(
                 .build()
 
             try {
-                awaitSimklRateLimit(request)
                 val callResult = client.newCall(request).execute().use { response ->
                     checkResponseAndThrow(response)
                     if (response.code == 429) {
-                        val waitMs = response.header("Retry-After")?.toLongOrNull()
-                            ?.coerceIn(1L, 3600L)?.times(1000L) ?: (2500L * attempt)
                         return@use Pair(
-                            waitMs,
+                            0L,
                             SimklBatchResponse(isSuccess = false, errorMessage = "HTTP 429 Rate Limit", transportFailed = true)
                         )
                     }
@@ -1346,7 +1321,6 @@ class SimklApiClient(
             .build()
 
         try {
-            awaitSimklRateLimit(request)
             client.newCall(request).execute().use { response ->
                 checkResponseAndThrow(response)
                 response.isSuccessful
@@ -1371,7 +1345,6 @@ class SimklApiClient(
             .build()
 
         try {
-            awaitSimklRateLimit(request)
             client.newCall(request).execute().use { response ->
                 checkResponseAndThrow(response)
                 if (!response.isSuccessful) null
@@ -1430,7 +1403,6 @@ class SimklApiClient(
             .build()
 
         try {
-            awaitSimklRateLimit(request)
             client.newCall(request).execute().use { response ->
                 checkResponseAndThrow(response)
                 when {
@@ -1476,7 +1448,6 @@ class SimklApiClient(
             .build()
 
         try {
-            awaitSimklRateLimit(request)
             client.newCall(request).execute().use { response ->
                 checkResponseAndThrow(response)
                 response.isSuccessful
@@ -1514,7 +1485,6 @@ class SimklApiClient(
             .build()
 
         try {
-            awaitSimklRateLimit(request)
             client.newCall(request).execute().use { response ->
                 checkResponseAndThrow(response)
                 when {
@@ -1560,7 +1530,6 @@ class SimklApiClient(
         val request = Request.Builder().url(url).header("Accept", "application/json").build()
 
         try {
-            awaitSimklRateLimit(request)
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) return@withContext emptyList()
                 val jsonArray = JSONArray(response.body?.string().orEmpty())
@@ -1571,7 +1540,8 @@ class SimklApiClient(
                     val ids   = obj.optJSONObject("ids") ?: continue
                     val simklId = ids.optInt("simkl_id", 0).takeIf { it > 0 }
                         ?: ids.optInt("simkl", 0).takeIf { it > 0 } ?: continue
-                    val title = resolveSimklTitle(obj)
+                    val titles = resolveSimklTitleVariants(obj)
+                    val title = titles.display
                     val poster = obj.optString("poster", "")
                     val year  = obj.optInt("year", 0)
                     val tmdbId = ids.optInt("tmdb", 0)
@@ -1595,8 +1565,9 @@ class SimklApiClient(
                             year = if (year > 0) year else null,
                             source = "simkl",
                             realMalId = null,
-                            titleEnglish = title,
-                            titleJapanese = simklNativeTitle(obj),
+                            titleEnglish = titles.english,
+                            titleRomaji = titles.romaji,
+                            titleJapanese = titles.native,
                             tmdbId = if (tmdbId > 0) tmdbId else null
                         )
                     )
@@ -1684,7 +1655,6 @@ class SimklApiClient(
             .header("User-Agent", "KitsugiApp/2.4")
             .build()
         return try {
-            awaitSimklRateLimit(request)
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) return null
                 val text = response.body?.string().orEmpty()

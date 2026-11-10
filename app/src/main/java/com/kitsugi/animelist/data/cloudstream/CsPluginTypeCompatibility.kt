@@ -31,6 +31,13 @@ internal object CsPluginTypeCompatibility {
         }
     }
 
+    /**
+     * Preserve the caller's explicit movie bit even when the catalog category is Anime. Anime
+     * movies commonly share `MediaType.Anime` but still need the movie search/load pipeline.
+     */
+    fun resolveIsMovie(mediaType: MediaType?, isMovie: Boolean?): Boolean =
+        isMovie == true || mediaType == MediaType.Movie
+
     fun supports(mediaType: MediaType?, supportedTypes: Iterable<String>): Boolean {
         if (mediaType == null) return true
 
@@ -43,18 +50,17 @@ internal object CsPluginTypeCompatibility {
         // rather than silently hiding a provider whose runtime metadata is incomplete.
         if (declared.isEmpty() || "nsfw" in declared || "adult" in declared) return true
 
+        // Catalog types describe the catalog's classification, not the content a
+        // provider can actually find. TMDB/Simkl may call the very same anime a
+        // TvShow or Movie, and community providers frequently declare only one
+        // video type despite carrying other types. Do not reject them before search;
+        // title, season and movie/episode checks still apply to the results.
         val expected = when (mediaType) {
-            // v2.4.250: TR dizi siteleri dublajlı anime, film siteleri anime filmleri
-            // barındırır — salt Anime bildiren filtre hepsini eliyordu ("Bu eklenti
-            // anime içeriklerini desteklemiyor"). İlgisiz sonuçlar zaten
-            // CsTitleMatcher.isTypeCompatible ile elenir; burada engellemek veri kaybıdır.
-            MediaType.Anime -> setOf(
+            MediaType.Anime, MediaType.Movie, MediaType.TvShow -> setOf(
                 "anime", "anime movie", "animemovie", "ova", "cartoon",
                 "tvseries", "tv series", "asiandrama", "documentary", "movie"
             )
             MediaType.Manga -> setOf("manga", "comic")
-            MediaType.Movie -> setOf("movie", "anime movie", "animemovie", "cartoon")
-            MediaType.TvShow -> setOf("tvseries", "tv series", "asiandrama", "documentary")
         }
         return declared.any { it in expected }
     }

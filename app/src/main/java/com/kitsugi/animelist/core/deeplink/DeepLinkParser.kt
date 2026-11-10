@@ -60,6 +60,14 @@ sealed interface TvDeepLink {
         val mangaId: String,
         val chapterId: String?
     ) : TvDeepLink
+
+    /**
+     * Cihaz bildirimine dokunulduğunda: Bildirimler sayfasını (varsa) ilgili
+     * kaynağın sekmesinde açar. `source` null ise sayfa varsayılan sekmeyle açılır.
+     */
+    data class Notifications(
+        val source: String? = null
+    ) : TvDeepLink
 }
 
 private const val SCHEME = "kitsugianimelist"
@@ -79,7 +87,14 @@ object DeepLinkParser {
 
         // Custom app scheme: Kitsugianimelist://v1/...
         if (scheme == SCHEME) {
-            val segments = uri.pathSegments.filter { it.isNotBlank() }
+            val rawSegments = uri.pathSegments.filter { it.isNotBlank() }
+            // Sürüm bilgisi URI'de İKİ biçimde gelebilir:
+            //   Kitsugianimelist://v1/play/{id}   → "v1" AUTHORITY'de (Uri.host),
+            //   Kitsugianimelist:///v1/play/{id}  → "v1" ilk yol parçası.
+            // Önceden yalnızca ikincisi destekleniyordu; uygulamanın kendi ürettiği
+            // `Kitsugianimelist://v1/...` bağlantıları (TV kanalı, bildirim dokunuşu)
+            // bu yüzden sessizce çözümlenemiyordu.
+            val segments = if (host == VERSION_V1) listOf(VERSION_V1) + rawSegments else rawSegments
             if (segments.size < 2) return TvDeepLink.None
             val version = segments[0]
             if (version != VERSION_V1) return TvDeepLink.None
@@ -89,6 +104,9 @@ object DeepLinkParser {
                 "detail" -> parseDetail(segments, uri)
                 "play"   -> parsePlay(segments, uri)
                 "manga"  -> parseManga(segments, uri)
+                "notifications" -> TvDeepLink.Notifications(
+                    source = uri.getQueryParameter("source")?.trim()?.takeIf { it.isNotBlank() }
+                )
                 else     -> TvDeepLink.None
             }
         }

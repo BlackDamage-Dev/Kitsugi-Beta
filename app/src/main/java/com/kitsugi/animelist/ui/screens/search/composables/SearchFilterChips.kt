@@ -3,9 +3,7 @@ package com.kitsugi.animelist.ui.screens.search.composables
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.Close
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.FilterChip
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import com.kitsugi.animelist.ui.theme.gradient.Text
@@ -258,12 +256,12 @@ fun KitsugiTriFilterChip(
         leadingIcon = {
             if (value == true) {
                 Icon(
-                    imageVector = Icons.Rounded.Check,
+                    imageVector = Icons.Check,
                     contentDescription = stringResource(R.string.common_yes)
                 )
             } else if (value == false) {
                 Icon(
-                    imageVector = Icons.Rounded.Close,
+                    imageVector = Icons.Close,
                     contentDescription = stringResource(R.string.hayir)
                 )
             }

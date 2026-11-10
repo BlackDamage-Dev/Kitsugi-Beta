@@ -1,13 +1,12 @@
 package com.kitsugi.animelist.data.remote
 
-import com.kitsugi.animelist.core.memory.BoundedCache
-
 import android.content.Context
+import com.kitsugi.animelist.core.memory.BoundedCache
+import com.kitsugi.animelist.core.memory.boundedSet
 import com.kitsugi.animelist.data.auth.ExternalAuthManager
 import com.kitsugi.animelist.data.auth.KitsuApiClient
 import com.kitsugi.animelist.model.MediaEntry
 import com.kitsugi.animelist.model.MediaType
-import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Kitsu kütüphane kayıtları için doğru Kitsu stable ID'sini (kitsuNumericId + 300_000_000) çözer.
@@ -32,7 +31,7 @@ object KitsuEntryIdResolver {
     /** raw MAL ID → çözülmüş stable Kitsu ID (process belleği) */
     private val memoryCache = BoundedCache<Int, Int>("kitsu.entryId", 3000)
     /** Çözülemeyen MAL ID'ler — tekrar tekrar ağ çağrısı yapmamak için */
-    private val failedIds = ConcurrentHashMap.newKeySet<Int>()
+    private val failedIds = boundedSet<Int>("kitsu.entryId.failed", 3_000)
 
     fun stableIdOf(kitsuNumericId: Int): Int = KITSU_OFFSET + kitsuNumericId
 

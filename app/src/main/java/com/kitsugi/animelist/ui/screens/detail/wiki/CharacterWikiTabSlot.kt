@@ -194,7 +194,6 @@ internal fun CharacterWikiTabSlot(
                 onRetrySection = viewModel::retryReaderSection,
                 onRetryPage = viewModel::retryReaderPage,
                 onOpenLink = viewModel::openReaderLink,
-                onOpenLinkInNewTab = viewModel::openReaderWebLink,
                 // Sayfa geneli Orijinal/Çeviri: tüm yüzeyler tek dokunuşla gidip gelir.
                 onSetReaderOriginal = viewModel::setReaderOriginal,
                 onSetWebMode = viewModel::setReaderWebMode,

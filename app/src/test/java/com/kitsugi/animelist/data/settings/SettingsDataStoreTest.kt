@@ -36,6 +36,16 @@ class SettingsDataStoreTest {
         val settings = settingsDataStore.settingsFlow.first()
         assertFalse(settings.liveHelperEnabled)
         assertFalse(settings.enableAssExtractor)
+        assertEquals(45, settings.subtitleFontSize)
+    }
+
+    @Test
+    fun testSubtitleFontSizeRoundTrip() = runBlocking {
+        settingsDataStore.setSubtitleFontSize(62)
+        assertEquals(62, settingsDataStore.settingsFlow.first().subtitleFontSize)
+
+        settingsDataStore.setSubtitleFontSize(150)
+        assertEquals(100, settingsDataStore.settingsFlow.first().subtitleFontSize)
     }
 
     @Test

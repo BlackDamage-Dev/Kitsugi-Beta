@@ -1,6 +1,10 @@
 package com.kitsugi.animelist.ui.tv.library
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.layout.size
+import com.kitsugi.animelist.ui.theme.KitsugiColors
+import com.kitsugi.animelist.ui.theme.gradient.Icon
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.background
 import com.kitsugi.animelist.ui.theme.gradient.border
 import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
@@ -91,6 +95,17 @@ fun TvLibraryScreen(
 ) {
     // ViewModel init{} içinde hazır — doğrudan dinle
     val entries by myListViewModel.entriesFlow.collectAsStateWithLifecycle()
+    val appContext = androidx.compose.ui.platform.LocalContext.current.applicationContext
+
+    // Çoklu sağlayıcı bağlıyken TV kütüphanesinde aynı yapımın 6 kez görünmemesi için
+    // mobil "Listem → Tümü" ile birebir aynı kimlik köprüsü + tekilleştirme uygulanır.
+    val unifiedEntries by androidx.compose.runtime.produceState(initialValue = entries, key1 = entries) {
+        val snapshot = entries
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+            val extras = com.kitsugi.animelist.data.local.MyListIdentityCrosswalk.build(appContext, snapshot)
+            com.kitsugi.animelist.ui.screens.mylist.groupMyListEntries(snapshot, extras).map { it.entry }
+        }
+    }
 
     var selectedSort by remember { mutableStateOf("updated_desc") }
 
@@ -99,12 +114,12 @@ fun TvLibraryScreen(
     var selectedTab by remember { mutableStateOf(TvWatchTab.Watching) }
 
     // İçerik tipine göre filtrele; Anime = Anime + Movie + TvShow, Manga = Manga
-    val typeFilteredEntries = remember(entries, selectedContentType) {
+    val typeFilteredEntries = remember(unifiedEntries, selectedContentType) {
         when (selectedContentType) {
-            TvLibraryContentType.Anime -> entries.filter {
+            TvLibraryContentType.Anime -> unifiedEntries.filter {
                 it.type != MediaType.Manga
             }
-            TvLibraryContentType.Manga -> entries.filter {
+            TvLibraryContentType.Manga -> unifiedEntries.filter {
                 it.type == MediaType.Manga
             }
         }
@@ -345,9 +360,11 @@ fun TvLibraryScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = if (selectedContentType == TvLibraryContentType.Manga) "📚" else "📭",
-                        style = MaterialTheme.typography.displayMedium
+                    Icon(
+                        imageVector = if (selectedContentType == TvLibraryContentType.Manga) Icons.BookOpen else Icons.MailOpen,
+                        contentDescription = null,
+                        tint = KitsugiColors.TextMuted,
+                        modifier = Modifier.size(44.dp)
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
@@ -545,10 +562,11 @@ private fun TvLibraryCard(
                         .background(Color(0xFFFF6B35).copy(alpha = 0.85f))
                         .padding(horizontal = 3.dp, vertical = 1.dp)
                 ) {
-                    Text(
-                        text = "❤",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Color.White
+                    Icon(
+                        imageVector = Icons.HeartSolid,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(9.dp)
                     )
                 }
             }

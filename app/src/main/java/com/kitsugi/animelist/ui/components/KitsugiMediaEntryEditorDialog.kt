@@ -33,7 +33,9 @@ fun KitsugiMediaEntryEditorDialog(
         volumeProgress: Int,
         isPrivate: Boolean,
         isHiddenFromStatusLists: Boolean,
-        advancedScores: List<Double>?
+        advancedScores: List<Double>?,
+        tmdbWatchlist: Boolean?,
+        tmdbRating: Double?
     ) -> Unit
 ) {
     KitsugiEditMediaSheet(

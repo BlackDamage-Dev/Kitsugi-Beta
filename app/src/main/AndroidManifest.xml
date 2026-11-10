@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
@@ -11,6 +12,13 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <!--
+        Ortam sesi akışları: ekran kapanınca ağdan tampon indirmeye devam
+        edebilmek için kısmi uyandırma kilidi (ExoPlayer `setWakeMode`).
+    -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- Cihaz medya sesini uygulamadan ayarlayabilmek için -->
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <!-- T3.3: Yayın bildirimleri -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
@@ -27,6 +35,8 @@
 
     <!-- T2.5: External Player queries for package visibility -->
     <queries>
+        <!-- Android 11+ package visibility for installed text-to-speech engines. -->
+        <intent><action android:name="android.intent.action.TTS_SERVICE" /></intent>
         <package android:name="just.player" />
         <package android:name="org.videolan.vlc" />
         <package android:name="com.mxtech.videoplayer.ad" />
@@ -256,8 +266,21 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="video/*" />
+                <data android:mimeType="audio/*" />
+                <data android:mimeType="application/ogg" />
+                <data android:mimeType="application/x-ogg" />
+                <data android:mimeType="application/flac" />
+                <data android:mimeType="application/x-flac" />
             </intent-filter>
         </activity>
+
+        <!-- KitsugiAudioPlayerActivity: Standalone screen for in-app universal audio playback -->
+        <activity
+            android:name=".ui.screens.audio.KitsugiAudioPlayerActivity"
+            android:exported="false"
+            android:launchMode="singleTop"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|density"
+            android:theme="@style/Theme.KitsugiAnimeList" />
 
         <provider
             android:name="androidx.core.content.FileProvider"
@@ -274,11 +297,30 @@
             android:foregroundServiceType="mediaPlayback"
             android:exported="false" />
 
+        <!-- KitsugiAudioPlaybackService: Background & lock-screen universal audio player -->
+        <service
+            android:name=".core.player.audio.player.KitsugiAudioPlaybackService"
+            android:foregroundServiceType="mediaPlayback"
+            android:exported="false" />
+
+        <!-- Ortam sesi ön plan servisi (Android 17: arka planda ses için zorunlu) -->
+        <service
+            android:name=".core.music.AmbientPlaybackService"
+            android:foregroundServiceType="mediaPlayback"
+            android:exported="false"
+            android:stopWithTask="false" />
+
         <!-- AnimeDownloadService for background downloading -->
         <service
             android:name=".core.download.AnimeDownloadService"
             android:foregroundServiceType="dataSync"
             android:exported="false" />
+        <!-- WorkManager's foreground worker for long-running, cancelable audio exports. -->
+        <service
+            android:name="androidx.work.impl.foreground.SystemForegroundService"
+            android:foregroundServiceType="dataSync"
+            android:exported="false"
+            tools:node="merge" />
 
         <!-- WatchHistoryActivity: Standalone screen for browsing watch history -->
         <activity

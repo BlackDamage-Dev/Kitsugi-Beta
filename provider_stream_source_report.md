@@ -1,6 +1,6 @@
 # Kitsugi Provider Stream Source Discovery — L4/L5/L6 Raporu
 
-**Oluşturulma:** 2026-10-22T01:07:09.418887800
+**Oluşturulma:** 2026-10-23T00:46:27.167244400
 **Taranan provider:** 59
 
 ## Özet

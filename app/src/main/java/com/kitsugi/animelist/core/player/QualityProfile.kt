@@ -5,8 +5,9 @@ import kotlinx.serialization.Serializable
 /**
  * T2.4 — Kalite Profili Modeli.
  *
- * Kullanıcının tercih ettiği video kalitesini ve maksimum bant genişliğini
- * saklar. CsStreamRunner, kaynak seçimi sırasında bu profile göre sıralar.
+ * Kullanıcının tercih ettiği video çözünürlüğünü ve maksimum bant genişliğini
+ * saklar. Stream ekranı kaynakları bu profile göre sıralar; oynatıcıdaki adaptif
+ * varyantların seçimi ayrıca player track-selection politikasına bağlıdır.
  *
  * ### Kalite Öncelik Mantığı
  * - `AUTO`   → Ağ hızına göre ExoPlayer/MPV otomatik seçer (varsayılan)
@@ -22,6 +23,21 @@ enum class QualityPreference(val label: String, val minQualityValue: Int, val ma
     P720        ("720p",          720,   1079),
     P480        ("480p",          480,   719),
     DATA_SAVER  ("Veri Tasarrufu",  0,   479);
+
+    /**
+     * Bu tercihin oynatıcıya uygulanacak **çözünürlük tavanı** (piksel yüksekliği).
+     *
+     * `null` → tavan yok (AUTO = adaptif, P1080 = 1080 ve üzeri serbest).
+     * Oynatıcı motorları (Media3 `maxVideoSize`, MPV `hls-bitrate`) bu değeri kullanır;
+     * aksi hâlde ayarlardaki kalite profili yalnızca bir etiket olarak kalırdı.
+     */
+    val maxVideoHeight: Int?
+        get() = when (this) {
+            AUTO, P1080 -> null
+            P720 -> 720
+            P480 -> 480
+            DATA_SAVER -> 360
+        }
 
     companion object {
         fun fromString(value: String?): QualityPreference =
@@ -40,6 +56,12 @@ data class QualityProfile(
     val preference: QualityPreference = QualityPreference.AUTO,
     val maxBitrateKbps: Int = -1
 ) {
+    /** Kullanıcı bir kalite seçmediyse oynatıcının uygulayacağı çözünürlük tavanı. */
+    val effectiveMaxVideoHeight: Int? get() = preference.maxVideoHeight
+
+    /** Sıfır/negatif → sınırsız. */
+    val effectiveMaxBitrateKbps: Int? get() = maxBitrateKbps.takeIf { it > 0 }
+
     companion object {
         val DEFAULT = QualityProfile()
         private const val SEPARATOR = "|"
@@ -102,8 +124,11 @@ object QualityDataHelper {
     ): List<com.kitsugi.animelist.data.repository.StreamSource> {
         if (maxBitrateKbps <= 0) return sources
         return sources.filter { source ->
-            val sourceBitrate = source.qualityValue?.let { q -> q * 8 } ?: 0
-            sourceBitrate <= maxBitrateKbps || sourceBitrate == 0
+            // qualityValue is a vertical pixel count (e.g. 720), NOT a bitrate.
+            // Unknown bitrate must remain eligible; filtering it using height * 8
+            // silently removed valid 720p/1080p sources at common limits.
+            val sourceBitrate = source.bitrateKbps
+            sourceBitrate == null || sourceBitrate <= maxBitrateKbps
         }
     }
 }

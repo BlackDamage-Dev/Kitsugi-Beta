@@ -14,7 +14,7 @@ import org.mockito.kotlin.verify
 class PlayerFallbackCoordinatorTest {
 
     @Test
-    fun testFallbackChainMediaToMpvThenBackOnce() {
+    fun testFallbackChainDoesNotReturnToFailedInitialEngine() {
         val listener = mock<PlayerManagerListener>()
         val coordinator = PlayerFallbackCoordinator(maxAttempts = 3, listener = listener)
 
@@ -27,25 +27,16 @@ class PlayerFallbackCoordinatorTest {
         assertEquals(PlayerEngineType.MPV, next1)
         verify(listener).onPlayerSwitched(PlayerEngineType.MEDIA3, PlayerEngineType.MPV)
 
-        // 2. adım: MPV -> MEDIA3 (bu kaynak için henüz denenmediyse)
+        // 2. adım: başarısız MEDIA3'e geri dönme; her iki motor da denendi, zincir biter.
         val next2 = coordinator.getFallbackEngine(
             currentEngine = PlayerEngineType.MPV,
             errorCode = 1002,
             mpvEnabled = true
         )
-        assertEquals(PlayerEngineType.MEDIA3, next2)
-        verify(listener).onPlayerSwitched(PlayerEngineType.MPV, PlayerEngineType.MEDIA3)
-
-        // 3. adım: MEDIA3 tekrar -> her iki dahili motor da denendi, zincir biter
-        val next3 = coordinator.getFallbackEngine(
-            currentEngine = PlayerEngineType.MEDIA3,
-            errorCode = 1003,
-            mpvEnabled = true
-        )
-        assertNull(next3)
+        assertNull(next2)
         verify(listener).onFatalError(
-            errorCode = 1003,
-            errorMsg = "Fallback zinciri tükendi (son motor: MEDIA3). Hata kodu: 1003"
+            errorCode = 1002,
+            errorMsg = "Fallback zinciri tükendi (son motor: MPV). Hata kodu: 1002"
         )
     }
 
@@ -70,24 +61,30 @@ class PlayerFallbackCoordinatorTest {
     @Test
     fun testMaxAttemptsLimit() {
         val listener = mock<PlayerManagerListener>()
-        val coordinator = PlayerFallbackCoordinator(maxAttempts = 2, listener = listener)
+        val coordinator = PlayerFallbackCoordinator(maxAttempts = 1, listener = listener)
 
         val next1 = coordinator.getFallbackEngine(PlayerEngineType.MEDIA3, 1001, mpvEnabled = true)
         assertEquals(PlayerEngineType.MPV, next1)
         assertEquals(1, coordinator.attemptCount)
 
-        val next2 = coordinator.getFallbackEngine(PlayerEngineType.MPV, 1002, mpvEnabled = true)
-        assertEquals(PlayerEngineType.MEDIA3, next2)
-        assertEquals(2, coordinator.attemptCount)
-
         // Deneme limiti aşıldı: fatal, sayaç artmaz
-        val next3 = coordinator.getFallbackEngine(PlayerEngineType.MEDIA3, 1003, mpvEnabled = true)
-        assertNull(next3)
-        assertEquals(2, coordinator.attemptCount)
+        val next2 = coordinator.getFallbackEngine(PlayerEngineType.MPV, 1002, mpvEnabled = true)
+        assertNull(next2)
+        assertEquals(1, coordinator.attemptCount)
         verify(listener).onFatalError(
-            errorCode = 1003,
-            errorMsg = "Tüm dahili motorlar (2 deneme) başarısız oldu. Hata kodu: 1003"
+            errorCode = 1002,
+            errorMsg = "Tüm dahili motorlar (1 deneme) başarısız oldu. Hata kodu: 1002"
         )
+    }
+
+    @Test
+    fun testMpvFirstAlsoStopsAfterMedia3Fails() {
+        val coordinator = PlayerFallbackCoordinator(maxAttempts = 3)
+        assertEquals(
+            PlayerEngineType.MEDIA3,
+            coordinator.getFallbackEngine(PlayerEngineType.MPV, 1001, mpvEnabled = true)
+        )
+        assertNull(coordinator.getFallbackEngine(PlayerEngineType.MEDIA3, 1002, mpvEnabled = true))
     }
 
     @Test

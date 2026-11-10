@@ -35,6 +35,32 @@ class MdbListClientTest {
     }
 
     @Test
+    fun fallbackPrefersNonEmptyTmdbRatingsWhenImdbLookupIsEmpty() {
+        val emptyImdb = MdbListRatings(imdbId = "tt1234567")
+        val fromTmdb = MdbListRatings(tmdb = 8.3, imdbId = null)
+
+        val selected = MdbListClient.selectRatingsWithFallback(
+            imdbResult = emptyImdb,
+            tmdbResult = fromTmdb,
+            preferredImdbId = "tt1234567"
+        )
+
+        requireNotNull(selected)
+        assertEquals(8.3, selected.tmdb!!, 0.001)
+        assertEquals("tt1234567", selected.imdbId)
+    }
+
+    @Test
+    fun fallbackKeepsImdbResultWhenItHasScores() {
+        val imdb = MdbListRatings(imdb = 8.1, imdbId = "tt1234567")
+        val tmdb = MdbListRatings(tmdb = 8.4)
+
+        val selected = MdbListClient.selectRatingsWithFallback(imdb, tmdb, "tt1234567")
+
+        assertEquals(imdb, selected)
+    }
+
+    @Test
     fun lookupUrlRejectsMissingOrInvalidIdentity() {
         assertNull(MdbListClient.buildLookupUrl("key", imdbId = null, tmdbId = null))
         assertNull(MdbListClient.buildLookupUrl("key", imdbId = "tt123", tmdbId = null))
@@ -69,8 +95,34 @@ class MdbListClientTest {
         assertEquals(78, result.metacritic)
         assertEquals(4.1, result.letterboxd!!, 0.001)
         assertEquals(7.9, result.tmdb!!, 0.001)
-        assertEquals(8.1, result.trakt!!, 0.001)
+        assertEquals(81.0, result.trakt!!, 0.001)
         assertEquals("tt0133093", result.imdbId)
+    }
+
+    @Test
+    fun parseRatingsSupportsObjectRatingsAndTheMovieDbAlias() {
+        val result = MdbListClient.parseRatings(
+            """
+            {
+              "response": true,
+              "imdbid": "tt1234567",
+              "ratings": {
+                "imdb": {"value": "8.6/10"},
+                "rottentomatoes": {"value": "94%"},
+                "themoviedb": {"value": "8.2/10"},
+                "letterboxd": 4.0
+              }
+            }
+            """.trimIndent(),
+            imdbId = null
+        )
+
+        requireNotNull(result)
+        assertEquals(8.6, result.imdb!!, 0.001)
+        assertEquals(94, result.tomatoes)
+        assertEquals(8.2, result.tmdb!!, 0.001)
+        assertEquals(4.0, result.letterboxd!!, 0.001)
+        assertEquals("tt1234567", result.imdbId)
     }
 
     @Test
@@ -92,6 +144,18 @@ class MdbListClientTest {
 
         assertNull(MdbListClient.parseRatings("""{"response":false,"ratings":[]}""", imdbId = null))
         assertNull(MdbListClient.parseRatings("not-json", imdbId = null))
+    }
+
+    @Test
+    fun parseRatingsFallsBackToLegacyFieldsWhenCurrentRatingsListIsEmpty() {
+        val result = MdbListClient.parseRatings(
+            """{"response":true,"ratings":[],"imdbrating":"8.1","tmdbrating":"7.9"}""",
+            imdbId = "tt1234567"
+        )
+
+        requireNotNull(result)
+        assertEquals(8.1, result.imdb!!, 0.001)
+        assertEquals(7.9, result.tmdb!!, 0.001)
     }
 
     @Test
@@ -136,6 +200,80 @@ class MdbListClientTest {
     }
 
     @Test
+    fun quotaHeadersParseLimitRemainingAndReset() {
+        val quota = requireNotNull(
+            MdbListClient.parseQuotaHeaders("25000", "1784", "1734393600")
+        )
+
+        assertEquals(25000, quota.limit ?: -1)
+        assertEquals(1784, quota.remaining ?: -1)
+        assertEquals(1734393600L, quota.resetAtEpochSeconds ?: 0L)
+        assertFalse(quota.isExhausted)
+        assertTrue(quota.isKnown)
+        assertEquals(23216, quota.used ?: -1)
+    }
+
+    @Test
+    fun quotaHeadersRejectGarbageInsteadOfInventingNumbers() {
+        // Başlık yoksa/bozuksa sayı uydurulmaz; arayüz "bilinmiyor" gösterir.
+        assertNull(MdbListClient.parseQuotaHeaders(null, null, null))
+        assertNull(MdbListClient.parseQuotaHeaders("abc", "xyz", "0"))
+    }
+
+    @Test
+    fun quotaResetHeaderAcceptsMilliseconds() {
+        assertEquals(1734393600L, MdbListClient.normalizeEpochSeconds(1734393600000L) ?: 0L)
+        assertEquals(1734393600L, MdbListClient.normalizeEpochSeconds(1734393600L) ?: 0L)
+        assertNull(MdbListClient.normalizeEpochSeconds(null))
+    }
+
+    @Test
+    fun userQuotaReadsPaidPlanLimitFromResponseInsteadOfFreeLimit() {
+        val quota = requireNotNull(
+            MdbListClient.parseUserQuota(
+                """{"api_requests":25000,"api_requests_count":1000,"patron_status":"active_patron","patreon_pledge":3}""",
+                null
+            )
+        )
+
+        // Ücretli plan: limit asla sabit 1.000 varsayılmaz.
+        assertEquals(25000, quota.limit ?: -1)
+        assertEquals(24000, quota.remaining ?: -1)
+        assertEquals(MdbListPlan.SUPPORTER, quota.plan)
+    }
+
+    @Test
+    fun userQuotaDetectsFreePlanAndExhaustedQuota() {
+        val quota = requireNotNull(
+            MdbListClient.parseUserQuota(
+                """{"api_requests":1000,"api_requests_count":1000,"patron_status":"former_patron","patreon_pledge":0}""",
+                null
+            )
+        )
+
+        assertEquals(1000, quota.limit ?: -1)
+        assertEquals(0, quota.remaining ?: -1)
+        assertEquals(MdbListPlan.FREE, quota.plan)
+        assertTrue(quota.isExhausted)
+    }
+
+    @Test
+    fun userQuotaKeepsHeaderValuesWhenBodyIsUnreadable() {
+        val headers = MdbListQuota(
+            limit = 25000,
+            remaining = 24999,
+            resetAtEpochSeconds = 2_000_000_000L
+        )
+
+        val quota = requireNotNull(MdbListClient.parseUserQuota("not-json", headers))
+
+        assertEquals(25000, quota.limit ?: -1)
+        assertEquals(24999, quota.remaining ?: -1)
+        assertEquals(2_000_000_000L, quota.resetAtEpochSeconds ?: 0L)
+        assertEquals(MdbListPlan.UNKNOWN, quota.plan)
+    }
+
+    @Test
     fun sensitiveUrlRedactorHidesCredentialParametersButPreservesOtherQueryValues() {
         val url = "https://example.test/item?api_key=tmdb-secret&language=tr-TR&apikey=mdb-secret&token=login-token"
 
@@ -148,5 +286,67 @@ class MdbListClientTest {
         assertTrue(redacted.contains("apikey=[REDACTED]"))
         assertTrue(redacted.contains("token=[REDACTED]"))
         assertTrue(redacted.contains("language=tr-TR"))
+    }
+
+    @Test
+    fun parseRatingsUsesRealPayloadScalesAndPopcornAudienceAlias() {
+        val result = MdbListClient.parseRatings(
+            """
+            {
+              "title":"Jaws",
+              "imdbid":"tt0073195",
+              "ratings":[
+                {"source":"imdb","value":8,"score":80},
+                {"source":"tomatoes","value":98,"score":98},
+                {"source":"popcorn","value":90,"score":90},
+                {"source":"metacritic","value":87,"score":87},
+                {"source":"tmdb","value":76,"score":76},
+                {"source":"trakt","value":78,"score":78},
+                {"source":"letterboxd","value":4.1,"score":82}
+              ]
+            }
+            """.trimIndent(),
+            imdbId = null
+        )
+
+        requireNotNull(result)
+        assertEquals(8.0, result.imdb!!, 0.001)
+        assertEquals(98, result.tomatoes)
+        assertEquals(90, result.tomatoesAudience)
+        assertEquals(87, result.metacritic)
+        assertEquals(7.6, result.tmdb!!, 0.001)
+        assertEquals(78.0, result.trakt!!, 0.001)
+        assertEquals(4.1, result.letterboxd!!, 0.001)
+        assertEquals("tt0073195", result.imdbId)
+    }
+
+    @Test
+    fun mediaIdsKeepRealMalIdUsedByPopularAniListResults() {
+        // Attack on Titan gibi AniList sonuçları stableId alanında doğrudan MAL ID taşır.
+        // Bu değer null yapılırsa IMDb çözümü ve dolayısıyla MDBList isteği hiç başlamaz.
+        val ids = resolveMdbListMediaIds(
+            source = "anilist",
+            storedId = 16_498,
+            resolvedMalId = null,
+            resolvedTmdbId = null
+        )
+
+        assertEquals(16_498, ids.malId)
+        assertNull(ids.aniListId)
+        assertTrue(ids.hasLookupIdentity)
+    }
+
+    @Test
+    fun mediaIdsKeepProviderNamespacesSeparate() {
+        val aniList = resolveMdbListMediaIds("anilist", 100_016_498, null, null)
+        val tmdb = resolveMdbListMediaIds("tmdb", 1_429, null, null)
+        val kitsu = resolveMdbListMediaIds("kitsu", 300_004_219, null, null)
+
+        assertNull(aniList.malId)
+        assertEquals(16_498, aniList.aniListId)
+        assertNull(tmdb.malId)
+        assertEquals(1_429, tmdb.tmdbId)
+        assertNull(kitsu.malId)
+        assertEquals(4_219, kitsu.kitsuId)
     }
 }

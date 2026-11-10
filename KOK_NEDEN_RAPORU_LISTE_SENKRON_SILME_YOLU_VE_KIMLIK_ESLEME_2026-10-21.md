@@ -281,8 +281,7 @@ string-template hatası, yeni hata yok).
 13. **AniList finale-otomatik-tamamlama** kaynak-çelişkisi (2018 changelog vs 2026 geliştiriciler):
     otomatik-tamamlama eklenmedi, yerel-otorite korundu.
     Ayrıntı: `ARASTIRMA_KAYNAK_SENKRON/09_KENDI_VERITABANINA_YAZMA_HATALARI.md` + `10_YAZMA_SEMANTIGI_MATRISI.md` (tur-2).
-14. ~~Simkl per-second limit koruması yok~~ **→ GİDERİLDİ (bu tur)**: `awaitSimklRateLimit` — GET≥120ms, POST≥1000ms (20 çağrı noktası). Eski madde: (resmi 10 GET/sn + 1 POST/sn; POST aşımı throtle-bloğu,
-    sürekli aşım uyarı-sız askıya alma; `api.simkl.com` host-bütçesi yok) → sertleştirme adayı.
+14. ~~Simkl ortak hız sınırlayıcısı yoktu~~ **→ GİDERİLDİ (2026-10-25):** Eski `awaitSimklRateLimit` her `SimklApiClient` nesnesine özeldi (GET 120 ms); paralel ekranlar ve doğrudan import/profil çağrıları ayrı sayaçlarla aynı Simkl kotasını aşabiliyordu. Ortak `SimklRateLimitInterceptor` artık tüm `api.simkl.com` çağrılarına 350 ms GET aralığı, 1.25 sn seri yazım aralığı ve Retry-After tabanlı paylaşılan cooldown uygular; Simkl HTTP 400 `rate_limit` için bir kontrollü yeniden deneme yapar. Geçici 429 retry ile düzelen çağrı, sonuçta kaynak hatası olarak gösterilmez. Simkl hesap kotası/banı canlı hesapla doğrulanmadı.
 15. **Simkl V1→V2 — HAZIRLIK TAMAM**: 8 adımlı göç planı `13_SIMKL_V2_GOC_PLANI.md`
     (kayıt=KULLANICI hesabıyla, PKCE şablonu=MAL, premium_only 200+error ayrıştırıcı,
     test listesi). Kod = client_id kaydı sonrası; hedef 2026 sonu (V1 ölümü ~Nisan 2027).

@@ -16,9 +16,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.OpenInNew
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -156,7 +154,7 @@ fun PlatformUserProfileScreen(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onBackClick) {
                         Icon(
-                            Icons.AutoMirrored.Rounded.ArrowBack,
+                            Icons.ArrowBack,
                             contentDescription = KitsugiStrings.get(R.string.geri),
                             tint = KitsugiColors.TextPrimary
                         )
@@ -184,7 +182,7 @@ fun PlatformUserProfileScreen(
                         }
                     }) {
                         Icon(
-                            Icons.Rounded.OpenInNew,
+                            Icons.OpenInNew,
                             contentDescription = KitsugiStrings.get(R.string.profili_paylas),
                             tint = KitsugiColors.TextPrimary
                         )

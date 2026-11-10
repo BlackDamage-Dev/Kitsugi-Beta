@@ -5,6 +5,7 @@ import com.kitsugi.animelist.core.memory.BoundedCache
 import android.content.Context
 import android.util.Log
 import com.kitsugi.animelist.data.cloudstream.CsStreamRunner
+import com.kitsugi.animelist.data.cloudstream.CsTitleMatcher
 import com.kitsugi.animelist.data.remote.KitsuClient
 import com.kitsugi.animelist.data.remote.KitsugiAniListDetailClient
 import com.kitsugi.animelist.data.remote.KitsugiMalDetailClient
@@ -16,7 +17,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import java.net.URI
-import java.util.concurrent.ConcurrentHashMap
+import java.util.Locale
 
 private const val TAG = "DetailTrailerFallback"
 private val YOUTUBE_VIDEO_ID_REGEX = Regex("^[a-zA-Z0-9_-]{11}$")
@@ -32,8 +33,8 @@ private val YOUTUBE_VIDEO_ID_REGEX = Regex("^[a-zA-Z0-9_-]{11}$")
  *     bu sınıf yalnızca o alan BOŞ olduğunda devreye girer (çağrı tarafı kontrol eder).
  *  2. **TMDB (diğer kaynaklar)** — [TrailerService.getExternalTrailerUrl] üzerinden
  *     TR-öncelikli YouTube fragman anahtarı (hızlı, ID bazlı).
- *  3. **Diğer metadata kaynakları** — AniList / Jikan(MAL) / Kitsu istemcilerine kimlik
- *     bazlı (arama yok) paralel sondaj; hangisinde YouTube fragmanı varsa o kullanılır.
+ *  3. **Diğer metadata kaynakları** — AniList / Jikan(MAL) kimlik bazlı; Kitsu başlık araması
+ *     ise başlık benzerliği ve yıl doğrulamasından geçerse kabul edilir.
  *  4. **Eklentiler (Cloudstream)** — başlıkla eklenti araması (`searchAllAddons`), en iyi
  *     eşleşmelerin `load()` yanıtındaki `trailers` alanından YouTube URL'si okunur.
  *
@@ -63,7 +64,7 @@ object DetailTrailerFallback {
         if (cleanTitle.isBlank()) return null
 
         val key = buildString {
-            append(cleanTitle.lowercase())
+            append(cleanTitle.lowercase(Locale.ROOT))
             append('|').append(year ?: 0)
             append('|').append(tmdbId ?: 0)
             append('|').append(malId ?: 0)
@@ -134,6 +135,7 @@ object DetailTrailerFallback {
         // ── 3) Diğer metadata kaynakları — kimlik bazlı paralel sondaj ───────
         crossSourceProbe(
             title = title,
+            year = year,
             type = type,
             malId = malId,
             aniListId = aniListId,
@@ -144,7 +146,7 @@ object DetailTrailerFallback {
         }
 
         // ── 4) Eklentiler (Cloudstream) — başlık araması + load() trailers ────
-        extensionProbe(context, title)?.let {
+        extensionProbe(context, title, year, type)?.let {
             Log.d(TAG, "Eklenti trailer bulundu")
             return it
         }
@@ -154,18 +156,20 @@ object DetailTrailerFallback {
     }
 
     /**
-     * AniList / Jikan(MAL) / Kitsu istemcilerine kimlik bazlı paralel fragman sondajı.
-     * Arama yapılmaz — yalnızca elde zaten var olan ID'ler sorgulanır (ucuz ve güvenlidir).
+     * AniList / Jikan(MAL) kimlik bazlı, Kitsu ise doğrulamalı başlık bazlı fragman sondajı.
+     * Kitsu'nun `filter[text]` uç noktası en fazla bir sonuç verdiğinden, sonuç başlığı ve
+     * bilinen yıl doğrulanmadan fragman kabul edilmez.
      */
     private suspend fun crossSourceProbe(
         title: String,
+        year: Int?,
         type: MediaType?,
         malId: Int?,
         aniListId: Int?,
         sourceName: String?
     ): String? = withTimeoutOrNull(9_000L) {
         val mediaType = type ?: MediaType.Anime
-        val source = sourceName?.lowercase().orEmpty()
+        val source = sourceName?.lowercase(Locale.ROOT).orEmpty()
         // 100M+ değerler AniList stable-id'sidir, 300M+ Kitsu, 500M+ Bangumi — gerçek MAL ID değil.
         val realMalId = malId?.takeIf { it in 1..99_999_999 }
 
@@ -189,7 +193,26 @@ object DetailTrailerFallback {
             if (source != "kitsu") {
                 probes += async(Dispatchers.IO) {
                     runCatching {
-                        KitsuClient.fetchAnimeDetailByTitle(title)?.trailerUrl
+                        val detail = KitsuClient.fetchAnimeDetailByTitle(title) ?: return@runCatching null
+                        val candidateTitles = listOfNotNull(
+                            detail.title,
+                            detail.titleTurkish,
+                            detail.titleEnglish,
+                            detail.titleRomaji,
+                            detail.titleJapanese,
+                            detail.titleNative
+                        ) + detail.synonyms
+                        val bestTitleSimilarity = candidateTitles.maxOfOrNull { candidate ->
+                            CsTitleMatcher.getBestTitleSimilarity(
+                                candidateName = candidate,
+                                mainTitle = title,
+                                altTitles = emptyList(),
+                                isMovie = type == MediaType.Movie
+                            )
+                        } ?: 0.0
+                        val yearCompatible = year == null || detail.year == null ||
+                            kotlin.math.abs(year - detail.year) <= 1
+                        if (bestTitleSimilarity >= 0.82 && yearCompatible) detail.trailerUrl else null
                     }.getOrNull()
                 }
             }
@@ -205,37 +228,67 @@ object DetailTrailerFallback {
      * listesinden YouTube URL'si okunur. En pahalı adım olduğu için EN SON koşulur ve
      * sert bir zaman tavanı vardır.
      */
-    private suspend fun extensionProbe(context: Context, title: String): String? =
-        withTimeoutOrNull(25_000L) {
-            withContext(Dispatchers.IO) {
-                val results = runCatching {
-                    CsStreamRunner.searchAllAddons(context, title)
-                }.getOrElse { e ->
-                    Log.w(TAG, "searchAllAddons başarısız: ${e.message}")
-                    emptyList()
-                }
-                if (results.isEmpty()) return@withContext null
-
-                var probed = 0
-                for ((api, searchResponse) in results) {
-                    if (probed >= 3) break
-                    probed++
-                    val loaded = runCatching {
-                        CsStreamRunner.safeLoad(api, searchResponse.url)
-                    }.getOrNull() ?: continue
-
-                    val trailerUrl = runCatching { loaded.trailers }
-                        .getOrNull()
-                        ?.firstOrNull { isYouTubeTrailer(it.extractorUrl) }
-                        ?.extractorUrl
-                    if (!trailerUrl.isNullOrBlank()) {
-                        Log.d(TAG, "Eklenti trailer: [${api.name}] $trailerUrl")
-                        return@withContext trailerUrl
-                    }
-                }
-                null
+    private suspend fun extensionProbe(
+        context: Context,
+        title: String,
+        year: Int?,
+        type: MediaType?
+    ): String? = withTimeoutOrNull(25_000L) {
+        withContext(Dispatchers.IO) {
+            val results = runCatching {
+                CsStreamRunner.searchAllAddons(context, title)
+            }.getOrElse { e ->
+                Log.w(TAG, "searchAllAddons başarısız: ${e.message}")
+                emptyList()
             }
+            if (results.isEmpty()) return@withContext null
+
+            // searchAllAddons returns provider search hits, not verified matches. Loading the
+            // first hit's trailers used to attach an unrelated show's YouTube video to a detail
+            // page (e.g. an anime trailer on a Turkish live-action series). Reuse the same strict
+            // title/type/year/season matcher as playback and reject every low-confidence hit.
+            val isMovie = when (type) {
+                MediaType.Movie -> true
+                MediaType.Anime, MediaType.TvShow -> false
+                else -> null
+            }
+            val verifiedCandidates = results.filter { (_, response) ->
+                CsTitleMatcher.findBestMatch(
+                    results = listOf(response),
+                    mainTitle = title,
+                    altTitles = emptyList(),
+                    targetYear = year,
+                    targetSeason = if (isMovie == true) null else 1,
+                    isMovie = isMovie
+                ) != null
+            }.take(3)
+
+            for ((api, searchResponse) in verifiedCandidates) {
+                val loaded = runCatching {
+                    CsStreamRunner.safeLoad(api, searchResponse.url)
+                }.getOrNull() ?: continue
+                // Providers can return a plausible search card whose load URL resolves to a
+                // different work. Validate the loaded page's own title before trusting its trailer.
+                if (CsTitleMatcher.getBestTitleSimilarity(
+                        candidateName = loaded.name,
+                        mainTitle = title,
+                        altTitles = emptyList(),
+                        isMovie = isMovie
+                    ) < 0.82
+                ) continue
+
+                val trailerUrl = runCatching { loaded.trailers }
+                    .getOrNull()
+                    ?.firstOrNull { isYouTubeTrailer(it.extractorUrl) }
+                    ?.extractorUrl
+                if (!trailerUrl.isNullOrBlank()) {
+                    Log.d(TAG, "Eklenti trailer: [${api.name}] $trailerUrl")
+                    return@withContext trailerUrl
+                }
+            }
+            null
         }
+    }
 
     // ─── Yardımcılar ──────────────────────────────────────────────────────────
 

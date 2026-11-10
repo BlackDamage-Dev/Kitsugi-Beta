@@ -27,7 +27,17 @@ import com.kitsugi.animelist.ui.components.KitsugiNsfwImage
 import com.kitsugi.animelist.ui.utils.tvClickable
 import com.kitsugi.animelist.utils.PreferenceHelpers.getDisplayTitle
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import com.kitsugi.animelist.ui.components.GalleryThumbnailImagePolicy
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import coil3.request.ImageRequest
 import coil3.request.crossfade
 import androidx.compose.foundation.layout.Column
@@ -36,7 +46,7 @@ import androidx.compose.foundation.layout.Arrangement
 @Composable
 fun RecommendationsTabContent(
     state: DetailTabState<List<KitsugiRelation>>,
-    titleLanguage: String = "ROMAJI",
+    titleLanguage: String = "ENGLISH",
     blurAdultMedia: Boolean = false,
     onRecommendationClick: (KitsugiRelation) -> Unit
 ) {
@@ -67,7 +77,9 @@ fun RecommendationsTabContent(
         is DetailTabState.Success -> {
             // +18 UYUMU (2026-10-14): benzer başlıklar da göster/gizle sözleşmesine uyar.
             val showAdult = com.kitsugi.animelist.ui.theme.LocalShowAdultContent.current
-            val list = if (showAdult) state.data else state.data.filter { !it.isAdult }
+            val list = remember(state.data, showAdult) {
+                if (showAdult) state.data else state.data.filter { !it.isAdult }
+            }
             if (list.isEmpty()) {
                 Box(
                     modifier = Modifier
@@ -82,14 +94,40 @@ fun RecommendationsTabContent(
                     )
                 }
             } else {
+                var visibleLimit by remember(list) { mutableIntStateOf(20) }
+                val displayedList = remember(list, visibleLimit) { list.take(visibleLimit) }
+                val remainingCount = (list.size - displayedList.size).coerceAtLeast(0)
+                val accentColor = LocalKitsugiAccent.current
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    list.forEach { rel ->
-                        RecommendationCard(rel, titleLanguage, blurAdultMedia, onRecommendationClick)
+                    displayedList.forEachIndexed { idx, rel ->
+                        key("rec_${idx}_${rel.source}_${rel.malId}") {
+                            RecommendationCard(rel, titleLanguage, blurAdultMedia, onRecommendationClick)
+                        }
+                    }
+                    if (remainingCount > 0) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(accentColor.copy(alpha = 0.12f))
+                                .tvClickable(shape = RoundedCornerShape(14.dp)) {
+                                    visibleLimit += 24
+                                }
+                                .padding(vertical = 11.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = stringResource(R.string.x_daha, remainingCount),
+                                color = accentColor,
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
                 }
             }
@@ -100,7 +138,7 @@ fun RecommendationsTabContent(
 @Composable
 fun RecommendationCard(
     rel: KitsugiRelation,
-    titleLanguage: String = "ROMAJI",
+    titleLanguage: String = "ENGLISH",
     blurAdultMedia: Boolean = false,
     onClick: (KitsugiRelation) -> Unit
 ) {
@@ -119,12 +157,17 @@ fun RecommendationCard(
     ) {
         Box(
             modifier = Modifier
-                .size(width = 54.dp, height = 76.dp)
+                .size(width = DETAIL_RECOMMENDATION_POSTER_WIDTH, height = DETAIL_RECOMMENDATION_POSTER_HEIGHT)
                 .clip(RoundedCornerShape(10.dp))
                 .background(KitsugiColors.SurfaceSoft)
         ) {
+            val recThumb = GalleryThumbnailImagePolicy.rememberThumbnailImageRequest(
+                url = rel.imageUrl,
+                widthDp = 54.dp,
+                heightDp = 76.dp
+            )
             KitsugiNsfwImage(
-                model = rel.imageUrl,
+                model = recThumb ?: rel.imageUrl,
                 contentDescription = displayTitle,
                 isAdult = rel.isAdult,
                 blurAdultMedia = blurAdultMedia,

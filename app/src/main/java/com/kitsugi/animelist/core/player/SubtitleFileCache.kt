@@ -23,25 +23,49 @@ object SubtitleFileCache {
     fun getCachedFile(context: Context, url: String): File? {
         val hash = md5(url) ?: return null
         val dir = getCacheDir(context)
-        val file = dir.listFiles()?.find { it.name.startsWith(hash) && it.isFile }
+        val file = dir.listFiles()?.find { it.name.startsWith("$hash.") && it.isFile }
         if (file != null) {
             file.setLastModified(System.currentTimeMillis())
         }
         return file
     }
 
-    suspend fun cacheSubtitle(context: Context, url: String, headers: Map<String, String>? = null): File? = withContext(Dispatchers.IO) {
+    suspend fun cacheSubtitle(context: Context, url: String, headers: Map<String, String>? = null, language: String? = null): File? = withContext(Dispatchers.IO) {
         try {
+            // AniSub has already extracted these files locally. Do not send file:// to OkHttp.
+            if (url.startsWith("file://")) {
+                val local = File(java.net.URI(url)).canonicalFile
+                val root = File(context.cacheDir, "anisub_subs").canonicalFile
+                if (!local.path.startsWith(root.path + File.separator) || !local.isFile ||
+                    local.length() !in 1..(5L * 1024 * 1024)) return@withContext null
+                val original = local.readBytes()
+                val normalized = SubtitleEncoding.toUtf8(original, language = language)
+                if (!SubtitleContent.isUsable(normalized)) return@withContext null
+                if (normalized.contentEquals(original)) return@withContext local
+                val hash = md5(url) ?: return@withContext null
+                return@withContext writeCacheFile(context, hash, local.extension.ifBlank { "srt" }, normalized)
+            }
+            if (!url.startsWith("https://") && !url.startsWith("http://")) return@withContext null
             val existing = getCachedFile(context, url)
-            if (existing != null && existing.length() > 0) {
-                Log.d("SubtitleFileCache", "Cache hit: ${existing.name}")
-                return@withContext existing
+            if (existing != null) {
+                if (existing.length() in 1..(5L * 1024 * 1024)) {
+                    val original = existing.readBytes()
+                    val normalized = SubtitleEncoding.toUtf8(original, language = language)
+                    if (SubtitleContent.isUsable(normalized)) {
+                        if (original.contentEquals(normalized)) return@withContext existing
+                        val hash = md5(url) ?: return@withContext null
+                        return@withContext writeCacheFile(context, hash, existing.extension.ifBlank { "srt" }, normalized)
+                    }
+                }
+                existing.delete()
             }
 
             Log.d("SubtitleFileCache", "Cache miss, downloading subtitle: $url")
             val client = OkHttpClient.Builder()
+                .dns(com.kitsugi.animelist.core.network.IPv4FirstDns())
                 .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
                 .readTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+                .callTimeout(20, java.util.concurrent.TimeUnit.SECONDS)
                 .build()
 
             val request = Request.Builder()
@@ -59,25 +83,53 @@ object SubtitleFileCache {
                     return@withContext null
                 }
 
-                val bodyBytes = response.body?.bytes() ?: return@withContext null
-                val ext = guessExtension(url, response.header("Content-Type"))
-                val hash = md5(url) ?: return@withContext null
-                val tempFile = File(getCacheDir(context), "${hash}_temp.$ext")
-                tempFile.writeBytes(bodyBytes)
-
-                val finalFile = File(getCacheDir(context), "$hash.$ext")
-                if (tempFile.renameTo(finalFile)) {
-                    Log.d("SubtitleFileCache", "Successfully cached subtitle to ${finalFile.name}")
-                    runLruCleanup(context)
-                    return@withContext finalFile
-                } else {
-                    tempFile.delete()
+                val body = response.body ?: return@withContext null
+                val maxBytes = 5 * 1024 * 1024
+                if (body.contentLength() > maxBytes) return@withContext null
+                val bodyBytes = body.byteStream().use { input ->
+                    val output = java.io.ByteArrayOutputStream()
+                    val buffer = ByteArray(8192)
+                    while (true) {
+                        val count = input.read(buffer)
+                        if (count < 0) break
+                        if (output.size() + count > maxBytes) return@withContext null
+                        output.write(buffer, 0, count)
+                    }
+                    output.toByteArray()
                 }
+                val normalizedBytes = SubtitleEncoding.toUtf8(bodyBytes, response.header("Content-Type"), language)
+                if (!SubtitleContent.isUsable(normalizedBytes)) {
+                    Log.w("SubtitleFileCache", "Provider returned an empty response, error page, or unsupported archive")
+                    return@withContext null
+                }
+                val prefix = normalizedBytes.take(512).toByteArray().toString(Charsets.UTF_8).trimStart('\uFEFF', ' ', '\n', '\r', '\t').lowercase()
+                val ext = when {
+                    prefix.startsWith("webvtt") -> "vtt"
+                    prefix.startsWith("[script info]") -> "ass"
+                    else -> guessExtension(url, response.header("Content-Type"))
+                }
+                val hash = md5(url) ?: return@withContext null
+                return@withContext writeCacheFile(context, hash, ext, normalizedBytes)
             }
         } catch (e: Exception) {
             Log.e("SubtitleFileCache", "Error caching subtitle: $url", e)
         }
         null
+    }
+
+    private fun writeCacheFile(context: Context, hash: String, extension: String, bytes: ByteArray): File? {
+        if (bytes.size > 5 * 1024 * 1024) return null
+        val dir = getCacheDir(context)
+        val tempFile = File.createTempFile("${hash}_", ".tmp", dir)
+        return try {
+            tempFile.writeBytes(bytes)
+            val finalFile = File(dir, "$hash.$extension")
+            if (!tempFile.renameTo(finalFile)) return null
+            runLruCleanup(context)
+            finalFile
+        } finally {
+            tempFile.delete()
+        }
     }
 
     fun guessExtension(url: String, contentType: String? = null): String {

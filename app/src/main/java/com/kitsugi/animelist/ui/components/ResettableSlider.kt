@@ -3,8 +3,7 @@ package com.kitsugi.animelist.ui.components
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.RestartAlt
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
@@ -47,7 +46,7 @@ fun ResettableSlider(
             modifier = Modifier.size(48.dp),
         ) {
             Icon(
-                imageVector = Icons.Rounded.RestartAlt,
+                imageVector = Icons.RestartAlt,
                 contentDescription = stringResource(R.string.slider_reset_to_default),
                 tint = accentColor,
                 modifier = Modifier.size(20.dp),

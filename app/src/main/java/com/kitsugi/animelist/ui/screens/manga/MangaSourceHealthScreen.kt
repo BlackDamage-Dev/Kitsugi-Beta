@@ -1,6 +1,7 @@
 package com.kitsugi.animelist.ui.screens.manga
 
 import com.kitsugi.animelist.ui.theme.gradient.FilterChip
+import com.kitsugi.animelist.ui.utils.uniqueItems
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import com.kitsugi.animelist.ui.theme.gradient.TabRow
 import com.kitsugi.animelist.ui.theme.gradient.Text
@@ -14,9 +15,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.*
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -33,6 +32,7 @@ import com.kitsugi.animelist.data.local.MangaSourceStateEntity
 import com.kitsugi.animelist.data.diagnostics.PlatformErrorCode
 import com.kitsugi.animelist.data.manga.MangaSource
 import com.kitsugi.animelist.ui.components.errors.PlatformErrorExplanationBlock
+import com.kitsugi.animelist.ui.components.MangaSourceLoginDialog
 import com.kitsugi.animelist.data.manga.stableSourceKey
 import com.kitsugi.animelist.ui.theme.LocalKitsugiAccent
 import com.kitsugi.animelist.ui.theme.KitsugiColors
@@ -50,6 +50,8 @@ fun MangaSourceHealthScreen(
     onBack: () -> Unit,
     onExportReportFile: (String) -> Unit = {},
     onQuickCheckSource: (MangaSource) -> Unit = {},
+    onGetSourceEnabled: (MangaSource) -> Boolean = { true },
+    onToggleSource: (MangaSource, Boolean) -> Unit = { _, _ -> },
     onRefreshSourceMirror: (MangaSource) -> Unit = {},
     onResetSourceDiagnostics: (MangaSource) -> Unit = {},
     onClearSourceMirror: (MangaSource) -> Unit = {},
@@ -77,6 +79,7 @@ fun MangaSourceHealthScreen(
     var sortMode by remember { mutableStateOf("UPDATED") }
     var rangeMode by remember { mutableStateOf("ALL") }
     var editingDomainSource by remember { mutableStateOf<MangaSource?>(null) }
+    var loginSource by remember { mutableStateOf<MangaSource?>(null) }
     var domainInputText by remember { mutableStateOf("") }
 
     val sourceMap = remember(installedSources) { installedSources.associateBy { it.stableSourceKey() } }
@@ -126,7 +129,7 @@ fun MangaSourceHealthScreen(
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 IconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.geri), tint = KitsugiColors.TextPrimary)
+                    Icon(Icons.ArrowBack, contentDescription = stringResource(R.string.geri), tint = KitsugiColors.TextPrimary)
                 }
                 Column(modifier = Modifier.weight(1f)) {
                     Text(stringResource(R.string.inline_manage_sources_5833fb6), color = KitsugiColors.TextPrimary, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
@@ -163,6 +166,27 @@ fun MangaSourceHealthScreen(
                         onClick = { selectedTab = idx },
                         text = { Text(title, fontWeight = if (selectedTab == idx) FontWeight.Bold else FontWeight.Normal) }
                     )
+                }
+            }
+
+            if (selectedTab == 1) {
+                val loginSources = installedSources.filter { it.webSessionUrl != null }
+                if (loginSources.isNotEmpty()) {
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        items(loginSources, key = { it.stableSourceKey() }) { source ->
+                            FilterChip(
+                                selected = false,
+                                onClick = { loginSource = source },
+                                leadingIcon = {
+                                    Icon(Icons.AccountCircle, null, modifier = Modifier.size(18.dp))
+                                },
+                                label = { Text("${source.name} · ${stringResource(R.string.manga_source_login_action)}") },
+                            )
+                        }
+                    }
                 }
             }
 
@@ -203,6 +227,8 @@ fun MangaSourceHealthScreen(
                     onGetSourceFailureStreak = onGetSourceFailureStreak,
                     onGetSourceCooldownUntil = onGetSourceCooldownUntil,
                     onQuickCheckSource = onQuickCheckSource,
+                    onGetSourceEnabled = onGetSourceEnabled,
+                    onToggleSource = onToggleSource,
                     onRefreshSourceMirror = onRefreshSourceMirror,
                     onClearSourceMirror = onClearSourceMirror,
                     onResetSourceDiagnostics = onResetSourceDiagnostics,
@@ -214,10 +240,23 @@ fun MangaSourceHealthScreen(
                     onEditDomainSource = { editingDomainSource = it; domainInputText = onGetMangaConfiguredDomain(it) },
                     onDomainTextChange = { domainInputText = it },
                     onDomainDialogDismiss = { editingDomainSource = null },
-                    onDomainSave = { onSetMangaSourceDomain(editingDomainSource!!, domainInputText.trim()); editingDomainSource = null },
+                    onDomainSave = {
+                        editingDomainSource?.let { source ->
+                            onSetMangaSourceDomain(source, domainInputText.trim())
+                        }
+                        editingDomainSource = null
+                    },
                 )
             }
         }
+    }
+
+    loginSource?.let { source ->
+        MangaSourceLoginDialog(
+            source = source,
+            onDismiss = { loginSource = null },
+            onSuccess = { loginSource = null },
+        )
     }
 }
 
@@ -272,15 +311,18 @@ private fun ReposTab(
                             .background(accent.copy(0.15f)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Rounded.Extension, null, tint = accent, modifier = Modifier.size(24.dp))
+                        Icon(Icons.Extension, null, tint = accent, modifier = Modifier.size(24.dp))
                     }
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("⚡ Keiyoushi Resmi Reposu", color = KitsugiColors.TextPrimary,
+                        Text("Keiyoushi Resmi Reposu", color = KitsugiColors.TextPrimary,
                             fontWeight = FontWeight.Bold, fontSize = 14.sp)
                         Text(stringResource(R.string.inline_1_s_mihon_extensions_including_dd28005, if (keiyoushiTotal > 0) keiyoushiTotal else "5000"),
                             color = KitsugiColors.TextSecondary, fontSize = 11.sp)
                     }
-                    Text("✓ Eklendi", color = Color(0xFF4CAF50), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Icon(Icons.Check, null, tint = Color(0xFF4CAF50), modifier = Modifier.size(12.dp))
+                        Text("Eklendi", color = Color(0xFF4CAF50), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
         }
@@ -304,22 +346,25 @@ private fun ReposTab(
                             .background(Color(0xFF7B61FF).copy(0.15f)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Rounded.AutoAwesome, null, tint = Color(0xFF7B61FF), modifier = Modifier.size(24.dp))
+                        Icon(Icons.AutoAwesome, null, tint = Color(0xFF7B61FF), modifier = Modifier.size(24.dp))
                     }
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("🤖 Kotatsu-Redo (Futon)", color = KitsugiColors.TextPrimary,
+                        Text("Kotatsu-Redo (Futon)", color = KitsugiColors.TextPrimary,
                             fontWeight = FontWeight.Bold, fontSize = 14.sp)
                         Text(
                             buildString {
-                                append("1300+ built-in kaynak")
-                                if (kotatsuSourceCount > 0) append(" · $kotatsuSourceCount yüklendi")
+                                append(stringResource(R.string.manga_health_builtin_sources))
+                                if (kotatsuSourceCount > 0) append(stringResource(R.string.manga_health_loaded_count, kotatsuSourceCount))
                                 if (kotatsuCommitSha.isNotBlank()) append(" · SHA: $kotatsuCommitSha")
                             },
                             color = KitsugiColors.TextSecondary, fontSize = 11.sp
                         )
                     }
                     if (kotatsuSourceCount > 0)
-                        Text("✓ Aktif", color = Color(0xFF4CAF50), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Icon(Icons.Check, null, tint = Color(0xFF4CAF50), modifier = Modifier.size(12.dp))
+                            Text("Aktif", color = Color(0xFF4CAF50), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
                     else
                         Text("Otomatik", color = KitsugiColors.TextMuted, fontSize = 11.sp)
                 }
@@ -336,7 +381,7 @@ private fun ReposTab(
                 trailingIcon = {
                     if (customRepoUrl.isNotBlank())
                         IconButton(onClick = { onAddCustomRepo(customRepoUrl); customRepoUrl = "" }) {
-                            Icon(Icons.Rounded.Add, null, tint = accent)
+                            Icon(Icons.Add, null, tint = accent)
                         }
                 },
                 modifier = Modifier.fillMaxWidth(),
@@ -351,7 +396,7 @@ private fun ReposTab(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp)
             ) {
-                Icon(Icons.Rounded.FolderOpen, null, modifier = Modifier.size(16.dp))
+                Icon(Icons.FolderOpen, null, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(8.dp))
                 Text(stringResource(R.string.inline_install_from_file_mex_apk_5276a9d))
             }
@@ -379,7 +424,7 @@ private fun ReposTab(
                                 .padding(horizontal = 10.dp, vertical = 6.dp)
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Icon(Icons.Rounded.Download, null, tint = accent, modifier = Modifier.size(14.dp))
+                                Icon(Icons.Download, null, tint = accent, modifier = Modifier.size(14.dp))
                                 Text(stringResource(R.string.inline_download_all_1_s_e46ccb3, trExts.size), color = accent,
                                     fontSize = 11.sp, fontWeight = FontWeight.Bold)
                             }
@@ -387,7 +432,7 @@ private fun ReposTab(
                     }
                     Spacer(Modifier.width(8.dp))
                     IconButton(onClick = onRefreshRepo, modifier = Modifier.size(30.dp)) {
-                        Icon(Icons.Rounded.Refresh, null, tint = KitsugiColors.TextMuted, modifier = Modifier.size(16.dp))
+                        Icon(Icons.Refresh, null, tint = KitsugiColors.TextMuted, modifier = Modifier.size(16.dp))
                     }
                 }
             }
@@ -409,7 +454,7 @@ private fun ReposTab(
                                 .background(KitsugiColors.SurfaceStrong),
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(Icons.Rounded.List, null, tint = KitsugiColors.TextSecondary, modifier = Modifier.size(18.dp))
+                            Icon(Icons.List, null, tint = KitsugiColors.TextSecondary, modifier = Modifier.size(18.dp))
                         }
                         Column(modifier = Modifier.weight(1f)) {
                             Text("Keiyoushi", color = KitsugiColors.TextPrimary,
@@ -418,8 +463,8 @@ private fun ReposTab(
                                 color = KitsugiColors.TextMuted, fontSize = 11.sp)
                         }
                         Text("🇹🇷", fontSize = 16.sp)
-                        Icon(Icons.Rounded.Download, null, tint = KitsugiColors.TextSecondary, modifier = Modifier.size(18.dp))
-                        Icon(Icons.Rounded.ExpandMore, null, tint = KitsugiColors.TextMuted, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Download, null, tint = KitsugiColors.TextSecondary, modifier = Modifier.size(18.dp))
+                        Icon(Icons.ExpandMore, null, tint = KitsugiColors.TextMuted, modifier = Modifier.size(18.dp))
                     }
                 }
             }
@@ -447,14 +492,14 @@ private fun ReposTab(
                             Text(ext.name, color = KitsugiColors.TextPrimary,
                                 fontSize = 13.sp, fontWeight = FontWeight.Medium,
                                 maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text("Manga,${if (ext.lang == "tr") "Türkçe" else ext.lang.uppercase()}",
+                            Text("Manga,${if (ext.lang == "tr") stringResource(R.string.manga_health_turkish) else ext.lang.uppercase()}",
                                 color = KitsugiColors.TextMuted, fontSize = 10.sp)
                         }
                         IconButton(
                             onClick = { onInstallExtension(ext) },
                             modifier = Modifier.size(32.dp)
                         ) {
-                            Icon(Icons.Rounded.Download, null, tint = KitsugiColors.TextSecondary,
+                            Icon(Icons.Download, null, tint = KitsugiColors.TextSecondary,
                                 modifier = Modifier.size(16.dp))
                         }
                     }
@@ -482,6 +527,8 @@ private fun HealthReportTab(
     onGetSourceFailureStreak: (MangaSource) -> Int,
     onGetSourceCooldownUntil: (MangaSource) -> Long,
     onQuickCheckSource: (MangaSource) -> Unit,
+    onGetSourceEnabled: (MangaSource) -> Boolean,
+    onToggleSource: (MangaSource, Boolean) -> Unit,
     onRefreshSourceMirror: (MangaSource) -> Unit,
     onClearSourceMirror: (MangaSource) -> Unit,
     onResetSourceDiagnostics: (MangaSource) -> Unit,
@@ -503,10 +550,10 @@ private fun HealthReportTab(
         item { FilterChip(selected = false, onClick = { onExportReportFile(buildReportExport(filtered)) }, label = { Text(KitsugiStrings.get(R.string.dosyaya_kaydet_934a2b4)) }) }
         item { FilterChip(selected = false, onClick = {
             val i = Intent(Intent.ACTION_SEND).apply { type = "text/plain"; putExtra(Intent.EXTRA_TEXT, buildReportExport(filtered)) }
-            context.startActivity(Intent.createChooser(i, "Paylaş"))
+            context.startActivity(Intent.createChooser(i, context.getString(R.string.paylas)))
         }, label = { Text(stringResource(R.string.paylas)) }) }
         item { FilterChip(selected = false, onClick = onClearAllSourceDiagnostics, label = { Text(stringResource(R.string.raporu_temizle)) }) }
-        item { FilterChip(selected = false, onClick = onClearAllSourceConfigs, label = { Text("Config temizle") }) }
+        item { FilterChip(selected = false, onClick = onClearAllSourceConfigs, label = { Text(stringResource(R.string.manga_health_config_clear)) }) }
     }
 
     LazyColumn(
@@ -517,44 +564,51 @@ private fun HealthReportTab(
         item {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SummaryCard("Healthy", healthyCount.toString(), Color(0xFF4CAF50), Modifier.weight(1f))
-                    SummaryCard("Degraded", degradedCount.toString(), Color(0xFFFFB300), Modifier.weight(1f))
-                    SummaryCard("Broken", brokenCount.toString(), KitsugiColors.AccentRed, Modifier.weight(1f))
+                    SummaryCard(stringResource(R.string.manga_health_healthy), healthyCount.toString(), Color(0xFF4CAF50), Modifier.weight(1f))
+                    SummaryCard(stringResource(R.string.manga_health_degraded), degradedCount.toString(), Color(0xFFFFB300), Modifier.weight(1f))
+                    SummaryCard(stringResource(R.string.manga_health_broken), brokenCount.toString(), KitsugiColors.AccentRed, Modifier.weight(1f))
                 }
-                SummaryCard("Ortalama başarı", avgSuccessRate, accent, Modifier.fillMaxWidth())
+                SummaryCard(stringResource(R.string.manga_health_avg_success), avgSuccessRate, accent, Modifier.fillMaxWidth())
             }
         }
         item {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterRow(listOf("ALL" to stringResource(R.string.notif_filter_all),"Healthy" to "Healthy","Degraded" to "Degraded","Broken" to "Broken","CaptchaRequired" to "Captcha","RateLimited" to "429"), statusFilter, accent, onStatusFilter)
-                FilterRow(listOf("UPDATED" to stringResource(R.string.guncel),"FAILURES" to stringResource(R.string.hata),"LATENCY" to "Gecikme","SUCCESS" to stringResource(R.string.basari)), sortMode, accent, onSortMode)
+                FilterRow(listOf("ALL" to stringResource(R.string.notif_filter_all),"Healthy" to stringResource(R.string.manga_health_healthy),"Degraded" to stringResource(R.string.manga_health_degraded),"Broken" to stringResource(R.string.manga_health_broken),"CaptchaRequired" to stringResource(R.string.manga_health_captcha),"RateLimited" to stringResource(R.string.manga_health_rate_limited)), statusFilter, accent, onStatusFilter)
+                FilterRow(listOf("UPDATED" to stringResource(R.string.guncel),"FAILURES" to stringResource(R.string.hata),"LATENCY" to stringResource(R.string.manga_health_latency),"SUCCESS" to stringResource(R.string.basari)), sortMode, accent, onSortMode)
                 FilterRow(listOf("ALL" to stringResource(R.string.tum_zaman),"24H" to "24s","7D" to "7g"), rangeMode, accent, onRangeMode)
             }
         }
         if (filtered.isEmpty()) {
             item { Box(Modifier.fillMaxWidth().padding(vertical = 40.dp), Alignment.Center) { Text(stringResource(R.string.inline_no_report_data_is_available_e832db8), color = KitsugiColors.TextSecondary) } }
         } else {
-            items(filtered, key = { it.sourceKey }) { item ->
+            uniqueItems(filtered, key = { it.sourceKey }) { item ->
                 val source = sourceMap[item.sourceKey]
                 val isBusy = source?.let(onIsSourceBusy) == true
                 Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = KitsugiColors.SurfaceSoft), shape = RoundedCornerShape(16.dp)) {
                     Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text(item.sourceName, color = KitsugiColors.TextPrimary, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            StatusChip(item.healthStatus, trendTint(successRate(item)))
+                            StatusChip(healthStatusLabel(item.healthStatus), trendTint(successRate(item)))
+                            if (source != null) {
+                                Switch(
+                                    checked = onGetSourceEnabled(source),
+                                    onCheckedChange = { enabled -> onToggleSource(source, enabled) },
+                                    modifier = Modifier.size(width = 40.dp, height = 26.dp)
+                                )
+                            }
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                             SmallChip(item.lang.uppercase(), accent)
                             if (!item.activeDomain.isNullOrBlank()) SmallChip(item.activeDomain, accent.copy(0.85f))
                         }
-                        StatLine("Success / Failure", "${item.successCount} / ${item.failureCount}")
-                        StatLine("Başarı oranı", "${"%.0f".format(successRate(item))}%")
-                        StatLine("Son başarı / Son hata", "${formatTimestamp(item.lastSuccessAt)} / ${formatTimestamp(item.lastFailureAt)}")
-                        StatLine("Son kontrol", formatTimestamp(item.lastCheckedAt))
+                        StatLine(stringResource(R.string.manga_health_success_failure), "${item.successCount} / ${item.failureCount}")
+                        StatLine(stringResource(R.string.manga_health_success_rate), "${"%.0f".format(successRate(item))}%")
+                        StatLine(stringResource(R.string.manga_health_last_success_error), "${formatTimestamp(item.lastSuccessAt)} / ${formatTimestamp(item.lastFailureAt)}")
+                        StatLine(stringResource(R.string.manga_health_last_check), formatTimestamp(item.lastCheckedAt))
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            MiniMetricCard("Search", formatMs(item.avgSearchMs), Modifier.weight(1f))
-                            MiniMetricCard("Popular", formatMs(item.avgPopularMs), Modifier.weight(1f))
-                            MiniMetricCard("Image", formatMs(item.avgImageMs), Modifier.weight(1f))
+                            MiniMetricCard(stringResource(R.string.manga_health_metric_search), formatMs(item.avgSearchMs), Modifier.weight(1f))
+                            MiniMetricCard(stringResource(R.string.manga_health_metric_popular), formatMs(item.avgPopularMs), Modifier.weight(1f))
+                            MiniMetricCard(stringResource(R.string.manga_health_metric_image), formatMs(item.avgImageMs), Modifier.weight(1f))
                         }
                         val sourceErrorCode = PlatformErrorCode.fromMangaState(item.lastErrorCode, item.lastErrorType)?.id
                         if (sourceErrorCode != null) {
@@ -632,6 +686,19 @@ private fun SummaryCard(label: String, value: String, tint: Color, modifier: Mod
         Text(label, color = KitsugiColors.TextMuted, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
         Text(value, color = tint, fontSize = 16.sp, fontWeight = FontWeight.Bold)
     }
+}
+
+/** Kaynak sağlık durumunu seçili uygulama dilinde gösterir. */
+@Composable
+private fun healthStatusLabel(status: String): String = when (status.trim().lowercase()) {
+    "healthy" -> stringResource(R.string.manga_health_healthy)
+    "degraded" -> stringResource(R.string.manga_health_degraded)
+    "broken" -> stringResource(R.string.manga_health_broken)
+    "captcharequired" -> stringResource(R.string.manga_health_captcha)
+    "ratelimited" -> stringResource(R.string.manga_health_rate_limited)
+    "disabled" -> stringResource(R.string.manga_health_disabled)
+    "unknown" -> stringResource(R.string.manga_health_unknown)
+    else -> status
 }
 
 @Composable

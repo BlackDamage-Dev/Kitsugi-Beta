@@ -5,6 +5,10 @@
 
 package com.kitsugi.animelist.ui.screens.profile
 
+import com.kitsugi.animelist.ui.utils.detailPagerHeight
+import com.kitsugi.animelist.ui.utils.rememberDetailPagerContentHeightPx
+import com.kitsugi.animelist.ui.utils.rememberDetailPagerMinHeightPx
+
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import com.kitsugi.animelist.ui.theme.gradient.Text
 
@@ -18,8 +22,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.*
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -196,7 +199,7 @@ fun AniListProfileContent(
                             val url = com.kitsugi.animelist.utils.ShareUtils.buildProfileUrl("anilist", state.name)
                             com.kitsugi.animelist.utils.ShareUtils.shareText(context, state.name, url)
                         }) {
-                            Icon(imageVector = Icons.Rounded.Share, contentDescription = stringResource(R.string.profili_paylas), tint = KitsugiColors.TextPrimary, modifier = Modifier.size(18.dp))
+                            Icon(imageVector = Icons.Share, contentDescription = stringResource(R.string.profili_paylas), tint = KitsugiColors.TextPrimary, modifier = Modifier.size(18.dp))
                         }
                     }
                 }
@@ -234,11 +237,11 @@ fun AniListProfileContent(
             Surface(modifier = Modifier.fillMaxWidth(), color = KitsugiColors.Background) {
                 Column(modifier = Modifier.padding(vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     val tabs = listOf(
-                        Icons.Rounded.Info to stringResource(R.string.character_tab_about),
-                        Icons.Rounded.ChatBubble to stringResource(R.string.profile_tab_activity),
-                        Icons.Rounded.BarChart to stringResource(R.string.profile_tab_statistics),
-                        Icons.Rounded.Star to stringResource(R.string.profile_tab_favorites),
-                        Icons.Rounded.People to stringResource(R.string.profile_tab_social)
+                        Icons.Info to stringResource(R.string.character_tab_about),
+                        Icons.ChatBubble to stringResource(R.string.profile_tab_activity),
+                        Icons.BarChart to stringResource(R.string.profile_tab_statistics),
+                        Icons.Star to stringResource(R.string.profile_tab_favorites),
+                        Icons.People to stringResource(R.string.profile_tab_social)
                     )
                     ProfileHeaderIconTabs(
                         tabs = tabs,
@@ -302,23 +305,13 @@ fun AniListProfileContent(
 
         // ── Pager Content ──
         item(key = "content") {
-            val density = androidx.compose.ui.platform.LocalDensity.current
             val pageHeights = viewModel.aniListPageHeights
-            val currentPage = pagerState.currentPage
-            val currentPageOffset = pagerState.currentPageOffsetFraction
-            val targetPage = if (currentPageOffset > 0f) currentPage + 1 else if (currentPageOffset < 0f) currentPage - 1 else currentPage
-
-            val currentHeightPx = pageHeights[currentPage] ?: 0
-            val targetHeightPx = pageHeights[targetPage] ?: currentHeightPx
-
-            val interpolatedHeightDp = remember(currentHeightPx, targetHeightPx, currentPageOffset) {
-                val heightPx = if (currentHeightPx > 0 && targetHeightPx > 0) {
-                    currentHeightPx + (targetHeightPx - currentHeightPx) * kotlin.math.abs(currentPageOffset)
-                } else if (currentHeightPx > 0) currentHeightPx.toFloat() else 0f
-                if (heightPx > 0f) with(density) { heightPx.toDp() } else null
-            }
-
-            val screenHeightDp = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp
+            // ── KASMA FIX (2026-11-05) ────────────────────────────────────────────
+            // Yükseklik interpolasyonu artık KOMPOZİSYONDA değil, yalnızca YERLEŞİM
+            // fazında okunur (derivedStateOf + Modifier.layout). Böylece sekme
+            // kaydırırken kompozisyon ve sekme içerikleri hiç çalışmaz.
+            val pagerHeightPx = rememberDetailPagerContentHeightPx(pagerState, pageHeights)
+            val minPagerHeightPx = rememberDetailPagerMinHeightPx()
 
             androidx.compose.foundation.pager.HorizontalPager(
                 state = pagerState,
@@ -328,13 +321,7 @@ fun AniListProfileContent(
                 verticalAlignment = Alignment.Top,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .layout { measurable, constraints ->
-                        val minPagerHeightPx = with(density) { (screenHeightDp - 64).dp.roundToPx() }.coerceAtLeast(0)
-                        val placeable = measurable.measure(constraints.copy(minHeight = minPagerHeightPx, maxHeight = androidx.compose.ui.unit.Constraints.Infinity))
-                        val height = (interpolatedHeightDp?.roundToPx()?.coerceAtLeast(minPagerHeightPx) ?: placeable.height)
-                            .coerceIn(minPagerHeightPx, 16_000_000)
-                        layout(placeable.width, height) { placeable.placeRelative(0, 0) }
-                    }
+                    .detailPagerHeight(pagerHeightPx, minPagerHeightPx)
                     .clipToBounds()
             ) { page ->
                 Box(modifier = Modifier.fillMaxWidth().heightIn(min = 600.dp)) {

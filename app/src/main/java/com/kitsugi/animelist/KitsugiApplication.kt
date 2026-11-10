@@ -11,6 +11,8 @@ import coil3.request.allowRgb565
 import coil3.request.crossfade
 import coil3.size.Precision
 import coil3.gif.AnimatedImageDecoder
+import coil3.gif.GifDecoder
+import com.kitsugi.animelist.data.manga.image.MangaNativeDecoder
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import okio.Path.Companion.toOkioPath
 import com.kitsugi.animelist.data.remote.KitsugiEpisodeRatingsRepository
@@ -64,6 +66,9 @@ class KitsugiApplication : Application(), SingletonImageLoader.Factory {
         try { com.kitsugi.animelist.core.diagnostics.StartupStage.mark(base, "attachBaseContext") } catch (_: Throwable) {}
         try { com.kitsugi.animelist.core.diagnostics.KitsugiCrashHandler.install(base) } catch (_: Throwable) {}
         try { com.kitsugi.animelist.core.diagnostics.KitsugiSessionSupervisor.install(base) } catch (_: Throwable) {}
+        // v2.4.342: kalıcı günlük en erken noktada açılır. Böylece açılış sırasında (provider
+        // init, WorkManager, DB) oluşan sorunlar da "Günlükler" ekranında görünür.
+        try { com.kitsugi.animelist.core.diagnostics.KitsugiLog.init(base) } catch (_: Throwable) {}
         // Dil dosyası metinlerinin Composable olmayan bağlamlardan (ViewModel,
         // servis, Worker, veri katmanı) çözülebilmesi için bağlamı burada sakla.
         try { com.kitsugi.animelist.utils.KitsugiStrings.install(base) } catch (_: Throwable) {}
@@ -147,6 +152,21 @@ class KitsugiApplication : Application(), SingletonImageLoader.Factory {
         runCatching { com.kitsugi.animelist.data.local.WatchHistoryManager.init(this) }
             .onFailure { android.util.Log.e("KitsugiApplication", "WatchHistoryManager.init hatası: ${it.message}", it) }
 
+        // 📖 Okunan manga/novel bölüm geçmişi — geçmiş sayfasındaki "Okunan" sekmesini besler.
+        // Açılışı bloklamamak için arka planda başlatılır (Room instance'ı ilk erişimde kurulur).
+        val appContextForReadHistory = this
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            runCatching {
+                com.kitsugi.animelist.data.local.MangaReadHistoryManager.init(appContextForReadHistory)
+            }.onFailure {
+                android.util.Log.e(
+                    "KitsugiApplication",
+                    "MangaReadHistoryManager.init hatası: ${it.message}",
+                    it
+                )
+            }
+        }
+
         com.kitsugi.animelist.core.diagnostics.StartupStage.mark(this, "FileLoggingTree.init")
         runCatching { com.kitsugi.animelist.core.diagnostics.FileLoggingTree.init(this) }
             .onFailure { android.util.Log.e("KitsugiApplication", "FileLoggingTree.init hatası: ${it.message}", it) }
@@ -161,8 +181,19 @@ class KitsugiApplication : Application(), SingletonImageLoader.Factory {
         // ── Çökme yakalayıcı ─────────────────────────────────────────────────────────
         // attachBaseContext() içinde ZATEN kuruldu (provider/erken init çökmelerini de
         // yakalayabilmek için). Burada yalnızca garantiye alıyoruz.
+        // v2.4.342: donma bekçisi + kendi sistem günlüğümüzün kalıcı köprüsü.
+        // Logcat akışı 1,5 sn gecikmeyle başlar: açılış süresini hiç etkilemesin.
+        runCatching { com.kitsugi.animelist.core.diagnostics.UiFreezeWatchdog.start(this) }
+        runCatching {
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                runCatching { com.kitsugi.animelist.core.diagnostics.LogcatCapture.start(this) }
+            }, 1_500L)
+        }
+
         com.kitsugi.animelist.core.diagnostics.StartupStage.mark(this, "KitsugiCrashHandler.install(re)")
         runCatching { com.kitsugi.animelist.core.diagnostics.KitsugiCrashHandler.install(this) }
+        runCatching { com.kitsugi.animelist.core.regex.H9RegexCrashGuard.install() }
+        runCatching { com.kitsugi.animelist.core.regex.RegexSafetyWarmup.warmUp() }
 
         // Ana Looper'ın içine ikinci bir Looper.loop() KESİNLİKLE kurma.
         // Önceki "Cockroach" yaklaşımı ActivityThread'in gerçek mesaj döngüsünü kalıcı
@@ -205,6 +236,12 @@ class KitsugiApplication : Application(), SingletonImageLoader.Factory {
 
         // Buraya geldiysek tüm kritik init'ler denendi; UI hâlâ çizilmedi.
         com.kitsugi.animelist.core.diagnostics.StartupStage.mark(this, "Application.onCreate tamamlandı (UI bekleniyor)")
+        // Bangumi sözlüklerini (orgs.tsv + tags.tsv) ve R.string alan haritasını
+        // arka planda ısıt; ilk detay sayfası açılışında UI iş parçacığında bekletme yapmasın.
+        applicationScope.launch {
+            runCatching { com.kitsugi.animelist.utils.prewarmTranslationCaches() }
+        }
+
         applicationScope.launch {
             try {
                 val dataStore = com.kitsugi.animelist.data.settings.SettingsDataStore(this@KitsugiApplication)
@@ -297,6 +334,37 @@ class KitsugiApplication : Application(), SingletonImageLoader.Factory {
             .onFailure { android.util.Log.w("KitsugiStorage", "Bakım işi planlanamadı: ${it.message}") }
 
         // ── Otomatik Arka Plan Liste Yenileme ──────────────────────────────────────
+        // v2.4.341 — Açılışta bekleyen eşitleme kuyruğu **zorla** boşaltılır. Deneme sayacı
+        // 5'i aşmış ("artık denenmeyecek") işler de tazelenir: kullanıcı geri bildirimi
+        // "günlerdir hiçbir değişiklik AniList'e gitmiyor" — eski kod bu işleri sessizce
+        // ölüme terk ediyor, kuyruk yalnızca ağ değişiminde yeniden deneniyordu.
+        applicationScope.launch {
+            runCatching {
+                val db = com.kitsugi.animelist.data.local.KitsugiDatabase.getDatabase(this@KitsugiApplication)
+                val repo = com.kitsugi.animelist.data.local.MediaEntryRepository(
+                    dao = db.mediaEntryDao(),
+                    pendingSyncDao = db.pendingSyncDao(),
+                    context = this@KitsugiApplication
+                )
+                val sent = repo.drainPendingQueue(freshBudget = true)
+                if (sent > 0) {
+                    // Kuyruğu boşalan kaynakların durumu "sorunsuz"a çekilir.
+                    val remaining = repo.pendingSyncBySource()
+                    com.kitsugi.animelist.data.auth.SourceSyncStatus.Source.entries.forEach { source ->
+                        if ((remaining[source] ?: 0) == 0) {
+                            val snapshot = com.kitsugi.animelist.data.auth.SourceSyncStatus
+                                .snapshot(this@KitsugiApplication, source)
+                            if (!snapshot.isHealthy) {
+                                com.kitsugi.animelist.data.auth.SourceSyncStatus
+                                    .reportSuccess(this@KitsugiApplication, source)
+                            }
+                        }
+                    }
+                    android.util.Log.d("KitsugiAutoSync", "Bekleyen $sent değişiklik gönderildi.")
+                }
+            }
+        }
+
         // AniHyou / MoeList gibi: uygulama açıldığında bağlı platformların listelerini
         // sessizce arka planda yeniler. Son yenilemeden 24 saat geçmemişse atlar.
         applicationScope.launch {
@@ -314,19 +382,57 @@ class KitsugiApplication : Application(), SingletonImageLoader.Factory {
                     val repo = com.kitsugi.animelist.data.local.MediaEntryRepository(dao = dao, context = this@KitsugiApplication)
 
                     var syncCount = 0
+                    // Yarım kalan aktarım "tamamlandı" sayılmasın: 24 saatlik yenileme
+                    // penceresi kapanmadan eksik liste kalıcılaşmasın.
+                    var allSourcesComplete = true
 
                     // AniList
                     val aniListToken = com.kitsugi.animelist.data.auth.ExternalAuthManager.getAniListToken(this@KitsugiApplication)
                     if (!aniListToken.isNullOrBlank()) {
                         try {
                             android.util.Log.d("KitsugiAutoSync", "AniList listesi yenileniyor...")
-                            val entries = com.kitsugi.animelist.data.auth.AniListImportManager.fetchAllLists(aniListToken)
-                            // +18 işaretleri sil-yaz döngüsünde kaybolmasın
-                            repo.replaceSourcePreservingAdultFlags("anilist", entries)
-                            syncCount += entries.size
-                            android.util.Log.d("KitsugiAutoSync", "AniList: ${entries.size} kayıt yenilendi.")
+                            // v2.4.341 — ÖNEMLİ: önce bekleyen yerel değişiklikler gönderilir.
+                            // Aksi halde uzak liste, henüz push edilmemiş yerel düzenlemeleri
+                            // ezip "hiçbir şey eşitlenmiyor" durumuna yol açıyordu.
+                            runCatching { repo.drainPendingQueue(freshBudget = true) }
+                            val result = com.kitsugi.animelist.data.auth.AniListImportManager
+                                .fetchAllListsDetailed(aniListToken)
+                            if (result.complete && result.entries.isNotEmpty()) {
+                                repo.smartImport("anilist", result.entries, allowDelete = false)
+                                com.kitsugi.animelist.data.auth.SourceSyncStatus.reportSuccess(
+                                    this@KitsugiApplication,
+                                    com.kitsugi.animelist.data.auth.SourceSyncStatus.Source.ANILIST
+                                )
+                            } else if (result.entries.isNotEmpty()) {
+                                allSourcesComplete = false
+                                // KISMİ aktarım (hız sınırı / kesinti): var olan satırları
+                                // SİLME — eldeki kayıtlar birleştirilir.
+                                repo.smartImport("anilist", result.entries, allowDelete = false)
+                                android.util.Log.w(
+                                    "KitsugiAutoSync",
+                                    "AniList aktarımı yarım kaldı: ${result.entries.size} kayıt birleştirildi (${result.errorMessage})"
+                                )
+                                com.kitsugi.animelist.data.auth.SourceSyncStatus.reportSuccess(
+                                    this@KitsugiApplication,
+                                    com.kitsugi.animelist.data.auth.SourceSyncStatus.Source.ANILIST
+                                )
+                            } else {
+                                allSourcesComplete = false
+                            }
+                            syncCount += result.entries.size
+                            android.util.Log.d("KitsugiAutoSync", "AniList: ${result.entries.size} kayıt yenilendi.")
                         } catch (e: Exception) {
+                            allSourcesComplete = false
                             android.util.Log.w("KitsugiAutoSync", "AniList yenileme hatası: ${e.message}")
+                            com.kitsugi.animelist.data.auth.SourceSyncStatus.reportFailure(
+                                this@KitsugiApplication,
+                                com.kitsugi.animelist.data.auth.SourceSyncStatus.Source.ANILIST,
+                                com.kitsugi.animelist.data.auth.SourceSyncStatus.classify(
+                                    e.message,
+                                    com.kitsugi.animelist.data.auth.AniListGate.isCoolingDown()
+                                ),
+                                e.message
+                            )
                         }
                     }
 
@@ -338,11 +444,22 @@ class KitsugiApplication : Application(), SingletonImageLoader.Factory {
                             val dataStore = com.kitsugi.animelist.data.settings.SettingsDataStore(this@KitsugiApplication)
                             val showAdult = dataStore.settingsFlow.first().showAdultContent
                             val entries = com.kitsugi.animelist.data.auth.MalImportManager.fetchAllLists(malToken, showAdult)
-                            repo.replaceSourcePreservingAdultFlags("mal", entries)
+                            repo.smartImport("mal", entries, allowDelete = false) // v2.4.341: sil-yaz yerine birleştir (yerel kayıtlar korunur)
+                            com.kitsugi.animelist.data.auth.SourceSyncStatus.reportSuccess(
+                                this@KitsugiApplication,
+                                com.kitsugi.animelist.data.auth.SourceSyncStatus.Source.MAL
+                            )
                             syncCount += entries.size
                             android.util.Log.d("KitsugiAutoSync", "MAL: ${entries.size} kayıt yenilendi.")
                         } catch (e: Exception) {
+                            allSourcesComplete = false
                             android.util.Log.w("KitsugiAutoSync", "MAL yenileme hatası: ${e.message}")
+                            com.kitsugi.animelist.data.auth.SourceSyncStatus.reportFailure(
+                                this@KitsugiApplication,
+                                com.kitsugi.animelist.data.auth.SourceSyncStatus.Source.MAL,
+                                com.kitsugi.animelist.data.auth.SourceSyncStatus.classify(e.message),
+                                e.message
+                            )
                         }
                     }
 
@@ -354,15 +471,26 @@ class KitsugiApplication : Application(), SingletonImageLoader.Factory {
                             val entries = com.kitsugi.animelist.data.auth.SimklImportManager.fetchAllLists(simklToken)
                             // Simkl liste API'si `adult` taşımaz → eski +18 işaretleri
                             // korunmalı ve hemen ardından kimlik üzerinden tamamlanmalı.
-                            repo.replaceSourcePreservingAdultFlags("simkl", entries)
+                            repo.smartImport("simkl", entries, allowDelete = false) // v2.4.341: sil-yaz yerine birleştir (yerel kayıtlar korunur)
+                            com.kitsugi.animelist.data.auth.SourceSyncStatus.reportSuccess(
+                                this@KitsugiApplication,
+                                com.kitsugi.animelist.data.auth.SourceSyncStatus.Source.SIMKL
+                            )
                             syncCount += entries.size
                             android.util.Log.d("KitsugiAutoSync", "Simkl: ${entries.size} kayıt yenilendi.")
                         } catch (e: Exception) {
+                            allSourcesComplete = false
                             android.util.Log.w("KitsugiAutoSync", "Simkl yenileme hatası: ${e.message}")
+                            com.kitsugi.animelist.data.auth.SourceSyncStatus.reportFailure(
+                                this@KitsugiApplication,
+                                com.kitsugi.animelist.data.auth.SourceSyncStatus.Source.SIMKL,
+                                com.kitsugi.animelist.data.auth.SourceSyncStatus.classify(e.message),
+                                e.message
+                            )
                         }
                     }
 
-                    if (syncCount > 0) {
+                    if (syncCount > 0 && allSourcesComplete) {
                         prefs.edit().putLong("last_list_sync_ms", now).apply()
                         android.util.Log.i("KitsugiAutoSync", "Otomatik liste yenileme tamamlandı: toplam $syncCount kayıt.")
                     }
@@ -481,15 +609,19 @@ class KitsugiApplication : Application(), SingletonImageLoader.Factory {
         applicationScope.launch(Dispatchers.IO) {
             try {
                 com.kitsugi.animelist.data.manga.MangaExtensionLoader.loadAllExtensions(this@KitsugiApplication)
-                android.util.Log.d("KitsugiApplication", "Manga eklentileri tarama tamamlandı.")
+                com.kitsugi.animelist.data.manga.KitsugiMangaDefaultProfile.ensureApplied(this@KitsugiApplication)
+                android.util.Log.d("KitsugiApplication", "Manga eklentileri tarama tamamlandı (varsayılan: Gölge Bahçesi).")
 
-                // Kotatsu-Redo: tüm 1300+ built-in kaynağı yükle (dil filtresi: TR varsayılan)
-                try {
-                    com.kitsugi.animelist.data.manga.KotatsuExtensionAdapter.initialize(this@KitsugiApplication)
-                    android.util.Log.i("KitsugiApplication",
-                        "Kotatsu init: ${com.kitsugi.animelist.data.manga.KotatsuExtensionAdapter.getSourceCount()} kaynak yüklendi.")
-                } catch (e: Exception) {
-                    android.util.Log.e("KitsugiApplication", "Kotatsu init hatası: ${e.message}", e)
+                // Kotatsu-Redo: yalnızca kullanıcı açıkça dil etkinleştirdiyse yükle
+                // (varsayılan profilde kapalıdır; diğer kaynakların otomatik yüklenmesi engellenir)
+                if (com.kitsugi.animelist.data.manga.KotatsuExtensionAdapter.getActiveLangs().isNotEmpty()) {
+                    try {
+                        com.kitsugi.animelist.data.manga.KotatsuExtensionAdapter.initialize(this@KitsugiApplication)
+                        android.util.Log.i("KitsugiApplication",
+                            "Kotatsu init: ${com.kitsugi.animelist.data.manga.KotatsuExtensionAdapter.getSourceCount()} kaynak yüklendi.")
+                    } catch (e: Exception) {
+                        android.util.Log.e("KitsugiApplication", "Kotatsu init hatası: ${e.message}", e)
+                    }
                 }
 
                 // Dinamik manga domain kataloğunu internetten çek ve yerel ayarları güncelle
@@ -523,16 +655,18 @@ class KitsugiApplication : Application(), SingletonImageLoader.Factory {
                 android.util.Log.e("KitsugiApplication", "Manga oto-güncelleme hatası: ${e.message}", e)
             }
 
-            // Kotatsu-Redo kaynaklarını arka planda sessizce güncelle (12 saatte bir)
-            kotlinx.coroutines.delay(4_000L)
-            try {
-                val kotatsuCount = com.kitsugi.animelist.data.manga.MangaCatalogManager.syncKotatsuSources(
-                    context = this@KitsugiApplication,
-                    forceCheck = false
-                )
-                android.util.Log.i("KitsugiApplication", "Kotatsu-Redo kaynakları güncellendi: $kotatsuCount kaynak yüklendi.")
-            } catch (e: Exception) {
-                android.util.Log.e("KitsugiApplication", "Kotatsu sync hatası: ${e.message}", e)
+            // Kotatsu-Redo kaynaklarını arka planda sessizce güncelle (yalnızca aktif dil varsa)
+            if (com.kitsugi.animelist.data.manga.KotatsuExtensionAdapter.getActiveLangs().isNotEmpty()) {
+                kotlinx.coroutines.delay(4_000L)
+                try {
+                    val kotatsuCount = com.kitsugi.animelist.data.manga.MangaCatalogManager.syncKotatsuSources(
+                        context = this@KitsugiApplication,
+                        forceCheck = false
+                    )
+                    android.util.Log.i("KitsugiApplication", "Kotatsu-Redo kaynakları güncellendi: $kotatsuCount kaynak yüklendi.")
+                } catch (e: Exception) {
+                    android.util.Log.e("KitsugiApplication", "Kotatsu sync hatası: ${e.message}", e)
+                }
             }
         }
 
@@ -588,9 +722,14 @@ class KitsugiApplication : Application(), SingletonImageLoader.Factory {
     private fun buildImageLoader(context: Context): ImageLoader {
         return ImageLoader.Builder(this)
             .components {
+                // Coil gets first choice for animated GIF/WebP/HEIF; otherwise a native
+                // single-frame decoder would silently discard supported animations.
                 if (android.os.Build.VERSION.SDK_INT >= 28) {
                     add(AnimatedImageDecoder.Factory())
+                } else {
+                    add(GifDecoder.Factory())
                 }
+                add(MangaNativeDecoder.Factory())
                 add(OkHttpNetworkFetcherFactory(callFactory = { com.kitsugi.animelist.core.network.KitsugiHttpClient.client }))
             }
             .memoryCache {

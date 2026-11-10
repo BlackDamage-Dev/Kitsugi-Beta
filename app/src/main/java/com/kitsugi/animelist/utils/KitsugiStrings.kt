@@ -61,10 +61,18 @@ object KitsugiStrings {
     @JvmStatic
     fun get(@StringRes resId: Int, vararg formatArgs: Any?): String {
         val resources = resources() ?: return ""
-        return if (formatArgs.isEmpty()) {
-            resources.getString(resId)
-        } else {
+        if (formatArgs.isEmpty()) {
+            return resources.getString(resId)
+        }
+        // 2026-11-02: bir çağrı yerinde argüman sayısı uyuşmazsa (örn. "%3$s") Android
+        // MissingFormatArgumentException fırlatıyor ve bu sync akışını çökertiyordu.
+        // Güvenlik: uyuşmazlıkta ham metni argümanlarla birlikte döndür, asla fırlatma.
+        return try {
             resources.getString(resId, *formatArgs)
+        } catch (_: java.util.IllegalFormatException) {
+            val raw = runCatching { resources.getString(resId) }.getOrDefault("")
+            if (raw.isBlank()) formatArgs.joinToString(" ") { it?.toString().orEmpty() }
+            else raw + " [" + formatArgs.joinToString(", ") { it?.toString().orEmpty() } + "]"
         }
     }
 

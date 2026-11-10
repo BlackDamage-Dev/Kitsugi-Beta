@@ -15,9 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.ArrowDropDown
-import androidx.compose.material.icons.rounded.Check
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.ExperimentalMaterial3Api
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.MaterialTheme
@@ -77,6 +75,11 @@ enum class ProfilePlatform(
         id = "bangumi",
         label = "Bangumi",
         description = KitsugiStrings.get(R.string.anime_manga_oyun_ve_muzik_koleksiyonlari_ilerleme_ve_puanlar_fav)
+    ),
+    TMDB(
+        id = "tmdb",
+        label = "TMDB",
+        description = KitsugiStrings.get(R.string.tmdb_profile_source_desc)
     )
 }
 
@@ -129,7 +132,7 @@ fun ProfileSourceSelectorPill(
             )
         }
         Icon(
-            imageVector = Icons.Rounded.ArrowDropDown,
+            imageVector = Icons.ArrowDropDown,
             contentDescription = stringResource(R.string.profil_kaynagi_sec),
             tint = accentColor,
             modifier = Modifier.size(18.dp)
@@ -159,6 +162,8 @@ fun ProfileSourcePickerSheet(
     shikimoriUsername: String? = null,
     isBangumiConnected: Boolean = false,
     bangumiUsername: String? = null,
+    isTmdbConnected: Boolean = false,
+    tmdbUsername: String? = null,
     onSelectPlatform: (Int) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -210,6 +215,7 @@ fun ProfileSourcePickerSheet(
                     ProfilePlatform.KITSU -> isKitsuConnected
                     ProfilePlatform.SHIKIMORI -> isShikimoriConnected
                     ProfilePlatform.BANGUMI -> isBangumiConnected
+                    ProfilePlatform.TMDB -> isTmdbConnected
                 }
                 val username = when (platform) {
                     ProfilePlatform.ANILIST -> aniListUsername
@@ -218,6 +224,7 @@ fun ProfileSourcePickerSheet(
                     ProfilePlatform.KITSU -> kitsuUsername
                     ProfilePlatform.SHIKIMORI -> shikimoriUsername
                     ProfilePlatform.BANGUMI -> bangumiUsername
+                    ProfilePlatform.TMDB -> tmdbUsername
                 }
 
                 Row(
@@ -320,7 +327,7 @@ fun ProfileSourcePickerSheet(
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = Icons.Rounded.Check,
+                                imageVector = Icons.Check,
                                 contentDescription = stringResource(R.string.secili),
                                 tint = KitsugiColors.Background,
                                 modifier = Modifier.size(16.dp)

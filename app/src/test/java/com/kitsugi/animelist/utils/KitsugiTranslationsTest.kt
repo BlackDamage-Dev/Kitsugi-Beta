@@ -136,10 +136,10 @@ class KitsugiTranslationsTest {
 
     @Test
     fun bangumiTags_pushUnknownCjkTagsToEnd() {
-        // Sözlükte karşılığı olmayan Çince etiketler listenin sonuna iner
+        // Sözlükte karşılığı olmayan CJK etiketler TR/EN arayüzde gösterilmeden elenir (v2.4.342)
         val tags = listOf("未知标签甲", "科幻", "未知标签乙", "日常", "Cyberpunk")
         assertEquals(
-            listOf("科幻", "日常", "Cyberpunk", "未知标签甲", "未知标签乙"),
+            listOf("科幻", "日常", "Cyberpunk"),
             tags.localizedDistinctTags()
         )
         assertEquals(true, isUntranslatedCjkTag("未知标签甲"))
@@ -197,9 +197,9 @@ class KitsugiTranslationsTest {
 
     @Test
     fun studioNames_translateToLatin() {
-        assertEquals("Kyoto Animation", "京都アニメーション".toLatinStudioName())
-        assertEquals("Kyoto Animation", "京都动画".toLatinStudioName())
-        assertEquals("Pony Canyon", "ポニーキャニオン".toLatinStudioName())
+        assertEquals("KyoAni", "京都アニメーション".toLatinStudioName())
+        assertEquals("KyoAni", "京都动画".toLatinStudioName())
+        assertEquals("PONY CANYON", "ポニーキャニオン".toLatinStudioName())
         assertEquals("Movic", "ムービック".toLatinStudioName())
         assertEquals("Toei Animation", "東映アニメーション".toLatinStudioName())
         // Bilinmeyen (kurgusal) stüdyo adı olduğu gibi kalır

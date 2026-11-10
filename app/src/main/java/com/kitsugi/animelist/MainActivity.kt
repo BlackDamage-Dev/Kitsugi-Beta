@@ -106,6 +106,10 @@ class MainActivity : AppCompatActivity() {
                     }
                     androidx.compose.runtime.LaunchedEffect(Unit) {
                         val hasUnreported = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            runCatching {
+                                com.kitsugi.animelist.core.download.DownloadExportNaming
+                                    .ensureStandardDownloadDirs(applicationContext)
+                            }
                             com.kitsugi.animelist.core.diagnostics.KitsugiCrashLogger.hasUnreadCrash(applicationContext)
                         }
                         if (hasUnreported) showCrashRecovery = true
@@ -162,6 +166,15 @@ class MainActivity : AppCompatActivity() {
 
     override fun onStart() {
         super.onStart()
+        // Bildirim izni/ayarı uygulama kapalıyken değişmiş olabilir (kullanıcı sistem
+        // ayarlarından kapatıp geri döner). Yalnızca DURUM DEĞİŞTİYSE planlı işi
+        // uzlaştır; her açılışta WorkManager isteğini yeniden kurmak gereksiz.
+        lifecycleScope.launch {
+            runCatching {
+                com.kitsugi.animelist.core.notifications.NotificationScheduler
+                    .reconcileIfGateChanged(this@MainActivity)
+            }
+        }
         if (formFactor == DeviceFormFactor.TV) {
             // B1.11: Servisi baslatir (ilk cagirida periyodik job planlanir).
             // Sonraki cagirilar no-op'tur (job zaten planlanmis).
@@ -190,9 +203,13 @@ class MainActivity : AppCompatActivity() {
         super.onDestroy()
     }
 
+    // Installed only while the optional reader volume-key setting is active.
+    var readerVolumeKeyHandler: ((KeyEvent) -> Boolean)? = null
+
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         return try {
-            super.dispatchKeyEvent(event)
+            if (readerVolumeKeyHandler?.invoke(event) == true) true
+            else super.dispatchKeyEvent(event)
         } catch (e: IllegalStateException) {
             if (e.message?.contains("FocusRequester is not initialized", ignoreCase = true) == true) {
                 android.util.Log.w("MainActivity", "Bypassed uninitialized FocusRequester crash during key event dispatch", e)
@@ -256,6 +273,7 @@ class MainActivity : AppCompatActivity() {
                             "anilist"   -> "AniList bağlantısı başarılı."
                             "simkl"     -> "Simkl bağlantısı başarılı."
                             "shikimori" -> "Shikimori bağlantısı başarılı."
+                            "tmdb"      -> "TMDB bağlantısı başarılı."
                             else        -> "MyAnimeList bağlantısı başarılı."
                         },
                         Toast.LENGTH_SHORT

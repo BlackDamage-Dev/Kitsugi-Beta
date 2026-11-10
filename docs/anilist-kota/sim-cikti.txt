@@ -1,0 +1,38 @@
+================================================================================
+AniListQuotaGate — garantiler
+================================================================================
+  [PASS] G1  Kayan pencere bütçeyi aşmıyor  (60 sn'de en çok 27 istek)
+  [PASS] G2  Minimum istek aralığı korunuyor  (2223 ms)
+  [PASS] G3  429 / Retry-After'a uyuluyor
+  [PASS] G4  Öncelik rezervi (arka plan öne geçmiyor)
+  [PASS] G5  X-RateLimit-Limit öğreniliyor
+
+  5/5 test geçti.
+
+================================================================================
+Aynı kullanıcı davranışı, üç mimari — 10 dakikalık yoğun oturum
+  A: bugünkü Kitsugi-Beta (350 ms aralık, önbellek yok)
+  B: yalnızca AniListQuotaGate (aynı istek sayısı)
+  C: kapı + sorgu birleştirme + önbellek + bayat veri (hedef)
+================================================================================
+Ölçüt                                          A: Mevcut     B: Kapı    C: Hedef
+--------------------------------------------------------------------------------
+Uygulamanın ürettiği istek                           123         123          82
+Gerçekten gönderilen HTTP isteği                     122          74          45
+Önbellekten karşılanan                                 0          10           4
+Bayat önbellekten karşılanan                           0           0           0
+Uçuştaki isteğe bindirilen                             0           0           0
+Düşük önceliği ertelenen                               0          39          33
+60 sn'lik pencerede en yüksek istek                   41          27          19
+HTTP 429 sayısı                                        6           0           0
+429 yüzünden tekrar deneme                             6           0           0
+Kullanıcının gördüğü hata                             13           0           0
+Kullanıcı isteğinin ort. beklemesi (ms)                0        9907        8268
+En uzun bekleme (ms)                                   0       30324       30324
+
+Okuma: A'da 429 var; her 429 sonrası uygulama 5-30 sn global donuyor.
+B, 429'u sıfırlar ama soğuk açılışta son istek ~1 dakika bekler;
+C, talebi önce azalttığı için aynı bütçede hem 429'suz hem hızlıdır.
+
+Not: AniList'in burst limiter eşiği yayınlanmadığı için 60 sn kayan
+pencere modeli kullanıldı; kapı ayrıca minimum aralık uygular.

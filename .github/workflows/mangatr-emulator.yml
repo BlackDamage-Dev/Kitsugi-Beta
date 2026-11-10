@@ -1,0 +1,137 @@
+name: Manga-TR Android integration
+
+on:
+  push:
+    branches: ['arena/**']
+    paths:
+      - 'app/src/main/java/com/kitsugi/animelist/data/manga/**'
+      - 'app/src/main/java/eu/kanade/tachiyomi/**'
+      - 'app/src/androidTest/java/com/kitsugi/animelist/data/manga/**'
+      - 'app/build.gradle.kts'
+      - 'app/proguard-rules.pro'
+      - '.github/workflows/mangatr-emulator.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: manga-tr-emulator-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  checks: write
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Download checksum-pinned published APK test fixture
+        run: |
+          mkdir -p app/src/androidTest/assets
+          curl --fail --location --retry 3 \
+            -H 'Accept: application/vnd.github.raw+json' \
+            'https://api.github.com/repos/f26901964-eng/Kitsugi-Manga-Plugins/contents/apk/tachiyomi-tr.mangatr-v1.6.26.apk?ref=245c305f' \
+            -o app/src/androidTest/assets/mangatr-v24.apk
+          echo '1392f9f4e9cc52b23bf018a394ae94a0f0fe19249bd65ac69f2266b3b81687a8  app/src/androidTest/assets/mangatr-v24.apk' | sha256sum -c -
+          curl --fail --location --retry 3 \
+            -H 'Accept: application/vnd.github.raw+json' \
+            'https://api.github.com/repos/f26901964-eng/Kitsugi-Manga-Plugins/contents/apk/tachiyomi-tr.mangatr-v1.6.26.apk?ref=bca61cbff15930394f3c87fac9ce556b041c7bac' \
+            -o app/src/androidTest/assets/mangatr-v26.apk
+          echo '17694bbcbb7ade8e9a03fcd60c3ce4fb24633b0312a5e82a5ddee9bfc83360f9  app/src/androidTest/assets/mangatr-v26.apk' | sha256sum -c -
+          curl --fail --location --retry 3 \
+            -H 'Accept: application/vnd.github.raw+json' \
+            'https://api.github.com/repos/f26901964-eng/Kitsugi-Manga-Plugins/contents/apk/tachiyomi-tr.mangatr-v1.6.28.apk?ref=5c738ab7c13bd0422e6857cf2a3877aa888749ec' \
+            -o app/src/androidTest/assets/mangatr-v28.apk
+          echo 'f0301f4e00700879c524496ec1bbb3fa27da2e4866df352c1dde84bebe33ec91  app/src/androidTest/assets/mangatr-v28.apk' | sha256sum -c -
+      # ubuntu-latest may have the SDK platforms but no sdkmanager on PATH.
+      # The emulator action also needs the command-line tools to install its image.
+      - uses: android-actions/setup-android@v3
+        with:
+          # The legacy "tools" package no longer exists in current SDK repositories.
+          packages: platform-tools
+      - name: Install Android build components
+        run: |
+          yes | sdkmanager --licenses > /dev/null 2>&1 || true
+          set -o pipefail
+          sdkmanager --install "cmake;3.22.1" "platforms;android-36" "build-tools;36.0.0" 2>&1 | tee /tmp/mangatr-sdk.log || echo "sdkmanager failed; trying preinstalled SDK packages"
+      - name: Compile app and instrumentation APK before starting emulator
+        run: |
+          chmod +x gradlew
+          set -o pipefail
+          for attempt in 1 2 3; do
+            if ./gradlew :app:assembleFossDebug :app:assembleFossDebugAndroidTest --stacktrace --console=plain --no-daemon -PmangaEmulatorX86_64=true 2>&1 | tee /tmp/mangatr-build.log; then
+              break
+            fi
+            # Retry network resolution failures only, not compiler or test failures.
+            if [ "$attempt" = 3 ] || ! grep -Eq 'Could not (download|get resource|resolve)|Read timed out|Connection timed out' /tmp/mangatr-build.log; then
+              exit 1
+            fi
+            echo "Dependency download failed; retrying ($attempt/3)"
+            sleep 5
+          done
+          ./gradlew --stop
+      - name: Enable emulator acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+          # The action runs scripts via /bin/sh; dash does not support pipefail.
+          script: bash -o pipefail -c './gradlew :app:connectedFossDebugAndroidTest --stacktrace --console=plain -PmangaEmulatorX86_64=true -Pandroid.testInstrumentationRunnerArguments.class=com.kitsugi.animelist.data.manga.MihonMangaIntegrationTest,com.kitsugi.animelist.data.manga.MangaTrPublishedApkTest 2>&1 | tee /tmp/mangatr-instrumentation.log'
+      - name: Publish instrumentation test results
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 - <<'PYEOF' > /tmp/mangatr-results.txt
+          import glob, xml.etree.ElementTree as ET
+          paths = glob.glob('app/build/outputs/androidTest-results/**/*.xml', recursive=True)
+          count = 0
+          for path in paths:
+              try:
+                  root = ET.parse(path).getroot()
+              except (ET.ParseError, OSError):
+                  continue
+              for test in root.iter('testcase'):
+                  count += 1
+                  issue = test.find('failure')
+                  if issue is None:
+                      issue = test.find('error')
+                  status = 'FAIL' if issue is not None else ('SKIP' if test.find('skipped') is not None else 'PASS')
+                  message = (issue.get('message', '') if issue is not None else '').replace('\n', ' ')
+                  print(f"{status} {test.get('classname', '')}.{test.get('name', '')}: {message[:500]}")
+          if count == 0:
+              print('No Android instrumentation results were produced.')
+          PYEOF
+          SUMMARY=$(head -c 50000 /tmp/mangatr-results.txt)
+          jq -n --arg sha "$GITHUB_SHA" --arg summary "$SUMMARY" '{name:"mangatr-instrumentation-results",head_sha:$sha,status:"completed",conclusion:"neutral",output:{title:"Manga-TR instrumentation results",summary:$summary}}' > /tmp/mangatr-results.json
+          gh api -X POST "repos/${GITHUB_REPOSITORY}/check-runs" --input /tmp/mangatr-results.json
+      - name: Publish failure summary
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          SUMMARY=$(cat /tmp/mangatr-sdk.log /tmp/mangatr-build.log /tmp/mangatr-instrumentation.log 2>/dev/null | grep -E '(^e: |FAILURE:|FAILED|Execution failed|Caused by|error:|Warning:|Exception|not found)' | tail -n 40 | cut -c1-400 | tr '\n' '|' || true)
+          if [ -z "$SUMMARY" ]; then SUMMARY="No SDK, Gradle or instrumentation log available"; fi
+          jq -n --arg sha "$GITHUB_SHA" --arg summary "$SUMMARY" '{name:"mangatr-integration-diagnostic",head_sha:$sha,status:"completed",conclusion:"neutral",output:{title:"Manga-TR integration diagnostic",summary:$summary}}' > /tmp/mangatr-check.json
+          gh api -X POST "repos/${GITHUB_REPOSITORY}/check-runs" --input /tmp/mangatr-check.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mangatr-instrumentation-report
+          path: |
+            app/build/reports/androidTests/
+            app/build/outputs/androidTest-results/
+          if-no-files-found: ignore

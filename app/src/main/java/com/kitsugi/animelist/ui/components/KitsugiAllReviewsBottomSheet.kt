@@ -17,8 +17,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.*
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -37,6 +36,7 @@ import com.kitsugi.animelist.data.local.TranslationManager
 import com.kitsugi.animelist.data.remote.JikanApiClient
 import com.kitsugi.animelist.data.remote.KitsugiReview
 import com.kitsugi.animelist.data.remote.SocialFeedCache
+import com.kitsugi.animelist.data.remote.stableKey
 import com.kitsugi.animelist.ui.components.KitsugiPlatformLogo
 import com.kitsugi.animelist.model.MediaType
 import com.kitsugi.animelist.ui.theme.LocalKitsugiAccent
@@ -147,7 +147,7 @@ fun KitsugiAllReviewsBottomSheet(
                 if (newReviews.isEmpty()) {
                     hasMore = false
                 } else {
-                    reviewsList = (reviewsList + newReviews).distinctBy { it.username + "_" + it.summary }
+                    reviewsList = (reviewsList + newReviews).distinctBy { it.stableKey() }
                     page = nextPage
                 }
                 SocialFeedCache.putAllReviews(socialFeedKey, SocialFeedCache.FeedState(reviewsList, page, hasMore))
@@ -170,7 +170,7 @@ fun KitsugiAllReviewsBottomSheet(
     LaunchedEffect(selectedLanguage, reviewsList) {
         if (selectedLanguage == "turkish") {
             reviewsList.forEach { rev ->
-                val revKey = "${rev.source}_${rev.username}_${rev.dateText}"
+                val revKey = rev.stableKey()
                 if (!translatedSummaries.containsKey(revKey)) {
                     coroutineScope.launch {
                         activeTranslations++
@@ -211,7 +211,7 @@ fun KitsugiAllReviewsBottomSheet(
                     )
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.Close,
+                        imageVector = Icons.Close,
                         contentDescription = stringResource(R.string.kapat),
                         tint = KitsugiColors.TextPrimary
                     )
@@ -340,7 +340,7 @@ fun KitsugiAllReviewsBottomSheet(
                 ) {
                     items(filteredReviews.size) { index ->
                         val rev = filteredReviews[index]
-                        val revKey = "${rev.source}_${rev.username}_${rev.dateText}"
+                        val revKey = rev.stableKey()
                         val displaySummary = if (selectedLanguage == "turkish") translatedSummaries[revKey] ?: rev.summary else rev.summary
                         
                         // Theme-aligned Review Card
@@ -418,11 +418,13 @@ fun KitsugiAllReviewsBottomSheet(
                                 }
 
                                 if (rev.score != null) {
-                                    Text(
-                                        text = "★ ${rev.score}",
+                                    KitsugiEmojiLabel(
+                                        label = "${rev.score}",
                                         color = accentColor,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Black
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Black,
+                                        iconSize = 11.dp,
+                                        icon = Icons.StarSolid
                                     )
                                 }
                             }
@@ -467,7 +469,7 @@ fun KitsugiAllReviewsBottomSheet(
                                             modifier = Modifier.size(28.dp)
                                         ) {
                                             Icon(
-                                                imageVector = Icons.Rounded.ContentCopy,
+                                                imageVector = Icons.ContentCopy,
                                                 contentDescription = KitsugiStrings.get(R.string.action_copy),
                                                 tint = KitsugiColors.TextSecondary,
                                                 modifier = Modifier.size(14.dp)
@@ -507,7 +509,7 @@ fun KitsugiAllReviewsBottomSheet(
                                         }
                                     ) {
                                         Icon(
-                                            imageVector = Icons.Rounded.ThumbUp,
+                                            imageVector = Icons.ThumbUp,
                                             contentDescription = stringResource(R.string.faydali),
                                             tint = if (rev.userRating == "UP_VOTE") accentColor else KitsugiColors.TextSecondary,
                                             modifier = Modifier.size(12.dp)

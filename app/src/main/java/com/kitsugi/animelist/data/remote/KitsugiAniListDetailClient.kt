@@ -1,10 +1,10 @@
 package com.kitsugi.animelist.data.remote
 
+import com.kitsugi.animelist.core.memory.BoundedCache
 import com.kitsugi.animelist.model.MediaType
+import com.kitsugi.animelist.utils.*
 import org.json.JSONArray
 import org.json.JSONObject
-import com.kitsugi.animelist.utils.*
-import java.util.concurrent.ConcurrentHashMap
 
 /**
  * AniList GraphQL API'sinden anime/manga detay bilgisini çeker ve parse eder.
@@ -15,10 +15,13 @@ internal object KitsugiAniListDetailClient {
         val aniListId: Int?,
         val malId: Int?,
         val tags: List<KitsugiTag>,
-        val nextAiringEpisode: String?
+        val nextAiringEpisode: String?,
+        val genres: List<String> = emptyList(),
+        val studios: List<KitsugiStudio> = emptyList()
     )
 
-    private val tagsAndAiringCache = ConcurrentHashMap<String, AniListTagsAndAiring>()
+    // Long-lived detail browsing can touch thousands of media IDs; keep the alias cache bounded.
+    private val tagsAndAiringCache = BoundedCache<String, AniListTagsAndAiring>("anilist.tagsAndAiring", 1_200)
 
     private fun parseAniListTags(arr: JSONArray?): List<KitsugiTag> {
         if (arr == null || arr.length() == 0) return emptyList()
@@ -521,6 +524,8 @@ internal object KitsugiAniListDetailClient {
                     idMal
                     title { romaji english native }
                     synonyms
+                    genres
+                    studios { edges { isMain node { id name } } }
                     tags { id name description category rank isMediaSpoiler isGeneralSpoiler }
                     nextAiringEpisode { episode timeUntilAiring airingAt }
                 }
@@ -561,11 +566,42 @@ internal object KitsugiAniListDetailClient {
                 if (ep > 0 && airingAt > 0L) "$ep|$airingAt" else null
             }
 
+            // Türler ve stüdyolar: diğer kaynaklardan açılan sayfalarda birleştirilir
+            // (bkz. KitsugiTaxonomyMerge / KitsugiTaxonomySources).
+            val genres = media.optJSONArray("genres")?.let { arr ->
+                buildList {
+                    for (i in 0 until arr.length()) {
+                        arr.optString(i).trim().takeIf { it.isNotEmpty() }?.let { add(it) }
+                    }
+                }
+            }.orEmpty()
+
+            val studios = buildList {
+                val edges = media.optJSONObject("studios")?.optJSONArray("edges") ?: return@buildList
+                for (i in 0 until edges.length()) {
+                    val edge = edges.optJSONObject(i) ?: continue
+                    val node = edge.optJSONObject("node") ?: continue
+                    val name = node.optString("name", "").trim()
+                    if (name.isEmpty()) continue
+                    add(
+                        KitsugiStudio(
+                            id = node.optInt("id", 0).takeIf { it > 0 } ?: 0,
+                            name = name,
+                            isMain = edge.optBoolean("isMain", false),
+                            source = "anilist",
+                            role = StudioRole.STUDIO
+                        )
+                    )
+                }
+            }
+
             val result = AniListTagsAndAiring(
                 aniListId = resolvedAlId,
                 malId = resolvedMalId,
                 tags = tags,
-                nextAiringEpisode = nextAiring
+                nextAiringEpisode = nextAiring,
+                genres = genres,
+                studios = studios
             )
             if (resolvedAlId != null) tagsAndAiringCache["$typePrefix:al:$resolvedAlId"] = result
             if (resolvedMalId != null) tagsAndAiringCache["$typePrefix:mal:$resolvedMalId"] = result

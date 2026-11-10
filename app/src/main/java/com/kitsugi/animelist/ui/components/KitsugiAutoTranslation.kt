@@ -105,7 +105,8 @@ fun rememberAutoTranslatedHtml(
             val result = com.kitsugi.animelist.utils.KitsugiHtmlTranslation.translateHtml(source) { segment ->
                 manager.translateWebPageText(
                     text = segment,
-                    sourceLang = "auto",
+                    // Wiki sayfa çevirisiyle aynı ayarlar: kaynak/hedef dil tercihi.
+                    sourceLang = com.kitsugi.animelist.utils.KitsugiTranslatePrefs.sourceLanguage.ifBlank { "auto" },
                     targetLang = com.kitsugi.animelist.utils.KitsugiTranslatePrefs.resolvedTarget()
                 )
             }

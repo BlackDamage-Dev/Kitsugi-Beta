@@ -15,8 +15,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -52,7 +51,7 @@ internal fun DetailPageLoadingSkeleton(
                         onClick = onBackClick,
                         modifier = Modifier.align(Alignment.TopStart).padding(start = 12.dp, top = 24.dp)
                     ) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack,
+                        Icon(Icons.ArrowBack,
                             contentDescription = stringResource(R.string.geri), tint = KitsugiColors.TextPrimary)
                     }
                     Column(

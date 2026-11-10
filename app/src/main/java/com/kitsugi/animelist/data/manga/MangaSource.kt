@@ -57,6 +57,29 @@ interface MangaSource {
      */
     val isArchive: Boolean get() = false
 
+    /** Generic site session page used as a fallback when an extension has no dedicated auth API. */
+    val webSessionUrl: String?
+        get() = baseUrl.takeIf { it.startsWith("http://") || it.startsWith("https://") }
+
+    /** Dedicated source-owned login/cookie or credential-preference capabilities, if any. */
+    suspend fun authentication(): MangaSourceAuthentication? = null
+
+    /** Null means the extension cannot report its current authorization state. */
+    suspend fun isAuthenticated(): Boolean? = null
+
+    suspend fun authenticatedUsername(): String? = null
+
+    /** Saves only fields declared by [MangaSourceAuthentication.credentialFields]. */
+    suspend fun saveCredentials(values: Map<String, String>) {
+        throw UnsupportedOperationException("$name hesap tercihlerini desteklemiyor")
+    }
+
+    /** Uygulama içine gömülü (APK silinemeyen) dahili kaynak mı? */
+    val isBuiltIn: Boolean get() = false
+
+    /** Tekil sayfa indirme zaman aşımı (ms). WebView/Turnstile kullanan kaynaklar artırabilir. */
+    val imageFetchTimeoutMs: Long get() = 30_000L
+
     /**
      * Sitedeki en güncel / popüler mangaların listesini döndürür.
      * Sayfalama için [page] parametresi kullanılır (1'den başlar).
@@ -67,6 +90,31 @@ interface MangaSource {
      * Arama terimi veya filtreye göre manga listesi döndürür.
      */
     suspend fun fetchSearchManga(page: Int, query: String): MangaSourceResult
+
+    /**
+     * Kaynak "Son Güncellemeler" rafını gerçekten destekliyor mu?
+     *
+     * Mihon/Keiyoushi eklentileri bu bilgiyi `supportsLatest` bayrağıyla verir.
+     * Kitsugi, eklenti portalındaki manga kaynağı için açılan **Keşfet** sayfasında
+     * bu rafı yalnızca bayrak `true` ise gösterir — böylece uydurma/yanlış
+     * sıralanmış bir liste kullanıcıya "son güncelleme" diye sunulmaz.
+     *
+     * Varsayılan `false`: raf gizlenir.
+     */
+    val supportsLatest: Boolean get() = false
+
+    /**
+     * Sitede son güncellenen / yeni bölüm eklenen mangaların listesini döndürür.
+     *
+     * Yalnızca [supportsLatest] `true` iken çağrılır. Varsayılan uygulama popüler
+     * listeye düşer; gerçek desteği olan kaynaklar (Mihon/Kotatsu adaptörleri)
+     * bunu kendi "latest" uçlarıyla ezer.
+     */
+    suspend fun fetchLatestManga(page: Int): MangaSourceResult = fetchPopularManga(page)
+
+    /** Select-filter indices are interpreted by the extension, never as server values. */
+    fun selectFilters(): List<MangaSelectFilter> = emptyList()
+    suspend fun fetchFilteredManga(page: Int, selections: Map<Int, Int>): MangaSourceResult = fetchPopularManga(page)
 
     /**
      * Verilen [mangaUrl] için detaylı manga bilgilerini çeker.
@@ -109,7 +157,7 @@ interface MangaSource {
             val response = networkHelper.client.newCall(request).execute()
             if (!response.isSuccessful) {
                 response.close()
-                throw java.io.IOException("HTTP error ${response.code} for $imageUrl")
+                throw java.io.IOException("HTTP error ${response.code}")
             }
             val body = response.body ?: throw java.io.IOException("Response body is null")
             object : java.io.FilterInputStream(body.byteStream()) {
@@ -122,17 +170,35 @@ interface MangaSource {
     }
 }
 
+data class MangaSourceCredentialField(
+    val key: String,
+    val title: String,
+    val value: String,
+    val isSecret: Boolean,
+)
+
+data class MangaSourceAuthentication(
+    /** Kotatsu's provider-owned login page. Never guessed by the UI. */
+    val loginUrl: String? = null,
+    /** Real ConfigurableSource credential fields exposed by a Mihon extension. */
+    val credentialFields: List<MangaSourceCredentialField> = emptyList(),
+)
+
+data class MangaSelectFilter(val index: Int, val name: String, val values: List<String>, val selected: Int)
+
 /**
  * Bir sorgu veya listeleme işleminin sonucunu taşır.
  */
 data class MangaSourceResult(
     val mangas: List<MangaDetails>,
-    val hasNextPage: Boolean
+    val hasNextPage: Boolean,
+    /** Kaynak hatası (varsa). Boş liste + hata ayırt edilebilsin diye. */
+    val error: String? = null
 )
 
 /**
  * F9: Captcha veya WebView doğrulaması gerektiren kaynaklarda fırlatılır.
- * MangaReaderViewModel / MangaPageLoader bu exception'ı yakalayıp
+ * MangaReaderViewModel / MangaPageLoaderV2 bu exception'ı yakalayıp
  * kullanıcıya anlamlı bir hata mesajı gösterebilir.
  */
 class CaptchaRequiredException(

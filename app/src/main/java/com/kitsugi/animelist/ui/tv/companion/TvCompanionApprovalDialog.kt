@@ -25,12 +25,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Extension
-import androidx.compose.material.icons.filled.LibraryAdd
-import androidx.compose.material.icons.filled.Warning
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import com.kitsugi.animelist.ui.theme.gradient.Text
 import androidx.compose.runtime.Composable
@@ -126,9 +121,9 @@ private fun ApprovalCard(
 
     // Determine visual metadata from action type
     val (actionIcon, actionLabel, accentColor) = when (request.action) {
-        "INSTALL_ADDON" -> Triple(Icons.Filled.Extension, "Eklenti Kurulumu", DialogAccent)
-        "ADD_REPO"      -> Triple(Icons.Filled.LibraryAdd, "Depo Ekleme", DialogOrange)
-        else            -> Triple(Icons.Filled.Warning, request.action, DialogSubtext)
+        "INSTALL_ADDON" -> Triple(Icons.Extension, "Eklenti Kurulumu", DialogAccent)
+        "ADD_REPO"      -> Triple(Icons.LibraryAdd, "Depo Ekleme", DialogOrange)
+        else            -> Triple(Icons.Warning, request.action, DialogSubtext)
     }
 
     Column(
@@ -229,7 +224,7 @@ private fun ApprovalCard(
                     focusedContentColor = Color.White
                 )
             ) {
-                Icon(Icons.Filled.Close, contentDescription = null, modifier = Modifier.size(18.dp))
+                Icon(Icons.Close, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
                 Text("Reddet", fontWeight = FontWeight.SemiBold)
             }
@@ -247,7 +242,7 @@ private fun ApprovalCard(
                     focusedContentColor = Color.White
                 )
             ) {
-                Icon(Icons.Filled.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
+                Icon(Icons.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
                 Text(stringResource(R.string.onayla), fontWeight = FontWeight.SemiBold)
             }

@@ -1,11 +1,11 @@
-package com.kitsugi.animelist.ui.screens.anime
+﻿package com.kitsugi.animelist.ui.screens.anime
 
 import androidx.compose.foundation.layout.Spacer
 import com.kitsugi.animelist.ui.components.PlatformErrorExplanationBlock
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
 import com.kitsugi.animelist.ui.theme.gradient.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -60,7 +60,7 @@ fun AnimeScreen(
 
     KitsugiPage(
         title = "Anime",
-        modifier = Modifier.verticalScroll(rememberScrollState())
+        modifier = Modifier.kitsugiVerticalScroll(rememberScrollState())
     ) {
         Spacer(modifier = Modifier.height(18.dp))
 

@@ -1,6 +1,7 @@
 package com.kitsugi.animelist.ui.screens.settings
 
 import com.kitsugi.animelist.ui.components.BackupImportMode
+import com.kitsugi.animelist.ui.components.addons.MangaBulkDeleteState
 import com.kitsugi.animelist.data.local.CloudstreamRepoEntity
 import com.kitsugi.animelist.data.local.CsPluginEntity
 import com.kitsugi.animelist.data.local.ManagedAddonEntity
@@ -18,6 +19,8 @@ class SettingsScreenParameters(
     val onOpenDownloads: (() -> Unit)? = null,
     val onOpenWatchHistory: (() -> Unit)? = null,
     val onExplorePlugin: ((String) -> Unit)? = null,
+    /** Eklenti portalındaki manga eklentisinin kendi Keşfet sayfasını açar. */
+    val onExploreMangaSource: ((com.kitsugi.animelist.data.manga.MangaSource) -> Unit)? = null,
     val onOpenPluginPicker: (() -> Unit)? = null,
     val onOpenAbout: (() -> Unit)? = null,
     val onSubPageOpenChange: ((Boolean) -> Unit)? = null,
@@ -37,7 +40,7 @@ data class GeneralSettings(
     val hideScores: Boolean,
     val showAnimeLogos: Boolean,
     // ─── AniHyou paritesi: eksik içerik/liste ayarları ─────────────────────
-    val staffNameLanguage: String = "ROMAJI",
+    val staffNameLanguage: String = "ENGLISH",
     val onStaffNameLanguageSelected: (String) -> Unit = {},
     val scoreStep: String = "1",
     val onScoreStepSelected: (String) -> Unit = {},
@@ -100,12 +103,17 @@ data class GeneralSettings(
     val onKitsuNotificationsChanged: (Boolean) -> Unit = {},
     val shikimoriNotificationsEnabled: Boolean = false,
     val onShikimoriNotificationsChanged: (Boolean) -> Unit = {},
+    val tmdbNotificationsEnabled: Boolean = false,
+    val onTmdbNotificationsChanged: (Boolean) -> Unit = {},
+    val bangumiNotificationsEnabled: Boolean = false,
+    val onBangumiNotificationsChanged: (Boolean) -> Unit = {},
     val isAniListConnected: Boolean = false,
     val isMalConnected: Boolean = false,
     val isSimklConnected: Boolean = false,
     val isKitsuConnected: Boolean = false,
     val isShikimoriConnected: Boolean = false,
     val isBangumiConnected: Boolean = false,
+    val isTmdbConnected: Boolean = false,
     val notificationInterval: Int = 180,
     val onNotificationIntervalChanged: (Int) -> Unit = {},
     val splashAnimationEnabled: Boolean = true,
@@ -120,10 +128,28 @@ data class GeneralSettings(
     val mangaColorFilter: String = "Normal",
     val mangaFitMode: String = "FitScreen",
     val mangaBrightness: Float = 1.0f,
+    val mangaKeepScreenOn: Boolean = true,
     val onMangaReadingModeSelected: (String) -> Unit = {},
     val onMangaColorFilterSelected: (String) -> Unit = {},
     val onMangaFitModeSelected: (String) -> Unit = {},
     val onMangaBrightnessChanged: (Float) -> Unit = {},
+    val onMangaKeepScreenOnChanged: (Boolean) -> Unit = {},
+    // ─── Kaynak arama dili (manga / manhwa / manhua / novel) ────────────────
+    /** "ENGLISH" | "ROMAJI" | "NATIVE" | "LOCAL" */
+    val mangaSearchTitleLanguage: String = "ENGLISH",
+    val onMangaSearchTitleLanguageSelected: (String) -> Unit = {},
+    /** Arama dili genel başlık dili ayarını takip etsin mi. */
+    val mangaSearchFollowTitleLanguage: Boolean = true,
+    val onMangaSearchFollowTitleLanguageChanged: (Boolean) -> Unit = {},
+    // Bölüm sıralaması / görünümü — liste 1'den başlasın diye kalıcı tercih.
+    val mangaChapterSort: String = "OldestFirst",
+    val mangaChapterDisplayMode: String = "Number",
+    val mangaSkipReadChapters: Boolean = false,
+    val mangaAutoAdvanceChapter: Boolean = false,
+    val onMangaChapterSortSelected: (String) -> Unit = {},
+    val onMangaChapterDisplayModeSelected: (String) -> Unit = {},
+    val onMangaSkipReadChaptersChanged: (Boolean) -> Unit = {},
+    val onMangaAutoAdvanceChapterChanged: (Boolean) -> Unit = {},
     // ─── Otomatik & Manuel Güncelleme Kontrolü ─────────────────────────
     val autoUpdateCheckEnabled: Boolean = true,
     val onAutoUpdateCheckEnabledChanged: (Boolean) -> Unit = {},
@@ -155,6 +181,12 @@ data class ProfileSettings(
     val simklUsername: String = "",
     val isSimklImportRunning: Boolean = false,
     val isSimklSessionExpired: Boolean = false,
+    /** `E95`: oturumu sunucu tarafında düşmüş diğer hesaplar (Ayarlar kartı "Oturum süresi doldu" gösterir). */
+    val isAniListSessionExpired: Boolean = false,
+    val isMalSessionExpired: Boolean = false,
+    val isKitsuSessionExpired: Boolean = false,
+    val isShikimoriSessionExpired: Boolean = false,
+    val isBangumiSessionExpired: Boolean = false,
     val onProfileInfoSave: (profileName: String, listTitle: String) -> Unit,
     val onPickProfileImageClick: () -> Unit,
     val onPickBannerImageClick: () -> Unit,
@@ -222,7 +254,15 @@ data class ProfileSettings(
     val onBangumiImportClick: () -> Unit = {},
     val syncEnabledBangumi: Boolean = false,
     val onSyncEnabledBangumiChanged: (Boolean) -> Unit = {},
-    val onLoginBangumi: (clientId: String, clientSecret: String, authCode: String, onComplete: (Boolean, String?) -> Unit) -> Unit = { _, _, _, _ -> }
+    val onLoginBangumi: (clientId: String, clientSecret: String, authCode: String, onComplete: (Boolean, String?) -> Unit) -> Unit = { _, _, _, _ -> },
+    // TMDB user watchlist import is deliberately separate from catalog metadata.
+    val isTmdbConnected: Boolean = false,
+    val tmdbUsername: String = "",
+    val isTmdbImportRunning: Boolean = false,
+    val onTmdbAuthClick: () -> Unit = {},
+    val onTmdbImportClick: () -> Unit = {},
+    val syncEnabledTmdb: Boolean = false,
+    val onSyncEnabledTmdbChanged: (Boolean) -> Unit = {}
 )
 
 data class PlayerSettings(
@@ -358,6 +398,13 @@ data class MangaSettings(
     val mangaSources: List<com.kitsugi.animelist.data.manga.MangaSource> = emptyList(),
     val onInstallMangaExtension: (android.net.Uri) -> Unit = {},
     val onDeleteMangaExtension: (com.kitsugi.animelist.data.manga.MangaSource) -> Unit = {},
+    /** Kurulu tüm manga eklentilerini kaldırır (video eklentileriyle parite). */
+    val onUninstallAllMangaExtensions: () -> Unit = {},
+    val onDeleteMangaExtensions: (List<com.kitsugi.animelist.data.manga.MangaSource>, (Int) -> Unit) -> Unit = { sources, done -> done(sources.size) },
+    val onGetMangaSourceEnabled: (com.kitsugi.animelist.data.manga.MangaSource) -> Boolean = { true },
+    val onToggleMangaSource: (com.kitsugi.animelist.data.manga.MangaSource, Boolean) -> Unit = { _, _ -> },
+    /** Manga > Kurulu "Toplu Sil" durumu. Null ise buton gösterilmez. */
+    val mangaBulkDelete: MangaBulkDeleteState? = null,
     val mangaRepos: List<String> = emptyList(),
     val mangaRepoExtensions: Map<String, List<com.kitsugi.animelist.data.remote.MangaExtensionInfo>?> = emptyMap(),
     val mangaRepoLoadingState: Map<String, Boolean> = emptyMap(),
@@ -410,7 +457,7 @@ data class IntegrationsSettings(
     val onTmdbModernHomeEnabledChanged: (Boolean) -> Unit = {},
     val tmdbEnrichContinueWatching: Boolean = true,
     val onTmdbEnrichContinueWatchingChanged: (Boolean) -> Unit = {},
-    val tmdbLanguage: String = "en",
+    val tmdbLanguage: String = "tr",
     val onTmdbLanguageChanged: (String) -> Unit = {},
     val tmdbUseArtwork: Boolean = true,
     val onTmdbUseArtworkChanged: (Boolean) -> Unit = {},
@@ -472,7 +519,42 @@ data class IntegrationsSettings(
     val fanartTvEnabled: Boolean = false,
     val onFanartTvEnabledChanged: (Boolean) -> Unit = {},
     val fanartTvApiKey: String = "",
-    val onFanartTvApiKeyChanged: (String) -> Unit = {}
+    val onFanartTvApiKeyChanged: (String) -> Unit = {},
+    // ─── Okuyucu Ortam Sesi (Ambient) ───────────────────────────────────────
+    val musicEnabled: Boolean = true,
+    val onMusicEnabledChanged: (Boolean) -> Unit = {},
+    val musicAutoRecommend: Boolean = true,
+    val onMusicAutoRecommendChanged: (Boolean) -> Unit = {},
+    val musicAutoPlay: Boolean = false,
+    val onMusicAutoPlayChanged: (Boolean) -> Unit = {},
+    val musicAutoPlayDelay: Int = 3,
+    val onMusicAutoPlayDelayChanged: (Int) -> Unit = {},
+    val musicContinueOnExit: Boolean = true,
+    val onMusicContinueOnExitChanged: (Boolean) -> Unit = {},
+    val musicMasterVolume: Float = 0.8f,
+    val onMusicMasterVolumeChanged: (Float) -> Unit = {},
+    val musicChannelVolume: Float = 0.5f,
+    val onMusicChannelVolumeChanged: (Float) -> Unit = {},
+    val musicAmbientVolume: Float = 0.6f,
+    val onMusicAmbientVolumeChanged: (Float) -> Unit = {},
+    val musicJamendoEnabled: Boolean = false,
+    val onMusicJamendoEnabledChanged: (Boolean) -> Unit = {},
+    val musicJamendoClientId: String = "",
+    val onMusicJamendoClientIdChanged: (String) -> Unit = {},
+    val musicFreesoundEnabled: Boolean = false,
+    val onMusicFreesoundEnabledChanged: (Boolean) -> Unit = {},
+    val musicFreesoundApiKey: String = "",
+    val onMusicFreesoundApiKeyChanged: (String) -> Unit = {},
+    val musicOpenverseEnabled: Boolean = true,
+    val onMusicOpenverseEnabledChanged: (Boolean) -> Unit = {},
+    val musicOpenverseToken: String = "",
+    val onMusicOpenverseTokenChanged: (String) -> Unit = {},
+    val musicArchiveEnabled: Boolean = true,
+    val onMusicArchiveEnabledChanged: (Boolean) -> Unit = {},
+    val musicAudiusEnabled: Boolean = true,
+    val onMusicAudiusEnabledChanged: (Boolean) -> Unit = {},
+    val musicAudiusApiKey: String = "",
+    val onMusicAudiusApiKeyChanged: (String) -> Unit = {}
 )
 
 data class DownloadSettings(

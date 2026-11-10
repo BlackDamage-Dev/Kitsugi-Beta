@@ -1,9 +1,12 @@
 package com.kitsugi.animelist.ui.screens.mylist
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.FormatListBulleted
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.ui.Alignment
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -26,6 +29,7 @@ internal fun MyListNotConnectedState(
         MY_LIST_KITSU_TAB_INDEX -> "Kitsu"
         MY_LIST_SHIKIMORI_TAB_INDEX -> "Shikimori"
         MY_LIST_BANGUMI_TAB_INDEX -> "Bangumi"
+        MY_LIST_TMDB_TAB_INDEX -> "TMDB"
         else -> "Kitsugi"
     }
     val simklSessionExpired = selectedTabIndex == MY_LIST_SIMKL_TAB_INDEX && isSimklSessionExpired
@@ -50,7 +54,15 @@ internal fun MyListSyncPromptState() {
     KitsugiEmptyState(
         title = stringResource(R.string.listeniz_bos),
         subtitle = stringResource(R.string.hesabinizdaki_verileri_cekmek_icin_senkronize_et_butonunu_kullan),
-        icon = Icons.Rounded.FormatListBulleted
+        icon = Icons.FormatListBulleted
     )
     Spacer(modifier = Modifier.height(90.dp))
+}
+
+/** A pending Room/identity calculation is not an empty library. */
+@Composable
+internal fun MyListLoadingState() {
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        CircularProgressIndicator()
+    }
 }

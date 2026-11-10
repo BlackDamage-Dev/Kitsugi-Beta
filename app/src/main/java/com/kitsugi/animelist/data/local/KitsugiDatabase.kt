@@ -19,14 +19,16 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         MangaChapterProgressEntity::class,  // ✨ Manga okuma ilerlemesi
         MangaSourceStateEntity::class,       // ✨ Manga source sağlık / istatistik
         MangaMappingEntity::class,
+        MangaReadHistoryEntity::class,        // 📖 Okunan manga/novel bölüm geçmişi
         SearchHistoryEntity::class,
         HistoryEntity::class,                 // 🎬 İzleme geçmişi
         VideoEntity::class,                  // 📹 Video cache/çözümleme
         ExploreCacheEntity::class,           // 📂 Explore page cache
         PersistentDetailCacheEntity::class,  // 📂 Media details cache
-        CustomButton::class
+        CustomButton::class,
+        MangaLibraryEntity::class              // 📚 Manga kitaplığı (takip edilen seriler)
     ],
-    version = 29,
+    version = 35,
     exportSchema = true  // T3-03/TASK-106: KSP → $projectDir/schemas/ konumuna yazar
 )
 abstract class KitsugiDatabase : RoomDatabase() {
@@ -40,12 +42,14 @@ abstract class KitsugiDatabase : RoomDatabase() {
     abstract fun mangaChapterProgressDao(): MangaChapterProgressDao  // ✨ Manga okuma ilerlemesi
     abstract fun mangaSourceStateDao(): MangaSourceStateDao         // ✨ Manga source sağlık / istatistik
     abstract fun mangaMappingDao(): MangaMappingDao
+    abstract fun mangaReadHistoryDao(): MangaReadHistoryDao          // 📖 Okunan bölüm geçmişi
     abstract fun searchHistoryDao(): SearchHistoryDao
     abstract fun historyDao(): HistoryDao                           // 🎬 İzleme geçmişi
     abstract fun videoDao(): VideoDao                               // 📹 Video cache/çözümleme
     abstract fun exploreCacheDao(): ExploreCacheDao
     abstract fun persistentDetailCacheDao(): PersistentDetailCacheDao
     abstract fun customButtonDao(): CustomButtonDao
+    abstract fun mangaLibraryDao(): MangaLibraryDao                  // 📚 Manga kitaplığı
 
 
     companion object {
@@ -403,6 +407,125 @@ abstract class KitsugiDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v30: `media_entries.addedAt` — kaydın listeye EKLENME zamanı (epoch sn).
+         *
+         * "Son eklenen" bugüne kadar yerel satır `id`'sine göre sıralanıyordu; toplu
+         * içe aktarımda bu, kullanıcının ekleme sırası değil API sayfa sırasıdır
+         * (AniList: MEDIA_ID). Mevcut satırlar için en iyi tahmin olarak `updatedAt`
+         * geri doldurulur (Bangumi'nin milisaniye yazdığı satırlar saniyeye çevrilir);
+         * AniList/Kitsu/Shikimori bir sonraki eşitlemede gerçek `createdAt` ile
+         * bu tahmini düzeltir. Bkz. COZUM_RAPORU_LISTEM_SIRALAMA_SON_EKLENEN_2026-10-23.md
+         */
+        private val MIGRATION_29_30 = object : Migration(29, 30) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE media_entries ADD COLUMN addedAt INTEGER NOT NULL DEFAULT 0")
+                db.execSQL(
+                    "UPDATE media_entries SET addedAt = " +
+                        "CASE WHEN updatedAt > 100000000000 THEN updatedAt / 1000 ELSE updatedAt END " +
+                        "WHERE updatedAt > 0"
+                )
+            }
+        }
+
+        /**
+         * v31: `media_entries.tmdbWatchlist` & `media_entries.tmdbRating`.
+         * Native TMDB Watchlist üyeliği ve yarım puan (0.5..10) saklama desteği.
+         */
+        private val MIGRATION_30_31 = object : Migration(30, 31) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Native TMDB Watchlist membership is independent from Kitsugi WatchStatus.
+                db.execSQL("ALTER TABLE media_entries ADD COLUMN tmdbWatchlist INTEGER DEFAULT NULL")
+                db.execSQL("ALTER TABLE media_entries ADD COLUMN tmdbRating REAL DEFAULT NULL")
+            }
+        }
+
+        private val MIGRATION_29_31 = object : Migration(29, 31) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_29_30.migrate(db)
+                MIGRATION_30_31.migrate(db)
+            }
+        }
+
+        /**
+         * v32: Otomatik liste takibi (`watch_history.watched`).
+         *
+         * `watch_history.watched`, "bu bölüm izleme eşiğini geçti mi?" sorusunun kalıcı
+         * cevabıdır. Otomatik takip (`AutoTrackPolicy`) bölüm tamamlandığında bu bayrağı
+         * yazar; böylece aynı bölüm ikinci kez ilerlemeye sayılmaz ve "kaldığı yerden
+         * devam et" satırı izlenmiş bölümü tekrar önermez. Eski satırlar `0` (izlenmedi)
+         * olarak gelir — geçmiş konumları korunur.
+         */
+        private val MIGRATION_31_32 = object : Migration(31, 32) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE watch_history ADD COLUMN watched INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
+        private val MIGRATION_32_33 = object : Migration(32, 33) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // 📖 Okunan manga/novel bölüm geçmişi — geçmiş sayfasının "okunan" sekmesini besler.
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `manga_read_history` (
+                        `id` TEXT NOT NULL,
+                        `sourceName` TEXT NOT NULL,
+                        `mangaUrl` TEXT NOT NULL,
+                        `mangaTitle` TEXT NOT NULL,
+                        `thumbnailUrl` TEXT,
+                        `chapterUrl` TEXT NOT NULL,
+                        `chapterName` TEXT NOT NULL,
+                        `lastPageIndex` INTEGER NOT NULL,
+                        `totalPages` INTEGER NOT NULL,
+                        `isCompleted` INTEGER NOT NULL,
+                        `updatedAt` INTEGER NOT NULL,
+                        PRIMARY KEY(`id`)
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `idx_read_history_mangaUrl` ON `manga_read_history` (`mangaUrl`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `idx_read_history_updatedAt` ON `manga_read_history` (`updatedAt`)")
+            }
+        }
+
+        /**
+         * 33 → 34: manga kitaplığı tablosu.
+         *
+         * Kullanıcı bir seriyi kitaplığa eklediğinde kaynak adı + URL + kategori tutulur.
+         * Mevcut kurulumlarda tablo yoksa oluşturulur; veri kaybı yok.
+         */
+        private val MIGRATION_33_34 = object : Migration(33, 34) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `manga_library` (
+                        `id` TEXT NOT NULL,
+                        `sourceName` TEXT NOT NULL,
+                        `url` TEXT NOT NULL,
+                        `title` TEXT NOT NULL,
+                        `thumbnailUrl` TEXT,
+                        `author` TEXT,
+                        `category` TEXT NOT NULL DEFAULT '',
+                        `totalChapters` INTEGER NOT NULL DEFAULT 0,
+                        `readChapters` INTEGER NOT NULL DEFAULT 0,
+                        `lastChapterName` TEXT,
+                        `lastChapterUrl` TEXT,
+                        `updatedAt` INTEGER NOT NULL,
+                        PRIMARY KEY(`id`)
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `idx_manga_library_updatedAt` ON `manga_library` (`updatedAt`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `idx_manga_library_category` ON `manga_library` (`category`)")
+            }
+        }
+
+        internal val MIGRATION_34_35 = object : Migration(34, 35) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE manga_chapter_progress ADD COLUMN lastPageOffset REAL NOT NULL DEFAULT 0")
+            }
+        }
+
         fun getDatabase(context: Context): KitsugiDatabase {
             return INSTANCE ?: synchronized(this) {
                 val builder = Room.databaseBuilder(
@@ -437,7 +560,14 @@ abstract class KitsugiDatabase : RoomDatabase() {
                         MIGRATION_25_26,
                         MIGRATION_26_27,
                         MIGRATION_27_28,
-                        MIGRATION_28_29
+                        MIGRATION_28_29,
+                        MIGRATION_29_30,  // 📅 Listeye eklenme zamanı (addedAt)
+                        MIGRATION_30_31,  // 🎬 TMDB Watchlist & Rating
+                        MIGRATION_29_31,
+                        MIGRATION_31_32,  // 🎬 Otomatik liste takibi (izlendi bayrağı)
+                        MIGRATION_32_33,  // 📖 Okunan bölüm geçmişi
+                        MIGRATION_33_34,  // 📚 Manga kitaplığı
+                        MIGRATION_34_35   // 📐 Webtoon görsel içi kesirli ilerleme (lastPageOffset)
                     )
                 
                 // T3-03: Güvenlik sertleştirmesi — Üretim sürümünde verilerin kazara sıfırlanmasını engeller.

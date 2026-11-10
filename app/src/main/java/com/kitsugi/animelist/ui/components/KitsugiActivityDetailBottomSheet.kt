@@ -1,5 +1,6 @@
 package com.kitsugi.animelist.ui.components
 import com.kitsugi.animelist.ui.theme.gradient.CircularProgressIndicator
+import com.kitsugi.animelist.ui.utils.uniqueItems
 import com.kitsugi.animelist.utils.KitsugiTranslateUtils
 import com.kitsugi.animelist.utils.KitsugiTranslatePrefs
 import com.kitsugi.animelist.ui.components.KitsugiButton
@@ -16,9 +17,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.Reply
-import androidx.compose.material.icons.rounded.*
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -51,7 +50,7 @@ import com.kitsugi.animelist.utils.KitsugiStrings
 fun KitsugiActivityDetailBottomSheet(
     activityId: Int,
     apiClient: JikanApiClient,
-    titleLanguage: String = "ROMAJI",
+    titleLanguage: String = "ENGLISH",
     blurAdultMedia: Boolean = false,
     onUserProfileClick: ((userId: Int?, username: String, avatarUrl: String?, source: String) -> Unit)? = null,
     onMediaClick: ((mediaId: Int, mediaType: com.kitsugi.animelist.model.MediaType, source: String) -> Unit)? = null,
@@ -156,7 +155,7 @@ fun KitsugiActivityDetailBottomSheet(
                     )
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.Close,
+                        imageVector = Icons.Close,
                         contentDescription = stringResource(R.string.kapat),
                         tint = KitsugiColors.TextPrimary
                     )
@@ -245,7 +244,7 @@ fun KitsugiActivityDetailBottomSheet(
                             modifier = Modifier.size(36.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Rounded.ContentCopy,
+                                imageVector = Icons.ContentCopy,
                                 contentDescription = stringResource(R.string.action_copy),
                                 tint = KitsugiColors.TextSecondary
                             )
@@ -461,7 +460,7 @@ fun KitsugiActivityDetailBottomSheet(
                             }
                         }
                     } else {
-                        items(act.replies, key = { reply -> reply.id }) { reply ->
+                        uniqueItems(act.replies, key = { reply -> reply.id }) { reply ->
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -562,7 +561,7 @@ fun KitsugiActivityDetailBottomSheet(
                                             modifier = Modifier.size(28.dp)
                                         ) {
                                             Icon(
-                                                imageVector = Icons.Rounded.ContentCopy,
+                                                imageVector = Icons.ContentCopy,
                                                 contentDescription = stringResource(R.string.action_copy),
                                                 tint = KitsugiColors.TextSecondary,
                                                 modifier = Modifier.size(16.dp)
@@ -591,7 +590,7 @@ fun KitsugiActivityDetailBottomSheet(
                                             .padding(horizontal = 8.dp, vertical = 4.dp)
                                     ) {
                                         Icon(
-                                            imageVector = if (repLikedState) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                                            imageVector = if (repLikedState) Icons.Favorite else Icons.FavoriteBorder,
                                             contentDescription = stringResource(R.string.begen),
                                             tint = if (repLikedState) accentColor else KitsugiColors.TextSecondary,
                                             modifier = Modifier.size(16.dp)
@@ -643,7 +642,7 @@ fun KitsugiActivityDetailBottomSheet(
                         modifier = Modifier.weight(0.4f)
                     ) {
                         Icon(
-                            imageVector = if (isActLikedState) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                            imageVector = if (isActLikedState) Icons.Favorite else Icons.FavoriteBorder,
                             contentDescription = stringResource(R.string.begen),
                             tint = if (isActLikedState) accentColor else KitsugiColors.TextPrimary
                         )
@@ -663,7 +662,7 @@ fun KitsugiActivityDetailBottomSheet(
                         modifier = Modifier.weight(0.6f)
                     ) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Rounded.Reply,
+                            imageVector = Icons.Reply,
                             contentDescription = stringResource(R.string.yanitla),
                             tint = KitsugiColors.Background
                         )

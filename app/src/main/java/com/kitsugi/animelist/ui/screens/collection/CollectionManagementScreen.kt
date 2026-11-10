@@ -4,8 +4,7 @@ import com.kitsugi.animelist.ui.components.KitsugiButton
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.*
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -49,19 +48,19 @@ fun CollectionManagementScreen(
                 title = { Text(stringResource(R.string.inline_my_collections_ff95e62), fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Rounded.ArrowBack, contentDescription = stringResource(R.string.geri))
+                        Icon(Icons.ArrowBack, contentDescription = stringResource(R.string.geri))
                     }
                 },
                 actions = {
                     IconButton(onClick = onCreateCollection) {
-                        Icon(Icons.Rounded.Add, contentDescription = stringResource(R.string.yeni_koleksiyon))
+                        Icon(Icons.Add, contentDescription = stringResource(R.string.yeni_koleksiyon))
                     }
                 }
             )
         },
         floatingActionButton = {
             FloatingActionButton(onClick = onCreateCollection) {
-                Icon(Icons.Rounded.Add, contentDescription = stringResource(R.string.yeni_koleksiyon))
+                Icon(Icons.Add, contentDescription = stringResource(R.string.yeni_koleksiyon))
             }
         },
         modifier = modifier
@@ -77,7 +76,7 @@ fun CollectionManagementScreen(
                 KitsugiEmptyState(
                     title = stringResource(R.string.henuz_koleksiyon_yok),
                     subtitle = stringResource(R.string.favori_iceriklerini_duzenlemek_icin_koleksiyon_olustur),
-                    icon = Icons.Rounded.FolderOpen,
+                    icon = Icons.FolderOpen,
                     actionText = stringResource(R.string.koleksiyon_olustur),
                     onActionClick = onCreateCollection
                 )
@@ -112,7 +111,7 @@ fun CollectionManagementScreen(
     showDeleteDialog?.let { folder ->
         AlertDialog(
             onDismissRequest = { showDeleteDialog = null },
-            icon = { Icon(Icons.Rounded.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+            icon = { Icon(Icons.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
             title = { Text(stringResource(R.string.koleksiyonu_sil)) },
             text = { Text(stringResource(R.string.x_x_koleksiyonu_kalici_olarak_silinecek_icindeki_x_oge_listeden, folder.emoji, folder.name, folder.itemCount)) },
             confirmButton = {
@@ -150,7 +149,7 @@ private fun CollectionFolderRow(
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(folder.name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
                         if (folder.isPrivate) {
-                            Icon(Icons.Rounded.Lock, contentDescription = "Gizli", modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Icon(Icons.Lock, contentDescription = "Gizli", modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                     Text(stringResource(R.string.inline_1_s_items_2d83e8a, folder.itemCount), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -158,9 +157,9 @@ private fun CollectionFolderRow(
             }
             Row {
                 IconButton(onClick = onDelete) {
-                    Icon(Icons.Rounded.DeleteOutline, contentDescription = stringResource(R.string.action_delete), tint = MaterialTheme.colorScheme.error)
+                    Icon(Icons.DeleteOutline, contentDescription = stringResource(R.string.action_delete), tint = MaterialTheme.colorScheme.error)
                 }
-                Icon(Icons.Rounded.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Icon(Icons.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }

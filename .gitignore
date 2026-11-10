@@ -1,6 +1,7 @@
 *.iml
 .gradle
 .kotlin/
+.gemini/
 /local.properties
 .idea/
 .DS_Store
@@ -56,3 +57,4 @@ __pycache__/
 
 # Isolated PostgreSQL account regression tests
 /scripts/account-tests/node_modules/
+/Kitsugi-Manga-Plugins/

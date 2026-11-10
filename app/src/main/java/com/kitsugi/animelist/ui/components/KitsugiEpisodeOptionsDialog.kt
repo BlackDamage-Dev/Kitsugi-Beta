@@ -13,10 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Language
-import androidx.compose.material.icons.rounded.PlayCircle
-import androidx.compose.material.icons.rounded.Search
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.AlertDialog
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.MaterialTheme
@@ -34,8 +31,6 @@ import androidx.compose.ui.unit.dp
 import com.kitsugi.animelist.ui.theme.LocalKitsugiAccent
 import com.kitsugi.animelist.ui.theme.KitsugiColors
 import java.net.URLEncoder
-import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.Download
 import com.kitsugi.animelist.ui.screens.stream.KitsugiStreamActivity
 import com.kitsugi.animelist.model.MediaType
 import androidx.compose.ui.res.stringResource
@@ -53,6 +48,7 @@ fun KitsugiEpisodeOptionsDialog(
     aniListId: Int? = null,
     tmdbId: Int? = null,
     bangumiId: Int? = null,
+    imdbId: String? = null,
     posterUrl: String? = null,
     titleEnglish: String? = null,
     titleRomaji: String? = null,
@@ -125,7 +121,7 @@ fun KitsugiEpisodeOptionsDialog(
                 // 0. Akış Eklentileri ile İzle
                 if (episodeNumber != null) {
                     EpisodeOptionRow(
-                        icon = Icons.Rounded.PlayArrow,
+                        icon = Icons.PlayArrow,
                         title = KitsugiStrings.get(R.string.akis_eklentileri_ile_izle),
                         description = KitsugiStrings.get(R.string.torrent_ve_realdebrid_akislarini_cozumler),
                         onClick = {
@@ -135,6 +131,7 @@ fun KitsugiEpisodeOptionsDialog(
                                 aniListId = aniListId,
                                 tmdbId = tmdbId,
                                 bangumiId = bangumiId,
+                                imdbId = imdbId,
                                 episode = episodeNumber,
                                 season = seasonNumber,
                                 isMovie = isMovie,
@@ -155,7 +152,7 @@ fun KitsugiEpisodeOptionsDialog(
                 // 0b. Bölümü İndir
                 if (episodeNumber != null) {
                     EpisodeOptionRow(
-                        icon = Icons.Rounded.Download,
+                        icon = Icons.Download,
                         title = KitsugiStrings.get(R.string.bolumu_indir),
                         description = KitsugiStrings.get(R.string.akis_eklentileri_araciligiyla_bolumu_indirir),
                         onClick = {
@@ -165,6 +162,7 @@ fun KitsugiEpisodeOptionsDialog(
                                 aniListId = aniListId,
                                 tmdbId = tmdbId,
                                 bangumiId = bangumiId,
+                                imdbId = imdbId,
                                 episode = episodeNumber,
                                 season = seasonNumber,
                                 isMovie = isMovie,
@@ -187,7 +185,7 @@ fun KitsugiEpisodeOptionsDialog(
                 if (!originalUrl.isNullOrBlank()) {
                     val label = if (!siteName.isNullOrBlank()) KitsugiStrings.get(R.string.resmi_izleme_adresi_x, siteName) else "Resmi Sayfaya Git"
                     EpisodeOptionRow(
-                        icon = Icons.Rounded.PlayCircle,
+                        icon = Icons.PlayCircle,
                         title = label,
                         description = KitsugiStrings.get(R.string.lisans_sahibi_platformda_izle),
                         onClick = { openUrl(originalUrl) }
@@ -198,7 +196,7 @@ fun KitsugiEpisodeOptionsDialog(
                 val ytQuery = URLEncoder.encode("$fullTitle English Sub", "UTF-8")
                 val ytUrl = "https://www.youtube.com/results?search_query=$ytQuery"
                 EpisodeOptionRow(
-                    icon = Icons.Rounded.Search,
+                    icon = Icons.Search,
                     title = KitsugiStrings.get(R.string.youtube_da_ara),
                     description = KitsugiStrings.get(R.string.klipler_incelemeler_veya_fragmanlar_icin_arat),
                     onClick = { openUrl(ytUrl) }
@@ -208,7 +206,7 @@ fun KitsugiEpisodeOptionsDialog(
                 val googleQuery = URLEncoder.encode("Watch $fullTitle English Sub", "UTF-8")
                 val googleUrl = "https://www.google.com/search?q=$googleQuery"
                 EpisodeOptionRow(
-                    icon = Icons.Rounded.Language,
+                    icon = Icons.Language,
                     title = KitsugiStrings.get(R.string.google_da_ara_ingilizce),
                     description = KitsugiStrings.get(R.string.yabanci_dizi_anime_sitelerinde_arat),
                     onClick = { openUrl(googleUrl) }
@@ -218,7 +216,7 @@ fun KitsugiEpisodeOptionsDialog(
                 val trQuery = URLEncoder.encode("$fullTitle Türkçe altyazılı izle", "UTF-8")
                 val trUrl = "https://www.google.com/search?q=$trQuery"
                 EpisodeOptionRow(
-                    icon = Icons.Rounded.Language,
+                    icon = Icons.Language,
                     title = KitsugiStrings.get(R.string.turkce_altyazili_ara),
                     description = KitsugiStrings.get(R.string.turkce_anime_izleme_sitelerinde_arat),
                     onClick = { openUrl(trUrl) }

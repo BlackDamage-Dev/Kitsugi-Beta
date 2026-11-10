@@ -114,7 +114,8 @@ class StudioDetailViewModel(application: Application) : AndroidViewModel(applica
                         )
                     } else {
                         cancelAboutTranslation()
-                        _translatedAbout.value = rawAbout
+                        // Orijinal metin "çeviri" olarak işaretlenmez.
+                        _translatedAbout.value = null
                     }
                 }
             }
@@ -135,15 +136,19 @@ class StudioDetailViewModel(application: Application) : AndroidViewModel(applica
         }
         val identity = studioCacheIdentity(name)
         if (!forceRetranslate) {
-            val cachedTr = DetailCache.getTranslation("studio_about", source, studioId, identity)
-                ?: DetailCache.getTranslation("studio_about", source, studioId)
-            if (!cachedTr.isNullOrBlank()) {
+            val cachedTr = DetailCache.getTranslation(
+                "studio_about", source, studioId, identity, sourceText = rawAbout
+            ) ?: DetailCache.getTranslation("studio_about", source, studioId, sourceText = rawAbout)
+            if (!cachedTr.isNullOrBlank() &&
+                !com.kitsugi.animelist.utils.translationMatchesSource(rawAbout, cachedTr)
+            ) {
                 _translatedAbout.value = cachedTr
                 return
             }
         }
 
-        _translatedAbout.value = rawAbout
+        // Orijinal metni "çeviri" gibi işaretlemeyiz; düğme yalnızca gerçek çeviri varken çıkar.
+        _translatedAbout.value = null
         aboutTranslateJob?.cancel()
         val generation = ++translationGeneration
         aboutTranslateJob = viewModelScope.launch {
@@ -157,17 +162,24 @@ class StudioDetailViewModel(application: Application) : AndroidViewModel(applica
                 _translationLoading.value = true
                 val tr = withContext(Dispatchers.IO) {
                     translationManager.translateToTarget(rawAbout) { partial ->
-                        if (currentFetchKey == expectedFetchKey && partial.isNotBlank()) {
+                        if (currentFetchKey == expectedFetchKey &&
+                            partial.isNotBlank() &&
+                            !com.kitsugi.animelist.utils.translationMatchesSource(rawAbout, partial)
+                        ) {
                             _translatedAbout.value = partial
                         }
                     }
                 }
                 if (currentFetchKey == expectedFetchKey && !tr.isNullOrBlank()) {
-                    if (tr != rawAbout) {
-                        DetailCache.putTranslation("studio_about", source, studioId, tr, identity)
-                        if (studioId > 0) {
-                            DetailCache.putTranslation("studio_about", source, studioId, tr)
-                        }
+                    if (com.kitsugi.animelist.utils.translationMatchesSource(rawAbout, tr)) {
+                        DetailCache.removeTranslation("studio_about", source, studioId, identity)
+                        DetailCache.removeTranslation("studio_about", source, studioId)
+                        _translatedAbout.value = null
+                        return@launch
+                    }
+                    DetailCache.putTranslation("studio_about", source, studioId, tr, identity, sourceText = rawAbout)
+                    if (studioId > 0) {
+                        DetailCache.putTranslation("studio_about", source, studioId, tr, sourceText = rawAbout)
                     }
                     _translatedAbout.value = tr
                 }
@@ -221,11 +233,16 @@ class StudioDetailViewModel(application: Application) : AndroidViewModel(applica
         val identity = studioCacheIdentity(lastStudioName)
         val cachedStudioDetail = DetailCache.getStudioDetail(source, studioId, identity)
             ?.takeIf { matchesExpectedStudio(source, lastStudioName, it.name) }
-        val cachedAboutTr = DetailCache.getTranslation("studio_about", source, studioId, identity)
-            ?: DetailCache.getTranslation("studio_about", source, studioId)
+        val cachedAbout = cachedStudioDetail?.about
+        val cachedAboutTr = DetailCache.getTranslation(
+            "studio_about", source, studioId, identity, sourceText = cachedAbout
+        ) ?: DetailCache.getTranslation("studio_about", source, studioId, sourceText = cachedAbout)
 
         _state.value = if (cachedStudioDetail != null) StudioDetailState.Success(cachedStudioDetail) else StudioDetailState.Loading
-        _translatedAbout.value = cachedAboutTr ?: cachedStudioDetail?.about
+        _translatedAbout.value = cachedAboutTr?.takeIf { tr ->
+            cachedAbout == null || cachedAbout.isBlank() ||
+                !com.kitsugi.animelist.utils.translationMatchesSource(cachedAbout, tr)
+        }
         if (cachedStudioDetail != null) _isFavourite.value = cachedStudioDetail.isFavourite
 
         galleryTracker.reset()
@@ -329,11 +346,18 @@ class StudioDetailViewModel(application: Application) : AndroidViewModel(applica
                 _galleryItems.value = emptyList()
             }
         } else {
+            // Kaynak HATA FIRLATMADAN boş döndüyse (tüm aramalar "bulunamadı") kod
+            // "Sınıflandırılamayan hata" (KTS-COM-1020) değil, doğru teşhisi veren
+            // "Eşleşme bulunamadı" (KTS-COM-1021) olmalı: kullanıcı ağ hatası sanmasın.
+            val recentFailure = com.kitsugi.animelist.data.platform.PlatformFailureRegistry
+                .latest(source)?.code
+            val errorCode = recentFailure
+                ?: com.kitsugi.animelist.data.platform.PlatformErrorCode.COM_1021
             _state.value = StudioDetailState.Error(
                 com.kitsugi.animelist.KitsugiApplication.getInstance()
                     ?.getString(com.kitsugi.animelist.R.string.studio_page_load_failed)
                     ?: "Stüdyo detayları yüklenemedi.",
-                com.kitsugi.animelist.data.platform.PlatformFailureRegistry.currentOrUnknown(source),
+                errorCode,
             )
         }
     }
@@ -384,9 +408,16 @@ class StudioDetailViewModel(application: Application) : AndroidViewModel(applica
             val tr = withContext(Dispatchers.IO) {
                 translationManager.translateToTarget(raw)
             }
-            if (!tr.isNullOrBlank() && tr != raw) {
-                DetailCache.putTranslation("studio_about", lastSource, lastStudioId, tr)
-                _translatedAbout.value = tr
+            if (!tr.isNullOrBlank()) {
+                if (com.kitsugi.animelist.utils.translationMatchesSource(raw, tr)) {
+                    DetailCache.removeTranslation("studio_about", lastSource, lastStudioId)
+                    _translatedAbout.value = null
+                } else {
+                    DetailCache.putTranslation(
+                        "studio_about", lastSource, lastStudioId, tr, sourceText = raw
+                    )
+                    _translatedAbout.value = tr
+                }
             }
         }
     }

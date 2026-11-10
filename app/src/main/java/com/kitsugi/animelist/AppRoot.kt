@@ -102,6 +102,7 @@ import com.kitsugi.animelist.ui.app.AppViewModel
 import com.kitsugi.animelist.ui.app.AuthViewModel
 import com.kitsugi.animelist.ui.app.PlayerSettingsViewModel
 import com.kitsugi.animelist.ui.app.ProfileViewModel
+import com.kitsugi.animelist.ui.screens.mylist.MyListViewModel
 import com.kitsugi.animelist.ui.app.KitsugiProfileViewModel
 import com.kitsugi.animelist.ui.app.AddonViewModel
 import com.kitsugi.animelist.ui.app.MangaViewModel
@@ -145,7 +146,6 @@ import com.kitsugi.animelist.ui.screens.manga.MangaBrowseScreen
 import com.kitsugi.animelist.ui.screens.manga.MangaBrowseViewModel
 import com.kitsugi.animelist.ui.screens.manga.MangaDetailScreen
 import com.kitsugi.animelist.ui.screens.manga.MangaReaderScreen
-import com.kitsugi.animelist.ui.screens.manga.MangaScreen
 import com.kitsugi.animelist.ui.screens.manga.MangaSourceHealthScreen
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -176,12 +176,13 @@ fun AppRoot(
     val searchViewModel: SearchViewModel = viewModel()
     val authViewModel: AuthViewModel = viewModel()
     val profileViewModel: ProfileViewModel = viewModel()
+    val myListViewModel: MyListViewModel = viewModel()
     val kitsugiProfileViewModel: KitsugiProfileViewModel = viewModel()
     val playerSettingsViewModel: PlayerSettingsViewModel = viewModel()
     val addonViewModel: AddonViewModel = viewModel()
     val mangaViewModel: MangaViewModel = viewModel()
     val mangaBrowseViewModel: MangaBrowseViewModel = viewModel(
-        factory = MangaBrowseViewModel.Factory(mangaViewModel.mangaRepository)
+        factory = MangaBrowseViewModel.Factory(mangaViewModel.mangaRepository, context.applicationContext)
     )
     val updateViewModel: AppUpdateViewModel = viewModel()
     val updateUiState by updateViewModel.uiState.collectAsState()
@@ -217,9 +218,13 @@ fun AppRoot(
         initial = AppSettings()
     )
 
-    val mediaEntries by mediaRepository.entriesFlow.collectAsState(
-        initial = emptyList()
-    )
+    // A null first value means Room has not emitted yet; an empty list is a real result.
+    // Listem uses this same snapshot instead of opening a second full-table observer.
+    val mediaEntriesSnapshot by mediaRepository.entriesFlow.collectAsState(initial = null)
+    val mediaEntries = mediaEntriesSnapshot ?: emptyList()
+    LaunchedEffect(mediaEntriesSnapshot, appSettings.showAdultContent) {
+        mediaEntriesSnapshot?.let { myListViewModel.prepareLibrary(it, appSettings.showAdultContent) }
+    }
 
     val latestMediaEntries by rememberUpdatedState(mediaEntries)
 
@@ -354,6 +359,12 @@ fun AppRoot(
                 }
                 is com.kitsugi.animelist.core.deeplink.TvDeepLink.Manga -> {
                     navState.openMangaBrowse(mediaId = link.mangaId.toIntOrNull())
+                }
+                is com.kitsugi.animelist.core.deeplink.TvDeepLink.Notifications -> {
+                    // Cihaz bildirimine dokunuldu: Bildirimler sayfasını aç ve
+                    // bildirimin geldiği kaynağın sekmesini seç.
+                    com.kitsugi.animelist.ui.screens.notifications.NotifOpenRequest.request(link.source)
+                    navState.navigateToDetail(DetailScreen.Notifications(link.source))
                 }
                 else -> {}
             }
@@ -585,6 +596,7 @@ fun AppRoot(
                             "kitsu"     -> "Kitsu bağlantısı başarılı, liste aktarılıyor..."
                             "shikimori" -> "Shikimori bağlantısı başarılı, liste aktarılıyor..."
                             "bangumi"   -> "Bangumi bağlantısı başarılı, koleksiyon aktarılıyor..."
+                            "tmdb"      -> "TMDB bağlantısı başarılı, Watchlist, favoriler ve puanlar aktarılıyor..."
                             else        -> "MyAnimeList bağlantısı başarılı, liste aktarılıyor..."
                         }
                     )
@@ -595,6 +607,7 @@ fun AppRoot(
                         "kitsu"     -> authViewModel.importKitsuList(latestMediaEntries, mediaRepository)
                         "shikimori" -> authViewModel.importShikimoriList(latestMediaEntries, mediaRepository)
                         "bangumi"   -> authViewModel.importBangumiList(latestMediaEntries, mediaRepository)
+                        "tmdb"      -> authViewModel.importTmdbWatchlist(latestMediaEntries, mediaRepository)
                         else        -> authViewModel.importMalAnimeList(latestMediaEntries, mediaRepository)
                     }
 
@@ -666,6 +679,7 @@ fun AppRoot(
             isMalConnected = authViewModel.isMalConnected,
             isSimklConnected = authViewModel.isSimklConnected,
             isBangumiConnected = authViewModel.isBangumiConnected,
+            isTmdbConnected = authViewModel.isTmdbConnected,
             isKitsuConnected = authViewModel.isKitsuConnected,
             isShikimoriConnected = authViewModel.isShikimoriConnected
         )
@@ -786,6 +800,7 @@ fun AppRoot(
         when {
             navState.mangaReaderNavState != null          -> navState.mangaReaderNavState = null
             navState.mangaDetailNavState != null          -> navState.mangaDetailNavState = null
+            navState.mangaLibraryOpen                     -> navState.closeMangaLibrary()
             navState.mangaSourceHealthOpen                -> navState.closeMangaSourceHealth()
             navState.mangaBrowseOpen                      -> {
                 mangaBrowseViewModel.reset()
@@ -816,6 +831,7 @@ fun AppRoot(
             navState.mangaDetailNavState != null ||
             navState.mangaReaderNavState != null ||
             navState.mangaSourceHealthOpen ||
+            navState.mangaLibraryOpen ||
             navState.isSettingsSubPageOpen
 
     val configuration = LocalConfiguration.current
@@ -913,10 +929,12 @@ fun AppRoot(
                                    (if (navState.mangaDetailNavState != null) 1 else 0) +
                                    (if (navState.mangaReaderNavState != null) 1 else 0) +
                                    (if (navState.mangaSourceHealthOpen) 1 else 0) +
+                                   (if (navState.mangaLibraryOpen) 1 else 0) +
                                    navState.detailBackStack.size
                 val currentAppStateKey = when {
                     navState.mangaReaderNavState != null  -> AppStateKey.MangaReader(depth = currentDepth)
                     navState.mangaDetailNavState != null  -> AppStateKey.MangaDetail(depth = currentDepth)
+                    navState.mangaLibraryOpen             -> AppStateKey.MangaLibraryState(depth = currentDepth)
                     navState.mangaSourceHealthOpen        -> AppStateKey.MangaSourceHealth(depth = currentDepth)
                     navState.mangaBrowseOpen              -> AppStateKey.MangaBrowse(depth = currentDepth)
                     activeStudio != null         -> AppStateKey.StudioDetail(activeStudio.first, activeStudio.second, depth = currentDepth, name = (activeScreen as? DetailScreen.StudioDetail)?.name, imageUrl = (activeScreen as? DetailScreen.StudioDetail)?.imageUrl)
@@ -938,7 +956,8 @@ fun AppRoot(
                     activeScreen is DetailScreen.Downloads -> AppStateKey.Downloads(depth = currentDepth)
                     activeScreen is DetailScreen.WatchHistory -> AppStateKey.WatchHistory(depth = currentDepth)
                     activeScreen is DetailScreen.PluginPicker -> AppStateKey.PluginPicker(depth = currentDepth)
-                    activeScreen is DetailScreen.AddonExplore -> AppStateKey.AddonExplore(activeScreen.apiName, depth = currentDepth)
+                    activeScreen is DetailScreen.AddonExplore -> AppStateKey.AddonExplore(activeScreen.apiName, depth = currentDepth, initialQuery = activeScreen.initialQuery)
+                    activeScreen is DetailScreen.MangaSourceExplore -> AppStateKey.MangaSourceExplore(activeScreen.sourceKey, depth = currentDepth)
                     activeScreen is DetailScreen.SourceSearchPage -> AppStateKey.SourceSearchPage(activeScreen.engine, activeScreen.query, activeScreen.scope, activeScreen.shelfResults, depth = currentDepth)
                     else                         -> AppStateKey.Tab(selectedTab)
                 }
@@ -955,6 +974,8 @@ fun AppRoot(
                     currentAppStateKey = currentAppStateKey,
                     navState = navState,
                     mediaEntries = mediaEntries,
+                    mediaEntriesLoaded = mediaEntriesSnapshot != null,
+                    myListViewModel = myListViewModel,
                     appSettings = appSettings,
                     settingsDataStore = settingsDataStore,
                     appViewModel = appViewModel,
@@ -999,6 +1020,15 @@ fun AppRoot(
                     getMediaEntry = getMediaEntry,
                     bottomBarScrollState = bottomBarScrollState
                 )
+
+                // İndirilenler ekranı kendi içinde KitsugiAudioPlayerHost barındırdığı için
+                // diğer tüm uygulama ekranlarında mini ses oynatıcısını burada tutuyoruz.
+                if (currentAppStateKey !is AppStateKey.Downloads) {
+                    com.kitsugi.animelist.ui.screens.audio.KitsugiAudioPlayerHost(
+                        bottomPadding = innerPadding.calculateBottomPadding(),
+                        modifier = Modifier.align(Alignment.BottomCenter)
+                    )
+                }
             } // Box (içerik alanı)
             } // Row (landscape layout)
         }
@@ -1022,7 +1052,7 @@ fun AppRoot(
                 coroutineScope.launch { mediaRepository.deleteById(entry.id) }
                 isAddingBangumiEntry = false
             },
-            onConfirmEdit = { title, subtitle, type, status, isAdult, progress, total, score, isFavorite, startDate, endDate, notes, tags, priority, isRepeating, repeatCount, repeatValue, volumeProgress, isPrivate, isHiddenFromStatusLists, advancedScores ->
+            onConfirmEdit = { title, subtitle, type, status, isAdult, progress, total, score, isFavorite, startDate, endDate, notes, tags, priority, isRepeating, repeatCount, repeatValue, volumeProgress, isPrivate, isHiddenFromStatusLists, advancedScores, tmdbWatchlist, tmdbRating ->
                 val entry = editingEntry ?: return@AppDialogHost
                 val addBangumiMembership = isAddingBangumiEntry
                 val isBangumiEntry = canonicalMediaSourceId(entry.source) == "bangumi"
@@ -1060,11 +1090,13 @@ fun AppRoot(
                     repeatValue = repeatValue,
                     volumeProgress = volumeProgress,
                     isPrivate = isPrivate,
-                    isHiddenFromStatusLists = isHiddenFromStatusLists
+                    isHiddenFromStatusLists = isHiddenFromStatusLists,
+                    tmdbWatchlist = tmdbWatchlist,
+                    tmdbRating = tmdbRating
                 )
                 if (isBangumiEntry) {
                     // Diğer kaynaklarla AYNI hat: önce yerele yaz, sonra ExternalListSyncManager
-                    // Bangumi dahil altı kaynağa birden yaysın. Eski akış önce Bangumi'ye yazıp
+                    // Bangumi ve TMDB dahil yedi kaynağa birden yaysın. Eski akış önce Bangumi'ye yazıp
                     // başarısızlıkta (token/kapsam/ağ) kaydı yerele bile kaydetmiyordu — kullanıcının
                     // seçtiği durum/puan/tarih/bölüm tümüyle kayboluyor, diğer kaynaklara da
                     // hiç gidilmiyordu. Artık başarısız yazımlar bekleyen senkron kuyruğuna girer.
@@ -1164,6 +1196,8 @@ private fun AppNavigationContent(
     currentAppStateKey: AppStateKey,
     navState: AppNavigationState,
     mediaEntries: List<MediaEntry>,
+    mediaEntriesLoaded: Boolean,
+    myListViewModel: MyListViewModel,
     appSettings: AppSettings,
     settingsDataStore: SettingsDataStore,
     appViewModel: AppViewModel,
@@ -1208,6 +1242,7 @@ private fun AppNavigationContent(
     getMediaEntry: (JikanSearchResult) -> MediaEntry?,
     bottomBarScrollState: com.kitsugi.animelist.utils.ScrollVisibilityState
 ) {
+    val context = LocalContext.current
 
     AnimatedContent(
         targetState = currentAppStateKey,
@@ -1255,6 +1290,22 @@ private fun AppNavigationContent(
                     onAddApiSelectionToList = onAddApiSelectionToList,
                     onLoginBangumi = onLoginBangumi,
                     onReadMangaClick = { entry, mapping ->
+                        // "Oku" → arama adları seçili başlık diline göre sıralanır
+                        // (İngilizce seçiliyse İngilizce adla aranır, romaji yedektir).
+                        val titleSet = com.kitsugi.animelist.data.manga.MangaTitleSet(
+                            localTitle = entry.title,
+                            englishTitle = entry.titleEnglish,
+                            romajiTitle = entry.title,
+                            nativeTitle = entry.titleJapanese
+                        )
+                        val variants = titleSet.queries(
+                            titleLanguage = appSettings.titleLanguage,
+                            searchLanguage = com.kitsugi.animelist.data.manga.MangaSearchLanguage.fromId(
+                                if (appSettings.mangaSearchFollowTitleLanguage) appSettings.titleLanguage
+                                else appSettings.mangaSearchTitleLanguage
+                            ),
+                            followTitleLanguage = appSettings.mangaSearchFollowTitleLanguage
+                        )
                         if (mapping != null) {
                             val source = mangaViewModel.mangaRepository.getSourceByName(mapping.mangaSource)
                             if (source != null) {
@@ -1268,17 +1319,57 @@ private fun AppNavigationContent(
                                     )
                                 )
                             } else {
-                                navState.openMangaBrowse(entry.title, entry.id)
+                                // Kaynak bulunamadı → başlık diline göre sıralı adlarla ara.
+                                navState.openMangaBrowse(
+                                    query = variants.firstOrNull(),
+                                    mediaId = entry.id,
+                                    alternates = listOfNotNull(entry.titleEnglish, entry.titleJapanese),
+                                    titleVariants = variants,
+                                    titleSet = titleSet
+                                )
                             }
                         } else {
-                            navState.openMangaBrowse(entry.title, entry.id)
+                            // Eşleme yok → "Oku" seçili başlık dilindeki adla arar.
+                            navState.openMangaBrowse(
+                                query = variants.firstOrNull(),
+                                mediaId = entry.id,
+                                alternates = listOfNotNull(entry.titleEnglish, entry.titleJapanese),
+                                titleVariants = variants,
+                                titleSet = titleSet
+                            )
                         }
                     },
                     triggerSearch = triggerSearch,
                     triggerSearchByGenre = triggerSearchByGenre,
                     triggerSearchByTag = triggerSearchByTag,
                     triggerDetailSearchFilter = triggerDetailSearchFilter,
-                    onScrollReset = { bottomBarScrollState.show() }
+                    onScrollReset = { bottomBarScrollState.show() },
+                    onOpenMangaReadHistory = { sourceName, mangaUrl, mangaTitle, coverUrl ->
+                        // Geçmiş sayfasından okunan bir bölüme dokunuldu: kaynak eklentisi
+                        // yüklüyse doğrudan manga detay sayfasına git (oradan "Devam Et").
+                        val resolved = mangaViewModel.mangaRepository.getSourceByName(sourceName)
+                        if (resolved != null) {
+                            // Geçmiş ekranı yığından düşürülür: manga detayı açıldığında
+                            // geri tuşu doğrudan bir üst ekrana döner (yığında iki ekran kalmaz).
+                            navState.detailBackStack = navState.detailBackStack
+                                .filterNot { it is DetailScreen.WatchHistory }
+                            navState.mangaDetailNavState = MangaDetailNavState(
+                                source = resolved,
+                                mangaDetails = com.kitsugi.animelist.data.manga.MangaDetails(
+                                    url = mangaUrl,
+                                    title = mangaTitle,
+                                    thumbnailUrl = coverUrl,
+                                    source = sourceName
+                                )
+                            )
+                        } else {
+                            android.widget.Toast.makeText(
+                                context,
+                                "$sourceName kaynağı yüklü değil. Eklentiler sayfasından yükleyebilirsin.",
+                                android.widget.Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    }
                 )
             }
 
@@ -1287,7 +1378,32 @@ private fun AppNavigationContent(
                 if (key.state.savedStateKey == null) key.state.openingStackDepth = navState.detailBackStack.size
                 key.state.savedStateKey = gridKey
                 navState.stateHolder.SaveableStateProvider(key = gridKey) {
-                    FullScreenMediaGridPage(
+                    if (key.state.mobileFiniteResults) {
+                        com.kitsugi.animelist.ui.screens.explore.mobile.MobileExploreFiniteGrid(
+                            title = key.state.title,
+                            results = key.state.initialResults,
+                            alreadyInList = isAlreadyInList,
+                            getMediaEntry = getMediaEntry,
+                            onItemClick = onOpenApiDetail,
+                            onLongClickItem = { result ->
+                                val entry = getMediaEntry(result)
+                                if (entry != null) onEditEntry(entry)
+                                else onAddApiSelectionToList(ApiSearchSelection(result = result, synopsis = null))
+                            },
+                            onBack = {
+                                navState.fullScreenGridState = null
+                                coroutineScope.launch {
+                                    kotlinx.coroutines.delay(350L)
+                                    navState.stateHolder.removeState(gridKey)
+                                }
+                            },
+                            showAdultContent = appSettings.showAdultContent,
+                            titleLanguage = appSettings.titleLanguage,
+                            scoreFormat = appSettings.scoreFormat,
+                            hideScores = appSettings.hideScores,
+                            blurAdultMedia = appSettings.blurAdultMedia,
+                        )
+                    } else FullScreenMediaGridPage(
                         title = key.state.title,
                         categoryType = key.state.categoryType,
                         platform = key.state.platform,
@@ -1305,6 +1421,8 @@ private fun AppNavigationContent(
                         titleLanguage = appSettings.titleLanguage,
                         scoreFormat = appSettings.scoreFormat,
                         hideScores = appSettings.hideScores,
+                        showAdultContent = appSettings.showAdultContent,
+                        blurAdultMedia = appSettings.blurAdultMedia,
                         getMediaEntry = getMediaEntry,
                         // Kart kısayolu: listede ise düzenle panelini aç, değilse tekil ekleme akışına
                         // (AppRoot sarmalayıcısı Bangumi diyaloğunu da yönetir).
@@ -1327,6 +1445,7 @@ private fun AppNavigationContent(
                                 isMalConnected = authViewModel.isMalConnected,
                                 isSimklConnected = authViewModel.isSimklConnected,
                                 isBangumiConnected = authViewModel.isBangumiConnected,
+                                isTmdbConnected = authViewModel.isTmdbConnected,
                                 isKitsuConnected = authViewModel.isKitsuConnected,
                                 isShikimoriConnected = authViewModel.isShikimoriConnected
                             )
@@ -1363,13 +1482,18 @@ private fun AppNavigationContent(
                         onBackClick = { navState.popDetailStack() },
                         searchViewModel = searchViewModel,
                         navState = navState,
-                        onOpenApiDetail = onOpenApiDetail
+                        mangaViewModel = mangaViewModel,
+                        onOpenApiDetail = onOpenApiDetail,
+                        titleLanguage = appSettings.titleLanguage,
+                        scoreFormat = appSettings.scoreFormat,
+                        hideScores = appSettings.hideScores,
+                        blurAdultMedia = appSettings.blurAdultMedia
                     )
                 }
             }
 
             is AppStateKey.AddonExplore -> {
-                navState.stateHolder.SaveableStateProvider(key = "addon_explore_${key.depth}_${key.apiName}") {
+                navState.stateHolder.SaveableStateProvider(key = "addon_explore_${key.depth}_${key.apiName}_${key.initialQuery.hashCode()}") {
                     val api = remember(key.apiName) {
                         com.lagradost.cloudstream3.APIHolder.allProviders.firstOrNull { it.name.equals(key.apiName, ignoreCase = true) }
                     }
@@ -1377,6 +1501,7 @@ private fun AppNavigationContent(
                         com.kitsugi.animelist.ui.screens.search.components.AddonExplorePage(
                             api = api,
                             onBackClick = { navState.popDetailStack() },
+                            initialQuery = key.initialQuery,
                             titleLanguage = appSettings.titleLanguage,
                             scoreFormat = appSettings.scoreFormat,
                             hideScores = appSettings.hideScores,
@@ -1417,11 +1542,25 @@ private fun AppNavigationContent(
                         onAddSelectionToList = onAddApiSelectionToList,
                         onOpenPluginPicker = { navState.navigateToDetail(DetailScreen.PluginPicker) },
                         onOpenAddonExplore = { apiName -> navState.navigateToDetail(DetailScreen.AddonExplore(apiName)) },
-                        onOpenCharacterDetail = { characterId, name, imageUrl ->
-                            navState.navigateToDetail(DetailScreen.CharacterDetail(characterId, "anilist", name, imageUrl))
+                        onOpenCharacterDetail = { characterId, name, imageUrl, source ->
+                            navState.navigateToDetail(
+                                DetailScreen.CharacterDetail(
+                                    characterId,
+                                    source?.takeIf { it.isNotBlank() } ?: "anilist",
+                                    name,
+                                    imageUrl
+                                )
+                            )
                         },
-                        onOpenStaffDetail = { staffId, name, imageUrl ->
-                            navState.navigateToDetail(DetailScreen.StaffDetail(staffId, "anilist", name, imageUrl))
+                        onOpenStaffDetail = { staffId, name, imageUrl, source ->
+                            navState.navigateToDetail(
+                                DetailScreen.StaffDetail(
+                                    staffId,
+                                    source?.takeIf { it.isNotBlank() } ?: "anilist",
+                                    name,
+                                    imageUrl
+                                )
+                            )
                         },
                         onOpenStudioDetail = { studioId, source, name, imageUrl ->
                             navState.navigateToDetail(DetailScreen.StudioDetail(studioId, source, name, imageUrl))
@@ -1433,14 +1572,17 @@ private fun AppNavigationContent(
             is AppStateKey.MangaReader,
             is AppStateKey.MangaDetail,
             is AppStateKey.MangaSourceHealth,
-            is AppStateKey.MangaBrowse -> {
+            is AppStateKey.MangaLibraryState,
+            is AppStateKey.MangaBrowse,
+            is AppStateKey.MangaSourceExplore -> {
                 AppRootMangaPages(
                     key = key,
                     navState = navState,
                     mangaViewModel = mangaViewModel,
                     mangaBrowseViewModel = mangaBrowseViewModel,
                     coroutineScope = coroutineScope,
-                    onExportMangaSourceReportFile = exportMangaSourceReportFile
+                    onExportMangaSourceReportFile = exportMangaSourceReportFile,
+                    appSettings = appSettings
                 )
             }
 
@@ -1449,6 +1591,8 @@ private fun AppNavigationContent(
                     key = key,
                     ctx = TabPagesContext(
                         mediaEntries = mediaEntries,
+                        mediaEntriesLoaded = mediaEntriesLoaded,
+                        myListViewModel = myListViewModel,
                         appSettings = appSettings,
                         settingsDataStore = settingsDataStore,
                         appViewModel = appViewModel,

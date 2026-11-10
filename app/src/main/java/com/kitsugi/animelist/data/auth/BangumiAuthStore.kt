@@ -182,6 +182,8 @@ object BangumiAuthStore {
             it.avatarUrl?.let { url -> editor.putString(KEY_AVATAR, url) }
         }
         editor.apply()
+        refreshBlockedUntil = 0L
+        ExternalAuthManager.clearSessionExpired(context, "bangumi")
 
         if (notify) {
             ExternalAuthManager.emitBangumiSuccess()
@@ -256,6 +258,8 @@ object BangumiAuthStore {
             it.avatarUrl?.let { url -> editor.putString(KEY_AVATAR, url) }
         }
         editor.apply()
+        refreshBlockedUntil = 0L
+        ExternalAuthManager.clearSessionExpired(context, "bangumi")
         if (notify) ExternalAuthManager.emitBangumiSuccess()
     }
 
@@ -294,23 +298,28 @@ object BangumiAuthStore {
         // PAT oturumları yenilenemez: token olduğu gibi döner, süre takibi yapılmaz.
         if (isManualToken(context)) return token
         if (!isExpired(context)) return token
-        return forceRefresh(context)
+        val refreshed = forceRefresh(context)
+        if (refreshed != null) return refreshed
+        // Geçici ağ kesintisinde [dropSession] çağrılmamıştır: `null` döndürürsek çağıran
+        // "hesap bağlı değil" sanır ve değişikliği kuyruğa yanlış sınıflandırır (`E88`).
+        return getToken(context)
     }
 
-    /** Refresh token ile zorla yeni access token alır. */
+    /** Refresh token ile zorla yeni access token alır (`E88`). */
     suspend fun forceRefresh(context: Context): String? = refreshMutex.withLock {
-        // Kısa devre: az önce başarısız olduysa bu turda hiç ağ isteği atılmaz.
-        if (System.currentTimeMillis() < refreshBlockedUntil) return@withLock null
         if (isManualToken(context)) {
-            // 401 alan bir PAT çağrısından sonra yenileme yolu YOKTUR: oturumu düşürüp
-            // kullanıcıdan yeni bir anahtar yapıştırmasını isteyen çağıran tarafa null döneriz.
-            Log.w(TAG, "forceRefresh: oturum kişisel erişim anahtarı ile kurulu, yenileme yok")
+            // 401 alan bir PAT çağrısından sonra yenileme yolu YOKTUR: ölü PAT silinir ve
+            // oturum açıkça "süresi doldu" olarak işaretlenir ki Ayarlar yeşil "Bağlı"
+            // kalmasın ve bekleyen değişiklikler kuyrukta korunsun (`E88`).
+            Log.w(TAG, "forceRefresh: kişisel erişim anahtarı süresi doldu, oturum işaretleniyor")
+            ExternalAuthManager.markSessionExpired(context, "bangumi")
             return@withLock null
         }
+        if (System.currentTimeMillis() < refreshBlockedUntil) return@withLock null
         val refreshToken = prefs(context).getString(KEY_REFRESH_TOKEN, null)
         if (refreshToken.isNullOrBlank()) {
             Log.w(TAG, "forceRefresh: refresh_token yok, oturum kapatılıyor")
-            dropSession(context)
+            ExternalAuthManager.markSessionExpired(context, "bangumi")
             return@withLock null
         }
         if (!hasCredentials(context)) {
@@ -330,9 +339,13 @@ object BangumiAuthStore {
             newToken.accessToken
         }.getOrElse { error ->
             Log.e(TAG, "Bangumi token yenileme başarısız: ${error.message}")
-            refreshBlockedUntil = System.currentTimeMillis() + REFRESH_FAILURE_COOLDOWN_MS
-            if (error is BangumiApiClient.BangumiApiException && (error.isUnauthorized || error.isForbidden)) {
-                dropSession(context)
+            val permanentAuthFailure = error is BangumiApiClient.BangumiApiException &&
+                (error.isUnauthorized || error.isForbidden || error.isInvalidGrant)
+            if (permanentAuthFailure) {
+                refreshBlockedUntil = 0L
+                ExternalAuthManager.markSessionExpired(context, "bangumi")
+            } else {
+                refreshBlockedUntil = System.currentTimeMillis() + REFRESH_FAILURE_COOLDOWN_MS
             }
             null
         }
@@ -355,7 +368,8 @@ object BangumiAuthStore {
         block(refreshed)
     }
 
-    private fun dropSession(context: Context) {
+    /** Oturumu düşürür ve arayüzü bilgilendirir ([ExternalAuthManager.markSessionExpired] da kullanır). */
+    internal fun dropSession(context: Context) {
         logout(context)
         ExternalAuthManager.emitBangumiSessionExpired()
     }

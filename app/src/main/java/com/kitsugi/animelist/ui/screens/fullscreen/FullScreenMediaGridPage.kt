@@ -2,6 +2,7 @@
 
 package com.kitsugi.animelist.ui.screens.fullscreen
 
+import com.kitsugi.animelist.ui.components.KitsugiEmojiLabel
 import com.kitsugi.animelist.ui.utils.rememberKitsugiGridColumns
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
@@ -34,13 +35,7 @@ import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.automirrored.rounded.ListAlt
-import androidx.compose.material.icons.rounded.FilterList
-import androidx.compose.material.icons.rounded.GridView
-import androidx.compose.material.icons.rounded.PlaylistAdd
-import androidx.compose.material.icons.rounded.SearchOff
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.CircularProgressIndicator
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.IconButton
@@ -92,7 +87,6 @@ import com.kitsugi.animelist.ui.theme.LocalIsTv
 import com.kitsugi.animelist.ui.theme.LocalKitsugiAccent
 import com.kitsugi.animelist.ui.utils.kitsugiLazyKey
 import com.kitsugi.animelist.ui.utils.tvClickable
-import androidx.compose.material.icons.rounded.KeyboardArrowUp
 import kotlinx.coroutines.launch
 import java.util.Calendar
 import androidx.compose.ui.res.stringResource
@@ -123,7 +117,7 @@ fun FullScreenMediaGridPage(
     alreadyInList: (JikanSearchResult) -> Boolean,
     onItemClick: (JikanSearchResult) -> Unit,
     onBackClick: () -> Unit,
-    titleLanguage: String = "ROMAJI",
+    titleLanguage: String = "ENGLISH",
     scoreFormat: String = "POINT_10",
     hideScores: Boolean = false,
     showAdultContent: Boolean = false,
@@ -199,9 +193,9 @@ fun FullScreenMediaGridPage(
 
     // Filtrasyon öncesi "tohum" liste: filtre temizlendiğinde ağa çıkmadan geri dönülen başlangıç
     // verisi (keşfet rafından gelen ilk sonuçlar ya da sayfa hafızası).
-    val seedResults = remember(platform, categoryType) { session?.cachedResults ?: initialResults }
-    var loadedResults by remember(platform, categoryType) { mutableStateOf(seedResults) }
-    var currentPage by remember(platform, categoryType) {
+    val seedResults = remember(platform, categoryType, title) { session?.cachedResults ?: initialResults }
+    var loadedResults by remember(platform, categoryType, title) { mutableStateOf(seedResults) }
+    var currentPage by remember(platform, categoryType, title) {
         mutableIntStateOf(session?.cachedPage ?: if (initialResults.isEmpty()) 0 else 1)
     }
     var isLoadingMore by remember { mutableStateOf(false) }
@@ -228,11 +222,11 @@ fun FullScreenMediaGridPage(
         ExploreCategoryType.AIRING_ANIME,
         ExploreCategoryType.TRENDING_MANGA
     )
-    var simklPageInitialized by remember(platform, categoryType, isSimklPersonalList) {
+    var simklPageInitialized by remember(platform, categoryType, title, isSimklPersonalList) {
         mutableStateOf(platform != ExplorePlatform.SIMKL || isSimklPersonalList)
     }
-    var simklTrendingResults by remember(platform, categoryType) { mutableStateOf<List<JikanSearchResult>?>(null) }
-    var hasMorePages by remember(platform, categoryType, isSimklPersonalList) {
+    var simklTrendingResults by remember(platform, categoryType, title) { mutableStateOf<List<JikanSearchResult>?>(null) }
+    var hasMorePages by remember(platform, categoryType, title, isSimklPersonalList) {
         mutableStateOf(session?.cachedHasMore ?: !isSimklPersonalList)
     }
     var loadError by remember { mutableStateOf<String?>(null) }
@@ -301,16 +295,30 @@ fun FullScreenMediaGridPage(
             censored = !showAdultContent
         )
         ExplorePlatform.BANGUMI -> {
-            // Bangumi'de sezon "yıl+ay" ile ifade edilir; mevsim adını temsil ayına çevir.
-            val bangumiMonth = when (seasonalSeason.uppercase()) {
-                "WINTER" -> 1
-                "SPRING" -> 4
-                "SUMMER" -> 7
-                else -> 10
+            // ⚠️ Eski yol `seasonFor(year, month)` idi: Kış 2025 için **yalnız Ocak** ayında
+            // yayınlananları listeliyordu (mevsimin üçte biri) ve mevsimsel filtrenin
+            // "Puana göre / İlgiye göre" sıralaması hiç uygulanmıyordu.
+            // Artık `air_date` **çeyrek** aralığı + seçilen sıralama kullanılır
+            // (canlı prob V1–V5: `>=2025-01-01` + `<2025-04-01` → 89 kayıt).
+            val bangumiSort = when (seasonalSort?.uppercase()) {
+                "SCORE_DESC" -> com.kitsugi.animelist.data.auth.BangumiApiClient.SearchSort.SCORE
+                "MEMBERS_DESC",
+                "POPULARITY_DESC" -> com.kitsugi.animelist.data.auth.BangumiApiClient.SearchSort.HEAT
+                // `START_DATE_DESC` sunucudaki arama ucunda yok (yayın tarihi sıralaması
+                // yalnız göz atma ucunda `sort=date` olarak var). Çeyrek aralığını korumak
+                // için sıra (`rank`) kullanılır; kullanıcı ayrıca sıralama seçmediyse
+                // varsayılan davranış da budur.
+                else -> com.kitsugi.animelist.data.auth.BangumiApiClient.SearchSort.RANK
             }
-            com.kitsugi.animelist.data.remote.KitsugiBangumiClient.seasonFor(
-                year = seasonalYear, month = bangumiMonth, limit = 20,
-                offset = (page - 1).coerceAtLeast(0) * 20
+            com.kitsugi.animelist.data.remote.KitsugiBangumiClient.searchMediaAdvanced(
+                mediaType = com.kitsugi.animelist.model.MediaType.Anime,
+                query = "",
+                page = page,
+                limit = 20,
+                sort = bangumiSort,
+                includeAdult = showAdultContent,
+                season = seasonalSeason,
+                seasonYear = seasonalYear
             )
         }
         else -> emptyList()
@@ -330,8 +338,8 @@ fun FullScreenMediaGridPage(
             ExploreCategoryType.TOP_ANIME -> bangumi.topAnime(limit, offset = offset)
             ExploreCategoryType.TOP_RATED_ANIME -> bangumi.topRatedAnime(limit, offset = offset)
             ExploreCategoryType.TRENDING_ANIME -> bangumi.trendingAnime(limit, offset = offset)
-            ExploreCategoryType.AIRING_ANIME -> bangumi.airingAnime(limit)
-            ExploreCategoryType.UPCOMING_ANIME -> bangumi.upcomingAnime(limit)
+            ExploreCategoryType.AIRING_ANIME -> bangumi.airingAnime(limit, offset = offset)
+            ExploreCategoryType.UPCOMING_ANIME -> bangumi.upcomingAnime(limit, offset = offset)
             ExploreCategoryType.MOVIE_ANIME -> bangumi.movieAnime(limit, offset = offset)
             ExploreCategoryType.BANGUMI_TV -> bangumi.realTvShows(limit, offset = offset)
             ExploreCategoryType.BANGUMI_MOVIES -> bangumi.realMovies(limit, offset = offset)
@@ -341,7 +349,8 @@ fun FullScreenMediaGridPage(
             ExploreCategoryType.TOP_RATED_MANGA -> bangumi.topRatedManga(limit, offset = offset)
             ExploreCategoryType.PUBLISHING_MANGA -> bangumi.publishingManga(limit, offset = offset)
             ExploreCategoryType.TRENDING_MANGA -> bangumi.trendingManga(limit, offset = offset)
-            ExploreCategoryType.NEWLY_ADDED_MANGA -> bangumi.publishingManga(limit, offset = offset)
+            ExploreCategoryType.NEWLY_ADDED_MANGA -> bangumi.newlyAddedManga(limit, offset = offset)
+            ExploreCategoryType.NOVELS -> bangumi.novelsShelf(limit, offset = offset)
             else -> emptyList()
         }.filter { adult || !it.isAdult }
     }
@@ -391,17 +400,17 @@ fun FullScreenMediaGridPage(
         ExplorePlatform.MAL -> when (categoryType) {
             ExploreCategoryType.TOP_RATED_ANIME -> apiClient.topAnime(np, showAdultContent)
             ExploreCategoryType.TOP_RATED_MANGA -> apiClient.topManga(np, showAdultContent)
-            ExploreCategoryType.TOP_ANIME -> apiClient.topAnime(np)
-            ExploreCategoryType.TRENDING_ANIME -> apiClient.trendingAnime(np)
-            ExploreCategoryType.AIRING_ANIME -> apiClient.airingAnime(np)
-            ExploreCategoryType.UPCOMING_ANIME -> apiClient.upcomingAnime(np)
-            ExploreCategoryType.MOVIE_ANIME -> apiClient.movieAnime(np)
+            ExploreCategoryType.TOP_ANIME -> apiClient.topAnime(np, showAdultContent)
+            ExploreCategoryType.TRENDING_ANIME -> apiClient.trendingAnime(np, showAdultContent)
+            ExploreCategoryType.AIRING_ANIME -> apiClient.airingAnime(np, showAdultContent)
+            ExploreCategoryType.UPCOMING_ANIME -> apiClient.upcomingAnime(np, showAdultContent)
+            ExploreCategoryType.MOVIE_ANIME -> apiClient.movieAnime(np, showAdultContent)
             ExploreCategoryType.SEASONAL_ANIME -> apiClient.seasonalAnime(np, showAdultContent, seasonalYear, seasonalSeason, seasonalSort)
-            ExploreCategoryType.TOP_MANGA -> apiClient.topManga(np)
-            ExploreCategoryType.PUBLISHING_MANGA -> apiClient.publishingManga(np)
-            ExploreCategoryType.TRENDING_MANGA -> apiClient.trendingManga(np)
-            ExploreCategoryType.NEWLY_ADDED_ANIME -> apiClient.newlyAddedAnime(np)
-            ExploreCategoryType.NEWLY_ADDED_MANGA -> apiClient.newlyAddedManga(np)
+            ExploreCategoryType.TOP_MANGA -> apiClient.topManga(np, showAdultContent)
+            ExploreCategoryType.PUBLISHING_MANGA -> apiClient.publishingManga(np, showAdultContent)
+            ExploreCategoryType.TRENDING_MANGA -> apiClient.trendingManga(np, showAdultContent)
+            ExploreCategoryType.NEWLY_ADDED_ANIME -> apiClient.newlyAddedAnime(np, showAdultContent)
+            ExploreCategoryType.NEWLY_ADDED_MANGA -> apiClient.newlyAddedManga(np, showAdultContent)
             ExploreCategoryType.MANHWA_MANHUA -> apiClient.manhwaManhua(np, showAdultContent)
             ExploreCategoryType.NOVELS -> apiClient.novelsShelf(np, showAdultContent)
             ExploreCategoryType.BANGUMI_TV,
@@ -411,19 +420,40 @@ fun FullScreenMediaGridPage(
         ExplorePlatform.AniList -> when (categoryType) {
             ExploreCategoryType.TOP_RATED_ANIME -> apiClient.aniListTopRated(com.kitsugi.animelist.model.MediaType.Anime, np, showAdultContent)
             ExploreCategoryType.TOP_RATED_MANGA -> apiClient.aniListTopRated(com.kitsugi.animelist.model.MediaType.Manga, np, showAdultContent)
-            ExploreCategoryType.TOP_ANIME -> apiClient.aniListTopAnime(np)
-            ExploreCategoryType.TRENDING_ANIME -> apiClient.aniListTrendingAnime(np)
-            ExploreCategoryType.AIRING_ANIME -> apiClient.aniListAiringAnime(np)
-            ExploreCategoryType.UPCOMING_ANIME -> apiClient.aniListUpcomingAnime(np)
-            ExploreCategoryType.MOVIE_ANIME -> apiClient.aniListMovieAnime(np)
+            ExploreCategoryType.TOP_ANIME -> apiClient.aniListTopAnime(np, showAdultContent)
+            ExploreCategoryType.TRENDING_ANIME -> apiClient.aniListTrendingAnime(np, showAdultContent)
+            ExploreCategoryType.AIRING_ANIME -> apiClient.aniListAiringAnime(np, showAdultContent)
+            ExploreCategoryType.UPCOMING_ANIME -> apiClient.aniListUpcomingAnime(np, showAdultContent)
+            ExploreCategoryType.MOVIE_ANIME -> apiClient.aniListMovieAnime(np, showAdultContent)
             ExploreCategoryType.SEASONAL_ANIME -> apiClient.aniListSeasonalAnime(np, showAdultContent, seasonalYear, seasonalSeason, seasonalSort)
-            ExploreCategoryType.TOP_MANGA -> apiClient.aniListTopManga(np)
-            ExploreCategoryType.PUBLISHING_MANGA -> apiClient.aniListPublishingManga(np)
-            ExploreCategoryType.TRENDING_MANGA -> apiClient.aniListTrendingManga(np)
-            ExploreCategoryType.NEWLY_ADDED_ANIME -> apiClient.aniListNewlyAddedAnime(np)
-            ExploreCategoryType.NEWLY_ADDED_MANGA -> apiClient.aniListNewlyAddedManga(np)
-            // AniList manhwa/manhua'yı ayrı tür olarak sınıflandırmaz → raf yok.
-            ExploreCategoryType.MANHWA_MANHUA -> emptyList()
+            ExploreCategoryType.TOP_MANGA -> apiClient.aniListTopManga(np, showAdultContent)
+            ExploreCategoryType.PUBLISHING_MANGA -> apiClient.aniListPublishingManga(np, showAdultContent)
+            ExploreCategoryType.TRENDING_MANGA -> apiClient.aniListTrendingManga(np, showAdultContent)
+            ExploreCategoryType.NEWLY_ADDED_ANIME -> apiClient.aniListNewlyAddedAnime(np, showAdultContent)
+            ExploreCategoryType.NEWLY_ADDED_MANGA -> apiClient.aniListNewlyAddedManga(np, showAdultContent)
+            ExploreCategoryType.MANHWA_MANHUA -> {
+                val korea = apiClient.searchAniListPaged(
+                    query = "",
+                    mediaType = com.kitsugi.animelist.model.MediaType.Manga,
+                    showAdultContent = showAdultContent,
+                    formats = listOf("MANGA"),
+                    country = "KR",
+                    sort = listOf("POPULARITY_DESC"),
+                    page = np,
+                    perPage = 20
+                ).results
+                val china = apiClient.searchAniListPaged(
+                    query = "",
+                    mediaType = com.kitsugi.animelist.model.MediaType.Manga,
+                    showAdultContent = showAdultContent,
+                    formats = listOf("MANGA"),
+                    country = "CN",
+                    sort = listOf("POPULARITY_DESC"),
+                    page = np,
+                    perPage = 20
+                ).results
+                (korea + china).distinctBy { it.exploreIdentity() }
+            }
             ExploreCategoryType.NOVELS -> apiClient.aniListNovels(np, showAdultContent)
             ExploreCategoryType.BANGUMI_TV,
             ExploreCategoryType.BANGUMI_MOVIES,
@@ -460,6 +490,8 @@ fun FullScreenMediaGridPage(
             ExploreCategoryType.TRENDING_MANGA -> com.kitsugi.animelist.data.remote.KitsuExploreClient.trendingManga(20, offset = (np - 1) * 20)
             ExploreCategoryType.NEWLY_ADDED_ANIME -> com.kitsugi.animelist.data.remote.KitsuExploreClient.newlyAddedAnime(20, offset = (np - 1) * 20)
             ExploreCategoryType.NEWLY_ADDED_MANGA -> com.kitsugi.animelist.data.remote.KitsuExploreClient.newlyAddedManga(20, offset = (np - 1) * 20)
+            ExploreCategoryType.MANHWA_MANHUA -> com.kitsugi.animelist.data.remote.KitsuExploreClient.manhwaManhua(20, offset = (np - 1) * 20)
+            ExploreCategoryType.NOVELS -> com.kitsugi.animelist.data.remote.KitsuExploreClient.novelsShelf(20, offset = (np - 1) * 20)
             else -> emptyList()
         }
         ExplorePlatform.SHIKIMORI -> when (categoryType) {
@@ -468,6 +500,8 @@ fun FullScreenMediaGridPage(
             ExploreCategoryType.SEASONAL_ANIME -> fetchSeasonalPage(np)
             ExploreCategoryType.TRENDING_MANGA -> com.kitsugi.animelist.data.remote.KitsugiShikimoriClient.searchMediaAdvanced(com.kitsugi.animelist.model.MediaType.Manga, order = "popularity", page = np, limit = 20, censored = !showAdultContent)
             ExploreCategoryType.TOP_ANIME -> com.kitsugi.animelist.data.remote.KitsugiShikimoriClient.searchMediaAdvanced(com.kitsugi.animelist.model.MediaType.Anime, order = "ranked", page = np, limit = 20, censored = !showAdultContent)
+            ExploreCategoryType.NEWLY_ADDED_ANIME -> com.kitsugi.animelist.data.remote.KitsugiShikimoriClient.searchMediaAdvanced(com.kitsugi.animelist.model.MediaType.Anime, order = "id_desc", page = np, limit = 20, censored = !showAdultContent)
+            ExploreCategoryType.NEWLY_ADDED_MANGA -> com.kitsugi.animelist.data.remote.KitsugiShikimoriClient.searchMediaAdvanced(com.kitsugi.animelist.model.MediaType.Manga, order = "id_desc", page = np, limit = 20, censored = !showAdultContent)
             ExploreCategoryType.AIRING_ANIME -> com.kitsugi.animelist.data.remote.KitsugiShikimoriClient.airingAnime(limit = 20, page = np, censored = !showAdultContent)
             ExploreCategoryType.UPCOMING_ANIME -> com.kitsugi.animelist.data.remote.KitsugiShikimoriClient.searchMediaAdvanced(com.kitsugi.animelist.model.MediaType.Anime, statuses = listOf("anons"), order = "popularity", page = np, limit = 20, censored = !showAdultContent)
             ExploreCategoryType.TOP_MANGA -> com.kitsugi.animelist.data.remote.KitsugiShikimoriClient.searchMediaAdvanced(com.kitsugi.animelist.model.MediaType.Manga, order = "ranked", page = np, limit = 20, censored = !showAdultContent)
@@ -546,6 +580,8 @@ fun FullScreenMediaGridPage(
                         hasMorePages = false
                     }
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 if (generation == filterGeneration) loadError = e.message ?: "Yükleme hatası"
             } finally {
@@ -555,7 +591,7 @@ fun FullScreenMediaGridPage(
         }
     }
 
-    LaunchedEffect(platform, categoryType, isSimklPersonalList) {
+    LaunchedEffect(platform, categoryType, title, isSimklPersonalList) {
         if (!isSimklPersonalList && (platform == ExplorePlatform.SIMKL || loadedResults.isEmpty())) {
             loadNextPage()
         }
@@ -590,9 +626,16 @@ fun FullScreenMediaGridPage(
         } else {
             val genreObj = KITSUGI_MEDIA_GENRES.firstOrNull { it.id == selectedGenreId }
             if (genreObj != null) {
+                // Bangumi kayıtlarının `genres` alanı **Çince/Japonca wiki etiketleridir**
+                // (`恋爱`, `机战`…); Türkçe/İngilizce anahtar kelimelerle karşılaştırma hiç
+                // eşleşmediği için bu kaynakta "📱 yerel" tür süzgeci **boş ızgara**
+                // üretiyordu. Terim sözlükten kanonik Bangumi yazımına da çevrilip aranır.
+                val nativeTerm = com.kitsugi.animelist.utils.BangumiTagDictionary
+                    .canonicalTagFor(genreObj.keywords.firstOrNull().orEmpty())
                 base.filter { item ->
                     val inGenres = item.genres.any { g ->
-                        genreObj.keywords.any { kw -> g.contains(kw, ignoreCase = true) }
+                        genreObj.keywords.any { kw -> g.contains(kw, ignoreCase = true) } ||
+                            (nativeTerm != null && g.contains(nativeTerm, ignoreCase = true))
                     }
                     val inSubtitle = genreObj.keywords.any { kw ->
                         item.subtitle.contains(kw, ignoreCase = true)
@@ -871,7 +914,7 @@ fun FullScreenMediaGridPage(
                                         .background(KitsugiColors.Surface)
                                 ) {
                                     Icon(
-                                        Icons.Rounded.PlaylistAdd,
+                                        Icons.PlaylistAdd,
                                         contentDescription = stringResource(R.string.tumunu_listeye_ekle),
                                         tint = accentColor
                                     )
@@ -892,7 +935,7 @@ fun FullScreenMediaGridPage(
                                     .background(if (hasActiveFilter) accentColor.copy(alpha = 0.25f) else KitsugiColors.Surface)
                             ) {
                                 Icon(
-                                    Icons.Rounded.FilterList,
+                                    Icons.FilterList,
                                     contentDescription = stringResource(R.string.filtre_ve_siralama),
                                     tint = if (hasActiveFilter) accentColor else KitsugiColors.TextPrimary
                                 )
@@ -912,7 +955,7 @@ fun FullScreenMediaGridPage(
                                 },
                                 modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(KitsugiColors.Surface)
                             ) {
-                                Icon(Icons.AutoMirrored.Rounded.ListAlt, contentDescription = KitsugiStrings.get(R.string.settings_list_layout), tint = accentColor)
+                                Icon(Icons.ListAlt, contentDescription = KitsugiStrings.get(R.string.settings_list_layout), tint = accentColor)
                             }
                         }
 
@@ -936,9 +979,9 @@ fun FullScreenMediaGridPage(
                         val activeFilterDesc = buildString {
                             activeGenreLabel?.let { append(" • $it") }
                             activeSortLabel?.let { append(" • $it") }
-                            // ☁️ = kaynak API'sinde uygulandı, 📱 = kaynak desteklemediği için cihazda.
-                            if (serverFilterActive) append(" ☁️")
-                            else if (localGenreFilter || localSort) append(" 📱")
+                            // Sunucu/cihaz ayrımı emoji ile değil, ayrı ikon rozetleriyle gösterilir.
+                            if (serverFilterActive) append(" • ${stringResource(R.string.filter_scope_server)}")
+                            else if (localGenreFilter || localSort) append(" • ${stringResource(R.string.filter_scope_device)}")
                         }
 
                         Row(
@@ -977,7 +1020,7 @@ fun FullScreenMediaGridPage(
                         KitsugiEmptyState(
                             title = stringResource(R.string.henuz_icerik_yok),
                             subtitle = stringResource(R.string.bu_kategoride_gosterilecek_icerik_bulunamadi),
-                            icon = Icons.Rounded.SearchOff
+                            icon = Icons.SearchOff
                         )
                     }
                 } else {
@@ -1075,7 +1118,7 @@ fun FullScreenMediaGridPage(
                                         .background(KitsugiColors.Surface)
                                 ) {
                                     Icon(
-                                        Icons.Rounded.PlaylistAdd,
+                                        Icons.PlaylistAdd,
                                         contentDescription = stringResource(R.string.tumunu_listeye_ekle),
                                         tint = accentColor
                                     )
@@ -1096,7 +1139,7 @@ fun FullScreenMediaGridPage(
                                     .background(if (hasActiveFilter) accentColor.copy(alpha = 0.25f) else KitsugiColors.Surface)
                             ) {
                                 Icon(
-                                    Icons.Rounded.FilterList,
+                                    Icons.FilterList,
                                     contentDescription = stringResource(R.string.filtre_ve_siralama),
                                     tint = if (hasActiveFilter) accentColor else KitsugiColors.TextPrimary
                                 )
@@ -1116,7 +1159,7 @@ fun FullScreenMediaGridPage(
                                 },
                                 modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(KitsugiColors.Surface)
                             ) {
-                                Icon(Icons.Rounded.GridView, contentDescription = KitsugiStrings.get(R.string.cd_grid_view), tint = accentColor)
+                                Icon(Icons.GridView, contentDescription = KitsugiStrings.get(R.string.cd_grid_view), tint = accentColor)
                             }
                         }
 
@@ -1144,9 +1187,9 @@ fun FullScreenMediaGridPage(
                     val activeFilterDesc = buildString {
                         activeGenreLabel?.let { append(" • $it") }
                         activeSortLabel?.let { append(" • $it") }
-                        // ☁️ = kaynak API'sinde uygulandı, 📱 = kaynak desteklemediği için cihazda.
-                        if (serverFilterActive) append(" ☁️")
-                        else if (localGenreFilter || localSort) append(" 📱")
+                        // Sunucu/cihaz ayrımı emoji ile değil, metin etiketiyle gösterilir.
+                        if (serverFilterActive) append(" • ${stringResource(R.string.filter_scope_server)}")
+                        else if (localGenreFilter || localSort) append(" • ${stringResource(R.string.filter_scope_device)}")
                     }
 
                     Column {
@@ -1186,7 +1229,7 @@ fun FullScreenMediaGridPage(
                         KitsugiEmptyState(
                             title = stringResource(R.string.henuz_icerik_yok),
                             subtitle = stringResource(R.string.bu_kategoride_gosterilecek_icerik_bulunamadi),
-                            icon = Icons.Rounded.SearchOff
+                            icon = Icons.SearchOff
                         )
                     }
                 } else {
@@ -1268,7 +1311,7 @@ fun FullScreenMediaGridPage(
                     .padding(horizontal = 8.dp)
             ) {
                 IconButton(onClick = onBackClick) {
-                    Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.geri), tint = KitsugiColors.TextPrimary)
+                    Icon(Icons.ArrowBack, contentDescription = stringResource(R.string.geri), tint = KitsugiColors.TextPrimary)
                 }
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
@@ -1290,7 +1333,7 @@ fun FullScreenMediaGridPage(
                             .background(Color.Transparent)
                     ) {
                         Icon(
-                            Icons.Rounded.PlaylistAdd,
+                            Icons.PlaylistAdd,
                             contentDescription = stringResource(R.string.tumunu_listeye_ekle),
                             tint = accentColor
                         )
@@ -1312,7 +1355,7 @@ fun FullScreenMediaGridPage(
                         .background(if (hasActiveFilterFloating) accentColor.copy(alpha = 0.25f) else Color.Transparent)
                 ) {
                     Icon(
-                        Icons.Rounded.FilterList,
+                        Icons.FilterList,
                         contentDescription = stringResource(R.string.filtre_ve_siralama),
                         tint = if (hasActiveFilterFloating) accentColor else KitsugiColors.TextPrimary
                     )
@@ -1339,7 +1382,7 @@ fun FullScreenMediaGridPage(
                     }
                 }) {
                     Icon(
-                        imageVector = if (isGridView) Icons.AutoMirrored.Rounded.ListAlt else Icons.Rounded.GridView,
+                        imageVector = if (isGridView) Icons.ListAlt else Icons.GridView,
                         contentDescription = if (isGridView) KitsugiStrings.get(R.string.liste) else "Grid",
                         tint = accentColor
                     )
@@ -1372,7 +1415,7 @@ fun FullScreenMediaGridPage(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.KeyboardArrowUp,
+                    imageVector = Icons.KeyboardArrowUp,
                     contentDescription = stringResource(R.string.yukari_git),
                     tint = KitsugiColors.Background,
                     modifier = Modifier.size(28.dp)
@@ -1440,11 +1483,13 @@ private fun GridGenreChipRow(
                     .padding(horizontal = 13.dp, vertical = 7.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = genre.displayLabel(),
+                KitsugiEmojiLabel(
+                    label = genre.displayLabel(),
                     color = if (isSelected) accentColor else KitsugiColors.TextPrimary,
                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                    style = MaterialTheme.typography.labelMedium
+                    style = MaterialTheme.typography.labelMedium,
+                    iconSize = 13.dp,
+                    icon = genre.icon
                 )
             }
         }

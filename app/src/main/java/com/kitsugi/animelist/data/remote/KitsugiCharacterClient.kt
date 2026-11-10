@@ -912,79 +912,81 @@ class KitsugiCharacterClient {
                         } else personDetail
                     }
 
-                    // Kurgusal/anime karakteri ise seslendirmen biyografisi yerine AniList, Jikan
-                    // veya Bangumi üzerinden gerçek kurgusal karakter profilini yükle.
                     val cleanCharName = name?.let(::cleanCharacterDisplayName)?.trim()
-                    if (!cleanCharName.isNullOrBlank()) {
-                        val resolvedDetail = fetchFictionalCharacterDetailByName(cleanCharName, fallbackImageUrl)
-                        if (resolvedDetail != null) {
-                            return@withContext resolvedDetail
-                        }
+                    val personDetail = TmdbApiClient().fetchPersonCharacterDetail(characterId)
+                    val actorPhotoUrl = personDetail?.imageUrl
+                    val safeFallbackImage = fallbackImageUrl?.takeIf {
+                        it.isNotBlank() && !DetailCache.isSameImageResource(it, actorPhotoUrl)
+                    } ?: cleanCharName?.let { DetailCache.getCachedCharacterPortrait(it) }?.takeIf {
+                        it.isNotBlank() && !DetailCache.isSameImageResource(it, actorPhotoUrl)
                     }
 
-                    // TMDB credits listesinde "karakter" kaydı, kaydın arkasındaki GERÇEK kişiyi
-                    // (oyuncu/seiyuu) taşır. Eski davranış bu ayrımı kaybediyordu:
-                    //  - görsel HER durumda null'lanıyordu → karakter sayfası resimsiz açılıyordu
-                    //    (kullanıcı şikâyeti: hayali karakterler ve gerçek kişiler dâhil),
-                    //  - gerçek kişi kaydı ile kurgusal karakter kaydı aynı biçimde dönüyordu.
-                    val personDetail = TmdbApiClient().fetchPersonCharacterDetail(characterId)
-                    if (personDetail != null) {
-                        // Son çare görsel sırası: karttan gelen görsel → kişinin TMDB fotoğrafı.
-                        val resolvedImage = fallbackImageUrl?.takeIf { it.isNotBlank() }
-                            ?: personDetail.imageUrl
-
-                        if (!cleanCharName.isNullOrBlank()) {
-                            // KURGUSAL KARAKTER: kimlik karakter adıyla korunur, oyuncu/seiyuu
-                            // seslendirmen olarak iliştirilir. Görsel boş bırakılmaz.
-                            val va = KitsugiVoiceActor(
+                    val matchingAppearances = if (personDetail != null && !cleanCharName.isNullOrBlank()) {
+                        filterCharacterAppearances(personDetail.mediaAppearances, cleanCharName)
+                    } else {
+                        personDetail?.mediaAppearances.orEmpty()
+                    }
+                    val voiceActorList = if (personDetail != null) {
+                        listOf(
+                            KitsugiVoiceActor(
                                 id = characterId,
                                 name = personDetail.name,
-                                language = "Japonca",
+                                language = "",
                                 imageUrl = personDetail.imageUrl,
                                 source = "tmdb"
                             )
-                            KitsugiCharacterDetail(
-                                id = characterId,
-                                name = cleanCharName,
-                                nativeName = null,
-                                alternativeNames = personDetail.alternativeNames,
-                                imageUrl = resolvedImage,
-                                gender = null,
-                                age = null,
-                                birthday = null,
-                                bloodType = null,
-                                biography = personDetail.biography
-                                    ?: "Bu kurgusal karakter için ek biyografi bilgisi bulunmuyor.",
-                                voiceActors = listOf(va),
-                                mediaAppearances = personDetail.mediaAppearances,
-                                source = "tmdb"
+                        )
+                    } else emptyList()
+
+                    // Kurgusal/anime karakteri ise seslendirmen biyografisi yerine AniList, Jikan,
+                    // Bangumi, Fandom veya Vikipedi üzerinden gerçek kurgusal karakter profilini yükle.
+                    if (!cleanCharName.isNullOrBlank()) {
+                        val resolvedDetail = fetchFictionalCharacterDetailByName(
+                            cleanCharName = cleanCharName,
+                            fallbackImageUrl = safeFallbackImage,
+                            mediaAppearancesHint = matchingAppearances
+                        )
+                        if (resolvedDetail != null) {
+                            val mergedVas = if (resolvedDetail.voiceActors.isNotEmpty()) {
+                                resolvedDetail.voiceActors
+                            } else {
+                                voiceActorList
+                            }
+                            val mergedAppearances = if (resolvedDetail.mediaAppearances.isNotEmpty()) {
+                                resolvedDetail.mediaAppearances
+                            } else {
+                                matchingAppearances
+                            }
+                            return@withContext resolvedDetail.copy(
+                                id = if (resolvedDetail.id > 0) resolvedDetail.id else characterId,
+                                voiceActors = mergedVas,
+                                mediaAppearances = mergedAppearances
                             )
-                        } else {
-                            // GERÇEK KİŞİ: sayfa kişinin kendi profili; görsel/biyografi ondan gelir.
-                            if (personDetail.imageUrl.isNullOrBlank() && !fallbackImageUrl.isNullOrBlank()) {
-                                personDetail.copy(imageUrl = fallbackImageUrl, source = "tmdb")
-                            } else personDetail
                         }
-                    } else if (!cleanCharName.isNullOrBlank()) {
-                        // Hiçbir dış kaynak karakteri doğrulayamadı. Eski davranış `null`
-                        // döndürüyordu; arayüz bunu "karakter detayları yüklenemedi" hatası
-                        // olarak gösteriyordu. Kurgusal karakterin kimliği (adı) korunur, kart
-                        // görseli varsa sayfada gösterilir.
+                    }
+
+                    if (!cleanCharName.isNullOrBlank()) {
+                        val primaryName = primaryCharacterName(cleanCharName)
+                        val roleAliases = extractSlashRoleAliases(cleanCharName, primaryName)
                         KitsugiCharacterDetail(
                             id = characterId,
-                            name = cleanCharName,
+                            name = primaryName,
                             nativeName = null,
-                            alternativeNames = emptyList(),
-                            imageUrl = fallbackImageUrl?.takeIf { it.isNotBlank() },
+                            alternativeNames = roleAliases,
+                            imageUrl = safeFallbackImage,
                             gender = null,
                             age = null,
                             birthday = null,
                             bloodType = null,
-                            biography = null,
-                            voiceActors = emptyList(),
-                            mediaAppearances = emptyList(),
+                            biography = "Bu kurgusal karakter için ek biyografi bilgisi bulunmuyor.",
+                            voiceActors = voiceActorList,
+                            mediaAppearances = matchingAppearances,
                             source = "tmdb"
-                        )
+                        ).withRoleAlias(cleanCharName)
+                    } else if (personDetail != null) {
+                        if (personDetail.imageUrl.isNullOrBlank() && !fallbackImageUrl.isNullOrBlank()) {
+                            personDetail.copy(imageUrl = fallbackImageUrl, source = "tmdb")
+                        } else personDetail
                     } else null
                 }
                 "kitsu" -> {
@@ -1128,11 +1130,17 @@ class KitsugiCharacterClient {
      * kimlik doğrulanır; sayfa doğru karakterle ve görseliyle açılır.
      */
     private fun KitsugiCharacterDetail.withRoleAlias(roleName: String?): KitsugiCharacterDetail {
-        val alias = roleName?.trim().orEmpty()
-        if (alias.isBlank()) return this
-        if (name.equals(alias, ignoreCase = true)) return this
-        if (alternativeNames.any { it.equals(alias, ignoreCase = true) }) return this
-        return copy(alternativeNames = alternativeNames + alias)
+        val raw = roleName?.trim().orEmpty()
+        if (raw.isBlank()) return this
+        val segments = raw.split("/")
+            .map { cleanCharacterDisplayName(it).trim() }
+            .filter { it.isNotBlank() }
+        if (segments.isEmpty()) return this
+        val existing = (listOf(name, englishName, romanizedName, nativeName) + alternativeNames)
+            .mapNotNull { it?.trim()?.lowercase() }
+            .toMutableSet()
+        val toAdd = segments.filter { seg -> existing.add(seg.lowercase()) }
+        return if (toAdd.isEmpty()) this else copy(alternativeNames = alternativeNames + toAdd)
     }
 
     /**
@@ -1142,6 +1150,30 @@ class KitsugiCharacterClient {
      */
     private fun primaryCharacterName(name: String): String =
         name.substringBefore("/").substringBefore(" (").trim().ifBlank { name.trim() }
+
+    private fun extractSlashRoleAliases(rawName: String, primaryName: String): List<String> =
+        rawName.split("/")
+            .map { cleanCharacterDisplayName(it).trim() }
+            .filter { it.isNotBlank() && !it.equals(primaryName, ignoreCase = true) }
+            .distinct()
+
+    private fun filterCharacterAppearances(
+        appearances: List<KitsugiCharacterMediaAppearance>,
+        cleanCharName: String
+    ): List<KitsugiCharacterMediaAppearance> {
+        if (appearances.isEmpty()) return emptyList()
+        val roleSegmentsNorm = cleanCharName.split("/")
+            .map { normalizeCharacterMatchNorm(it) }
+            .filter { it.length >= 2 }
+        if (roleSegmentsNorm.isEmpty()) return appearances
+        val matched = appearances.filter { app ->
+            val appRoleNorm = normalizeCharacterMatchNorm(app.characterRole)
+            appRoleNorm.length >= 2 && roleSegmentsNorm.any { seg ->
+                appRoleNorm.contains(seg) || seg.contains(appRoleNorm)
+            }
+        }
+        return matched.ifEmpty { appearances }
+    }
 
     /**
      * AniList karakter düğümü: adı sorguyla eşleşiyor mu (birebir / jeton kümesi) ve
@@ -1489,7 +1521,8 @@ class KitsugiCharacterClient {
         ).trim()
 
     internal fun isActorDuplicateImage(char: KitsugiCharacter): Boolean =
-        !char.imageUrl.isNullOrBlank() && char.imageUrl == char.voiceActors.firstOrNull()?.imageUrl
+        !char.imageUrl.isNullOrBlank() &&
+            char.voiceActors.any { va -> DetailCache.isSameImageResource(char.imageUrl, va.imageUrl) }
 
     internal fun hasMajorityVoiceCast(characters: List<KitsugiCharacter>): Boolean {
         val sample = characters.take(10)
@@ -1504,27 +1537,34 @@ class KitsugiCharacterClient {
         mediaType: MediaType,
         hasAnimeCatalogIds: Boolean
     ): Boolean {
-        if (mediaType == MediaType.Anime || hasAnimeCatalogIds) return true
+        if (hasAnimeCatalogIds) return true
         val d = detail ?: return true
-        if (d.type == MediaType.Anime) return true
         val origin = d.countryOfOrigin?.lowercase().orEmpty()
         val language = d.originalLanguage?.lowercase().orEmpty()
-        if (origin.isEmpty() && language.isEmpty()) {
-            return !d.titleJapanese.isNullOrBlank() ||
-                PreferenceHelpers.hasCjkCharacters(d.titleNative.orEmpty())
+        if (origin.isNotEmpty() || language.isNotEmpty()) {
+            val isEastAsian = origin.contains("jp") || origin.contains("japon") || origin.contains("japan") ||
+                origin.contains("kr") || origin.contains("kore") || origin.contains("cn") || origin.contains("çin") ||
+                origin.contains("tw") || origin.contains("hk") ||
+                language.startsWith("ja") || language.startsWith("ko") || language.startsWith("zh")
+            if (isEastAsian) return true
+            if (!d.titleJapanese.isNullOrBlank() || PreferenceHelpers.hasCjkCharacters(d.titleNative.orEmpty())) {
+                return true
+            }
+            return false
         }
-        return origin.contains("jp") || origin.contains("japon") || origin.contains("japan") ||
-            origin.contains("kr") || origin.contains("kore") || origin.contains("cn") || origin.contains("çin") ||
-            origin.contains("tw") || origin.contains("hk") ||
-            language.startsWith("ja") || language.startsWith("ko") || language.startsWith("zh")
+        if (mediaType == MediaType.Anime || d.type == MediaType.Anime) return true
+        return !d.titleJapanese.isNullOrBlank() ||
+            PreferenceHelpers.hasCjkCharacters(d.titleNative.orEmpty())
     }
 
     /**
-     * Kurgusal karakter detayı için çok-kaynaklı ad çözümleyici (AniList → Jikan → Bangumi).
+     * Kurgusal karakter detayı için çok-kaynaklı ad çözümleyici
+     * (AniList → Jikan → Bangumi → Fandom / Vikipedi).
      */
     private suspend fun fetchFictionalCharacterDetailByName(
         cleanCharName: String,
-        fallbackImageUrl: String?
+        fallbackImageUrl: String?,
+        mediaAppearancesHint: List<KitsugiCharacterMediaAppearance> = emptyList()
     ): KitsugiCharacterDetail? {
         val lookupName = primaryCharacterName(cleanCharName)
         val aniDetail = fetchAniListCharacterByName(
@@ -1576,7 +1616,164 @@ class KitsugiCharacterClient {
             return bangumiDetail.withRoleAlias(cleanCharName)
         }
 
+        val wikiDetail = runCatching {
+            fetchWikiFictionalCharacterDetailByName(
+                cleanCharName = cleanCharName,
+                fallbackImageUrl = fallbackImageUrl,
+                mediaAppearancesHint = mediaAppearancesHint
+            )
+        }.getOrNull()
+        if (wikiDetail != null) {
+            return wikiDetail
+        }
+
         return null
+    }
+
+    private suspend fun fetchWikiFictionalCharacterDetailByName(
+        cleanCharName: String,
+        fallbackImageUrl: String?,
+        mediaAppearancesHint: List<KitsugiCharacterMediaAppearance> = emptyList()
+    ): KitsugiCharacterDetail? {
+        val lookupName = primaryCharacterName(cleanCharName)
+        if (lookupName.length < 2) return null
+        val roleAliases = extractSlashRoleAliases(cleanCharName, lookupName)
+
+        val mediaTitles = mediaAppearancesHint.flatMap {
+            listOfNotNull(it.titleEnglish, it.titleRomaji, it.title)
+        }.map { it.trim() }.filter { it.isNotEmpty() }.distinct()
+
+        val slugCandidates = com.kitsugi.animelist.data.fandom.FandomNameVariants
+            .slugCandidates(mediaTitles)
+            .take(2)
+
+        return coroutineScope {
+            val enDeferred = async {
+                runCatching {
+                    com.kitsugi.animelist.data.fandom.FandomApi.lookupTitles(
+                        wikiId = "wikipedia.en",
+                        titles = listOf(lookupName),
+                        withTurkishLink = true
+                    )[lookupName]?.takeIf { it.exists && !it.isDisambiguation }
+                }.getOrNull()
+            }
+            val trDeferred = async {
+                runCatching {
+                    com.kitsugi.animelist.data.fandom.FandomApi.lookupTitles(
+                        wikiId = "wikipedia.tr",
+                        titles = listOf(lookupName),
+                        withTurkishLink = false
+                    )[lookupName]?.takeIf { it.exists && !it.isDisambiguation }
+                }.getOrNull()
+            }
+            val fandomDeferred = async {
+                for (slug in slugCandidates) {
+                    val lookup = runCatching {
+                        com.kitsugi.animelist.data.fandom.FandomApi.lookupTitles(
+                            wikiId = slug,
+                            titles = listOf(lookupName),
+                            withTurkishLink = false
+                        )[lookupName]?.takeIf { it.exists && !it.isDisambiguation }
+                    }.getOrNull()
+                    if (lookup != null) {
+                        val infobox = com.kitsugi.animelist.data.fandom.FandomInfoboxParser.parse(lookup.infoboxJson, slug)
+                        var intro = lookup.description?.takeIf { it.isNotBlank() }
+                        var resolvedInfobox = infobox
+                        if (intro.isNullOrBlank() || resolvedInfobox == null) {
+                            val html = runCatching {
+                                com.kitsugi.animelist.data.fandom.FandomApi.sectionHtml(
+                                    slug,
+                                    lookup.resolvedTitle ?: lookupName,
+                                    0
+                                )
+                            }.getOrNull()
+                            if (!html.isNullOrBlank()) {
+                                val lead = com.kitsugi.animelist.data.fandom.FandomLeadParser.parse(html, slug)
+                                if (intro.isNullOrBlank()) intro = lead.intro
+                                if (resolvedInfobox == null) resolvedInfobox = lead.infobox
+                            }
+                        }
+                        return@async Triple(slug, lookup.copy(description = intro ?: lookup.description), resolvedInfobox)
+                    }
+                }
+                null
+            }
+
+            val enLookup = enDeferred.await()
+            var trLookup = trDeferred.await()
+            val fandomHit = fandomDeferred.await()
+
+            if (trLookup == null && enLookup?.turkishLink != null) {
+                val trTitle = enLookup.turkishLink.second
+                if (!trTitle.equals(lookupName, ignoreCase = true)) {
+                    trLookup = runCatching {
+                        com.kitsugi.animelist.data.fandom.FandomApi.lookupTitles(
+                            wikiId = "wikipedia.tr",
+                            titles = listOf(trTitle),
+                            withTurkishLink = false
+                        )[trTitle]?.takeIf { it.exists && !it.isDisambiguation }
+                    }.getOrNull()
+                }
+            }
+
+            val fandomLookup = fandomHit?.second
+            val fandomInfobox = fandomHit?.third
+
+            if (enLookup == null && trLookup == null && fandomLookup == null) {
+                return@coroutineScope null
+            }
+
+            val bestImage = fandomInfobox?.images?.firstOrNull { it.url.isNotBlank() }?.url
+                ?: fandomLookup?.thumbnailUrl?.takeIf { it.isNotBlank() }
+                ?: enLookup?.thumbnailUrl?.takeIf { it.isNotBlank() }
+                ?: trLookup?.thumbnailUrl?.takeIf { it.isNotBlank() }
+                ?: fallbackImageUrl?.takeIf { it.isNotBlank() }
+
+            val bestBio = trLookup?.description?.cleanApiText()?.takeIf { it.isNotBlank() }
+                ?: fandomLookup?.description?.cleanApiText()?.takeIf { it.isNotBlank() }
+                ?: enLookup?.description?.cleanApiText()?.takeIf { it.isNotBlank() }
+
+            if (bestImage.isNullOrBlank() && bestBio.isNullOrBlank()) {
+                return@coroutineScope null
+            }
+
+            val fields = fandomInfobox?.allFields().orEmpty()
+            val gender = fields.firstOrNull {
+                it.label.equals("Gender", ignoreCase = true) ||
+                    it.label.equals("Sex", ignoreCase = true) ||
+                    it.label.equals("Cinsiyet", ignoreCase = true)
+            }?.value?.toTurkishGender()
+            val age = fields.firstOrNull {
+                it.label.equals("Age", ignoreCase = true) ||
+                    it.label.equals("Yaş", ignoreCase = true)
+            }?.value
+            val birthday = fields.firstOrNull {
+                it.label.equals("Born", ignoreCase = true) ||
+                    it.label.equals("Birthday", ignoreCase = true) ||
+                    it.label.equals("Date of birth", ignoreCase = true)
+            }?.value
+
+            if (!bestImage.isNullOrBlank()) {
+                DetailCache.propagateCharacterPortrait(cleanCharName, bestImage)
+                DetailCache.propagateCharacterPortrait(lookupName, bestImage)
+            }
+
+            KitsugiCharacterDetail(
+                id = 0,
+                name = lookupName,
+                nativeName = null,
+                alternativeNames = roleAliases,
+                imageUrl = bestImage,
+                gender = gender,
+                age = age,
+                birthday = birthday,
+                bloodType = null,
+                biography = bestBio ?: "Bu kurgusal karakter için ek biyografi bilgisi bulunmuyor.",
+                voiceActors = emptyList(),
+                mediaAppearances = mediaAppearancesHint,
+                source = "tmdb"
+            ).withRoleAlias(cleanCharName)
+        }
     }
 
     internal suspend fun enrichTmdbCastCharacters(
@@ -1767,7 +1964,7 @@ class KitsugiCharacterClient {
                     imdbId = imdbId
                 )
                 val fandomMap = runCatching {
-                    withTimeoutOrNull(5_500L) {
+                    withTimeoutOrNull(8_000L) {
                         deps.fetchFandomPortraits(
                             sourceIds,
                             mediaType == MediaType.Movie,
@@ -1780,7 +1977,7 @@ class KitsugiCharacterClient {
                     current = current.map { ch ->
                         if (!ch.imageUrl.isNullOrBlank()) ch
                         else {
-                            val hit = fandomMap[ch.name]
+                            val hit = fandomMap[ch.name] ?: fandomMap[primaryCharacterName(ch.name)]
                             if (!hit.isNullOrBlank()) ch.copy(imageUrl = hit) else ch
                         }
                     }
@@ -1800,6 +1997,10 @@ class KitsugiCharacterClient {
         current.forEach { ch ->
             if (!ch.imageUrl.isNullOrBlank() && !isActorDuplicateImage(ch)) {
                 DetailCache.resolvedCharacterPortraits[normalizeCharacterMatchNorm(ch.name)] = ch.imageUrl
+                val primaryKey = normalizeCharacterMatchNorm(primaryCharacterName(ch.name))
+                if (primaryKey.length >= 2) {
+                    DetailCache.resolvedCharacterPortraits.putIfAbsent(primaryKey, ch.imageUrl)
+                }
             }
         }
         return current
@@ -1849,7 +2050,8 @@ class KitsugiCharacterClient {
                 }.orEmpty()
             }
             val bangumiJob = async {
-                withTimeoutOrNull(6_000L) {
+                if (!allowAnimeCatalogs && bangumiId == null) emptyList()
+                else withTimeoutOrNull(6_000L) {
                     runCatching { deps.fetchBangumiList(bangumiId, titleCandidates, expectedYear) }.getOrNull().orEmpty()
                 }.orEmpty()
             }
@@ -2011,43 +2213,88 @@ class KitsugiCharacterClient {
         mediaTitles: List<String>,
         missingCharNames: List<String>
     ): Map<String, String> {
-        val ctx = KitsugiApplication.getInstance()?.applicationContext ?: return emptyMap()
-        val query = com.kitsugi.animelist.data.fandom.FandomMediaQuery(
-            ids = sourceIds,
-            isManga = false,
-            isMovie = isMovie,
-            fallbackTitles = mediaTitles
-        )
-        val wikiRef = com.kitsugi.animelist.data.fandom.FandomRepository.resolveMediaWiki(
-            context = ctx,
-            query = query,
-            allowNameFallback = true
-        ) ?: return emptyMap()
-
         val cleanLookupMap = LinkedHashMap<String, String>()
+        val secondaryLookupMap = LinkedHashMap<String, String>()
         for (orig in missingCharNames.take(35)) {
-            cleanLookupMap.putIfAbsent(orig, orig)
-            val primary = primaryCharacterName(orig)
-            if (primary.isNotBlank() && primary != orig) {
+            val segments = orig.split("/")
+                .map { cleanCharacterDisplayName(it).trim() }
+                .filter { it.length >= 2 }
+            val primary = segments.firstOrNull() ?: primaryCharacterName(orig)
+            if (primary.isNotBlank()) {
                 cleanLookupMap.putIfAbsent(primary, orig)
             }
+            if (!orig.contains("/")) {
+                cleanLookupMap.putIfAbsent(orig, orig)
+            }
+            segments.drop(1).take(2).forEach { sec ->
+                if (sec.isNotBlank()) secondaryLookupMap.putIfAbsent(sec, orig)
+            }
         }
-        val lookups = com.kitsugi.animelist.data.fandom.FandomApi.lookupTitles(
-            wikiId = wikiRef.wikiId,
-            titles = cleanLookupMap.keys.toList()
-        )
+        if (cleanLookupMap.isEmpty()) return emptyMap()
+
+        val candidateWikis = LinkedHashSet<String>()
+        val ctx = KitsugiApplication.getInstance()?.applicationContext
+        if (ctx != null) {
+            val query = com.kitsugi.animelist.data.fandom.FandomMediaQuery(
+                ids = sourceIds,
+                isManga = false,
+                isMovie = isMovie,
+                fallbackTitles = mediaTitles,
+                isTvShow = !isMovie
+            )
+            val wikiRef = withTimeoutOrNull(3_000L) {
+                com.kitsugi.animelist.data.fandom.FandomRepository.resolveMediaWiki(
+                    context = ctx,
+                    query = query,
+                    allowNameFallback = true
+                )
+            }
+            if (wikiRef != null && !com.kitsugi.animelist.data.fandom.FandomUrls.isWikipedia(wikiRef.wikiId)) {
+                candidateWikis += wikiRef.wikiId
+            }
+            com.kitsugi.animelist.data.fandom.FandomNameVariants.slugCandidates(mediaTitles)
+                .take(2)
+                .forEach { candidateWikis += it }
+            if (wikiRef != null && com.kitsugi.animelist.data.fandom.FandomUrls.isWikipedia(wikiRef.wikiId)) {
+                candidateWikis += wikiRef.wikiId
+            }
+        } else {
+            com.kitsugi.animelist.data.fandom.FandomNameVariants.slugCandidates(mediaTitles)
+                .take(2)
+                .forEach { candidateWikis += it }
+        }
+        candidateWikis += "wikipedia.en"
+        candidateWikis += "wikipedia.tr"
+
         val resolved = LinkedHashMap<String, String>()
-        for ((lookupKey, lookup) in lookups) {
-            if (!lookup.exists || lookup.isDisambiguation) continue
-            val origName = cleanLookupMap[lookupKey] ?: continue
-            val img = lookup.thumbnailUrl?.takeIf { it.isNotBlank() }
-                ?: com.kitsugi.animelist.data.fandom.FandomInfoboxParser.parse(lookup.infoboxJson)
+        val targetCount = missingCharNames.take(35).distinct().size
+        for (wikiId in candidateWikis) {
+            val remainingPrimary = cleanLookupMap.filterValues { it !in resolved }
+            if (remainingPrimary.isEmpty()) break
+            val batchTitles = (remainingPrimary.keys + secondaryLookupMap.filterValues { it !in resolved }.keys)
+                .distinct()
+                .take(50)
+            if (batchTitles.isEmpty()) continue
+            val lookups = runCatching {
+                com.kitsugi.animelist.data.fandom.FandomApi.lookupTitles(
+                    wikiId = wikiId,
+                    titles = batchTitles
+                )
+            }.getOrNull().orEmpty()
+            for ((lookupKey, lookup) in lookups) {
+                if (!lookup.exists || lookup.isDisambiguation) continue
+                val origName = cleanLookupMap[lookupKey] ?: secondaryLookupMap[lookupKey] ?: continue
+                if (origName in resolved) continue
+                val img = com.kitsugi.animelist.data.fandom.FandomInfoboxParser.parse(lookup.infoboxJson, wikiId)
                     ?.images
                     ?.firstOrNull { it.url.isNotBlank() }
                     ?.url
-            if (!img.isNullOrBlank()) {
-                resolved.putIfAbsent(origName, img)
+                    ?: lookup.thumbnailUrl?.takeIf { it.isNotBlank() }
+                if (!img.isNullOrBlank()) {
+                    resolved[origName] = img
+                }
             }
+            if (resolved.size >= targetCount) break
         }
         return resolved
     }

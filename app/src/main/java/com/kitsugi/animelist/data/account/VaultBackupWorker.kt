@@ -16,7 +16,7 @@ class VaultBackupWorker(context: Context, params: WorkerParameters) : CoroutineW
             // when the job actually runs, also after a process death or reboot.
             val settings = com.kitsugi.animelist.data.settings.SettingsDataStore(applicationContext)
                 .settingsFlow.first()
-            if (!settings.accountBackupEnabled) return Result.success()
+            if (!settings.accountBackupEnabled && !settings.accountAddonSyncEnabled) return Result.success()
             if (LocalVaultKeyStore.owner(applicationContext) != owner) return Result.success()
             val auth = KitsugiAccountClient.client.auth
             auth.awaitInitialization()

@@ -38,6 +38,8 @@ data class FandomCharacterQuery(
     fun cacheKey(): String = when {
         aniListCharacterId != null -> "al:$aniListCharacterId"
         malCharacterId != null -> "mal:$malCharacterId"
+        source.equals("tmdb", ignoreCase = true) && names.isNotEmpty() ->
+            "tmdb:$characterId:${FandomNameVariants.normalizeForCompare(names.first())}"
         else -> "${source.lowercase()}:$characterId"
     }
 }
@@ -67,10 +69,19 @@ object FandomCharacterQueries {
         val aniListCharacterId = detail.aniListId?.takeIf { it > 0 }
             ?: if (canonical == "anilist") characterId.takeIf { it > 0 } else null
 
-        val names = listOfNotNull(detail.englishName, detail.romanizedName, detail.name)
+        val rawNames = listOfNotNull(detail.englishName, detail.romanizedName, detail.name)
             .map { it.replace(Regex("\\s+"), " ").trim() }
-            .filter { it.isNotEmpty() && FandomNameVariants.isMostlyLatin(it) }
-            .distinct()
+            .filter { it.isNotEmpty() }
+        val names = buildList {
+            for (raw in rawNames) {
+                val primary = raw.substringBefore("/").trim()
+                if (primary.isNotEmpty() && FandomNameVariants.isMostlyLatin(primary)) add(primary)
+                if (FandomNameVariants.isMostlyLatin(raw)) add(raw)
+            }
+        }.distinct()
+        val slashAlternatives = rawNames.flatMap { raw ->
+            if (raw.contains("/")) raw.split("/").drop(1).map { it.trim() } else emptyList()
+        }
 
         val appearances = detail.mediaAppearances.mapNotNull { appearance ->
             val ids = FandomMediaIds.fromStableId(appearance.source, appearance.mediaId)
@@ -96,7 +107,7 @@ object FandomCharacterQueries {
             malCharacterId = malCharacterId,
             names = names,
             nativeName = detail.nativeName?.trim()?.takeIf { it.isNotEmpty() },
-            alternatives = detail.alternativeNames
+            alternatives = (detail.alternativeNames + slashAlternatives)
                 .map { it.trim() }
                 .filter { it.isNotEmpty() && FandomNameVariants.isMostlyLatin(it) }
                 .distinct()

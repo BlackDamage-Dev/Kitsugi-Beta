@@ -47,6 +47,10 @@ class KitsugiStreamActivity : ComponentActivity() {
         private const val EXTRA_CS3_URL        = "extra_cs3_url"
         private const val EXTRA_CS3_API_NAME   = "extra_cs3_api_name"
         private const val EXTRA_IMDB_ID        = "extra_imdb_id"
+        private const val EXTRA_RESUME_HISTORY = "extra_resume_history"
+        private const val EXTRA_CS3_PLUGIN_ID  = "extra_cs3_plugin_id"
+        private const val STATE_STREAM_KEY     = "state_stream_key"
+        private const val STATE_HISTORY_ID     = "state_history_id"
 
         const val PREFS_NAME  = "KitsugiStreamPrefs"
         const val KEY_POS_PFX = "pos_"
@@ -78,7 +82,9 @@ class KitsugiStreamActivity : ComponentActivity() {
             cs3Url: String? = null,
             cs3ApiName: String? = null,
             /** Detay sayfasının bildiği IMDb kimliği (tt...). Yoksa stream tarafı kendi çözer. */
-            imdbId: String? = null
+            imdbId: String? = null,
+            resumeEntry: com.kitsugi.animelist.data.model.WatchHistoryEntry? = null,
+            cs3PluginId: String? = null
         ) {
             val effectiveMediaType = inferStreamMediaType(
                 mediaType = mediaType,
@@ -111,7 +117,19 @@ class KitsugiStreamActivity : ComponentActivity() {
                     putExtra(EXTRA_IS_DOWNLOAD_MODE, isDownloadMode)
                     cs3Url?.let         { putExtra(EXTRA_CS3_URL, it) }
                     cs3ApiName?.let     { putExtra(EXTRA_CS3_API_NAME, it) }
+                    cs3PluginId?.let    { putExtra(EXTRA_CS3_PLUGIN_ID, it) }
                     imdbId?.takeIf { it.isNotBlank() }?.let { putExtra(EXTRA_IMDB_ID, it) }
+                    resumeEntry?.let { entry ->
+                        // Only the identity/fingerprint travels in the Intent. Expiring URLs,
+                        // credentials in headers and large metadata are not needed to re-fetch.
+                        val snapshot = entry.copy(
+                            streamUrlKey = entry.streamUrlKey
+                                ?: com.kitsugi.animelist.data.local.WatchHistorySource.urlKey(entry.streamUrl),
+                            streamUrl = null, streamHeaders = null, posterUrl = null,
+                            synonyms = null, titleEnglish = null, titleRomaji = null, titleNative = null
+                        )
+                        putExtra(EXTRA_RESUME_HISTORY, Gson().toJson(snapshot))
+                    }
                 }
             )
         }
@@ -125,20 +143,24 @@ class KitsugiStreamActivity : ComponentActivity() {
 
         if (result == null) { Log.d("KitsugiStream", "External player returned no result"); return@registerForActivityResult }
         Log.d("KitsugiStream", "External player result → pos=${result.positionMs}ms dur=${result.durationMs}ms")
-        val key = currentStreamKey
-        if (key != null && result.positionMs > 0L) {
-            getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit()
-                .putLong(KEY_POS_PFX + key, result.positionMs)
-                .also { editor -> result.durationMs?.let { editor.putLong("${KEY_POS_PFX}dur_$key", it) } }
-                .apply()
+        if (result.positionMs >= 0L) {
+            currentStreamKey?.let { key ->
+                getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit()
+                    .putLong(KEY_POS_PFX + key, result.positionMs)
+                    .also { editor -> result.durationMs?.let { editor.putLong("${KEY_POS_PFX}dur_$key", it) } }
+                    .apply()
+            }
 
-            val mediaIdForHistory = currentMalId ?: currentAniList ?: currentTmdbId ?: currentBangumiId ?: currentTitle.hashCode()
-            com.kitsugi.animelist.data.local.WatchHistoryManager.updateProgress(
-                animeId = mediaIdForHistory.toString(),
-                episode = currentEpisode,
-                positionMs = result.positionMs,
-                durationMs = result.durationMs ?: 0L
-            )
+            currentHistoryId?.let { historyId ->
+                com.kitsugi.animelist.data.local.WatchHistoryManager.updateProgress(
+                    animeId = historyId,
+                    season = currentSeason,
+                    episode = currentEpisode,
+                    positionMs = result.positionMs,
+                    durationMs = result.durationMs ?: 0L
+                )
+                com.kitsugi.animelist.data.local.WatchHistoryManager.flush()
+            }
         }
 
         // T1.8: Otomatik sonraki bölümü başlatma
@@ -151,6 +173,9 @@ class KitsugiStreamActivity : ComponentActivity() {
             )
         ) {
             val nextEp = currentEpisode + 1
+            val previousEntry = currentHistoryId?.let {
+                com.kitsugi.animelist.data.local.WatchHistoryManager.find(it, currentSeason, currentEpisode)
+            }
             Log.d("KitsugiStream", "AutoPlay Next Episode: S${currentSeason}E${nextEp}")
             // KitsugiStreamActivity'yi bir sonraki bölüm için başlat ve eskisini kapat
             start(
@@ -172,13 +197,17 @@ class KitsugiStreamActivity : ComponentActivity() {
                 startYear = currentStartYear,
                 description = currentDescription,
                 imdbId = currentImdbId,
-                isAutoplay = true
+                isAutoplay = true,
+                cs3Url = if (previousEntry != null) previousEntry.cs3Url else currentCs3Url,
+                cs3ApiName = if (previousEntry != null) previousEntry.cs3ApiName else currentCs3ApiName,
+                cs3PluginId = com.kitsugi.animelist.data.local.WatchHistorySource.cloudStreamPluginId(previousEntry?.addonId)
             )
             finish()
         }
     }
 
     var currentStreamKey: String? = null
+    private var currentHistoryId: String? = null
 
     // Fields for auto-next transition
     private var currentMalId: Int? = null
@@ -202,6 +231,8 @@ class KitsugiStreamActivity : ComponentActivity() {
     private var isDownloadMode: Boolean = false
     private var currentCs3Url: String? = null
     private var currentCs3ApiName: String? = null
+    private var currentCs3PluginId: String? = null
+    private var resumeEntry: com.kitsugi.animelist.data.model.WatchHistoryEntry? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -236,7 +267,13 @@ class KitsugiStreamActivity : ComponentActivity() {
         isDownloadMode      = intent.getBooleanExtra(EXTRA_IS_DOWNLOAD_MODE, false)
         currentCs3Url       = intent.getStringExtra(EXTRA_CS3_URL)
         currentCs3ApiName   = intent.getStringExtra(EXTRA_CS3_API_NAME)
+        currentCs3PluginId  = intent.getStringExtra(EXTRA_CS3_PLUGIN_ID)
         currentImdbId       = intent.getStringExtra(EXTRA_IMDB_ID)?.takeIf { it.isNotBlank() }
+        currentStreamKey    = savedInstanceState?.getString(STATE_STREAM_KEY)
+        currentHistoryId    = savedInstanceState?.getString(STATE_HISTORY_ID)
+        resumeEntry = intent.getStringExtra(EXTRA_RESUME_HISTORY)?.let { json ->
+            runCatching { Gson().fromJson(json, com.kitsugi.animelist.data.model.WatchHistoryEntry::class.java) }.getOrNull()
+        }
 
         val castList: List<MetaCastMember> = tempCast ?: run {
             val castJson = intent.getStringExtra(EXTRA_CAST_JSON)
@@ -278,10 +315,13 @@ class KitsugiStreamActivity : ComponentActivity() {
                     isDownloadMode = isDownloadMode,
                     cs3Url = currentCs3Url,
                     cs3ApiName = currentCs3ApiName,
+                    cs3PluginId = currentCs3PluginId,
                     knownImdbId = currentImdbId,
+                    resumeEntry = resumeEntry,
                     onBack = { finish() },
-                    onLaunchExternalPlayer = { input, streamKey ->
+                    onLaunchExternalPlayer = { input, streamKey, historyId ->
                         currentStreamKey = streamKey
+                        currentHistoryId = historyId
                         com.kitsugi.animelist.core.player.KeepAliveService.start(this)
                         externalPlayerLauncher.launch(input)
                     },
@@ -300,7 +340,14 @@ class KitsugiStreamActivity : ComponentActivity() {
         }
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putString(STATE_STREAM_KEY, currentStreamKey)
+        outState.putString(STATE_HISTORY_ID, currentHistoryId)
+        super.onSaveInstanceState(outState)
+    }
+
     override fun onDestroy() {
+        com.kitsugi.animelist.data.local.WatchHistoryManager.flush()
         super.onDestroy()
         tempCast = null
     }

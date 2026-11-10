@@ -11,8 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -55,7 +54,7 @@ fun SourceSearchPage(
     initialResults: List<JikanSearchResult>,
     mediaEntries: List<MediaEntry>,
     showAdultContent: Boolean,
-    titleLanguage: String = "ROMAJI",
+    titleLanguage: String = "ENGLISH",
     scoreFormat: String = "POINT_10",
     hideScores: Boolean = false,
     onBackClick: () -> Unit,
@@ -63,8 +62,8 @@ fun SourceSearchPage(
     onAddSelectionToList: (ApiSearchSelection) -> Unit,
     onOpenPluginPicker: () -> Unit = {},
     onOpenAddonExplore: (String) -> Unit = {},
-    onOpenCharacterDetail: (Int, String?, String?) -> Unit = { _, _, _ -> },
-    onOpenStaffDetail: (Int, String?, String?) -> Unit = { _, _, _ -> },
+    onOpenCharacterDetail: (Int, String?, String?, String?) -> Unit = { _, _, _, _ -> },
+    onOpenStaffDetail: (Int, String?, String?, String?) -> Unit = { _, _, _, _ -> },
     onOpenStudioDetail: (Int, String, String?, String?) -> Unit = { _, _, _, _ -> },
     retainedOwner: SourceSearchOwner? = null
 ) {
@@ -103,7 +102,7 @@ fun SourceSearchPage(
         ) {
             IconButton(onClick = onBackClick) {
                 Icon(
-                    imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                    imageVector = Icons.ArrowBack,
                     contentDescription = stringResource(R.string.geri),
                     tint = KitsugiColors.TextPrimary
                 )

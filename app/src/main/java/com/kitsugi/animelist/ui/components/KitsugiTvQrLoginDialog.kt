@@ -28,8 +28,7 @@ import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import com.kitsugi.animelist.ui.theme.gradient.Text
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Close
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -294,7 +293,7 @@ fun KitsugiTvQrLoginDialog(
                     }
                     IconButton(onClick = onDismiss) {
                         Icon(
-                            Icons.Rounded.Close,
+                            Icons.Close,
                             contentDescription = stringResource(R.string.kapat),
                             tint = KitsugiColors.TextSecondary
                         )
@@ -441,9 +440,11 @@ fun KitsugiTvQrLoginDialog(
                     }
                     else -> {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(
-                                text = "📱",
-                                style = MaterialTheme.typography.displaySmall
+                            Icon(
+                                imageVector = Icons.Smartphone,
+                                contentDescription = null,
+                                tint = LocalKitsugiAccent.current,
+                                modifier = Modifier.size(44.dp)
                             )
                             Spacer(Modifier.height(12.dp))
                             Text(

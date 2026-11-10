@@ -30,14 +30,18 @@ object KitsuClient {
     private val BASE: String get() = KitsuApiHost.base
 
     suspend fun fetchAnimeDetail(kitsuIdOrSlug: String): KitsugiMediaDetail? = withContext(Dispatchers.IO) {
-        val url = "$BASE/anime/$kitsuIdOrSlug?include=categories"
-        executeGet(url)
+        // Yapım şirketleri (`animeProductions.producer`) istenir; uç bunu reddederse
+        // (400) aynı istek ilişki olmadan tekrarlanır — sayfa hiç açılmaz hâle gelmesin.
+        executeGet("$BASE/anime/$kitsuIdOrSlug?include=categories,animeProductions.producer")
+            ?: executeGet("$BASE/anime/$kitsuIdOrSlug?include=categories")
     }
 
     suspend fun fetchAnimeDetailByTitle(title: String): KitsugiMediaDetail? = withContext(Dispatchers.IO) {
         val encoded = URLEncoder.encode(title, "UTF-8")
-        val url = "$BASE/anime?filter[text]=$encoded&page[limit]=1&include=categories"
-        executeGet(url, isArrayResponse = true)
+        executeGet(
+            "$BASE/anime?filter[text]=$encoded&page[limit]=1&include=categories,animeProductions.producer",
+            isArrayResponse = true
+        ) ?: executeGet("$BASE/anime?filter[text]=$encoded&page[limit]=1&include=categories", isArrayResponse = true)
     }
 
     // ─── Character Fetching ───────────────────────────────────────────────────
@@ -482,16 +486,73 @@ object KitsuClient {
         val officialGenres = rawTitles.filter {
             com.kitsugi.animelist.ui.screens.search.CanonicalFilterBridge.isOfficialAniListGenre(it)
         }
-        val selectedGenres = (if (officialGenres.isNotEmpty()) officialGenres else rawTitles.take(8))
+        val selectedGenres = (if (officialGenres.isNotEmpty()) officialGenres else rawTitles.take(16))
             .distinct()
         return selectedGenres.toTurkishGenres() to
             com.kitsugi.animelist.utils.KitsugiSpoilerRules.normalizeAndMergeTags(tags)
+    }
+
+    /**
+     * Kitsu `animeProductions` ilişkisinden **stüdyo ve yapımcıları** okur.
+     *
+     * Kitsu her kurumu `producers` kaynağında tutar; medya ile bağı `animeProductions`
+     * (manga için `mangaProductions`) üzerinden kurulur ve `role` alanı
+     * `studio` / `producer` / `licensor` değerlerini taşır. Bu ilişki istenmediğinde
+     * Kitsu kaynaklı sayfalarda **hiç stüdyo görünmüyordu**.
+     */
+    internal fun parseKitsuProductions(
+        included: JSONArray?
+    ): Pair<List<KitsugiStudio>, List<KitsugiStudio>> {
+        if (included == null || included.length() == 0) return emptyList<KitsugiStudio>() to emptyList()
+        val names = HashMap<String, String>()
+        val refs = mutableListOf<Pair<String, String>>()
+        for (i in 0 until included.length()) {
+            val inc = included.optJSONObject(i) ?: continue
+            when (inc.optString("type")) {
+                "producers" -> {
+                    val name = inc.optJSONObject("attributes")?.optString("name", "")?.trim().orEmpty()
+                    if (name.isNotEmpty()) names[inc.optString("id", "")] = name
+                }
+                "animeProductions", "mangaProductions" -> {
+                    val role = inc.optJSONObject("attributes")?.optString("role", "").orEmpty().trim()
+                    val producerId = inc.optJSONObject("relationships")
+                        ?.optJSONObject("producer")
+                        ?.optJSONObject("data")
+                        ?.optString("id", "")
+                        .orEmpty()
+                    if (producerId.isNotEmpty()) refs.add(producerId to role)
+                }
+            }
+        }
+        val studios = mutableListOf<KitsugiStudio>()
+        val producers = mutableListOf<KitsugiStudio>()
+        for ((producerId, role) in refs) {
+            val name = names[producerId] ?: continue
+            val orgRole = when (role.lowercase()) {
+                "studio" -> StudioRole.STUDIO
+                "licensor" -> StudioRole.LICENSOR
+                "publisher" -> StudioRole.PUBLISHER
+                "magazine" -> StudioRole.MAGAZINE
+                "network" -> StudioRole.NETWORK
+                else -> StudioRole.PRODUCER
+            }
+            val org = KitsugiStudio(
+                id = producerId.toIntOrNull() ?: 0,
+                name = name,
+                isMain = orgRole == StudioRole.STUDIO,
+                source = "kitsu",
+                role = orgRole
+            )
+            if (orgRole == StudioRole.STUDIO) studios.add(org) else producers.add(org)
+        }
+        return studios to producers
     }
 
     private fun parseKitsuAnime(data: JSONObject, included: JSONArray? = null): KitsugiMediaDetail {
         val id = data.optString("id", "")
         val attributes = data.getJSONObject("attributes")
         val (kitsuGenres, kitsuTags) = parseKitsuCategories(included)
+        val (kitsuStudios, kitsuProducers) = parseKitsuProductions(included)
 
         val canonicalTitle = attributes.optString("canonicalTitle", "")
         val titlesObj = attributes.optJSONObject("titles")
@@ -553,6 +614,8 @@ object KitsuClient {
             synopsis = synopsis,
             genres = kitsuGenres,
             tags = kitsuTags,
+            studios = kitsuStudios,
+            producers = kitsuProducers,
             status = statusVal,
             titleEnglish = titleEnglish,
             titleRomaji = titleRomaji,

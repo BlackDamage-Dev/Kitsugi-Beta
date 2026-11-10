@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Surüm numarasi (orn: 2.4.191)'
+        description: 'Surüm numarasi (orn: 2.4.347)'
         required: true
-        default: '2.4.191'
+        default: '2.4.347'
       prerelease:
         description: 'Pre-release olarak isaretle?'
         required: true

@@ -5,6 +5,7 @@ import com.kitsugi.animelist.utils.parseToMediaType
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import com.kitsugi.animelist.ui.app.AppNavigationState
 import com.kitsugi.animelist.ui.app.AuthViewModel
 import com.kitsugi.animelist.model.MediaEntry
@@ -17,6 +18,7 @@ import com.kitsugi.animelist.data.remote.ApiSearchSelection
 import com.kitsugi.animelist.data.remote.matches
 import com.kitsugi.animelist.data.remote.matchesInSource
 import com.kitsugi.animelist.data.remote.firstMatchingInSource
+import com.kitsugi.animelist.data.remote.firstMatchingInTargetOrResultSource
 import com.kitsugi.animelist.data.settings.AppSettings
 import com.kitsugi.animelist.data.local.MediaEntryRepository
 import com.kitsugi.animelist.data.local.MangaMappingEntity
@@ -60,6 +62,11 @@ fun AppRootDetailPages(
     onAddApiSelectionToList: (ApiSearchSelection) -> Unit,
     onLoginBangumi: () -> Unit = {},
     onReadMangaClick: (MediaEntry, MangaMappingEntity?) -> Unit,
+    /**
+     * Geçmiş sayfasındaki **okunan** bir bölüme dokunulduğunda manga detay sayfasını açar.
+     * Kaynak adı yüklü eklentiler arasında bulunamazsa kullanıcıya bilgi verilir.
+     */
+    onOpenMangaReadHistory: (source: String, mangaUrl: String, mangaTitle: String, coverUrl: String?) -> Unit = { _, _, _, _ -> },
     triggerSearch: (String) -> Unit,
     triggerSearchByGenre: (String) -> Unit = {},
     triggerSearchByTag: (String) -> Unit = {},
@@ -209,12 +216,17 @@ fun AppRootDetailPages(
 
         is AppStateKey.ApiResultDetail -> {
             navState.stateHolder.SaveableStateProvider(key = "api_${key.depth}_${key.result.source}_${key.result.malId}") {
-                val existingApiEntry = mediaEntries.firstMatchingInSource(key.result)
+                val existingApiEntry = remember(mediaEntries, key.result) {
+                    mediaEntries.firstMatchingInSource(key.result)
+                }
+                val findExistingApiEntry = remember(mediaEntries) {
+                    { r: JikanSearchResult -> mediaEntries.firstOrNull { entry -> entry.matchesInSource(r) } }
+                }
                 ApiResultDetailPage(
                     result = key.result,
                     existingEntry = existingApiEntry,
                     // Ekleme butonu ve mevcut üyelik aynı sağlayıcı kapsamını kullanır.
-                    findExistingEntry = { r -> mediaEntries.firstOrNull { entry -> entry.matchesInSource(r) } },
+                    findExistingEntry = findExistingApiEntry,
                     onBackClick = { navState.popDetailStack() },
                     onAddClick = { selection ->
                         onAddApiSelectionToList(selection)
@@ -288,6 +300,7 @@ fun AppRootDetailPages(
                     isMalConnected = authViewModel.isMalConnected,
                     isSimklConnected = authViewModel.isSimklConnected,
                     isBangumiConnected = authViewModel.isBangumiConnected,
+                    isTmdbConnected = authViewModel.isTmdbConnected,
                     onLoginBangumi = onLoginBangumi,
                     onLoginAniList = {
                         authViewModel.startExternalAuth("anilist")
@@ -298,8 +311,38 @@ fun AppRootDetailPages(
                     onLoginSimkl = {
                         authViewModel.startExternalAuth("simkl")
                     },
-                    onReadMangaClick = {
-                        navState.openMangaBrowse(key.result.title)
+                    onReadMangaClick = { mediaTitleLanguage, english, romaji, native, synonyms ->
+                        // Arama dili: ayar "sabit dil" ise o dil, değilse ekranın başlık dili.
+                        val effectiveLanguage = if (appSettings.mangaSearchFollowTitleLanguage) {
+                            mediaTitleLanguage
+                        } else {
+                            appSettings.mangaSearchTitleLanguage
+                        }
+                        val titleSet = com.kitsugi.animelist.data.manga.MangaTitleSet(
+                            localTitle = key.result.title,
+                            englishTitle = english ?: key.result.titleEnglish,
+                            romajiTitle = romaji ?: key.result.titleRomaji ?: key.result.title,
+                            nativeTitle = native ?: key.result.titleJapanese,
+                            synonyms = synonyms
+                        )
+                        val variants = titleSet.queries(
+                            titleLanguage = appSettings.titleLanguage,
+                            searchLanguage = com.kitsugi.animelist.data.manga.MangaSearchLanguage.fromId(
+                                effectiveLanguage
+                            ),
+                            // Sabit dil seçiliyse başlık dilini takip etme.
+                            followTitleLanguage = appSettings.mangaSearchFollowTitleLanguage
+                        )
+                        navState.openMangaBrowse(
+                            query = variants.firstOrNull(),
+                            alternates = listOfNotNull(
+                                key.result.titleRomaji,
+                                key.result.titleEnglish,
+                                key.result.titleJapanese,
+                            ),
+                            titleVariants = variants,
+                            titleSet = titleSet
+                        )
                     },
                     mdbListShowImdb = appSettings.mdbListShowImdb,
                     mdbListShowTomatoes = appSettings.mdbListShowTomatoes,
@@ -310,7 +353,18 @@ fun AppRootDetailPages(
                     mdbListShowTrakt = appSettings.mdbListShowTrakt,
                     settingsDataStore = settingsDataStore,
                     onToggleFavoriteClick = { selection ->
-                        val entry = mediaEntries.firstMatchingInSource(selection.result)
+                        val result = selection.result
+                        val targetSource = AppViewModel.resolvePrimarySourceForApiResult(
+                            result = result,
+                            isAniListConnected = authViewModel.isAniListConnected,
+                            isMalConnected = authViewModel.isMalConnected,
+                            isSimklConnected = authViewModel.isSimklConnected,
+                            isBangumiConnected = authViewModel.isBangumiConnected,
+                            isKitsuConnected = authViewModel.isKitsuConnected,
+                            isShikimoriConnected = authViewModel.isShikimoriConnected,
+                            isTmdbConnected = authViewModel.isTmdbConnected
+                        )
+                        val entry = mediaEntries.firstMatchingInTargetOrResultSource(result, targetSource)
                         if (entry != null) {
                             // Toggle existing entry
                             val updatedEntry = entry.copy(isFavorite = !entry.isFavorite)
@@ -318,45 +372,22 @@ fun AppRootDetailPages(
                                 mediaRepository.update(updatedEntry)
                             }
                         } else {
-                            // Auto-insert as favorited for non-library entries.
-                            // Durum, Ayarlar'daki "Listeye eklerken varsayılan durum"
-                            // tercihinden gelir; otomatik tarih kuralı da aynı şekilde
-                            // uygulanır (yeni kayıt = durum değişti).
-                            val result = selection.result
-                            val defaultStatus = com.kitsugi.animelist.data.settings.KitsugiContentPrefs.defaultAddStatusValue()
-                            val auto = com.kitsugi.animelist.model.EntryAutoRules.resolveOnStatusChange(
-                                status = defaultStatus,
-                                startDate = null,
-                                endDate = null,
-                                progress = 0,
-                                total = result.total,
-                                statusChanged = true
+                            // Kalp de normal "listeye ekle" zincirini kullanır. Ayrı bir doğrudan
+                            // insert, TMDB katalog satırını sahte bir liste kaynağına dönüştürüyor;
+                            // sağlayıcı seçimini ve çapraz kimlik çözümünü atlıyordu.
+                            appViewModel.addApiSelectionToList(
+                                selection = selection,
+                                currentEntries = mediaEntries,
+                                repository = mediaRepository,
+                                isAniListConnected = authViewModel.isAniListConnected,
+                                isMalConnected = authViewModel.isMalConnected,
+                                isSimklConnected = authViewModel.isSimklConnected,
+                                isBangumiConnected = authViewModel.isBangumiConnected,
+                                isTmdbConnected = authViewModel.isTmdbConnected,
+                                isKitsuConnected = authViewModel.isKitsuConnected,
+                                isShikimoriConnected = authViewModel.isShikimoriConnected,
+                                markFavorite = true
                             )
-                            val newEntry = com.kitsugi.animelist.model.MediaEntry(
-                                id = 0,
-                                title = result.title,
-                                subtitle = result.subtitle,
-                                type = result.type,
-                                status = defaultStatus,
-                                score = result.score,
-                                progress = auto.progress,
-                                total = result.total,
-                                isFavorite = true,
-                                isAdult = result.isAdult,
-                                source = result.source,
-                                malId = result.realMalId ?: result.malId,
-                                imageUrl = result.imageUrl,
-                                year = result.year,
-                                synopsis = selection.synopsis,
-                                startDate = auto.startDate,
-                                endDate = auto.endDate,
-                                tmdbId = result.tmdbId,
-                                titleEnglish = result.titleEnglish,
-                                titleJapanese = result.titleJapanese
-                            )
-                            coroutineScope.launch {
-                                mediaRepository.insert(newEntry)
-                            }
                         }
                     }
                 )
@@ -384,11 +415,8 @@ fun AppRootDetailPages(
                         },
                         onSynopsisLoaded = { synopsis ->
                             if (entry.synopsis != synopsis && synopsis.isNotBlank()) {
-                                val updatedEntry = entry.copy(
-                                    synopsis = synopsis
-                                )
                                 coroutineScope.launch {
-                                    mediaRepository.update(updatedEntry, syncExternal = false)
+                                    mediaRepository.updateSynopsis(entry.id, entry.synopsis, synopsis)
                                 }
                             }
                         },
@@ -463,6 +491,36 @@ fun AppRootDetailPages(
                         blurAdultMedia = appSettings.blurAdultMedia,
                         onReadMangaClick = { mapping ->
                             onReadMangaClick(entry, mapping)
+                        },
+                        // "Oku" (eşleme yok) → arama. Dil kararı BURADA verilir:
+                        // ayar "sabit arama dili" ise o dil, değilse başlık dili.
+                        onSearchMangaByTitles = { entryVariants ->
+                            if (entry.type == com.kitsugi.animelist.model.MediaType.Manga) {
+                                val titleSet = com.kitsugi.animelist.data.manga.MangaTitleSet(
+                                    localTitle = entry.title,
+                                    englishTitle = entry.titleEnglish,
+                                    romajiTitle = entry.title,
+                                    nativeTitle = entry.titleJapanese
+                                )
+                                val variants = titleSet.queries(
+                                    titleLanguage = appSettings.titleLanguage,
+                                    searchLanguage = com.kitsugi.animelist.data.manga.MangaSearchLanguage.fromId(
+                                        if (appSettings.mangaSearchFollowTitleLanguage) {
+                                            appSettings.titleLanguage
+                                        } else {
+                                            appSettings.mangaSearchTitleLanguage
+                                        }
+                                    ),
+                                    followTitleLanguage = appSettings.mangaSearchFollowTitleLanguage
+                                ).ifEmpty { entryVariants }
+                                navState.openMangaBrowse(
+                                    query = variants.firstOrNull(),
+                                    mediaId = entry.id,
+                                    alternates = listOfNotNull(entry.titleEnglish, entry.titleJapanese),
+                                    titleVariants = variants,
+                                    titleSet = titleSet
+                                )
+                            }
                         },
                         preferredTranslator = appSettings.preferredTranslator
                     )
@@ -668,8 +726,13 @@ fun AppRootDetailPages(
                     isKitsuConnected = authViewModel.isKitsuConnected,
                     isShikimoriConnected = authViewModel.isShikimoriConnected,
                     isBangumiConnected = authViewModel.isBangumiConnected,
+                    isTmdbConnected = authViewModel.isTmdbConnected,
+                    tmdbUsername = authViewModel.tmdbUsername,
                     onBack = { navState.popDetailStack() },
                     malSessionRefreshToken = authViewModel.malSessionReadyToken,
+                    // Akıllı bildirim butonu: butona basılan sekmede seçili kaynak
+                    // hangisiyse bildirimler doğrudan o kaynağın sekmesinde açılır.
+                    preferredSource = key.preferredSource,
                     onOpenMalAccountSettings = {
                         if (authViewModel.isMalConnected) {
                             // Bağlı bir MAL hesabı VAR: web oturumu (bildirimler) aynı hesaba
@@ -679,6 +742,31 @@ fun AppRootDetailPages(
                             navState.popDetailStack()
                             appViewModel.selectTab(com.kitsugi.animelist.ui.navigation.MainTab.Settings)
                             appViewModel.requestSettingsRoute(com.kitsugi.animelist.ui.screens.settings.SettingsRoute.MalSettings)
+                        }
+                    },
+                    onConnectPlatform = { platformIndex ->
+                        // Bildirimler > "Hesabı Bağla": kaynagin kendi hesap sayfasina git.
+                        // MAL (1) tek-oturum akisini kullanir; digerleri ayarlar rotasina gider.
+                        if (platformIndex == 1) {
+                            if (authViewModel.isMalConnected) {
+                                authViewModel.ensureMalUnifiedSession()
+                            } else {
+                                navState.popDetailStack()
+                                appViewModel.selectTab(com.kitsugi.animelist.ui.navigation.MainTab.Settings)
+                                appViewModel.requestSettingsRoute(com.kitsugi.animelist.ui.screens.settings.SettingsRoute.MalSettings)
+                            }
+                        } else {
+                            val route = when (platformIndex) {
+                                0 -> com.kitsugi.animelist.ui.screens.settings.SettingsRoute.AniListSettings
+                                2 -> com.kitsugi.animelist.ui.screens.settings.SettingsRoute.SimklSettings
+                                3 -> com.kitsugi.animelist.ui.screens.settings.SettingsRoute.KitsuSettings
+                                4 -> com.kitsugi.animelist.ui.screens.settings.SettingsRoute.ShikimoriSettings
+                                5 -> com.kitsugi.animelist.ui.screens.settings.SettingsRoute.BangumiSettings
+                                else -> com.kitsugi.animelist.ui.screens.settings.SettingsRoute.AccountConnections
+                            }
+                            navState.popDetailStack()
+                            appViewModel.selectTab(com.kitsugi.animelist.ui.navigation.MainTab.Settings)
+                            appViewModel.requestSettingsRoute(route)
                         }
                     },
                     onUserProfileClick = { userId, username, avatarUrl ->
@@ -739,7 +827,10 @@ fun AppRootDetailPages(
         is AppStateKey.WatchHistory -> {
             navState.stateHolder.SaveableStateProvider(key = "watch_history_${key.depth}") {
                 com.kitsugi.animelist.ui.screens.history.WatchHistoryScreen(
-                    onBack = { navState.popDetailStack() }
+                    onBack = { navState.popDetailStack() },
+                    onOpenManga = { sourceName, mangaUrl, mangaTitle, coverUrl ->
+                        onOpenMangaReadHistory(sourceName, mangaUrl, mangaTitle, coverUrl)
+                    }
                 )
             }
         }

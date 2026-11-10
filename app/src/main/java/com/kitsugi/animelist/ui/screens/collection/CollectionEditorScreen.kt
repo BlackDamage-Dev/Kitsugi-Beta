@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.ui.screens.collection
+﻿package com.kitsugi.animelist.ui.screens.collection
 
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import com.kitsugi.animelist.ui.theme.gradient.Switch
@@ -7,9 +7,8 @@ import com.kitsugi.animelist.ui.theme.gradient.Text
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.*
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -49,7 +48,7 @@ fun CollectionEditorScreen(
                 title = { Text(if (isEditing) stringResource(R.string.ui_collection_edit) else stringResource(R.string.ui_collection_new), fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.kapat))
+                        Icon(Icons.Close, contentDescription = stringResource(R.string.kapat))
                     }
                 },
                 actions = {
@@ -68,7 +67,7 @@ fun CollectionEditorScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .verticalScroll(rememberScrollState())
+                .kitsugiVerticalScroll(rememberScrollState())
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
@@ -120,7 +119,7 @@ fun CollectionEditorScreen(
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         Icon(
-                            imageVector = if (isPrivate) Icons.Rounded.Lock else Icons.Rounded.LockOpen,
+                            imageVector = if (isPrivate) Icons.Lock else Icons.LockOpen,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.primary
                         )

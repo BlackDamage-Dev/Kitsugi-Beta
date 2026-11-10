@@ -250,4 +250,34 @@ class FandomCharacterQueriesTest {
         assertNull(character.aniListStaffId)
         assertNull(character.malPeopleId)
     }
+
+    @Test
+    fun `tmdb slash separated multi role character extracts primary name and role alternatives`() {
+        val simpsonsAppearance = KitsugiCharacterMediaAppearance(
+            mediaId = 456,
+            title = "The Simpsons",
+            imageUrl = null,
+            mediaType = "TV Dizisi",
+            characterRole = "Homer Simpson / Abe Simpson / Barney Gumble / Krusty the Clown",
+            source = "tmdb"
+        )
+        val homerDetail = KitsugiCharacterDetail(
+            id = 198,
+            name = "Homer Simpson / Abe Simpson / Barney Gumble / Krusty the Clown",
+            nativeName = null,
+            alternativeNames = emptyList(),
+            imageUrl = null,
+            gender = null,
+            age = null,
+            birthday = null,
+            bloodType = null,
+            biography = null,
+            mediaAppearances = listOf(simpsonsAppearance),
+            source = "tmdb"
+        )
+        val query = FandomCharacterQueries.from(homerDetail, "tmdb", 198)!!
+        assertEquals("Homer Simpson", query.names.first())
+        assertEquals(listOf("Abe Simpson", "Barney Gumble", "Krusty the Clown"), query.alternatives)
+        assertEquals("tmdb:198:homer simpson", query.cacheKey())
+    }
 }

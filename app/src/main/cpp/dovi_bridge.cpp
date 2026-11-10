@@ -470,7 +470,10 @@ Java_com_kitsugi_animelist_core_player_DoviBridge_nativeProcessVideoSample(
     jboolean stripDoviRpu,
     jboolean stripHdr10Plus
 ) {
-    if (sample == nullptr || outBuffer == nullptr || sampleLen <= 0) return 0;
+    if (sample == nullptr || outBuffer == nullptr || sampleLen <= 0 ||
+        sampleLen > env->GetArrayLength(sample) ||
+        (nalFormat != 0 && nalFormat != 1) ||
+        (nalFormat == 1 && (nalLengthFieldLength < 1 || nalLengthFieldLength > 4))) return 0;
 
     thread_local std::vector<uint8_t> sampleBuffer;
     thread_local std::vector<uint8_t> outputBuffer;
@@ -489,15 +492,16 @@ Java_com_kitsugi_animelist_core_player_DoviBridge_nativeProcessVideoSample(
     if (nalFormat == 1) { // Length-Delimited
         int pos = 0;
         while (pos + nalLengthFieldLength <= sampleLen) {
-            int nalSize = 0;
+            uint32_t nalSizeUnsigned = 0;
             for (int i = 0; i < nalLengthFieldLength; ++i) {
-                nalSize = (nalSize << 8) | (sampleBuffer[pos + i] & 0xFF);
+                nalSizeUnsigned = (nalSizeUnsigned << 8) | sampleBuffer[pos + i];
             }
             int nalStart = pos + nalLengthFieldLength;
-            if (nalSize <= 0 || nalStart + nalSize > sampleLen) {
+            if (nalSizeUnsigned == 0 || nalSizeUnsigned > static_cast<uint32_t>(sampleLen - nalStart)) {
                 return 0; // abort processing, format malformed
             }
 
+            int nalSize = static_cast<int>(nalSizeUnsigned);
             uint8_t nalHeader = sampleBuffer[nalStart];
             int nalType = (nalHeader >> 1) & 0x3F;
             int layerId = 0;
@@ -589,6 +593,8 @@ Java_com_kitsugi_animelist_core_player_DoviBridge_nativeProcessVideoSample(
             }
             pos = nalStart + nalSize;
         }
+        // Do not emit a partially rewritten sample when trailing bytes are malformed.
+        if (pos != sampleLen) return 0;
     } else { // Annex-B
         int scan = 0;
         while (scan < sampleLen) {

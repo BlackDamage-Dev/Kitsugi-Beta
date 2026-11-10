@@ -23,9 +23,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Add
+import androidx.compose.ui.semantics.Role
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import com.kitsugi.animelist.ui.theme.gradient.Icon
@@ -41,6 +42,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -67,13 +69,14 @@ fun KitsugiMediaEntryCard(
     layoutId: String,
     modifier: Modifier = Modifier,
     onClick: () -> Unit = {},
-    onIncrementClick: () -> Unit = {},
-    titleLanguage: String = "ROMAJI",
+    onEditClick: (() -> Unit)? = null,
+    titleLanguage: String = "ENGLISH",
     scoreFormat: String = "POINT_10",
     hideScores: Boolean = false,
     blurAdultMedia: Boolean = false,
     onPosterLongClick: ((String) -> Unit)? = null,
-    sourceBadges: List<String>? = null
+    sourceBadges: List<String>? = null,
+    reserveSourceStripSpace: Boolean = false
 ) {
     val additionalSources = remember(entry.source, sourceBadges) {
         additionalLibraryBadgeSources(entry.source, sourceBadges)
@@ -105,7 +108,7 @@ fun KitsugiMediaEntryCard(
                 entry = entry,
                 modifier = Modifier.fillMaxWidth(),
                 onClick = onClick,
-                onIncrementClick = onIncrementClick,
+                onEditClick = onEditClick,
                 titleLanguage = titleLanguage,
                 scoreFormat = scoreFormat,
                 hideScores = hideScores,
@@ -117,7 +120,7 @@ fun KitsugiMediaEntryCard(
                 entry = entry,
                 modifier = Modifier.fillMaxWidth(),
                 onClick = onClick,
-                onIncrementClick = onIncrementClick,
+                onEditClick = onEditClick,
                 titleLanguage = titleLanguage,
                 scoreFormat = scoreFormat,
                 hideScores = hideScores,
@@ -129,7 +132,7 @@ fun KitsugiMediaEntryCard(
                 entry = entry,
                 modifier = Modifier.fillMaxWidth(),
                 onClick = onClick,
-                onIncrementClick = onIncrementClick,
+                onEditClick = onEditClick,
                 titleLanguage = titleLanguage,
                 scoreFormat = scoreFormat,
                 hideScores = hideScores,
@@ -152,7 +155,7 @@ fun KitsugiMediaEntryCard(
                 entry = entry,
                 modifier = Modifier.fillMaxWidth(),
                 onClick = onClick,
-                onIncrementClick = onIncrementClick,
+                onEditClick = onEditClick,
                 titleLanguage = titleLanguage,
                 scoreFormat = scoreFormat,
                 hideScores = hideScores,
@@ -162,8 +165,10 @@ fun KitsugiMediaEntryCard(
         }
 
         if (additionalSources.isNotEmpty()) {
-            if (layoutId == "grid_2col") Spacer(Modifier.weight(1f))
+            if (layoutId == "grid_2col") Spacer(Modifier.height(4.dp))
             LibrarySourceBadgeStrip(sources = additionalSources)
+        } else if (reserveSourceStripSpace && layoutId == "grid_2col") {
+            Spacer(Modifier.height(38.dp))
         }
     }
 }
@@ -174,7 +179,7 @@ private fun CompactMediaEntryCard(
     entry: MediaEntry,
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
-    onIncrementClick: () -> Unit,
+    onEditClick: (() -> Unit)?,
     titleLanguage: String,
     scoreFormat: String,
     hideScores: Boolean,
@@ -254,11 +259,11 @@ private fun CompactMediaEntryCard(
 
                     if (entry.isFavorite) {
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "★",
-                            color = LocalKitsugiAccent.current,
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold
+                        Icon(
+                            imageVector = Icons.HeartSolid,
+                            contentDescription = stringResource(R.string.favori_label),
+                            tint = LocalKitsugiAccent.current,
+                            modifier = Modifier.size(11.dp)
                         )
                     }
                 }
@@ -302,10 +307,10 @@ private fun CompactMediaEntryCard(
             }
 
             val isTv = LocalIsTv.current
-            if (!isTv) {
+            if (!isTv && onEditClick != null) {
                 Spacer(modifier = Modifier.width(10.dp))
-                QuickIncrementButton(
-                    onClick = onIncrementClick
+                QuickEditButton(
+                    onClick = onEditClick
                 )
             }
         }
@@ -318,7 +323,7 @@ private fun ComfortableMediaEntryCard(
     entry: MediaEntry,
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
-    onIncrementClick: () -> Unit,
+    onEditClick: (() -> Unit)?,
     titleLanguage: String,
     scoreFormat: String,
     hideScores: Boolean,
@@ -389,12 +394,20 @@ private fun ComfortableMediaEntryCard(
                     if (entry.isFavorite) {
                         Spacer(modifier = Modifier.width(8.dp))
 
-                        Text(
-                            text = "★ Favori",
-                            color = LocalKitsugiAccent.current,
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Icon(
+                                imageVector = Icons.HeartSolid,
+                                contentDescription = null,
+                                tint = LocalKitsugiAccent.current,
+                                modifier = Modifier.size(11.dp)
+                            )
+                            Text(
+                                text = "Favori",
+                                color = LocalKitsugiAccent.current,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
                 }
 
@@ -468,10 +481,10 @@ private fun ComfortableMediaEntryCard(
             }
 
             val isTv = LocalIsTv.current
-            if (!isTv) {
+            if (!isTv && onEditClick != null) {
                 Spacer(modifier = Modifier.width(10.dp))
-                QuickIncrementButton(
-                    onClick = onIncrementClick
+                QuickEditButton(
+                    onClick = onEditClick
                 )
             }
         }
@@ -484,7 +497,7 @@ private fun LargeMediaEntryCard(
     entry: MediaEntry,
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
-    onIncrementClick: () -> Unit,
+    onEditClick: (() -> Unit)?,
     titleLanguage: String,
     scoreFormat: String,
     hideScores: Boolean,
@@ -574,12 +587,20 @@ private fun LargeMediaEntryCard(
                         }
 
                         if (entry.isFavorite) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Icon(
+                                imageVector = Icons.HeartSolid,
+                                contentDescription = null,
+                                tint = LocalKitsugiAccent.current,
+                                modifier = Modifier.size(11.dp)
+                            )
                             Text(
-                                text = "★ Favori",
+                                text = "Favori",
                                 color = LocalKitsugiAccent.current,
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold
                             )
+                        }
                         }
                     }
 
@@ -644,9 +665,9 @@ private fun LargeMediaEntryCard(
                         }
 
                         val isTv = LocalIsTv.current
-                        if (!isTv) {
-                            QuickIncrementButton(
-                                onClick = onIncrementClick
+                        if (!isTv && onEditClick != null) {
+                            QuickEditButton(
+                                onClick = onEditClick
                             )
                         }
                     }
@@ -695,12 +716,20 @@ private fun LargeMediaEntryCard(
                     }
 
                     if (entry.isFavorite) {
-                        Text(
-                            text = "★ Favori",
-                            color = LocalKitsugiAccent.current,
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Icon(
+                                imageVector = Icons.HeartSolid,
+                                contentDescription = null,
+                                tint = LocalKitsugiAccent.current,
+                                modifier = Modifier.size(11.dp)
+                            )
+                            Text(
+                                text = "Favori",
+                                color = LocalKitsugiAccent.current,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
                 }
 
@@ -765,9 +794,9 @@ private fun LargeMediaEntryCard(
                         }
 
                     val isTv = LocalIsTv.current
-                    if (!isTv) {
-                        QuickIncrementButton(
-                            onClick = onIncrementClick
+                    if (!isTv && onEditClick != null) {
+                        QuickEditButton(
+                            onClick = onEditClick
                         )
                     }
                 }
@@ -776,28 +805,34 @@ private fun LargeMediaEntryCard(
     }
 }
 
+/**
+ * Listem satır kartlarındaki düzenleme kısayolu. Kayıt zaten listede olduğu için
+ * "+" (listeye ekle / +1 bölüm) değil kalem ikonu gösterilir; tıklanınca detay
+ * sayfasına girmeden liste düzenleme sayfası açılır.
+ */
 @Composable
-private fun QuickIncrementButton(
+private fun QuickEditButton(
     onClick: () -> Unit
 ) {
     val accentColor = LocalKitsugiAccent.current
 
+    val shape = RoundedCornerShape(999.dp)
     Box(
         modifier = Modifier
             .size(38.dp)
-            .clip(RoundedCornerShape(999.dp))
+            .clip(shape)
             .background(accentColor.copy(alpha = 0.12f))
             .border(
                 width = 1.5.dp,
                 color = accentColor.copy(alpha = 0.55f),
-                shape = RoundedCornerShape(999.dp)
+                shape = shape
             )
-            .tvClickable(shape = RoundedCornerShape(999.dp), onClick = onClick),
+            .clickable(role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         Icon(
-            imageVector = Icons.Rounded.Add,
-            contentDescription = stringResource(R.string.arti_1_ekle),
+            imageVector = Icons.Edit,
+            contentDescription = stringResource(R.string.duzenle),
             tint = accentColor,
             modifier = Modifier.size(20.dp)
         )
@@ -1088,7 +1123,7 @@ private fun MinimalistMediaEntryCard(
     entry: MediaEntry,
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
-    onIncrementClick: () -> Unit,
+    onEditClick: (() -> Unit)?,
     titleLanguage: String,
     scoreFormat: String,
     hideScores: Boolean,
@@ -1159,12 +1194,20 @@ private fun MinimalistMediaEntryCard(
                     if (entry.isFavorite) {
                         Spacer(modifier = Modifier.width(8.dp))
 
-                        Text(
-                            text = "★ Favori",
-                            color = LocalKitsugiAccent.current,
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Icon(
+                                imageVector = Icons.HeartSolid,
+                                contentDescription = null,
+                                tint = LocalKitsugiAccent.current,
+                                modifier = Modifier.size(11.dp)
+                            )
+                            Text(
+                                text = "Favori",
+                                color = LocalKitsugiAccent.current,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
                 }
 
@@ -1217,10 +1260,10 @@ private fun MinimalistMediaEntryCard(
             }
 
             val isTv = LocalIsTv.current
-            if (!isTv) {
+            if (!isTv && onEditClick != null) {
                 Spacer(modifier = Modifier.width(10.dp))
-                QuickIncrementButton(
-                    onClick = onIncrementClick
+                QuickEditButton(
+                    onClick = onEditClick
                 )
             }
         }
@@ -1250,7 +1293,8 @@ private fun PosterCornerTag(
     text: String,
     tint: Color,
     modifier: Modifier = Modifier,
-    shape: RoundedCornerShape = RoundedCornerShape(6.dp)
+    shape: RoundedCornerShape = RoundedCornerShape(6.dp),
+    icon: ImageVector? = null
 ) {
     Box(
         modifier = modifier
@@ -1259,15 +1303,28 @@ private fun PosterCornerTag(
             .background(Color.Black.copy(alpha = 0.66f))
             .padding(horizontal = 6.dp, vertical = 3.dp)
     ) {
-        Text(
-            text = text,
-            color = tint,
-            style = MaterialTheme.typography.labelSmall,
-            fontSize = 9.sp,
-            fontWeight = FontWeight.Bold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = tint,
+                    modifier = Modifier.size(9.dp)
+                )
+            }
+            Text(
+                text = text,
+                color = tint,
+                style = MaterialTheme.typography.labelSmall,
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
     }
 }
 
@@ -1339,12 +1396,11 @@ private fun PosterGridMediaEntryCard(
                         .background(accentColor)
                         .padding(horizontal = 5.dp, vertical = 3.dp)
                 ) {
-                    Text(
-                        text = "★",
-                        color = KitsugiColors.OnAccent,
-                        style = MaterialTheme.typography.labelSmall,
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.Black
+                    Icon(
+                        imageVector = Icons.StarSolid,
+                        contentDescription = stringResource(R.string.puan),
+                        tint = KitsugiColors.OnAccent,
+                        modifier = Modifier.size(9.dp)
                     )
                 }
             }
@@ -1366,7 +1422,8 @@ private fun PosterGridMediaEntryCard(
             // Puan rozeti — sağ alt köşe
             if (!hideScores && (entry.score ?: 0) > 0) {
                 PosterCornerTag(
-                    text = "★ ${entry.getDisplayScore(scoreFormat, hideScores)}",
+                    text = entry.getDisplayScore(scoreFormat, hideScores),
+                    icon = Icons.StarSolid,
                     tint = KitsugiColors.AccentYellow,
                     shape = BottomEndCornerShape,
                     modifier = Modifier.align(Alignment.BottomEnd)

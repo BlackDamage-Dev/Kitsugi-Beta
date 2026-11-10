@@ -86,10 +86,10 @@ object CrossSyncIdentityGuard {
      */
     private val structuralTokens = setOf(
         "the", "a", "an", "of", "and", "or", "in", "on", "at", "for", "with", "from", "by",
-        "no", "wa", "ga", "to", "ni", "de", "wo", "o", "e", "ha", "mo", "ya", "da", "na", "ne", "yo", "ka",
+        "no", "gou", "wa", "ga", "to", "ni", "de", "wo", "o", "e", "ha", "mo", "ya", "da", "na", "ne", "yo", "ka",
         "x", "vs", "feat",
         "season", "seasons", "part", "parts", "cour", "arc", "chapter", "chapters", "volume",
-        "movie", "movies", "film", "films", "gekijouban", "gekijou", "ban", "hen",
+        "movie", "movies", "film", "films", "eiga", "gekijouban", "gekijou", "ban", "hen",
         "animation", "anime", "tv", "ova", "oad", "ona", "special", "specials", "series", "edition",
         "final", "first", "second", "third", "fourth", "fifth", "new", "shin", "zoku", "kai", "re", "remake",
         "1st", "2nd", "3rd", "4th", "5th", "6th", "nd", "rd", "th", "i", "ii", "iii", "iv", "v", "vi"
@@ -97,10 +97,17 @@ object CrossSyncIdentityGuard {
 
     private val nonWordCharacters = Regex("[^\\p{L}\\p{N}]+")
     private val yearRegex = Regex("^(\\d{4})")
+    private val trailingMediaTypeQualifier = Regex(
+        "\\s*[\\(\\[]\\s*(?:tv|movie|film|ova|oad|ona|special|specials|anime)\\s*[\\)\\]]\\s*$",
+        RegexOption.IGNORE_CASE
+    )
 
     /** Küçük harf + NFKC; noktalama boşluğa dönüşür, kelime sınırları korunur (tokenizasyon için). */
     fun tokenNormalize(title: String): String = Normalizer.normalize(title, Normalizer.Form.NFKC)
         .lowercase(Locale.ROOT)
+        // Resmî alias yazımları: `kiss×sis` ↔ `Kiss x Sis`, `&` ↔ `and`.
+        .replace("×", " x ")
+        .replace("&", " and ")
         .replace(nonWordCharacters, " ")
         .trim()
 
@@ -126,6 +133,14 @@ object CrossSyncIdentityGuard {
 
     /** Cross-sync writes require two known, positive, exactly matching release years. */
     fun yearsCompatible(a: Int?, b: Int?): Boolean = a != null && a > 0 && b != null && b > 0 && a == b
+
+    /**
+     * Cluster-level year compatibility: an unknown year (`null` / `<= 0`) on one provider (e.g.
+     * Simkl or Kitsu entries without air year) or a ±1 calendar-year boundary (Winter anime / JP-CN
+     * release date split) is NOT a contradiction; only two known years > 1 apart conflict.
+     */
+    fun clusterYearsCompatible(a: Int?, b: Int?): Boolean =
+        a == null || a <= 0 || b == null || b <= 0 || kotlin.math.abs(a - b) <= 1
 
     /** A catalog result from another MAL media namespace can never authorize a write. */
     fun mediaTypesCompatible(local: MediaType, remoteType: String?): Boolean {
@@ -192,13 +207,16 @@ object CrossSyncIdentityGuard {
     private fun rawTokens(title: String): List<String> =
         tokenNormalize(title).split(' ').filter { it.isNotBlank() }
 
-    /** Sayısal kelimeler (sezon/bölüm numarası gibi): "Part 2" ↔ "Part 3" farkını yakalamak için. */
+    private val digitRunRegex = Regex("\\d+")
+
+    /** Sayısal belirteçler ("Part 2", "2nd Season", "8-gou"): sıra ekli sayılar dahil tüm rakam dizileri. */
     private fun numericTokens(title: String): Set<String> =
-        rawTokens(title).filter { tok -> tok.all { it.isDigit() } }.toSet()
+        digitRunRegex.findAll(tokenNormalize(title)).map { it.value }.toSet()
 
     /** Yapısal kelimeler atılmış, boşluksuz karşılaştırma anahtarı; Hepburn romanizasyon farklarını katlar. */
     private fun compactKey(title: String): String = rawTokens(title)
         .filterNot { it in structuralTokens }
+        .map { if (it == "kyuu") "q" else it }
         .joinToString("")
         .replace("ou", "o")
         .replace("oo", "o")
@@ -226,6 +244,7 @@ object CrossSyncIdentityGuard {
         val ka = compactKey(a)
         val kb = compactKey(b)
         if (ka.isEmpty() || kb.isEmpty()) return false
+        if (ka == kb) return true
 
         // (1) Sayısal başlık + İngilizce açılımı: "86" ↔ "86 Eighty Six" (tüm kelimeler sırayla bulunmalı)
         val ta = rawTokens(a)
@@ -262,8 +281,14 @@ object CrossSyncIdentityGuard {
         // Keep every word, including articles and season/movie descriptors. Removing common
         // tokens can collapse distinct titles ("No Game No Life" vs "Game Life").
         // The only special spelling normalization is the audited Mayoiga/Mayohiga alias.
-        fun strictCompactKey(value: String): String = rawTokens(value)
-            .map { if (it == "mayohiga") "mayoiga" else it }
+        fun strictCompactKey(value: String): String = rawTokens(trailingMediaTypeQualifier.replace(value, ""))
+            .map {
+                when (it) {
+                    "mayohiga" -> "mayoiga"
+                    "kyuu" -> "q"
+                    else -> it
+                }
+            }
             .joinToString("")
 
         val ka = strictCompactKey(a)
@@ -297,6 +322,75 @@ object CrossSyncIdentityGuard {
     fun entriesLookRelated(a: MediaEntry, b: MediaEntry): Boolean =
         titlesAreIdentityEquivalent(aliasesOf(a), aliasesOf(b))
 
+    /**
+     * Evaluates whether [incoming] can join an existing cluster ([existingCandidates]) without
+     * triggering `identityReviewRequired`.
+     *
+     * Key invariant (`E97`):
+     * - Previously, `clusterEntry` compared `incoming` against each candidate pairwise using only
+     *   `title` + `titleEnglish` and strict non-null `yearsCompatible`. For `Kaiju No. 8`
+     *   (`MAL 52588`), AniList carries `("Kaijuu 8-gou", "Kaiju No. 8", "怪獣８号")`, Simkl carries
+     *   `("Kaiju No. 8")` only, Shikimori carries `("Kaijuu 8-gou")` only, and Bangumi carries
+     *   `("怪獣8号")` only. Comparing Shikimori or Bangumi pairwise against Simkl ignored AniList's
+     *   bridge inside the very same cluster and poisoned the entire group as `identityReviewRequired`.
+     * - A cluster's combined alias pool (`existingCandidates.flatMap(::aliasesOf)`) represents the
+     *   known names of that single production. An incoming row sharing a provider ID is accepted when
+     *   its years do not conflict (`clusterYearsCompatible`) AND at least one alias connects to the
+     *   cluster's alias pool via `titlesAreIdentityEquivalent` or `titlesVariantRelated` (which still
+     *   rejects unrelated titles like `"Koi wo Shita no wa"` vs `"Koe no Katachi Specials"` and
+     *   mismatched season numbers like `"Re:Zero Part 2"` vs `"Re:Zero Part 3"`).
+     *
+     * @return empty list when safe to merge; otherwise the conflicting candidates for diagnostics.
+     */
+    fun findSuspiciousSharedIdCandidates(
+        existingCandidates: List<MediaEntry>,
+        incoming: MediaEntry,
+        sharedIdCandidates: List<MediaEntry>
+    ): List<MediaEntry> {
+        val yearConflicts = existingCandidates.filter { candidate ->
+            !clusterYearsCompatible(candidate.year, incoming.year)
+        }
+        if (yearConflicts.isNotEmpty()) return yearConflicts
+
+        if (sharedIdCandidates.isEmpty()) return emptyList()
+
+        val clusterAliases = existingCandidates.flatMap(::aliasesOf)
+        val incomingAliases = aliasesOf(incoming)
+        if (clusterAliases.isEmpty() || incomingAliases.isEmpty()) return emptyList()
+
+        val matchesClusterPool = titlesAreIdentityEquivalent(clusterAliases, incomingAliases) ||
+            clusterAliases.any { ca -> incomingAliases.any { ia -> titlesVariantRelated(ca, ia) } }
+        if (matchesClusterPool) return emptyList()
+
+        // Cross-script crosswalk bridge (e.g. Bangumi Simplified Chinese `"怪兽8号"` paired with
+        // Shikimori/MAL/AniList Latin `"Kaijuu 8-gou"` via verified `bgm_a_<malId>` crosswalk):
+        // Simplified Chinese shares zero characters with romaji/English, whereas two poisoned rows
+        // in Latin script (`"Kaijuu 8-gou"` vs `"Unrelated Mystery Show"`) both have Latin letters.
+        val incomingHasLatin = incomingAliases.any(::hasLatinLetters)
+        val clusterHasLatin = clusterAliases.any(::hasLatinLetters)
+        if (incomingHasLatin != clusterHasLatin) {
+            val episodeConflict = existingCandidates.any { candidate ->
+                candidate.total != null && incoming.total != null &&
+                    candidate.total > 0 && incoming.total > 0 && candidate.total != incoming.total
+            }
+            if (!episodeConflict) return emptyList()
+        }
+
+        return sharedIdCandidates
+    }
+
+    private fun hasLatinLetters(text: String): Boolean =
+        text.any { Character.UnicodeScript.of(it.code) == Character.UnicodeScript.LATIN }
+
+    /**
+     * Bulk cross-sync (`AuthViewModel.syncPlatforms`) addition gate (`E96`):
+     * matches single-entry live sync (`ExternalListSyncManager`) — only a catalog contradiction
+     * ([Verdict.Rejected]) blocks additions, whereas native/multi-provider/verified/uncontradicted
+     * entries proceed to each target platform's own official ID/title verification.
+     */
+    fun allowsBulkAddition(verdict: Verdict?): Boolean =
+        verdict == null || !blocksCrossWrite(verdict)
+
     // ───────────────────────────── MAL kimlik doğrulama ─────────────────────────────
 
     private val identityCache = BoundedCache<String, RemoteIdentity>("crossSync.identity.officialMal.v2", 500)
@@ -322,8 +416,22 @@ object CrossSyncIdentityGuard {
 
         val typeOk = mediaTypesCompatible(mediaType, remote.mediaType)
         val yearOk = yearsCompatible(localYear, remote.year)
+        // Yılın taraflardan birinde bilinmediği durum (yazmayı engellemeyelim).
+        val yearUnknown = (localYear == null || localYear <= 0) || (remote.year == null || remote.year <= 0)
+        // AniList "sezon yılı" ile MAL "başlangıç yılı" zaman zaman 1 yıl kayar
+        // (Aralık/Ocak ayında başlayan yapımlar). Bariz fark (≥2 yıl) gerçekten farklı
+        // içeriktir; 1 yıllık kayma kimlik ayrımı değildir.
+        val yearNear = localYear != null && remote.year != null &&
+            localYear > 0 && remote.year > 0 &&
+            kotlin.math.abs(localYear - remote.year) <= 1
         val matchedLocalTitles = matchingLocalTitleAliases(titles, remote.titles)
         val related = matchedLocalTitles.isNotEmpty()
+        // Tam (birebir) başlık eşdeğerliği + aynı MAL türü, yıl bilgisinden BAĞIMSIZ kanıttır:
+        // aynı türdeki iki kayıt aynı normalize başlığı taşıyorsa bu, yanlış yapıma yazma
+        // riskini doğurmaz. Yıl farkı çoğu zaman yayın/yayın-başlangıcı ya da sezon (TV ↔ film)
+        // farkından gelir; eskiden bu yüzden `Unverifiable` dönüyor ve çapraz yayılımın TAMAMI
+        // sessizce atlanıyordu ("MAL'a ekledim, hiçbir yere gitmiyor").
+        val identityEquivalent = titlesAreIdentityEquivalent(titles, remote.titles)
 
         return when {
             !typeOk -> Verdict.Rejected(
@@ -337,7 +445,16 @@ object CrossSyncIdentityGuard {
                 remoteTitle = remote.primaryTitle,
                 remoteYear = remote.year
             )
-            related && yearOk -> Verdict.Verified(remote.primaryTitle, remote.year, matchedLocalTitles)
+            identityEquivalent -> Verdict.Verified(remote.primaryTitle, remote.year, matchedLocalTitles)
+            // Başlık eşleşiyorsa yıl BİLİNMİYOR olması yazmayı engellememeli.
+            // ESKİ DAVRANIŞ: `yearOk` iki tarafın da yılı bilmesini ve BİREBİR eşit olmasını
+            // istiyordu; yerel yılı boş olan (Simkl/TMDB/manuel eklenen) veya MAL'ın başlangıç
+            // yılı AniList sezon yılından bir farklı olan kayıtlar "Unverifiable" dönüp
+            // çapraz yazımı (AniList dahil) TAMAMEN atlıyordu → kullanıcı "listeye ekleme/
+            // çıkarma çalışmıyor" görüyordu. Kimliğin asıl kanıtı MAL kimliğidir; başlık
+            // eşleşmesi de doğrulandıysa yıl bilinmiyorsa/yakınsa yazmaya izin verilir.
+            related && (yearOk || yearUnknown || yearNear) ->
+                Verdict.Verified(remote.primaryTitle, remote.year, matchedLocalTitles)
             !related -> Verdict.Rejected(
                 reason = KitsugiStrings.get(
                     R.string.cross_sync_identity_title_mismatch,
@@ -349,8 +466,7 @@ object CrossSyncIdentityGuard {
                 remoteTitle = remote.primaryTitle,
                 remoteYear = remote.year
             )
-            localYear == null || localYear <= 0 || remote.year == null || remote.year <= 0 ->
-                Verdict.Unverifiable(KitsugiStrings.get(R.string.cross_sync_identity_year_unavailable))
+            // Yalnızca ZAYIF başlık akrabalığı var ve yıllar çelişiyor → gerçek çelişki.
             else -> Verdict.Rejected(
                 reason = KitsugiStrings.get(
                     R.string.cross_sync_identity_year_mismatch,
@@ -364,6 +480,19 @@ object CrossSyncIdentityGuard {
             )
         }
     }
+
+    /**
+     * Kararın çapraz yazımı **engelleyip engellemediği**.
+     *
+     * Eski kural `Verified` dışındaki her sonucu engelliyordu. Bu, ağ/kota nedeniyle katalog
+     * okunamadığında ([Unverifiable]) veya yerel satırda yıl bulunmadığında **hiçbir** kaynağa
+     * yazılmaması demekti — kullanıcı "MAL'a ekledim, AniList/Kitsu/Shikimori/Bangumi'ye hiç
+     * gitmiyor" diyordu. Doğru ayrım: yalnızca katalog **çelişki** gösterdiğinde
+     * ([Rejected]) yazım durur; kanıt yokluğu ([Unverifiable]) hedefin KENDİ resmî
+     * kimliğiyle doğrulamasına bırakılır (AniList `idMal`, Kitsu `mappings`,
+     * Simkl `ids.mal`, Shikimori `target_id` = MAL ID).
+     */
+    fun blocksCrossWrite(verdict: Verdict): Boolean = verdict is Verdict.Rejected
 
     /** Test/teşhis amaçlı: önbelleği boşaltır. */
     fun clearCache() = identityCache.clear()

@@ -19,20 +19,31 @@ internal object YouTubeRequestPolicy {
     private const val YOUTUBE_ORIGIN = "https://www.youtube.com"
     private const val ACCEPT_LANGUAGE = "en-US,en;q=0.9"
 
-    fun headersForInlineUrl(url: String): Map<String, String> {
-        if (isYouTubeMediaUrl(url)) return youtubePlaybackHeaders()
+    fun headersForInlineUrl(
+        url: String,
+        overrides: Map<String, String> = emptyMap()
+    ): Map<String, String> {
+        if (isYouTubeMediaUrl(url)) return youtubePlaybackHeaders(overrides)
 
         val headers = linkedMapOf(
             "User-Agent" to STREAM_USER_AGENT,
-            "Accept-Language" to ACCEPT_LANGUAGE
+            "Accept-Language" to ACCEPT_LANGUAGE,
+            // Bazı CDN'ler (animethemes CDN'i dâhil) tarayıcı dışı istemcilere Accept
+            // başlığı olmadan 403 dönebiliyor.
+            "Accept" to "video/*,application/octet-stream,*/*;q=0.8"
         )
         val origin = originOf(url)
         if (origin != null) {
+            // `Origin` BİLİNÇLİ olarak gönderilmiyor: yabancı bir Origin başlığı bazı
+            // CDN'lerde CORS kuralına takılıp 403 üretiyor ve küçük oynatıcı sessizce
+            // "oynatılamadı" kartına düşüyordu. Referer yeterli ve daha güvenli.
             headers["Referer"] = "$origin/"
-            headers["Origin"] = origin
         }
-        return headers
+        return mergeHeaders(headers, overrides)
     }
+
+    fun headersForPlaybackSource(source: TrailerPlaybackSource): Map<String, String> =
+        headersForInlineUrl(source.videoUrl, source.requestHeaders)
 
     fun youtubePlaybackHeaders(overrides: Map<String, String> = emptyMap()): Map<String, String> {
         val merged = linkedMapOf(
@@ -41,13 +52,40 @@ internal object YouTubeRequestPolicy {
             "Referer" to YOUTUBE_REFERER,
             "Origin" to YOUTUBE_ORIGIN
         )
+        return mergeHeaders(merged, overrides)
+    }
+
+    private fun mergeHeaders(
+        base: Map<String, String>,
+        overrides: Map<String, String>
+    ): Map<String, String> {
+        val merged = LinkedHashMap(base)
         overrides.forEach { (name, value) ->
-            if (name.isBlank()) return@forEach
+            if (name.isBlank() || value.isBlank()) return@forEach
             val existingName = merged.keys.firstOrNull { it.equals(name, ignoreCase = true) }
-            if (existingName != null) merged.remove(existingName)
-            merged[name] = value
+            if (existingName != null) {
+                merged[existingName] = value
+            } else {
+                merged[name] = value
+            }
         }
         return merged
+    }
+
+    /** Reads YouTube's signed expiry from either a query parameter or an HLS path segment. */
+    fun expiryEpochSeconds(url: String): Long? {
+        val uri = runCatching { URI(url.trim()) }.getOrNull() ?: return null
+        val queryExpiry = uri.rawQuery.orEmpty()
+            .split('&')
+            .firstOrNull { it.substringBefore('=') == "expire" }
+            ?.substringAfter('=', missingDelimiterValue = "")
+            ?.toLongOrNull()
+        if (queryExpiry != null) return queryExpiry
+
+        val segments = uri.path.orEmpty().split('/')
+        val expireIndex = segments.indexOf("expire")
+        if (expireIndex < 0) return null
+        return segments.getOrNull(expireIndex + 1)?.toLongOrNull()
     }
 
     fun isYouTubeMediaUrl(url: String?): Boolean {

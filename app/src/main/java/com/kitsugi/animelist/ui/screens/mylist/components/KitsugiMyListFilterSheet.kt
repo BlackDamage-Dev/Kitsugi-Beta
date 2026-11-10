@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.ui.screens.mylist.components
+﻿package com.kitsugi.animelist.ui.screens.mylist.components
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,13 +18,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.kitsugi.animelist.R
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
 import com.kitsugi.animelist.ui.components.KitsugiSheetOrDialog
 import com.kitsugi.animelist.ui.components.LocalDismissAnimated
 import com.kitsugi.animelist.ui.screens.mylist.ExtraFilterRow
 import com.kitsugi.animelist.ui.screens.mylist.MyListContentTypeRow
 import com.kitsugi.animelist.ui.screens.mylist.ScoreFilterRow
-import com.kitsugi.animelist.ui.screens.mylist.SortFilterRow
+import com.kitsugi.animelist.ui.screens.mylist.MyListGroupingRow
+import com.kitsugi.animelist.ui.screens.mylist.MyListSortChipsRow
 import com.kitsugi.animelist.ui.screens.mylist.StatusFilterRow
 import com.kitsugi.animelist.ui.screens.mylist.TypeFilterRow
 import com.kitsugi.animelist.ui.screens.mylist.YearFilterRow
@@ -43,12 +44,14 @@ fun KitsugiMyListFilterSheet(
     selectedYearFilterId: String,
     selectedExtraFilterId: String,
     selectedSortId: String,
+    selectedGroupId: String,
     onStatusSelected: (String) -> Unit,
     onTypeSelected: (String) -> Unit,
     onScoreSelected: (String) -> Unit,
     onYearSelected: (String) -> Unit,
     onExtraSelected: (String) -> Unit,
     onSortSelected: (String) -> Unit,
+    onGroupSelected: (String) -> Unit,
     onResetFilters: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -61,7 +64,7 @@ fun KitsugiMyListFilterSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .verticalScroll(scrollState)
+                .kitsugiVerticalScroll(scrollState)
                 .padding(horizontal = 16.dp, vertical = 8.dp)
                 .padding(bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp)
@@ -107,8 +110,19 @@ fun KitsugiMyListFilterSheet(
                 )
             }
 
+            // ── Gruplama (bağımsız eksen) ──────────────────────────────────
+            // Sıralama bu gruplamayı KALDIRMAZ; varsayılan görünüm (Bugün / Bu Hafta …)
+            // seçili sıralamayla birlikte çalışır.
+            FilterSheetSection(title = stringResource(R.string.mylist_group_title)) {
+                MyListGroupingRow(
+                    selectedGroupId = selectedGroupId,
+                    onGroupSelected = onGroupSelected
+                )
+            }
+
+            // ── Sıralama (kompakt: tek kavram = tek çip) ────────────────────
             FilterSheetSection(title = stringResource(R.string.siralama)) {
-                SortFilterRow(
+                MyListSortChipsRow(
                     selectedSortId = selectedSortId,
                     onSortSelected = onSortSelected
                 )

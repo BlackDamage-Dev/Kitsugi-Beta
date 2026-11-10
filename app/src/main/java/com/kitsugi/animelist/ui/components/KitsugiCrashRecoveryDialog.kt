@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.ui.components
+﻿package com.kitsugi.animelist.ui.components
 
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import com.kitsugi.animelist.ui.theme.gradient.Text
@@ -14,9 +14,8 @@ import com.kitsugi.animelist.ui.theme.gradient.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.*
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -101,7 +100,7 @@ fun KitsugiCrashRecoveryDialog(
                         fontFamily = FontFamily.Monospace,
                         lineHeight = 14.sp,
                         modifier = Modifier
-                            .verticalScroll(rememberScrollState())
+                            .kitsugiVerticalScroll(rememberScrollState())
                             .padding(10.dp)
                     )
                 }
@@ -129,7 +128,7 @@ fun KitsugiCrashRecoveryDialog(
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = KitsugiColors.TextPrimary),
                             modifier = Modifier.weight(1f)
                         ) {
-                            Icon(Icons.Rounded.ContentCopy, null, modifier = Modifier.size(15.dp))
+                            Icon(Icons.ContentCopy, null, modifier = Modifier.size(15.dp))
                             Spacer(Modifier.width(6.dp))
                             Text(stringResource(R.string.action_copy), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                         }
@@ -160,7 +159,7 @@ fun KitsugiCrashRecoveryDialog(
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier.weight(1f)
                         ) {
-                            Icon(Icons.Rounded.Share, null, modifier = Modifier.size(15.dp))
+                            Icon(Icons.Share, null, modifier = Modifier.size(15.dp))
                             Spacer(Modifier.width(6.dp))
                             Text(stringResource(R.string.inline_share_file_6e19b1d), fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
@@ -183,7 +182,7 @@ fun KitsugiCrashRecoveryDialog(
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = KitsugiColors.AccentTeal),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Icon(Icons.Rounded.OpenInNew, null, modifier = Modifier.size(15.dp))
+                        Icon(Icons.OpenInNew, null, modifier = Modifier.size(15.dp))
                         Spacer(Modifier.width(6.dp))
                         Text(stringResource(R.string.inline_open_detailed_crash_screen_ee67637), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                     }
@@ -203,7 +202,7 @@ fun KitsugiCrashRecoveryDialog(
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = KitsugiColors.TextSecondary),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Icon(Icons.Rounded.Download, null, modifier = Modifier.size(15.dp))
+                        Icon(Icons.Download, null, modifier = Modifier.size(15.dp))
                         Spacer(Modifier.width(6.dp))
                         Text(stringResource(R.string.inline_save_to_downloads_txt_0bd21ef), fontSize = 11.5.sp)
                     }

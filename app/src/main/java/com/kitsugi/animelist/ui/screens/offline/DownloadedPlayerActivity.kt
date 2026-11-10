@@ -6,6 +6,8 @@ import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import com.kitsugi.animelist.core.player.audio.player.AudioFormatSupport
+import com.kitsugi.animelist.ui.screens.audio.KitsugiAudioPlayerActivity
 import com.kitsugi.animelist.ui.screens.fullscreen.KitsugiFullscreenPlayerActivity
 import com.kitsugi.animelist.utils.KitsugiStrings
 import com.kitsugi.animelist.R
@@ -41,13 +43,39 @@ class DownloadedPlayerActivity : ComponentActivity() {
             if (isUriSafe(data)) {
                 Log.d(TAG, "Playing URI offline: $data")
                 val filename = data.lastPathSegment ?: "Yerel Dosya"
-                KitsugiFullscreenPlayerActivity.startWithStreamUrls(
-                    context = this,
-                    videoUrl = data.toString(),
-                    title = filename,
-                    headers = emptyMap(),
-                    subtitles = emptyList()
-                )
+                val resolvedMime = intent.type
+                    ?: runCatching { contentResolver.getType(data) }.getOrNull()
+                val pathHint = data.toString()
+                val inAudioFolder = pathHint.contains("Kitsugi/Audio", ignoreCase = true) ||
+                    pathHint.contains("Kitsugi%2FAudio", ignoreCase = true)
+                val shouldOpenInAudioPlayer = AudioFormatSupport.isAudioMimeType(resolvedMime) ||
+                    AudioFormatSupport.isAudioFileName(pathHint, allowWebmAsAudio = inAudioFolder)
+                if (shouldOpenInAudioPlayer) {
+                    KitsugiAudioPlayerActivity.startWithUri(
+                        context = this,
+                        uri = data,
+                        titleHint = null
+                    )
+                } else {
+                    val fileParams = if (data.scheme.equals("file", ignoreCase = true)) {
+                        data.path?.let { filePath ->
+                            com.kitsugi.animelist.core.player.OfflinePlaybackHelper.resolveFilePlaybackParams(
+                                videoFile = java.io.File(filePath),
+                                fallbackTitle = filename
+                            )
+                        }
+                    } else {
+                        null
+                    }
+                    KitsugiFullscreenPlayerActivity.startWithStreamUrls(
+                        context = this,
+                        videoUrl = fileParams?.videoUri ?: data.toString(),
+                        audioUrl = fileParams?.audioUri,
+                        title = fileParams?.title ?: filename,
+                        headers = emptyMap(),
+                        subtitles = fileParams?.subtitles ?: emptyList()
+                    )
+                }
             } else {
                 Toast.makeText(this, KitsugiStrings.get(R.string.gecersiz_veya_guvenli_olmayan_dosya_adresi), Toast.LENGTH_LONG).show()
             }

@@ -23,7 +23,6 @@ enum class VideoAspect(val label: String) {
 }
 
 enum class Decoder(val title: String, val value: String) {
-    AutoCopy("Auto", "auto-copy"),
     Auto("Auto", "auto"),
     SW("SW", "no"),
     HW("HW", "mediacodec-copy"),
@@ -46,7 +45,11 @@ enum class KitsugiSheets {
     PlaybackSpeed,
     SubtitleTracks,
     AudioTracks,
+    /** Yalnızca kalite seçenekleri (Otomatik + bildirilen çözünürlükler). */
     QualityTracks,
+    /** Yalnızca kaynak (sunucu) listesi. */
+    SourceTracks,
+    Sources,
     Chapters,
     More,
     Screenshot,
@@ -65,6 +68,7 @@ enum class KitsugiPanels {
 sealed class KitsugiDialogs {
     data object None : KitsugiDialogs()
     data object EpisodeList : KitsugiDialogs()
+    data object KeyboardShortcuts : KitsugiDialogs()
     data class IntegerPicker(
         val defaultValue: Int,
         val minValue: Int,

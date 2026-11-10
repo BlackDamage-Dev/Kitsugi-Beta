@@ -93,6 +93,15 @@ interface PlayerEngine {
     /** İkincil altyazı gecikmesi (ms). Yalnızca destekleyen motorlarda anlamlıdır. */
     val secondarySubtitleDelayMs: Long get() = 0L
 
+    /**
+     * Oynatmanın arabelleğe alma (seek/buffering) yüzünden değil, gerçekten duraklatılmış
+     * durumda olup olmadığını bildirir. Media3'te `isPlaying` her seek/buffering anında
+     * geçici olarak `false` olurken `playWhenReady` `true` kalır; OSD'nin seek sırasında
+     * kendiliğinden açılıp kapanmaması için bu özellik kullanılır.
+     */
+    val isPausedByUser: Boolean
+        get() = !isPlaying && currentState == State.READY
+
     fun addListener(listener: Listener)
     fun removeListener(listener: Listener)
 
@@ -104,14 +113,28 @@ interface PlayerEngine {
     suspend fun prepare(
         videoUrl: String,
         audioUrl: String? = null,
+        externalAudioTracks: List<com.kitsugi.animelist.core.player.ExternalAudioTrackInput> = emptyList(),
+        streamTypeHint: String? = null,
         headers: Map<String, String> = emptyMap(),
         subtitles: List<SubtitleInput> = emptyList(),
         startPositionMs: Long = 0L,
         addonName: String? = null,
         isCS: Boolean = false,
         streamTitle: String? = null,
-        qualityValue: Int? = null
+        qualityValue: Int? = null,
+        mediaType: com.kitsugi.animelist.core.player.StreamMediaType? = null,
+        csStreamType: String? = null,
+        csExtractorData: String? = null
     )
+
+    /**
+     * Aynı medya oynarken sonradan gelen harici altyazıları akışı yeniden hazırlamadan ekler.
+     *
+     * @return true → motor altyazıları ekledi; çağıran [prepare] ÇAĞIRMAMALI.
+     *         false → motor bunu desteklemiyor (ör. Media3 yan yüklü altyazı için kaynağı
+     *         yeniden kurmalı) ya da liste daraldı; çağıran tam [prepare] yapmalı.
+     */
+    fun addExternalSubtitles(subtitles: List<SubtitleInput>): Boolean = false
 
     fun play()
     fun pause()
@@ -133,10 +156,27 @@ interface PlayerEngine {
      */
     fun setVideoFilters(values: Map<String, Int>) {}
     fun setSubtitleStyle(style: SubtitleStyleSettings)
+    /**
+     * Video çözünürlüğü tavanı (piksel yüksekliği). `null` → sınırsız (motorun kendi
+     * adaptif seçimi).
+     *
+     * NEDEN: DASH (`.mpd`) akışlarında kaliteler ayrı URL'ler değil, tek manifest içindeki
+     * `Representation` düğümleridir. Böyle akışlarda kullanıcının "Kalite" seçimi bu tavanla
+     * uygulanır; HLS'te ise seçim doğrudan varyant URL'sine geçilerek yapılır.
+     * Desteklemeyen motorlarda no-op'tur (varsayılan).
+     */
+    fun setMaxVideoHeight(height: Int?) {}
+
     fun setResizeMode(resizeMode: Int) // Matches AspectRatioFrameLayout.RESIZE_MODE_*
     fun setAspectMode(mode: com.kitsugi.animelist.core.player.PlayerAspectMode)
 
     fun handleKey(event: android.view.KeyEvent): Boolean = false
+    /** Real video renditions of the currently loaded media; empty when unsupported. */
+    val videoQualityTracks: List<TrackOption> get() = emptyList()
+    val isVideoQualityAuto: Boolean get() = true
+    /** null restores adaptive selection. Never changes the provider or media URL. */
+    fun selectVideoQuality(track: TrackOption?) {}
+
     fun selectTrack(trackOption: TrackOption)
     fun disableSubtitles()
 

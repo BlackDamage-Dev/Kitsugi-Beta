@@ -241,8 +241,15 @@ class JikanSearchClient {
                 if (jikanSeason.isNotEmpty()) return@withContext jikanSeason
             }
 
-            // 2. Arama sorgusu varsa -> Resmi MAL Arama API'si
-            if (query.isNotBlank()) {
+            // 2. Arama sorgusu varsa -> Resmi MAL Arama API'si veya Jikan'ın filtreli araması
+            val queryHasJikanFilters = !genres.isNullOrEmpty() || !excludedGenres.isNullOrEmpty() ||
+                !status.isNullOrBlank() || !format.isNullOrBlank() || !rating.isNullOrBlank() ||
+                minScore != null || maxScore != null || producerId != null || magazineId != null ||
+                startYear != null || endYear != null || season != null || seasonYear != null ||
+                !letter.isNullOrBlank() ||
+                (!orderBy.isNullOrBlank() && !orderBy.equals("popularity", true)) ||
+                (!sort.isNullOrBlank() && !sort.equals("desc", true))
+            if (query.isNotBlank() && !queryHasJikanFilters) {
                 // Kaynak sırası: 1) resmi MAL v2  2) Jikan.
                 // Boş arama sonucu ASLA popüler sıralamaya dönüşmemeli.
                 val results = searchOfficialMal(
@@ -256,6 +263,48 @@ class JikanSearchClient {
                 return@withContext runCatching {
                     searchJikanFallback(query, mediaType, showAdultContent, page)
                 }.getOrDefault(emptyList())
+            }
+
+            // Jikan's `/anime` and `/manga` endpoints accept q together with the
+            // facet parameters.  The old implementation always used official MAL
+            // text search here, silently dropping every selected genre/date/studio.
+            if (query.isNotBlank()) {
+                val params = mutableListOf("limit=24", "page=${page.coerceAtLeast(1)}", "sfw=${jikanSfw(showAdultContent)}")
+                fun addQueryParam(key: String, value: String?) {
+                    if (!value.isNullOrBlank()) params += "$key=${URLEncoder.encode(value, "UTF-8")}"
+                }
+                addQueryParam("q", query.trim())
+                addQueryParam("start_date", startYear?.let { "$it-01-01" } ?: season?.let {
+                    if (seasonYear == null || endpoint != "anime") null else when (it.lowercase()) {
+                        "winter" -> "$seasonYear-01-01"
+                        "spring" -> "$seasonYear-04-01"
+                        "summer" -> "$seasonYear-07-01"
+                        "fall", "autumn" -> "$seasonYear-10-01"
+                        else -> null
+                    }
+                })
+                addQueryParam("end_date", endYear?.let { "$it-12-31" } ?: season?.let {
+                    if (seasonYear == null || endpoint != "anime") null else when (it.lowercase()) {
+                        "winter" -> "$seasonYear-03-31"
+                        "spring" -> "$seasonYear-06-30"
+                        "summer" -> "$seasonYear-09-30"
+                        "fall", "autumn" -> "$seasonYear-12-31"
+                        else -> null
+                    }
+                })
+                addQueryParam("genres", genres?.takeIf { it.isNotEmpty() }?.joinToString(","))
+                addQueryParam("genres_exclude", excludedGenres?.takeIf { it.isNotEmpty() }?.joinToString(","))
+                addQueryParam("status", status)
+                addQueryParam("type", format)
+                addQueryParam("rating", rating)
+                addQueryParam("min_score", minScore?.toString())
+                addQueryParam("max_score", maxScore?.toString())
+                addQueryParam("producers", producerId?.toString())
+                addQueryParam("magazines", magazineId?.toString())
+                addQueryParam("letter", letter)
+                addQueryParam("order_by", orderBy?.takeIf { it.isNotBlank() })
+                addQueryParam("sort", sort?.takeIf { it.equals("asc", true) || it.equals("desc", true) })
+                return@withContext jikanListOrEmpty("$endpoint?${params.joinToString("&")}", mediaType)
             }
 
             // Jikan supports native genre/date filters on /anime and /manga. MAL's

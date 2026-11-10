@@ -1,4 +1,5 @@
 package com.kitsugi.animelist.ui.screens.detail
+import androidx.compose.ui.graphics.vector.ImageVector
 import com.kitsugi.animelist.ui.components.KitsugiButton
 import com.kitsugi.animelist.ui.components.PlatformErrorCodeChip
 import com.kitsugi.animelist.ui.components.PlatformErrorExplanationBlock
@@ -28,20 +29,20 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Schedule
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import androidx.compose.ui.unit.sp
 import androidx.compose.material3.IconButton
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.SearchOff
 import com.kitsugi.animelist.data.settings.SettingsDataStore
 import com.kitsugi.animelist.data.settings.AppSettings
 import com.kitsugi.animelist.ui.components.KitsugiIntegrationsSettingsDialog
@@ -57,7 +58,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import com.kitsugi.animelist.ui.utils.tvClickable
-import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.ui.platform.LocalContext
 import com.kitsugi.animelist.utils.copyToClipboard
 import androidx.compose.ui.res.stringResource
@@ -72,7 +72,8 @@ import com.kitsugi.animelist.R
 internal fun DetailPill(
     text: String,
     color: Color,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    icon: ImageVector? = null
 ) {
     Box(
         modifier = modifier
@@ -81,12 +82,25 @@ internal fun DetailPill(
             .padding(horizontal = 12.dp, vertical = 6.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = text,
-            color = color,
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.Black
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = color,
+                    modifier = Modifier.size(12.dp)
+                )
+            }
+            Text(
+                text = text,
+                color = color,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Black
+            )
+        }
     }
 }
 
@@ -147,6 +161,7 @@ internal fun DetailPlatformBadge(
             "bangumi", "bgm" -> Color(0xFFF09199)
             "simkl" -> Color(0xFFE21926)
             "tmdb" -> Color(0xFFFFB800)
+            "animethemes", "animethemes.moe" -> Color(0xFF2EC4B6)
             else -> KitsugiColors.SurfaceSoft
         }
         Box(
@@ -194,7 +209,7 @@ internal fun KitsugiMiniCopyButton(
         contentAlignment = Alignment.Center
     ) {
         Icon(
-            imageVector = Icons.Rounded.ContentCopy,
+            imageVector = Icons.ContentCopy,
             contentDescription = stringResource(R.string.action_copy),
             tint = accentColor.copy(alpha = 0.85f),
             modifier = Modifier.size(13.dp)
@@ -205,33 +220,38 @@ internal fun KitsugiMiniCopyButton(
 /**
  * Shared info-row composable (label + value) used across detail pages.
  * Değerin yanında küçük bir kopyala butonu taşır.
+ *
+ * PERF: Satır başına SelectionContainer sarmalayıcısı kaldırıldı.
+ * Her InfoRow için ayrı SelectionManager + 3 pointerInput hareket algılayıcısı
+ * oluşturulması (sekme başına 15-20 satır = ~60 gesture node) kaydırma sırasında
+ * dokunma olaylarını yavaşlatıyor ve üstte zaten SelectionContainer bulunan
+ * karakter/ekip sekmelerinde iç içe seçim yöneticisi çakışmasına yol açıyordu.
+ * Kopyalama işlevi satır sonundaki KitsugiMiniCopyButton ile tek dokunuşta sağlanır.
  */
 @Composable
 internal fun InfoRow(label: String, value: String) {
-    SelectionContainer {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = label,
+            color = KitsugiColors.TextSecondary,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium
+        )
         Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Text(
-                text = label,
-                color = KitsugiColors.TextSecondary,
+                text = value,
+                color = KitsugiColors.TextPrimary,
                 style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Medium
+                fontWeight = FontWeight.Bold
             )
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                Text(
-                    text = value,
-                    color = KitsugiColors.TextPrimary,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                KitsugiMiniCopyButton(text = value)
-            }
+            KitsugiMiniCopyButton(text = value)
         }
     }
 }
@@ -299,7 +319,7 @@ internal fun AiringCountdownCard(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.Schedule,
+                    imageVector = Icons.Schedule,
                     contentDescription = null,
                     tint = KitsugiColors.Accent,
                     modifier = Modifier.size(20.dp)
@@ -348,7 +368,7 @@ internal fun DataUnavailableScreen(
                 .statusBarsPadding()
         ) {
             Icon(
-                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                imageVector = Icons.ArrowBack,
                 contentDescription = stringResource(R.string.geri),
                 tint = KitsugiColors.TextPrimary
             )
@@ -369,7 +389,7 @@ internal fun DataUnavailableScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.SearchOff,
+                    imageVector = Icons.SearchOff,
                     contentDescription = null,
                     tint = KitsugiColors.AccentRed,
                     modifier = Modifier.size(40.dp)
@@ -433,6 +453,64 @@ sealed class SynopsisState {
     data object Loading : SynopsisState()
     data object Error : SynopsisState()
     data class Success(val text: String) : SynopsisState()
+}
+
+internal data class DetailSettingsSlice(
+    val blurAdultMedia: Boolean = false,
+    val preferredTranslator: String = "DEFAULT",
+    val mdbListShowImdb: Boolean = true,
+    val mdbListShowTomatoes: Boolean = true,
+    val mdbListShowMetacritic: Boolean = true,
+    val mdbListShowAudience: Boolean = false,
+    val mdbListShowLetterboxd: Boolean = false,
+    val mdbListShowTmdb: Boolean = false,
+    val mdbListShowTrakt: Boolean = false
+)
+
+/**
+ * Detay sayfalarının ihtiyaç duyduğu dar ayar dilimini toplar.
+ * 100+ alanlı AppSettings akışının tamamını kök detay sayfasında dinleyip alakasız
+ * ayar yazımlarında tüm sayfayı yeniden compose etmeyi önler.
+ */
+@Composable
+internal fun rememberDetailSettingsSlice(
+    settingsDataStore: SettingsDataStore?
+): DetailSettingsSlice? {
+    if (settingsDataStore == null) return null
+    val sliceFlow = remember(settingsDataStore) {
+        settingsDataStore.settingsFlow
+            .map { s ->
+                DetailSettingsSlice(
+                    blurAdultMedia = s.blurAdultMedia,
+                    preferredTranslator = s.preferredTranslator,
+                    mdbListShowImdb = s.mdbListShowImdb,
+                    mdbListShowTomatoes = s.mdbListShowTomatoes,
+                    mdbListShowMetacritic = s.mdbListShowMetacritic,
+                    mdbListShowAudience = s.mdbListShowAudience,
+                    mdbListShowLetterboxd = s.mdbListShowLetterboxd,
+                    mdbListShowTmdb = s.mdbListShowTmdb,
+                    mdbListShowTrakt = s.mdbListShowTrakt
+                )
+            }
+            .distinctUntilChanged()
+    }
+    return sliceFlow.collectAsState(initial = DetailSettingsSlice()).value
+}
+
+@Composable
+fun DetailIntegrationsSettingsDialog(
+    settingsDataStore: SettingsDataStore,
+    coroutineScope: CoroutineScope,
+    onDismiss: () -> Unit
+) {
+    val settingsState by settingsDataStore.settingsFlow.collectAsState(initial = null)
+    val resolved = settingsState ?: return
+    DetailIntegrationsSettingsDialog(
+        settingsDataStore = settingsDataStore,
+        settingsState = resolved,
+        coroutineScope = coroutineScope,
+        onDismiss = onDismiss
+    )
 }
 
 @Composable
@@ -505,6 +583,40 @@ fun DetailIntegrationsSettingsDialog(
         onFanartTvEnabledChanged = { coroutineScope.launch { settingsDataStore.setFanartTvEnabled(it) } },
         fanartTvApiKey = settingsState.fanartTvApiKey,
         onFanartTvApiKeyChanged = { coroutineScope.launch { settingsDataStore.setFanartTvApiKey(it) } },
+        musicEnabled = settingsState.musicEnabled,
+        onMusicEnabledChanged = { coroutineScope.launch { settingsDataStore.setMusicEnabled(it) } },
+        musicAutoRecommend = settingsState.musicAutoRecommend,
+        onMusicAutoRecommendChanged = { coroutineScope.launch { settingsDataStore.setMusicAutoRecommend(it) } },
+        musicAutoPlay = settingsState.musicAutoPlay,
+        onMusicAutoPlayChanged = { coroutineScope.launch { settingsDataStore.setMusicAutoPlay(it) } },
+        musicAutoPlayDelay = settingsState.musicAutoPlayDelaySeconds,
+        onAutoPlayDelayChanged = { coroutineScope.launch { settingsDataStore.setMusicAutoPlayDelay(it) } },
+        musicContinueOnExit = settingsState.musicContinueOnExit,
+        onMusicContinueOnExitChanged = { coroutineScope.launch { settingsDataStore.setMusicContinueOnExit(it) } },
+        musicMasterVolume = settingsState.musicMasterVolume,
+        onMusicMasterVolumeChanged = { coroutineScope.launch { settingsDataStore.setMusicMasterVolume(it) } },
+        musicChannelVolume = settingsState.musicChannelVolume,
+        onMusicChannelVolumeChanged = { coroutineScope.launch { settingsDataStore.setMusicChannelVolume(it) } },
+        musicAmbientVolume = settingsState.musicAmbientVolume,
+        onMusicAmbientVolumeChanged = { coroutineScope.launch { settingsDataStore.setMusicAmbientVolume(it) } },
+        musicJamendoEnabled = settingsState.musicJamendoEnabled,
+        onMusicJamendoEnabledChanged = { coroutineScope.launch { settingsDataStore.setMusicJamendoEnabled(it) } },
+        musicJamendoClientId = settingsState.musicJamendoClientId,
+        onMusicJamendoClientIdChanged = { coroutineScope.launch { settingsDataStore.setMusicJamendoClientId(it) } },
+        musicFreesoundEnabled = settingsState.musicFreesoundEnabled,
+        onMusicFreesoundEnabledChanged = { coroutineScope.launch { settingsDataStore.setMusicFreesoundEnabled(it) } },
+        musicFreesoundApiKey = settingsState.musicFreesoundApiKey,
+        onMusicFreesoundApiKeyChanged = { coroutineScope.launch { settingsDataStore.setMusicFreesoundApiKey(it) } },
+        musicOpenverseEnabled = settingsState.musicOpenverseEnabled,
+        onMusicOpenverseEnabledChanged = { coroutineScope.launch { settingsDataStore.setMusicOpenverseEnabled(it) } },
+        musicOpenverseToken = settingsState.musicOpenverseToken,
+        onMusicOpenverseTokenChanged = { coroutineScope.launch { settingsDataStore.setMusicOpenverseToken(it) } },
+        musicArchiveEnabled = settingsState.musicArchiveEnabled,
+        onMusicArchiveEnabledChanged = { coroutineScope.launch { settingsDataStore.setMusicArchiveEnabled(it) } },
+        musicAudiusEnabled = settingsState.musicAudiusEnabled,
+        onMusicAudiusEnabledChanged = { coroutineScope.launch { settingsDataStore.setMusicAudiusEnabled(it) } },
+        musicAudiusApiKey = settingsState.musicAudiusApiKey,
+        onMusicAudiusApiKeyChanged = { coroutineScope.launch { settingsDataStore.setMusicAudiusApiKey(it) } },
         onDismiss = onDismiss
     )
 }
@@ -596,3 +708,55 @@ internal fun DetailInfoValueRow(
 /** Ayrıntı modelindeki eş anlamlı adları temizler (boş/"null"/tekrar edenleri atar). */
 internal fun cleanDetailSynonyms(synonyms: List<String>): List<String> =
     synonyms.map { it.trim() }.filter { it.isNotBlank() && it != "null" }.distinct()
+
+internal const val DETAIL_TAB_PAGE_CHUNK_SIZE = 40
+
+/**
+ * HorizontalPager (Constraints.Infinity) içindeki çok büyük sekme listelerini (ör. 100-600
+ * karakter, görünüm, seslendirme rolü veya ilişki) tek seferde compose etmekten koruyan
+ * hafif aralık seçici şerit ("1 - 40", "41 - 80", ...). +0 XML ID kuralına tam uyumludur.
+ */
+@Composable
+internal fun DetailChunkSelectorRow(
+    totalCount: Int,
+    chunkSize: Int = DETAIL_TAB_PAGE_CHUNK_SIZE,
+    selectedChunk: Int,
+    onSelectChunk: (Int) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    if (totalCount <= chunkSize) return
+    val chunkCount = (totalCount + chunkSize - 1) / chunkSize
+    val accentColor = LocalKitsugiAccent.current
+    androidx.compose.foundation.lazy.LazyRow(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        items(
+            count = chunkCount,
+            key = { chunkIdx -> "chunk_$chunkIdx" }
+        ) { chunkIdx ->
+            val start = chunkIdx * chunkSize + 1
+            val end = minOf((chunkIdx + 1) * chunkSize, totalCount)
+            val isSelected = chunkIdx == selectedChunk
+            val bgColor = if (isSelected) accentColor else KitsugiColors.SurfaceSoft.copy(alpha = 0.65f)
+            val textColor = if (isSelected) KitsugiColors.Background else KitsugiColors.TextSecondary
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(bgColor)
+                    .tvClickable(shape = RoundedCornerShape(999.dp)) { onSelectChunk(chunkIdx) }
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "$start - $end",
+                    color = textColor,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = if (isSelected) FontWeight.Black else FontWeight.SemiBold
+                )
+            }
+        }
+    }
+}
+

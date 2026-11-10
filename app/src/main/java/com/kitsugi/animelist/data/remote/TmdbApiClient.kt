@@ -43,6 +43,8 @@ class TmdbApiClient(
         .followRedirects(true)
         .followSslRedirects(true)
         .addInterceptor(com.kitsugi.animelist.core.network.PlatformFailureInterceptor())
+        // v2.4.342: TMDB çağrıları da kalıcı günlüğe düşsün.
+        .addInterceptor(com.kitsugi.animelist.core.network.KitsugiNetworkLogInterceptor())
         .build()
     // Most call sites use TmdbApiClient() and are not rebuilt when preferences change.
     // Resolve the shared active key here so personal keys work consistently throughout the app.
@@ -196,6 +198,63 @@ class TmdbApiClient(
     suspend fun fetchVideos(tmdbId: Int, isMovie: Boolean): Pair<String?, List<KitsugiTheme>> = withContext(Dispatchers.IO) {
         if (!isTmdbFeatureEnabled { it.tmdbUseTrailers }) return@withContext Pair(null, emptyList())
         TmdbMediaDetailClient.fetchVideos(tmdbId, isMovie, apiKey, language, ::executeGet)
+    }
+
+    private val tmdbVideoItemsCache = com.kitsugi.animelist.core.memory.BoundedCache<String, List<MediaVideoItem>>("tmdb.videoItems", 120)
+
+    /**
+     * Ortak videolar sekmesi için TMDB videolarını (Fragman/Teaser, Açılış Jeneriği, Klip/Ekstra)
+     * çeker. [expectedTitles] verildiyse çapraz çözülen TMDB kimliğinin gerçekten aynı esere
+     * ait olduğunu doğrular; film/dizi kimlik çakışmalarında yanlış yapımın videosunu katmaz.
+     */
+    suspend fun fetchMediaVideoItems(
+        tmdbId: Int,
+        isMovie: Boolean,
+        expectedTitles: List<String> = emptyList(),
+        seasonNumber: Int? = null,
+        ignoreFeatureGate: Boolean = false
+    ): List<MediaVideoItem> = withContext(Dispatchers.IO) {
+        if (tmdbId <= 0 || apiKey.isBlank()) return@withContext emptyList()
+        if (!ignoreFeatureGate && !isTmdbFeatureEnabled { it.tmdbUseTrailers }) return@withContext emptyList()
+
+        var effectiveIsMovie = isMovie
+        if (expectedTitles.isNotEmpty()) {
+            suspend fun verifyType(movieFlag: Boolean): Boolean {
+                val typePath = if (movieFlag) "movie" else "tv"
+                val metaUrl = "https://api.themoviedb.org/3/$typePath/$tmdbId?api_key=$apiKey&language=en-US&append_to_response=alternative_titles"
+                val body = executeGet(metaUrl) ?: return false
+                val json = runCatching { org.json.JSONObject(body) }.getOrNull() ?: return false
+                val title = if (movieFlag) json.optString("title") else json.optString("name")
+                val orig = if (movieFlag) json.optString("original_title") else json.optString("original_name")
+                val alts = TmdbArtworkIdentity.extractAlternativeTitles(json)
+                return TmdbArtworkIdentity.matches(expectedTitles, title, orig, alts)
+            }
+
+            if (!verifyType(isMovie)) {
+                if (verifyType(!isMovie)) {
+                    effectiveIsMovie = !isMovie
+                } else {
+                    return@withContext emptyList()
+                }
+            }
+        }
+
+        val effSeason = if (effectiveIsMovie) null else seasonNumber
+        val cacheKey = "${if (effectiveIsMovie) "movie" else "tv"}:$tmdbId:${language.lowercase(java.util.Locale.ROOT)}:${effSeason ?: 0}"
+        tmdbVideoItemsCache[cacheKey]?.let { return@withContext it }
+
+        val items = TmdbMediaDetailClient.fetchStructuredVideos(
+            tmdbId = tmdbId,
+            isMovie = effectiveIsMovie,
+            apiKey = apiKey,
+            language = language,
+            seasonNumber = effSeason,
+            executeGet = ::executeGet
+        )
+        if (items.isNotEmpty()) {
+            tmdbVideoItemsCache[cacheKey] = items
+        }
+        items
     }
 
     // ── Oyuncu / Ekip / İçerik ─────────────────────────────────────────────────
@@ -399,6 +458,9 @@ class TmdbApiClient(
                 val rating = item.optDouble("vote_average", 0.0)
                 val score = if (rating > 0.0) (rating * 10).toInt().coerceIn(0, 100) / 10 else null
                 val imageUrl = if (posterPath.isNotEmpty()) "https://image.tmdb.org/t/p/w500$posterPath" else null
+                val genreIds = item.optJSONArray("genre_ids")?.let { genres ->
+                    (0 until genres.length()).mapNotNull { genres.optInt(it, 0).takeIf { id -> id > 0 } }
+                }.orEmpty()
                 val subtitleParts = buildList {
                     add(if (isMovie) "movie".toLocalizedMediaTypeString() else "tv".toLocalizedMediaTypeString())
                     if (year != null && year > 0) add(year.toString())
@@ -418,15 +480,93 @@ class TmdbApiClient(
                         realMalId = null,
                         titleEnglish = resolvedTitleEnglish,
                         titleJapanese = resolvedTitleJapanese,
-                        tmdbId = tmdbId
+                        tmdbId = tmdbId,
+                        genreIds = genreIds
                     )
                 )
             }
             list
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "search error: ${e.message}", e)
             emptyList()
         }
+    }
+
+    /**
+     * Text + discover facets. TMDB has no endpoint that accepts a free-text title and
+     * `with_networks`/provider facets together. Search the bounded discover window and
+     * apply the title terms locally instead of silently dropping the selected institution
+     * or studio filter.
+     */
+    suspend fun searchAdvanced(
+        query: String,
+        isMovie: Boolean,
+        page: Int = 1,
+        sortBy: String = "popularity.desc",
+        genres: List<Int>? = null,
+        excludedGenres: List<Int>? = null,
+        originCountry: String? = null,
+        startYear: Int? = null,
+        endYear: Int? = null,
+        minScore: Double? = null,
+        maxScore: Double? = null,
+        minVoteCount: Int? = null,
+        minRuntime: Int? = null,
+        maxRuntime: Int? = null,
+        watchProviderId: Int? = null,
+        networkId: Int? = null,
+        companyId: Int? = null,
+        keyword: String? = null,
+        tvStatus: String? = null,
+        tvType: String? = null,
+        includeAdult: Boolean = false
+    ): List<JikanSearchResult> = withContext(Dispatchers.IO) {
+        val terms = query.trim().lowercase(java.util.Locale.ROOT)
+            .split(Regex("\\s+"))
+            .filter { it.isNotBlank() }
+        if (terms.isEmpty()) return@withContext emptyList()
+        val pagesToInspect = (page.coerceAtLeast(1) * 3).coerceAtMost(10)
+        val candidates = buildList {
+            for (candidatePage in 1..pagesToInspect) {
+                addAll(
+                    discoverAdvanced(
+                        isMovie = isMovie,
+                        page = candidatePage,
+                        sortBy = sortBy,
+                        genres = genres,
+                        excludedGenres = excludedGenres,
+                        originCountry = originCountry,
+                        startYear = startYear,
+                        endYear = endYear,
+                        minScore = minScore,
+                        maxScore = maxScore,
+                        minVoteCount = minVoteCount,
+                        minRuntime = minRuntime,
+                        maxRuntime = maxRuntime,
+                        watchProviderId = watchProviderId,
+                        networkId = networkId,
+                        companyId = companyId,
+                        keyword = keyword,
+                        tvStatus = tvStatus,
+                        tvType = tvType,
+                        includeAdult = includeAdult
+                    )
+                )
+            }
+        }
+        candidates
+            .distinctBy { "${it.type}:${it.tmdbId ?: it.malId}" }
+            .filter { item ->
+                val haystack = listOf(item.title, item.titleEnglish, item.titleJapanese)
+                    .filterNotNull()
+                    .joinToString(" ")
+                    .lowercase(java.util.Locale.ROOT)
+                terms.all { it in haystack }
+            }
+            .drop((page - 1).coerceAtLeast(0) * 20)
+            .take(20)
     }
 
     suspend fun discoverAdvanced(
@@ -445,6 +585,7 @@ class TmdbApiClient(
         maxRuntime: Int? = null,
         watchProviderId: Int? = null,
         networkId: Int? = null,
+        companyId: Int? = null,
         keyword: String? = null,
         tvStatus: String? = null,
         tvType: String? = null,
@@ -456,7 +597,20 @@ class TmdbApiClient(
         params.add("api_key=$apiKey")
         params.add("language=$language")
         params.add("page=$page")
-        params.add("sort_by=$sortBy")
+        // TMDB `/discover/tv` yalnızca `first_air_date.*` sıralamasını kabul eder;
+        // `primary_release_date.*` dizilerde 400 döndürüyor ve raf sessizce boş
+        // kalıyordu. `revenue.desc` de dizilerde geçersizdir (gişe yok).
+        val effectiveSortBy = if (isMovie) {
+            sortBy
+        } else {
+            when {
+                sortBy.startsWith("primary_release_date") ->
+                    sortBy.replace("primary_release_date", "first_air_date")
+                sortBy == "revenue.desc" -> "popularity.desc"
+                else -> sortBy
+            }
+        }
+        params.add("sort_by=$effectiveSortBy")
         params.add("include_adult=$includeAdult")
 
         if (!genres.isNullOrEmpty()) params.add("with_genres=${genres.joinToString(",")}")
@@ -473,6 +627,10 @@ class TmdbApiClient(
             if (!tvType.isNullOrBlank()) params.add("with_type=$tvType")
             if (networkId != null) params.add("with_networks=$networkId")
         }
+
+        // Ortak filtre çatısı: "Kurumlar" seçiminde yapım şirketi kimliği
+        // TMDB discover'ın `with_companies` parametresiyle uygulanır (film + dizi).
+        if (companyId != null && companyId > 0) params.add("with_companies=$companyId")
 
         if (minScore != null && minScore > 0.0) params.add("vote_average.gte=$minScore")
         if (maxScore != null && maxScore > 0.0) params.add("vote_average.lte=$maxScore")
@@ -515,6 +673,9 @@ class TmdbApiClient(
                 val rating = item.optDouble("vote_average", 0.0)
                 val score = if (rating > 0.0) (rating * 10).toInt().coerceIn(0, 100) / 10 else null
                 val imageUrl = if (posterPath.isNotEmpty()) "https://image.tmdb.org/t/p/w500$posterPath" else null
+                val genreIds = item.optJSONArray("genre_ids")?.let { genres ->
+                    (0 until genres.length()).mapNotNull { genres.optInt(it, 0).takeIf { id -> id > 0 } }
+                }.orEmpty()
                 val subtitleParts = buildList {
                     add(if (isMovie) "movie".toLocalizedMediaTypeString() else "tv".toLocalizedMediaTypeString())
                     if (year != null && year > 0) add(year.toString())
@@ -527,11 +688,14 @@ class TmdbApiClient(
                         isAdult = item.optBoolean("adult", false),
                         imageUrl = imageUrl, year = year, source = "tmdb",
                         realMalId = null, titleEnglish = resolved.english, titleJapanese = resolved.native,
-                        tmdbId = tmdbId
+                        tmdbId = tmdbId,
+                        genreIds = genreIds
                     )
                 )
             }
             list
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "discoverAdvanced error: ${e.message}", e)
             emptyList()
@@ -572,6 +736,8 @@ class TmdbApiClient(
                 )
             }
             list
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             emptyList()
         }
@@ -612,6 +778,8 @@ class TmdbApiClient(
                 )
             }
             list
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             emptyList()
         }
@@ -635,6 +803,8 @@ class TmdbApiClient(
                         null
                     }
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.e(TAG, "executeGet failed (${e.javaClass.simpleName}) — ${SensitiveUrlRedactor.redact(urlStr)}")
                 null

@@ -13,16 +13,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.Code
-import androidx.compose.material.icons.rounded.Info
-import androidx.compose.material.icons.rounded.NewReleases
-import androidx.compose.material.icons.rounded.OpenInNew
-import androidx.compose.material.icons.rounded.Public
-import androidx.compose.material.icons.rounded.Refresh
-import androidx.compose.material.icons.rounded.Warning
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -76,6 +68,7 @@ fun AboutScreen(
     val developer = "Kitsugi Team"
     val projectRepo = "https://github.com/f26901964-eng/Kitsugi-Beta"
     val pluginsRepo = "https://github.com/f26901964-eng/Kitsugi-Plugins"
+    val mangaPluginsRepo = "https://github.com/f26901964-eng/Kitsugi-Manga-Plugins"
 
     var showDeveloperLogs by remember { mutableStateOf(false) }
 
@@ -153,7 +146,7 @@ fun AboutScreen(
                     modifier = Modifier.align(Alignment.CenterStart)
                 ) {
                     Icon(
-                        imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                        imageVector = Icons.ArrowBack,
                         contentDescription = stringResource(R.string.geri),
                         tint = KitsugiColors.textPrimary
                     )
@@ -190,7 +183,7 @@ fun AboutScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.Info,
+                        imageVector = Icons.Info,
                         contentDescription = null,
                         tint = accentColor,
                         modifier = Modifier.size(40.dp)
@@ -255,7 +248,7 @@ fun AboutScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
-                                imageVector = Icons.Rounded.Public,
+                                imageVector = Icons.Public,
                                 contentDescription = null,
                                 tint = KitsugiColors.textPrimary,
                                 modifier = Modifier.size(24.dp)
@@ -287,7 +280,7 @@ fun AboutScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
-                                imageVector = Icons.Rounded.Code,
+                                imageVector = Icons.Code,
                                 contentDescription = null,
                                 tint = KitsugiColors.textPrimary,
                                 modifier = Modifier.size(24.dp)
@@ -302,6 +295,38 @@ fun AboutScreen(
                                 )
                                 Text(
                                     text = "github.com/f26901964-eng/Kitsugi-Plugins",
+                                    color = KitsugiColors.textMuted,
+                                    style = MaterialTheme.typography.labelSmall
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .tvClickable { openUrl(mangaPluginsRepo) }
+                                .padding(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Rounded.MenuBook,
+                                contentDescription = null,
+                                tint = KitsugiColors.textPrimary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    text = "Kitsugi Manga Plugins (Manga Havuzu)",
+                                    color = KitsugiColors.textPrimary,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "github.com/f26901964-eng/Kitsugi-Manga-Plugins",
                                     color = KitsugiColors.textMuted,
                                     style = MaterialTheme.typography.labelSmall
                                 )
@@ -418,7 +443,7 @@ fun AboutScreen(
                                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp),
                                     modifier = Modifier.weight(0.9f)
                                 ) {
-                                    Icon(Icons.Rounded.Code, contentDescription = null, tint = accentColor, modifier = Modifier.size(16.dp))
+                                    Icon(Icons.Code, contentDescription = null, tint = accentColor, modifier = Modifier.size(16.dp))
                                     Spacer(Modifier.width(6.dp))
                                     Text(
                                         text = "Eklentileri Denetle",
@@ -487,7 +512,7 @@ fun AboutScreen(
                             border = androidx.compose.foundation.BorderStroke(1.dp, errorColor.copy(alpha = 0.5f)),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Icon(Icons.Rounded.Warning, contentDescription = null, tint = errorColor, modifier = Modifier.size(18.dp))
+                            Icon(Icons.Warning, contentDescription = null, tint = errorColor, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(8.dp))
                             Text(KitsugiStrings.get(R.string.inline_crash_error_diagnostic_report_53375ae), color = errorColor, fontWeight = FontWeight.Bold)
                         }
@@ -617,7 +642,7 @@ fun AboutScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.Code,
+                        imageVector = Icons.Code,
                         contentDescription = null,
                         tint = accentColor,
                         modifier = Modifier.size(22.dp)
@@ -668,14 +693,32 @@ fun AboutScreen(
 
             item {
                 Spacer(modifier = Modifier.height(32.dp))
-                Text(
-                    text = "Made with ❤️ by $developer",
-                    color = KitsugiColors.textMuted,
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Medium,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        text = "Made with",
+                        color = KitsugiColors.textMuted,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Medium,
+                        textAlign = TextAlign.Center
+                    )
+                    Icon(
+                        imageVector = Icons.HeartSolid,
+                        contentDescription = null,
+                        tint = Color(0xFFE5484D),
+                        modifier = Modifier.size(11.dp)
+                    )
+                    Text(
+                        text = "by $developer",
+                        color = KitsugiColors.textMuted,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Medium,
+                        textAlign = TextAlign.Center
+                    )
+                }
                 Spacer(modifier = Modifier.height(40.dp))
             }
         }
@@ -736,7 +779,7 @@ private fun ReleaseNotesCard(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
-                    imageVector = Icons.Rounded.NewReleases,
+                    imageVector = Icons.NewReleases,
                     contentDescription = null,
                     tint = accentColor,
                     modifier = Modifier.size(22.dp)
@@ -760,7 +803,7 @@ private fun ReleaseNotesCard(
                     enabled = state !is ReleaseNotesUiState.Loading
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.Refresh,
+                        imageVector = Icons.Refresh,
                         contentDescription = stringResource(R.string.about_release_notes_refresh),
                         tint = if (state is ReleaseNotesUiState.Loading) KitsugiColors.textMuted else accentColor,
                         modifier = Modifier.size(20.dp)
@@ -874,14 +917,14 @@ private fun ReleaseNotesCard(
                                 shape = RoundedCornerShape(16.dp)
                             )
                             .padding(14.dp)
-                            .verticalScroll(rememberScrollState())
+                            .kitsugiVerticalScroll(rememberScrollState())
                     ) {
                         CleanReleaseNotesText(notes = release.releaseNotes)
                     }
 
                     TextButton(onClick = onOpenReleases) {
                         Icon(
-                            imageVector = Icons.Rounded.OpenInNew,
+                            imageVector = Icons.OpenInNew,
                             contentDescription = null,
                             tint = accentColor,
                             modifier = Modifier.size(16.dp)

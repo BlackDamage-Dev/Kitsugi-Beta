@@ -1,7 +1,10 @@
 package com.kitsugi.animelist.core.diagnostics
 
+import android.app.ActivityManager
 import android.app.Application
+import android.app.ApplicationExitInfo
 import android.content.Context
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.Process
@@ -14,6 +17,7 @@ import java.util.Date
 import java.util.Locale
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
+import androidx.annotation.RequiresApi
 import com.kitsugi.animelist.utils.KitsugiStrings
 import com.kitsugi.animelist.R
 
@@ -55,8 +59,12 @@ object KitsugiSessionSupervisor {
     private const val HEARTBEAT_MS        = 5_000L
     private const val FLUSH_EVERY_N_TICKS = 3          // ~15 sn'de bir diske yaz
     private const val MAX_BREADCRUMBS     = 40
+    private const val ACTION_DEDUPE_WINDOW_MS = 1_500L
+    /** Kırıntı dosyası en fazla bu aralıkla yazılır (donma önleme, v2.4.342). */
+    private const val BREADCRUMB_WRITE_INTERVAL_MS = 1_500L
     private const val MAX_LOGCAT_LINES    = 9_000
     private const val LOGCAT_RELEVANT_LIMIT = 220
+    private const val ANR_TRACE_LINES = 2_000
 
     private val ioExecutor = Executors.newSingleThreadExecutor { r ->
         Thread(r, "KitsugiSessionIO").apply { isDaemon = true }
@@ -74,6 +82,11 @@ object KitsugiSessionSupervisor {
 
     private val breadcrumbs = ArrayDeque<String>()
     private val breadcrumbLock = Any()
+    /** Son eklenen eylem — birebir tekrarları ayıklamak için. */
+    @Volatile private var lastActionRaw: String? = null
+    @Volatile private var lastActionAt: Long = 0L
+    /** Son kırıntı dosyası yazımı (ms) — yazma sıklığını sınırlar (v2.4.342). */
+    @Volatile private var lastBreadcrumbWriteAt: Long = 0L
 
     // SimpleDateFormat thread-safe DEĞİLDİR; bu sınıf ana thread + IO thread + çökme
     // handler'ından birlikte çağrılır → her kullanım kilit altında yapılır.
@@ -179,17 +192,33 @@ object KitsugiSessionSupervisor {
         if (!active) return
         lastScreen = screen
         noteAction("ekran → $screen")
+        // v2.4.342: ekran geçişleri kalıcı günlüğe de yazılır. Donma/çökme anında
+        // "hangi ekrandaydı" sorusunun cevabı böylece günlükte durur.
+        runCatching {
+            KitsugiLog.d(KitsugiLog.Channel.USER, "ekran", screen)
+        }
     }
 
     /** Kullanıcı eylemlerini (galeri aç, resim indir, oynat...) halka tampona ekler. */
     fun noteAction(action: String) {
         if (!active) return
+        val nowMs = System.currentTimeMillis()
+        if (action == lastActionRaw && nowMs - lastActionAt < ACTION_DEDUPE_WINDOW_MS) return
+        lastActionRaw = action
+        lastActionAt = nowMs
         val line = "${nowText()}  $action"
         synchronized(breadcrumbLock) {
             breadcrumbs.addLast(line)
             while (breadcrumbs.size > MAX_BREADCRUMBS) breadcrumbs.removeFirst()
         }
         val copy = synchronized(breadcrumbLock) { breadcrumbs.toList() }
+        // v2.4.342 — DONMA KORUMASI: eskiden **her** kullanıcı eyleminde kırıntı dosyası
+        // baştan yazılıyordu. Hızlı dokunuşlarda bu, tek iş parçacıklı kuyruğu doldurup
+        // gereksiz disk yükü üretiyordu. Artık en fazla 1,5 sn'de bir yazılır; son hâl
+        // yine kaybolmaz (çökme anında [flushNow] zorla yazar).
+        val now = System.currentTimeMillis()
+        if (now - lastBreadcrumbWriteAt < BREADCRUMB_WRITE_INTERVAL_MS) return
+        lastBreadcrumbWriteAt = now
         ioExecutor.execute {
             try {
                 appContext?.let { ctx ->
@@ -317,19 +346,72 @@ object KitsugiSessionSupervisor {
 
         if (clean || prevPid <= 0 || prevPid == Process.myPid()) return
 
-        Log.w(TAG, "Temiz olmayan kapanma tespit edildi (önceki pid=$prevPid, ekran=$screen)")
+        val currentBuild = com.kitsugi.animelist.BuildConfig.VERSION_NAME
+        // Ucuz yanlış-alarm kontrolleri (yalnızca prefs + PackageManager):
+        //  • önceki süreç çökme yakalayıcısı tarafından zaten raporlandıysa yineleme yapılmaz;
+        //  • uygulama güncellendiyse eski süreci paket yükleyici kapatmıştır (çökme değil).
+        val crashAlreadyRecorded = KitsugiCrashLogger.wasCrashRecordedForPid(ctx, prevPid, started)
+        val appUpdated = PreviousExitClassifier.isAppUpdate(
+            previousBuild = build,
+            currentBuild = currentBuild,
+            packageLastUpdateMs = packageLastUpdateTime(ctx),
+            previousLastAliveMs = lastAlive
+        )
+
+        Log.w(
+            TAG,
+            "Temiz olmayan kapanma tespit edildi (önceki pid=$prevPid, ekran=$screen, sürüm=$build → " +
+                "$currentBuild, kayıtlı çökme=$crashAlreadyRecorded, güncelleme=$appUpdated)"
+        )
+
+        // v2.4.342: "sessiz ölüm" (native çökme, LMKD, ANR sonrası kill, zorla durdurma)
+        // kalıcı günlüğe de yazılır. Kullanıcı günlükte tam olarak hangi ekranda, hangi
+        // sürümde ve ne kadar süre sonra öldüğünü görebilir.
+        runCatching {
+            KitsugiLog.w(
+                KitsugiLog.Channel.SYSTEM,
+                "oturum",
+                "Önceki oturum temiz kapanmadı (pid=$prevPid)",
+                "ekran=$screen | ön planda=$wasForeground | sürüm=$build | " +
+                    "son canlılık: ${if (lastAlive > 0) Date(lastAlive) else "?"}"
+            )
+        }
 
         // ── ÖN PLANDa öldüyse kullanıcıya HEMEN haber ver (bu kısım çok ucuz: sadece prefs) ──
-        // Uygulama açılışını BLOKLAMAMAK için logcat kazısı + rapor üretimi arka planda yapılır
-        // (eskiden bu işler ana thread'de yapılıyordu → her açılışta donma riski).
-        if (wasForeground) {
+        // Uygulama açılışını BLOKLAMAMAK için logcat kazısı + sistem çıkış kaydı + rapor üretimi
+        // arka planda yapılır. Sistem kaydı sonradan "zararsız" derse (kullanıcı kapattı vb.)
+        // bu erken bayrak arka planda geri alınır.
+        val earlyFlagSet = wasForeground && !crashAlreadyRecorded && !appUpdated
+        if (earlyFlagSet) {
             uncleanExitDetected.set(true)
             setUnreadFlag(ctx, "Önceki oturum beklenmedik şekilde sonlandı (sebep analiz ediliyor…)")
         }
 
         ioExecutor.execute {
-            buildAndStoreUncleanReport(ctx, prevPid, started, lastAlive, wasForeground, screen, build)
+            buildAndStoreUncleanReport(
+                ctx, prevPid, started, lastAlive, wasForeground, screen, build,
+                currentBuild, crashAlreadyRecorded, appUpdated, earlyFlagSet
+            )
         }
+    }
+
+    private fun packageLastUpdateTime(ctx: Context): Long = try {
+        @Suppress("DEPRECATION")
+        ctx.packageManager.getPackageInfo(ctx.packageName, 0).lastUpdateTime
+    } catch (_: Throwable) {
+        0L
+    }
+
+    /** Erken kaldırılan "beklenmedik kapanma" bayrağını geri alır (sistem kaydı zararsız dediğinde). */
+    private fun clearEarlyUnreadFlag(ctx: Context) {
+        uncleanExitDetected.set(false)
+        try {
+            ctx.getSharedPreferences("kitsugi_crash_prefs", Context.MODE_PRIVATE)
+                .edit()
+                .putBoolean("has_unread_crash", false)
+                .putBoolean("has_unclean_exit", false)
+                .commit()
+        } catch (_: Throwable) {}
     }
 
     private fun setUnreadFlag(ctx: Context, headline: String) {
@@ -351,8 +433,40 @@ object KitsugiSessionSupervisor {
         lastAlive: Long,
         wasForeground: Boolean,
         screen: String,
-        build: String
+        build: String,
+        currentBuild: String,
+        crashAlreadyRecorded: Boolean,
+        appUpdated: Boolean,
+        earlyFlagSet: Boolean
     ) {
+        // Android 11+: sistemin kesin çıkış kaydı (logcat kazısı sistem günlüklerini göremez;
+        // eski raporlardaki "SEBEP BULUNAMADI" satırlarının nedeni buydu).
+        val exitRecord = queryExitRecord(ctx, prevPid, started)
+        val verdict = PreviousExitClassifier.classify(
+            heartbeatForeground = wasForeground,
+            crashAlreadyRecorded = crashAlreadyRecorded,
+            appUpdated = appUpdated,
+            exitReason = exitRecord?.reason,
+            exitDescription = exitRecord?.description,
+            exitImportance = exitRecord?.importance
+        )
+        if (verdict.kind == PreviousExitClassifier.Kind.RECORDED_CRASH ||
+            verdict.kind == PreviousExitClassifier.Kind.APP_UPDATE
+        ) {
+            // Tam (yinelenen) rapor yerine geçmişe kısa bir iz düşülür; uyarı penceresi açılmaz.
+            val tag = if (verdict.kind == PreviousExitClassifier.Kind.APP_UPDATE) "UPDATE EXIT" else "RECORDED CRASH EXIT"
+            try {
+                File(ctx.filesDir, "crash_history.txt").appendText(
+                    "\n[$tag] ${nowText()}\n" +
+                        "▶ ÖNCEKİ SÜREÇ  : pid=$prevPid (sürüm=$build → şimdi $currentBuild)\n" +
+                        "▶ SINIFLANDIRMA : ${verdict.headline}\n" +
+                        "▶ SİSTEM KAYDI  : ${exitRecord?.summary() ?: "yok"}\n"
+                )
+            } catch (_: Throwable) {}
+            if (earlyFlagSet) clearEarlyUnreadFlag(ctx)
+            return
+        }
+
         val postMortem = try {
             scrapePostMortemLogcat(ctx, prevPid, started, lastAlive)
         } catch (_: Throwable) {
@@ -395,12 +509,16 @@ object KitsugiSessionSupervisor {
             if (started > 0 && lastAlive > 0) {
                 appendLine("▶ YAŞAM SÜRESİ  : ${(lastAlive - started) / 1000} sn")
             }
-            appendLine("▶ ARKA PLAN MI? : ${if (wasForeground) "HAYIR (uygulama ÖN PLANDAYDI → gerçek çökme)" else "EVET (arka planda sistem tarafından kapatıldı olabilir)"}")
+            appendLine("▶ ARKA PLAN MI? : ${if (verdict.foreground) "HAYIR (uygulama ÖN PLANDAYDI)" else "EVET (arka planda sistem tarafından kapatıldı olabilir)"}")
             val crumbScreen = breadcrumbLastScreen(ctx)
             appendLine(
                 "▶ SON EKRAN     : ${crumbScreen ?: screen}" +
                     (if (crumbScreen != null && crumbScreen != screen) "   (oturum anlık görüntüsü: $screen)" else "")
             )
+            appendLine()
+            appendLine("▶ SİSTEM ÇIKIŞ KAYDI (ApplicationExitInfo)")
+            appendLine("  ${exitRecord?.summary() ?: "kayıt yok (Android 11 öncesi ya da sistem kaydı bulunamadı)"}")
+            appendLine("  SINIFLANDIRMA : ${verdict.headline}")
             appendLine()
             appendLine("▶ ÖLÜM SEBEBİ (logcat analizi)")
             appendLine("  ${postMortem.headline}")
@@ -418,10 +536,18 @@ object KitsugiSessionSupervisor {
                 appendLine(matchedNativeTrace)
                 appendLine()
             }
+            exitRecord?.anrTrace?.takeIf { it.isNotBlank() }?.let { trace ->
+                appendLine("▶ ANR İZİ (sistem kaydı — ilk $ANR_TRACE_LINES satır)")
+                appendLine(trace)
+                appendLine()
+            }
             appendLine("═══════════════════════════════════════════════════════════════")
         }
 
-        val shouldSurface = wasForeground || postMortem.looksLikeCrash || !matchedNativeTrace.isNullOrBlank()
+        val shouldSurface = verdict.surface || postMortem.looksLikeCrash || !matchedNativeTrace.isNullOrBlank()
+        // Sistem kaydı zararsız dediyse (kullanıcı kapattı, arka planda LMK…) erken kaldırılan
+        // bayrak geri alınır; kullanıcı her açılışta yanlış "beklenmedik kapanma" uyarısı görmez.
+        if (!shouldSurface && earlyFlagSet) clearEarlyUnreadFlag(ctx)
 
         try {
             if (shouldSurface) {
@@ -434,7 +560,22 @@ object KitsugiSessionSupervisor {
 
         if (shouldSurface) {
             uncleanExitDetected.set(true)
-            setUnreadFlag(ctx, postMortem.headline.lineSequence().firstOrNull() ?: "Beklenmedik kapanma")
+            val logcatHeadline = postMortem.headline.lineSequence().firstOrNull().orEmpty()
+            val headline = if (exitRecord != null && logcatHeadline.startsWith("SEBEP BULUNAMADI")) {
+                verdict.headline
+            } else {
+                logcatHeadline.ifBlank { verdict.headline }
+            }
+            setUnreadFlag(ctx, headline)
+            // v2.4.342: kazı sonucunun özeti günlüğe (kullanıcı paylaştığında kanıt olsun).
+            runCatching {
+                KitsugiLog.e(
+                    KitsugiLog.Channel.CRASH,
+                    "oturum",
+                    "Beklenmedik kapanma raporu üretildi",
+                    postMortem.headline.lineSequence().take(3).joinToString(" / ")
+                )
+            }
         }
     }
 
@@ -451,6 +592,57 @@ object KitsugiSessionSupervisor {
     }
 
     internal data class PostMortem(val headline: String, val lines: String, val looksLikeCrash: Boolean)
+
+    /** Android 11+ `ApplicationExitInfo` kaydının rapora giren özeti. */
+    private data class ExitRecord(
+        val reason: Int,
+        val description: String?,
+        val importance: Int,
+        val status: Int,
+        val timestampMs: Long,
+        val pssKb: Long,
+        val anrTrace: String?
+    ) {
+        fun summary(): String = buildString {
+            append(PreviousExitClassifier.reasonName(reason))
+            append(" (").append(reason).append(')')
+            description?.takeIf { it.isNotBlank() }?.let { append(" — ").append(it) }
+            append(" | önem=").append(importance)
+            append(" | durum=").append(status)
+            if (pssKb > 0) append(" | PSS=").append(pssKb / 1024).append(" MB")
+        }
+    }
+
+    private fun queryExitRecord(ctx: Context, prevPid: Int, started: Long): ExitRecord? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return null
+        return try {
+            val am = ctx.getSystemService(ActivityManager::class.java) ?: return null
+            val info = am.getHistoricalProcessExitReasons(ctx.packageName, prevPid, 5)
+                .firstOrNull { it.pid == prevPid && (started <= 0L || it.timestamp >= started) }
+                ?: return null
+            ExitRecord(
+                reason = info.reason,
+                description = info.description,
+                importance = info.importance,
+                status = info.status,
+                timestampMs = info.timestamp,
+                pssKb = info.pss,
+                anrTrace = if (info.reason == ApplicationExitInfo.REASON_ANR) readTraceHead(info) else null
+            )
+        } catch (t: Throwable) {
+            Log.w(TAG, "Sistem çıkış kaydı okunamadı: ${t.javaClass.simpleName}: ${t.message}")
+            null
+        }
+    }
+
+    @RequiresApi(Build.VERSION_CODES.R)
+    private fun readTraceHead(info: ApplicationExitInfo): String? = try {
+        info.traceInputStream?.bufferedReader()?.use { reader ->
+            AnrTraceSelector.select(reader.lineSequence().take(ANR_TRACE_LINES).toList())
+        }
+    } catch (_: Throwable) {
+        null
+    }
 
     /**
      * Ölü sürecin izini logcat arabelleğinden kazar.

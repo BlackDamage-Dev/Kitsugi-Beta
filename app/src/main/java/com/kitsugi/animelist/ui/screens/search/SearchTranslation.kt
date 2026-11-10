@@ -399,22 +399,38 @@ object SearchTranslation {
     // Public API
     // ─────────────────────────────────────────────────────────────────────────
 
+    private val englishToTurkishByLower: Map<String, Pair<String, String>> by lazy {
+        val map = HashMap<String, Pair<String, String>>(englishToTurkish.size * 2)
+        for ((en, tr) in englishToTurkish) {
+            map.putIfAbsent(en.lowercase(java.util.Locale.ROOT), en to tr)
+        }
+        map
+    }
+
     fun String.normalizeToResourceKey(): String {
-        // ROOT yerel: Türkçe "I" harfi "ı"ya dönüşüp `genre_*`/`tag_*` anahtarlarını bozuyordu.
-        return this.lowercase(java.util.Locale.ROOT)
-            .replace(Regex("[^a-z0-9_]"), "_")
-            .replace(Regex("__+"), "_")
-            .trim('_')
+        if (this.isEmpty()) return ""
+        // ROOT yerel + karakter döngüsü: her etiket için 2× Regex derlemesini sıfırlar.
+        val sb = StringBuilder(this.length)
+        var prevUnderscore = true
+        for (ch in this) {
+            val lower = if (ch in 'A'..'Z') (ch.code + 32).toChar() else ch
+            val isAsciiWord = (lower in 'a'..'z') || (lower in '0'..'9')
+            if (isAsciiWord) {
+                sb.append(lower)
+                prevUnderscore = false
+            } else if (!prevUnderscore) {
+                sb.append('_')
+                prevUnderscore = true
+            }
+        }
+        if (sb.isNotEmpty() && sb[sb.length - 1] == '_') {
+            sb.setLength(sb.length - 1)
+        }
+        return sb.toString()
     }
 
     /**
      * `genre_*` / `tag_*` / `staff_role_*` dil dosyası karşılığı.
-     *
-     * Uygulamada ~40.000 `bangumi_*` dizesi bulunduğu için `getIdentifier` pahalıdır
-     * (kaynak tablosunun tamamı taranır). Sonuç [cachedStringResourceByName] ile
-     * önbelleğe alınır — bulunmayanlar da önbelleğe yazılır. Önceden Keşfet'teki her
-     * kartın her etiketi için üç ayrı tarama yapılıyor, Bangumi şeritleri dakikalarca
-     * bekliyordu. Çince/Japonca etiketlerde türetilen anahtar boş olur; hiç aranmaz.
      */
     private fun getLocalizedStringFromResource(prefix: String, label: String): String? {
         val normalized = label.normalizeToResourceKey()
@@ -422,19 +438,30 @@ object SearchTranslation {
         return com.kitsugi.animelist.utils.cachedStringResourceByName("${prefix}_$normalized")
     }
 
+    private fun getLocalizedFromAnyPrefix(normalizedKey: String): String? {
+        if (normalizedKey.isEmpty()) return null
+        com.kitsugi.animelist.utils.cachedStringResourceByName("genre_$normalizedKey")?.let { return it }
+        com.kitsugi.animelist.utils.cachedStringResourceByName("tag_$normalizedKey")?.let { return it }
+        com.kitsugi.animelist.utils.cachedStringResourceByName("staff_role_$normalizedKey")?.let { return it }
+        return null
+    }
+
     fun translateToTurkishForDisplay(label: String): String {
         val cleaned = label.trim()
         if (cleaned.isEmpty()) return cleaned
-        getLocalizedStringFromResource("genre", cleaned)?.let { return it }
-        getLocalizedStringFromResource("tag", cleaned)?.let { return it }
-        getLocalizedStringFromResource("staff_role", cleaned)?.let { return it }
+        val normKey = cleaned.normalizeToResourceKey()
+        getLocalizedFromAnyPrefix(normKey)?.let { return it }
         // Bangumi Çince/Japonca etiketleri (dil dosyası + statik harita)
         cleaned.toLocalizedBangumiTagOrNull()?.let { return it }
+        // Shikimori (Rusça) tür/etiketleri — `taxonomy_tag_*` override'ı varsa o kullanılır.
+        com.kitsugi.animelist.utils.RussianTaxonomyDictionary.entryFor(cleaned)?.let { entry ->
+            com.kitsugi.animelist.utils.taxonomyStringOverride(entry.key)?.let { return it }
+            return entry.turkish
+        }
 
-        val exact = englishToTurkish[cleaned]
-        if (exact != null) return exact
-        val lower = cleaned.lowercase()
-        englishToTurkish.entries.find { it.key.lowercase() == lower }?.let { return it.value }
+        englishToTurkish[cleaned]?.let { return it }
+        val lower = cleaned.lowercase(java.util.Locale.ROOT)
+        englishToTurkishByLower[lower]?.second?.let { return it }
         return cleaned
     }
 
@@ -443,35 +470,38 @@ object SearchTranslation {
         if (englishToTurkish.containsKey(cleaned)) return cleaned
         // Bangumi Çince/Japonca etiket → İngilizce arama terimi
         com.kitsugi.animelist.utils.bangumiTagEnglishOrNull(cleaned)?.let { return it }
-        val lower = cleaned.lowercase()
+        // Shikimori (Rusça) etiket → İngilizce arama terimi
+        com.kitsugi.animelist.utils.RussianTaxonomyDictionary.entryFor(cleaned)?.let { return it.english }
+        val lower = cleaned.lowercase(java.util.Locale.ROOT)
         aliases[lower]?.let { return it }
         turkishToEnglish[lower]?.let { return it }
-        englishToTurkish.keys.find { it.lowercase() == lower }?.let { return it }
+        englishToTurkishByLower[lower]?.first?.let { return it }
         return cleaned
     }
 
     fun displayLabel(label: String): String {
         val cleaned = label.trim()
         if (cleaned.isEmpty()) return cleaned
-        getLocalizedStringFromResource("genre", cleaned)?.let { return it }
-        getLocalizedStringFromResource("tag", cleaned)?.let { return it }
-        getLocalizedStringFromResource("staff_role", cleaned)?.let { return it }
+        val normKey = cleaned.normalizeToResourceKey()
+        getLocalizedFromAnyPrefix(normKey)?.let { return it }
         // Bangumi Çince/Japonca etiketleri (dil dosyası + statik harita)
         cleaned.toLocalizedBangumiTagOrNull()?.let { return it }
+        // Shikimori (Rusça) tür/etiketleri
+        com.kitsugi.animelist.utils.RussianTaxonomyDictionary.entryFor(cleaned)?.let { entry ->
+            com.kitsugi.animelist.utils.taxonomyStringOverride(entry.key)?.let { return it }
+            return if (isTurkish()) entry.turkish else entry.english
+        }
         if (!isTurkish()) return translateToEnglishForSearch(cleaned)
 
-        val exact = englishToTurkish[cleaned]
-        if (exact != null) return exact
+        englishToTurkish[cleaned]?.let { return it }
         val eng = translateToEnglishForSearch(cleaned)
+        if (eng != cleaned) {
+            getLocalizedFromAnyPrefix(eng.normalizeToResourceKey())?.let { return it }
+        }
 
-        getLocalizedStringFromResource("genre", eng)?.let { return it }
-        getLocalizedStringFromResource("tag", eng)?.let { return it }
-        getLocalizedStringFromResource("staff_role", eng)?.let { return it }
-
-        val engExact = englishToTurkish[eng]
-        if (engExact != null) return engExact
-        val lower = eng.lowercase()
-        englishToTurkish.entries.find { it.key.lowercase() == lower }?.let { return it.value }
+        englishToTurkish[eng]?.let { return it }
+        val lower = eng.lowercase(java.util.Locale.ROOT)
+        englishToTurkishByLower[lower]?.second?.let { return it }
         return cleaned
     }
 }

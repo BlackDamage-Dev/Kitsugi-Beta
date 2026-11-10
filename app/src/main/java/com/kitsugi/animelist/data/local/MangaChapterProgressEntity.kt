@@ -8,6 +8,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.PrimaryKey
 import androidx.room.Query
+import androidx.room.Transaction
 
 /**
  * Kullanıcının her manga bölümündeki okuma ilerlemesini (son okunan sayfa)
@@ -26,6 +27,9 @@ data class MangaChapterProgressEntity(
     val chapterName: String,
     @ColumnInfo(defaultValue = "0")
     val lastPageIndex: Int = 0,
+    /** Upright source-image fraction at the viewport top, independent of density/zoom. */
+    @ColumnInfo(defaultValue = "0")
+    val lastPageOffset: Float = 0f,
     @ColumnInfo(defaultValue = "0")
     val totalPages: Int = 0,
     @ColumnInfo(defaultValue = "0")
@@ -39,6 +43,24 @@ interface MangaChapterProgressDao {
     /** Son okunan ilerlemeyi kaydeder veya günceller. */
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(progress: MangaChapterProgressEntity)
+
+    /** An older delayed reader write must never replace newer stored progress. */
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertIfAbsent(progress: MangaChapterProgressEntity): Long
+
+    @Query("""UPDATE manga_chapter_progress SET mangaUrl = :mangaUrl, chapterName = :chapterName,
+        lastPageIndex = :lastPageIndex, lastPageOffset = :lastPageOffset, totalPages = :totalPages, isCompleted = :isCompleted, updatedAt = :updatedAt
+        WHERE chapterUrl = :chapterUrl AND updatedAt <= :updatedAt""")
+    suspend fun updateIfNotOlder(chapterUrl: String, mangaUrl: String, chapterName: String,
+        lastPageIndex: Int, lastPageOffset: Float, totalPages: Int, isCompleted: Boolean, updatedAt: Long): Int
+
+    @Transaction
+    suspend fun upsertIfNewer(progress: MangaChapterProgressEntity) {
+        if (insertIfAbsent(progress) == -1L) {
+            updateIfNotOlder(progress.chapterUrl, progress.mangaUrl, progress.chapterName,
+                progress.lastPageIndex, progress.lastPageOffset, progress.totalPages, progress.isCompleted, progress.updatedAt)
+        }
+    }
 
     /** Belirli bir bölümün ilerlemesini döndürür; yoksa null. */
     @Query("SELECT * FROM manga_chapter_progress WHERE chapterUrl = :chapterUrl")

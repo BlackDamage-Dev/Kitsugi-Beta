@@ -3,25 +3,19 @@ package okhttp3.brotli
 import okhttp3.CompressionInterceptor
 import okio.BufferedSource
 import okio.Source
+import okio.source
+import org.brotli.dec.BrotliInputStream
 
 /**
- * Stub: `okhttp-brotli` (OkHttp 5.x) sinifi.
+ * Real `okhttp-brotli` (OkHttp 5.x) implementation backed by `org.brotli:dec`.
  *
- * KeiSource `CompressionInterceptor(Brotli, Gzip, Zstd)` cagrisinda bu nesneyi
- * parametre olarak gecirir. Kitsugi'da `com.squareup.okhttp3:okhttp-brotli`
- * bagimliligi olmadigi icin sinif yok -> NoClassDefFoundError.
- *
- * Brotli cozuco (org.brotli.dec) APK'ya eklenmedigi icin decompress() bilincli olarak
- * firlatir; CompressionInterceptor stub'i "br" reklam etmedigi icin bu yol normalde
- * hic calismaz. Bir sunucu yine de br gonderirse hata, sessiz bozuk veri yerine
- * loglanabilir bir exception olarak yuzeye cikar.
+ * Keiyoushi `KeiSource` registers `CompressionInterceptor(Brotli, Gzip, Zstd)` and
+ * Manga-TR / Cloudflare / DDoS-Guard endpoints frequently respond with `Content-Encoding: br`.
  */
 object Brotli : CompressionInterceptor.DecompressionAlgorithm {
 
     override val encoding: String get() = "br"
 
     override fun decompress(compressedSource: BufferedSource): Source =
-        throw UnsupportedOperationException(
-            "Brotli dekompresyonu desteklenmiyor (okhttp-brotli bagimliligi yok)"
-        )
+        BrotliInputStream(compressedSource.inputStream()).source()
 }

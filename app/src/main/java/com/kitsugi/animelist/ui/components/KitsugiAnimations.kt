@@ -32,6 +32,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.unit.dp
 
 // ─── Motion Token'ları ─────────────────────────────────────────────────────
 // KitsugiMobile Tokens.kt'deki motion.normalMillis vb. değerlerden uyarlama.
@@ -77,7 +78,10 @@ private fun detailRevealEnterTransition(): EnterTransition =
     ) +
         fadeIn(
             animationSpec = tween(KitsugiMotion.detailRevealFadeMillis, easing = LinearOutSlowInEasing)
-        )
+        ) +
+        slideInVertically(
+            animationSpec = tween(KitsugiMotion.detailRevealMillis, easing = FastOutSlowInEasing)
+        ) { fullHeight -> -fullHeight / 8 }
 
 private fun detailRevealExitTransition(): ExitTransition =
     shrinkVertically(
@@ -86,7 +90,10 @@ private fun detailRevealExitTransition(): ExitTransition =
     ) +
         fadeOut(
             animationSpec = tween(KitsugiMotion.detailRevealFadeMillis, easing = FastOutLinearInEasing)
-        )
+        ) +
+        slideOutVertically(
+            animationSpec = tween(KitsugiMotion.detailCollapseMillis, easing = FastOutSlowInEasing)
+        ) { fullHeight -> -fullHeight / 8 }
 
 private fun stickyHeaderEnterTransition(): EnterTransition =
     expandVertically(
@@ -160,21 +167,57 @@ fun Modifier.animateDetailContentSize(): Modifier =
 @Composable
 fun rememberDetailStickyHeaderVisible(
     listState: LazyListState,
-    showAtIndex: Int,
-    hideAtIndex: Int
+    showAtIndex: Int = 1,
+    hideAtIndex: Int = 0
 ): Boolean {
     require(hideAtIndex < showAtIndex) { "hideAtIndex must be smaller than showAtIndex" }
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    // 64.dp kayan üst çubuk yüksekliğinden belirgin biçimde büyük histerezis eşiği (88.dp):
+    // çubuk kapandığında hero öğesi tekrar ekran dışına itilip sınırda titreşim (flicker) üretemez.
+    val hideHeroVisibleThresholdPx = with(density) { 88.dp.roundToPx() }
 
     var isVisible by remember(listState, showAtIndex, hideAtIndex) { mutableStateOf(false) }
-    LaunchedEffect(listState, showAtIndex, hideAtIndex) {
-        snapshotFlow { listState.firstVisibleItemIndex }.collect { index ->
+    LaunchedEffect(listState, showAtIndex, hideAtIndex, hideHeroVisibleThresholdPx) {
+        snapshotFlow {
+            val firstIdx = listState.firstVisibleItemIndex
+            val firstOffset = listState.firstVisibleItemScrollOffset
+            val heroInfo = if (firstIdx <= hideAtIndex) {
+                listState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == hideAtIndex }
+            } else {
+                null
+            }
+            val heroVisiblePx = if (heroInfo != null) {
+                (heroInfo.size + heroInfo.offset).coerceAtLeast(0)
+            } else {
+                0
+            }
+            Triple(firstIdx, firstOffset, heroVisiblePx)
+        }.collect { triple ->
+            val (index, offset, heroVisiblePx) = triple
             when {
                 index >= showAtIndex -> isVisible = true
-                index <= hideAtIndex -> isVisible = false
+                index < hideAtIndex -> isVisible = false
+                index == hideAtIndex -> {
+                    if (offset == 0 || heroVisiblePx >= hideHeroVisibleThresholdPx) {
+                        isVisible = false
+                    }
+                }
             }
         }
     }
     return isVisible
+}
+
+/** Pure state transition kept separate so the scroll boundary has regression coverage. */
+internal fun resolveDetailStickyHeaderVisibility(
+    isCurrentlyVisible: Boolean,
+    firstVisibleItemIndex: Int,
+    showAtIndex: Int,
+    hideAtIndex: Int
+): Boolean = when {
+    firstVisibleItemIndex >= showAtIndex -> true
+    firstVisibleItemIndex <= hideAtIndex -> false
+    else -> isCurrentlyVisible
 }
 
 // ─── Kaydırmaya Duyarlı Üst Bar (Diğer Sayfalarla Ortak Davranış) ───────────
@@ -200,9 +243,11 @@ class ScrollAwareHeaderState internal constructor(
 @Composable
 fun rememberScrollAwareHeaderState(
     listState: LazyListState,
-    hideDeadZonePx: Int = 120
+    hideDeadZonePx: Int = 120,
+    retainOnListChange: Boolean = false
 ): ScrollAwareHeaderState {
-    var collapsed by remember(listState) { mutableStateOf(false) }
+    val collapseKey = if (retainOnListChange) Unit else listState
+    var collapsed by remember(collapseKey) { mutableStateOf(false) }
 
     val connection = remember(listState, hideDeadZonePx) {
         object : NestedScrollConnection {
@@ -222,11 +267,14 @@ fun rememberScrollAwareHeaderState(
         }
     }
 
-    LaunchedEffect(listState) {
+    LaunchedEffect(listState, retainOnListChange) {
+        var firstEmission = true
         snapshotFlow {
             listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset
         }.collect { (index, offset) ->
-            if (index == 0 && offset == 0 && collapsed) collapsed = false
+            val pageSwitchSnapshot = retainOnListChange && firstEmission
+            firstEmission = false
+            if (!pageSwitchSnapshot && index == 0 && offset == 0 && collapsed) collapsed = false
         }
     }
 

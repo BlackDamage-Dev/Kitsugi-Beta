@@ -60,7 +60,46 @@ class YouTubeRequestPolicyTest {
             "https://v.animethemes.moe/AttackOnTitan-OP1.webm"
         )
         assertEquals("https://v.animethemes.moe/", theme["Referer"])
-        assertEquals("https://v.animethemes.moe", theme["Origin"])
+        org.junit.Assert.assertNull(theme["Origin"])
+        assertEquals("video/*,application/octet-stream,*/*;q=0.8", theme["Accept"])
         assertEquals(YouTubeRequestPolicy.STREAM_USER_AGENT, theme["User-Agent"])
     }
+
+    @Test
+    fun sourceSpecificClientUserAgentSurvivesHeaderMerging() {
+        val source = TrailerPlaybackSource(
+            videoUrl = "https://rr2---sn-a5mekn7e.googlevideo.com/videoplayback",
+            requestHeaders = mapOf(
+                "user-agent" to "VisionOS/0.1",
+                "X-Source-Client" to "visionos",
+                "X-Blank" to " "
+            )
+        )
+
+        val headers = YouTubeRequestPolicy.headersForPlaybackSource(source)
+
+        assertEquals("VisionOS/0.1", headers["User-Agent"])
+        assertEquals("visionos", headers["X-Source-Client"])
+        assertFalse(headers.keys.any { it.equals("user-agent", ignoreCase = true) && it != "User-Agent" })
+        assertFalse(headers.containsKey("X-Blank"))
+        assertEquals(YouTubeRequestPolicy.YOUTUBE_REFERER, headers["Referer"])
+    }
+
+    @Test
+    fun signedExpirySupportsQueryAndHlsPathForms() {
+        assertEquals(
+            1_900_000_000L,
+            YouTubeRequestPolicy.expiryEpochSeconds(
+                "https://rr1---sn-x.googlevideo.com/videoplayback?id=x&expire=1900000000"
+            )
+        )
+        assertEquals(
+            1_900_000_001L,
+            YouTubeRequestPolicy.expiryEpochSeconds(
+                "https://manifest.googlevideo.com/api/manifest/hls/expire/1900000001/id/x"
+            )
+        )
+        org.junit.Assert.assertNull(YouTubeRequestPolicy.expiryEpochSeconds("https://cdn.example/video/1900000000"))
+    }
 }
+

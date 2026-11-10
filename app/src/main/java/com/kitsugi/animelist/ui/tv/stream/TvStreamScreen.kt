@@ -7,6 +7,7 @@ import com.kitsugi.animelist.R
 import androidx.compose.ui.res.stringResource
 import android.content.Context
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
@@ -21,13 +22,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.Settings
-import androidx.compose.material.icons.rounded.Extension
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kitsugi.animelist.ui.components.KitsugiWebViewDialog
 import com.kitsugi.animelist.ui.components.KitsugiPlasmaLoader
@@ -59,6 +57,10 @@ import com.kitsugi.animelist.data.cloudstream.CsPluginLoader
 import com.kitsugi.animelist.data.cloudstream.CsStreamRunner
 import com.kitsugi.animelist.data.cloudstream.CsPluginStatusTracker
 import com.kitsugi.animelist.data.local.KitsugiDatabase
+import com.kitsugi.animelist.data.local.WatchHistoryManager
+import com.kitsugi.animelist.data.local.WatchHistoryRules
+import com.kitsugi.animelist.data.local.WatchHistorySource
+import com.kitsugi.animelist.data.model.WatchHistoryEntry
 import com.kitsugi.animelist.data.remote.AddonStreamClient
 import com.kitsugi.animelist.data.remote.DebridResolver
 import com.kitsugi.animelist.data.repository.AddonStreamRepository
@@ -70,10 +72,8 @@ import com.kitsugi.animelist.ui.tv.player.TvPlayerActivity
 import com.kitsugi.animelist.ui.screens.stream.AddonFetchState
 import com.kitsugi.animelist.ui.screens.stream.StreamViewModel
 import com.kitsugi.animelist.ui.components.errors.PlatformErrorExplanationBlock
-import com.kitsugi.animelist.ui.screens.stream.DebridCacheState
-import com.kitsugi.animelist.ui.screens.stream.getCacheState
+import com.kitsugi.animelist.ui.screens.stream.StreamInfoChips
 import com.kitsugi.animelist.ui.screens.stream.resolveStreamQuality
-import com.kitsugi.animelist.ui.screens.stream.resolveStreamSizeLabel
 import com.kitsugi.animelist.ui.theme.LocalKitsugiAccent
 import com.kitsugi.animelist.ui.theme.KitsugiColors
 import com.kitsugi.animelist.ui.theme.KitsugiTvTokens
@@ -111,6 +111,26 @@ fun TvStreamScreen(
     val streamPrefs = remember { context.getSharedPreferences("KitsugiStreamPrefs", Context.MODE_PRIVATE) }
     val dataStore = remember { SettingsDataStore(context) }
     val appSettings by dataStore.settingsFlow.collectAsStateWithLifecycle(initialValue = AppSettings())
+    var externalHistoryId by rememberSaveable { mutableStateOf<String?>(null) }
+    var externalStreamKey by rememberSaveable { mutableStateOf<String?>(null) }
+    var externalSeason by rememberSaveable { mutableIntStateOf(1) }
+    var externalEpisode by rememberSaveable { mutableIntStateOf(1) }
+    val externalPlayerLauncher = rememberLauncherForActivityResult(
+        com.kitsugi.animelist.core.player.ExternalPlayerResultContract()
+    ) { result ->
+        if (result != null && result.positionMs >= 0L) {
+            externalStreamKey?.let { key ->
+                streamPrefs.edit().putLong("pos_$key", result.positionMs)
+                    .also { editor -> result.durationMs?.let { editor.putLong("pos_dur_$key", it) } }
+                    .apply()
+            }
+            externalHistoryId?.let { id ->
+                WatchHistoryManager.updateProgress(id, externalEpisode, result.positionMs, result.durationMs ?: 0L, externalSeason)
+                WatchHistoryManager.flush()
+            }
+        }
+        com.kitsugi.animelist.core.player.KeepAliveService.stop(context)
+    }
 
     var selectedAddonFilter by remember { mutableStateOf<String?>(null) }
     var resolvingSource by remember { mutableStateOf<StreamSource?>(null) }
@@ -173,50 +193,73 @@ fun TvStreamScreen(
         )
     }
 
-    val launchPlayer = remember(context, allStreams, streamPrefs, onLaunchExternalPlayer) {
-        { source: StreamSource, resolvedUrl: String, engine: String ->
-            val streamKey = (source.infoHash ?: resolvedUrl).hashCode().toString()
-            val resumePositionMs = streamPrefs.getLong("pos_$streamKey", 0L)
-            // Referans eşitliği tutmadığında kaynak indeksi -1 kalıyor ve oynatıcı içinde
-            // kaynak değiştirme devre dışı kalıyordu; içerikle eşleştir.
-            val resolvedSourceIndex = allStreams.indexOf(source).takeIf { it >= 0 }
-                ?: allStreams.indexOfFirst {
-                    it.addonName == source.addonName && it.url == source.url
-                }
-            if (engine == "EXTERNAL" && onLaunchExternalPlayer != null) {
+    val launchPlayer: (StreamSource, String, String) -> Unit = { source, resolvedUrl, engine ->
+        val sourceApi = source.cs3ApiName ?: source.addonName
+        val sourcePage = source.cs3PageUrl.takeIf { source.isCS }
+        val probe = WatchHistoryEntry(
+            animeId = WatchHistoryRules.mediaId(
+                aniListId = args.aniListId, malId = args.malId, tmdbId = args.tmdbId,
+                bangumiId = args.bangumiId, title = args.title, isMovie = args.isMovie,
+                cs3Url = sourcePage, cs3ApiName = sourceApi, startYear = args.startYear
+            ),
+            animeTitle = args.title, posterUrl = source.thumbnailUrl ?: args.posterUrl,
+            season = args.season, episode = args.episode, isMovie = args.isMovie,
+            aniListId = args.aniListId, malId = args.malId, tmdbId = args.tmdbId,
+            bangumiId = args.bangumiId, imdbId = imdbId, mediaType = args.mediaType?.name,
+            titleEnglish = args.titleEnglish, titleRomaji = args.titleRomaji,
+            titleNative = args.titleNative, synonyms = args.synonyms.takeIf { it.isNotEmpty() },
+            startYear = args.startYear, cs3Url = sourcePage,
+            cs3ApiName = sourceApi.takeIf { source.isCS }
+        )
+        val recorded = runCatching {
+            WatchHistoryManager.record(WatchHistorySource.withSource(probe, source, resolvedUrl))
+        }.onFailure { android.util.Log.w("TvStreamScreen", "Could not record watch history", it) }.getOrNull()
+        val historyId = recorded?.animeId ?: probe.animeId
+        val resumePositionMs = if (appSettings.preserveWatchingPosition) {
+            recorded?.let(WatchHistoryRules::resumePosition) ?: 0L
+        } else 0L
+        val streamKey = (source.infoHash ?: resolvedUrl).hashCode().toString()
+        val resolvedSourceIndex = allStreams.indexOf(source)
+        streamPrefs.edit().putString("last_addon_name", source.addonName).apply()
+        try {
+            if (engine == "EXTERNAL") {
                 val input = ExternalPlayerLauncher.createInput(
                     url = resolvedUrl,
                     title = context.getString(R.string.args_title_bolum_args_episode, args.title, args.episode),
-                    headers = source.requestHeaders,
-                    resumePositionMs = resumePositionMs,
+                    headers = source.requestHeaders, resumePositionMs = resumePositionMs,
                     subtitles = source.subtitles
                 )
-                onLaunchExternalPlayer(input, streamKey)
+                if (onLaunchExternalPlayer != null) {
+                    onLaunchExternalPlayer(input, streamKey)
+                } else {
+                    externalHistoryId = historyId
+                    externalStreamKey = streamKey
+                    externalSeason = args.season
+                    externalEpisode = args.episode
+                    com.kitsugi.animelist.core.player.KeepAliveService.start(context)
+                    externalPlayerLauncher.launch(input)
+                }
             } else {
                 TvPlayerActivity.start(
-                    context = context,
-                    videoUrl = resolvedUrl,
+                    context = context, videoUrl = resolvedUrl, audioUrl = source.externalAudioUrl,
                     title = context.getString(R.string.args_title_bolum_args_episode, args.title, args.episode),
-                    headers = source.requestHeaders,
-                    subtitles = source.subtitles ?: emptyList(),
-                    allSources = allStreams,
+                    headers = source.requestHeaders, subtitles = source.subtitles, allSources = allStreams,
                     currentSourceIndex = resolvedSourceIndex,
-                    malId = args.malId,
-                    aniListId = args.aniListId,
-                    tmdbId = args.tmdbId,
-                    season = args.season,
-                    episode = args.episode,
-                    animeTitle = args.title,
-                    posterUrl = args.posterUrl,
-                    titleEnglish = args.titleEnglish,
-                    titleRomaji = args.titleRomaji,
-                    titleNative = args.titleNative,
-                    synonyms = args.synonyms,
-                    isMovie = args.isMovie,
-                    startYear = args.startYear,
-                    description = args.description
+                    malId = args.malId, aniListId = args.aniListId, tmdbId = args.tmdbId,
+                    bangumiId = args.bangumiId, mediaType = args.mediaType, knownImdbId = imdbId,
+                    season = args.season, episode = args.episode, animeTitle = args.title,
+                    posterUrl = args.posterUrl, titleEnglish = args.titleEnglish,
+                    titleRomaji = args.titleRomaji, titleNative = args.titleNative,
+                    synonyms = args.synonyms, isMovie = args.isMovie, startYear = args.startYear,
+                    description = args.description, cs3Url = recorded?.cs3Url ?: sourcePage,
+                    cs3ApiName = recorded?.cs3ApiName ?: sourceApi.takeIf { source.isCS },
+                    historyAnimeId = historyId, resumePositionMs = resumePositionMs
                 )
             }
+        } catch (error: Exception) {
+            com.kitsugi.animelist.core.player.KeepAliveService.stop(context)
+            android.util.Log.e("TvStreamScreen", "Could not launch player", error)
+            resolvingError = context.getString(R.string.stream_play_failed_generic)
         }
     }
 
@@ -434,6 +477,7 @@ fun TvStreamScreen(
                                                     resolvingError = if (isTorrent) "P2P akış motoru başlatılamadı veya torrent çözümlenemedi." else "Akış linki çözümlenemedi."
                                                     return@launch
                                                 }
+                                                WatchHistoryManager.awaitLoaded()
                                                 handlePlayStream(stream, resolvedUrl)
                                             }
                                         }
@@ -451,7 +495,7 @@ fun TvStreamScreen(
                                         accentColor = accentColor,
                                         isVerifyAvailable = isVerifyAvailable,
                                         onVerify = {
-                                            viewModel.onVerifyPlugin(addonState.addonName)
+                                            viewModel.onVerifyPlugin(addonState.addonName, addonState.addonId)
                                         }
                                     )
                                 }
@@ -680,8 +724,6 @@ private fun TvStreamRowItem(
     var isFocused by remember { mutableStateOf(false) }
     // Kalite/boyut yalnızca kanıt varsa gösterilir (tahmin yok).
     val quality = remember(stream) { resolveStreamQuality(stream).label.orEmpty() }
-    val size = remember(stream) { resolveStreamSizeLabel(stream).orEmpty() }
-    val cacheState = remember(stream) { getCacheState(stream) }
 
     Row(
         modifier = Modifier
@@ -722,39 +764,27 @@ private fun TvStreamRowItem(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            // Rich Badges Row
+            // Eklenti adı rozeti
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                // Addon Name Badge
                 TvStreamBadge(
                     text = stream.addonName,
                     color = KitsugiColors.AccentPurple,
                     bgAlpha = 0.15f,
                     bgColor = KitsugiColors.AccentPurple
                 )
-
-                // Debrid Cache Badge — yalnızca torrent/debrid akışlarında anlamlıdır
-                if (stream.isTorrent) {
-                    val (cacheText, cacheColor) = when (cacheState) {
-                        DebridCacheState.CACHED     -> "Önbellek" to KitsugiColors.AccentGreen
-                        DebridCacheState.NOT_CACHED -> "İndir" to KitsugiColors.AccentOrange
-                        DebridCacheState.P2P        -> "P2P" to KitsugiColors.AccentBlue
-                    }
-                    TvStreamBadge(text = cacheText, color = cacheColor, bgAlpha = 0.15f, bgColor = cacheColor)
-                }
-
-                // Size Badge
-                if (size.isNotBlank()) {
-                    TvStreamBadge(
-                        text = size,
-                        color = KitsugiColors.TextSecondary,
-                        bgAlpha = 0.1f,
-                        bgColor = Color.White
-                    )
-                }
             }
+
+            // Tüm bilgi rozetleri (boyut, seeder/peer, ses/altyazı dilleri, codec/HDR, önbellek)
+            // mobil kartlarla AYNI bileşenden gelir — TV'de bilgi eksik kalmıyordu.
+            StreamInfoChips(
+                stream = stream,
+                measured = com.kitsugi.animelist.data.repository.StreamProbe.cached(stream.url),
+                accentColor = accentColor,
+                gap = 6.dp
+            )
 
             Text(
                 text = stream.name ?: stringResource(R.string.ui_stream_unnamed),
@@ -777,7 +807,7 @@ private fun TvStreamRowItem(
 
         // Action Indicator (Play Icon)
         Icon(
-            imageVector = Icons.Rounded.PlayArrow,
+            imageVector = Icons.PlayArrow,
             contentDescription = null,
             tint = if (isFocused) accentColor else KitsugiColors.TextMuted,
             modifier = Modifier.size(24.dp)
@@ -840,7 +870,7 @@ private fun TvStreamErrorItem(
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = if (isVerifyAvailable) Icons.Rounded.Extension else Icons.Rounded.Close,
+                imageVector = if (isVerifyAvailable) Icons.Extension else Icons.Close,
                 contentDescription = null,
                 tint = Color.Red
             )

@@ -34,6 +34,7 @@ internal object KitsugiMalDetailClient {
      * 429/ağ hatası görsellerin kalıcı olarak eksik kalmasına yol açmasın.
      */
     private val pictureCache = com.kitsugi.animelist.core.memory.BoundedCache<String, List<String>>("mal.pictures", 80)
+    private val malVideosCache = com.kitsugi.animelist.core.memory.BoundedCache<Int, List<MediaVideoItem>>("mal.videos", 120)
 
     private fun studioImageUrl(item: JSONObject): String? = item.optJSONObject("images")?.let { images ->
         images.optJSONObject("webp")?.optNullableString("large_image_url")
@@ -190,6 +191,94 @@ internal object KitsugiMalDetailClient {
     suspend fun fetchGalleryPictures(malId: Int, mediaType: MediaType): List<String> = withContext(Dispatchers.IO) {
         if (malId !in 1..99_999_999) return@withContext emptyList()
         fetchPictures(malId, MalJikanMediaSupport.jikanEndpoint(mediaType))
+    }
+
+    /**
+     * MAL/Jikan `/v4/anime/{malId}/videos` uç noktasından tanıtım videolarını (`promo`) ve
+     * resmi müzik videolarını (`music_videos`) çeker. Hangi kaynaktan açılırsa açılsın
+     * gerçek MAL kimliği çözülebilen tüm anime yapımlarında ortak video sekmesini besler.
+     */
+    suspend fun fetchMalVideos(malId: Int): List<MediaVideoItem> = withContext(Dispatchers.IO) {
+        if (malId !in 1..99_999_999) return@withContext emptyList()
+        malVideosCache[malId]?.let { return@withContext it }
+
+        val url = URL("https://api.jikan.moe/v4/anime/$malId/videos")
+        val items = runCatching {
+            val text = KitsugiApiBase.runWithRateLimit { KitsugiApiBase.executeGetRequestResilient(url) }
+                ?: return@runCatching emptyList()
+            val dataObj = JSONObject(text).optJSONObject("data") ?: return@runCatching emptyList()
+            val out = mutableListOf<MediaVideoItem>()
+
+            dataObj.optJSONArray("promo")?.let { promoArr ->
+                for (i in 0 until promoArr.length()) {
+                    val item = promoArr.optJSONObject(i) ?: continue
+                    val rawTitle = item.optString("title", "").trim()
+                    val videoUrl = extractJikanYouTubeUrl(item.optJSONObject("trailer")) ?: continue
+                    val label = rawTitle.ifBlank { KitsugiStrings.get(R.string.source_video_pv) }
+                    out += MediaVideoItem(
+                        key = "mal_promo_${malId}_$i",
+                        title = label,
+                        videoUrl = videoUrl,
+                        category = MediaVideoCategory.TRAILER,
+                        source = "mal"
+                    )
+                }
+            }
+
+            dataObj.optJSONArray("music_videos")?.let { mvArr ->
+                val opRegex = Regex("(?:^|\\b)(?:op|opening)(?:\\s*\\d+|\\b)", RegexOption.IGNORE_CASE)
+                val edRegex = Regex("(?:^|\\b)(?:ed|ending)(?:\\s*\\d+|\\b)", RegexOption.IGNORE_CASE)
+                for (i in 0 until mvArr.length()) {
+                    val item = mvArr.optJSONObject(i) ?: continue
+                    val mvTitle = item.optString("title", "").trim()
+                    val videoUrl = extractJikanYouTubeUrl(item.optJSONObject("video")) ?: continue
+                    val meta = item.optJSONObject("meta")
+                    val songTitle = meta?.optNullableString("title")?.trim().orEmpty()
+                    val author = meta?.optNullableString("author")?.trim().orEmpty()
+                    val label = if (songTitle.isNotEmpty()) {
+                        buildString {
+                            append("\"$songTitle\"")
+                            if (author.isNotEmpty()) append(" by $author")
+                            if (mvTitle.isNotEmpty()) append(" ($mvTitle)")
+                        }
+                    } else {
+                        mvTitle.ifBlank { KitsugiStrings.get(R.string.source_video_music_video) }
+                    }
+                    val category = when {
+                        opRegex.containsMatchIn(mvTitle) -> MediaVideoCategory.OPENING
+                        edRegex.containsMatchIn(mvTitle) -> MediaVideoCategory.ENDING
+                        else -> MediaVideoCategory.EXTRA
+                    }
+                    out += MediaVideoItem(
+                        key = "mal_mv_${malId}_$i",
+                        title = label,
+                        videoUrl = videoUrl,
+                        category = category,
+                        source = "mal"
+                    )
+                }
+            }
+            out
+        }.getOrElse { emptyList() }
+
+        if (items.isNotEmpty()) {
+            malVideosCache[malId] = items
+        }
+        items
+    }
+
+    internal fun extractJikanYouTubeUrl(trailerOrVideoObj: JSONObject?): String? {
+        if (trailerOrVideoObj == null) return null
+        val ytId = trailerOrVideoObj.optNullableString("youtube_id")
+        if (!ytId.isNullOrBlank()) return "https://www.youtube.com/watch?v=$ytId"
+        val directUrl = trailerOrVideoObj.optNullableString("url")
+        if (!directUrl.isNullOrBlank()) return directUrl
+        val embedUrl = trailerOrVideoObj.optNullableString("embed_url")
+        if (!embedUrl.isNullOrBlank()) {
+            val extracted = extractCanonicalYouTubeId(embedUrl)
+            if (extracted != null) return "https://www.youtube.com/watch?v=$extracted"
+        }
+        return null
     }
 
     // ─── Private ─────────────────────────────────────────────────────────────
@@ -360,10 +449,10 @@ internal object KitsugiMalDetailClient {
                 if (mediaType == MediaType.Anime) {
                     data.optJSONObject("theme")?.let { theme ->
                         theme.optJSONArray("openings")?.let { arr ->
-                            for (i in 0 until arr.length()) openings.add(KitsugiTheme(label = arr.getString(i), videoUrl = null))
+                            for (i in 0 until arr.length()) openings.add(KitsugiTheme(label = arr.getString(i), videoUrl = null, source = "mal"))
                         }
                         theme.optJSONArray("endings")?.let { arr ->
-                            for (i in 0 until arr.length()) endings.add(KitsugiTheme(label = arr.getString(i), videoUrl = null))
+                            for (i in 0 until arr.length()) endings.add(KitsugiTheme(label = arr.getString(i), videoUrl = null, source = "mal"))
                         }
                     }
                 }
@@ -467,7 +556,9 @@ internal object KitsugiMalDetailClient {
                             val obj = arr.getJSONObject(i)
                             val id = obj.optInt("mal_id")
                             val name = obj.optNullableString("name")
-                            if (!name.isNullOrBlank()) producers.add(KitsugiStudio(id = id, name = name, isMain = false, source = "jikan", role = StudioRole.PRODUCER, imageUrl = studioImageUrl(obj)))
+                            // Lisans verenler yapımcıdan ayrı rolde tutulur: tekilleştirme ve
+                            // "Yapımcılar" listesindeki karışıklık buna göre çözülür.
+                            if (!name.isNullOrBlank()) producers.add(KitsugiStudio(id = id, name = name, isMain = false, source = "jikan", role = StudioRole.LICENSOR, imageUrl = studioImageUrl(obj)))
                         }
                     }
                 }
@@ -512,6 +603,12 @@ internal object KitsugiMalDetailClient {
                     endDate = airedTo,
                     titleEnglish = titleEnglish,
                     titleJapanese = titleJapanese,
+                    // 2026-11-02: MAL detayında Romaji/Yerel başlık alanları boş kalıyordu.
+                    // Akış ekranı alternatif başlık listesini bu alanlardan kurduğu için
+                    // MAL kaydından açılan aramada AniList kaydına göre DAHA AZ arama
+                    // varyantı oluşuyordu (Türk eklentileri başlığı bulamıyordu).
+                    titleRomaji = jikanTitle,
+                    titleNative = titleJapanese,
                     synonyms = synonyms,
                     openings = openings,
                     endings = endings,
@@ -786,14 +883,14 @@ internal object KitsugiMalDetailClient {
                 for (i in 0 until arr.length()) {
                     val obj = arr.optJSONObject(i)
                     val text2 = obj?.optNullableString("text") ?: continue
-                    openings.add(KitsugiTheme(label = text2, videoUrl = null))
+                    openings.add(KitsugiTheme(label = text2, videoUrl = null, source = "mal"))
                 }
             }
             d.optJSONArray("ending_themes")?.let { arr ->
                 for (i in 0 until arr.length()) {
                     val obj = arr.optJSONObject(i)
                     val text2 = obj?.optNullableString("text") ?: continue
-                    endings.add(KitsugiTheme(label = text2, videoUrl = null))
+                    endings.add(KitsugiTheme(label = text2, videoUrl = null, source = "mal"))
                 }
             }
 
@@ -813,6 +910,10 @@ internal object KitsugiMalDetailClient {
                 endDate = endDate,
                 titleEnglish = titleEnglish,
                 titleJapanese = titleJapanese,
+                // 2026-11-02: Akış ekranının alternatif başlık listesi bu iki alana da
+                // bakıyor; MAL kaydında boş kaldığında arama varyantları azalıyordu.
+                titleRomaji = title,
+                titleNative = titleJapanese,
                 synonyms = synonyms,
                 openings = openings,
                 endings = endings,

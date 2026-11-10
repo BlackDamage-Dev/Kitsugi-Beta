@@ -159,16 +159,26 @@ class SearchRelevanceTest {
         }
     }
 
-    @Test fun liveActionScopesNeverAskAnimeDatabases() {
+    /**
+     * Canlı çekim kapsamları **anime veritabanlarını** kesinlikle sorgulamamalı.
+     *
+     * Bangumi bu kuralın istisnasıdır: tek katalogda anime (type=2), 书籍 (type=1) ve
+     * **三次元** (type=6) dizileri/filmleri birlikte indeksler. Canlı API probu
+     * (`probe/result.txt` T3–T5) `type=6` sorgusunda 是，大臣 (rank 1), 三国演义 ve
+     * `keyword="reply 1988"` → 请回答1988 kayıtlarını döndürdü. Bu yüzden Bangumi
+     * dizi/film kapsamlarında **istenmelidir**; aksi hâlde "Bangumi dizileri/filmleri
+     * gelmiyor" hatası geri döner (R6/R14).
+     */
+    @Test fun liveActionScopesAskOnlyLiveActionCapableSources() {
         for (scope in listOf(SearchScope.TV, SearchScope.MOVIE, SearchScope.K_DRAMA)) {
             val plan = planAllSources(scope)
             assertTrue("$scope TMDB istemeli", plan.tmdb)
             assertTrue("$scope Simkl istemeli", plan.simkl)
+            assertTrue("$scope Bangumi 三次元 kataloğu için istenmeli", plan.bangumi)
             assertFalse("$scope AniList istememeli", plan.aniList)
             assertFalse("$scope MAL istememeli", plan.mal)
             assertFalse("$scope Shikimori istememeli", plan.shikimori)
             assertFalse("$scope Kitsu istememeli", plan.kitsu)
-            assertFalse("$scope Bangumi istememeli", plan.bangumi)
         }
     }
 

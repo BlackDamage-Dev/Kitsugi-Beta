@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.ui.screens.fullscreen.controls.components.sheets
+﻿package com.kitsugi.animelist.ui.screens.fullscreen.controls.components.sheets
 
 import android.text.format.DateUtils
 import androidx.compose.animation.animateContentSize
@@ -16,13 +16,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.OpenInNew
-import androidx.compose.material.icons.filled.KeyboardAlt
-import androidx.compose.material.icons.filled.Tune
-import androidx.compose.material.icons.outlined.Schedule
-import androidx.compose.material.icons.outlined.Timer
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.ExperimentalMaterial3Api
 import com.kitsugi.animelist.ui.theme.gradient.FilterChip
 import com.kitsugi.animelist.ui.theme.gradient.Icon
@@ -83,7 +78,7 @@ fun MoreSheet(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp)
-                .verticalScroll(rememberScrollState()),
+                .kitsugiVerticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Row(
@@ -105,7 +100,7 @@ fun MoreSheet(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(4.dp),
                         ) {
-                            Icon(imageVector = Icons.Outlined.Timer, contentDescription = null)
+                            Icon(imageVector = Icons.Timer, contentDescription = null)
                             Text(
                                 text = if (remainingTime == 0) {
                                     stringResource(R.string.ui_timer_label)
@@ -127,7 +122,7 @@ fun MoreSheet(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(4.dp),
                         ) {
-                            Icon(imageVector = Icons.Default.Tune, contentDescription = null)
+                            Icon(imageVector = Icons.Tune, contentDescription = null)
                             Text(text = stringResource(R.string.filtreler))
                         }
                     }
@@ -140,7 +135,7 @@ fun MoreSheet(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                             ) {
-                                Icon(imageVector = Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null)
+                                Icon(imageVector = Icons.OpenInNew, contentDescription = null)
                                 Text(text = stringResource(R.string.player_btn_external))
                             }
                         }
@@ -247,7 +242,7 @@ fun TimePickerDialog(
         ) {
             Column(
                 modifier = Modifier
-                    .verticalScroll(rememberScrollState())
+                    .kitsugiVerticalScroll(rememberScrollState())
                     .width(IntrinsicSize.Max)
                     .animateContentSize()
                     .padding(16.dp),
@@ -285,9 +280,9 @@ fun TimePickerDialog(
                     IconButton(onClick = { currentLayoutType = if (currentLayoutType == 0) 1 else 0 }) {
                         Icon(
                             imageVector = if (currentLayoutType == 0) {
-                                Icons.Outlined.Schedule
+                                Icons.Schedule
                             } else {
-                                Icons.Default.KeyboardAlt
+                                Icons.KeyboardAlt
                             },
                             contentDescription = null,
                         )

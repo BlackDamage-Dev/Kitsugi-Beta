@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.ui.screens.detail
+﻿package com.kitsugi.animelist.ui.screens.detail
 
 import com.kitsugi.animelist.ui.components.KitsugiGalleryIconButton
 import com.kitsugi.animelist.ui.components.KitsugiOriginalToggleButton
@@ -23,23 +23,22 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.Share
-import androidx.compose.material.icons.rounded.Favorite
-import androidx.compose.material.icons.rounded.FavoriteBorder
-import androidx.compose.material.icons.rounded.Image
-import androidx.compose.material.icons.rounded.Translate
-import androidx.compose.material.icons.rounded.ContentCopy
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import com.kitsugi.animelist.ui.theme.gradient.Text
+import com.kitsugi.animelist.ui.components.GalleryThumbnailImagePolicy
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -76,7 +75,7 @@ import com.kitsugi.animelist.R
 @Composable
 internal fun MediaAppearanceRow(
     appearance: com.kitsugi.animelist.data.remote.KitsugiCharacterMediaAppearance,
-    titleLanguage: String = "ROMAJI",
+    titleLanguage: String = "ENGLISH",
     onMediaClick: (mediaId: Int, mediaType: String, mediaSource: String) -> Unit
 ) {
     val displayTitle = appearance.getDisplayTitle(titleLanguage)
@@ -96,8 +95,13 @@ internal fun MediaAppearanceRow(
                 .background(KitsugiColors.SurfaceSoft)
         ) {
             if (!appearance.imageUrl.isNullOrBlank()) {
+                val appThumb = GalleryThumbnailImagePolicy.rememberThumbnailImageRequest(
+                    url = appearance.imageUrl,
+                    widthDp = 52.dp,
+                    heightDp = 52.dp
+                )
                 AsyncImage(
-                    model = appearance.imageUrl,
+                    model = appThumb ?: appearance.imageUrl,
                     contentDescription = displayTitle,
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
@@ -158,8 +162,13 @@ internal fun VoiceActorRow(
                 .background(KitsugiColors.SurfaceSoft)
         ) {
             if (!actor.imageUrl.isNullOrBlank()) {
+                val actorThumb = GalleryThumbnailImagePolicy.rememberThumbnailImageRequest(
+                    url = actor.imageUrl,
+                    widthDp = 52.dp,
+                    heightDp = 52.dp
+                )
                 AsyncImage(
-                    model = actor.imageUrl,
+                    model = actorThumb ?: actor.imageUrl,
                     contentDescription = actor.name,
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
@@ -221,7 +230,7 @@ internal fun CharacterDetailLeftPanel(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
+            .kitsugiVerticalScroll(rememberScrollState())
     ) {
         Box(
             modifier = Modifier
@@ -288,7 +297,7 @@ internal fun CharacterDetailLeftPanel(
                 ) {
                     IconButton(onClick = onBackClick) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                            imageVector = Icons.ArrowBack,
                             contentDescription = stringResource(R.string.action_back),
                             tint = KitsugiColors.TextPrimary
                         )
@@ -326,7 +335,7 @@ internal fun CharacterDetailLeftPanel(
                             com.kitsugi.animelist.utils.ShareUtils.shareText(context, detail.name, url)
                         }) {
                             Icon(
-                                imageVector = Icons.Rounded.Share,
+                                imageVector = Icons.Share,
                                 contentDescription = stringResource(R.string.action_share),
                                 tint = KitsugiColors.TextPrimary
                             )
@@ -343,7 +352,7 @@ internal fun CharacterDetailLeftPanel(
                         ) {
                             IconButton(onClick = onToggleFavourite) {
                                 Icon(
-                                    imageVector = if (isFavourite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                                    imageVector = if (isFavourite) Icons.Favorite else Icons.FavoriteBorder,
                                     contentDescription = if (isFavourite) stringResource(R.string.action_favourite_remove) else stringResource(R.string.action_favourite_add),
                                     tint = if (isFavourite) accentColor else KitsugiColors.TextPrimary
                                 )
@@ -470,7 +479,7 @@ internal fun CharacterAboutTabContent(
                             },
                             modifier = Modifier.size(36.dp)
                         ) {
-                            Icon(Icons.Rounded.ContentCopy, contentDescription = stringResource(R.string.action_copy), tint = KitsugiColors.TextSecondary)
+                            Icon(Icons.ContentCopy, contentDescription = stringResource(R.string.action_copy), tint = KitsugiColors.TextSecondary)
                         }
                     }
                 }
@@ -496,7 +505,8 @@ internal fun CharacterAppearancesTabContent(
     detail: KitsugiCharacterDetail,
     titleLanguage: String,
     onMediaClick: (mediaId: Int, mediaType: String, mediaSource: String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    pagingActive: Boolean = true
 ) {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         if (detail.mediaAppearances.isEmpty()) {
@@ -507,7 +517,7 @@ internal fun CharacterAppearancesTabContent(
                 modifier = Modifier.padding(vertical = 16.dp)
             )
         } else {
-            detail.mediaAppearances.forEach { appearance ->
+            DetailAutoPagingColumn(items = detail.mediaAppearances, active = pagingActive) { appearance ->
                 MediaAppearanceRow(
                     appearance = appearance,
                     titleLanguage = titleLanguage,
@@ -522,7 +532,8 @@ internal fun CharacterAppearancesTabContent(
 internal fun CharacterVoiceActorsTabContent(
     detail: KitsugiCharacterDetail,
     onStaffClick: (staffId: Int, source: String, name: String?, imageUrl: String?) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    pagingActive: Boolean = true
 ) {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         if (detail.voiceActors.isEmpty()) {
@@ -533,7 +544,7 @@ internal fun CharacterVoiceActorsTabContent(
                 modifier = Modifier.padding(vertical = 16.dp)
             )
         } else {
-            detail.voiceActors.forEach { actor ->
+            DetailAutoPagingColumn(items = detail.voiceActors, active = pagingActive) { actor ->
                 VoiceActorRow(
                     actor = actor,
                     onClick = { onStaffClick(actor.id, actor.source, actor.name, actor.imageUrl) }
@@ -619,7 +630,7 @@ internal fun CharacterPortraitHeroSection(
                 contentAlignment = Alignment.Center
             ) {
                 IconButton(onClick = onBackClick) {
-                    Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.action_back), tint = KitsugiColors.TextPrimary)
+                    Icon(Icons.ArrowBack, contentDescription = stringResource(R.string.action_back), tint = KitsugiColors.TextPrimary)
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -639,7 +650,7 @@ internal fun CharacterPortraitHeroSection(
                         val url = com.kitsugi.animelist.utils.ShareUtils.buildCharacterUrl(source, characterId, detail.name)
                         com.kitsugi.animelist.utils.ShareUtils.shareText(context, detail.name, url)
                     }) {
-                        Icon(Icons.Rounded.Share, contentDescription = stringResource(R.string.action_share), tint = KitsugiColors.TextPrimary)
+                        Icon(Icons.Share, contentDescription = stringResource(R.string.action_share), tint = KitsugiColors.TextPrimary)
                     }
                 }
                 if (isAniListSource) {
@@ -649,7 +660,7 @@ internal fun CharacterPortraitHeroSection(
                     ) {
                         IconButton(onClick = onToggleFavourite) {
                             Icon(
-                                imageVector = if (isFavourite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                                imageVector = if (isFavourite) Icons.Favorite else Icons.FavoriteBorder,
                                 contentDescription = if (isFavourite) stringResource(R.string.action_favourite_remove) else stringResource(R.string.action_favourite_add),
                                 tint = if (isFavourite) accentColor else KitsugiColors.TextPrimary
                             )
@@ -729,7 +740,7 @@ internal fun CharacterDetailStickyHeader(
                     .padding(horizontal = 8.dp)
             ) {
                 IconButton(onClick = onBackClick) {
-                    Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.action_back), tint = KitsugiColors.TextPrimary)
+                    Icon(Icons.ArrowBack, contentDescription = stringResource(R.string.action_back), tint = KitsugiColors.TextPrimary)
                 }
                 Spacer(modifier = androidx.compose.ui.Modifier.width(8.dp))
                 Text(
@@ -748,12 +759,12 @@ internal fun CharacterDetailStickyHeader(
                     val url = com.kitsugi.animelist.utils.ShareUtils.buildCharacterUrl(source, characterId, detail.name)
                     com.kitsugi.animelist.utils.ShareUtils.shareText(context, detail.name, url)
                 }) {
-                    Icon(Icons.Rounded.Share, contentDescription = stringResource(R.string.action_share), tint = KitsugiColors.TextSecondary)
+                    Icon(Icons.Share, contentDescription = stringResource(R.string.action_share), tint = KitsugiColors.TextSecondary)
                 }
                 if (showFavouriteButton) {
                     IconButton(onClick = onToggleFavourite) {
                         Icon(
-                            imageVector = if (isFavourite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                            imageVector = if (isFavourite) Icons.Favorite else Icons.FavoriteBorder,
                             contentDescription = if (isFavourite) stringResource(R.string.action_favourite_remove) else stringResource(R.string.action_favourite_add),
                             tint = if (isFavourite) accentColor else KitsugiColors.TextSecondary
                         )

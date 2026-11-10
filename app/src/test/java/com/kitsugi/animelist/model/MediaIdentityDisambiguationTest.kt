@@ -138,6 +138,34 @@ class MediaIdentityDisambiguationTest {
     }
 
     @Test
+    fun shikimoriAndMalRowsMatchByTargetIdEvenWhenDisplayTitlesDiffer() {
+        val shikimori = testEntry(
+            id = 1,
+            title = "Zom 100: Zombie ni Naru made ni Shitai 100 no Koto",
+            titleEnglish = null,
+            source = "shikimori",
+            malId = 54_112,
+            year = 2023
+        )
+        val mal = testEntry(
+            id = 2,
+            title = "Zom 100: Bucket List of the Dead",
+            titleEnglish = "Zom 100: Bucket List of the Dead",
+            source = "mal",
+            malId = 54_112,
+            year = 2023
+        )
+
+        assertTrue(MediaIdentity.keys(shikimori).contains("Anime:mal:54112"))
+        assertTrue(MediaIdentity.sameMedia(shikimori, mal, allowTitle = false))
+        assertEquals(54_112, MediaIdentity.realMalId(shikimori))
+        assertEquals(
+            54_112,
+            MediaIdentity.realMalId(shikimori.copy(malId = 400_054_112))
+        )
+    }
+
+    @Test
     fun simklStableIdWindowIsRecognisedForAniListRowsOnly() {
         // AniList owns 100M..299M, but a *Simkl* row is the only one that may carry 150M..249M.
         val anilistRow = testEntry(id = 1, title = "Show", source = "anilist", malId = 100_000_870)
@@ -145,6 +173,20 @@ class MediaIdentityDisambiguationTest {
 
         val bangumiRow = testEntry(id = 2, title = "Show", source = "bangumi", malId = 500_000_870)
         assertEquals(setOf("Anime:bangumi:870"), MediaIdentity.keys(bangumiRow))
+    }
+
+    @Test
+    fun legacyTmdbIdStaysOnTmdbAxisAndNeverBecomesMal() {
+        val legacy = testEntry(
+            id = 1,
+            title = "Demon Slayer: Infinity Castle",
+            source = "tmdb",
+            type = MediaType.Movie,
+            malId = 12345
+        )
+
+        assertEquals(setOf("Movie:tmdb:12345"), MediaIdentity.keys(legacy))
+        assertEquals(null, MediaIdentity.realMalId(legacy))
     }
 
     @Test
@@ -161,5 +203,56 @@ class MediaIdentityDisambiguationTest {
             MediaIdentity.conflictingIdentityKeys(enriched.type, other.type, enrichedKeys, otherKeys).isEmpty()
         )
         assertTrue(MediaIdentity.sameMedia(enriched, other, enrichedKeys, otherKeys))
+    }
+
+    @Test
+    fun seasonSynonymVariantsMatchSecondSeasonAndSeasonTwoWithoutMergingSeasonOne() {
+        val ordinal = testEntry(id = 1, title = "Kaiju No. 8 2nd Season", source = "kitsu", malId = 300_049_001, year = 2025)
+        val cardinal = testEntry(id = 2, title = "Kaiju No. 8 Season 2", source = "anilist", malId = 59177, year = 2025)
+        val seasonOne = testEntry(id = 3, title = "Kaiju No. 8", source = "anilist", malId = 52588, year = 2024)
+
+        assertTrue(MediaIdentity.librarySameMedia(ordinal, cardinal))
+        assertFalse(MediaIdentity.librarySameMedia(ordinal, seasonOne))
+    }
+
+    @Test
+    fun animeTmdbDifferenceDoesNotVetoAuthoritativeMalMatch() {
+        val anilist = testEntry(id = 1, title = "Attack on Titan", source = "anilist", malId = 16498, year = 2013)
+            .copy(tmdbId = 1429)
+        val simkl = testEntry(id = 2, title = "Attack on Titan", source = "simkl", malId = 16498, year = 2013)
+            .copy(tmdbId = 88888)
+
+        assertTrue(MediaIdentity.authoritativeConflictingIdentityKeys(anilist, simkl).isEmpty())
+        assertTrue(MediaIdentity.librarySameMedia(anilist, simkl))
+    }
+
+    @Test
+    fun sameAnimeMovieAcrossTypeMatchesSingleEpisodeAnimeAndMovieOnly() {
+        val movie = testEntry(
+            id = 1,
+            title = "Demon Slayer: Kimetsu no Yaiba Infinity Castle",
+            source = "simkl",
+            type = MediaType.Movie,
+            year = 2025
+        ).copy(total = 1, tmdbId = 1311031)
+        val singleEpAnime = testEntry(
+            id = 2,
+            title = "Demon Slayer: Kimetsu no Yaiba Infinity Castle",
+            source = "simkl",
+            malId = 59192,
+            type = MediaType.Anime,
+            year = 2025
+        ).copy(total = 1, tmdbId = 1311031)
+        val tvSeriesAnime = testEntry(
+            id = 3,
+            title = "Demon Slayer: Kimetsu no Yaiba",
+            source = "simkl",
+            malId = 38000,
+            type = MediaType.Anime,
+            year = 2019
+        ).copy(total = 26)
+
+        assertTrue(MediaIdentity.sameAnimeMovieAcrossType(movie, singleEpAnime))
+        assertFalse(MediaIdentity.sameAnimeMovieAcrossType(movie, tvSeriesAnime))
     }
 }

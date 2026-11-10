@@ -1,39 +1,48 @@
 package com.kitsugi.animelist.ui.screens.offline
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.core.view.WindowCompat
-import com.kitsugi.animelist.ui.screens.offline.DownloadsScreen
-import com.kitsugi.animelist.ui.theme.KitsugiAnimeListTheme
 import com.kitsugi.animelist.DeviceFormFactor
 import com.kitsugi.animelist.DeviceProfile
+import com.kitsugi.animelist.data.settings.AppSettings
+import com.kitsugi.animelist.data.settings.SettingsDataStore
+import com.kitsugi.animelist.ui.theme.KitsugiAnimeListTheme
 
 /**
  * Standalone activity for the Downloads screen.
- * Launched from KitsugiStreamActivity/Screen when a download starts so the user
- * can view progress without leaving the stream picker flow, and go back to it.
+ * Launched from KitsugiStreamActivity/Screen or audio export notifications so the user
+ * can view progress and play downloaded media directly.
  */
 class DownloadsActivity : ComponentActivity() {
+
+    private val requestedTabState = mutableIntStateOf(TAB_VIDEOS)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
+        requestedTabState.intValue = when {
+            intent?.getBooleanExtra("manga_tab", false) == true -> TAB_MANGA
+            else -> intent?.getIntExtra(EXTRA_INITIAL_TAB, TAB_VIDEOS) ?: TAB_VIDEOS
+        }
 
         val isTv = DeviceProfile.detect(this) == DeviceFormFactor.TV
         setContent {
-            val settingsStore = remember { com.kitsugi.animelist.data.settings.SettingsDataStore(applicationContext) }
-            val appSettings by settingsStore.settingsFlow.collectAsState(
-                initial = com.kitsugi.animelist.data.settings.AppSettings()
-            )
+            val settingsStore = remember { SettingsDataStore(applicationContext) }
+            val appSettings by settingsStore.settingsFlow.collectAsState(initial = AppSettings())
             val darkTheme = when (appSettings.themeMode) {
                 "LIGHT" -> false
                 "DARK" -> true
-                else -> androidx.compose.foundation.isSystemInDarkTheme()
+                else -> isSystemInDarkTheme()
             }
+            val initialTab by requestedTabState
             KitsugiAnimeListTheme(
                 darkTheme = darkTheme,
                 amoledBlack = appSettings.amoledBlack,
@@ -44,9 +53,30 @@ class DownloadsActivity : ComponentActivity() {
                 isTv = isTv
             ) {
                 DownloadsScreen(
-                    onBack = { finish() }
+                    onBack = { finish() },
+                    initialTab = initialTab
                 )
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        val requestedTab = when {
+            intent.getBooleanExtra("manga_tab", false) -> TAB_MANGA
+            intent.hasExtra(EXTRA_INITIAL_TAB) -> intent.getIntExtra(EXTRA_INITIAL_TAB, TAB_VIDEOS)
+            else -> null
+        }
+        if (requestedTab != null) requestedTabState.intValue = requestedTab
+    }
+
+    companion object {
+        const val EXTRA_INITIAL_TAB = "extra_initial_tab"
+        const val TAB_VIDEOS = 0
+        const val TAB_AUDIOS = 1
+        const val TAB_SUBTITLES = 2
+        const val TAB_IMAGES = 3
+        const val TAB_MANGA = 4
     }
 }

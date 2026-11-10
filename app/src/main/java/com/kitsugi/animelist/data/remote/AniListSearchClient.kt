@@ -113,7 +113,9 @@ class AniListSearchClient(
         volumesLesser: Int? = null,
         licensedBy: List<String>? = null,
         page: Int = 1,
-        perPage: Int = 24
+        perPage: Int = 24,
+        /** Hariç tutulacak AniList etiketleri (`tag_not_in`). */
+        excludedTags: List<String>? = null
     ): AniListPagedResult {
         return withContext(Dispatchers.IO) {
             val allFormats = formats ?: format?.let { listOf(it) }
@@ -121,6 +123,7 @@ class AniListSearchClient(
 
             if (query.isBlank() && allStatuses.isNullOrEmpty() && allFormats.isNullOrEmpty() && season == null &&
                 genres.isNullOrEmpty() && excludedGenres.isNullOrEmpty() && tags.isNullOrEmpty() &&
+                excludedTags.isNullOrEmpty() &&
                 minYear == null && maxYear == null && minScore == null && maxScore == null &&
                 country == null && sources.isNullOrEmpty() && minEpCh == null && maxEpCh == null &&
                 minDuration == null && maxDuration == null && isAdult == null && isLicensed == null &&
@@ -140,6 +143,7 @@ class AniListSearchClient(
                 genres = genres,
                 excludedGenres = excludedGenres,
                 tags = tags,
+                excludedTags = excludedTags,
                 minYear = minYear,
                 maxYear = maxYear,
                 minScore = minScore,
@@ -655,7 +659,8 @@ class AniListSearchClient(
         minimumTagRank: Int? = null,
         volumesGreater: Int? = null,
         volumesLesser: Int? = null,
-        licensedBy: List<String>? = null
+        licensedBy: List<String>? = null,
+        excludedTags: List<String>? = null
     ): AniListPagedResult {
         val query = """
             query (
@@ -671,6 +676,7 @@ class AniListSearchClient(
                 ${'$'}genres: [String],
                 ${'$'}excludedGenres: [String],
                 ${'$'}tags: [String],
+                ${'$'}excludedTags: [String],
                 ${'$'}startDateGreater: FuzzyDateInt,
                 ${'$'}startDateLess: FuzzyDateInt,
                 ${'$'}averageScoreGreater: Int,
@@ -707,6 +713,7 @@ class AniListSearchClient(
                         genre_in: ${'$'}genres,
                         genre_not_in: ${'$'}excludedGenres,
                         tag_in: ${'$'}tags,
+                        tag_not_in: ${'$'}excludedTags,
                         startDate_greater: ${'$'}startDateGreater,
                         startDate_lesser: ${'$'}startDateLess,
                         averageScore_greater: ${'$'}averageScoreGreater,
@@ -816,6 +823,10 @@ class AniListSearchClient(
             variables.put("tags", JSONArray(tags))
         }
 
+        if (!excludedTags.isNullOrEmpty()) {
+            variables.put("excludedTags", JSONArray(excludedTags))
+        }
+
         if (minYear != null && minYear > 0) {
             variables.put("startDateGreater", minYear * 10000)
         }
@@ -904,53 +915,37 @@ class AniListSearchClient(
         val status: String? = null,
         val format: String? = null,
         val season: String? = null,
-        val seasonYear: Int? = null
+        val seasonYear: Int? = null,
+        val countryOfOrigin: String? = null
     )
 
     private val EXPLORE_BATCH_SIZE = 6
 
+    /**
+     * Fetch only the requested shelves, in rate-limit-sized alias batches.
+     * A failed batch is not fanned out into one request per shelf: the caller can keep already
+     * loaded categories and let the user retry/open a single category when they need it.
+     */
     suspend fun aniListExploreShelves(
         shelves: List<ExploreShelfSpec>,
         showAdultContent: Boolean
     ): Map<String, List<JikanSearchResult>> = withContext(Dispatchers.IO) {
-        val out = java.util.concurrent.ConcurrentHashMap<String, List<JikanSearchResult>>(shelves.size)
-        coroutineScope {
-            shelves.chunked(EXPLORE_BATCH_SIZE).map { chunk ->
-                async {
-                    val chunkResult = try {
-                        fetchExploreShelfChunk(chunk, showAdultContent)
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: AniListServiceDownException) {
-                        throw e
-                    } catch (_: Throwable) {
-                        null
-                    }
-                    if (chunkResult != null) {
-                        out.putAll(chunkResult)
-                    } else if (!KitsugiApiBase.isAniListUnavailableNow()) {
-                        // Yalnızca şema/alias kaynaklı tekil bir hata varsa tekil yoldan tamamla;
-                        // sunucu kapalı/429/gateway kesintisinde 14 ayrı istek fırtınası başlatma!
-                        for (spec in chunk) {
-                            if (KitsugiApiBase.isAniListUnavailableNow()) break
-                            out[spec.alias] = runCatching {
-                                requestAniList(
-                                    mediaType = spec.mediaType,
-                                    search = null,
-                                    status = spec.status,
-                                    sort = spec.sort,
-                                    perPage = 20,
-                                    format = spec.format,
-                                    season = spec.season,
-                                    seasonYear = spec.seasonYear,
-                                    page = 1,
-                                    showAdultContent = showAdultContent
-                                )
-                            }.getOrDefault(emptyList())
-                        }
-                    }
-                }
-            }.awaitAll()
+        if (shelves.isEmpty()) return@withContext emptyMap()
+        val out = linkedMapOf<String, List<JikanSearchResult>>()
+        for (chunk in shelves.chunked(EXPLORE_BATCH_SIZE)) {
+            try {
+                out.putAll(fetchExploreShelfChunk(chunk, showAdultContent))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: AniListServiceDownException) {
+                if (out.isEmpty()) throw e
+                break
+            } catch (e: Exception) {
+                // Do not retry a batch as several single-shelf requests; that multiplies traffic
+                // precisely when the provider is slow or rate-limiting us.
+                if (out.isEmpty()) throw e
+                break
+            }
         }
         out
     }
@@ -973,6 +968,7 @@ class AniListSearchClient(
                     spec.status?.let { add("status_in: [$it]") }
                     spec.season?.let { add("season: $it") }
                     spec.seasonYear?.let { add("seasonYear: $it") }
+                    spec.countryOfOrigin?.let { add("countryOfOrigin: $it") }
                     if (!showAdultContent) add("isAdult: false")
                 }.joinToString(", ")
                 append("  s$i: Page(page: 1, perPage: 20) {\n")

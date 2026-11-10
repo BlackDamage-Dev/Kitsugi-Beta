@@ -21,6 +21,9 @@ object CsRuntimeInit {
             val wrapped = com.kitsugi.animelist.KitsugiApplication.getDynamicContext(context)
             com.lagradost.api.setContext(java.lang.ref.WeakReference(wrapped))
 
+            // Ortak küme: öğrenilmiş eklenti-URL hafızasının kalıcı katmanını yükle.
+            CsProviderUrlMemory.init(wrapped)
+
             // Pre-seed "DomainListesi" in SharedPreferences with current domains.
             // Turkish plugins (Anizium, Animeler, DiziPal, etc.) read this SharedPreferences
             // in their constructors. Setting last_domain_update prevents dead Kraptor123 network requests
@@ -126,9 +129,14 @@ object CsRuntimeInit {
                 .connectTimeout(30, TimeUnit.SECONDS)
                 .readTimeout(30, TimeUnit.SECONDS)
                 .writeTimeout(30, TimeUnit.SECONDS)
+                // First in the chain: also protects interceptors appended by plugins.
+                .addInterceptor(PluginNetworkFailureGuard)
                 .addInterceptor { chain ->
                     val original = chain.request()
                     val urlStr = original.url.toString()
+                    val allowAniziumV25Shim = CsOwnedPluginProfiles.shouldApplyAniziumV25AuthShim(
+                        CsPluginLoader.manifestVersionForPluginId("Anizium")
+                    )
                     var newUrl = urlStr
                     var hostHeader: String? = null
 
@@ -184,8 +192,11 @@ object CsRuntimeInit {
                             .build()
                     }
 
-                    // Anizium API endpoint rerouting
-                    if (urlStr.contains("anizium.co") || urlStr.contains("anizium.de")) {
+                    // The route was decoded from Anizium v25. Do not apply it to a newer/unknown
+                    // plugin build until its host contract has been re-audited.
+                    if (allowAniziumV25Shim &&
+                        (urlStr.contains("anizium.co") || urlStr.contains("anizium.de"))
+                    ) {
                         if (urlStr.contains("x.anizium.co/page") || urlStr.contains("x.anizium.co/anime")) {
                             newUrl = urlStr.replace("x.anizium.co", "api.anizium.co")
                         } else if (urlStr.contains("x.anizium.de/page") || urlStr.contains("x.anizium.de/anime")) {
@@ -217,9 +228,13 @@ object CsRuntimeInit {
                         requestBuilder.header("Host", hostHeader)
                     }
 
-                    // Anizium Cf-Control auth header injection
-                    if (urlStr.contains("anizium.co") || urlStr.contains("anizium.de") ||
-                        newUrl.contains("anizium.co") || newUrl.contains("anizium.de")) {
+                    // v25's Cf-Control and companion headers are binary-derived. Scope the
+                    // compatibility shim to the actual loaded v25 manifest; an unknown build
+                    // may have changed its authentication contract.
+                    if (allowAniziumV25Shim &&
+                        (urlStr.contains("anizium.co") || urlStr.contains("anizium.de") ||
+                            newUrl.contains("anizium.co") || newUrl.contains("anizium.de"))
+                    ) {
                         val cf = AniziumAuthHelper.generateCfControl()
                         if (cf.isNotBlank()) {
                             requestBuilder.header("Cf-Control", cf)
@@ -235,7 +250,25 @@ object CsRuntimeInit {
                     if (!hasUserAgent) {
                         requestBuilder.header("User-Agent", com.lagradost.cloudstream3.network.CloudflareKiller.UNIFIED_USER_AGENT)
                     }
-                    chain.proceed(requestBuilder.build())
+                    // Eklenti hatları TÜM uygulamayı çökertmemeli. Bu en dıştaki uygulama
+                    // interceptor'ı, içteki eklenti interceptor'larının (örn. DiziBox'ın
+                    // DiziBoxWire'ı) TÜM isteklerini sarar. Eklentinin companion/static
+                    // init'i bozuk bir regex yüzünden patlarsa (ExceptionInInitializerError
+                    // → sonraki çağrılarda NoClassDefFoundError) veya bir RuntimeException
+                    // fırlatırsa, bunu bir AĞ HATASINA çeviriyoruz: OkHttp ve eklentinin
+                    // kendi ağ katmanı IOException'ı zaten zarifçe karşılar (boş sonuç döner),
+                    // böylece tek bir bozuk eklenti süreci öldüremez.
+                    // Not: IOException burada YAKALANMAZ — gerçek ağ hataları normal akışta
+                    // ilerlemeye devam eder (RuntimeException, IOException'ı kapsamaz).
+                    try {
+                        chain.proceed(requestBuilder.build())
+                    } catch (e: LinkageError) {
+                        android.util.Log.e("CsRuntimeInit", "Eklenti sınıf/init hatası ($urlStr) — ağ hatası olarak işleniyor", e)
+                        throw java.io.IOException("Eklenti hatası (linkage): ${e.javaClass.simpleName}", e)
+                    } catch (e: RuntimeException) {
+                        android.util.Log.e("CsRuntimeInit", "Eklenti çalışma zamanı hatası ($urlStr) — ağ hatası olarak işleniyor", e)
+                        throw java.io.IOException("Eklenti hatası: ${e.javaClass.simpleName}", e)
+                    }
                 }
                 .addInterceptor(com.lagradost.cloudstream3.network.CloudflareKiller())
                 .addInterceptor(com.lagradost.cloudstream3.network.DdosGuardKiller(alwaysBypass = false))
@@ -286,22 +319,25 @@ object AniziumAuthHelper {
                 timeZone = tz
             }
             val weekday = sdf.format(java.util.Date()).lowercase()
-            val key = "${TOKEN_KEY}_$weekday".toByteArray(Charsets.UTF_8)
-
             val chars = "abcdefghijklmnopqrstuvwxyz0123456789"
             val r6 = (1..6).map { chars.random() }.joinToString("")
             val timestamp = System.currentTimeMillis()
-            val payload = "{\"$r6\":$timestamp}".toByteArray(Charsets.UTF_8)
-
-            val hex = StringBuilder(payload.size * 2)
-            for (i in payload.indices) {
-                val b = (payload[i].toInt() xor key[i % key.size].toInt()) and 0xFF
-                hex.append(String.format("%02x", b))
-            }
-            hex.toString()
+            encodeCfControlPayload("{\"$r6\":$timestamp}", weekday)
         } catch (e: Exception) {
             ""
         }
+    }
+
+    /** Deterministic encoder used to verify the app algorithm against the audited v25 DEX token. */
+    internal fun encodeCfControlPayload(payload: String, weekday: String): String {
+        val key = "${TOKEN_KEY}_$weekday".toByteArray(Charsets.UTF_8)
+        val payloadBytes = payload.toByteArray(Charsets.UTF_8)
+        val hex = StringBuilder(payloadBytes.size * 2)
+        for (i in payloadBytes.indices) {
+            val byte = (payloadBytes[i].toInt() xor key[i % key.size].toInt()) and 0xFF
+            hex.append(String.format("%02x", byte))
+        }
+        return hex.toString()
     }
 }
 

@@ -50,6 +50,10 @@ class PlayerFallbackCoordinator(
         }
 
         attempts++
+        // The active engine has already failed for this source. Recording only the
+        // destination allowed MEDIA3 → MPV → MEDIA3 loops (and could return to the very
+        // decoder that had just failed). Each source gets at most one attempt per engine.
+        triedEngines += currentEngine
         val next = nextInternalEngine(currentEngine, mpvEnabled, triedEngines)
 
         Log.d(TAG, "Fallback #$attempts: $currentEngine → $next (hata kodu: $errorCode, mpv=$mpvEnabled)")

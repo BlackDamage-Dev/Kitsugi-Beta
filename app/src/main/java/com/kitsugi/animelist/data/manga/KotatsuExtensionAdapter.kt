@@ -37,6 +37,19 @@ import com.kitsugi.animelist.R
 object KotatsuExtensionAdapter {
 
     private const val TAG = "KotatsuExtAdapter"
+    private const val PREFS_NAME = "kotatsu_adapter_prefs"
+    private const val KEY_ACTIVE_LANGS = "active_langs"
+
+    /**
+     * Eski/bozuk veya Kitsugi'de birinci sınıf (native) karşılığı bulunan
+     * Kotatsu ayrıştırıcıları kalıcı olarak devre dışıdır.
+     */
+    internal val DISABLED_PARSER_NAMES: Set<String> = setOf("GOLGEBAHCESI")
+
+    fun isParserDisabled(parserName: String?): Boolean {
+        val clean = parserName?.trim().orEmpty()
+        return clean.isNotEmpty() && DISABLED_PARSER_NAMES.any { it.equals(clean, ignoreCase = true) }
+    }
 
     // T4-11: Bounded scope — SupervisorJob so one child failure doesn't cancel siblings
     private val adapterScope = CoroutineScope(
@@ -52,30 +65,74 @@ object KotatsuExtensionAdapter {
     private val allSources = mutableListOf<KotatsuMangaSource>()
     private var loaderContext: MangaLoaderContext? = null
     private var isInitialized = false
+    @Volatile private var prefsLoaded = false
+    @Volatile private var appContextRef: Context? = null
 
     /**
-     * Aktif dil seti — sadece bu dillerdeki kaynaklar MangaExtensionLoader'a döner.
-     * Varsayılan: {"tr"} — Futon'un davranışıyla aynı.
+     * Aktif dil seti — varsayılan profilde BOŞTUR (yalnızca dahili Gölge Bahçesi aktiftir).
+     * Kullanıcı Eklentiler ekranından manuel dil seçerse SharedPreferences'a kaydedilir.
      */
-    private val activeLangs = mutableSetOf("tr")
+    private val activeLangs = java.util.Collections.synchronizedSet(mutableSetOf<String>())
+
+    @Synchronized
+    fun loadSavedPrefs(context: Context) {
+        val appCtx = context.applicationContext
+        appContextRef = appCtx
+        if (prefsLoaded) return
+        val prefs = appCtx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val saved = prefs.getStringSet(KEY_ACTIVE_LANGS, emptySet()).orEmpty()
+        synchronized(activeLangs) {
+            activeLangs.clear()
+            activeLangs.addAll(saved.filter { it.isNotBlank() })
+        }
+        prefsLoaded = true
+    }
+
+    private fun persistActiveLangs(context: Context? = appContextRef) {
+        val ctx = context?.applicationContext ?: return
+        val snapshot = synchronized(activeLangs) { activeLangs.toSet() }
+        ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putStringSet(KEY_ACTIVE_LANGS, snapshot)
+            .apply()
+    }
 
     /** Aktif dilleri döner (UI chip gösterimi için) */
-    fun getActiveLangs(): Set<String> = activeLangs.toSet()
+    fun getActiveLangs(): Set<String> = synchronized(activeLangs) { activeLangs.toSet() }
 
-    /** Tek bir dili toggle eder */
-    fun toggleLang(lang: String) {
-        if (lang in activeLangs) {
-            if (activeLangs.size > 1) activeLangs.remove(lang)
-        } else {
-            activeLangs.add(lang)
+    /** Tek bir dili toggle eder (son dili de kapatmaya izin verir) */
+    fun toggleLang(lang: String, context: Context? = appContextRef) {
+        val shouldInit: Boolean
+        synchronized(activeLangs) {
+            if (lang in activeLangs) {
+                activeLangs.remove(lang)
+                shouldInit = false
+            } else {
+                activeLangs.add(lang)
+                shouldInit = true
+            }
         }
-        Log.i(TAG, "Kotatsu dil toggle: $lang → aktif: $activeLangs")
+        persistActiveLangs(context)
+        if (shouldInit && context != null) {
+            initializeLazy(context)
+        }
+        Log.i(TAG, "Kotatsu dil toggle: $lang → aktif: ${getActiveLangs()}")
     }
 
     /** Aktif dil setini toptan günceller */
-    fun setActiveLangs(langs: Set<String>) {
-        activeLangs.clear()
-        activeLangs.addAll(langs)
+    fun setActiveLangs(langs: Set<String>, context: Context? = appContextRef) {
+        if (context != null) {
+            appContextRef = context.applicationContext
+            prefsLoaded = true
+        }
+        synchronized(activeLangs) {
+            activeLangs.clear()
+            activeLangs.addAll(langs.filter { it.isNotBlank() })
+        }
+        persistActiveLangs(context)
+        if (langs.isNotEmpty() && context != null) {
+            initializeLazy(context)
+        }
         Log.i(TAG, "Kotatsu aktif diller güncellendi: $langs")
     }
 
@@ -108,8 +165,9 @@ object KotatsuExtensionAdapter {
 
                 val result = mutableListOf<KotatsuMangaSource>()
 
-                // MangaParserSource.entries → tüm 1300+ kaynak (bozuk olanlar hariç)
+                // MangaParserSource.entries → bozuk ve kalıcı devre dışı bırakılanlar hariç
                 for (parserSource in MangaParserSource.entries) {
+                    if (isParserDisabled(parserSource.name)) continue
                     if (parserSource.isBroken()) continue
                     try {
                         val parser = ctx.newParserInstance(parserSource)
@@ -141,9 +199,15 @@ object KotatsuExtensionAdapter {
         }
     }
 
-    /** Sadece aktif dillerdeki kaynakları döner */
-    fun getActiveSources(): List<KotatsuMangaSource> = synchronized(allSources) {
-        allSources.filter { it.lang in activeLangs }
+    /** Sadece aktif dillerdeki kaynakları döner (eski GOLGEBAHCESI her zaman hariç) */
+    fun getActiveSources(): List<KotatsuMangaSource> {
+        val langsSnapshot = getActiveLangs()
+        if (langsSnapshot.isEmpty()) return emptyList()
+        return synchronized(allSources) {
+            allSources.filter {
+                !isParserDisabled(it.parserSource.name) && it.lang in langsSnapshot
+            }
+        }
     }
 
     /** Tüm kaynaklar (istatistik/UI için) */
@@ -246,7 +310,11 @@ class KitsugiKotatsuContext(private val context: Context) : MangaLoaderContext()
     private val parsers = java.util.concurrent.ConcurrentHashMap<org.koitharu.kotatsu.parsers.model.MangaSource, MangaParser>()
     fun register(parser: MangaParser) { parsers[parser.source] = parser }
 
-    private val network = eu.kanade.tachiyomi.network.NetworkHelper(context)
+    private val network = try {
+        uy.kohesive.injekt.Injekt.get(eu.kanade.tachiyomi.network.NetworkHelper::class.java)
+    } catch (_: Exception) {
+        eu.kanade.tachiyomi.network.NetworkHelper(context)
+    }
     private val client = network.client.newBuilder()
         .addInterceptor { chain ->
             val parser = chain.request().tag(org.koitharu.kotatsu.parsers.model.MangaSource::class.java)?.let { parsers[it] }
@@ -316,6 +384,17 @@ class KitsugiKotatsuContext(private val context: Context) : MangaLoaderContext()
 }
 
 // ─── KotatsuMangaSource — Gerçek Parser Wrapper ──────────────────────────────
+
+/**
+ * "Son Güncellemeler" rafının sayfalama anahtarı.
+ *
+ * Kotatsu adaptörü sayfa ofsetlerini `(sorgu, sayfa)` çiftiyle önbelleğe alır.
+ * Bu raf da popüler raf gibi boş sorguyla listelendiği için `""` anahtarını
+ * kullanırsa iki rafın ofsetleri birbirine karışır; ayrı bir sanal anahtar
+ * kullanarak bunu engelliyoruz.
+ */
+private const val LATEST_OFFSET_KEY = "\u0000latest"
+
 class KotatsuMangaSource(
     val parserSource: MangaParserSource,
     private val parser: MangaParser,
@@ -346,6 +425,17 @@ class KotatsuMangaSource(
     override val pkgName: String get() = "kotatsu.${parserSource.name.lowercase()}"
     override val baseUrl: String get() = parser.domain.let { if (it.startsWith("http")) it else "https://$it" }
 
+    override suspend fun authentication(): MangaSourceAuthentication? =
+        parser.authorizationProvider?.let { provider ->
+            MangaSourceAuthentication(loginUrl = provider.authUrl)
+        }
+
+    override suspend fun isAuthenticated(): Boolean? =
+        parser.authorizationProvider?.isAuthorized()
+
+    override suspend fun authenticatedUsername(): String? =
+        parser.authorizationProvider?.getUsername()
+
     override suspend fun fetchPopularManga(page: Int): MangaSourceResult = withContext(Dispatchers.IO) {
         try {
             val list = parser.getList(
@@ -370,6 +460,40 @@ class KotatsuMangaSource(
             result(query, page, list)
         } catch (e: Exception) {
             android.util.Log.w("KotatsuMangaSrc", "fetchSearchManga hata [${parserSource.name}]: ${e.message}")
+            throw e
+        }
+    }
+
+    /**
+     * Kotatsu parseri `SortOrder.UPDATED` destekliyorsa "Son Güncellemeler" rafı
+     * eklenti portalındaki manga keşfet sayfasında gösterilir.
+     *
+     * NOT: parserin kendi `availableSortOrders` kümesine bakılır; desteklemeyen
+     * kaynakta raf hiç çizilmez (popüler listeyi "son güncelleme" diye sunmayız).
+     */
+    override val supportsLatest: Boolean
+        get() = try {
+            SortOrder.UPDATED in parser.availableSortOrders
+        } catch (_: Throwable) {
+            false
+        }
+
+    override suspend fun fetchLatestManga(page: Int): MangaSourceResult = withContext(Dispatchers.IO) {
+        try {
+            val order = SortOrder.UPDATED.takeIf { it in parser.availableSortOrders }
+                ?: return@withContext fetchPopularManga(page)
+            val list = parser.getList(
+                // Popüler rafıyla aynı offset anahtarını PAYLAŞMA — "" anahtarı
+                // popüler sayfalamayı bozardı. Ayrı bir sanal sorgu anahtarı kullanılır.
+                offset = offset(LATEST_OFFSET_KEY, page),
+                filter = MangaListFilter(query = ""),
+                order = order,
+            )
+            result(LATEST_OFFSET_KEY, page, list)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            android.util.Log.w("KotatsuMangaSrc", "fetchLatestManga hata [${parserSource.name}]: ${e.message}")
             throw e
         }
     }
@@ -506,7 +630,7 @@ class KotatsuMangaSource(
             val response = context.httpClient.newCall(request).execute()
             if (!response.isSuccessful) {
                 response.close()
-                throw java.io.IOException("HTTP error ${response.code} for $imageUrl")
+                throw java.io.IOException("HTTP error ${response.code}$imageUrl")
             }
             val body = response.body ?: throw java.io.IOException("Response body is null")
             object : java.io.FilterInputStream(body.byteStream()) {
@@ -539,6 +663,7 @@ class KotatsuMangaSource(
             },
             thumbnailUrl = largeCoverUrl?.takeIf { it.isNotBlank() } ?: coverUrl?.takeIf { it.isNotBlank() },
             source = pkgName,
+            alternativeTitles = altTitles.filter { it.isNotBlank() },
         )
     }
 }

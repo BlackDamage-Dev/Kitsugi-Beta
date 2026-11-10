@@ -5,21 +5,34 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.kitsugi.animelist.data.local.MediaEntryRepository
 import com.kitsugi.animelist.data.local.KitsugiDatabase
+import com.kitsugi.animelist.data.local.IdentityCacheRevision
+import com.kitsugi.animelist.data.local.MyListIdentityCrosswalk
+import com.kitsugi.animelist.data.local.SubtitleCorrection
 import com.kitsugi.animelist.model.EntryAutoRules
 import com.kitsugi.animelist.model.MediaEntry
 import com.kitsugi.animelist.model.WatchStatus
-import com.kitsugi.animelist.data.auth.ExternalAuthManager
 import com.kitsugi.animelist.data.remote.BangumiIdNamespace
 import com.kitsugi.animelist.data.remote.BangumiLibraryTitleHydrator
 import com.kitsugi.animelist.data.settings.SettingsDataStore
 import com.kitsugi.animelist.model.MediaType
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.flow.asStateFlow
+import com.kitsugi.animelist.data.auth.SourceSyncStatus
+import com.kitsugi.animelist.data.auth.ExternalAuthManager
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
+
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 
 class MyListViewModel(application: Application) : AndroidViewModel(application) {
@@ -31,8 +44,9 @@ class MyListViewModel(application: Application) : AndroidViewModel(application) 
     private val _syncMessages = Channel<String>(Channel.BUFFERED)
     val syncMessages = _syncMessages.receiveAsFlow()
 
-    // ─── Repository & Flow ───────────────────────────────────────────────────
-    // Repository hemen oluşturuluyor; entriesFlow her zaman non-null ve hazır.
+
+
+    // Repository is used for list edits; the app root owns the shared Room observer.
     private val repository: MediaEntryRepository = run {
         val db = KitsugiDatabase.getDatabase(context)
         MediaEntryRepository(
@@ -51,46 +65,175 @@ class MyListViewModel(application: Application) : AndroidViewModel(application) 
         initialValue = emptyList()
     )
 
-    /**
-     * Birleşik kütüphane ("Tümü" sekmesi) hesabının SON sonucu (UI önbelleği).
-     *
-     * PERF: gruplama artık arka planda hesaplanıp yayınlanıyor; detay sayfasına gidilip
-     * dönüldüğünde ekran yeniden kompoze olurken sonuç hazır olsun ki liste bir-iki kare
-     * boşalıp dolmasın. Girdi değişince MyListScreen hesabı yeniden koşturup bunu günceller;
-     * eski veri en fazla bir kare görünür (kullanıcının son gördüğü listedir).
-     */
-    // internal: [CombinedMyListLibrary] internal bir tip; public üye internal tipi gösteremez.
-    internal var cachedCombinedLibrary: CombinedMyListLibrary = CombinedMyListLibrary.EMPTY
-        private set
-
-    internal fun rememberCombinedLibrary(value: CombinedMyListLibrary) {
-        cachedCombinedLibrary = value
+    data class SyncHealth(
+        val lines: List<String> = emptyList(),
+        val pending: Int = 0,
+        val isError: Boolean = false
+    ) {
+        val visible: Boolean get() = lines.isNotEmpty()
     }
 
-    init {
-        // Bozuk Simkl subtitle'larını ve kaynak etiketlerini tek seferlik onar
-        viewModelScope.launch {
-            val dao = KitsugiDatabase.getDatabase(context).mediaEntryDao()
-            repairBrokenSimklSubtitles(dao)
-            repairMisclassifiedSources(dao)
-            // Kitsu kimlik alanını kanonik stableId uzayına taşı (eski sürüm import'ları
-            // bu alana gerçek MAL ID yazıyordu → ayrıntı sayfası alakasız veri açıyordu)
-            KitsuIdentityMigration.runIfNeeded(context, dao)
-            // +18 blur'unun TÜM kaynaklarda uygulanması için eksik yetişkin işaretlerini
-            // kimlik üzerinden tamamla: Simkl/Shikimori/Bangumi liste API'leri `adult`
-            // alanını taşımadığından satırlar isAdult=false yazılıyordu → Listem (Simkl)
-            // ve "Tümü" sekmesinde afişler bulanıklanmıyordu.
-            AdultFlagBackfillMigration.runIfNeeded(context, dao)
-        }
+    private val _syncHealth = MutableStateFlow(SyncHealth())
+    val syncHealth: StateFlow<SyncHealth> = _syncHealth
 
-        // Bangumi koleksiyonundan içe aktarılan satırlar YALNIZCA özgün (Japonca/Çince)
-        // adla gelir; kullanıcı "Başlık Dili" olarak İng/Romaji seçtiğinde liste CJK adla
-        // çiziliyordu. Latin adları arka planda tamamla (önce önbellek, sonra AniList /
-        // subject infobox'ı). Sonuç veritabanına yazıldığı için bir sonraki açılışta iş kalmaz.
-        // NOT: Bu tek başına yetmez — içe aktarım init'ten SONRA biterse yeni satırlar bu
-        // taramayı kaçırır. Bu yüzden aktarım sonrası AuthViewModel ve başlık dili
-        // değişiminde ekran da aynı taramayı tetikler (bkz. refreshBangumiTitles).
-        refreshBangumiTitles()
+    fun refreshSyncHealth() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val perSource = runCatching { repository.pendingSyncBySource() }.getOrDefault(emptyMap())
+            val snapshots = SourceSyncStatus.snapshotAll(context)
+            val lines = mutableListOf<String>()
+            var totalPending = 0
+            var anyError = false
+            SourceSyncStatus.Source.entries.forEach { source ->
+                val pending = perSource[source] ?: 0
+                totalPending += pending
+                val snapshot = snapshots[source] ?: SourceSyncStatus.Snapshot()
+                val text = SourceSyncStatus.describe(
+                    context = context,
+                    source = source,
+                    snapshot = snapshot,
+                    pending = pending
+                )
+                if (text.isNotBlank()) {
+                    lines += text
+                    if (SourceSyncStatus.isError(snapshot.reason)) anyError = true
+                }
+            }
+            _syncHealth.value = SyncHealth(
+                lines = lines.take(4),
+                pending = totalPending,
+                isError = anyError
+            )
+        }
+    }
+
+    fun retryAllSourcesSyncNow() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val sent = runCatching { repository.retryPendingSyncNow() }.getOrDefault(0)
+            refreshSyncHealth()
+            if (sent > 0) {
+                runCatching {
+                    _syncMessages.send(
+                        context.getString(com.kitsugi.animelist.R.string.sync_retried_n, sent)
+                    )
+                }
+            }
+        }
+    }
+
+    internal var cachedPreparedSearch: PreparedMyListSearch? = null
+    internal var cachedSearchResult: MyListSearchUiCache? = null
+
+    init {
+        refreshSyncHealth()
+    }
+
+    private val _library = MutableStateFlow<MyListLibraryState?>(null)
+    internal val library: StateFlow<MyListLibraryState?> = _library.asStateFlow()
+    internal var cachedPresentation: MyListPresentation? = null
+    private var preparationJob: Job? = null
+    private var requestedEntries: List<MediaEntry>? = null
+    private var requestedAdultVisibility: Boolean? = null
+    private var requestedIdentityRevision: Long? = null
+    private var readyIdentityRevision: Long? = null
+    private var repairsStarted = false
+
+    /**
+     * Warm the library as soon as the app's existing Room snapshot arrives, even while
+     * another tab is visible. Only one cancellable preparation runs per snapshot.
+     */
+    internal fun prepareLibrary(entries: List<MediaEntry>, showAdultContent: Boolean) {
+        val identityRevision = IdentityCacheRevision.current()
+        val ready = _library.value?.let {
+            it.sourceIndex.inputEntries === entries && it.sourceIndex.showAdultContent == showAdultContent &&
+                it.combinedLibrary != null && readyIdentityRevision == identityRevision
+        } == true
+        if (requestedEntries === entries && requestedAdultVisibility == showAdultContent &&
+            requestedIdentityRevision == identityRevision && (preparationJob?.isActive == true || ready)
+        ) return
+        requestedEntries = entries
+        requestedAdultVisibility = showAdultContent
+        requestedIdentityRevision = identityRevision
+        preparationJob?.cancel()
+        preparationJob = viewModelScope.launch(Dispatchers.Default) {
+            val index = indexMyListSources(entries, showAdultContent)
+            currentCoroutineContext().ensureActive()
+            // Provider pages can render without waiting for cross-provider merging.
+            withContext(Dispatchers.Main.immediate) {
+                if (requestedEntries === entries && requestedAdultVisibility == showAdultContent &&
+                    requestedIdentityRevision == identityRevision
+                ) {
+                    _library.value = MyListLibraryState(index, null)
+                }
+            }
+            val extras = try {
+                MyListIdentityCrosswalk.build(context, index.allEntries)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                android.util.Log.w("MyListViewModel", "Kimlik köprüsü okunamadı", error)
+                emptyMap()
+            }
+            val job = currentCoroutineContext()[Job]
+            val items = try {
+                groupMyListEntries(index.allEntries, extras) { job?.ensureActive() }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                android.util.Log.e("MyListViewModel", "Birleşik liste hazırlanamadı", error)
+                // Keep the library usable if an unexpected grouping error occurs.
+                index.allEntries.map { entry ->
+                    MyListLibraryItem(entry, listOfNotNull(sourceBadgeId(entry.source)))
+                }
+            }
+            currentCoroutineContext().ensureActive()
+            val combined = CombinedMyListLibrary(
+                sourceIndex = index,
+                items = items,
+                entries = items.map { it.entry },
+                sourceBadgesByEntryId = items.associate { it.entry.id to it.sourceIds }
+            )
+            withContext(Dispatchers.Main.immediate) {
+                if (requestedEntries === entries && requestedAdultVisibility == showAdultContent &&
+                    requestedIdentityRevision == identityRevision
+                ) {
+                    readyIdentityRevision = identityRevision
+                    _library.value = MyListLibraryState(index, combined)
+                    // Identity mappings can be learned without a Room row changing. Give
+                    // the just-prepared snapshot a frame to appear before refreshing it.
+                    if (IdentityCacheRevision.current() != identityRevision) {
+                        viewModelScope.launch {
+                            delay(250)
+                            if (requestedEntries === entries && requestedAdultVisibility == showAdultContent &&
+                                requestedIdentityRevision == identityRevision
+                            ) {
+                                prepareLibrary(entries, showAdultContent)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /** One-time maintenance starts only on opening Listem, not during app warm-up. */
+    internal fun startRepairs() {
+        if (repairsStarted) return
+        repairsStarted = true
+        viewModelScope.launch(Dispatchers.IO) {
+            val dao = KitsugiDatabase.getDatabase(context).mediaEntryDao()
+            suspend fun runRepair(name: String, block: suspend () -> Unit) {
+                try {
+                    block()
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (error: Exception) {
+                    android.util.Log.w("MyListViewModel", "$name bakımı atlandı", error)
+                }
+            }
+            runRepair("Simkl") { repairBrokenSimklSubtitles(dao) }
+            runRepair("Kitsu") { KitsuIdentityMigration.runIfNeeded(context, dao) }
+            runRepair("Yetişkin içerik") { AdultFlagBackfillMigration.runIfNeeded(context, dao) }
+        }
     }
 
     /**
@@ -129,7 +272,7 @@ class MyListViewModel(application: Application) : AndroidViewModel(application) 
             entity.source == "simkl" &&
                 brokenPatterns.any { entity.subtitle.contains(it) }
         }
-        broken.forEach { entity ->
+        val repaired = broken.map { entity ->
             val typeLabel = when (entity.type) {
                 "Movie" -> "Film"
                 "TvShow" -> "Dizi"
@@ -141,23 +284,9 @@ class MyListViewModel(application: Application) : AndroidViewModel(application) 
             } else {
                 typeLabel
             }
-            dao.update(entity.copy(subtitle = fixedSubtitle))
+            SubtitleCorrection(entity.id, entity.subtitle, fixedSubtitle)
         }
-    }
-
-    private suspend fun repairMisclassifiedSources(
-        dao: com.kitsugi.animelist.data.local.MediaEntryDao
-    ) {
-        val isAniListConnected = ExternalAuthManager.getAniListToken(context) != null
-        val isMalConnected = ExternalAuthManager.getMalToken(context) != null
-
-        if (isAniListConnected && !isMalConnected) {
-            val all = dao.getAll()
-            val misclassified = all.filter { it.source == "jikan" || it.source == "mal" }
-            misclassified.forEach { entity ->
-                dao.update(entity.copy(source = "anilist"))
-            }
-        }
+        if (repaired.isNotEmpty()) dao.repairSimklSubtitles(repaired)
     }
 
     fun incrementEntryProgress(entry: MediaEntry) {

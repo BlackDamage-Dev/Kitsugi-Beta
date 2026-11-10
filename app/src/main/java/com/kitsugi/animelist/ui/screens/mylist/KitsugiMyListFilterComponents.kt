@@ -1,5 +1,6 @@
 package com.kitsugi.animelist.ui.screens.mylist
 
+import com.kitsugi.animelist.ui.components.KitsugiEmojiLabel
 import com.kitsugi.animelist.ui.theme.gradient.background
 import com.kitsugi.animelist.ui.utils.tvClickable
 import androidx.compose.foundation.horizontalScroll
@@ -14,10 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.ArrowDownward
-import androidx.compose.material.icons.rounded.ArrowUpward
-import androidx.compose.material.icons.rounded.FilterList
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.MaterialTheme
 import com.kitsugi.animelist.ui.theme.gradient.Text
@@ -285,6 +283,162 @@ internal fun SortFilterRow(
     )
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+//  Kompakt sıralama + gruplama (2026-10-24)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Kompakt sıralama seçeneği — **tek kavram, tek çip**.
+ *
+ * Eski panelde "Son eklenen" ve "İlk eklenen" iki ayrı çip kaplıyordu; aynı kavramın iki
+ * yönü artık tek çipte toplanır ve çipe tekrar dokunmak yönü çevirir ([ascId]).
+ * [primary] = panelde her zaman görünen çekirdek seçenekler; geri kalanı "Daha fazla"
+ * ile açılır, böylece satır liste boyunu değiştirmez.
+ */
+internal data class MyListSortChoice(
+    val id: String,
+    val ascId: String?,
+    val titleRes: Int,
+    val primary: Boolean
+)
+
+internal val myListSortChoices = listOf(
+    MyListSortChoice("newest", "oldest", R.string.mylist_sort_added, primary = true),
+    MyListSortChoice("title", "title_desc", R.string.mylist_sort_title, primary = true),
+    MyListSortChoice("score", "score_asc", R.string.mylist_sort_score, primary = true),
+    MyListSortChoice("progress", "progress_asc", R.string.mylist_sort_progress, primary = true),
+    MyListSortChoice("favorites", null, R.string.mylist_sort_favorites, primary = true),
+    MyListSortChoice("updated_desc", "updated_asc", R.string.mylist_sort_updated, primary = false),
+    MyListSortChoice("start_date_desc", "start_date_asc", R.string.mylist_sort_start, primary = false),
+    MyListSortChoice("end_date_desc", "end_date_asc", R.string.mylist_sort_end, primary = false),
+    MyListSortChoice("year_desc", "year_asc", R.string.mylist_sort_year, primary = false),
+    MyListSortChoice("priority_desc", "priority_asc", R.string.mylist_sort_priority, primary = false),
+    MyListSortChoice("repeat_desc", "repeat_asc", R.string.mylist_sort_repeat, primary = false)
+)
+
+/**
+ * Kompakt sıralama satırı.
+ *
+ * Davranış: seçili çipe dokunmak yönü çevirir (azalan ↔ artan), başka bir çipe dokunmak
+ * o sıralamaya geçer. Seçim yalnızca bölüm **içindeki** dizilişi değiştirir; varsayılan
+ * tarih grupları bozulmaz (bkz. [MyListGroupingIds]).
+ */
+@Composable
+internal fun MyListSortChipsRow(
+    selectedSortId: String,
+    onSortSelected: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val accentColor = LocalKitsugiAccent.current
+    var showAll by rememberSaveable { mutableStateOf(false) }
+    val choices = if (showAll) myListSortChoices else myListSortChoices.filter { it.primary }
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        choices.forEach { choice ->
+            val isDescActive = selectedSortId == choice.id
+            val isAscActive = choice.ascId != null && selectedSortId == choice.ascId
+            val isSelected = isDescActive || isAscActive
+            val label = stringResource(choice.titleRes)
+
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(
+                        if (isSelected) accentColor else KitsugiColors.SurfaceStrong.copy(alpha = 0.4f)
+                    )
+                    .tvClickable(shape = RoundedCornerShape(999.dp)) {
+                        val nextId = when {
+                            choice.ascId == null -> choice.id
+                            isDescActive -> choice.ascId
+                            else -> choice.id
+                        }
+                        onSortSelected(nextId)
+                    }
+                    .padding(horizontal = 13.dp, vertical = 8.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = label,
+                        color = if (isSelected) KitsugiColors.Background else KitsugiColors.TextSecondary,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1
+                    )
+                    if (isSelected && choice.ascId != null) {
+                        Icon(
+                            imageVector = if (isAscActive) Icons.Rounded.ArrowUpward else Icons.Rounded.ArrowDownward,
+                            contentDescription = stringResource(R.string.mylist_sort_direction),
+                            tint = KitsugiColors.Background,
+                            modifier = Modifier.size(12.dp)
+                        )
+                    }
+                }
+            }
+        }
+
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(999.dp))
+                .background(KitsugiColors.SurfaceStrong.copy(alpha = 0.4f))
+                .tvClickable(shape = RoundedCornerShape(999.dp)) { showAll = !showAll }
+                .padding(horizontal = 13.dp, vertical = 8.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = stringResource(if (showAll) R.string.mylist_sort_less else R.string.mylist_sort_more),
+                color = accentColor,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1
+            )
+        }
+    }
+}
+
+/**
+ * Gruplama satırı — "Varsayılan görünüm" (eklenme tarihi), "Duruma göre" ve "Düz liste".
+ *
+ * Varsayılan seçenek eski davranıştır: liste Bugün / Dün / Bu Hafta … başlıklarıyla çizilir.
+ * Sıralama seçimi bu gruplamayı kaldırmaz.
+ */
+@Composable
+internal fun MyListGroupingRow(
+    selectedGroupId: String,
+    onGroupSelected: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val normalized = MyListGroupingIds.normalize(selectedGroupId)
+    val items = listOf(
+        MyListGroupingIds.ADDED to R.string.mylist_group_added,
+        MyListGroupingIds.STATUS to R.string.mylist_group_status,
+        MyListGroupingIds.NONE to R.string.mylist_group_none
+    )
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        items.forEach { (id, titleRes) ->
+            ListFilterChip(
+                title = stringResource(titleRes),
+                selected = normalized == id,
+                onClick = { onGroupSelected(id) }
+            )
+        }
+    }
+}
+
 /**
  * Filtre panelinin en üstündeki içerik türü hapları (Anime / Manga / Karakterler /
  * Ekip / Stüdyo). Hem eski gömülü panelde hem de yeni premium açılır panelde
@@ -321,8 +475,10 @@ internal fun MyListContentTypeRow(
                     })
                     .padding(horizontal = 14.dp, vertical = 9.dp)
             ) {
-                Text(
-                    text = if (isSelected) "✓ $label" else label,
+                KitsugiEmojiLabel(
+                    label = label,
+                    icon = if (isSelected) Icons.Check else null,
+                    iconSize = 13.dp,
                     color = if (isSelected) accentColor else KitsugiColors.TextPrimary,
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold
@@ -457,7 +613,7 @@ internal fun RichMyListFilterPanel(
                             )
                             if (isSelected) {
                                 Icon(
-                                    imageVector = if (isAscActive) Icons.Rounded.ArrowUpward else Icons.Rounded.ArrowDownward,
+                                    imageVector = if (isAscActive) Icons.ArrowUpward else Icons.ArrowDownward,
                                     contentDescription = null,
                                     tint = KitsugiColors.Background,
                                     modifier = Modifier.size(12.dp)
@@ -594,6 +750,6 @@ internal fun EmptyListResultCard(
         } else {
             stringResource(R.string.mylist_empty_search_query, searchQuery)
         },
-        icon = Icons.Rounded.FilterList
+        icon = Icons.FilterList
     )
 }

@@ -58,6 +58,13 @@ fun TvPlayerScreen(
     malId: Int? = null,
     aniListId: Int? = null,
     tmdbId: Int? = null,
+    bangumiId: Int? = null,
+    mediaType: com.kitsugi.animelist.model.MediaType? = null,
+    knownImdbId: String? = null,
+    historyAnimeId: String? = null,
+    resumePosition: Long = 0L,
+    cs3Url: String? = null,
+    cs3ApiName: String? = null,
     season: Int = 1,
     episode: Int = 1,
     animeTitle: String = "",
@@ -73,19 +80,11 @@ fun TvPlayerScreen(
     onBack: () -> Unit
 ) {
     // TV activity immersive mod sayesinde sistem barlar zaten gizli;
-    // tüm focus'u player'ın kendi focusRequester'ına bırakıyoruz.
-    val tvRootFocus = remember { FocusRequester() }
-
-    LaunchedEffect(Unit) {
-        tvRootFocus.requestFocusAfterFrames(frames = 2)
-    }
-
+    // tüm focus'u KitsugiFullscreenPlayerScreen'in kendi kök focus hedefine bırakıyoruz.
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
-            .focusRequester(tvRootFocus)
-            .focusTarget()
     ) {
         com.kitsugi.animelist.ui.screens.fullscreen.PlayerAccentTheme {
         KitsugiFullscreenPlayerScreen(
@@ -100,6 +99,14 @@ fun TvPlayerScreen(
             malId            = malId,
             aniListId        = aniListId,
             tmdbId           = tmdbId,
+            bangumiId        = bangumiId,
+            imdbId           = knownImdbId,
+            mediaType        = mediaType,
+            knownImdbId      = knownImdbId,
+            historyAnimeId   = historyAnimeId,
+            resumePosition   = resumePosition,
+            cs3Url           = cs3Url,
+            cs3ApiName       = cs3ApiName,
             season           = season,
             episode          = episode,
             animeTitle       = animeTitle,

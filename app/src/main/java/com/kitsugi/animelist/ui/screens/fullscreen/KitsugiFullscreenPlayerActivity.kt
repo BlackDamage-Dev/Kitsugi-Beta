@@ -68,6 +68,9 @@ class KitsugiFullscreenPlayerActivity : ComponentActivity() {
     /** PiP penceresinde miyiz? (onPictureInPictureModeChanged ile güncellenir) */
     private var isInPipNow = false
 
+    /** Whether playback was active before the Activity was temporarily backgrounded. */
+    private var resumePlaybackAfterStop = false
+
     /**
      * Harici (3. parti) oynatıcıya devredildi mi? true ise Activity'nin görünmez olması
      * "mini pencere kapatıldı" anlamına gelmez; bu yüzden onStop'te kapanış tetiklenmez.
@@ -86,6 +89,21 @@ class KitsugiFullscreenPlayerActivity : ComponentActivity() {
     private var lastKnownHasNext = false
     private var lastKnownHasPrevious = false
     private var pipEngine: com.kitsugi.animelist.core.player.engine.PlayerEngine? = null
+    private var playerKeyEventHandler: ((android.view.KeyEvent) -> Boolean)? = null
+
+    fun setPlayerKeyEventHandler(handler: ((android.view.KeyEvent) -> Boolean)?) {
+        playerKeyEventHandler = handler
+    }
+
+    override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+        if (window?.currentFocus !is android.widget.EditText) {
+            val handler = playerKeyEventHandler
+            if (handler != null && handler(event)) {
+                return true
+            }
+        }
+        return super.dispatchKeyEvent(event)
+    }
 
     interface PipPlayerCallback {
         fun onPipPlay()
@@ -213,6 +231,10 @@ class KitsugiFullscreenPlayerActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         applyImmersiveMode()
+        if (resumePlaybackAfterStop && !handedOffToExternalPlayer && !isInPipNow) {
+            resumePlaybackAfterStop = false
+            invokePipAction { it.onPipPlay() }
+        }
     }
 
     companion object {
@@ -228,6 +250,8 @@ class KitsugiFullscreenPlayerActivity : ComponentActivity() {
         const val EXTRA_MAL_ID = "extra_mal_id"
         const val EXTRA_ANILIST_ID = "extra_anilist_id"
         const val EXTRA_TMDB_ID = "extra_tmdb_id"
+        const val EXTRA_BANGUMI_ID = "extra_bangumi_id"
+        const val EXTRA_TREAT_AS_TRAILER = "extra_treat_as_trailer"
         const val EXTRA_EPISODE = "extra_episode"
         const val EXTRA_SEASON = "extra_season"
         const val EXTRA_ANIME_TITLE = "extra_anime_title"
@@ -243,6 +267,10 @@ class KitsugiFullscreenPlayerActivity : ComponentActivity() {
         const val EXTRA_CS3_URL     = "extra_cs3_url"
         const val EXTRA_CS3_API_NAME = "extra_cs3_api_name"
         const val EXTRA_RESUME_POSITION = "extra_resume_position"
+        const val EXTRA_HISTORY_ID = "extra_history_id"
+        const val EXTRA_AUTO_RESUME = "extra_auto_resume"
+        const val EXTRA_MEDIA_TYPE = "extra_media_type"
+        const val EXTRA_IMDB_ID = "extra_imdb_id"
 
         @Volatile
         var tempStreamSources: List<StreamSource>? = null
@@ -296,7 +324,14 @@ class KitsugiFullscreenPlayerActivity : ComponentActivity() {
             isMovie: Boolean = false,
             cs3Url: String? = null,
             cs3ApiName: String? = null,
-            resumePositionMs: Long = 0L
+            resumePositionMs: Long = 0L,
+            bangumiId: Int? = null,
+            imdbId: String? = null,
+            historyAnimeId: String? = null,
+            autoResume: Boolean = false,
+            mediaType: com.kitsugi.animelist.model.MediaType? = null,
+            knownImdbId: String? = null,
+            treatAsTrailer: Boolean = false
         ): Boolean {
             tempSubtitles = subtitles
             tempStreamSources = allSources
@@ -319,6 +354,12 @@ class KitsugiFullscreenPlayerActivity : ComponentActivity() {
                         malId?.let { putExtra(EXTRA_MAL_ID, it) }
                         aniListId?.let { putExtra(EXTRA_ANILIST_ID, it) }
                         tmdbId?.let { putExtra(EXTRA_TMDB_ID, it) }
+                        bangumiId?.let {
+                            putExtra(EXTRA_BANGUMI_ID, it)
+                            putExtra("subtitle_bangumi_id", it)
+                        }
+                        if (treatAsTrailer) putExtra(EXTRA_TREAT_AS_TRAILER, true)
+                        imdbId?.let { putExtra("subtitle_imdb_id", it) }
                         putExtra(EXTRA_SEASON, season)
                         putExtra(EXTRA_EPISODE, episode)
                         putExtra(EXTRA_ANIME_TITLE, animeTitle)
@@ -331,6 +372,10 @@ class KitsugiFullscreenPlayerActivity : ComponentActivity() {
                         description?.let { putExtra(EXTRA_DESCRIPTION, it) }
                         putExtra(EXTRA_IS_MOVIE, isMovie)
                         putExtra(EXTRA_RESUME_POSITION, resumePositionMs)
+                        historyAnimeId?.let { putExtra(EXTRA_HISTORY_ID, it) }
+                        putExtra(EXTRA_AUTO_RESUME, autoResume)
+                        mediaType?.let { putExtra(EXTRA_MEDIA_TYPE, it.name) }
+                        knownImdbId?.let { putExtra(EXTRA_IMDB_ID, it) }
 
                         // Süreç ölümü (process death) sonrası Activity yeniden oluşturulursa
                         // static `tempSubtitles` / `tempStreamSources` kaybolur. Bu yedek
@@ -373,6 +418,21 @@ class KitsugiFullscreenPlayerActivity : ComponentActivity() {
                             putExtra(EXTRA_AUDIO_URL, audioUrl)
                             putExtra(EXTRA_TITLE, title)
                             putExtra(EXTRA_CURRENT_INDEX, -1)
+                            malId?.let { putExtra(EXTRA_MAL_ID, it) }
+                            aniListId?.let { putExtra(EXTRA_ANILIST_ID, it) }
+                            tmdbId?.let { putExtra(EXTRA_TMDB_ID, it) }
+                            bangumiId?.let {
+                                putExtra(EXTRA_BANGUMI_ID, it)
+                                putExtra("subtitle_bangumi_id", it)
+                            }
+                            imdbId?.let { putExtra("subtitle_imdb_id", it) }
+                            knownImdbId?.let { putExtra(EXTRA_IMDB_ID, it) }
+                            mediaType?.let { putExtra(EXTRA_MEDIA_TYPE, it.name) }
+                            titleEnglish?.let { putExtra(EXTRA_TITLE_ENGLISH, it) }
+                            titleRomaji?.let { putExtra(EXTRA_TITLE_ROMAJI, it) }
+                            titleNative?.let { putExtra(EXTRA_TITLE_NATIVE, it) }
+                            startYear?.let { putExtra(EXTRA_START_YEAR, it) }
+                            historyAnimeId?.let { putExtra(EXTRA_HISTORY_ID, it) }
                             putExtra(EXTRA_SEASON, season)
                             putExtra(EXTRA_EPISODE, episode)
                             putExtra(EXTRA_ANIME_TITLE, animeTitle)
@@ -578,6 +638,9 @@ class KitsugiFullscreenPlayerActivity : ComponentActivity() {
         val malId = intent.getIntExtra(EXTRA_MAL_ID, -1).takeIf { it != -1 }
         val aniListId = intent.getIntExtra(EXTRA_ANILIST_ID, -1).takeIf { it != -1 }
         val tmdbId = intent.getIntExtra(EXTRA_TMDB_ID, -1).takeIf { it != -1 }
+        val bangumiId = intent.getIntExtra(EXTRA_BANGUMI_ID, -1).takeIf { it != -1 }
+            ?: intent.getIntExtra("subtitle_bangumi_id", -1).takeIf { it > 0 }
+        val treatAsTrailer = intent.getBooleanExtra(EXTRA_TREAT_AS_TRAILER, false)
         val season = intent.getIntExtra(EXTRA_SEASON, 1)
         val episode = intent.getIntExtra(EXTRA_EPISODE, 1)
         val animeTitle = intent.getStringExtra(EXTRA_ANIME_TITLE) ?: ""
@@ -592,6 +655,10 @@ class KitsugiFullscreenPlayerActivity : ComponentActivity() {
         val cs3Url = intent.getStringExtra(EXTRA_CS3_URL)
         val cs3ApiName = intent.getStringExtra(EXTRA_CS3_API_NAME)
         val resumePosition = intent.getLongExtra(EXTRA_RESUME_POSITION, 0L)
+        val historyAnimeId = intent.getStringExtra(EXTRA_HISTORY_ID)
+        val autoResume = intent.getBooleanExtra(EXTRA_AUTO_RESUME, false)
+        val mediaType = intent.getStringExtra(EXTRA_MEDIA_TYPE)?.let { runCatching { com.kitsugi.animelist.model.MediaType.valueOf(it) }.getOrNull() }
+        val knownImdbId = intent.getStringExtra(EXTRA_IMDB_ID)
 
         val castList: List<MetaCastMember> = tempCast ?: run {
             val castJson = intent.getStringExtra(EXTRA_CAST_JSON)
@@ -718,6 +785,9 @@ class KitsugiFullscreenPlayerActivity : ComponentActivity() {
                     malId            = malId,
                     aniListId        = aniListId,
                     tmdbId           = tmdbId,
+                    bangumiId        = bangumiId,
+                    treatAsTrailer   = treatAsTrailer,
+                    imdbId           = intent.getStringExtra("subtitle_imdb_id") ?: knownImdbId,
                     season           = season,
                     episode          = episode,
                     animeTitle       = animeTitle,
@@ -733,6 +803,10 @@ class KitsugiFullscreenPlayerActivity : ComponentActivity() {
                     cs3Url           = cs3Url,
                     cs3ApiName       = cs3ApiName,
                     resumePosition   = resumePosition,
+                    historyAnimeId   = historyAnimeId,
+                    autoResume       = autoResume,
+                    mediaType        = mediaType,
+                    knownImdbId      = knownImdbId,
                     onBack           = { finish() }
                 )
               }
@@ -779,24 +853,18 @@ class KitsugiFullscreenPlayerActivity : ComponentActivity() {
     }
 
     /**
-     * Activity görünmez olduğunda (PiP penceresi kapatıldı, uygulama arka plana alındı,
-     * ekran kilitlendi vb.) oynatmayı durdurur. Aksi halde video yüzeyi kaybolsa bile ses
-     * arka planda çalmaya devam ediyordu.
+     * Pause while hidden, but retain the player and its playback position. When the app
+     * returns, resume only if it had been playing before the background transition. This
+     * avoids keeping audio alive in the background and avoids tearing down HDR/Dolby decoder
+     * state (which can leave a blank or corrupted frame after returning to the Activity).
      */
     override fun onStop() {
         super.onStop()
         if (!isInPipNow && !isInPictureInPictureMode && !isChangingConfigurations) {
+            resumePlaybackAfterStop = lastKnownIsPlaying && !handedOffToExternalPlayer
             stopPlaybackEverywhere()
-            // PiP'te değilken görünmez olduysak (mini pencere kapatıldı) uygulama "arka plan
-            // oynatıcısı" gibi davranmamalı: keep-alive servisi de kapatılır, böylece medya
-            // bildirimi üzerinden sesin devam etmesi mümkün olmaz.
             runCatching {
                 com.kitsugi.animelist.core.player.KeepAliveService.stop(this)
-            }
-            // Mini pencere kapatıldıktan sonra Activity arka planda hayalet olarak kalmasın.
-            // Harici oynatıcıya devredildiysek veya üzerimizde başka bir görev varsa dokunmayız.
-            if (!handedOffToExternalPlayer && !isFinishing && isTaskRoot) {
-                finish()
             }
         }
     }

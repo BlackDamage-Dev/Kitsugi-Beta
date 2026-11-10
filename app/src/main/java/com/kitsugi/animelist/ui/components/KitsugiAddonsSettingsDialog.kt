@@ -13,11 +13,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.AutoStories
-import androidx.compose.material.icons.rounded.Bolt
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.PlayCircle
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -33,6 +29,7 @@ import com.kitsugi.animelist.data.local.MangaSourceStateEntity
 import com.kitsugi.animelist.data.manga.MangaSource
 import com.kitsugi.animelist.data.remote.CsPlugin
 import com.kitsugi.animelist.ui.components.addons.CloudstreamExtensionsTab
+import com.kitsugi.animelist.ui.components.addons.MangaBulkDeleteState
 import com.kitsugi.animelist.ui.components.addons.MangaExtensionsTab
 import com.kitsugi.animelist.ui.components.addons.StremioTab
 import com.kitsugi.animelist.ui.theme.LocalKitsugiAccent
@@ -82,6 +79,12 @@ fun KitsugiAddonsSettingsDialog(
     mangaSources: List<MangaSource> = emptyList(),
     onInstallMangaExtension: (Uri) -> Unit = {},
     onDeleteMangaExtension: (MangaSource) -> Unit = {},
+    /** Kurulu tüm manga eklentilerini kaldırır (video eklentileriyle parite). */
+    onUninstallAllMangaExtensions: () -> Unit = {},
+    onGetMangaSourceEnabled: (MangaSource) -> Boolean = { true },
+    onToggleMangaSource: (MangaSource, Boolean) -> Unit = { _, _ -> },
+    /** Null → manga sekmesinde callback'siz "Toplu Sil" butonu çizilmez. */
+    mangaBulkDelete: MangaBulkDeleteState? = null,
     // Manga repos (Keiyoushi / native)
     mangaRepos: List<String> = emptyList(),
     mangaRepoExtensions: Map<String, List<com.kitsugi.animelist.data.remote.MangaExtensionInfo>?> = emptyMap(),
@@ -129,6 +132,8 @@ fun KitsugiAddonsSettingsDialog(
     useGithubProxy: Boolean = false,
     onUseGithubProxyChanged: (Boolean) -> Unit = {},
     onExplorePlugin: ((String) -> Unit)? = null,
+    /** Manga eklentisi → kendi Keşfet sayfası (video tarafındaki onExplorePlugin'in ikizi). */
+    onExploreMangaSource: ((MangaSource) -> Unit)? = null,
     onOpenPluginPicker: (() -> Unit)? = null,
     embeddedMode: Boolean = false,
     onDismiss: () -> Unit
@@ -187,7 +192,7 @@ fun KitsugiAddonsSettingsDialog(
                             )
                         }
                         IconButton(onClick = onDismiss) {
-                            Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.kapat), tint = KitsugiColors.TextSecondary)
+                            Icon(Icons.Close, contentDescription = stringResource(R.string.kapat), tint = KitsugiColors.TextSecondary)
                         }
                     }
                 }
@@ -195,15 +200,15 @@ fun KitsugiAddonsSettingsDialog(
                     tabs = listOf(
                         KitsugiSettingsTabOption(
                             stringResource(R.string.inline_torrent_streaming_89e2cac),
-                            Icons.Rounded.Bolt
+                            Icons.Bolt
                         ),
                         KitsugiSettingsTabOption(
                             stringResource(R.string.inline_video_providers_1e04646),
-                            Icons.Rounded.PlayCircle
+                            Icons.PlayCircle
                         ),
                         KitsugiSettingsTabOption(
                             stringResource(R.string.inline_manga_sources_03288ff),
-                            Icons.Rounded.AutoStories
+                            Icons.AutoStories
                         )
                     ),
                     selectedIndex = pagerState.currentPage,
@@ -257,7 +262,7 @@ fun KitsugiAddonsSettingsDialog(
                                 modifier = Modifier.size(20.dp)
                             ) {
                                 Icon(
-                                    Icons.Rounded.Close,
+                                    Icons.Close,
                                     contentDescription = stringResource(R.string.kapat),
                                     tint = textColor,
                                     modifier = Modifier.size(14.dp)
@@ -331,6 +336,7 @@ fun KitsugiAddonsSettingsDialog(
                             onOpenPluginPicker = onOpenPluginPicker
                         )
                         2 -> MangaExtensionsTab(
+                            onExploreSource = onExploreMangaSource,
                             sources = mangaSources,
                             onVerifySource = { url, name ->
                                 webViewDialogUrl = url
@@ -339,6 +345,9 @@ fun KitsugiAddonsSettingsDialog(
                             accentColor = accentColor,
                             onInstallExtension = onInstallMangaExtension,
                             onDeleteExtension = onDeleteMangaExtension,
+                            onUninstallAllExtensions = onUninstallAllMangaExtensions,
+                            onGetSourceEnabled = onGetMangaSourceEnabled,
+                            onToggleSource = onToggleMangaSource,
                             repos = mangaRepos,
                             repoExtensions = mangaRepoExtensions,
                             repoLoadingState = mangaRepoLoadingState,
@@ -372,7 +381,8 @@ fun KitsugiAddonsSettingsDialog(
                             onClearSourceMirror = onClearMangaSourceMirror,
                             onOpenSourceHealthScreen = onOpenMangaSourceHealthScreen,
                             onForceCheckUpdates = onForceCheckMangaUpdates,
-                            listState = mangaListState
+                            listState = mangaListState,
+                            bulkDelete = mangaBulkDelete
                         )
                     }
                 }

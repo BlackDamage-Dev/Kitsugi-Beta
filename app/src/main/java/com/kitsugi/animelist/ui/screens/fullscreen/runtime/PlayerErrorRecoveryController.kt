@@ -129,8 +129,10 @@ class PlayerErrorRecoveryController(
             if (onSwitchEngine != null) {
                 retryCount = 0
                 _isRecovering.value = false
-                // Zorunlu geçişi koordinatöre kaydet: MPV de başarısız olursa aynı motora
-                // geri dönülmesin (eskiden bu bilgi kaydedilmiyordu).
+                // Zorunlu geçişte her iki tarafı da kaydet: başarısız Media3'e ve henüz
+                // denenecek MPV'ye. MPV sonrasında gelecek farklı bir hata, kaynak zaten
+                // açılamayan Media3'e gereksiz geri dönüş yapmamalı.
+                engineFallback.markTried(PlayerEngineType.MEDIA3)
                 engineFallback.markTried(PlayerEngineType.MPV)
                 onSwitchEngine(PlayerEngineType.MPV)
                 return
@@ -205,6 +207,10 @@ class PlayerErrorRecoveryController(
 
     /** Fallback kaynak mevcut mu (VM kaynak listesi tarafından güncellenir). */
     var hasFallback: Boolean = false
+
+    /** Hata kurtarma veya motor geçişi tetiklendi mi? */
+    val hasRecoveryAttempted: Boolean
+        get() = retryCount > 0 || engineFallback.attemptCount > 0 || _isRecovering.value
 
     /** Controller durumunu ve engine fallback sayacını sıfırla (yeni medya açıldığında) */
     fun reset() {

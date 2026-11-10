@@ -1,5 +1,7 @@
 package com.kitsugi.animelist.ui.components
 
+import com.kitsugi.animelist.ui.components.player.PlayerKeyboardTab
+
 import com.kitsugi.animelist.ui.theme.gradient.FilterChip
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import com.kitsugi.animelist.ui.theme.gradient.Text
@@ -21,9 +23,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.activity.compose.BackHandler
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.*
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -52,6 +52,7 @@ enum class PlayerSettingsSubScreen {
     Altyazilar,
     Ses,
     OzelButonlar,
+    Klavye,
     KodDuzenleyici,
     Gelismis
 }
@@ -70,14 +71,15 @@ internal data class PlayerSettingsTab(
 )
 
 internal val PlayerSettingsTabs: List<PlayerSettingsTab> = listOf(
-    PlayerSettingsTab(PlayerSettingsSubScreen.DahiliOynatici, R.string.pd_tab_internal, Icons.Rounded.PlayCircle),
-    PlayerSettingsTab(PlayerSettingsSubScreen.Hareketler, R.string.pd_sub_gestures, Icons.Rounded.Swipe),
-    PlayerSettingsTab(PlayerSettingsSubScreen.KodCozucu, R.string.pd_tab_decoder, Icons.Rounded.Memory),
-    PlayerSettingsTab(PlayerSettingsSubScreen.Altyazilar, R.string.pd_tab_subtitles, Icons.Rounded.Subtitles),
-    PlayerSettingsTab(PlayerSettingsSubScreen.Ses, R.string.pd_sub_audio, Icons.Rounded.VolumeUp),
-    PlayerSettingsTab(PlayerSettingsSubScreen.OzelButonlar, R.string.pd_tab_custom_buttons, Icons.Rounded.SmartButton),
-    PlayerSettingsTab(PlayerSettingsSubScreen.KodDuzenleyici, R.string.pd_tab_code_editor, Icons.Rounded.Code),
-    PlayerSettingsTab(PlayerSettingsSubScreen.Gelismis, R.string.pd_tab_advanced, Icons.Rounded.Settings)
+    PlayerSettingsTab(PlayerSettingsSubScreen.DahiliOynatici, R.string.pd_tab_internal, Icons.PlayCircle),
+    PlayerSettingsTab(PlayerSettingsSubScreen.Hareketler, R.string.pd_sub_gestures, Icons.Swipe),
+    PlayerSettingsTab(PlayerSettingsSubScreen.KodCozucu, R.string.pd_tab_decoder, Icons.Memory),
+    PlayerSettingsTab(PlayerSettingsSubScreen.Altyazilar, R.string.pd_tab_subtitles, Icons.Subtitles),
+    PlayerSettingsTab(PlayerSettingsSubScreen.Ses, R.string.pd_sub_audio, Icons.VolumeUp),
+    PlayerSettingsTab(PlayerSettingsSubScreen.OzelButonlar, R.string.pd_tab_custom_buttons, Icons.SmartButton),
+    PlayerSettingsTab(PlayerSettingsSubScreen.Klavye, R.string.pd_tab_keyboard, Icons.Keyboard),
+    PlayerSettingsTab(PlayerSettingsSubScreen.KodDuzenleyici, R.string.pd_tab_code_editor, Icons.Code),
+    PlayerSettingsTab(PlayerSettingsSubScreen.Gelismis, R.string.pd_tab_advanced, Icons.Settings)
 )
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -285,7 +287,7 @@ fun KitsugiPlayerSettingsDialog(
                         if (embeddedMode) {
                             IconButton(onClick = onDismiss) {
                                 Icon(
-                                    imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                                    imageVector = Icons.ArrowBack,
                                     contentDescription = stringResource(R.string.notif_action_back),
                                     tint = KitsugiColors.TextPrimary
                                 )
@@ -302,7 +304,7 @@ fun KitsugiPlayerSettingsDialog(
                     if (!embeddedMode) {
                         IconButton(onClick = onDismiss) {
                             Icon(
-                                imageVector = Icons.Rounded.Close,
+                                imageVector = Icons.Close,
                                 contentDescription = stringResource(R.string.settings_close),
                                 tint = KitsugiColors.TextSecondary
                             )
@@ -359,7 +361,7 @@ fun KitsugiPlayerSettingsDialog(
                                             title = stringResource(R.string.pd_default_video_player),
                                             description = stringResource(R.string.pd_default_video_player_desc),
                                             value = currentPlayerName,
-                                            icon = Icons.Rounded.PlayArrow,
+                                            icon = Icons.PlayArrow,
                                             iconColor = accentColor,
                                             onClick = { playerDropdownExpanded = true }
                                         )
@@ -393,7 +395,7 @@ fun KitsugiPlayerSettingsDialog(
                                                 title = stringResource(R.string.pd_external_player_app),
                                                 description = stringResource(R.string.pd_external_player_app_desc),
                                                 value = currentExtName,
-                                                icon = Icons.Rounded.SettingsInputComponent,
+                                                icon = Icons.SettingsInputComponent,
                                                 iconColor = accentColor,
                                                 onClick = { extPackageDropdownExpanded = true }
                                             )
@@ -420,7 +422,7 @@ fun KitsugiPlayerSettingsDialog(
                                         title = stringResource(R.string.pd_autoplay),
                                         description = stringResource(R.string.pd_autoplay_next),
                                         checked = isAutoplayEnabled,
-                                        icon = Icons.Rounded.FastForward,
+                                        icon = Icons.FastForward,
                                         iconColor = accentColor,
                                         onCheckedChange = onAutoplayEnabledChanged
                                     )
@@ -440,7 +442,7 @@ fun KitsugiPlayerSettingsDialog(
                                             title = stringResource(R.string.pd_intro_skip_duration),
                                             description = stringResource(R.string.pd_intro_skip_desc),
                                             value = currentIntroName,
-                                            icon = Icons.Rounded.SkipNext,
+                                            icon = Icons.SkipNext,
                                             iconColor = accentColor,
                                             onClick = { introDropdownExpanded = true }
                                         )
@@ -466,7 +468,7 @@ fun KitsugiPlayerSettingsDialog(
                                         title = stringResource(R.string.pd_show_episode_title),
                                         description = stringResource(R.string.pd_show_episode_title_desc),
                                         checked = showPlayerTitle,
-                                        icon = Icons.Rounded.Title,
+                                        icon = Icons.Title,
                                         iconColor = accentColor,
                                         onCheckedChange = onShowPlayerTitleChanged
                                     )
@@ -475,7 +477,7 @@ fun KitsugiPlayerSettingsDialog(
                                         title = stringResource(R.string.pd_show_resolution),
                                         description = stringResource(R.string.pd_show_resolution_desc),
                                         checked = showPlayerResolution,
-                                        icon = Icons.Rounded.Hd,
+                                        icon = Icons.Hd,
                                         iconColor = accentColor,
                                         onCheckedChange = onShowPlayerResolutionChanged
                                     )
@@ -484,7 +486,7 @@ fun KitsugiPlayerSettingsDialog(
                                         title = stringResource(R.string.pd_media_codec_info),
                                         description = stringResource(R.string.pd_show_media_info_desc),
                                         checked = showMediaInfo,
-                                        icon = Icons.Rounded.Info,
+                                        icon = Icons.Info,
                                         iconColor = accentColor,
                                         onCheckedChange = onShowMediaInfoChanged
                                     )
@@ -497,7 +499,7 @@ fun KitsugiPlayerSettingsDialog(
                                         title = stringResource(R.string.pd_still_watching),
                                         description = stringResource(R.string.pd_still_watching_desc),
                                         checked = stillWatchingEnabled,
-                                        icon = Icons.Rounded.QuestionMark,
+                                        icon = Icons.QuestionMark,
                                         iconColor = accentColor,
                                         onCheckedChange = onStillWatchingEnabledChanged
                                     )
@@ -515,7 +517,7 @@ fun KitsugiPlayerSettingsDialog(
                                                 title = stringResource(R.string.player_inactivity_threshold),
                                                 description = stringResource(R.string.pd_threshold_desc),
                                                 value = currentThresholdName,
-                                                icon = Icons.Rounded.HourglassEmpty,
+                                                icon = Icons.HourglassEmpty,
                                                 iconColor = accentColor,
                                                 onClick = { stillWatchingDropdownExpanded = true }
                                             )
@@ -547,7 +549,7 @@ fun KitsugiPlayerSettingsDialog(
                                             title = stringResource(R.string.player_post_play_mode),
                                             description = stringResource(R.string.player_post_play_mode_desc),
                                             value = currentPostName,
-                                            icon = Icons.Rounded.QueuePlayNext,
+                                            icon = Icons.QueuePlayNext,
                                             iconColor = accentColor,
                                             onClick = { postPlayDropdownExpanded = true }
                                         )
@@ -580,7 +582,7 @@ fun KitsugiPlayerSettingsDialog(
                                             title = stringResource(R.string.pd_autoplay_limit),
                                             description = stringResource(R.string.pd_session_limit_desc),
                                             value = currentLimitName,
-                                            icon = Icons.Rounded.Timer,
+                                            icon = Icons.Timer,
                                             iconColor = accentColor,
                                             onClick = { autoplayLimitDropdownExpanded = true }
                                         )
@@ -615,7 +617,7 @@ fun KitsugiPlayerSettingsDialog(
                                         title = stringResource(R.string.pd_volume_gesture),
                                         description = stringResource(R.string.pd_volume_gesture_desc),
                                         checked = gestureVolumeEnabled,
-                                        icon = Icons.Rounded.VolumeUp,
+                                        icon = Icons.VolumeUp,
                                         iconColor = accentColor,
                                         onCheckedChange = onGestureVolumeEnabledChanged
                                     )
@@ -624,7 +626,7 @@ fun KitsugiPlayerSettingsDialog(
                                         title = stringResource(R.string.pd_brightness_gesture),
                                         description = stringResource(R.string.pd_brightness_gesture_desc),
                                         checked = gestureBrightnessEnabled,
-                                        icon = Icons.Rounded.BrightnessMedium,
+                                        icon = Icons.BrightnessMedium,
                                         iconColor = accentColor,
                                         onCheckedChange = onGestureBrightnessEnabledChanged
                                     )
@@ -633,7 +635,7 @@ fun KitsugiPlayerSettingsDialog(
                                         title = stringResource(R.string.pd_pinch_zoom),
                                         description = stringResource(R.string.pd_pinch_zoom_desc),
                                         checked = gestureZoomEnabled,
-                                        icon = Icons.Rounded.ZoomIn,
+                                        icon = Icons.ZoomIn,
                                         iconColor = accentColor,
                                         onCheckedChange = onGestureZoomEnabledChanged
                                     )
@@ -667,7 +669,7 @@ fun KitsugiPlayerSettingsDialog(
                                             title = stringResource(R.string.pd_double_tap_seek),
                                             description = stringResource(R.string.pd_double_tap_seek_desc),
                                             value = "${doubleTapSeekSeconds} Saniye",
-                                            icon = Icons.Rounded.DoubleArrow,
+                                            icon = Icons.DoubleArrow,
                                             iconColor = accentColor,
                                             onClick = { doubleTapSeekDropdownExpanded = true }
                                         )
@@ -694,7 +696,7 @@ fun KitsugiPlayerSettingsDialog(
                                             title = stringResource(R.string.player_hold_speed),
                                             description = stringResource(R.string.pd_hold_speed_desc),
                                             value = "${holdSpeedMultiplier}x",
-                                            icon = Icons.Rounded.Speed,
+                                            icon = Icons.Speed,
                                             iconColor = accentColor,
                                             onClick = { holdSpeedDropdownExpanded = true }
                                         )
@@ -721,7 +723,7 @@ fun KitsugiPlayerSettingsDialog(
                                         title = stringResource(R.string.pd_invert_gestures),
                                         description = if (swipeSides) stringResource(R.string.pd_invert_off) else stringResource(R.string.pd_invert_on),
                                         checked = !swipeSides,
-                                        icon = Icons.Rounded.CompareArrows,
+                                        icon = Icons.CompareArrows,
                                         iconColor = accentColor,
                                         onCheckedChange = {
                                             scope.launch {
@@ -737,7 +739,7 @@ fun KitsugiPlayerSettingsDialog(
                                         title = stringResource(R.string.pd_horizontal_seek_gesture),
                                         description = stringResource(R.string.pd_horizontal_seek),
                                         checked = horizontalSeek,
-                                        icon = Icons.Rounded.SettingsEthernet,
+                                        icon = Icons.SettingsEthernet,
                                         iconColor = accentColor,
                                         onCheckedChange = {
                                             scope.launch {
@@ -753,7 +755,7 @@ fun KitsugiPlayerSettingsDialog(
                                         title = stringResource(R.string.pd_precise_seek_mode),
                                         description = stringResource(R.string.pd_precise_seek),
                                         checked = preciseSeek,
-                                        icon = Icons.Rounded.CenterFocusWeak,
+                                        icon = Icons.CenterFocusWeak,
                                         iconColor = accentColor,
                                         onCheckedChange = {
                                             scope.launch {
@@ -784,7 +786,7 @@ fun KitsugiPlayerSettingsDialog(
                                             title = stringResource(R.string.pd_mpv_hwdec),
                                             description = stringResource(R.string.pd_mpv_hwdec_desc),
                                             value = currentHwdec,
-                                            icon = Icons.Rounded.Memory,
+                                            icon = Icons.Memory,
                                             iconColor = accentColor,
                                             onClick = { mpvHwdecDropdownExpanded = true }
                                         )
@@ -811,7 +813,7 @@ fun KitsugiPlayerSettingsDialog(
                                             title = "MPV GPU Renderer Backend",
                                             description = stringResource(R.string.pd_mpv_gpu_desc),
                                             value = currentGpu,
-                                            icon = Icons.Rounded.SettingsApplications,
+                                            icon = Icons.SettingsApplications,
                                             iconColor = accentColor,
                                             onClick = { mpvGpuDropdownExpanded = true }
                                         )
@@ -831,6 +833,20 @@ fun KitsugiPlayerSettingsDialog(
 
                                     KitsugiSettingsDivider()
 
+                                    val dvAutoFix = appSettings?.mpvDolbyVisionAutoFix ?: true
+                                    KitsugiSettingsSwitchItem(
+                                        title = stringResource(R.string.pd_mpv_dv_autofix),
+                                        description = stringResource(R.string.pd_mpv_dv_autofix_desc),
+                                        checked = dvAutoFix,
+                                        icon = Icons.Rounded.HdrOn,
+                                        iconColor = accentColor,
+                                        onCheckedChange = {
+                                            scope.launch { settingsDataStore.setMpvDolbyVisionAutoFix(it) }
+                                        }
+                                    )
+
+                                    KitsugiSettingsDivider()
+
                                     Box {
                                         val debandOptions = listOf("none", "cpu", "gpu")
                                         val currentDeband = appSettings?.mpvDebandMode ?: "none"
@@ -838,7 +854,7 @@ fun KitsugiPlayerSettingsDialog(
                                             title = stringResource(R.string.pd_mpv_deband),
                                             description = stringResource(R.string.pd_mpv_deband_desc),
                                             value = currentDeband,
-                                            icon = Icons.Rounded.BlurOn,
+                                            icon = Icons.BlurOn,
                                             iconColor = accentColor,
                                             onClick = { mpvDebandDropdownExpanded = true }
                                         )
@@ -863,7 +879,7 @@ fun KitsugiPlayerSettingsDialog(
                                         title = stringResource(R.string.pd_mpv_yuv),
                                         description = stringResource(R.string.pd_mpv_yuv_desc),
                                         checked = forceYuv,
-                                        icon = Icons.Rounded.ColorLens,
+                                        icon = Icons.ColorLens,
                                         iconColor = accentColor,
                                         onCheckedChange = {
                                             scope.launch { settingsDataStore.setMpvForceYuv420p(it) }
@@ -918,7 +934,7 @@ fun KitsugiPlayerSettingsDialog(
                                             title = stringResource(R.string.pd_sub_font_size),
                                             description = stringResource(R.string.pd_sub_font_size_desc),
                                             value = currentSizeLabel,
-                                            icon = Icons.Rounded.TextFields,
+                                            icon = Icons.TextFields,
                                             iconColor = accentColor,
                                             onClick = { subSizeDropdownExpanded = true }
                                         )
@@ -951,7 +967,7 @@ fun KitsugiPlayerSettingsDialog(
                                             title = stringResource(R.string.pd_sub_font_color),
                                             description = stringResource(R.string.pd_sub_font_color_desc),
                                             value = currentColorLabel,
-                                            icon = Icons.Rounded.ColorLens,
+                                            icon = Icons.ColorLens,
                                             iconColor = accentColor,
                                             onClick = { subColorDropdownExpanded = true }
                                         )
@@ -975,7 +991,7 @@ fun KitsugiPlayerSettingsDialog(
                                         title = stringResource(R.string.pd_sub_bold),
                                         description = stringResource(R.string.pd_sub_bold_desc),
                                         checked = subtitleBold,
-                                        icon = Icons.Rounded.FormatBold,
+                                        icon = Icons.FormatBold,
                                         iconColor = accentColor,
                                         onCheckedChange = onSubtitleBoldChanged
                                     )
@@ -987,7 +1003,7 @@ fun KitsugiPlayerSettingsDialog(
                                         title = stringResource(R.string.pd_sub_italic),
                                         description = stringResource(R.string.pd_sub_italic_desc),
                                         checked = italicSub,
-                                        icon = Icons.Rounded.FormatItalic,
+                                        icon = Icons.FormatItalic,
                                         iconColor = accentColor,
                                         onCheckedChange = {
                                             scope.launch { settingsDataStore.setSubtitleItalic(it) }
@@ -1000,7 +1016,7 @@ fun KitsugiPlayerSettingsDialog(
                                         title = stringResource(R.string.pd_sub_outline),
                                         description = stringResource(R.string.pd_sub_outline_desc),
                                         checked = subtitleOutlineEnabled,
-                                        icon = Icons.Rounded.FormatPaint,
+                                        icon = Icons.FormatPaint,
                                         iconColor = accentColor,
                                         onCheckedChange = onSubtitleOutlineEnabledChanged
                                     )
@@ -1019,7 +1035,7 @@ fun KitsugiPlayerSettingsDialog(
                                             title = stringResource(R.string.pd_sub_alignment),
                                             description = stringResource(R.string.pd_sub_alignment_desc),
                                             value = currentJustLabel,
-                                            icon = Icons.Rounded.FormatAlignLeft,
+                                            icon = Icons.FormatAlignLeft,
                                             iconColor = accentColor,
                                             onClick = { subJustificationDropdownExpanded = true }
                                         )
@@ -1051,7 +1067,7 @@ fun KitsugiPlayerSettingsDialog(
                                             title = stringResource(R.string.pd_bg_color),
                                             description = stringResource(R.string.pd_bg_color_desc),
                                             value = currentBgLabel,
-                                            icon = Icons.Rounded.SelectAll,
+                                            icon = Icons.SelectAll,
                                             iconColor = accentColor,
                                             onClick = { subBgColorDropdownExpanded = true }
                                         )
@@ -1100,7 +1116,7 @@ fun KitsugiPlayerSettingsDialog(
                                             title = stringResource(R.string.pd_border_color),
                                             description = stringResource(R.string.pd_border_color_desc),
                                             value = currentBorderColorLabel,
-                                            icon = Icons.Rounded.BorderOuter,
+                                            icon = Icons.BorderOuter,
                                             iconColor = accentColor,
                                             onClick = { subBorderColorDropdownExpanded = true }
                                         )
@@ -1184,7 +1200,7 @@ fun KitsugiPlayerSettingsDialog(
                                     Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             Icon(
-                                                imageVector = Icons.Rounded.Language,
+                                                imageVector = Icons.Language,
                                                 contentDescription = null,
                                                 tint = accentColor,
                                                 modifier = Modifier.size(20.dp)
@@ -1263,7 +1279,7 @@ fun KitsugiPlayerSettingsDialog(
                                             title = stringResource(R.string.pd_sub_load_mode),
                                             description = stringResource(R.string.pd_sub_load_mode_desc),
                                             value = currentStartupModeName,
-                                            icon = Icons.Rounded.FilterList,
+                                            icon = Icons.FilterList,
                                             iconColor = accentColor,
                                             onClick = { subStartupDropdownExpanded = true }
                                         )
@@ -1301,7 +1317,7 @@ fun KitsugiPlayerSettingsDialog(
                                             title = stringResource(R.string.pd_volume_cap),
                                             description = stringResource(R.string.pd_volume_cap_desc),
                                             value = "%$currentCap",
-                                            icon = Icons.Rounded.Equalizer,
+                                            icon = Icons.Equalizer,
                                             iconColor = accentColor,
                                             onClick = { volBoostCapDropdownExpanded = true }
                                         )
@@ -1334,7 +1350,7 @@ fun KitsugiPlayerSettingsDialog(
                                             title = stringResource(R.string.pd_default_boost),
                                             description = stringResource(R.string.pd_default_boost_desc),
                                             value = currentBoostName,
-                                            icon = Icons.Rounded.VolumeUp,
+                                            icon = Icons.VolumeUp,
                                             iconColor = accentColor,
                                             onClick = { audioBoostDropdownExpanded = true }
                                         )
@@ -1373,7 +1389,7 @@ fun KitsugiPlayerSettingsDialog(
                                             title = stringResource(R.string.sub_audio_delay),
                                             description = stringResource(R.string.pd_default_audio_delay_desc),
                                             value = currentDelayName,
-                                            icon = Icons.Rounded.AvTimer,
+                                            icon = Icons.AvTimer,
                                             iconColor = accentColor,
                                             onClick = { audioDelayDropdownExpanded = true }
                                         )
@@ -1482,7 +1498,7 @@ fun KitsugiPlayerSettingsDialog(
                                     .padding(bottom = 12.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = accentColor)
                             ) {
-                                Icon(Icons.Rounded.Add, contentDescription = null, tint = com.kitsugi.animelist.ui.theme.onAccentColor(accentColor))
+                                Icon(Icons.Add, contentDescription = null, tint = com.kitsugi.animelist.ui.theme.onAccentColor(accentColor))
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(stringResource(R.string.pd_add_custom_button), color = com.kitsugi.animelist.ui.theme.onAccentColor(accentColor))
                             }
@@ -1540,7 +1556,7 @@ fun KitsugiPlayerSettingsDialog(
                                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                                     IconButton(onClick = { showButtonEditDialog = btn }) {
                                                         Icon(
-                                                            Icons.Rounded.Edit,
+                                                            Icons.Edit,
                                                             contentDescription = stringResource(R.string.pd_edit),
                                                             tint = KitsugiColors.TextSecondary
                                                         )
@@ -1553,7 +1569,7 @@ fun KitsugiPlayerSettingsDialog(
                                                         }
                                                     ) {
                                                         Icon(
-                                                            Icons.Rounded.Delete,
+                                                            Icons.Delete,
                                                             contentDescription = stringResource(R.string.action_delete),
                                                             tint = accentColor
                                                         )
@@ -1565,6 +1581,39 @@ fun KitsugiPlayerSettingsDialog(
                                 }
                             }
                         }
+                    }
+
+                    PlayerSettingsSubScreen.Klavye -> {
+                        PlayerKeyboardTab(
+                            keyboardEnabled = appSettings?.keyboardEnabled ?: true,
+                            autoDetectExternalKeyboard = appSettings?.autoDetectExternalKeyboard ?: true,
+                            gamepadEnabled = appSettings?.gamepadEnabled ?: true,
+                            keyboardOsdEnabled = appSettings?.keyboardOsdEnabled ?: true,
+                            keyboardOsdDurationScale = appSettings?.keyboardOsdDurationScale ?: 1f,
+                            keyboardOpensFullOsd = appSettings?.keyboardOpensFullOsd ?: false,
+                            keyboardHelpEnabled = appSettings?.keyboardHelpEnabled ?: true,
+                            disabledShortcuts = appSettings?.disabledShortcuts ?: "",
+                            customBindings = appSettings?.customBindings ?: "",
+                            seekStepSeconds = appSettings?.keyboardSeekStepSeconds ?: 5,
+                            preciseSeekSeconds = appSettings?.keyboardPreciseSeekSeconds ?: 1,
+                            largeSeekSeconds = appSettings?.keyboardLargeSeekSeconds ?: 60,
+                            holdToAccelerate = appSettings?.keyboardHoldToAccelerate ?: true,
+                            accentColor = accentColor,
+                            onKeyboardEnabledChanged = { scope.launch { settingsDataStore.setKeyboardEnabled(it) } },
+                            onAutoDetectChanged = { scope.launch { settingsDataStore.setKeyboardAutoDetect(it) } },
+                            onGamepadEnabledChanged = { scope.launch { settingsDataStore.setGamepadEnabled(it) } },
+                            onOsdEnabledChanged = { scope.launch { settingsDataStore.setKeyboardOsdEnabled(it) } },
+                            onOsdDurationScaleChanged = { scope.launch { settingsDataStore.setKeyboardOsdDurationScale(it) } },
+                            onOpensFullOsdChanged = { scope.launch { settingsDataStore.setKeyboardOpensFullOsd(it) } },
+                            onHelpEnabledChanged = { scope.launch { settingsDataStore.setKeyboardHelpEnabled(it) } },
+                            onDisabledShortcutsChanged = { scope.launch { settingsDataStore.setKeyboardDisabledShortcuts(it) } },
+                            onCustomBindingsChanged = { scope.launch { settingsDataStore.setKeyboardCustomBindings(it) } },
+                            onSeekStepSelected = { scope.launch { settingsDataStore.setKeyboardSeekStepSeconds(it) } },
+                            onPreciseSeekSelected = { scope.launch { settingsDataStore.setKeyboardPreciseSeekSeconds(it) } },
+                            onLargeSeekSelected = { scope.launch { settingsDataStore.setKeyboardLargeSeekSeconds(it) } },
+                            onHoldToAccelerateChanged = { scope.launch { settingsDataStore.setKeyboardHoldToAccelerate(it) } },
+                            listState = pageScrollState,
+                        )
                     }
 
                     PlayerSettingsSubScreen.KodDuzenleyici -> {
@@ -1625,7 +1674,7 @@ fun KitsugiPlayerSettingsDialog(
                                     .padding(bottom = 12.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = accentColor)
                             ) {
-                                Icon(Icons.Rounded.Add, contentDescription = null, tint = com.kitsugi.animelist.ui.theme.onAccentColor(accentColor))
+                                Icon(Icons.Add, contentDescription = null, tint = com.kitsugi.animelist.ui.theme.onAccentColor(accentColor))
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(stringResource(R.string.pd_new_file), color = com.kitsugi.animelist.ui.theme.onAccentColor(accentColor))
                             }
@@ -1679,7 +1728,7 @@ fun KitsugiPlayerSettingsDialog(
                                                         }
                                                     ) {
                                                         Icon(
-                                                            Icons.Rounded.Edit,
+                                                            Icons.Edit,
                                                             contentDescription = stringResource(R.string.pd_edit),
                                                             tint = KitsugiColors.TextSecondary
                                                         )
@@ -1691,7 +1740,7 @@ fun KitsugiPlayerSettingsDialog(
                                                         }
                                                     ) {
                                                         Icon(
-                                                            Icons.Rounded.Delete,
+                                                            Icons.Delete,
                                                             contentDescription = stringResource(R.string.action_delete),
                                                             tint = accentColor
                                                         )
@@ -1770,7 +1819,7 @@ fun KitsugiPlayerSettingsDialog(
                                         title = stringResource(R.string.pd_enable_user_files),
                                         description = stringResource(R.string.pd_enable_user_files_desc),
                                         checked = userFilesEnabled,
-                                        icon = Icons.Rounded.FolderOpen,
+                                        icon = Icons.FolderOpen,
                                         iconColor = accentColor,
                                         onCheckedChange = {
                                             userFilesEnabled = it
@@ -1783,7 +1832,7 @@ fun KitsugiPlayerSettingsDialog(
                                     KitsugiSettingsItem(
                                         title = stringResource(R.string.pd_edit_mpv_conf),
                                         description = stringResource(R.string.pd_edit_mpv_conf_desc),
-                                        icon = Icons.Rounded.EditNote,
+                                        icon = Icons.EditNote,
                                         iconColor = accentColor,
                                         onClick = {
                                             val f = File(context.filesDir, "mpv.conf")
@@ -1798,7 +1847,7 @@ fun KitsugiPlayerSettingsDialog(
                                     KitsugiSettingsItem(
                                         title = stringResource(R.string.pd_edit_input_conf),
                                         description = stringResource(R.string.pd_edit_input_conf_desc),
-                                        icon = Icons.Rounded.Keyboard,
+                                        icon = Icons.Keyboard,
                                         iconColor = accentColor,
                                         onClick = {
                                             val f = File(context.filesDir, "input.conf")

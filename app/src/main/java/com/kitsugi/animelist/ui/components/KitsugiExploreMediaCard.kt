@@ -21,13 +21,7 @@ import androidx.compose.material3.CardDefaults
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.MaterialTheme
 import com.kitsugi.animelist.ui.theme.gradient.Text
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.Pause
-import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.Repeat
-import androidx.compose.material.icons.rounded.Schedule
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -53,11 +47,29 @@ import com.kitsugi.animelist.utils.PreferenceHelpers.getDisplayTitle
 import com.kitsugi.animelist.utils.PreferenceHelpers.getDisplayScore
 import com.kitsugi.animelist.utils.toFriendlySourceLabel
 
+import androidx.compose.ui.unit.Dp
+
 /** Dikey kartta başlık/meta alanının sabit yüksekliği (tüm kartlar aynı boyutta görünsün diye). */
-private val EXPLORE_CARD_PORTRAIT_TEXT_HEIGHT = 182.dp
+internal val EXPLORE_CARD_PORTRAIT_TEXT_HEIGHT = 182.dp
 
 /** TV kartında başlık/meta alanının sabit yüksekliği. */
-private val EXPLORE_CARD_TV_TEXT_HEIGHT = 76.dp
+internal val EXPLORE_CARD_TV_TEXT_HEIGHT = 76.dp
+
+/** Shared shelf and landscape dimensions for loaded cards and their placeholders. */
+internal fun exploreShelfCardWidth(isLandscape: Boolean): Dp =
+    if (isLandscape) 260.dp else 180.dp
+
+internal fun exploreLandscapePosterWidth(screenWidthDp: Int): Dp = when {
+    screenWidthDp >= 1200 -> 110.dp
+    screenWidthDp >= 800 -> 100.dp
+    else -> 90.dp
+}
+
+internal fun exploreLandscapePosterHeight(screenWidthDp: Int): Dp = when {
+    screenWidthDp >= 1200 -> 160.dp
+    screenWidthDp >= 800 -> 145.dp
+    else -> 130.dp
+}
 
 @Composable
 fun KitsugiExploreMediaCard(
@@ -67,7 +79,7 @@ fun KitsugiExploreMediaCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     onLongClick: (() -> Unit)? = null,
-    titleLanguage: String = "ROMAJI",
+    titleLanguage: String = "ENGLISH",
     scoreFormat: String = "POINT_10",
     hideScores: Boolean = false,
     blurAdultMedia: Boolean = false,
@@ -214,15 +226,15 @@ fun KitsugiExploreMediaCard(
                             )
                             val displayScore = mediaEntry.getDisplayScore(scoreFormat, hideScores)
                             val isUnrated = displayScore == "unrated" || displayScore == "Unrated" || displayScore == "Puanlanmamış" || displayScore == "Puan yok"
-                            val scoreLabel = if (isUnrated) "—" else "★ $displayScore"
+                            val scoreLabel = if (isUnrated) "—" else displayScore
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "• $scoreLabel",
+                            KitsugiEmojiLabel(
+                                label = scoreLabel,
+                                icon = if (isUnrated) null else Icons.StarSolid,
+                                iconSize = 9.dp,
                                 color = KitsugiColors.TextMuted,
                                 style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 9.sp,
-                                maxLines = 1
+                                fontWeight = FontWeight.Bold
                             )
                         }
                         Spacer(modifier = Modifier.height(4.dp))
@@ -249,34 +261,15 @@ fun KitsugiExploreMediaCard(
         } else if (isLandscape) {
             val landscapeScreenWidthDp = LocalConfiguration.current.screenWidthDp
             // Yatay kartlar: satır yüksekliği poster yüksekliğine sabit → tüm kartlar aynı boyutta
-            val landscapeRowHeight = remember(landscapeScreenWidthDp) {
-                when {
-                    landscapeScreenWidthDp >= 1200 -> 160.dp
-                    landscapeScreenWidthDp >= 800 -> 145.dp
-                    else -> 130.dp
-                }
-            }
+            val landscapeRowHeight = exploreLandscapePosterHeight(landscapeScreenWidthDp)
             Row(
                 modifier = Modifier
                     .padding(12.dp)
                     .height(landscapeRowHeight),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                val screenWidthDp = landscapeScreenWidthDp
-                val posterWidth = remember(screenWidthDp) {
-                    when {
-                        screenWidthDp >= 1200 -> 110.dp
-                        screenWidthDp >= 800 -> 100.dp
-                        else -> 90.dp
-                    }
-                }
-                val posterHeight = remember(screenWidthDp) {
-                    when {
-                        screenWidthDp >= 1200 -> 160.dp
-                        screenWidthDp >= 800 -> 145.dp
-                        else -> 130.dp
-                    }
-                }
+                val posterWidth = exploreLandscapePosterWidth(landscapeScreenWidthDp)
+                val posterHeight = exploreLandscapePosterHeight(landscapeScreenWidthDp)
                 Box(
                     modifier = Modifier
                         .size(width = posterWidth, height = posterHeight)
@@ -379,10 +372,12 @@ fun KitsugiExploreMediaCard(
                             )
                             val displayScore = mediaEntry.getDisplayScore(scoreFormat, hideScores)
                             val isUnrated = displayScore == "unrated" || displayScore == "Unrated" || displayScore == "Puanlanmamış" || displayScore == "Puan yok"
-                            val scoreLabel = if (isUnrated) "—" else "★ $displayScore"
+                            val scoreLabel = if (isUnrated) "—" else displayScore
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "• $scoreLabel",
+                            KitsugiEmojiLabel(
+                                label = scoreLabel,
+                                icon = if (isUnrated) null else Icons.StarSolid,
+                                iconSize = 9.dp,
                                 color = KitsugiColors.TextMuted,
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold
@@ -528,10 +523,12 @@ fun KitsugiExploreMediaCard(
                             )
                             val displayScore = mediaEntry.getDisplayScore(scoreFormat, hideScores)
                             val isUnrated = displayScore == "unrated" || displayScore == "Unrated" || displayScore == "Puanlanmamış" || displayScore == "Puan yok"
-                            val scoreLabel = if (isUnrated) "—" else "★ $displayScore"
+                            val scoreLabel = if (isUnrated) "—" else displayScore
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "• $scoreLabel",
+                            KitsugiEmojiLabel(
+                                label = scoreLabel,
+                                icon = if (isUnrated) null else Icons.StarSolid,
+                                iconSize = 9.dp,
                                 color = KitsugiColors.TextMuted,
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold
@@ -574,12 +571,12 @@ private fun StatusBadge(
 ) {
     val color = statusColor(status)
     val icon = when (status) {
-        com.kitsugi.animelist.model.WatchStatus.Watching   -> Icons.Rounded.PlayArrow
-        com.kitsugi.animelist.model.WatchStatus.Completed  -> Icons.Rounded.Check
-        com.kitsugi.animelist.model.WatchStatus.Planned    -> Icons.Rounded.Schedule
-        com.kitsugi.animelist.model.WatchStatus.Dropped    -> Icons.Rounded.Close
-        com.kitsugi.animelist.model.WatchStatus.Paused     -> Icons.Rounded.Pause
-        com.kitsugi.animelist.model.WatchStatus.Repeating  -> Icons.Rounded.Repeat
+        com.kitsugi.animelist.model.WatchStatus.Watching   -> Icons.PlayArrow
+        com.kitsugi.animelist.model.WatchStatus.Completed  -> Icons.Check
+        com.kitsugi.animelist.model.WatchStatus.Planned    -> Icons.Schedule
+        com.kitsugi.animelist.model.WatchStatus.Dropped    -> Icons.Close
+        com.kitsugi.animelist.model.WatchStatus.Paused     -> Icons.Pause
+        com.kitsugi.animelist.model.WatchStatus.Repeating  -> Icons.Repeat
     }
 
     Box(

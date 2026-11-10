@@ -34,6 +34,16 @@ class MangaCache(private val context: Context) {
         private const val MAX_SIZE_MB  = 150L               // Maksimum 150 MB önbellek
         private const val MAX_BYTES    = MAX_SIZE_MB * 1024 * 1024
 
+        @Volatile
+        private var singleton: MangaCache? = null
+
+        /** Process-wide cache object for source-owned streaming readers. */
+        fun getInstance(context: Context): MangaCache {
+            return singleton ?: synchronized(this) {
+                singleton ?: MangaCache(context.applicationContext).also { singleton = it }
+            }
+        }
+
         /**
          * Artımlı toplam boyut — **süreç genelinde paylaşılır**.
          *
@@ -62,10 +72,27 @@ class MangaCache(private val context: Context) {
         return false
     }
 
-    private fun isDecodableImage(file: File): Boolean {
+    private fun imageDimensions(file: File): Pair<Int, Int>? {
         val options = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
         android.graphics.BitmapFactory.decodeFile(file.absolutePath, options)
-        return options.outWidth > 0 && options.outHeight > 0
+        return if (options.outWidth > 0 && options.outHeight > 0) {
+            options.outWidth to options.outHeight
+        } else {
+            com.kitsugi.animelist.data.manga.image.MangaNativeFormats.dimensions(file)
+        }
+    }
+
+    private fun isDecodableImage(file: File): Boolean = imageDimensions(file) != null
+
+    /** Call off the UI thread; needed to give webtoon pages their actual aspect ratio. */
+    fun getImageDimensions(imageUrl: String): Pair<Int, Int>? = imageDimensions(cacheFile(imageUrl))
+
+    /** Remove a failed decode before asking the source for a fresh copy. */
+    @Synchronized
+    fun removeImage(imageUrl: String) {
+        val file = cacheFile(imageUrl)
+        val size = file.length()
+        if (file.delete()) adjustSize(-size)
     }
 
     // ─── Okuma ───────────────────────────────────────────────────────────────
@@ -104,9 +131,9 @@ class MangaCache(private val context: Context) {
             Log.v(TAG, "Önbelleğe kaydedildi: ${target.name} (${target.length()} bytes)")
 
             // ERKEN ÇIKIŞ: sayaç artık bellekte olduğu için bütçe kontrolü bedavadır.
-            if (totalBytes() > MAX_BYTES) trimIfNeeded()
+            if (totalBytes() > MAX_BYTES) trimToBudget(MAX_BYTES, protectedFile = target)
         } catch (e: Exception) {
-            Log.e(TAG, "Önbellek yazma hatası [$imageUrl]: ${e.message}")
+            Log.e(TAG, "Önbellek yazma hatası: ${e.javaClass.simpleName}")
             if (temp.exists()) temp.delete()
             throw e
         }
@@ -114,18 +141,15 @@ class MangaCache(private val context: Context) {
 
     // ─── Temizleme ────────────────────────────────────────────────────────────
 
-    /** Önbellek boyutu MAX_BYTES'ı aşarsa en eski dosyaları siler. */
-    private fun trimIfNeeded() {
-        trimToBudget(MAX_BYTES)
-    }
-
     /**
      * Önbelleği [budget] bayta indirir (bütçenin %85'ine kadar). Silinen bayt miktarını döner.
      *
      * [com.kitsugi.animelist.core.storage.StorageJanitor] arka plan bakımında da çağırır.
      */
     @Synchronized
-    fun trimToBudget(budget: Long): Long {
+    fun trimToBudget(budget: Long): Long = trimToBudget(budget, protectedFile = null)
+
+    private fun trimToBudget(budget: Long, protectedFile: File?): Long {
         val files = cacheDir.listFiles()?.filterNot { it.name.endsWith(".tmp") }?.toMutableList() ?: return 0L
         var totalSize = files.sumOf { it.length() }
         if (totalSize <= budget) {
@@ -138,6 +162,8 @@ class MangaCache(private val context: Context) {
         var freed = 0L
         for (file in files) {
             if (totalSize <= budget * 0.85) break   // %85'e düş
+            // The newly written page must still exist when the caller marks it Ready.
+            if (file == protectedFile) continue
             val size = file.length()
             if (file.delete()) {
                 totalSize -= size
@@ -187,7 +213,7 @@ class MangaCache(private val context: Context) {
     private fun cacheFile(imageUrl: String): File {
         val hash = sha1(imageUrl)
         val ext = imageUrl.substringBefore("?").substringAfterLast(".").lowercase()
-            .takeIf { it.length in 2..4 && it in setOf("jpg", "jpeg", "png", "webp", "gif", "avif") }
+            .takeIf { it.length in 2..4 && it in setOf("jpg", "jpeg", "png", "webp", "gif", "avif", "heif", "heic", "jxl") }
             ?: "jpg"
         return File(cacheDir, "$hash.$ext")
     }

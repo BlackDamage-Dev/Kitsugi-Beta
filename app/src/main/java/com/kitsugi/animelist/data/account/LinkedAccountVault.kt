@@ -66,6 +66,8 @@ import com.kitsugi.animelist.R
  *  • Kitsugi şifresi hiçbir yerde saklanmaz.
  *  • Şifre unutulursa yedek çözülemez; servislere yeniden giriş gerekir.
  */
+enum class VaultSyncScope { ENABLED_CATEGORIES, LINKED_ACCOUNTS, ADDONS }
+
 object LinkedAccountVault {
 
     // Token'ların bulunduğu mevcut SharedPreferences dosyası (diğer auth sınıflarıyla aynı)
@@ -164,6 +166,9 @@ object LinkedAccountVault {
         appContext?.let { VaultBackupWorker.enqueue(it, uid) }
     }
 
+    /** Add-on repositories and installed-source files are part of the encrypted vault snapshot. */
+    fun onAddonInventoryChanged() = scheduleBackup()
+
     // Listener bir alanda tutulmalı: SharedPreferences listener'ları zayıf referansla saklar,
     // yerel değişkende tutulursa çöp toplayıcı tarafından silinir.
     private val autoBackupListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
@@ -186,16 +191,25 @@ object LinkedAccountVault {
     private fun tokenPrefs(context: Context): SharedPreferences =
         context.applicationContext.getSharedPreferences(TOKEN_PREFS, Context.MODE_PRIVATE)
 
-    /** Yedeklenecek token'ları tip bilgisiyle JSON dizisine çevirir. */
-    private suspend fun snapshot(context: Context): ByteArray {
+    /** Seçili token, taşınabilir ayar ve eklenti kayıtlarını tip bilgisiyle JSON dizisine çevirir. */
+    private suspend fun snapshot(context: Context, owner: String, includeAddons: Boolean = true): ByteArray {
         val all = tokenPrefs(context).all
         val settings = SettingsDataStore(context).cloudSettingsFlow.first()
+        val addons = if (includeAddons) AddonVaultBackup.snapshot(context, owner) else emptyList()
         val entries = buildJsonArray {
             all.forEach { (k, v) ->
                 if (!isAllowed(k) || v == null) return@forEach
                 addJsonObject(k, v)
             }
             settings.forEach { (k, v) -> addJsonObject(k, v, "settings") }
+            addons.forEach { record ->
+                add(buildJsonObject {
+                    put("section", "addons")
+                    put("k", record.key)
+                    put("t", "s")
+                    put("v", record.value)
+                })
+            }
         }
         return entries.toString().toByteArray(Charsets.UTF_8)
     }
@@ -217,16 +231,26 @@ object LinkedAccountVault {
         })
     }
 
-    /** Yedek verisini token dosyasına geri yazar. Sadece izinli anahtarlara dokunur. */
-    private suspend fun restore(context: Context, plain: ByteArray) {
+    /** Yedek verisini yerel kasaya geri yazar. Addon girdileri de aynı uçtan uca şifreli yükün içindedir. */
+    private suspend fun restore(context: Context, owner: String, plain: ByteArray) {
         val arr = json.parseToJsonElement(plain.toString(Charsets.UTF_8)).jsonArray
         val editor = tokenPrefs(context).edit()
         ALLOWED_PREFIXES.forEach { editor.remove(it) }
         val settings = mutableMapOf<String, Any>()
+        val addonRecords = mutableListOf<VaultAddonRecord>()
+        val addonsEnabled = SettingsDataStore(context).settingsFlow.first().accountAddonSyncEnabled
         arr.forEach { el ->
             val obj = el.jsonObject
+            val section = obj["section"]?.jsonPrimitive?.content
             val key = obj["k"]?.jsonPrimitive?.content ?: return@forEach
-            if (obj["section"]?.jsonPrimitive?.content == "settings") {
+            if (section == "addons") {
+                if (!addonsEnabled) return@forEach
+                require(obj["t"]?.jsonPrimitive?.content == "s") { "Şifreli eklenti yedeği biçimi geçersiz." }
+                val value = obj["v"]?.jsonPrimitive?.content ?: error("Şifreli eklenti kaydı boş.")
+                addonRecords += VaultAddonRecord(key, value)
+                return@forEach
+            }
+            if (section == "settings") {
                 val value = obj["v"]?.jsonPrimitive ?: return@forEach
                 settings[key] = when (obj["t"]?.jsonPrimitive?.content) {
                     "s" -> value.content
@@ -246,9 +270,11 @@ object LinkedAccountVault {
                 "f" -> editor.putFloat(key, v.content.toFloat())
             }
         }
+        if (addonsEnabled) AddonVaultBackup.validateRecords(addonRecords)
         // Restore runs under the vault mutex; no upload may race a partial restore.
         check(editor.commit())
         SettingsDataStore(context).restoreCloudSettings(settings)
+        if (addonsEnabled) AddonVaultBackup.restoreIfChanged(context, owner, addonRecords)
     }
 
     // ─────────────────────────── Yerel kasa anahtarı ───────────────────────────
@@ -262,7 +288,10 @@ object LinkedAccountVault {
     }.getOrDefault(false)
 
     private fun forgetLocalVaultUnlocked(context: Context) {
-        LocalVaultKeyStore.owner(context)?.let { VaultBackupWorker.cancel(context, it) }
+        LocalVaultKeyStore.owner(context)?.let {
+            VaultBackupWorker.cancel(context, it)
+            AddonVaultBackup.clearPending(context, it)
+        }
         LocalVaultKeyStore.clear(context)
         _unlockedOwner.value = null
         _conflicts.value = emptySet()
@@ -274,7 +303,8 @@ object LinkedAccountVault {
     /** Keep the only local decryption key if flushing or server sign-out fails. */
     suspend fun signOutAndForget(context: Context, signOut: suspend () -> Unit): Result<Unit> = operation(context) {
         val uid = userId()
-        val enabled = SettingsDataStore(context).settingsFlow.first().accountBackupEnabled
+        val settings = SettingsDataStore(context).settingsFlow.first()
+        val enabled = settings.accountBackupEnabled || settings.accountAddonSyncEnabled
         if (uid != null && enabled && hasLocalVault(context)) backupUnlocked(context, uid)
         signOut()
         forgetLocalVaultUnlocked(context)
@@ -318,11 +348,13 @@ object LinkedAccountVault {
         try {
             val uid = userId() ?: throw AccountSessionChangedException()
             if (uid != expectedOwner) throw AccountSessionChangedException()
-            // A prior account's conflicts must not be shown under this identity.
+            // A prior account's conflicts or restore plan must not be shown under this identity.
             _conflicts.value = emptySet()
             conflictRemote = null
             conflictOwner = null
-            autoBackupEnabled = SettingsDataStore(context).settingsFlow.first().accountBackupEnabled
+            AddonVaultBackup.refreshPending(context, uid)
+            val accountSettings = SettingsDataStore(context).settingsFlow.first()
+            autoBackupEnabled = accountSettings.accountBackupEnabled || accountSettings.accountAddonSyncEnabled
             _status.value = KitsugiStrings.get(R.string.account_vault_checking)
             LocalVaultKeyStore.owner(context)?.takeIf { it != uid }?.let { VaultBackupWorker.cancel(context, it) }
             val metaJson = fetchRow(uid, ROW_META)
@@ -350,13 +382,27 @@ object LinkedAccountVault {
                     if (autoBackupEnabled) backupUnlocked(context, uid)
                 } else {
                     val remoteJson = fetchRow(uid, ROW_PAYLOAD)
-                    val remote = payload(remoteJson, key)
-                    if (remoteJson != null) restore(context, remote.toString().toByteArray(Charsets.UTF_8))
+                    val remoteArray = payload(remoteJson, key)
+                    val remoteGroups = VaultMerge.groups(remoteArray)
+                    // Add-on sync may be disabled; do not let its local database block token recovery.
+                    // Disabled add-on categories start from an empty baseline and merge only when re-enabled.
+                    if (remoteJson != null) restore(context, uid, remoteArray.toString().toByteArray(Charsets.UTF_8))
                     LocalVaultKeyStore.save(context, uid, key)
-                    val hashes = VaultMerge.hashes(VaultMerge.groups(remote))
-                    LocalVaultKeyStore.saveBaseline(context, uid, hashes, hashes)
-                    if (remoteJson == null) { if (autoBackupEnabled) backupUnlocked(context, uid) }
-                    else _status.value = KitsugiStrings.get(R.string.bagli_hesaplarin_sifreli_yedegi_geri_yuklendi)
+                    if (remoteJson == null) {
+                        LocalVaultKeyStore.saveBaseline(context, uid, emptyMap(), emptyMap())
+                        if (autoBackupEnabled) backupUnlocked(context, uid)
+                    } else {
+                        val localAfter = VaultMerge.groups(json.parseToJsonElement(
+                            snapshot(context, uid, includeAddons = accountSettings.accountAddonSyncEnabled).toString(Charsets.UTF_8)
+                        ).jsonArray)
+                        val baselines = baselineAfterRestore(
+                            localAfter = localAfter,
+                            remote = remoteGroups,
+                            restoreAddons = accountSettings.accountAddonSyncEnabled
+                        )
+                        LocalVaultKeyStore.saveBaseline(context, uid, baselines.local, baselines.remote)
+                        _status.value = KitsugiStrings.get(R.string.bagli_hesaplarin_sifreli_yedegi_geri_yuklendi)
+                    }
                 }
                 // Only a successfully authenticated NEW password may finalize a pending transition.
                 // An old-password login must not discard a staged new wrap while Auth update is in flight.
@@ -371,21 +417,71 @@ object LinkedAccountVault {
         } finally { restoring = false }
     }
 
-    /** Mevcut token ve taşınabilir ayarları şifreler. Kilitli kasa başarı sayılmaz. */
+    /** On a new device, remote addon entries are applied additively. Keep local-only entries
+     * marked as unsynced so the first upload can merge them without overwriting remote changes. */
+    private fun baselineAfterRestore(
+        localAfter: Map<String, JsonArray>,
+        remote: Map<String, JsonArray>,
+        restoreAddons: Boolean
+    ): VaultMerge.Baselines {
+        val local = mutableMapOf<String, String>()
+        val remoteBaseline = mutableMapOf<String, String>()
+        (localAfter.keys + remote.keys).forEach { group ->
+            if (group.startsWith("addons:")) {
+                if (restoreAddons) {
+                    val cloudValue = remote[group]
+                    // A local-only item is intentionally left changed against an empty baseline;
+                    // it will be unioned into the cloud on the next enabled sync.
+                    val baseline = VaultMerge.hash(cloudValue)
+                    local[group] = baseline
+                    remoteBaseline[group] = baseline
+                } else {
+                    // Leave both sides unseen while the category is disabled. On re-enable,
+                    // one-sided entries merge automatically and divergent entries require a choice.
+                    local[group] = VaultMerge.hash(null)
+                    remoteBaseline[group] = VaultMerge.hash(null)
+                }
+            } else {
+                val baseline = VaultMerge.hash(remote[group])
+                local[group] = baseline
+                remoteBaseline[group] = baseline
+            }
+        }
+        return VaultMerge.Baselines(local, remoteBaseline)
+    }
+
+    /** Mevcut token, ayar ve eklenti listesini seçilen kategorilere göre şifreler. Kilitli kasa başarı sayılmaz. */
     suspend fun backupNow(
-        context: Context, expectedOwner: String? = null, automatic: Boolean = false
+        context: Context,
+        expectedOwner: String? = null,
+        automatic: Boolean = false,
+        syncScope: VaultSyncScope = VaultSyncScope.ENABLED_CATEGORIES
     ): Result<Unit> = operation(context) {
         // Check again INSIDE the session lock: the preference may have changed
         // while an already-running worker was waiting for an auth operation.
-        if (automatic && !SettingsDataStore(context).settingsFlow.first().accountBackupEnabled) return@operation
-        backupUnlocked(context, expectedOwner ?: userId() ?: throw VaultLockedException())
+        val settings = SettingsDataStore(context).settingsFlow.first()
+        if (automatic && !settings.accountBackupEnabled && !settings.accountAddonSyncEnabled) return@operation
+        backupUnlocked(
+            context,
+            expectedOwner ?: userId() ?: throw VaultLockedException(),
+            syncScope = syncScope
+        )
     }
 
-    private suspend fun backupUnlocked(context: Context, uid: String, preferLocal: Boolean? = null) {
+    private suspend fun backupUnlocked(
+        context: Context,
+        uid: String,
+        preferLocal: Boolean? = null,
+        syncScope: VaultSyncScope = VaultSyncScope.ENABLED_CATEGORIES
+    ) {
         if (userId() != uid) throw AccountSessionChangedException()
         val key = localVaultKey(context) ?: throw VaultLockedException()
         val base = LocalVaultKeyStore.baseline(context, uid) ?: throw VaultLockedException()
-        val local = VaultMerge.groups(json.parseToJsonElement(snapshot(context).toString(Charsets.UTF_8)).jsonArray)
+        val settings = SettingsDataStore(context).settingsFlow.first()
+        val includeAddons = settings.accountAddonSyncEnabled && syncScope != VaultSyncScope.LINKED_ACCOUNTS
+        val local = VaultMerge.groups(json.parseToJsonElement(
+            snapshot(context, uid, includeAddons = includeAddons).toString(Charsets.UTF_8)
+        ).jsonArray)
         // CAS retries refetch and merge. Never resend a stale encrypted full snapshot blindly.
         repeat(4) {
             val remoteJson = fetchRow(uid, ROW_PAYLOAD)
@@ -394,27 +490,73 @@ object LinkedAccountVault {
                 error(KitsugiStrings.get(R.string.bulut_yedegi_secim_ekrani_acildiktan_sonra_degisti_simdi_esitle))
             }
             val remote = VaultMerge.groups(payload(remoteJson, key))
-            val merged = VaultMerge.merge(local, remote, base.local, base.remote, preferLocal)
+            val activeGroups = (local.keys + remote.keys + base.local.keys + base.remote.keys)
+                .filterTo(linkedSetOf()) { group ->
+                    val isAddon = group.startsWith("addons:")
+                    val isLinkedAccountData = group.startsWith("service:") || group.startsWith("settings:")
+                    when (syncScope) {
+                        VaultSyncScope.LINKED_ACCOUNTS -> isLinkedAccountData && settings.accountBackupEnabled
+                        VaultSyncScope.ADDONS -> isAddon && settings.accountAddonSyncEnabled
+                        VaultSyncScope.ENABLED_CATEGORIES ->
+                            (isAddon && settings.accountAddonSyncEnabled) ||
+                                (isLinkedAccountData && settings.accountBackupEnabled)
+                    }
+                }
+            if (activeGroups.isEmpty()) return
+            val merged = VaultMerge.merge(local, remote, base.local, base.remote, preferLocal, activeGroups)
             if (merged.conflicts.isNotEmpty() && preferLocal == null) {
+                val previous = if (conflictOwner == uid && conflictRemote == remoteJson) _conflicts.value else emptySet()
+                val conflicts = (previous - activeGroups) + merged.conflicts
                 conflictRemote = remoteJson
                 conflictOwner = uid
-                _conflicts.value = merged.conflicts
-                throw VaultConflictException(merged.conflicts)
+                _conflicts.value = conflicts
+                throw VaultConflictException(conflicts)
             }
             val mergedGroups = VaultMerge.groups(merged.payload)
             val alreadyCurrent = preferLocal == null && remoteJson != null && mergedGroups == remote
-            val accepted = if (alreadyCurrent) true else {
+            var acceptedRow: JsonElement? = null
+            val accepted = if (alreadyCurrent) {
+                acceptedRow = remoteJson
+                true
+            } else {
                 val (iv, ct) = encrypt(key, merged.payload.toString().toByteArray(Charsets.UTF_8))
-                compareAndSwap(ROW_PAYLOAD, remoteJson, blobJson(CipherBlob(iv = b64(iv), ct = b64(ct))))
+                val uploadedRow = blobJson(CipherBlob(iv = b64(iv), ct = b64(ct)))
+                val didUpload = compareAndSwap(ROW_PAYLOAD, remoteJson, uploadedRow)
+                if (didUpload) acceptedRow = uploadedRow
+                didUpload
             }
             if (accepted) {
-                // Keep the two views separate: remote-only changes do not turn an unchanged,
-                // stale local session into a fresh local edit on the next upload.
-                LocalVaultKeyStore.saveBaseline(context, uid, VaultMerge.hashes(local),
-                    VaultMerge.remoteBaselineAfterUpload(local, mergedGroups, base.remote))
-                _conflicts.value = emptySet()
-                conflictRemote = null
-                conflictOwner = null
+                if (activeGroups.any { it.startsWith("addons:") }) {
+                    val addonRecords = merged.payload.mapNotNull { entry ->
+                        val item = entry.jsonObject
+                        if (item["section"]?.jsonPrimitive?.content != "addons") return@mapNotNull null
+                        val addonKey = item["k"]?.jsonPrimitive?.content ?: return@mapNotNull null
+                        val value = item["v"]?.jsonPrimitive?.content ?: return@mapNotNull null
+                        VaultAddonRecord(addonKey, value)
+                    }
+                    AddonVaultBackup.restoreIfChanged(context, uid, addonRecords)
+                }
+                // Disabled categories retain their previous fingerprints; their edits are reconciled
+                // only after the user re-enables that category.
+                val baselines = VaultMerge.baselineAfterUpload(
+                    local = local,
+                    merged = mergedGroups,
+                    baseLocal = base.local,
+                    baseRemote = base.remote,
+                    activeGroups = activeGroups
+                )
+                LocalVaultKeyStore.saveBaseline(context, uid, baselines.local, baselines.remote)
+                val remainingConflicts = if (conflictOwner == uid && conflictRemote == remoteJson) {
+                    _conflicts.value - activeGroups
+                } else emptySet()
+                _conflicts.value = remainingConflicts
+                if (remainingConflicts.isEmpty()) {
+                    conflictRemote = null
+                    conflictOwner = null
+                } else {
+                    conflictRemote = acceptedRow ?: remoteJson
+                    conflictOwner = uid
+                }
                 _status.value = KitsugiStrings.get(R.string.sifreli_hesap_yedegi_guncel_son_basari) +
                     java.text.DateFormat.getDateTimeInstance().format(java.util.Date(LocalVaultKeyStore.lastSuccess(context)))
                 return
@@ -439,6 +581,7 @@ object LinkedAccountVault {
         val app = context.applicationContext
         appContext = app
         tokenPrefs(app).registerOnSharedPreferenceChangeListener(autoBackupListener)
+        AddonVaultBackup.startObservers(app) { onAddonInventoryChanged() }
         scope.launch {
             try {
                 val auth = KitsugiAccountClient.client.auth
@@ -449,9 +592,10 @@ object LinkedAccountVault {
                     .map { (it as? SessionStatus.Authenticated)?.session?.user?.id }
                     .distinctUntilChanged()
                 val enabledFlow = SettingsDataStore(app).settingsFlow
-                    .map { it.accountBackupEnabled }.distinctUntilChanged()
+                    .map { it.accountBackupEnabled to it.accountAddonSyncEnabled }.distinctUntilChanged()
                 var previousOwner: String? = null
-                combine(owners, enabledFlow) { owner, enabled -> owner to enabled }.collect { (owner, enabled) ->
+                combine(owners, enabledFlow) { owner, categories -> owner to categories }.collect { (owner, categories) ->
+                    val enabled = categories.first || categories.second
                     mutex.withLock {
                         // A queued observer emission must not mutate the next account's state.
                         if (owner != userId()) return@withLock

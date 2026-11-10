@@ -7,7 +7,7 @@ package com.kitsugi.animelist.ui.screens.detail
 
 import com.kitsugi.animelist.ui.components.LocalKitsugiGalleryLoading
 import com.kitsugi.animelist.ui.components.LocalKitsugiTranslationLoading
-import com.kitsugi.animelist.ui.components.KitsugiGalleryIconButton
+import com.kitsugi.animelist.ui.components.KitsugiDetailHeaderActions
 import android.content.Intent
 import android.net.Uri
 import com.kitsugi.animelist.ui.theme.gradient.background
@@ -27,11 +27,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Share
-import androidx.compose.material.icons.rounded.Image
-import androidx.compose.material.icons.rounded.Favorite
-import androidx.compose.material.icons.rounded.FavoriteBorder
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.MaterialTheme
 import com.kitsugi.animelist.ui.theme.gradient.Text
@@ -42,6 +38,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -51,6 +48,8 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.foundation.layout.wrapContentHeight
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -62,7 +61,6 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.material3.IconButton
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import com.kitsugi.animelist.utils.rememberScrollVisibilityState
 import com.kitsugi.animelist.utils.rememberScrollConnection
 import androidx.compose.ui.graphics.Brush
@@ -155,7 +153,7 @@ fun MediaEntryDetailPage(
     onSearchByGenre: (String) -> Unit = {},
     onSearchByTag: (com.kitsugi.animelist.data.remote.KitsugiTag) -> Unit = {},
     onSearchBySeason: (com.kitsugi.animelist.ui.screens.search.DetailSeasonMetadata) -> Unit = {},
-    titleLanguage: String = "ROMAJI",
+    titleLanguage: String = "ENGLISH",
     /** Kişi/karakter adı dili — başlık dilinden bağımsız ayar (bkz. [ApiResultDetailPage]). */
     staffNameLanguage: String = com.kitsugi.animelist.data.settings.KitsugiContentPrefs.staffNameLanguage,
     scoreFormat: String = "POINT_10",
@@ -163,6 +161,13 @@ fun MediaEntryDetailPage(
     showAnimeLogos: Boolean = false,
     blurAdultMedia: Boolean = false,
     onReadMangaClick: ((MangaMappingEntity?) -> Unit)? = null,
+    /**
+     * "Oku" (eşleme yok) → kaynak araması.
+     *
+     * Gönderilen liste: **dil sırasına göre** aday başlıklar (seçili arama dili
+     * önce, kalanlar yedek). Dil kararı tek yerde — `AppRoot` — verilir.
+     */
+    onSearchMangaByTitles: ((List<String>) -> Unit)? = null,
     preferredTranslator: String = "DEFAULT",
     mdbListShowImdb: Boolean = true,
     mdbListShowTomatoes: Boolean = true,
@@ -191,9 +196,10 @@ fun MediaEntryDetailPage(
     val wikiViewModel: FandomMediaWikiViewModel = viewModel(key = "fandom_media_${entry.source}_${entry.id}")
     val wikiPrefs by wikiViewModel.prefs.collectAsState()
 
-    val settingsState = settingsDataStore?.settingsFlow?.collectAsState(initial = AppSettings())?.value
-    val mdbListRatings by viewModel.mdbListRatings.collectAsState()
-    val mdbListLoading by viewModel.mdbListLoading.collectAsState()
+    val settingsSlice = rememberDetailSettingsSlice(settingsDataStore)
+    val mdbImdbId by remember(viewModel) {
+        viewModel.mdbListRatings.map { it?.imdbId }.distinctUntilChanged()
+    }.collectAsState(initial = null)
     var showIntegrationsDialog by remember { mutableStateOf(false) }
 
     // Load entry in ViewModel
@@ -201,31 +207,20 @@ fun MediaEntryDetailPage(
         viewModel.loadEntry(entry, showAnimeLogos)
     }
 
-    // Collect states from ViewModel
+    LaunchedEffect(entry.id, entry.source, entry.malId, entry.type, entry.synopsis) {
+        viewModel.onStoredSynopsisChanged(entry)
+    }
+
+    // PERF: Sekmeye özel akışlar (bölüm puanları, karakterler, ekip, öneriler, ilişkiler,
+    // istatistikler, yorumlar, özet çevirisi, MDBList) ilgili sekme slotlarının kendi
+    // RestartGroup'unda toplanır; arka plan ağ yanıtları kök sayfayı yeniden compose etmez.
     val detailState by viewModel.detailState.collectAsState()
     val detailLoading by viewModel.detailLoading.collectAsState()
     val detailErrorCode by viewModel.detailErrorCode.collectAsState()
     val mangaMapping by viewModel.mangaMapping.collectAsState()
-    val synopsisState by viewModel.synopsisState.collectAsState()
-    val translatedSynopsis by viewModel.translatedSynopsis.collectAsState()
     val originalSynopsis by viewModel.originalSynopsis.collectAsState()
-    val showSynopsisOriginal by viewModel.showSynopsisOriginal.collectAsState()
-    // Orijinal / çeviri geçişi: orijinal gösterilirken özet ham metniyle verilir.
-    val synopsisHasTranslation = translatedSynopsis != null && translatedSynopsis != originalSynopsis
-    val displayedSynopsisState = run {
-        val raw = originalSynopsis
-        if (showSynopsisOriginal && !raw.isNullOrBlank()) SynopsisState.Success(raw) else synopsisState
-    }
     val logoUrl by viewModel.logoUrl.collectAsState()
-    val episodeRatings by viewModel.episodeRatings.collectAsState()
     val resolvedTmdbId by viewModel.resolvedTmdbId.collectAsState()
-    val charactersState by viewModel.charactersState.collectAsState()
-    val staffState by viewModel.staffState.collectAsState()
-    val relationsState by viewModel.relationsState.collectAsState()
-    val recommendationsState by viewModel.recommendationsState.collectAsState()
-    val statsState by viewModel.statsState.collectAsState()
-    val reviewsState by viewModel.reviewsState.collectAsState()
-    val episodesState by viewModel.episodesState.collectAsState()
     val targetSeason by viewModel.targetSeason.collectAsState()
     val galleryItems by viewModel.galleryItems.collectAsState()
     val galleryLoading by viewModel.galleryLoading.collectAsState()
@@ -259,8 +254,8 @@ fun MediaEntryDetailPage(
     }
 
     // Wiki sorgusu: kimlikler netleştikçe (gerçek MAL/TMDB) sorgu yeniden kurulur.
-    val wikiQuery = remember(displayEntry, detailState, resolvedTmdbId, mdbListRatings) {
-        val imdbId = mdbListRatings?.imdbId
+    val wikiQuery = remember(displayEntry, detailState, resolvedTmdbId, mdbImdbId) {
+        val imdbId = mdbImdbId
             ?: detailState?.externalLinks?.firstOrNull { it.site.contains("IMDb", ignoreCase = true) || it.url.contains("imdb.com", ignoreCase = true) }
                 ?.url?.let { Regex("(?i)tt[0-9]{5,12}").find(it)?.value }
         val wikidataId = detailState?.externalLinks
@@ -298,6 +293,9 @@ fun MediaEntryDetailPage(
         )
     }
     LaunchedEffect(wikiQuery, wikiPrefs.enabled, wikiPrefs.nameFallback) {
+        if (wikiPrefs.enabled) {
+            kotlinx.coroutines.delay(220L)
+        }
         wikiViewModel.bind(wikiQuery.takeIf { wikiPrefs.enabled })
     }
 
@@ -353,7 +351,13 @@ fun MediaEntryDetailPage(
     }
     val wikiPageIndex = if (wikiPrefs.enabled) tabs.size - 1 else -1
     val pagerState = rememberPagerState(initialPage = 0, pageCount = { tabs.size })
-    val selectedTab = pagerState.currentPage
+    // KASMA FIX (2026-11-05): `pagerState.currentPage` kompozisyonda okunmuyor.
+    // Okunduğunda her sekme geçişinde bu ekranın tamamı (pageContent lambda'ları dahil)
+    // yeniden kompoze oluyor, bu da pager içindeki görünür sekmeyi de yeniden
+    // kompoze etmeye zorluyordu. Sekme değişimi artık snapshotFlow ile dinleniyor.
+    val currentPageFlow = remember(pagerState) {
+        snapshotFlow { pagerState.currentPage }.distinctUntilChanged()
+    }
 
     // Yeni bir entry'ye geçildiğinde tab'ı sıfırla — geri tuşuyla dönüşlerde SIFIRLAMAZ.
     // lastProcessedTrigger, Composition'da yaşayan son işlenmiş trigger değerini saklar.
@@ -367,10 +371,12 @@ fun MediaEntryDetailPage(
     }
 
     // Call loadTab when tab changes
-    LaunchedEffect(displayEntry.id, selectedTab, detailState?.realMalId, detailState?.tmdbId, resolvedTmdbId, detailState == null) {
-        if (selectedTab == wikiPageIndex) return@LaunchedEffect
-        detailDataTabIndexForPage(selectedTab)?.let { dataTabIndex ->
-            viewModel.loadTab(dataTabIndex, displayEntry, detailState?.realMalId)
+    LaunchedEffect(displayEntry.id, detailState?.realMalId, detailState?.tmdbId, resolvedTmdbId, detailState == null, currentPageFlow) {
+        currentPageFlow.collect { page ->
+            if (page == wikiPageIndex) return@collect
+            detailDataTabIndexForPage(page)?.let { dataTabIndex ->
+                viewModel.loadTab(dataTabIndex, displayEntry, detailState?.realMalId)
+            }
         }
     }
 
@@ -431,7 +437,24 @@ fun MediaEntryDetailPage(
                     onToggleFavoriteClick = onToggleFavoriteClick,
                     onEditClick = onEditClick,
                     onDeleteClick = onDeleteClick,
-                    onReadMangaClick = onReadMangaClick,
+                    onReadMangaClick = { mapping ->
+                        if (mapping == null) {
+                            // Eşleme yok → "Oku" ekranda seçili başlık diline göre arar.
+                            onSearchMangaByTitles?.invoke(
+                                com.kitsugi.animelist.data.manga.MangaSearchQueryBuilder.buildQueries(
+                                    titleLanguage = titleLanguage,
+                                    searchLanguage = com.kitsugi.animelist.data.manga.MangaSearchLanguage.fromId(titleLanguage),
+                                    followTitleLanguage = true,
+                                    localTitle = displayEntry.title,
+                                    englishTitle = displayEntry.titleEnglish,
+                                    romajiTitle = displayEntry.title,
+                                    nativeTitle = displayEntry.titleJapanese
+                                )
+                            )
+                        } else {
+                            onReadMangaClick?.invoke(mapping)
+                        }
+                    },
                     onUnlinkMangaClick = { viewModel.deleteMangaMapping(displayEntry.id) },
                     onGalleryOpen = { items, idx ->
                         activeGalleryCategory = items.getOrNull(idx)?.category ?: GalleryCategory.POSTER
@@ -444,18 +467,19 @@ fun MediaEntryDetailPage(
                 )
             },
             floatingHeaderActions = {
-                IconButton(onClick = {
-                    val url = com.kitsugi.animelist.utils.ShareUtils.buildMediaUrl(displayEntry)
-                    com.kitsugi.animelist.utils.ShareUtils.shareText(context, displayEntry.title, url)
-                }) {
-                    Icon(
-                        imageVector = Icons.Rounded.Share,
-                        contentDescription = stringResource(R.string.paylas),
-                        tint = KitsugiColors.TextSecondary
-                    )
-                }
-                if (galleryItems.isNotEmpty() || !displayEntry.imageUrl.isNullOrBlank()) {
-                    KitsugiGalleryIconButton(onClick = {
+                // Paylaş · Favori · Galeri → ortak üst çubuk aksiyon satırı
+                KitsugiDetailHeaderActions(
+                    accentColor = accentColor,
+                    onShareClick = {
+                        val url = com.kitsugi.animelist.utils.ShareUtils.buildMediaUrl(displayEntry)
+                        com.kitsugi.animelist.utils.ShareUtils.shareText(context, displayEntry.title, url)
+                    },
+                    showFavourite = showFavouriteButton,
+                    isFavourite = displayEntry.isFavorite,
+                    onFavouriteClick = onToggleFavoriteClick,
+                    showGallery = galleryItems.isNotEmpty() || !displayEntry.imageUrl.isNullOrBlank(),
+                    galleryLoading = galleryLoading,
+                    onGalleryClick = {
                         val clickedUrl = displayEntry.imageUrl
                         val index = if (!clickedUrl.isNullOrBlank()) {
                             galleryItems.indexOfFirst { item ->
@@ -482,17 +506,8 @@ fun MediaEntryDetailPage(
                             if (!galleryLoading) activeGalleryItems = galleryItems
                             activeGalleryIndex = posterIndex
                         }
-                    }, accentColor = accentColor)
-                }
-                if (showFavouriteButton) {
-                    IconButton(onClick = onToggleFavoriteClick) {
-                        Icon(
-                            imageVector = if (displayEntry.isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
-                            contentDescription = if (displayEntry.isFavorite) stringResource(R.string.action_favourite_remove) else "Favori Yap",
-                            tint = if (displayEntry.isFavorite) accentColor else KitsugiColors.TextSecondary
-                        )
                     }
-                }
+                )
             },
             portraitTopItems = { _, lpFocus, tbFocus ->
                 item(key = "hero") {
@@ -512,7 +527,24 @@ fun MediaEntryDetailPage(
                         onToggleFavoriteClick = onToggleFavoriteClick,
                         onEditClick = onEditClick,
                         onDeleteClick = onDeleteClick,
-                        onReadMangaClick = onReadMangaClick,
+                        onReadMangaClick = { mapping ->
+                            if (mapping == null) {
+                                // Eşleme yok → "Oku" ekranda seçili başlık diline göre arar.
+                                onSearchMangaByTitles?.invoke(
+                                    com.kitsugi.animelist.data.manga.MangaSearchQueryBuilder.buildQueries(
+                                        titleLanguage = titleLanguage,
+                                        searchLanguage = com.kitsugi.animelist.data.manga.MangaSearchLanguage.fromId(titleLanguage),
+                                        followTitleLanguage = true,
+                                        localTitle = displayEntry.title,
+                                        englishTitle = displayEntry.titleEnglish,
+                                        romajiTitle = displayEntry.title,
+                                        nativeTitle = displayEntry.titleJapanese
+                                    )
+                                )
+                            } else {
+                                onReadMangaClick?.invoke(mapping)
+                            }
+                        },
                         onUnlinkMangaClick = { viewModel.deleteMangaMapping(displayEntry.id) },
                         onGalleryOpen = { items, idx ->
                             activeGalleryCategory = items.getOrNull(idx)?.category ?: GalleryCategory.POSTER
@@ -538,10 +570,10 @@ fun MediaEntryDetailPage(
                     )
                 } else when (page) {
                     0 -> {
-                        EntryDetailOverviewTab(
+                        EntryOverviewTabSlot(
+                            viewModel = viewModel,
                             entry = displayEntry,
                             detail = detailState,
-                            synopsisState = displayedSynopsisState,
                             originalSynopsis = originalSynopsis,
                             externalUrl = externalUrl,
                             onSearchQuery = onSearchQuery,
@@ -552,34 +584,23 @@ fun MediaEntryDetailPage(
                             onTagClick = onSearchByTag,
                             onSearchBySeason = onSearchBySeason,
                             preferredTranslator = preferredTranslator,
-                            mdbListRatings = mdbListRatings,
-                            mdbListLoading = mdbListLoading,
-                            mdbListShowImdb = settingsState?.mdbListShowImdb ?: mdbListShowImdb,
-                            mdbListShowTomatoes = settingsState?.mdbListShowTomatoes ?: mdbListShowTomatoes,
-                            mdbListShowMetacritic = settingsState?.mdbListShowMetacritic ?: mdbListShowMetacritic,
-                            mdbListShowAudience = settingsState?.mdbListShowAudience ?: mdbListShowAudience,
-                            mdbListShowLetterboxd = settingsState?.mdbListShowLetterboxd ?: mdbListShowLetterboxd,
-                            mdbListShowTmdb = settingsState?.mdbListShowTmdb ?: mdbListShowTmdb,
-                            mdbListShowTrakt = settingsState?.mdbListShowTrakt ?: mdbListShowTrakt,
+                            settingsSlice = settingsSlice,
+                            mdbListShowImdb = mdbListShowImdb,
+                            mdbListShowTomatoes = mdbListShowTomatoes,
+                            mdbListShowMetacritic = mdbListShowMetacritic,
+                            mdbListShowAudience = mdbListShowAudience,
+                            mdbListShowLetterboxd = mdbListShowLetterboxd,
+                            mdbListShowTmdb = mdbListShowTmdb,
+                            mdbListShowTrakt = mdbListShowTrakt,
                             onSettingsClick = if (settingsDataStore != null) {
                                 { showIntegrationsDialog = true }
                             } else null,
-                            onImageGalleryRequest = { urls, index ->
-                                if (!galleryLoading) activeGalleryItems = urls.map { url ->
-                                    GalleryItem(url = url, category = GalleryCategory.OTHER, source = "Açıklama")
-                                }
-                                activeGalleryIndex = index
-                            },
                             galleryItems = galleryItems,
                             galleryLoading = galleryLoading,
-                            onGalleryItemRequest = { items, index ->
+                            onOpenGalleryItems = { items, index ->
                                 if (!galleryLoading) activeGalleryItems = items
                                 activeGalleryIndex = index
-                            },
-                            onTranslateClick = { viewModel.translateSynopsis(displayEntry) },
-                            synopsisHasTranslation = synopsisHasTranslation,
-                            showSynopsisOriginal = showSynopsisOriginal,
-                            onToggleSynopsisOriginal = { viewModel.toggleSynopsisOriginal() }
+                            }
                         )
                     }
                     1 -> {
@@ -631,51 +652,44 @@ fun MediaEntryDetailPage(
                         }
                     }
                     2 -> {
-                        if (selectedTab == DETAIL_VIDEO_PAGE_INDEX) {
-                            KitsugiMediaVideosTab(detail = detailState, mediaTitle = displayEntry.title)
-                        }
+                        // KASMA/ÇÖKME FIX (2026-11-05): gereksiz `selectedTab` kontrolü
+                        // kaldırıldı; `page == 2` zaten Videolar sekmesidir.
+                        EntryVideoTabSlot(
+                            viewModel = viewModel,
+                            detail = detailState,
+                            mediaTitle = displayEntry.title,
+                            primarySource = entry.source
+                        )
                     }
-                    3 -> CharactersTabContent(state = charactersState, onCharacterClick = onCharacterClick, onStaffClick = onStaffClick, onMediaClick = onMediaClick, titleLanguage = titleLanguage, staffNameLanguage = staffNameLanguage)
-                    4 -> StaffTabContent(state = staffState, onStaffClick = onStaffClick, titleLanguage = titleLanguage, staffNameLanguage = staffNameLanguage)
-                    5 -> RecommendationsTabContent(state = recommendationsState, titleLanguage = titleLanguage, blurAdultMedia = blurAdultMedia, onRecommendationClick = { rel ->
-                        val typeLabel = context.getString(rel.mediaType.labelRes())
-                        onRelationClick(JikanSearchResult(
-                            malId = rel.malId,
-                            title = rel.title,
-                            subtitle = "${rel.relationType}, $typeLabel",
-                            type = rel.mediaType,
-                            total = null, score = null,
-                            isAdult = rel.isAdult,
-                            imageUrl = rel.imageUrl,
-                            year = null, realMalId = rel.malId,
-                            source = rel.source,
-                            titleEnglish = rel.titleEnglish,
-                            titleJapanese = rel.titleJapanese,
-                            titleRomaji = rel.titleRomaji,
-                            bangumiSubjectType = rel.bangumiSubjectType
-                        ))
-                    })
-                    6 -> RelationsTabContent(state = relationsState, titleLanguage = titleLanguage, blurAdultMedia = blurAdultMedia, onRelationClick = { rel ->
-                        val typeLabel = context.getString(rel.mediaType.labelRes())
-                        onRelationClick(JikanSearchResult(
-                            malId = rel.malId,
-                            title = rel.title,
-                            subtitle = "${rel.relationType}, $typeLabel",
-                            type = rel.mediaType,
-                            total = null, score = null,
-                            isAdult = rel.isAdult,
-                            imageUrl = rel.imageUrl,
-                            year = null, realMalId = rel.malId,
-                            source = rel.source,
-                            titleEnglish = rel.titleEnglish,
-                            titleJapanese = rel.titleJapanese,
-                            titleRomaji = rel.titleRomaji,
-                            bangumiSubjectType = rel.bangumiSubjectType
-                        ))
-                    })
-                    7 -> StatsTabContent(state = statsState)
-                    8 -> ReviewsTabContent(
-                        state = reviewsState,
+                    3 -> EntryCharactersTabSlot(
+                        viewModel = viewModel,
+                        onCharacterClick = onCharacterClick,
+                        onStaffClick = onStaffClick,
+                        onMediaClick = onMediaClick,
+                        titleLanguage = titleLanguage,
+                        staffNameLanguage = staffNameLanguage
+                    )
+                    4 -> EntryStaffTabSlot(
+                        viewModel = viewModel,
+                        onStaffClick = onStaffClick,
+                        titleLanguage = titleLanguage,
+                        staffNameLanguage = staffNameLanguage
+                    )
+                    5 -> EntryRecommendationsTabSlot(
+                        viewModel = viewModel,
+                        titleLanguage = titleLanguage,
+                        blurAdultMedia = blurAdultMedia,
+                        onRelationClick = onRelationClick
+                    )
+                    6 -> EntryRelationsTabSlot(
+                        viewModel = viewModel,
+                        titleLanguage = titleLanguage,
+                        blurAdultMedia = blurAdultMedia,
+                        onRelationClick = onRelationClick
+                    )
+                    7 -> EntryStatsTabSlot(viewModel = viewModel)
+                    8 -> EntryReviewsTabSlot(
+                        viewModel = viewModel,
                         source = displayEntry.source,
                         externalId = if (displayEntry.source.equals("simkl", true)) {
                             displayEntry.simklId?.takeIf { it > 0 } ?: displayEntry.id
@@ -696,21 +710,15 @@ fun MediaEntryDetailPage(
                         onUserProfileClick = onUserProfileClick,
                         preferredTranslator = preferredTranslator
                     )
-                    9 -> {
-                        EntryDetailEpisodesTab(
-                            entry = displayEntry,
-                            detailState = detailState,
-                            state = episodesState,
-                            episodeRatings = episodeRatings,
-                            targetSeason = targetSeason,
-                            onSeasonSelected = { newSeason ->
-                                viewModel.setTargetSeason(newSeason, displayEntry)
-                            },
-                            onEpisodeOptionsRequested = { episode ->
-                                activeEpisodeForOptions = episode
-                            }
-                        )
-                    }
+                    9 -> EntryEpisodesTabSlot(
+                        viewModel = viewModel,
+                        entry = displayEntry,
+                        detailState = detailState,
+                        targetSeason = targetSeason,
+                        onEpisodeOptionsRequested = { episode ->
+                            activeEpisodeForOptions = episode
+                        }
+                    )
                 }
             }
         )
@@ -746,6 +754,8 @@ fun MediaEntryDetailPage(
                 aniListId = streamIds.aniListId,
                 tmdbId = streamIds.tmdbId,
                 bangumiId = streamIds.bangumiId,
+                imdbId = detailState?.externalLinks?.firstOrNull { it.url.contains("imdb.com", ignoreCase = true) }
+                    ?.url?.let { Regex("(?i)tt[0-9]{5,12}").find(it)?.value?.lowercase() },
                 posterUrl = displayEntry.imageUrl,
                 titleEnglish = detailState?.titleEnglish,
                 titleRomaji = detailState?.titleRomaji,
@@ -759,16 +769,268 @@ fun MediaEntryDetailPage(
             )
         }
 
-        if (showIntegrationsDialog && settingsDataStore != null && settingsState != null) {
+        if (showIntegrationsDialog && settingsDataStore != null) {
             DetailIntegrationsSettingsDialog(
                 settingsDataStore = settingsDataStore,
-                settingsState = settingsState,
                 coroutineScope = coroutineScope,
                 onDismiss = { showIntegrationsDialog = false }
             )
         }
     }
     }
+
+@Composable
+private fun EntryOverviewTabSlot(
+    viewModel: MediaEntryDetailViewModel,
+    entry: MediaEntry,
+    detail: com.kitsugi.animelist.data.remote.KitsugiMediaDetail?,
+    originalSynopsis: String?,
+    externalUrl: String?,
+    onSearchQuery: (String) -> Unit,
+    onStudioClick: (Int, String, String?, String?) -> Unit,
+    onStaffClick: (Int, String, String?, String?) -> Unit,
+    onMagazineClick: (Int, String) -> Unit,
+    onGenreClick: (String) -> Unit,
+    onTagClick: (com.kitsugi.animelist.data.remote.KitsugiTag) -> Unit,
+    onSearchBySeason: (com.kitsugi.animelist.ui.screens.search.DetailSeasonMetadata) -> Unit,
+    preferredTranslator: String,
+    settingsSlice: DetailSettingsSlice?,
+    mdbListShowImdb: Boolean,
+    mdbListShowTomatoes: Boolean,
+    mdbListShowMetacritic: Boolean,
+    mdbListShowAudience: Boolean,
+    mdbListShowLetterboxd: Boolean,
+    mdbListShowTmdb: Boolean,
+    mdbListShowTrakt: Boolean,
+    onSettingsClick: (() -> Unit)?,
+    galleryItems: List<GalleryItem>,
+    galleryLoading: Boolean,
+    onOpenGalleryItems: (List<GalleryItem>, Int) -> Unit
+) {
+    val synopsisState by viewModel.synopsisState.collectAsState()
+    val translatedSynopsis by viewModel.translatedSynopsis.collectAsState()
+    val showSynopsisOriginal by viewModel.showSynopsisOriginal.collectAsState()
+    val mdbListRatings by viewModel.mdbListRatings.collectAsState()
+    val mdbListLoading by viewModel.mdbListLoading.collectAsState()
+
+    val rawSynopsisForToggle = originalSynopsis
+    val translatedForToggle = translatedSynopsis
+    val synopsisHasTranslation = translatedForToggle != null && !rawSynopsisForToggle.isNullOrBlank() &&
+        !com.kitsugi.animelist.utils.translationMatchesSource(rawSynopsisForToggle, translatedForToggle)
+    val displayedSynopsisState = if (showSynopsisOriginal && !originalSynopsis.isNullOrBlank()) {
+        SynopsisState.Success(originalSynopsis)
+    } else {
+        synopsisState
+    }
+
+    EntryDetailOverviewTab(
+        entry = entry,
+        detail = detail,
+        synopsisState = displayedSynopsisState,
+        originalSynopsis = originalSynopsis,
+        externalUrl = externalUrl,
+        onSearchQuery = onSearchQuery,
+        onStudioClick = onStudioClick,
+        onStaffClick = onStaffClick,
+        onMagazineClick = onMagazineClick,
+        onGenreClick = onGenreClick,
+        onTagClick = onTagClick,
+        onSearchBySeason = onSearchBySeason,
+        preferredTranslator = preferredTranslator,
+        mdbListRatings = mdbListRatings,
+        mdbListLoading = mdbListLoading,
+        mdbListShowImdb = settingsSlice?.mdbListShowImdb ?: mdbListShowImdb,
+        mdbListShowTomatoes = settingsSlice?.mdbListShowTomatoes ?: mdbListShowTomatoes,
+        mdbListShowMetacritic = settingsSlice?.mdbListShowMetacritic ?: mdbListShowMetacritic,
+        mdbListShowAudience = settingsSlice?.mdbListShowAudience ?: mdbListShowAudience,
+        mdbListShowLetterboxd = settingsSlice?.mdbListShowLetterboxd ?: mdbListShowLetterboxd,
+        mdbListShowTmdb = settingsSlice?.mdbListShowTmdb ?: mdbListShowTmdb,
+        mdbListShowTrakt = settingsSlice?.mdbListShowTrakt ?: mdbListShowTrakt,
+        onSettingsClick = onSettingsClick,
+        onImageGalleryRequest = { urls, index ->
+            onOpenGalleryItems(
+                urls.map { url -> GalleryItem(url = url, category = GalleryCategory.OTHER, source = "Açıklama") },
+                index
+            )
+        },
+        galleryItems = galleryItems,
+        galleryLoading = galleryLoading,
+        onGalleryItemRequest = onOpenGalleryItems,
+        onTranslateClick = { viewModel.translateSynopsis(entry) },
+        synopsisHasTranslation = synopsisHasTranslation,
+        showSynopsisOriginal = showSynopsisOriginal,
+        onToggleSynopsisOriginal = { viewModel.toggleSynopsisOriginal() }
+    )
+}
+
+@Composable
+private fun EntryCharactersTabSlot(
+    viewModel: MediaEntryDetailViewModel,
+    onCharacterClick: (KitsugiCharacter) -> Unit,
+    onStaffClick: (Int, String, String?, String?) -> Unit,
+    onMediaClick: (Int, String, String) -> Unit,
+    titleLanguage: String,
+    staffNameLanguage: String
+) {
+    val state by viewModel.charactersState.collectAsState()
+    CharactersTabContent(
+        state = state,
+        onCharacterClick = onCharacterClick,
+        onStaffClick = onStaffClick,
+        onMediaClick = onMediaClick,
+        titleLanguage = titleLanguage,
+        staffNameLanguage = staffNameLanguage
+    )
+}
+
+@Composable
+private fun EntryStaffTabSlot(
+    viewModel: MediaEntryDetailViewModel,
+    onStaffClick: (Int, String, String?, String?) -> Unit,
+    titleLanguage: String,
+    staffNameLanguage: String
+) {
+    val state by viewModel.staffState.collectAsState()
+    StaffTabContent(
+        state = state,
+        onStaffClick = onStaffClick,
+        titleLanguage = titleLanguage,
+        staffNameLanguage = staffNameLanguage
+    )
+}
+
+@Composable
+private fun EntryRecommendationsTabSlot(
+    viewModel: MediaEntryDetailViewModel,
+    titleLanguage: String,
+    blurAdultMedia: Boolean,
+    onRelationClick: (JikanSearchResult) -> Unit
+) {
+    val context = LocalContext.current
+    val state by viewModel.recommendationsState.collectAsState()
+    RecommendationsTabContent(
+        state = state,
+        titleLanguage = titleLanguage,
+        blurAdultMedia = blurAdultMedia,
+        onRecommendationClick = { rel ->
+            val typeLabel = context.getString(rel.mediaType.labelRes())
+            onRelationClick(
+                JikanSearchResult(
+                    malId = rel.malId,
+                    title = rel.title,
+                    subtitle = "${rel.relationType}, $typeLabel",
+                    type = rel.mediaType,
+                    total = null,
+                    score = null,
+                    isAdult = rel.isAdult,
+                    imageUrl = rel.imageUrl,
+                    year = null,
+                    realMalId = rel.malId,
+                    source = rel.source,
+                    titleEnglish = rel.titleEnglish,
+                    titleJapanese = rel.titleJapanese,
+                    titleRomaji = rel.titleRomaji,
+                    bangumiSubjectType = rel.bangumiSubjectType
+                )
+            )
+        }
+    )
+}
+
+@Composable
+private fun EntryRelationsTabSlot(
+    viewModel: MediaEntryDetailViewModel,
+    titleLanguage: String,
+    blurAdultMedia: Boolean,
+    onRelationClick: (JikanSearchResult) -> Unit
+) {
+    val context = LocalContext.current
+    val state by viewModel.relationsState.collectAsState()
+    RelationsTabContent(
+        state = state,
+        titleLanguage = titleLanguage,
+        blurAdultMedia = blurAdultMedia,
+        onRelationClick = { rel ->
+            val typeLabel = context.getString(rel.mediaType.labelRes())
+            onRelationClick(
+                JikanSearchResult(
+                    malId = rel.malId,
+                    title = rel.title,
+                    subtitle = "${rel.relationType}, $typeLabel",
+                    type = rel.mediaType,
+                    total = null,
+                    score = null,
+                    isAdult = rel.isAdult,
+                    imageUrl = rel.imageUrl,
+                    year = null,
+                    realMalId = rel.malId,
+                    source = rel.source,
+                    titleEnglish = rel.titleEnglish,
+                    titleJapanese = rel.titleJapanese,
+                    titleRomaji = rel.titleRomaji,
+                    bangumiSubjectType = rel.bangumiSubjectType
+                )
+            )
+        }
+    )
+}
+
+@Composable
+private fun EntryStatsTabSlot(viewModel: MediaEntryDetailViewModel) {
+    val state by viewModel.statsState.collectAsState()
+    StatsTabContent(state = state)
+}
+
+@Composable
+private fun EntryReviewsTabSlot(
+    viewModel: MediaEntryDetailViewModel,
+    source: String,
+    externalId: Int,
+    mediaType: MediaType,
+    apiClient: JikanApiClient,
+    tmdbId: Int?,
+    realMalId: Int?,
+    titleLanguage: String,
+    onUserProfileClick: (Int, String, String?, String) -> Unit,
+    preferredTranslator: String
+) {
+    val state by viewModel.reviewsState.collectAsState()
+    ReviewsTabContent(
+        state = state,
+        source = source,
+        externalId = externalId,
+        mediaType = mediaType,
+        apiClient = apiClient,
+        tmdbId = tmdbId,
+        realMalId = realMalId,
+        titleLanguage = titleLanguage,
+        onUserProfileClick = onUserProfileClick,
+        preferredTranslator = preferredTranslator
+    )
+}
+
+@Composable
+private fun EntryEpisodesTabSlot(
+    viewModel: MediaEntryDetailViewModel,
+    entry: MediaEntry,
+    detailState: com.kitsugi.animelist.data.remote.KitsugiMediaDetail?,
+    targetSeason: Int,
+    onEpisodeOptionsRequested: (KitsugiStreamingEpisode) -> Unit
+) {
+    val state by viewModel.episodesState.collectAsState()
+    val episodeRatings by viewModel.episodeRatings.collectAsState()
+    EntryDetailEpisodesTab(
+        entry = entry,
+        detailState = detailState,
+        state = state,
+        episodeRatings = episodeRatings,
+        targetSeason = targetSeason,
+        onSeasonSelected = { newSeason ->
+            viewModel.setTargetSeason(newSeason, entry)
+        },
+        onEpisodeOptionsRequested = onEpisodeOptionsRequested
+    )
+}
 
 
 
@@ -794,6 +1056,24 @@ internal fun scoreText(entry: MediaEntry): String {
     } else {
         "${entry.score}/10"
     }
+}
+
+@Composable
+private fun EntryVideoTabSlot(
+    viewModel: MediaEntryDetailViewModel,
+    detail: com.kitsugi.animelist.data.remote.KitsugiMediaDetail?,
+    mediaTitle: String,
+    primarySource: String
+) {
+    val videoItems by viewModel.videoItems.collectAsState()
+    val videosLoading by viewModel.videosLoading.collectAsState()
+    KitsugiMediaVideosTab(
+        detail = detail,
+        mediaTitle = mediaTitle,
+        primarySource = primarySource,
+        aggregatedVideos = videoItems,
+        isLoading = videosLoading
+    )
 }
 
 

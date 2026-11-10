@@ -6,6 +6,7 @@
 package com.kitsugi.animelist.ui.screens.profile
 
 import com.kitsugi.animelist.ui.theme.gradient.CircularProgressIndicator
+import com.kitsugi.animelist.ui.utils.uniqueItems
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import com.kitsugi.animelist.ui.theme.gradient.Text
 
@@ -22,9 +23,10 @@ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.*
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
+import com.kitsugi.animelist.ui.components.KitsugiDropdownMenu
+import com.kitsugi.animelist.ui.components.KitsugiMenuItem
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -121,6 +123,8 @@ fun ActivityCard(
     onLikeClick: ((activityId: Int) -> Unit)? = null,
     onDeleteClick: ((activityId: Int) -> Unit)? = null
 ) {
+    var showMenu by remember { mutableStateOf(false) }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -168,7 +172,7 @@ fun ActivityCard(
                         modifier = Modifier.size(30.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.DeleteOutline,
+                            imageVector = Icons.DeleteOutline,
                             contentDescription = stringResource(R.string.action_delete),
                             tint = KitsugiColors.AccentRed.copy(alpha = 0.85f),
                             modifier = Modifier.size(18.dp)
@@ -277,7 +281,7 @@ fun ActivityCard(
                     }
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.ChatBubbleOutline,
+                        imageVector = Icons.ChatBubbleOutline,
                         contentDescription = stringResource(R.string.yanitlar),
                         tint = KitsugiColors.TextMuted,
                         modifier = Modifier.size(16.dp)
@@ -304,7 +308,7 @@ fun ActivityCard(
                     }
                 ) {
                     Icon(
-                        imageVector = if (isLikedState) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                        imageVector = if (isLikedState) Icons.Favorite else Icons.FavoriteBorder,
                         contentDescription = stringResource(R.string.begen),
                         tint = if (isLikedState) KitsugiColors.AccentPink else KitsugiColors.TextMuted,
                         modifier = Modifier.size(16.dp)
@@ -366,7 +370,7 @@ fun FavoritesHorizontalSection(
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Icon(
-                            imageVector = Icons.Rounded.ChevronRight,
+                            imageVector = Icons.ChevronRight,
                             contentDescription = null,
                             tint = LocalKitsugiAccent.current,
                             modifier = Modifier.size(16.dp)
@@ -381,7 +385,7 @@ fun FavoritesHorizontalSection(
             state = snapRowState,
             flingBehavior = com.kitsugi.animelist.ui.utils.KitsugiScrollDefaults.rememberRowSnapFling(snapRowState),
             horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            items(
+            uniqueItems(
                 items = items,
                 key = { item -> item.id.ifBlank { item.title } }
             ) { item ->
@@ -411,7 +415,7 @@ fun FavoritesHorizontalSection(
                                 modifier = Modifier.fillMaxSize(),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Icon(imageVector = Icons.Rounded.Favorite, contentDescription = null, tint = KitsugiColors.TextMuted)
+                                Icon(imageVector = Icons.Favorite, contentDescription = null, tint = KitsugiColors.TextMuted)
                             }
                         }
                     }
@@ -484,7 +488,7 @@ fun FavoritesExpandedBottomSheet(
                     )
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.Close,
+                        imageVector = Icons.Close,
                         contentDescription = stringResource(R.string.kapat),
                         tint = KitsugiColors.TextPrimary
                     )
@@ -507,7 +511,7 @@ fun FavoritesExpandedBottomSheet(
                 verticalArrangement = Arrangement.spacedBy(14.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                items(
+                uniqueItems(
                     items = items,
                     key = { item -> item.id.ifBlank { item.title } }
                 ) { item ->
@@ -541,7 +545,7 @@ fun FavoritesExpandedBottomSheet(
                                     modifier = Modifier.fillMaxSize(),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Icon(imageVector = Icons.Rounded.Favorite, contentDescription = null, tint = KitsugiColors.TextMuted)
+                                    Icon(imageVector = Icons.Favorite, contentDescription = null, tint = KitsugiColors.TextMuted)
                                 }
                             }
                         }
@@ -629,7 +633,7 @@ fun PositionalStatItemCard(
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.Person,
+                            imageVector = Icons.Person,
                             contentDescription = null,
                             tint = accentColor.copy(alpha = 0.8f),
                             modifier = Modifier.size(22.dp)

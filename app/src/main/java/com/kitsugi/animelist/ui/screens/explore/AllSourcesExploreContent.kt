@@ -1,5 +1,6 @@
 package com.kitsugi.animelist.ui.screens.explore
 
+import com.kitsugi.animelist.ui.components.KitsugiChevronIcon
 import com.kitsugi.animelist.ui.theme.gradient.CircularProgressIndicator
 import com.kitsugi.animelist.ui.components.PlatformErrorCodeChip
 import com.kitsugi.animelist.ui.theme.gradient.Icon
@@ -13,10 +14,7 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.ExpandLess
-import androidx.compose.material.icons.rounded.ExpandMore
-import androidx.compose.material.icons.rounded.KeyboardArrowUp
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -34,11 +32,21 @@ import com.kitsugi.animelist.ui.components.KitsugiShimmerMediaRow
 import com.kitsugi.animelist.ui.components.kitsugiCardFrame
 import com.kitsugi.animelist.ui.theme.KitsugiColors
 import com.kitsugi.animelist.ui.utils.tvClickable
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import com.kitsugi.animelist.R
 
 @Composable
-private fun localizedExploreSectionTitle(title: String): String {
+internal fun localizedExploreSectionTitle(title: String): String {
+    if (title == "Yayındaki Mangalar") {
+        val locales = LocalConfiguration.current.locales
+        val lang = if (locales.isEmpty) "tr" else locales.get(0)?.language.orEmpty()
+        return if (lang.startsWith("tr", ignoreCase = true)) {
+            "Yayındaki Mangalar"
+        } else {
+            stringResource(R.string.explore_publishing_manga)
+        }
+    }
     val titleRes = when (title) {
         "Trend Her Şey" -> R.string.explore_source_trending_all
         "Trend Animeler" -> R.string.explore_source_trending_anime
@@ -57,6 +65,7 @@ private fun localizedExploreSectionTitle(title: String): String {
         "En Yüksek Puanlı Diziler" -> R.string.explore_source_top_rated_tv
         "En Yüksek Puanlı Filmler" -> R.string.explore_source_top_rated_movies
         "Yayındaki Animeler" -> R.string.explore_source_airing_anime
+        "Yayındaki Mangalar" -> R.string.explore_source_airing_manga
         "Yayındaki Diziler" -> R.string.explore_source_airing_tv
         "Yaklaşan Animeler" -> R.string.explore_source_upcoming_anime
         "Yaklaşan Film ve Diziler" -> R.string.explore_source_upcoming_tv_movies
@@ -69,6 +78,10 @@ private fun localizedExploreSectionTitle(title: String): String {
         "Noveller & Light Novel" -> R.string.explore_source_novels
         "Bangumi Dizileri" -> R.string.explore_source_bangumi_tv
         "Bangumi Filmleri" -> R.string.explore_source_bangumi_movies
+        SIMKL_PERSONAL_CONTINUE_SERIES_TITLE -> R.string.explore_simkl_continue_watching_series
+        SIMKL_PERSONAL_CONTINUE_MOVIES_TITLE -> R.string.explore_simkl_continue_watching_movies
+        SIMKL_PERSONAL_PLANNED_SERIES_TITLE -> R.string.explore_simkl_plantowatch_series
+        SIMKL_PERSONAL_PLANNED_MOVIES_TITLE -> R.string.explore_simkl_plantowatch_movies
         else -> return title
     }
     return stringResource(titleRes)
@@ -95,12 +108,17 @@ fun LazyListScope.allSourcesExploreSections(
     startIndex: Int,
     onJumpToIndex: (Int) -> Unit,
     onRetrySource: (ExplorePlatform) -> Unit,
+    loadedCategories: Set<ExploreCategoryType>,
+    loadingCategories: Set<ExploreCategoryType>,
+    failedCategories: Set<ExploreCategoryType>,
+    onLoadCategory: (ExplorePlatform, ExploreCategoryType) -> Unit,
+    onRetryCategory: (ExplorePlatform, ExploreCategoryType) -> Unit,
     alreadyInList: (JikanSearchResult) -> Boolean,
     getMediaEntry: (JikanSearchResult) -> MediaEntry?,
     onItemClick: (JikanSearchResult) -> Unit,
     onLongClickItem: ((JikanSearchResult) -> Unit)?,
     onSeeAllSection: (String, ExploreCategoryType, List<JikanSearchResult>, ExplorePlatform) -> Unit,
-    titleLanguage: String = "ROMAJI",
+    titleLanguage: String = "ENGLISH",
     scoreFormat: String = "POINT_10",
     hideScores: Boolean = false,
     blurAdultMedia: Boolean = false,
@@ -200,33 +218,40 @@ fun LazyListScope.allSourcesExploreSections(
             items(sourceSections, key = { "all_${it.key}" }) { section ->
                 val sectionTitle = localizedExploreSectionTitle(section.title)
                 val platformLabel = platform.localizedLabel()
-                Column(Modifier.padding(top = 6.dp, bottom = 20.dp)) {
-                    // The source heading owns the rows; don't repeat its name on every title.
-                    CompositionLocalProviderForSource(platform) {
-                        KitsugiHorizontalMediaSection(
-                            title = sectionTitle,
-                            results = section.results,
-                            isLoading = false,
-                            alreadyInList = alreadyInList,
-                            getMediaEntry = getMediaEntry,
-                            onItemClick = onItemClick,
-                            onLongClickItem = onLongClickItem,
-                            onSeeAllClick = {
-                                onSeeAllSection("$platformLabel · $sectionTitle",
-                                    section.category, section.results, platform)
-                            },
-                            titleLanguage = titleLanguage,
-                            scoreFormat = scoreFormat,
-                            hideScores = hideScores,
-                            blurAdultMedia = blurAdultMedia
-                        )
-                    }
+                // The source heading owns the rows; the same row model is used in single-source mode.
+                CompositionLocalProviderForSource(platform) {
+                    ExploreSourceShelfRow(
+                        section = section.copy(title = sectionTitle),
+                        isProviderLoading = state.isLoading,
+                        isCategoryLoaded = section.category in loadedCategories,
+                        isCategoryLoading = section.category in loadingCategories,
+                        isCategoryFailed = section.category in failedCategories,
+                        onLoadCategory = { onLoadCategory(platform, section.category) },
+                        onRetryCategory = { onRetryCategory(platform, section.category) },
+                        isAlreadyInList = alreadyInList,
+                        getMediaEntry = getMediaEntry,
+                        onItemClick = onItemClick,
+                        onLongClickItem = onLongClickItem,
+                        onSeeAllSection = { title, category, results ->
+                            onSeeAllSection("$platformLabel · $title", category, results, platform)
+                        },
+                        titleLanguage = titleLanguage,
+                        scoreFormat = scoreFormat,
+                        hideScores = hideScores,
+                        blurAdultMedia = blurAdultMedia
+                    )
                 }
             }
             item(key = "all_source_footer_${platform.name}") {
                 if (sourceSections.isEmpty() && state.isLoading) {
                     Column(Modifier.padding(vertical = 16.dp)) {
-                        KitsugiShimmerMediaRow(cardCount = 5)
+                        val isLandscape = LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+                        com.kitsugi.animelist.ui.components.KitsugiShimmerResponsiveMediaRow(
+                            cardWidth = com.kitsugi.animelist.ui.components.exploreShelfCardWidth(isLandscape),
+                            isLandscape = isLandscape,
+                            contentPadding = PaddingValues(horizontal = 20.dp),
+                            cardSpacing = 12.dp,
+                        )
                     }
                 }
                 Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
@@ -279,7 +304,7 @@ private fun BackToExploreChip(onClick: () -> Unit) {
         horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         Icon(
-            imageVector = Icons.Rounded.KeyboardArrowUp,
+            imageVector = Icons.KeyboardArrowUp,
             contentDescription = null,
             tint = KitsugiColors.TextSecondary,
             modifier = Modifier.size(18.dp)
@@ -348,8 +373,12 @@ private fun SourceHeader(
                     color = color, style = MaterialTheme.typography.labelMedium)
             }
             IconButton(onClick = onToggle) {
-                Icon(if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
-                    contentDescription = stringResource(if (expanded) R.string.explore_source_collapse else R.string.explore_source_expand, platform.localizedLabel()), tint = color)
+                KitsugiChevronIcon(
+                    expanded = expanded,
+                    contentDescription = stringResource(if (expanded) R.string.explore_source_collapse else R.string.explore_source_expand, platform.localizedLabel()),
+                    tint = color,
+                    modifier = Modifier
+                )
             }
         }
         Spacer(Modifier.height(10.dp))

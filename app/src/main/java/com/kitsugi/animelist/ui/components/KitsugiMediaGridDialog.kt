@@ -3,6 +3,7 @@
 package com.kitsugi.animelist.ui.components
 
 import androidx.compose.foundation.layout.Arrangement
+import com.kitsugi.animelist.ui.utils.uniqueLazyKeys
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Spacer
@@ -35,8 +36,7 @@ import com.kitsugi.animelist.ui.utils.dpadVerticalFastScroll
 import com.kitsugi.animelist.ui.utils.kitsugiLazyKey
 import com.kitsugi.animelist.ui.theme.KitsugiColors
 import com.kitsugi.animelist.ui.components.KitsugiEmptyState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.SearchOff
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.ui.res.stringResource
 import com.kitsugi.animelist.R
 
@@ -141,7 +141,7 @@ fun KitsugiMediaGridDialog(
                                 } else {
                                     "\"$searchQuery\" araması için sonuç bulunamadı."
                                 },
-                                icon = Icons.Rounded.SearchOff
+                                icon = Icons.SearchOff
                             )
                         }
                     } else {
@@ -161,16 +161,17 @@ fun KitsugiMediaGridDialog(
                                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                                 verticalArrangement = Arrangement.spacedBy(16.dp)
                             ) {
+                                val dialogKeys = filteredResults.uniqueLazyKeys { r ->
+                                    "dlg_tv_${r.source}_${r.malId}_${r.tmdbId ?: 0}_${r.cs3Url.orEmpty().hashCode()}"
+                                }
                                 items(
                                     count = filteredResults.size,
                                     // PERF: index'siz sabit identity key — sıralama/filtreleme
                                     // sonrası kartlar yeniden kullanılabilir. cs3Url hash'i
                                     // eklenti kaynaklı aynı malId'li ama farklı URL'li kartlar
                                     // için benzersizlik sağlar.
-                                    key = { index ->
-                                        val r = filteredResults[index]
-                                        "dlg_tv_${r.source}_${r.malId}_${r.tmdbId ?: 0}_${r.cs3Url.orEmpty().hashCode()}"
-                                    },
+                                    // Yinelenen sonuçlarda bile benzersiz (bkz. uniqueLazyKeys).
+                                    key = { index -> dialogKeys[index] },
                                     contentType = { _ -> "media_card" }
                                 ) { index ->
                                     val result = filteredResults[index]
@@ -241,7 +242,7 @@ fun KitsugiMediaGridDialog(
                             } else {
                                 "\"$searchQuery\" araması için sonuç bulunamadı."
                             },
-                            icon = Icons.Rounded.SearchOff
+                            icon = Icons.SearchOff
                         )
                     } else {
                         LazyVerticalGrid(

@@ -3,6 +3,8 @@
 package com.kitsugi.animelist.ui.screens.fullscreen
 
 import com.kitsugi.animelist.ui.utils.rememberKitsugiGridColumns
+import com.kitsugi.animelist.ui.utils.uniqueItemsIndexed
+import com.kitsugi.animelist.ui.utils.uniqueItems
 import android.util.Log
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
@@ -40,14 +42,7 @@ import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.automirrored.rounded.ListAlt
-import androidx.compose.material.icons.filled.Extension
-import androidx.compose.material.icons.rounded.FilterList
-import androidx.compose.material.icons.rounded.GridView
-import androidx.compose.material.icons.rounded.KeyboardArrowUp
-import androidx.compose.material.icons.rounded.SearchOff
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -110,7 +105,7 @@ import com.kitsugi.animelist.utils.KitsugiStrings
 fun AddonFullScreenGridPage(
     state: AddonFullScreenGridState,
     onBackClick: () -> Unit,
-    titleLanguage: String = "ROMAJI",
+    titleLanguage: String = "ENGLISH",
     scoreFormat: String = "POINT_10",
     hideScores: Boolean = false,
     blurAdultMedia: Boolean = false
@@ -129,7 +124,7 @@ fun AddonFullScreenGridPage(
     var loadedItems by remember { mutableStateOf(state.cachedItems ?: state.initialItems) }
     var currentPage by remember { mutableIntStateOf(state.cachedPage ?: if (state.initialItems.isEmpty()) 0 else 1) }
     var isLoadingMore by remember { mutableStateOf(false) }
-    var hasMorePages by remember { mutableStateOf(state.cachedHasMore ?: true) }
+    var hasMorePages by remember { mutableStateOf(state.cachedHasMore ?: state.paginate) }
     var loadError by remember { mutableStateOf<String?>(null) }
     androidx.compose.runtime.SideEffect {
         state.cachedItems = loadedItems
@@ -186,6 +181,9 @@ fun AddonFullScreenGridPage(
 
     fun loadNextPage() {
         if (isLoadingMore || !hasMorePages) return
+        // Arama sonucu ızgarası (paginate=false): tüm sonuçlar zaten seed edildi;
+        // boş mainPageData ile getMainPage çağırmak alakasız ana sayfa verisi yüklerdi.
+        if (!state.paginate) { hasMorePages = false; return }
         val api = resolveApi() ?: run {
             loadError = context.getString(R.string.addon_page_not_found, state.apiName)
             return
@@ -314,7 +312,7 @@ fun AddonFullScreenGridPage(
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Extension,
+                            imageVector = Icons.Extension,
                             contentDescription = null,
                             tint = accentColor,
                             modifier = Modifier.size(14.dp)
@@ -338,7 +336,7 @@ fun AddonFullScreenGridPage(
                         .background(if (hasActiveFilter) accentColor.copy(alpha = 0.25f) else KitsugiColors.Surface)
                 ) {
                     Icon(
-                        Icons.Rounded.FilterList,
+                        Icons.FilterList,
                         contentDescription = stringResource(R.string.filtre_ve_siralama),
                         tint = if (hasActiveFilter) accentColor else KitsugiColors.TextPrimary
                     )
@@ -352,7 +350,7 @@ fun AddonFullScreenGridPage(
                         .background(KitsugiColors.Surface)
                 ) {
                     Icon(
-                        imageVector = if (isGridView) Icons.AutoMirrored.Rounded.ListAlt else Icons.Rounded.GridView,
+                        imageVector = if (isGridView) Icons.ListAlt else Icons.GridView,
                         contentDescription = if (isGridView) stringResource(R.string.cd_list_view) else stringResource(R.string.cd_grid_view),
                         tint = accentColor
                     )
@@ -496,13 +494,14 @@ fun AddonFullScreenGridPage(
                         KitsugiEmptyState(
                             title = stringResource(R.string.henuz_icerik_yok),
                             subtitle = stringResource(R.string.addon_page_empty_subtitle),
-                            icon = Icons.Rounded.SearchOff
+                            icon = Icons.SearchOff
                         )
                     }
                 }
 
                 // ── Items — ana sayfa kutucuklarıyla birebir aynı kart ───────
-                gridItems(
+                // CS3 eklentileri aynı URL'yi bir sayfada / sayfalar arasında tekrar döndürebiliyor.
+                uniqueItems(
                     displayedResults,
                     key = { result -> "${state.apiName}_${result.cs3Url}" }
                 ) { result ->
@@ -541,12 +540,12 @@ fun AddonFullScreenGridPage(
                         KitsugiEmptyState(
                             title = stringResource(R.string.henuz_icerik_yok),
                             subtitle = stringResource(R.string.addon_page_empty_subtitle),
-                            icon = Icons.Rounded.SearchOff
+                            icon = Icons.SearchOff
                         )
                     }
                 }
 
-                itemsIndexed(
+                uniqueItemsIndexed(
                     displayedResults,
                     key = { _, result -> "${state.apiName}_${result.cs3Url}_list" }
                 ) { index, result ->
@@ -582,7 +581,7 @@ fun AddonFullScreenGridPage(
             ) {
                 IconButton(onClick = onBackClick) {
                     Icon(
-                        Icons.AutoMirrored.Rounded.ArrowBack,
+                        Icons.ArrowBack,
                         contentDescription = stringResource(R.string.geri),
                         tint = KitsugiColors.TextPrimary
                     )
@@ -609,7 +608,7 @@ fun AddonFullScreenGridPage(
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Extension,
+                            imageVector = Icons.Extension,
                             contentDescription = null,
                             tint = accentColor,
                             modifier = Modifier.size(12.dp)
@@ -629,7 +628,7 @@ fun AddonFullScreenGridPage(
                         .background(if (hasActiveFilter) accentColor.copy(alpha = 0.25f) else androidx.compose.ui.graphics.Color.Transparent)
                 ) {
                     Icon(
-                        Icons.Rounded.FilterList,
+                        Icons.FilterList,
                         contentDescription = stringResource(R.string.filtre_ve_siralama),
                         tint = if (hasActiveFilter) accentColor else KitsugiColors.TextPrimary
                     )
@@ -637,7 +636,7 @@ fun AddonFullScreenGridPage(
                 Spacer(modifier = Modifier.width(4.dp))
                 IconButton(onClick = toggleView) {
                     Icon(
-                        imageVector = if (isGridView) Icons.AutoMirrored.Rounded.ListAlt else Icons.Rounded.GridView,
+                        imageVector = if (isGridView) Icons.ListAlt else Icons.GridView,
                         contentDescription = if (isGridView) KitsugiStrings.get(R.string.liste) else "Grid",
                         tint = accentColor
                     )
@@ -668,7 +667,7 @@ fun AddonFullScreenGridPage(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.KeyboardArrowUp,
+                    imageVector = Icons.KeyboardArrowUp,
                     contentDescription = stringResource(R.string.cd_scroll_top),
                     tint = KitsugiColors.Background,
                     modifier = Modifier.size(28.dp)

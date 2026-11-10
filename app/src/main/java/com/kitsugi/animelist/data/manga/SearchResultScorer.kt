@@ -8,7 +8,26 @@ object SearchResultScorer {
 
     fun score(source: MangaSource, query: CanonicalTitleSet, manga: MangaDetails): Double {
         val policy = TurkishSourceRegistry.policyFor(source)
-        val candidate = CanonicalMangaResolver.resolve(manga.title)
+        val fuzzyEnabled = com.kitsugi.animelist.data.settings.KitsugiContentPrefs.fuzzySearchEnabled
+
+        var bestScore = scoreCandidateTitle(policy, query, manga.title, fuzzyEnabled)
+        for (alt in manga.alternativeTitles) {
+            if (alt.isBlank()) continue
+            val altScore = scoreCandidateTitle(policy, query, alt, fuzzyEnabled)
+            if (altScore > bestScore) {
+                bestScore = altScore
+            }
+        }
+        return bestScore
+    }
+
+    private fun scoreCandidateTitle(
+        policy: com.kitsugi.animelist.data.manga.model.SourceSearchPolicy,
+        query: CanonicalTitleSet,
+        rawTitle: String,
+        fuzzyEnabled: Boolean,
+    ): Double {
+        val candidate = CanonicalMangaResolver.resolve(rawTitle)
 
         val tokenOverlap = tokenOverlap(query.tokens, candidate.tokens)
         val hasTokenOverlap = tokenOverlap > 0.0
@@ -17,9 +36,8 @@ object SearchResultScorer {
 
         // AniHyou paritesi: "Fuzzy arama kullan" kapalıysa benzerlik (Levenshtein)
         // skoru devre dışı kalır; yalnızca kesin/token/alias eşleşmeleri kabul edilir.
-        val fuzzyEnabled = com.kitsugi.animelist.data.settings.KitsugiContentPrefs.fuzzySearchEnabled
         val similarity = if (fuzzyEnabled) max(
-            MangaTitleMatcher.getSimilarityScore(query.raw, manga.title),
+            MangaTitleMatcher.getSimilarityScore(query.raw, rawTitle),
             max(
                 MangaTitleMatcher.getSimilarityScore(query.cleaned, candidate.cleaned),
                 MangaTitleMatcher.getSimilarityScore(query.ascii, candidate.ascii),

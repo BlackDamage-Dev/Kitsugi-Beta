@@ -176,9 +176,10 @@ object KitsugiEpisodeRatingsRepository {
             return DetailCache.tmdbMediaCache[tmdbId]
         }
         val kind = runCatching {
-            val url = URL("https://arm.haglund.dev/api/v2/themoviedb?id=$tmdbId")
+            val url = URL("https://arm.haglund.dev/api/v2/ids?source=themoviedb&id=$tmdbId")
             val response = KitsugiApiBase.executeGetRequest(url) ?: return@runCatching null
             val trimmed = response.trim()
+            // ARM bazen tek elemanlı dizi döndürür — sar (fetchArmJson ile aynı davranış).
             val json = runCatching {
                 if (trimmed.startsWith("[")) {
                     val arr = JSONArray(trimmed)

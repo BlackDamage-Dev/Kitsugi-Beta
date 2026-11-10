@@ -101,6 +101,15 @@ class CloudstreamUrlHelperTest {
     // ─── İndirme adayları ────────────────────────────────────────────────────
 
     @Test
+    fun `official current Anizm build is tried before stale prebuilt fallback`() {
+        val url = "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/Anizm.cs3"
+        val candidates = CloudstreamUrlHelper.getCandidateDownloadUrls("Anizm", url)
+        val currentApi = candidates.indexOf("https://api.github.com/repos/f26901964-eng/Kitsugi-Plugins/contents/Anizm.cs3?ref=builds")
+        val oldPrebuilt = candidates.indexOf("https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/Anizm.cs3")
+        assertTrue(currentApi >= 0 && oldPrebuilt > currentApi)
+    }
+
+    @Test
     fun `Indirme adaylarinda varyant ve Codeberg kurtarma yedegi bulunur`() {
         val url = "https://codeberg.org/BlackDamage/KitsugiPlugins/raw/branch/builds/WFilmİzle.cs3"
         val candidates = CloudstreamUrlHelper.getCandidateDownloadUrls("WFilmİzle", url)

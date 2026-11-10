@@ -31,18 +31,24 @@ object ReleaseNotesCache {
     private const val KEY_APK_SIZE = "apk_size"
     private const val KEY_PUBLISHED_AT = "published_at"
     private const val KEY_FETCHED_AT = "fetched_at_ms"
+    private const val KEY_CACHED_FOR_APP_VERSION = "cached_for_app_version"
 
     /** Önbellek ömrü: 6 saat. Bu süre içinde ağa istek atılmaz. */
     const val TTL_MS = 6L * 60L * 60L * 1000L
 
     /**
-     * Önbellekteki sürüm notları. [nowMs]'den [TTL_MS]'den daha eski kayıtlar ve bozuk
-     * kayıtlar için null döner (çağıran taraf ağı dener).
+     * Önbellekteki sürüm notları. Kayıt başka bir uygulama sürümünde alındıysa, süresi
+     * dolduysa veya cihaz saati geriye alındıysa null döner ve çağıran taraf ağı dener.
      */
-    fun read(context: Context, nowMs: Long = System.currentTimeMillis()): AppRelease? {
+    fun read(
+        context: Context,
+        currentAppVersion: String,
+        nowMs: Long = System.currentTimeMillis()
+    ): AppRelease? {
         val prefs = prefs(context) ?: return null
         val fetchedAt = prefs.getLong(KEY_FETCHED_AT, 0L)
-        if (fetchedAt <= 0L || nowMs - fetchedAt > TTL_MS) return null
+        val cachedForAppVersion = prefs.getString(KEY_CACHED_FOR_APP_VERSION, null)
+        if (!isEntryFresh(fetchedAt, nowMs, cachedForAppVersion, currentAppVersion)) return null
         val versionName = prefs.getString(KEY_VERSION_NAME, null)?.takeIf { it.isNotBlank() } ?: return null
         val notes = prefs.getString(KEY_NOTES, null) ?: return null
         return AppRelease(
@@ -56,8 +62,13 @@ object ReleaseNotesCache {
         )
     }
 
-    /** Başarılı bir okumanın ardından kaydı tazeler (son kullanma zamanı da burada yazılır). */
-    fun write(context: Context, release: AppRelease, nowMs: Long = System.currentTimeMillis()) {
+    /** Başarılı bir okumanın ardından kaydı tazeler ve hangi uygulama sürümünde alındığını yazar. */
+    fun write(
+        context: Context,
+        release: AppRelease,
+        currentAppVersion: String,
+        nowMs: Long = System.currentTimeMillis()
+    ) {
         val prefs = prefs(context) ?: return
         prefs.edit()
             .putString(KEY_VERSION_NAME, release.versionName)
@@ -67,8 +78,21 @@ object ReleaseNotesCache {
             .putString(KEY_DOWNLOAD_URL, release.downloadUrl)
             .putLong(KEY_APK_SIZE, release.apkSizeBytes)
             .putString(KEY_PUBLISHED_AT, release.publishedAt)
+            .putString(KEY_CACHED_FOR_APP_VERSION, currentAppVersion)
             .putLong(KEY_FETCHED_AT, nowMs)
             .apply()
+    }
+
+    /** Aynı sürüm içinde kısa süre önbellekler; yükseltme ve saat sapmasında eski notları reddeder. */
+    internal fun isEntryFresh(
+        fetchedAtMs: Long,
+        nowMs: Long,
+        cachedForAppVersion: String?,
+        currentAppVersion: String
+    ): Boolean {
+        if (cachedForAppVersion != currentAppVersion) return false
+        if (fetchedAtMs <= 0L || fetchedAtMs > nowMs) return false
+        return nowMs - fetchedAtMs <= TTL_MS
     }
 
     /** Kayıt silinir: bir sonraki okuma ağdan tazeler. */

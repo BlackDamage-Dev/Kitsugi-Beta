@@ -55,7 +55,7 @@ data class AiringEntry(
      * Kore ("KR") ve Çin ("CN") yapımı anime/donghua/awe için "Dogul Wang" gibi anlamsız
      * harf çevirileri yerine İngilizce başlık ("Tomb Raider King") önceliklendirilir.
      */
-    fun getDisplayTitle(titleLanguage: String = "ROMAJI"): String {
+    fun getDisplayTitle(titleLanguage: String = "ENGLISH"): String {
         val isNonJapanese = countryOfOrigin != null && !countryOfOrigin.equals("JP", ignoreCase = true)
         return when {
             isNonJapanese && !titleEnglish.isNullOrBlank() -> titleEnglish

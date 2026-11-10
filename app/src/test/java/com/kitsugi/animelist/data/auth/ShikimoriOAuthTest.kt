@@ -121,4 +121,82 @@ class ShikimoriOAuthTest {
             executor.shutdownNow()
         }
     }
+
+    @Test
+    fun executeShikimoriFailsOverAcrossMirrorsOnHtmlBlockPageWhilePreservingAuthorization() {
+        val blockedServer = ServerSocket(0)
+        val healthyServer = ServerSocket(0)
+        val receivedAuthOnMirror = AtomicReference<String?>()
+        val executor = Executors.newFixedThreadPool(2)
+
+        executor.submit {
+            try {
+                val s = blockedServer.accept()
+                val reader = BufferedReader(InputStreamReader(s.getInputStream(), StandardCharsets.UTF_8))
+                while (true) {
+                    val line = reader.readLine() ?: break
+                    if (line.isEmpty()) break
+                }
+                val html = "<!DOCTYPE html><html><body>ISP Access Restricted</body></html>"
+                val writer = PrintWriter(OutputStreamWriter(s.getOutputStream(), StandardCharsets.UTF_8), true)
+                writer.print(
+                    "HTTP/1.1 200 OK\r\n" +
+                        "Content-Type: text/html; charset=utf-8\r\n" +
+                        "Content-Length: ${html.toByteArray(StandardCharsets.UTF_8).size}\r\n" +
+                        "Connection: close\r\n\r\n$html"
+                )
+                writer.flush()
+                s.close()
+            } catch (_: Exception) {
+            }
+        }
+
+        executor.submit {
+            try {
+                val s = healthyServer.accept()
+                val reader = BufferedReader(InputStreamReader(s.getInputStream(), StandardCharsets.UTF_8))
+                while (true) {
+                    val line = reader.readLine() ?: break
+                    if (line.isEmpty()) break
+                    if (line.startsWith("Authorization:", ignoreCase = true)) {
+                        receivedAuthOnMirror.set(line.substringAfter(":").trim())
+                    }
+                }
+                val json = "[{\"id\":99,\"target_id\":52588}]"
+                val writer = PrintWriter(OutputStreamWriter(s.getOutputStream(), StandardCharsets.UTF_8), true)
+                writer.print(
+                    "HTTP/1.1 200 OK\r\n" +
+                        "Content-Type: application/json\r\n" +
+                        "Content-Length: ${json.toByteArray(StandardCharsets.UTF_8).size}\r\n" +
+                        "Connection: close\r\n\r\n$json"
+                )
+                writer.flush()
+                s.close()
+            } catch (_: Exception) {
+            }
+        }
+
+        try {
+            val blockedOrigin = "http://127.0.0.1:${blockedServer.localPort}"
+            val healthyOrigin = "http://127.0.0.1:${healthyServer.localPort}"
+            val req = Request.Builder()
+                .url("$blockedOrigin/api/users/1/anime_rates?page=1&limit=500")
+                .header("Authorization", "Bearer mirror_token_456")
+                .get()
+                .build()
+
+            ShikimoriApiClient.executeShikimori(
+                request = req,
+                candidateBaseUrls = listOf(blockedOrigin, healthyOrigin)
+            ).use { response ->
+                assertEquals(200, response.code)
+                assertEquals("[{\"id\":99,\"target_id\":52588}]", response.body?.string())
+                assertEquals("Bearer mirror_token_456", receivedAuthOnMirror.get())
+            }
+        } finally {
+            blockedServer.close()
+            healthyServer.close()
+            executor.shutdownNow()
+        }
+    }
 }

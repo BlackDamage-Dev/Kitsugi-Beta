@@ -73,12 +73,14 @@ object NotificationDiagnostics {
 
     suspend fun runAll(context: Context, mediaEntries: List<MediaEntry>): List<Row> {
         val rows = mutableListOf<Row>()
-        rows += checkAniList(context)
-        rows += checkMal(context)
-        rows += checkSimkl(context, mediaEntries)
-        rows += checkKitsu(context)
-        rows += checkBangumi(context, mediaEntries)
-        rows += checkShikimori(context)
+        // v2.4.341: teşhis çağrıları ağ/IO işidir. `runDiagnostics` ana iş parçacığından
+        // çağırdığı için buradaki kontroller IO'ya alındı (AniList kota kapısı da bloklayabilir).
+        rows += withContext(Dispatchers.IO) { checkAniList(context) }
+        rows += withContext(Dispatchers.IO) { checkMal(context) }
+        rows += withContext(Dispatchers.IO) { checkSimkl(context, mediaEntries) }
+        rows += withContext(Dispatchers.IO) { checkKitsu(context) }
+        rows += withContext(Dispatchers.IO) { checkBangumi(context, mediaEntries) }
+        rows += withContext(Dispatchers.IO) { checkShikimori(context) }
         // Merkezi son adım: başarısız her satıra kaynağa özgü hata kodu ata.
         val tagged = rows.map { row -> if (row.ok) row else row.copy(errorCode = classifyRow(row)) }
         tagged.forEach { row ->
@@ -132,7 +134,9 @@ object NotificationDiagnostics {
 
         return try {
             val payload = JSONObject().put("query", query).toString()
-            val http = httpPostJson("https://graphql.anilist.co", payload, token)
+            // Teşhis de olsa AniList'e giden her istek ortak bütçeden geçmeli.
+            com.kitsugi.animelist.data.auth.AniListGovernor.acquire()
+            val http = httpPostJsonAniList("https://graphql.anilist.co", payload, token)
             val status = http.first
             val body = http.second
             val duration = System.currentTimeMillis() - started
@@ -582,8 +586,43 @@ object NotificationDiagnostics {
             }
         }
 
-    private suspend fun httpPostJson(url: String, json: String, token: String): Pair<Int, String> =
+    /**
+     * AniList'e giden teşhis isteği: ortak hız bütçesinden geçer ve yanıtı
+     * yöneticiye BİLDİRİR.
+     *
+     * EKSİK OLAN SON PARÇA: genel [httpPostJson] yalnızca `acquire()` çağırıyor,
+     * `observeResponse` çağırmıyordu. Bu yüzden AniList'in `X-RateLimit-*` başlıkları
+     * burada öğrenilmiyor, HTTP 429 ve GraphQL katmanındaki 429 soğuması kurulmuyordu:
+     * teşhis ekranı kotayı YİYEN ama kota DURUMUNU güncellemeyen bir yoldu.
+     */
+    private suspend fun httpPostJsonAniList(url: String, json: String, token: String): Pair<Int, String> =
         withContext(Dispatchers.IO) {
+            val request = Request.Builder()
+                .url(url)
+                .header("Accept", "application/json")
+                .header("User-Agent", UA)
+                .header("Content-Type", "application/json")
+                .header("Authorization", "Bearer $token")
+                .post(json.toRequestBody("application/json; charset=utf-8".toMediaType()))
+                .build()
+            KitsugiHttpClient.client.newCall(request).execute().use { response ->
+                val body = response.body?.string().orEmpty()
+                com.kitsugi.animelist.data.auth.AniListGovernor.observeResponse(response, body)
+                Pair(response.code, body)
+            }
+        }
+
+    private suspend fun httpPostJson(url: String, json: String, token: String): Pair<Int, String> {
+        // Teşhis isteği de AniList kotasından yer: kapıyı atlaması, "teşhis
+        // çalıştırmak" yüzünden kullanıcının bildirimlerinin 429 almasına yol açıyordu.
+        if (url.contains("anilist.co") &&
+            !com.kitsugi.animelist.data.remote.KitsugiApiBase.aniListGate(
+                com.kitsugi.animelist.data.remote.AniListQuotaGate.Priority.BACKGROUND
+            )
+        ) {
+            return Pair(429, "{\"errors\":[{\"message\":\"AniList kotası dolu; teşhis ertelendi.\"}]}")
+        }
+        return withContext(Dispatchers.IO) {
             val request = Request.Builder()
                 .url(url)
                 .header("Accept", "application/json")
@@ -595,4 +634,5 @@ object NotificationDiagnostics {
                 Pair(response.code, response.body?.string().orEmpty())
             }
         }
+    }
 }

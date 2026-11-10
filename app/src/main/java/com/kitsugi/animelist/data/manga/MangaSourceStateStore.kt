@@ -87,6 +87,30 @@ class MangaSourceStateStore(context: Context) {
         persistSnapshotAsync(source)
     }
 
+    /**
+     * Toplu silme / geri getirme için N kaynağın sağlık durumunu TEK SharedPreferences
+     * yazımı ve TEK Room upsert'ı ile günceller. [setHealthStatus] döngüye sokulursa
+     * 121 kaynak için 121 ayrı coroutine + 121 ayrı DB yazımı oluşuyordu.
+     */
+    fun setHealthStatusForAll(sources: List<MangaSource>, status: SourceHealthStatus) {
+        if (sources.isEmpty()) return
+        val now = System.currentTimeMillis()
+        val editor = prefs.edit()
+        sources.forEach { source ->
+            editor
+                .putString(key(source, KEY_HEALTH), status.name)
+                .putLong(key(source, KEY_UPDATED_AT), now)
+                .putLong(key(source, KEY_LAST_CHECKED_AT), now)
+                .putString(key(source, KEY_REASON), null)
+                .putString(key(source, KEY_ERROR_TYPE), null)
+                .putString(key(source, KEY_ERROR_CODE), null)
+        }
+        editor.apply()
+        scope.launch {
+            dao.upsertAll(sources.map { source -> buildEntitySnapshot(source) })
+        }
+    }
+
     fun recordOperationSuccess(source: MangaSource, operation: String, elapsedMs: Long) {
         val now = System.currentTimeMillis()
         val currentStats = getRuntimeStats(source)
@@ -180,6 +204,9 @@ class MangaSourceStateStore(context: Context) {
     fun isSearchEligible(source: MangaSource): Boolean {
         if (isCoolingDown(source)) return false
         return when (getHealthStatus(source)) {
+            // Eski sürümler "kapalı" bilgisini burada tutuyordu. Artık aktiflik ayrı
+            // bir store'da (MangaSourceEnabledStore); burada kalan eski kayıtları
+            // uyumluluk için hâlâ pasif kabul ediyoruz ama YENİDEN yazmıyoruz.
             SourceHealthStatus.Disabled -> false
             SourceHealthStatus.Broken -> {
                 val updatedAt = getLastUpdatedAt(source)
@@ -187,6 +214,26 @@ class MangaSourceStateStore(context: Context) {
             }
             else -> true
         }
+    }
+
+    /**
+     * Migrasyon: eski `Disabled` sağlık bayrağını temizler.
+     * Kullanıcı tercihi artık [MangaSourceEnabledStore] içinde tutulduğu için
+     * sağlık alanındaki `Disabled` sadece artık veridir ve kaynağın arama/listeye
+     * girmesini sonsuza kadar engellememelidir.
+     */
+    fun clearLegacyDisabledStatus(source: MangaSource) {
+        if (getHealthStatus(source) != SourceHealthStatus.Disabled) return
+        val now = System.currentTimeMillis()
+        prefs.edit()
+            .putString(key(source, KEY_HEALTH), SourceHealthStatus.Unknown.name)
+            .putLong(key(source, KEY_UPDATED_AT), now)
+            .putString(key(source, KEY_REASON), null)
+            .putString(key(source, KEY_ERROR_TYPE), null)
+            .putString(key(source, KEY_ERROR_CODE), null)
+            .putLong(key(source, KEY_COOLDOWN_UNTIL), 0L)
+            .apply()
+        persistSnapshotAsync(source)
     }
 
     fun persistSnapshotAsync(source: MangaSource) {
@@ -272,9 +319,11 @@ class MangaSourceStateStore(context: Context) {
         now: Long,
     ): Long {
         val durationMs = when (status) {
-            SourceHealthStatus.RateLimited -> 15L * 60L * 1000L
-            SourceHealthStatus.CaptchaRequired -> 30L * 60L * 1000L
-            SourceHealthStatus.Broken -> if (failureStreak >= 2) 2L * 60L * 60L * 1000L else 0L
+            // Tekil geçici 429 / DDoS-Guard / Cloudflare yanıtında kaynağı hemen 30 dk
+            // arama dışı bırakma ("0 kaynak" kilidi oluşmasın); üst üste 3 hatada soğutmaya al.
+            SourceHealthStatus.RateLimited -> if (failureStreak >= 3) 10L * 60L * 1000L else 0L
+            SourceHealthStatus.CaptchaRequired -> if (failureStreak >= 3) 15L * 60L * 1000L else 0L
+            SourceHealthStatus.Broken -> if (failureStreak >= 3) 2L * 60L * 60L * 1000L else 0L
             SourceHealthStatus.Degraded -> if (failureStreak >= 3) 10L * 60L * 1000L else 0L
             else -> 0L
         }

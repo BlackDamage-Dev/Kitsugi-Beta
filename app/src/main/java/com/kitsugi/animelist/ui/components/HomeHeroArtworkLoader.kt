@@ -7,11 +7,11 @@ import coil3.request.ImageRequest
 import coil3.request.SuccessResult
 import coil3.size.Precision
 import coil3.size.Scale
+import com.kitsugi.animelist.core.memory.BoundedCache
 import com.kitsugi.animelist.data.remote.JikanSearchResult
 import com.kitsugi.animelist.data.remote.KitsugiHeroArtworkResolver
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withTimeoutOrNull
-import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Admission gate, not a poster fallback. Native banners are tried first; MAL/Bangumi/etc.
@@ -22,12 +22,18 @@ import java.util.concurrent.ConcurrentHashMap
 internal class HomeHeroArtworkLoader(context: Context) {
     private val context = context.applicationContext
     private val imageLoader by lazy { SingletonImageLoader.get(this.context) }
-    private val decodedBackdrops = ConcurrentHashMap<String, Boolean>()
-    private val resolvedBackdrops = ConcurrentHashMap<String, String>() // empty = no usable artwork
+    // URL-keyed results outlive a single list item; bounded LRU prevents long browsing sessions growing indefinitely.
+    private val decodedBackdrops = BoundedCache<String, Boolean>("homeHero.decodedBackdrops", 256)
+    private val resolvedBackdrops = BoundedCache<String, String>("homeHero.resolvedBackdrops", 256) // empty = no usable artwork
 
     fun retryFailures() {
-        resolvedBackdrops.entries.removeAll { it.value.isBlank() }
-        decodedBackdrops.entries.removeAll { !it.value }
+        // BoundedCache exposes snapshot views; remove through the map itself, not entries.removeAll.
+        resolvedBackdrops.keys.toList().forEach { key ->
+            if (resolvedBackdrops[key].isNullOrBlank()) resolvedBackdrops.remove(key)
+        }
+        decodedBackdrops.keys.toList().forEach { key ->
+            if (decodedBackdrops[key] == false) decodedBackdrops.remove(key)
+        }
     }
 
     suspend fun prepare(item: JikanSearchResult): JikanSearchResult? {

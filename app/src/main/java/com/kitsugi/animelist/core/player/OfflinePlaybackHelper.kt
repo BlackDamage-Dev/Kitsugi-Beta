@@ -2,9 +2,11 @@ package com.kitsugi.animelist.core.player
 
 import android.content.Context
 import android.util.Log
-import java.io.File
-import com.kitsugi.animelist.utils.KitsugiStrings
 import com.kitsugi.animelist.R
+import com.kitsugi.animelist.core.download.DownloadExportNaming
+import com.kitsugi.animelist.utils.KitsugiStrings
+import java.io.File
+import java.util.Locale
 
 /**
  * T1.14 – OfflinePlaybackHelper
@@ -35,6 +37,7 @@ object OfflinePlaybackHelper {
     private const val DOWNLOADS_DIR = "Kitsugi_downloads"
     private val VIDEO_EXTENSIONS = setOf("mp4", "mkv", "avi", "webm", "ts", "m2ts")
     private val SUBTITLE_EXTENSIONS = setOf("srt", "vtt", "ass", "ssa")
+    private val AUDIO_EXTENSIONS = com.kitsugi.animelist.core.storage.DownloadStorage.AUDIO_EXTENSIONS
     private val WHITESPACE_REGEX = Regex("\\s+")
 
     // ── Data classes ──────────────────────────────────────────────────────────
@@ -57,6 +60,15 @@ object OfflinePlaybackHelper {
         val downloadedAtMs: Long,
         /** Toplam süre tahmini ms (metadata'dan okunur, 0 = bilinmiyor) */
         val durationMs: Long = 0L,
+        /** Varsa videonun yanına kaydedilmiş ek/ayrık ses parçaları */
+        val companionAudios: List<LocalCompanionAudio> = emptyList(),
+        val audioUri: String? = null,
+    )
+
+    data class LocalCompanionAudio(
+        val language: String,
+        val label: String,
+        val uri: String,
     )
 
     data class LocalSubtitle(
@@ -71,6 +83,8 @@ object OfflinePlaybackHelper {
     data class DownloadMetadata(
         val mediaId: String = "",
         val title: String = "",
+        val videoFile: String = "",
+        val audioFile: String = "",
         val durationMs: Long = 0L,
         val downloadedAtMs: Long = 0L,
     )
@@ -106,7 +120,11 @@ object OfflinePlaybackHelper {
         val legacyCacheRoot = File(context.cacheDir, DOWNLOADS_DIR)
 
         val primaryEntries = if (primaryRoot.exists()) primaryRoot.listFiles()?.toList().orEmpty() else emptyList()
-        val primaryDirs = primaryEntries.filter { it.isDirectory }
+        // `Klipler` alt klasörü detay sayfasındaki küçük videolara aittir; içindeki tek dosya
+        // "en büyük video" olarak okunup çevrimdışı **bölüm** listesine düşmemeli.
+        val primaryDirs = primaryEntries.filter {
+            it.isDirectory && it.name != com.kitsugi.animelist.core.download.DownloadExportNaming.CLIP_FOLDER
+        }
         val legacyDirs = if (legacyCacheRoot.exists()) legacyCacheRoot.listFiles()?.filter { it.isDirectory }.orEmpty() else emptyList()
 
         val allDirs = (primaryDirs + legacyDirs).distinctBy { it.name }
@@ -146,10 +164,16 @@ object OfflinePlaybackHelper {
                     fileSizeBytes  = video.length(),
                     downloadedAtMs = metadata?.downloadedAtMs?.takeIf { it > 0 } ?: video.lastModified(),
                     durationMs     = metadata?.durationMs ?: 0L,
+                    companionAudios = readFlatCompanionAudios(primaryRoot, base, primaryEntries),
                 )
             }
         }
         return null
+    }
+
+    fun getLocalMediaForFile(file: File): LocalMedia? {
+        val parent = file.parentFile ?: return null
+        return readFlatMedia(parent, file)
     }
 
     /**
@@ -163,9 +187,13 @@ object OfflinePlaybackHelper {
             Log.w(TAG, "Video file missing for mediaId=${media.mediaId}: ${media.videoUri}")
             return null
         }
+        val primaryCompanionAudio = media.companionAudios
+            .firstOrNull { it.language.equals("tr", ignoreCase = true) }
+            ?: media.companionAudios.firstOrNull()
+        val effectiveAudioUri = media.audioUri ?: primaryCompanionAudio?.uri
         return PlayerParams(
             videoUri   = media.videoUri,
-            audioUri   = null,
+            audioUri   = effectiveAudioUri,
             headers    = emptyMap(),
             subtitles  = media.subtitles.map {
                 SubtitleInput(url = it.uri, lang = it.language, name = it.label)
@@ -173,6 +201,100 @@ object OfflinePlaybackHelper {
             title      = media.title,
             isOffline  = true,
         )
+    }
+
+    fun resolveDownloadPlaybackParams(
+        context: Context,
+        download: com.kitsugi.animelist.data.model.AnimeDownload,
+        fallbackTitle: String? = null
+    ): PlayerParams? {
+        val mediaId = com.kitsugi.animelist.data.local.AnimeDownloadManager.buildMediaId(
+            animeId = download.animeId,
+            animeTitle = download.animeTitle,
+            episode = download.episode
+        )
+        getLocalMedia(context, mediaId)?.let { localMedia ->
+            buildPlayerParams(localMedia)?.let { params ->
+                if (params.audioUri == null && !download.localAudioPath.isNullOrBlank()) {
+                    val explicitAudio = File(download.localAudioPath)
+                    if (explicitAudio.isFile && explicitAudio.length() > 0L) {
+                        return params.copy(audioUri = "file://${explicitAudio.absolutePath}")
+                    }
+                }
+                return params
+            }
+        }
+
+        val path = download.localPath?.takeIf { it.isNotBlank() } ?: return null
+        val defaultTitle = fallbackTitle
+            ?: KitsugiStrings.get(R.string.title_bolum_episode, download.animeTitle, download.episode)
+        return resolveFilePlaybackParams(
+            videoFile = File(path),
+            fallbackTitle = defaultTitle,
+            explicitAudioPath = download.localAudioPath
+        )
+    }
+
+    /**
+     * Doğrudan diskteki bir video dosyası için yan ses (`<taban>.audio.*`) ve
+     * yan altyazı (`<taban>.<dil>*.<srt|vtt|ass|ssa>`) dosyalarını bularak [PlayerParams] üretir.
+     */
+    fun resolveFilePlaybackParams(
+        videoFile: File,
+        fallbackTitle: String,
+        explicitAudioPath: String? = null
+    ): PlayerParams? {
+        if (!videoFile.isFile || videoFile.length() == 0L) return null
+        val parentDir = videoFile.parentFile
+        val baseName = videoFile.nameWithoutExtension
+        val siblings = if (parentDir != null && parentDir.isDirectory) {
+            parentDir.listFiles()?.toList().orEmpty()
+        } else {
+            emptyList()
+        }
+
+        val resolvedAudioFile = explicitAudioPath
+            ?.takeIf { it.isNotBlank() }
+            ?.let { File(it) }
+            ?.takeIf { it.isFile && it.length() > 0L }
+            ?: siblings.firstOrNull {
+                it.isFile && it.length() > 0L && DownloadExportNaming.isCompanionAudioOfBase(it.name, baseName)
+            }
+
+        val subtitles = if (parentDir != null && siblings.isNotEmpty()) {
+            readFlatSubtitles(parentDir, baseName, siblings).map {
+                SubtitleInput(url = it.uri, lang = it.language, name = it.label)
+            }
+        } else {
+            emptyList()
+        }
+
+        val metadataTitle = parentDir?.let { readFlatMetadata(File(it, "$baseName.json"))?.title }
+            ?.takeIf { it.isNotBlank() }
+
+        return PlayerParams(
+            videoUri = "file://${videoFile.absolutePath}",
+            audioUri = resolvedAudioFile?.let { "file://${it.absolutePath}" }
+                ?: findPrimaryCompanionAudioUri(videoFile.absolutePath),
+            headers = emptyMap(),
+            subtitles = subtitles,
+            title = metadataTitle ?: fallbackTitle,
+            isOffline = true,
+        )
+    }
+
+    /**
+     * Yerel bir video dosyasının yanında (`<taban>.<dil>.<sesUzantısı>`) yan ses dosyası
+     * varsa birincil olanın (Türkçe öncelikli) `file://` adresini döndürür.
+     */
+    fun findPrimaryCompanionAudioUri(videoPath: String?): String? {
+        if (videoPath.isNullOrBlank()) return null
+        val videoFile = File(videoPath.removePrefix("file://"))
+        val parent = videoFile.parentFile ?: return null
+        val companions = readFlatCompanionAudios(parent, videoFile.nameWithoutExtension)
+        val picked = companions.firstOrNull { it.language.equals("tr", ignoreCase = true) }
+            ?: companions.firstOrNull()
+        return picked?.uri
     }
 
     /**
@@ -183,7 +305,7 @@ object OfflinePlaybackHelper {
     fun deleteDownload(context: Context, mediaId: String): Boolean {
         val root = getDownloadsDir(context)
 
-        // Düz yerleşim: video + metadata + altyazılar (aynı taban ad)
+        // Düz yerleşim: video + metadata + altyazılar + yan sesler (aynı taban ad)
         val flatTargets = flatVideoFiles(root)
             .filter { readFlatMedia(root, it)?.mediaId == mediaId }
         var flatDeleted = false
@@ -192,7 +314,10 @@ object OfflinePlaybackHelper {
             val related = root.listFiles()?.filter { f ->
                 f.isFile && (f == video ||
                     f.name == "$base.json" ||
-                    (f.name.startsWith("$base.") && f.extension.lowercase() in SUBTITLE_EXTENSIONS))
+                    DownloadExportNaming.isCompanionAudioOfBase(f.name, base) ||
+                    (f.name.startsWith("$base.") &&
+                        (f.extension.lowercase(Locale.ROOT) in SUBTITLE_EXTENSIONS ||
+                            f.extension.lowercase(Locale.ROOT) in AUDIO_EXTENSIONS)))
             }.orEmpty()
             related.forEach { f -> flatDeleted = f.delete() || flatDeleted }
         }
@@ -307,6 +432,34 @@ object OfflinePlaybackHelper {
         }
     }
 
+    private fun readFlatCompanionAudios(
+        root: File,
+        baseName: String,
+        cachedEntries: List<File>? = null
+    ): List<LocalCompanionAudio> {
+        val entries = cachedEntries ?: root.listFiles()?.toList().orEmpty()
+        val prefix = "$baseName."
+        return entries
+            .filter {
+                it.isFile && it.name.startsWith(prefix) &&
+                    it.extension.lowercase() in AUDIO_EXTENSIONS
+            }
+            .map { file ->
+                val rawTag = file.nameWithoutExtension.removePrefix(prefix)
+                val lang = rawTag.substringBefore("_", "und")
+                val rest = rawTag.substringAfter("_", "").replace("_", " ").trim()
+                val label = rest.ifEmpty {
+                    com.kitsugi.animelist.data.model.ExternalAudioTrack.languageDisplayName(lang, turkishUi = true)
+                        ?: lang.uppercase()
+                }
+                LocalCompanionAudio(
+                    language = lang,
+                    label = label,
+                    uri = "file://${file.absolutePath}"
+                )
+            }
+    }
+
     /** Düz yerleşimdeki bir videoyu [LocalMedia]'ya çevirir. */
     private fun readFlatMedia(
         root: File,
@@ -314,15 +467,27 @@ object OfflinePlaybackHelper {
         cachedEntries: List<File>? = null
     ): LocalMedia? {
         val base = video.nameWithoutExtension
+        val entries = cachedEntries ?: root.listFiles()?.toList().orEmpty()
         val metadata = readFlatMetadata(File(root, "$base.json"))
+        val companionAudio = metadata?.audioFile
+            ?.takeIf { it.isNotBlank() }
+            ?.let { File(root, it) }
+            ?.takeIf { it.isFile && it.length() > 0L }
+            ?: entries.firstOrNull {
+                it.isFile && it.length() > 0L && DownloadExportNaming.isCompanionAudioOfBase(it.name, base)
+            }
+        val companionAudiosList = readFlatCompanionAudios(root, base, entries)
         return LocalMedia(
             mediaId        = metadata?.mediaId?.takeIf { it.isNotBlank() } ?: base,
             title          = metadata?.title?.takeIf { it.isNotBlank() } ?: base,
             videoUri       = "file://${video.absolutePath}",
-            subtitles      = readFlatSubtitles(root, base, cachedEntries),
-            fileSizeBytes  = video.length(),
-            downloadedAtMs = metadata?.downloadedAtMs?.takeIf { it > 0 } ?: video.lastModified(),
+            subtitles      = readFlatSubtitles(root, base, entries),
+            fileSizeBytes  = video.length() + (companionAudio?.length() ?: 0L),
+            downloadedAtMs = metadata?.downloadedAtMs?.takeIf { it > 0L } ?: video.lastModified(),
             durationMs     = metadata?.durationMs ?: 0L,
+            companionAudios = companionAudiosList,
+            audioUri       = companionAudio?.let { "file://${it.absolutePath}" }
+                ?: companionAudiosList.firstOrNull()?.uri,
         )
     }
 
@@ -333,6 +498,8 @@ object OfflinePlaybackHelper {
             DownloadMetadata(
                 mediaId        = json.optString("mediaId", ""),
                 title          = json.optString("title", ""),
+                videoFile      = json.optString("videoFile", ""),
+                audioFile      = json.optString("audioFile", ""),
                 durationMs     = json.optLong("durationMs", 0L),
                 downloadedAtMs = json.optLong("downloadedAtMs", 0L),
             )
@@ -349,9 +516,11 @@ object OfflinePlaybackHelper {
             val json = metaFile.readText()
             // Simple manual parse – avoid heavy Gson dependency in this layer
             DownloadMetadata(
-                mediaId       = extractJsonString(json, "mediaId") ?: dir.name,
-                title         = extractJsonString(json, "title") ?: "",
-                durationMs    = extractJsonLong(json, "durationMs") ?: 0L,
+                mediaId        = extractJsonString(json, "mediaId") ?: dir.name,
+                title          = extractJsonString(json, "title") ?: "",
+                videoFile      = extractJsonString(json, "videoFile") ?: "",
+                audioFile      = extractJsonString(json, "audioFile") ?: "",
+                durationMs     = extractJsonLong(json, "durationMs") ?: 0L,
                 downloadedAtMs = extractJsonLong(json, "downloadedAtMs") ?: 0L,
             )
         } catch (e: Exception) {

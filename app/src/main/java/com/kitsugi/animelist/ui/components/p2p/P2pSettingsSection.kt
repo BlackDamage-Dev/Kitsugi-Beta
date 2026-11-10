@@ -11,8 +11,7 @@ import com.kitsugi.animelist.ui.theme.gradient.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.*
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -62,7 +61,7 @@ fun P2pSettingsSection(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    Icons.Rounded.CloudSync,
+                    Icons.CloudSync,
                     contentDescription = null,
                     tint = accentColor,
                     modifier = Modifier.size(20.dp)
@@ -215,7 +214,7 @@ fun P2pSettingsSection(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(currentUploadLabel, color = KitsugiColors.TextPrimary, fontSize = 13.sp)
-                                Icon(Icons.Rounded.ArrowDropDown, contentDescription = null, tint = KitsugiColors.TextSecondary)
+                                Icon(Icons.ArrowDropDown, contentDescription = null, tint = KitsugiColors.TextSecondary)
                             }
                             KitsugiDropdownMenu(
                                 expanded = uploadDropdownExpanded,
@@ -268,7 +267,7 @@ fun P2pSettingsSection(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(currentProfileLabel, color = KitsugiColors.TextPrimary, fontSize = 13.sp)
-                            Icon(Icons.Rounded.ArrowDropDown, contentDescription = null, tint = KitsugiColors.TextSecondary)
+                            Icon(Icons.ArrowDropDown, contentDescription = null, tint = KitsugiColors.TextSecondary)
                         }
                         KitsugiDropdownMenu(
                             expanded = profileDropdownExpanded,
@@ -321,7 +320,7 @@ fun P2pSettingsSection(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(currentCacheLabel, color = KitsugiColors.TextPrimary, fontSize = 13.sp)
-                            Icon(Icons.Rounded.ArrowDropDown, contentDescription = null, tint = KitsugiColors.TextSecondary)
+                            Icon(Icons.ArrowDropDown, contentDescription = null, tint = KitsugiColors.TextSecondary)
                         }
                         KitsugiDropdownMenu(
                             expanded = cacheDropdownExpanded,
@@ -425,7 +424,7 @@ fun P2pSettingsSection(
                         if (cacheState.isClearing) {
                             CircularProgressIndicator(modifier = Modifier.size(16.dp), color = accentColor, strokeWidth = 2.dp)
                         } else {
-                            Icon(Icons.Rounded.DeleteOutline, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Icon(Icons.DeleteOutline, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(Modifier.width(6.dp))
                             Text(stringResource(R.string.temizle), fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }

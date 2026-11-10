@@ -1,6 +1,8 @@
 package com.kitsugi.animelist.ui.screens.detail
 
 import com.kitsugi.animelist.data.platform.PlatformErrorCode
+import com.kitsugi.animelist.ui.utils.uniqueItemsIndexed
+import com.kitsugi.animelist.ui.utils.uniqueItems
 import com.kitsugi.animelist.ui.components.PlatformErrorExplanationBlock
 import com.kitsugi.animelist.ui.utils.rememberKitsugiGridColumns
 import androidx.compose.runtime.CompositionLocalProvider
@@ -44,17 +46,7 @@ import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.automirrored.rounded.ListAlt
-import androidx.compose.material.icons.rounded.Favorite
-import androidx.compose.material.icons.rounded.FavoriteBorder
-import androidx.compose.material.icons.rounded.FilterList
-import androidx.compose.material.icons.rounded.GridView
-import androidx.compose.material.icons.rounded.Image
-import androidx.compose.material.icons.rounded.KeyboardArrowUp
-import androidx.compose.material.icons.rounded.SearchOff
-import androidx.compose.material.icons.rounded.Share
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.CircularProgressIndicator
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.IconButton
@@ -119,7 +111,7 @@ fun StudioDetailPage(
     onMediaClick: (mediaId: Int, mediaType: String, mediaSource: String) -> Unit,
     name: String? = null,
     imageUrl: String? = null,
-    titleLanguage: String = "ROMAJI",
+    titleLanguage: String = "ENGLISH",
     preferredTranslator: String = "DEFAULT"
 ) {
     val accentColor = LocalKitsugiAccent.current
@@ -178,7 +170,7 @@ fun StudioDetailPage(
                             .padding(start = 12.dp, top = 24.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                            imageVector = Icons.ArrowBack,
                             contentDescription = stringResource(R.string.geri),
                             tint = KitsugiColors.TextPrimary
                         )
@@ -226,6 +218,11 @@ fun StudioDetailPage(
                 var activeGalleryItems by remember { mutableStateOf<List<GalleryItem>>(emptyList()) }
                 var activeGalleryIndex by remember { mutableStateOf(0) }
 
+                val rawAboutForToggle = detail.about
+                val translatedAboutForToggle = translatedAbout
+                val aboutHasTranslation = translatedAboutForToggle != null && !rawAboutForToggle.isNullOrBlank() &&
+                    !com.kitsugi.animelist.utils.translationMatchesSource(rawAboutForToggle, translatedAboutForToggle)
+
                 StudioDetailSuccessContent(
                     detail = detail,
                     source = source,
@@ -236,7 +233,7 @@ fun StudioDetailPage(
                     titleLanguage = titleLanguage,
                     translatedAbout = translatedAbout,
                     preferredTranslator = preferredTranslator,
-                    aboutHasTranslation = translatedAbout != null && translatedAbout != detail.about,
+                    aboutHasTranslation = aboutHasTranslation,
                     showAboutOriginal = showAboutOriginal,
                     onToggleAboutOriginal = { viewModel.toggleAboutOriginal() },
                     onTranslateAbout = { viewModel.translateAbout() },
@@ -424,7 +421,7 @@ private fun StudioDetailSuccessContent(
                         .background(if (hasActiveFilter) accentColor.copy(alpha = 0.25f) else KitsugiColors.Surface)
                 ) {
                     Icon(
-                        Icons.Rounded.FilterList,
+                        Icons.FilterList,
                         contentDescription = stringResource(R.string.filtre_ve_siralama),
                         tint = if (hasActiveFilter) accentColor else KitsugiColors.TextPrimary
                     )
@@ -456,7 +453,7 @@ private fun StudioDetailSuccessContent(
                         .background(KitsugiColors.Surface)
                 ) {
                     Icon(
-                        imageVector = if (isGridView) Icons.AutoMirrored.Rounded.ListAlt else Icons.Rounded.GridView,
+                        imageVector = if (isGridView) Icons.ListAlt else Icons.GridView,
                         contentDescription = if (isGridView) stringResource(R.string.settings_list_layout) else stringResource(R.string.cd_grid_view),
                         tint = accentColor
                     )
@@ -592,13 +589,15 @@ private fun StudioDetailSuccessContent(
                             KitsugiEmptyState(
                                 title = stringResource(R.string.studio_page_empty_title),
                                 subtitle = stringResource(R.string.bu_studyo_icin_gosterilecek_yapim_bulunamadi),
-                                icon = Icons.Rounded.SearchOff
+                                icon = Icons.SearchOff
                             )
                         }
                     } else {
-                        gridItems(
+                        // Tür olmadan film #122 ile dizi #122 (TMDB şirket/ağ sayfaları) aynı anahtarı
+                        // alıyordu; ViewModel de `mediaType to mediaId` ile tekilleştiriyor.
+                        uniqueItems(
                             displayedWorks,
-                            key = { work -> "${work.source}_${work.mediaId}_g" }
+                            key = { work -> "${work.source}_${work.mediaType}_${work.mediaId}_g" }
                         ) { work ->
                             KitsugiExploreMediaCard(
                                 result = work.toSearchResult(),
@@ -656,13 +655,13 @@ private fun StudioDetailSuccessContent(
                             KitsugiEmptyState(
                                 title = stringResource(R.string.studio_page_empty_title),
                                 subtitle = stringResource(R.string.bu_studyo_icin_gosterilecek_yapim_bulunamadi),
-                                icon = Icons.Rounded.SearchOff
+                                icon = Icons.SearchOff
                             )
                         }
                     } else {
-                        itemsIndexed(
+                        uniqueItemsIndexed(
                             displayedWorks,
-                            key = { _, work -> "${work.source}_${work.mediaId}_list" }
+                            key = { _, work -> "${work.source}_${work.mediaType}_${work.mediaId}_list" }
                         ) { index, work ->
                             KitsugiRankingMediaCard(
                                 result = work.toSearchResult(),
@@ -700,7 +699,7 @@ private fun StudioDetailSuccessContent(
                 ) {
                     IconButton(onClick = onBackClick) {
                         Icon(
-                            Icons.AutoMirrored.Rounded.ArrowBack,
+                            Icons.ArrowBack,
                             contentDescription = stringResource(R.string.geri),
                             tint = KitsugiColors.TextPrimary
                         )
@@ -722,12 +721,12 @@ private fun StudioDetailSuccessContent(
                         val url = com.kitsugi.animelist.utils.ShareUtils.buildStudioUrl(source, detail.id, detail.name.toLocalizedOrgName())
                         com.kitsugi.animelist.utils.ShareUtils.shareText(context, detail.name.toLocalizedOrgName(), url)
                     }) {
-                        Icon(Icons.Rounded.Share, contentDescription = stringResource(R.string.action_share), tint = KitsugiColors.TextSecondary)
+                        Icon(Icons.Share, contentDescription = stringResource(R.string.action_share), tint = KitsugiColors.TextSecondary)
                     }
                     if (showFavouriteButton) {
                         IconButton(onClick = onToggleFavourite) {
                             Icon(
-                                imageVector = if (isFavourite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                                imageVector = if (isFavourite) Icons.Favorite else Icons.FavoriteBorder,
                                 contentDescription = if (isFavourite) stringResource(R.string.action_favourite_remove) else "Favori Yap",
                                 tint = if (isFavourite) accentColor else KitsugiColors.TextSecondary
                             )
@@ -740,7 +739,7 @@ private fun StudioDetailSuccessContent(
                             .background(if (hasActiveFilter) accentColor.copy(alpha = 0.25f) else Color.Transparent)
                     ) {
                         Icon(
-                            Icons.Rounded.FilterList,
+                            Icons.FilterList,
                             contentDescription = stringResource(R.string.filtre_ve_siralama),
                             tint = if (hasActiveFilter) accentColor else KitsugiColors.TextPrimary
                         )
@@ -766,7 +765,7 @@ private fun StudioDetailSuccessContent(
                         }
                     }) {
                         Icon(
-                            imageVector = if (isGridView) Icons.AutoMirrored.Rounded.ListAlt else Icons.Rounded.GridView,
+                            imageVector = if (isGridView) Icons.ListAlt else Icons.GridView,
                             contentDescription = if (isGridView) stringResource(R.string.cd_list_view) else stringResource(R.string.cd_grid_view),
                             tint = accentColor
                         )
@@ -797,7 +796,7 @@ private fun StudioDetailSuccessContent(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.KeyboardArrowUp,
+                        imageVector = Icons.KeyboardArrowUp,
                         contentDescription = stringResource(R.string.cd_scroll_top),
                         tint = KitsugiColors.Background,
                         modifier = Modifier.size(28.dp)
@@ -839,7 +838,7 @@ private fun StudioDetailLoadingSkeleton(onBackClick: () -> Unit) {
             Box(Modifier.fillMaxWidth().height(heroHeight)) {
                 KitsugiShimmerBlock(brush, Modifier.fillMaxSize(), 22.dp)
                 IconButton(onClick = onBackClick, modifier = Modifier.align(Alignment.TopStart).padding(12.dp)) {
-                    Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.geri), tint = KitsugiColors.TextPrimary)
+                    Icon(Icons.ArrowBack, contentDescription = stringResource(R.string.geri), tint = KitsugiColors.TextPrimary)
                 }
                 KitsugiShimmerBlock(brush, Modifier.align(Alignment.BottomStart).padding(20.dp).width(190.dp).height(28.dp))
             }

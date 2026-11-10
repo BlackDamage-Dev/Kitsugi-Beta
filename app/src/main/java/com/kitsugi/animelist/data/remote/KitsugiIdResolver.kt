@@ -84,11 +84,12 @@ object KitsugiIdResolver {
          * açar: IMDb ile sorgulanan Stremio addon'ları ve kimlik doğrulaması bu değere bağlı.
          * Detay sayfaları varsayılan olarak kapalı (ek ağ gecikmesi olmasın).
          */
-        wikidataImdbFallback: Boolean = false
+        wikidataImdbFallback: Boolean = false,
+        expectedSeason: Int? = null
     ): ResolvedIds = withContext(Dispatchers.IO) {
-        val cacheKey = "m=$malId|a=$aniListId|t=$tmdbId|mt=${mediaType?.name}|k=$kitsuId|b=$bangumiId|wd=$wikidataImdbFallback"
+        val cacheKey = "m=$malId|a=$aniListId|t=$tmdbId|mt=${mediaType?.name}|k=$kitsuId|b=$bangumiId|wd=$wikidataImdbFallback|s=$expectedSeason"
         resolvedIdsCache[cacheKey]?.let { return@withContext it }
-        val result = resolveIdsUncached(malId, aniListId, tmdbId, mediaType, kitsuId, bangumiId, wikidataImdbFallback)
+        val result = resolveIdsUncached(malId, aniListId, tmdbId, mediaType, kitsuId, bangumiId, wikidataImdbFallback, expectedSeason)
         // Yalnızca girdi tmdbId'nin kendisini geri yansıtan boş bir yanıtı (ör. geçici ağ arızası)
         // kalıcı önbelleğe yazma; en az bir çapraz kimlik çözülmüş olmalı.
         val hasCrossMapping = result.malId != null ||
@@ -110,7 +111,8 @@ object KitsugiIdResolver {
         mediaType: MediaType? = null,
         kitsuId: Int? = null,
         bangumiId: Int? = null,
-        wikidataImdbFallback: Boolean = false
+        wikidataImdbFallback: Boolean = false,
+        expectedSeason: Int? = null
     ): ResolvedIds = withContext(Dispatchers.IO) {
         Log.d(TAG, "Starting ID resolution: malParam=$malId, aniListParam=$aniListId, tmdbParam=$tmdbId, mediaType=$mediaType, kitsuParam=$kitsuId, bangumiParam=$bangumiId")
 
@@ -166,7 +168,7 @@ object KitsugiIdResolver {
         
         if (armJson == null) {
             if (isNonAnime) {
-                armJson = fetchArmJson("themoviedb", lookupTmdbId, mediaType)
+                armJson = fetchArmJson("themoviedb", lookupTmdbId, mediaType, expectedSeason = expectedSeason)
                 if (armJson != null) {
                     Log.d(TAG, "Non-anime mapping prioritized: Successfully fetched ARM JSON for themoviedb: $lookupTmdbId -> $armJson")
                 } else {
@@ -526,7 +528,8 @@ object KitsugiIdResolver {
     internal fun parseArmRelations(
         rawBody: String?,
         expectedMediaType: MediaType? = null,
-        expectedImdbId: String? = null
+        expectedImdbId: String? = null,
+        expectedSeason: Int? = null
     ): List<JSONObject> {
         val trimmed = rawBody?.trim() ?: return emptyList()
         if (trimmed.isEmpty() || trimmed == "null" || trimmed == "[]") return emptyList()
@@ -567,6 +570,8 @@ object KitsugiIdResolver {
 
         return compatible.sortedWith(
             compareByDescending<JSONObject> { rel ->
+                expectedSeason != null && rel.optInt("themoviedb-season", -1) == expectedSeason
+            }.thenByDescending { rel ->
                 normImdb != null && rel.optNullableString("imdb")?.trim()?.lowercase() == normImdb
             }.thenBy { rel ->
                 val season = if (rel.isNull("themoviedb-season")) Int.MAX_VALUE else rel.optInt("themoviedb-season", Int.MAX_VALUE)
@@ -579,14 +584,15 @@ object KitsugiIdResolver {
         source: String,
         id: String?,
         expectedMediaType: MediaType? = null,
-        expectedImdbId: String? = null
+        expectedImdbId: String? = null,
+        expectedSeason: Int? = null
     ): List<JSONObject> {
         val cleanId = id?.trim()?.takeIf { it.isNotEmpty() } ?: return emptyList()
         if (source == "shikimori") return emptyList() // ARM v2'de shikimori kaynağı yoktur
         val url = runCatching { URL(buildArmUrl(source, cleanId)) }.getOrNull() ?: return emptyList()
         return try {
             val response = KitsugiApiBase.executeGetRequest(url) ?: return emptyList()
-            parseArmRelations(response, expectedMediaType, expectedImdbId)
+            parseArmRelations(response, expectedMediaType, expectedImdbId, expectedSeason)
         } catch (e: Exception) {
             Log.e(TAG, "fetchArmRelations: Exception for source=$source id=$cleanId: ${e.message}", e)
             emptyList()
@@ -598,10 +604,11 @@ object KitsugiIdResolver {
         source: String,
         id: Int?,
         expectedMediaType: MediaType? = null,
-        expectedImdbId: String? = null
+        expectedImdbId: String? = null,
+        expectedSeason: Int? = null
     ): JSONObject? {
         if (id == null || id <= 0) return null
-        return fetchArmRelations(source, id.toString(), expectedMediaType, expectedImdbId).firstOrNull()
+        return fetchArmRelations(source, id.toString(), expectedMediaType, expectedImdbId, expectedSeason).firstOrNull()
     }
 
     private fun fetchArmJsonString(

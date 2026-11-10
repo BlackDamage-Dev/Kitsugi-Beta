@@ -125,6 +125,22 @@ object NotificationArchiveStore {
         }
     }
 
+    /** Awaitable variant for delivery pipelines that must not acknowledge a baseline early. */
+    suspend fun mergeSource(
+        ctx: Context,
+        source: String,
+        fresh: List<ArchivedNotif>,
+        retainOldWhere: ((ArchivedNotif) -> Boolean)? = null
+    ): List<ArchivedNotif> {
+        if (fresh.isEmpty() && retainOldWhere == null) return loadSource(ctx, source)
+        val owner = KitsugiAccountRepository.currentUserId()
+        val merged = mutex.withLock {
+            mergeLocked(ctx, source, fresh, retainOldWhere)
+        }
+        KitsugiAccountRepository.onNotificationArchiveChanged(ctx, owner)
+        return merged
+    }
+
     /** Suspend instead of runBlocking: account synchronization never blocks the UI thread. */
     suspend fun mergeSources(
         ctx: Context,
@@ -156,12 +172,13 @@ object NotificationArchiveStore {
         source: String,
         fresh: List<ArchivedNotif>,
         retainOldWhere: ((ArchivedNotif) -> Boolean)? = null
-    ) {
+    ): List<ArchivedNotif> {
         val current = readLocked(ctx)
         val existing = current.sources[source].orEmpty()
         val filteredExisting = if (retainOldWhere != null) existing.filter(retainOldWhere) else existing
         val merged = mergeLists(filteredExisting, fresh)
         writeLocked(ctx, current.copy(sources = current.sources + (source to merged)))
+        return merged
     }
 
     private fun readLocked(ctx: Context): ArchiveFile {

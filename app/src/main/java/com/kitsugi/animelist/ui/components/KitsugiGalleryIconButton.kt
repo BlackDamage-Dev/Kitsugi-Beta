@@ -7,8 +7,7 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Image
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.CircularProgressIndicator
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.IconButton
@@ -17,8 +16,8 @@ import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.kitsugi.animelist.R
@@ -39,8 +38,9 @@ val LocalKitsugiGalleryLoading = compositionLocalOf { false }
  *   görünür ve buton devre dışıdır (dokunulmaz).
  * - Hazır: ikon normal parlaklıkta, dokunulabilir.
  *
- * Mevcut bir hero/başlık kutusunun içinde kullanılmak üzere tasarlanmıştır (dış kutunun
- * arka planını kendisi çizmez).
+ * Performans notu: `rememberInfiniteTransition` yalnızca [isLoading] açıkken yaprak bileşende
+ * kurulur ve `graphicsLayer` çizim aşamasında okunur; böylece her detay sayfasında yer alan
+ * iki galeri butonu (vitrin + yapışkan başlık) boşta sıfır kare saati tüketir.
  */
 @Composable
 fun KitsugiGalleryIconButton(
@@ -49,6 +49,32 @@ fun KitsugiGalleryIconButton(
     modifier: Modifier = Modifier,
     isLoading: Boolean = LocalKitsugiGalleryLoading.current
 ) {
+    IconButton(
+        onClick = onClick,
+        enabled = !isLoading,
+        modifier = modifier
+    ) {
+        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(40.dp)) {
+            if (isLoading) {
+                PulsingLoadingGalleryIcon(accentColor = accentColor)
+                CircularProgressIndicator(
+                    modifier = Modifier.size(34.dp),
+                    color = accentColor,
+                    strokeWidth = 2.dp
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Image,
+                    contentDescription = stringResource(R.string.action_gallery),
+                    tint = accentColor
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PulsingLoadingGalleryIcon(accentColor: Color) {
     val transition = rememberInfiniteTransition(label = "galleryLoadingTransition")
     val pulseAlpha by transition.animateFloat(
         initialValue = 0.30f,
@@ -59,26 +85,10 @@ fun KitsugiGalleryIconButton(
         ),
         label = "galleryLoadingPulse"
     )
-
-    IconButton(
-        onClick = onClick,
-        enabled = !isLoading,
-        modifier = modifier
-    ) {
-        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(40.dp)) {
-            Icon(
-                imageVector = Icons.Rounded.Image,
-                contentDescription = stringResource(R.string.action_gallery),
-                tint = accentColor,
-                modifier = Modifier.alpha(if (isLoading) pulseAlpha * 0.6f else 1f)
-            )
-            if (isLoading) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(34.dp),
-                    color = accentColor,
-                    strokeWidth = 2.dp
-                )
-            }
-        }
-    }
+    Icon(
+        imageVector = Icons.Image,
+        contentDescription = stringResource(R.string.action_gallery),
+        tint = accentColor,
+        modifier = Modifier.graphicsLayer { alpha = pulseAlpha * 0.6f }
+    )
 }

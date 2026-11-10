@@ -2,6 +2,8 @@ package com.lagradost.cloudstream3.network
 
 import android.util.Log
 import androidx.annotation.AnyThread
+import com.kitsugi.animelist.core.memory.BoundedCache
+import com.kitsugi.animelist.core.memory.boundedSet
 import com.lagradost.cloudstream3.app
 import com.lagradost.nicehttp.Requests
 import com.lagradost.nicehttp.cookies
@@ -13,7 +15,6 @@ import okhttp3.HttpUrl
 import okhttp3.Interceptor
 import okhttp3.Request
 import okhttp3.Response
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
@@ -42,8 +43,8 @@ import kotlin.concurrent.withLock
  *     aranır; kanıt yoksa yanıt OLDUĞU GİBİ döner.
  *  2. **Negatif önbellek:** kanıtsız hata yanıtı gören host oturum boyunca `skipHosts`'a
  *     yazılır → boşuna tek bir istek daha atılmaz.
- *  3. **Kilit host başına, süre tavanlı:** `bypassLock` (global) yerine `lockFor(host)`,
- *     probe `PROBE_BUDGET_MS` (8 sn) ile sınırlı ve `Dispatchers.IO`'ya devredilmiş.
+ *  3. **Host başına seri, süre tavanlı probe:** sabit stripe kilitleri sınırlandırır; aynı host
+ *     seri kalır. Probe `PROBE_BUDGET_MS` (8 sn) ile sınırlı ve `Dispatchers.IO`'ya devredilmiş.
  *     Başarısız probe aynı host için `REPROBE_INTERVAL_MS` boyunca tekrarlanmaz.
  *  4. **Çerezler paylaşılır:** eskiden instance alanıydı; artık CloudflareKiller gibi
  *     companion düzeyinde — tek çözüm hem scraper hem manga istemcisine yeter.
@@ -69,21 +70,22 @@ class DdosGuardKiller(private val alwaysBypass: Boolean) : Interceptor {
         /** Kanıt yoklamasında okunacak en fazla gövde baytı (body tüketilmez). */
         private const val PEEK_BYTES = 8L * 1024L
 
-        /** Host başına çerezler — tüm DdosGuardKiller örnekleri arasında paylaşılır. */
-        private val savedCookiesMap = ConcurrentHashMap<String, Map<String, String>>()
+        /** Host başına çerezler — session cache; don't retain every provider host forever. */
+        private val savedCookiesMap = BoundedCache<String, Map<String, String>>("cloudstream.ddos.cookies", 256)
 
         /** DDoS-Guard kanıtı görülmüş hostlar — bypass burada MEŞRU, denenir. */
-        private val confirmedHosts = ConcurrentHashMap.newKeySet<String>()
+        private val confirmedHosts = boundedSet<String>("cloudstream.ddos.confirmed", 512)
 
         /** Kanıt bulunamayan / probe'u başarısız olan hostlar — boşuna denenmez. */
-        private val skipHosts = ConcurrentHashMap.newKeySet<String>()
+        private val skipHosts = boundedSet<String>("cloudstream.ddos.skipped", 512)
 
         /** Son probe zamanı (başarı ya da başarısızlık) — probe spam'ini tavanlar. */
-        private val lastProbeMs = ConcurrentHashMap<String, Long>()
+        private val lastProbeMs = BoundedCache<String, Long>("cloudstream.ddos.lastProbe", 512)
 
-        /** Host başına kilit: paralel çözümler birbirini bloklamaz. */
-        private val hostLocks = ConcurrentHashMap<String, ReentrantLock>()
-        private fun lockFor(host: String): ReentrantLock = hostLocks.getOrPut(host) { ReentrantLock() }
+        /** Fixed striped locks bound memory while keeping concurrent probes for one host serialized. */
+        private val hostLocks = Array(128) { ReentrantLock() }
+        private fun lockFor(host: String): ReentrantLock =
+            hostLocks[(host.hashCode() and Int.MAX_VALUE) % hostLocks.size]
 
         @Volatile
         private var ddosBypassPath: String? = null
@@ -132,6 +134,7 @@ class DdosGuardKiller(private val alwaysBypass: Boolean) : Interceptor {
 
     override fun intercept(chain: Interceptor.Chain): Response {
         val request = chain.request()
+        if (com.kitsugi.animelist.data.manga.isMangaTrHost(request.url.host)) return chain.proceed(request)
         val host = request.url.host
 
         // DDoS-Guard'ın kendi altyapısı — sonsuz döngü koruması.
@@ -217,14 +220,30 @@ class DdosGuardKiller(private val alwaysBypass: Boolean) : Interceptor {
     }
 
     private suspend fun probeCookies(url: HttpUrl): Map<String, String> {
-        val path = ddosBypassPath ?: Regex("'(.*?)'").find(
-            app.get("https://check.ddos-guard.net/check.js").text
-        )?.groupValues?.get(1)
+        // DDoS-Guard check.js paths contain single-use challenge tokens; always fetch fresh.
+        val checkJs = runCatching {
+            app.get(
+                "https://check.ddos-guard.net/check.js",
+                headers = mapOf("Referer" to url.toString())
+            ).text
+        }.getOrDefault("")
+        val path = Regex("""['"](/.well-known/ddos-guard/[^'"]+)['"]""")
+            .find(checkJs)
+            ?.groupValues
+            ?.get(1)
+            ?: ddosBypassPath
         ddosBypassPath = path
 
-        val bypassUrl = url.scheme + "://" + url.host + (path ?: "")
+        if (path.isNullOrBlank()) return emptyMap()
+        val bypassUrl = "${url.scheme}://${url.host}$path"
         // Kendi istemcimiz DEĞİL: interceptor zincirine geri girmemek için taze Requests().
-        return Requests().get(bypassUrl).cookies
+        return Requests().get(
+            bypassUrl,
+            headers = mapOf(
+                "Referer" to url.toString(),
+                "Origin" to "${url.scheme}://${url.host}"
+            )
+        ).cookies
     }
 
     private fun proceedWithCookies(

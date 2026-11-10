@@ -12,6 +12,11 @@ class VaultMergeTest {
     })
     private fun merge(base: Map<String, JsonArray>, local: Map<String, JsonArray>, remote: Map<String, JsonArray>) =
         VaultMerge.merge(local, remote, VaultMerge.hashes(base), VaultMerge.hashes(base))
+    private fun addons(vararg values: Pair<String, String>) = VaultMerge.groups(buildJsonArray {
+        values.forEach { (key, value) -> add(buildJsonObject {
+            put("section", "addons"); put("k", key); put("t", "s"); put("v", value)
+        }) }
+    })
 
     @Test fun changesInDifferentServicesCombine() {
         val base = tokens("mal_access_token" to "a", "kitsu_access_token" to "b")
@@ -80,4 +85,34 @@ class VaultMergeTest {
         assertEquals(setOf("service:kitsu"), result.conflicts)
     }
 
+    @Test fun addonRecordsAreIndependentMergeGroups() {
+        val grouped = addons("cloudstream_plugin:alpha" to "one", "manga_repo:beta" to "two")
+        assertEquals(setOf("addons:cloudstream_plugin:alpha", "addons:manga_repo:beta"), grouped.keys)
+    }
+
+    @Test fun disabledAddonCategoryKeepsRemoteAndDoesNotCreateAConflict() {
+        val local = addons("cloudstream_plugin:local" to "local value")
+        val remote = addons("cloudstream_plugin:remote" to "remote value")
+        val merged = VaultMerge.merge(
+            local, remote, emptyMap(), emptyMap(), activeGroups = setOf("service:mal")
+        )
+        assertTrue(merged.conflicts.isEmpty())
+        assertEquals(remote, VaultMerge.groups(merged.payload))
+    }
+
+    @Test fun uploadBaselineOnlyAdvancesActiveCategories() {
+        val local = addons("plugin:a" to "new")
+        val merged = local
+        val disabledGroup = "addons:plugin:b"
+        val result = VaultMerge.baselineAfterUpload(
+            local = local,
+            merged = merged,
+            baseLocal = mapOf(disabledGroup to "old-local"),
+            baseRemote = mapOf(disabledGroup to "old-remote"),
+            activeGroups = setOf("addons:plugin:a")
+        )
+        assertEquals("old-local", result.local[disabledGroup])
+        assertEquals("old-remote", result.remote[disabledGroup])
+        assertEquals(VaultMerge.hash(local.getValue("addons:plugin:a")), result.local["addons:plugin:a"])
+    }
 }

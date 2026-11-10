@@ -44,7 +44,9 @@ class WebViewCookieJar(private val context: Context) : CookieJar {
                     val cookie = Cookie.Builder()
                         .name(name)
                         .value(value)
-                        .domain(httpUrl.host)
+                        // getCookie() exposes only name/value, not original Domain.
+                        // Never broaden an unknown host-only cookie to subdomains.
+                        .hostOnlyDomain(httpUrl.host)
                         .path("/")
                         .expiresAt(now + 24L * 60 * 60 * 1000) // 24 saat
                         .build()
@@ -71,11 +73,16 @@ class WebViewCookieJar(private val context: Context) : CookieJar {
     @Synchronized
     override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) {
         val host = url.host
-        val hostCookies = cookieStore.getOrPut(host) { mutableListOf() }
         cookies.forEach { newCookie ->
-            hostCookies.removeAll { it.name == newCookie.name }
+            // A domain cookie can be set by multiple subdomains. Its identity is
+            // name + cookie domain + path, not the origin host that delivered it.
+            cookieStore.values.forEach { stored ->
+                stored.removeAll {
+                    it.name == newCookie.name && it.domain == newCookie.domain && it.path == newCookie.path
+                }
+            }
             if (newCookie.expiresAt > System.currentTimeMillis()) {
-                hostCookies.add(SerializableCookie(newCookie))
+                cookieStore.getOrPut(host) { mutableListOf() }.add(SerializableCookie(newCookie))
             }
         }
         saveToDisk()
@@ -83,25 +90,25 @@ class WebViewCookieJar(private val context: Context) : CookieJar {
 
     @Synchronized
     override fun loadForRequest(url: HttpUrl): List<Cookie> {
-        val host = url.host
         val now = System.currentTimeMillis()
         val matchedCookies = mutableListOf<Cookie>()
-        
-        cookieStore.forEach { (domain, cookies) ->
-            if (host == domain || host.endsWith(".$domain")) {
-                val iterator = cookies.iterator()
-                while (iterator.hasNext()) {
-                    val sCookie = iterator.next()
-                    val cookie = sCookie.toCookie()
-                    if (cookie == null || cookie.expiresAt <= now) {
-                        iterator.remove()
-                    } else if (cookie.matches(url)) {
-                        matchedCookies.add(cookie)
-                    }
+
+        // The map key is the response origin, not necessarily the cookie's Domain.
+        // Cookie.matches enforces the actual domain, host-only, path and secure flags.
+        cookieStore.values.forEach { cookies ->
+            val iterator = cookies.iterator()
+            while (iterator.hasNext()) {
+                val cookie = iterator.next().toCookie()
+                if (cookie == null || cookie.expiresAt <= now) {
+                    iterator.remove()
+                } else if (cookie.matches(url)) {
+                    matchedCookies.add(cookie)
                 }
             }
         }
-        return matchedCookies.distinctBy { it.name }
+        // Same-name cookies at different paths are valid; send more-specific paths first.
+        return matchedCookies.distinctBy { Triple(it.name, it.domain, it.path) }
+            .sortedByDescending { it.path.length }
     }
 
     private fun loadFromDisk() {

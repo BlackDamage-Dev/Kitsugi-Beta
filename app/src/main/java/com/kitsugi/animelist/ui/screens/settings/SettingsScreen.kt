@@ -2,6 +2,7 @@
 
 package com.kitsugi.animelist.ui.screens.settings
 
+
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.SizeTransform
@@ -24,9 +25,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.*
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import com.kitsugi.animelist.ui.theme.gradient.Icon
@@ -36,6 +35,9 @@ import com.kitsugi.animelist.ui.theme.gradient.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.collectAsState
+import com.kitsugi.animelist.data.settings.SettingsDataStore
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -85,6 +87,7 @@ enum class SettingsRoute {
     KitsuSettings,
     ShikimoriSettings,
     BangumiSettings,
+    TmdbSettings,
     CrossSyncSettings,
     AppearancePreferences,
     PlayerSettings,
@@ -97,6 +100,8 @@ enum class SettingsRoute {
     Feedback,
     PluginDiagnostic,
     PlatformErrorCodes,
+    /** Deneysel özellikler (otomatik liste takibi vb.) — varsayılan kapalı. */
+    ExperimentalFeatures,
 }
 
 // ─── Main Screen ─────────────────────────────────────────────────────────────
@@ -129,7 +134,7 @@ fun SettingsScreen(
                 playerCurrentSubScreen = playerTarget
             }
             SettingsRoute.AddonsExtensions -> addonsInitialTab = pageIndex.coerceIn(0, 2)
-            SettingsRoute.Integrations -> integrationsInitialPage = pageIndex.coerceIn(0, 3)
+            SettingsRoute.Integrations -> integrationsInitialPage = pageIndex.coerceIn(0, 4)
             SettingsRoute.DataBackup -> systemSettingsInitialPage = pageIndex.coerceIn(0, 1)
             SettingsRoute.PluginDiagnostic -> pluginDiagnosticBackRoute = SettingsRoute.Main
             SettingsRoute.PlatformErrorCodes -> errorCatalogBackRoute = SettingsRoute.Main
@@ -173,6 +178,7 @@ fun SettingsScreen(
             SettingsRoute.KitsuSettings,
             SettingsRoute.ShikimoriSettings,
             SettingsRoute.BangumiSettings,
+            SettingsRoute.TmdbSettings,
             SettingsRoute.CrossSyncSettings -> SettingsRoute.AccountConnections
             else -> SettingsRoute.Main
         }
@@ -304,6 +310,15 @@ fun SettingsScreen(
                 }
             }
 
+            SettingsRoute.TmdbSettings -> {
+                SettingsSubPage(
+                    title = "TMDB",
+                    onBack = { route = SettingsRoute.AccountConnections }
+                ) {
+                    TmdbSettingsContent(profile = params.profile)
+                }
+            }
+
             SettingsRoute.CrossSyncSettings -> {
                 SettingsSubPage(
                     title = stringResource(R.string.settings_cross_sync),
@@ -364,6 +379,10 @@ fun SettingsScreen(
                         onExplorePlugin = { pluginName ->
                             route = SettingsRoute.Main
                             params.onExplorePlugin?.invoke(pluginName)
+                        },
+                        onExploreMangaSource = { source ->
+                            route = SettingsRoute.Main
+                            params.onExploreMangaSource?.invoke(source)
                         },
                         onOpenPluginPicker = {
                             route = SettingsRoute.Main
@@ -505,6 +524,23 @@ fun SettingsScreen(
                     PlatformErrorCatalogScreen()
                 }
             }
+
+            SettingsRoute.ExperimentalFeatures -> {
+                SettingsSubPage(
+                    title = stringResource(R.string.settings_experimental_title),
+                    onBack = { route = SettingsRoute.Main }
+                ) {
+                    val experimentalStore = remember { SettingsDataStore(context) }
+                    val experimentalSettings by experimentalStore.settingsFlow
+                        .collectAsState(initial = null)
+                    experimentalSettings?.let { currentSettings ->
+                        ExperimentalSettingsContent(
+                            settings = currentSettings,
+                            store = experimentalStore
+                        )
+                    }
+                }
+            }
         }
         }
     }
@@ -602,7 +638,7 @@ private fun SettingsMainPage(
                                 horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally
                             ) {
                                 Icon(
-                                    imageVector = Icons.Rounded.SearchOff,
+                                    imageVector = Icons.SearchOff,
                                     contentDescription = null,
                                     tint = KitsugiColors.TextMuted
                                 )
@@ -646,7 +682,7 @@ private fun SettingsMainPage(
                         KitsugiSettingsItem(
                             title = stringResource(R.string.settings_kitsugi_account),
                             description = stringResource(R.string.settings_kitsugi_account_desc),
-                            icon = Icons.Rounded.AccountCircle,
+                            icon = Icons.AccountCircle,
                             iconColor = KitsugiColors.AccentGreen,
                             onClick = { onNavigate(SettingsRoute.KitsugiAccount) }
                         )
@@ -656,7 +692,7 @@ private fun SettingsMainPage(
                         KitsugiSettingsItem(
                             title = stringResource(R.string.settings_account_connections),
                             description = stringResource(R.string.settings_account_connections_desc),
-                            icon = Icons.Rounded.Person,
+                            icon = Icons.Person,
                             iconColor = KitsugiColors.AccentBlue,
                             onClick = { onNavigate(SettingsRoute.AccountConnections) }
                         )
@@ -671,7 +707,7 @@ private fun SettingsMainPage(
                         KitsugiSettingsItem(
                             title = stringResource(R.string.settings_pref_title),
                             description = stringResource(R.string.settings_pref_desc),
-                            icon = Icons.Rounded.Palette,
+                            icon = Icons.Palette,
                             iconColor = accentColor,
                             onClick = { onNavigate(SettingsRoute.AppearancePreferences) }
                         )
@@ -679,7 +715,7 @@ private fun SettingsMainPage(
                         KitsugiSettingsItem(
                             title = stringResource(R.string.settings_player_title),
                             description = stringResource(R.string.settings_player_desc),
-                            icon = Icons.Rounded.PlayCircle,
+                            icon = Icons.PlayCircle,
                             iconColor = KitsugiColors.AccentOrange,
                             onClick = { onNavigate(SettingsRoute.PlayerSettings) }
                         )
@@ -694,7 +730,7 @@ private fun SettingsMainPage(
                         KitsugiSettingsItem(
                             title = stringResource(R.string.settings_addons_streams),
                             description = stringResource(R.string.settings_addons_streams_desc),
-                            icon = Icons.Rounded.Extension,
+                            icon = Icons.Extension,
                             iconColor = KitsugiColors.AccentPurple,
                             onClick = { onNavigate(SettingsRoute.AddonsExtensions) }
                         )
@@ -702,7 +738,7 @@ private fun SettingsMainPage(
                         KitsugiSettingsItem(
                             title = stringResource(R.string.settings_integrations),
                             description = stringResource(R.string.settings_integrations_desc),
-                            icon = Icons.Rounded.Hub,
+                            icon = Icons.Hub,
                             iconColor = KitsugiColors.AccentBlue,
                             onClick = { onNavigate(SettingsRoute.Integrations) }
                         )
@@ -717,7 +753,7 @@ private fun SettingsMainPage(
                         KitsugiSettingsItem(
                             title = stringResource(R.string.settings_data_backup),
                             description = stringResource(R.string.settings_data_backup_desc),
-                            icon = Icons.Rounded.Storage,
+                            icon = Icons.Storage,
                             iconColor = KitsugiColors.AccentGreen,
                             onClick = { onNavigate(SettingsRoute.DataBackup) }
                         )
@@ -725,7 +761,7 @@ private fun SettingsMainPage(
                         KitsugiSettingsItem(
                             title = stringResource(R.string.storage_title),
                             description = stringResource(R.string.storage_menu_desc),
-                            icon = Icons.Rounded.CleaningServices,
+                            icon = Icons.CleaningServices,
                             iconColor = KitsugiColors.AccentTeal,
                             onClick = { onNavigate(SettingsRoute.Storage) }
                         )
@@ -733,7 +769,7 @@ private fun SettingsMainPage(
                         KitsugiSettingsItem(
                             title = stringResource(R.string.settings_download_settings),
                             description = stringResource(R.string.settings_download_settings_desc),
-                            icon = Icons.Rounded.Tune,
+                            icon = Icons.Tune,
                             iconColor = KitsugiColors.AccentGreen,
                             onClick = { onNavigate(SettingsRoute.Downloads) }
                         )
@@ -741,7 +777,7 @@ private fun SettingsMainPage(
                         KitsugiSettingsItem(
                             title = stringResource(R.string.settings_downloads),
                             description = stringResource(R.string.settings_downloads_desc),
-                            icon = Icons.Rounded.Download,
+                            icon = Icons.Download,
                             iconColor = KitsugiColors.AccentGreen,
                             onClick = onOpenDownloads
                         )
@@ -749,7 +785,7 @@ private fun SettingsMainPage(
                         KitsugiSettingsItem(
                             title = stringResource(R.string.settings_watch_history),
                             description = stringResource(R.string.settings_watch_history_desc),
-                            icon = Icons.Rounded.History,
+                            icon = Icons.History,
                             iconColor = KitsugiColors.AccentTeal,
                             onClick = { params.onOpenWatchHistory?.invoke() }
                         )
@@ -764,7 +800,7 @@ private fun SettingsMainPage(
                         KitsugiSettingsItem(
                             title = stringResource(R.string.settings_about),
                             description = stringResource(R.string.settings_about_desc, BuildConfig.VERSION_NAME),
-                            icon = Icons.Rounded.Info,
+                            icon = Icons.Info,
                             iconColor = KitsugiColors.AccentIndigo,
                             onClick = onOpenAbout
                         )
@@ -772,7 +808,7 @@ private fun SettingsMainPage(
                         KitsugiSettingsItem(
                             title = stringResource(R.string.settings_feedback),
                             description = stringResource(R.string.settings_feedback_desc),
-                            icon = Icons.Rounded.Feedback,
+                            icon = Icons.Feedback,
                             iconColor = KitsugiColors.AccentBlue,
                             onClick = { onNavigate(SettingsRoute.Feedback) }
                         )
@@ -783,9 +819,23 @@ private fun SettingsMainPage(
                         KitsugiSettingsItem(
                             title = stringResource(R.string.platform_error_catalog_open),
                             description = stringResource(R.string.platform_error_catalog_desc),
-                            icon = Icons.Rounded.BugReport,
+                            icon = Icons.BugReport,
                             iconColor = KitsugiColors.AccentOrange,
                             onClick = { onNavigate(SettingsRoute.PlatformErrorCodes) }
+                        )
+                    }
+                    Spacer(Modifier.height(16.dp))
+                    // ── Deneysel ──────────────────────────────────────────────
+                    // Riskli özellikler ana menüde karışmasın diye ayrı ve EN SONDA;
+                    // açıklaması "deneysel" olduğunu açıkça söyler.
+                    SectionHeader(stringResource(R.string.settings_experimental_section_about))
+                    SettingsNavCard {
+                        KitsugiSettingsItem(
+                            title = stringResource(R.string.settings_experimental_title),
+                            description = stringResource(R.string.settings_experimental_entry_desc),
+                            icon = Icons.Science,
+                            iconColor = KitsugiColors.AccentOrange,
+                            onClick = { onNavigate(SettingsRoute.ExperimentalFeatures) }
                         )
                     }
                     Spacer(Modifier.height(80.dp))
@@ -822,7 +872,7 @@ private fun SettingsSubPage(
             navigationIcon = {
                 IconButton(onClick = onBack) {
                     Icon(
-                        imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                        imageVector = Icons.ArrowBack,
                         contentDescription = stringResource(R.string.action_back),
                         tint = KitsugiColors.TextPrimary
                     )
@@ -893,8 +943,11 @@ private fun SettingsPreferencesContent(
         integrations.translateSourceLanguage, integrations.translateTargetLanguage, general.appLanguage, general.fixedNavBar,
         general.airingNotificationsEnabled, general.splashAnimationEnabled, general.splashSoundEnabled,
         general.mangaReadingMode, general.mangaColorFilter, general.mangaFitMode, general.mangaBrightness,
+        general.mangaKeepScreenOn,
         general.aniListNotificationsEnabled, general.malNotificationsEnabled, general.simklNotificationsEnabled,
-        general.kitsuNotificationsEnabled, general.shikimoriNotificationsEnabled, general.notificationInterval,
+        general.kitsuNotificationsEnabled, general.shikimoriNotificationsEnabled,
+        general.tmdbNotificationsEnabled, general.bangumiNotificationsEnabled,
+        general.notificationInterval,
         general.staffNameLanguage, general.scoreStep, general.separatedListStyle, general.showLowPriority,
         general.priorityColorsJson, general.fuzzySearchEnabled, general.separateNovelsManga,
         general.autoDateOnStatusChange, general.autoProgressOnComplete, general.defaultAddStatus,
@@ -948,13 +1001,23 @@ private fun SettingsPreferencesContent(
                 simklNotificationsEnabled = general.simklNotificationsEnabled,
                 kitsuNotificationsEnabled = general.kitsuNotificationsEnabled,
                 shikimoriNotificationsEnabled = general.shikimoriNotificationsEnabled,
+                tmdbNotificationsEnabled = general.tmdbNotificationsEnabled,
+                bangumiNotificationsEnabled = general.bangumiNotificationsEnabled,
                 notificationInterval = general.notificationInterval
             ),
             downloads = com.kitsugi.animelist.data.settings.DownloadAndMangaSettings(
                 mangaReadingMode = general.mangaReadingMode,
                 mangaColorFilter = general.mangaColorFilter,
                 mangaFitMode = general.mangaFitMode,
-                mangaBrightness = general.mangaBrightness
+                mangaBrightness = general.mangaBrightness,
+                mangaKeepScreenOn = general.mangaKeepScreenOn,
+                // Arama dili: "Oku" butonu ve kaynak aramaları bu ayarı kullanır.
+                mangaSearchTitleLanguage = general.mangaSearchTitleLanguage,
+                mangaSearchFollowTitleLanguage = general.mangaSearchFollowTitleLanguage,
+                mangaChapterSort = general.mangaChapterSort,
+                mangaChapterDisplayMode = general.mangaChapterDisplayMode,
+                mangaSkipReadChapters = general.mangaSkipReadChapters,
+                mangaAutoAdvanceChapter = general.mangaAutoAdvanceChapter
             )
         )
     }
@@ -1001,11 +1064,14 @@ private fun SettingsPreferencesContent(
         onSimklNotificationsChanged = general.onSimklNotificationsChanged,
         onKitsuNotificationsChanged = general.onKitsuNotificationsChanged,
         onShikimoriNotificationsChanged = general.onShikimoriNotificationsChanged,
+        onTmdbNotificationsChanged = general.onTmdbNotificationsChanged,
+        onBangumiNotificationsChanged = general.onBangumiNotificationsChanged,
         isAniListConnected = general.isAniListConnected,
         isMalConnected = general.isMalConnected,
         isSimklConnected = general.isSimklConnected,
         isKitsuConnected = general.isKitsuConnected,
         isShikimoriConnected = general.isShikimoriConnected,
+        isTmdbConnected = general.isTmdbConnected,
         isBangumiConnected = general.isBangumiConnected,
         onNotificationIntervalChanged = general.onNotificationIntervalChanged,
         onSplashAnimationEnabledChanged = general.onSplashAnimationEnabledChanged,
@@ -1016,6 +1082,17 @@ private fun SettingsPreferencesContent(
         onMangaColorFilterSelected = general.onMangaColorFilterSelected,
         onMangaFitModeSelected = general.onMangaFitModeSelected,
         onMangaBrightnessChanged = general.onMangaBrightnessChanged,
+        onMangaKeepScreenOnChanged = general.onMangaKeepScreenOnChanged,
+        onMangaSearchTitleLanguageSelected = general.onMangaSearchTitleLanguageSelected,
+        onMangaSearchFollowTitleLanguageChanged = general.onMangaSearchFollowTitleLanguageChanged,
+        mangaChapterSort = general.mangaChapterSort,
+        mangaChapterDisplayMode = general.mangaChapterDisplayMode,
+        mangaSkipReadChapters = general.mangaSkipReadChapters,
+        mangaAutoAdvanceChapter = general.mangaAutoAdvanceChapter,
+        onMangaChapterSortSelected = general.onMangaChapterSortSelected,
+        onMangaChapterDisplayModeSelected = general.onMangaChapterDisplayModeSelected,
+        onMangaSkipReadChaptersChanged = general.onMangaSkipReadChaptersChanged,
+        onMangaAutoAdvanceChapterChanged = general.onMangaAutoAdvanceChapterChanged,
         onDismiss = {}  // Sub-sayfada dismiss = no-op; geri butonu ile çıkılır
     )
 
@@ -1186,6 +1263,7 @@ private fun SettingsAddonsContent(
     initialTab: Int,
     onOpenDiagnostic: () -> Unit,
     onExplorePlugin: (String) -> Unit,
+    onExploreMangaSource: (com.kitsugi.animelist.data.manga.MangaSource) -> Unit,
     onOpenPluginPicker: () -> Unit
 ) {
     KitsugiAddonsSettingsDialog(
@@ -1227,6 +1305,10 @@ private fun SettingsAddonsContent(
         mangaSources = manga.mangaSources,
         onInstallMangaExtension = manga.onInstallMangaExtension,
         onDeleteMangaExtension = manga.onDeleteMangaExtension,
+        onUninstallAllMangaExtensions = manga.onUninstallAllMangaExtensions,
+        onGetMangaSourceEnabled = manga.onGetMangaSourceEnabled,
+        onToggleMangaSource = manga.onToggleMangaSource,
+        mangaBulkDelete = manga.mangaBulkDelete,
         mangaRepos = manga.mangaRepos,
         mangaRepoExtensions = manga.mangaRepoExtensions,
         mangaRepoLoadingState = manga.mangaRepoLoadingState,
@@ -1268,6 +1350,7 @@ private fun SettingsAddonsContent(
         onDismissUntrustedSignature = manga.onDismissUntrustedSignature,
         onOpenDiagnostic = onOpenDiagnostic,
         onExplorePlugin = onExplorePlugin,
+        onExploreMangaSource = onExploreMangaSource,
         onOpenPluginPicker = onOpenPluginPicker,
         onDismiss = {}
     )
@@ -1341,6 +1424,40 @@ private fun SettingsIntegrationsContent(
         onFanartTvEnabledChanged = integrations.onFanartTvEnabledChanged,
         fanartTvApiKey = integrations.fanartTvApiKey,
         onFanartTvApiKeyChanged = integrations.onFanartTvApiKeyChanged,
+        musicEnabled = integrations.musicEnabled,
+        onMusicEnabledChanged = integrations.onMusicEnabledChanged,
+        musicAutoRecommend = integrations.musicAutoRecommend,
+        onMusicAutoRecommendChanged = integrations.onMusicAutoRecommendChanged,
+        musicAutoPlay = integrations.musicAutoPlay,
+        onMusicAutoPlayChanged = integrations.onMusicAutoPlayChanged,
+        musicAutoPlayDelay = integrations.musicAutoPlayDelay,
+        onAutoPlayDelayChanged = integrations.onMusicAutoPlayDelayChanged,
+        musicContinueOnExit = integrations.musicContinueOnExit,
+        onMusicContinueOnExitChanged = integrations.onMusicContinueOnExitChanged,
+        musicMasterVolume = integrations.musicMasterVolume,
+        onMusicMasterVolumeChanged = integrations.onMusicMasterVolumeChanged,
+        musicChannelVolume = integrations.musicChannelVolume,
+        onMusicChannelVolumeChanged = integrations.onMusicChannelVolumeChanged,
+        musicAmbientVolume = integrations.musicAmbientVolume,
+        onMusicAmbientVolumeChanged = integrations.onMusicAmbientVolumeChanged,
+        musicJamendoEnabled = integrations.musicJamendoEnabled,
+        onMusicJamendoEnabledChanged = integrations.onMusicJamendoEnabledChanged,
+        musicJamendoClientId = integrations.musicJamendoClientId,
+        onMusicJamendoClientIdChanged = integrations.onMusicJamendoClientIdChanged,
+        musicFreesoundEnabled = integrations.musicFreesoundEnabled,
+        onMusicFreesoundEnabledChanged = integrations.onMusicFreesoundEnabledChanged,
+        musicFreesoundApiKey = integrations.musicFreesoundApiKey,
+        onMusicFreesoundApiKeyChanged = integrations.onMusicFreesoundApiKeyChanged,
+        musicOpenverseEnabled = integrations.musicOpenverseEnabled,
+        onMusicOpenverseEnabledChanged = integrations.onMusicOpenverseEnabledChanged,
+        musicOpenverseToken = integrations.musicOpenverseToken,
+        onMusicOpenverseTokenChanged = integrations.onMusicOpenverseTokenChanged,
+        musicArchiveEnabled = integrations.musicArchiveEnabled,
+        onMusicArchiveEnabledChanged = integrations.onMusicArchiveEnabledChanged,
+        musicAudiusEnabled = integrations.musicAudiusEnabled,
+        onMusicAudiusEnabledChanged = integrations.onMusicAudiusEnabledChanged,
+        musicAudiusApiKey = integrations.musicAudiusApiKey,
+        onMusicAudiusApiKeyChanged = integrations.onMusicAudiusApiKeyChanged,
         onDismiss = {}
     )
 }

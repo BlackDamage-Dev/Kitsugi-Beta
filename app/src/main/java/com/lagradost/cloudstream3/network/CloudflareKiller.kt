@@ -187,6 +187,7 @@ class CloudflareKiller : Interceptor {
 
     override fun intercept(chain: Interceptor.Chain): Response {
         val request = chain.request()
+        if (com.kitsugi.animelist.data.manga.isMangaTrHost(request.url.host)) return chain.proceed(request)
         val host = request.url.host
 
         // Guard against recursive calls: when CloudflareKiller's WebView bypass makes HTTP

@@ -5,6 +5,8 @@
 
 package com.kitsugi.animelist.ui.screens.mylist
 
+import com.kitsugi.animelist.ui.components.KitsugiChevronIcon
+import com.kitsugi.animelist.ui.components.KitsugiEmojiLabel
 import com.kitsugi.animelist.ui.components.KitsugiPlatformLogo
 import com.kitsugi.animelist.ui.components.KitsugiStickyHeaderReveal
 import androidx.compose.animation.AnimatedVisibility
@@ -30,20 +32,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.ArrowDropDown
-import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.DensityMedium
-import androidx.compose.material.icons.rounded.FilterList
-import androidx.compose.material.icons.rounded.FormatListBulleted
-import androidx.compose.material.icons.rounded.GridView
-import androidx.compose.material.icons.rounded.Notifications
-import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material.icons.rounded.ViewStream
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.HorizontalDivider
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import com.kitsugi.animelist.ui.theme.gradient.Text
@@ -61,6 +54,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -72,6 +66,8 @@ import androidx.compose.ui.unit.sp
 import com.kitsugi.animelist.model.MediaEntry
 import com.kitsugi.animelist.model.WatchStatus
 import com.kitsugi.animelist.ui.components.KitsugiSearchField
+import com.kitsugi.animelist.ui.components.KitsugiTopAction
+import com.kitsugi.animelist.ui.components.KitsugiTopActionRow
 import com.kitsugi.animelist.ui.screens.mylist.components.KitsugiMyListFilterSheet
 import com.kitsugi.animelist.ui.screens.mylist.components.KitsugiMyListSortMenu
 import com.kitsugi.animelist.ui.theme.LocalKitsugiColors
@@ -99,6 +95,7 @@ fun MyListHeaderSection(
     selectedYearFilterId: String,
     selectedExtraFilterId: String,
     selectedSortId: String,
+    selectedGroupId: String = MyListGroupingIds.ADDED,
     onStatusFilterChange: (String) -> Unit,
     onTypeFilterChange: (String) -> Unit,
     onFavoriteFilterChange: (String) -> Unit,
@@ -106,6 +103,7 @@ fun MyListHeaderSection(
     onYearFilterChange: (String) -> Unit,
     onExtraFilterChange: (String) -> Unit,
     onSortChange: (String) -> Unit,
+    onGroupChange: (String) -> Unit = {},
     activeTabScrollState: LazyListState,
     accentColor: Color,
     horizontalPadding: Dp,
@@ -155,7 +153,7 @@ fun MyListHeaderSection(
                         if (onBackClick != null) {
                             IconButton(onClick = onBackClick) {
                                 Icon(
-                                    imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                                    imageVector = Icons.ArrowBack,
                                     contentDescription = stringResource(R.string.geri),
                                     tint = KitsugiColors.textPrimary
                                 )
@@ -201,11 +199,11 @@ fun MyListHeaderSection(
                             }
                         ) {
                             val layoutIcon = when (selectedListLayoutId) {
-                                "compact" -> Icons.Rounded.DensityMedium
-                                "comfortable" -> Icons.Rounded.FormatListBulleted
-                                "large" -> Icons.Rounded.ViewStream
-                                "grid_2col" -> Icons.Rounded.GridView
-                                else -> Icons.Rounded.FormatListBulleted
+                                "compact" -> Icons.DensityMedium
+                                "comfortable" -> Icons.FormatListBulleted
+                                "large" -> Icons.ViewStream
+                                "grid_2col" -> Icons.GridView
+                                else -> Icons.FormatListBulleted
                             }
                             Icon(
                                 imageVector = layoutIcon,
@@ -216,7 +214,7 @@ fun MyListHeaderSection(
 
                         IconButton(onClick = onSearchFieldToggle) {
                             Icon(
-                                imageVector = Icons.Rounded.Search,
+                                imageVector = Icons.Search,
                                 contentDescription = stringResource(R.string.arama),
                                 tint = if (showSearchField || searchQuery.isNotBlank()) accentColor else KitsugiColors.textSecondary
                             )
@@ -225,7 +223,7 @@ fun MyListHeaderSection(
                         Box {
                             IconButton(onClick = onFilterPanelToggle) {
                                 Icon(
-                                    imageVector = Icons.Rounded.FilterList,
+                                    imageVector = Icons.FilterList,
                                     contentDescription = "Filtrele ve Sırala",
                                     tint = if (showFilterPanel || hasActiveFilters) accentColor else KitsugiColors.textSecondary
                                 )
@@ -247,12 +245,14 @@ fun MyListHeaderSection(
                 selectedYearFilterId = selectedYearFilterId,
                 selectedExtraFilterId = selectedExtraFilterId,
                 selectedSortId = selectedSortId,
+                selectedGroupId = selectedGroupId,
                 onStatusSelected = onStatusFilterChange,
                 onTypeSelected = onTypeFilterChange,
                 onScoreSelected = onScoreFilterChange,
                 onYearSelected = onYearFilterChange,
                 onExtraSelected = onExtraFilterChange,
                 onSortSelected = onSortChange,
+                onGroupSelected = onGroupChange,
                 onResetFilters = {
                     onStatusFilterChange("all")
                     onTypeFilterChange("all")
@@ -260,7 +260,8 @@ fun MyListHeaderSection(
                     onScoreFilterChange("all")
                     onYearFilterChange("all")
                     onExtraFilterChange("all")
-                    onSortChange("newest")
+                    onSortChange(MY_LIST_SORT_DEFAULT)
+                    onGroupChange(MyListGroupingIds.ADDED)
                 },
                 onDismiss = onHideFilters
             )
@@ -303,8 +304,10 @@ fun MyListHeaderSection(
                                 }
                                 .padding(horizontal = 12.dp, vertical = 7.dp)
                         ) {
-                            Text(
-                                text = if (isSelected) "✓ $label" else label,
+                            KitsugiEmojiLabel(
+                                label = label,
+                                icon = if (isSelected) Icons.Check else null,
+                                iconSize = 11.dp,
                                 color = if (isSelected) KitsugiColors.background else KitsugiColors.textPrimary,
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold
@@ -323,12 +326,28 @@ fun MyListHeaderSection(
                                 }
                                 .padding(horizontal = 12.dp, vertical = 7.dp)
                         ) {
-                            Text(
-                                text = "≡ $activeSortTitle ▾",
-                                color = accentColor,
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.ListOrdered,
+                                    contentDescription = null,
+                                    tint = accentColor,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                                Text(
+                                    text = activeSortTitle,
+                                    color = accentColor,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                KitsugiChevronIcon(
+                                    expanded = showSortMenu,
+                                    tint = accentColor,
+                                    size = 12.dp
+                                )
+                            }
                         }
 
                         KitsugiMyListSortMenu(
@@ -351,7 +370,7 @@ fun MyListHeaderSection(
                                     onScoreFilterChange("all")
                                     onYearFilterChange("all")
                                     onExtraFilterChange("all")
-                                    onSortChange("newest")
+                                    onSortChange(MY_LIST_SORT_DEFAULT)
                                 }
                                 .padding(horizontal = 10.dp, vertical = 7.dp)
                         ) {
@@ -457,7 +476,12 @@ fun MyListSingleSourceBar(
                 },
             contentAlignment = Alignment.Center
         ) {
-            Text(text = "🎲", fontSize = 16.sp)
+            Icon(
+                imageVector = Icons.Dices,
+                contentDescription = null,
+                tint = LocalContentColor.current,
+                modifier = Modifier.size(18.dp)
+            )
         }
     }
 }
@@ -466,15 +490,19 @@ fun MyListSingleSourceBar(
 fun MyListTabBar(
     selectedTabIndex: Int,
     onTabIndexChange: (Int) -> Unit,
-    visibleEntries: List<MediaEntry>,
+    visibleEntries: List<MediaEntry> = emptyList(),
+    onPickRandomClick: (() -> Unit)? = null,
     allEntries: List<MediaEntry> = emptyList(),
     allLibraryEntryCount: Int = allEntries.size,
+    tabCounts: List<Int>? = null,
     isAniListConnected: Boolean = false,
     isMalConnected: Boolean = false,
     isSimklConnected: Boolean = false,
     isKitsuConnected: Boolean = false,
     isShikimoriConnected: Boolean = false,
     isBangumiConnected: Boolean = false,
+    isTmdbConnected: Boolean = false,
+    tmdbUsername: String = "",
     anilistUsername: String = "",
     malUsername: String = "",
     simklUsername: String = "",
@@ -486,17 +514,27 @@ fun MyListTabBar(
     accentColor: Color,
     horizontalPadding: Dp,
     isNotificationsVisible: Boolean = false,
-    onOpenNotifications: () -> Unit = {}
+    onOpenNotifications: () -> Unit = {},
+    onOpenWatchHistory: (() -> Unit)? = null,
+    onOpenDownloads: (() -> Unit)? = null
 ) {
     val KitsugiColors = LocalKitsugiColors.current
     var showSourcePickerSheet by rememberSaveable { mutableStateOf(false) }
 
-    val countAniList = remember(allEntries) { allEntries.count { it.source.equals("anilist", ignoreCase = true) } }
-    val countMal = remember(allEntries) { allEntries.count { it.source.equals("mal", ignoreCase = true) || it.source.equals("jikan", ignoreCase = true) || it.source.equals("myanimelist", ignoreCase = true) } }
-    val countSimkl = remember(allEntries) { allEntries.count { it.source.equals("simkl", ignoreCase = true) } }
-    val countKitsu = remember(allEntries) { allEntries.count { it.source.equals("kitsu", ignoreCase = true) } }
-    val countShikimori = remember(allEntries) { allEntries.count { it.source.equals("shikimori", ignoreCase = true) } }
-    val countBangumi = remember(allEntries) { allEntries.count { isBangumiListMember(it.source, it.malId) } }
+    val countAniList = tabCounts?.getOrNull(MY_LIST_ANILIST_TAB_INDEX)
+        ?: remember(allEntries) { allEntries.count { myListSourceMatchesTab(MY_LIST_ANILIST_TAB_INDEX, it.source, it.malId) } }
+    val countMal = tabCounts?.getOrNull(MY_LIST_MAL_TAB_INDEX)
+        ?: remember(allEntries) { allEntries.count { myListSourceMatchesTab(MY_LIST_MAL_TAB_INDEX, it.source, it.malId) } }
+    val countSimkl = tabCounts?.getOrNull(MY_LIST_SIMKL_TAB_INDEX)
+        ?: remember(allEntries) { allEntries.count { myListSourceMatchesTab(MY_LIST_SIMKL_TAB_INDEX, it.source, it.malId) } }
+    val countKitsu = tabCounts?.getOrNull(MY_LIST_KITSU_TAB_INDEX)
+        ?: remember(allEntries) { allEntries.count { myListSourceMatchesTab(MY_LIST_KITSU_TAB_INDEX, it.source, it.malId) } }
+    val countShikimori = tabCounts?.getOrNull(MY_LIST_SHIKIMORI_TAB_INDEX)
+        ?: remember(allEntries) { allEntries.count { myListSourceMatchesTab(MY_LIST_SHIKIMORI_TAB_INDEX, it.source, it.malId) } }
+    val countBangumi = tabCounts?.getOrNull(MY_LIST_BANGUMI_TAB_INDEX)
+        ?: remember(allEntries) { allEntries.count { myListSourceMatchesTab(MY_LIST_BANGUMI_TAB_INDEX, it.source, it.malId) } }
+    val countTmdb = tabCounts?.getOrNull(MY_LIST_TMDB_TAB_INDEX)
+        ?: remember(allEntries) { allEntries.count { myListSourceMatchesTab(MY_LIST_TMDB_TAB_INDEX, it.source, it.malId) } }
 
     val platforms = listOf(
         MyListPlatformSource(
@@ -570,6 +608,18 @@ fun MyListTabBar(
             username = bangumiUsername,
             count = countBangumi,
             description = "Çin'in anime/manga topluluk veritabanı (bgm.tv)"
+        ),
+        MyListPlatformSource(
+            index = MY_LIST_TMDB_TAB_INDEX,
+            id = "tmdb",
+            name = "TMDB",
+            shortName = "TMDB",
+            emoji = "🎬",
+            brandColor = Color(0xFF01B4E4),
+            isConnected = isTmdbConnected,
+            username = tmdbUsername,
+            count = countTmdb,
+            description = "TMDB hesap Watchlist, favoriler ve puanlar"
         )
     )
 
@@ -586,7 +636,7 @@ fun MyListTabBar(
         description = "${platforms.size} platformdaki içerikleri tek listede birleştir"
     )
     val displayPlatforms = listOf(allPlatform) + platforms
-    val currentPlatform = displayPlatforms.firstOrNull { it.index == selectedTabIndex } ?: platforms[0]
+    val currentPlatform = displayPlatforms.firstOrNull { it.index == selectedTabIndex } ?: allPlatform
 
     Row(
         modifier = Modifier
@@ -623,7 +673,7 @@ fun MyListTabBar(
                 )
             )
             Icon(
-                imageVector = Icons.Rounded.ArrowDropDown,
+                imageVector = Icons.ArrowDropDown,
                 contentDescription = "Kaynak Seç",
                 tint = currentPlatform.brandColor,
                 modifier = Modifier.size(18.dp)
@@ -633,52 +683,33 @@ fun MyListTabBar(
         // Kaynak değişimi zaten soldaki açılır seçicide var; yinelenen sekme çubuğu kaldırıldı.
         Spacer(modifier = Modifier.weight(1f))
 
-        // Bildirim butonu (Keşfet ile aynı görünüm); yalnızca bir hesap bağlıyken gösterilir
-        if (isNotificationsVisible) {
-            Box(
-                modifier = Modifier
-                    .size(38.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(KitsugiColors.surface)
-                    .border(
-                        width = 1.dp,
-                        color = KitsugiColors.border.copy(alpha = 0.2f),
-                        shape = RoundedCornerShape(14.dp)
-                    )
-                    .tvClickable(shape = RoundedCornerShape(14.dp), onClick = onOpenNotifications),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.Notifications,
-                    contentDescription = "Bildirimler",
-                    tint = KitsugiColors.textPrimary,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-        }
-
-        // Rastgele öğe butonu
-        Box(
-            modifier = Modifier
-                .size(38.dp)
-                .clip(RoundedCornerShape(14.dp))
-                .background(KitsugiColors.surface)
-                .border(
-                    width = 1.dp,
-                    color = KitsugiColors.border.copy(alpha = 0.2f),
-                    shape = RoundedCornerShape(14.dp)
-                )
-                .tvClickable(shape = RoundedCornerShape(14.dp)) {
-                    if (visibleEntries.isNotEmpty()) {
-                        onEntryClick(visibleEntries.random())
-                    } else {
-                        onExternalSyncMessage("Gösterilecek bir öğe yok")
+        // 🎲 Rastgele + 🔔 Bildirim → Keşfet ile birebir aynı ortak aksiyon satırı.
+        // Sıra kanoniktir: rastgele solda, bildirim her zaman en sağda.
+        KitsugiTopActionRow(
+            actions = buildList {
+                if (onOpenWatchHistory != null) add(KitsugiTopAction.HISTORY)
+                if (onOpenDownloads != null) add(KitsugiTopAction.DOWNLOADS)
+                add(KitsugiTopAction.RANDOM)
+                if (isNotificationsVisible) add(KitsugiTopAction.NOTIFICATIONS)
+            },
+            onActionClick = { action ->
+                when (action) {
+                    KitsugiTopAction.RANDOM -> {
+                        if (onPickRandomClick != null) {
+                            onPickRandomClick()
+                        } else if (visibleEntries.isNotEmpty()) {
+                            onEntryClick(visibleEntries.random())
+                        } else {
+                            onExternalSyncMessage("Gösterilecek bir öğe yok")
+                        }
                     }
-                },
-            contentAlignment = Alignment.Center
-        ) {
-            Text(text = "🎲", fontSize = 16.sp)
-        }
+                    KitsugiTopAction.HISTORY -> onOpenWatchHistory?.invoke()
+                    KitsugiTopAction.DOWNLOADS -> onOpenDownloads?.invoke()
+                    KitsugiTopAction.NOTIFICATIONS -> onOpenNotifications()
+                    else -> Unit
+                }
+            }
+        )
     }
 
     if (showSourcePickerSheet) {
@@ -817,7 +848,7 @@ fun MyListTabBar(
                         if (isSelected) {
                             Spacer(modifier = Modifier.width(8.dp))
                             Icon(
-                                imageVector = Icons.Rounded.Check,
+                                imageVector = Icons.Check,
                                 contentDescription = stringResource(R.string.secili),
                                 tint = platform.brandColor,
                                 modifier = Modifier.size(20.dp)
@@ -836,19 +867,33 @@ fun MyListContentPage(
     selectedTabIndex: Int,
     isConnected: Boolean,
     isSimklSessionExpired: Boolean,
+    isLoading: Boolean = false,
+    isLibraryComputing: Boolean = false,
     pageEntries: List<MediaEntry>,
     sourceBadgesByEntryId: Map<Int, List<String>>,
     visibleEntries: List<MediaEntry>,
-    groupedVisibleEntries: List<Pair<WatchStatus, List<MediaEntry>>>,
+    groupedVisibleEntries: List<Pair<WatchStatus, List<MediaEntry>>> = emptyList(),
+    /** Aktif sayfanın gruplanmış hali ([groupMyListEntries]); gruplama sıralamadan bağımsızdır. */
+    visibleSections: List<MyListSection> = emptyList(),
+    selectedGroupId: String = MyListGroupingIds.ADDED,
     searchQuery: String,
     selectedStatusFilterId: String,
+    selectedTypeFilterId: String = "all",
+    selectedFavoriteFilterId: String = "all",
+    selectedScoreFilterId: String = "all",
+    selectedYearFilterId: String = "all",
+    selectedExtraFilterId: String = "all",
+    selectedSortId: String = MY_LIST_SORT_DEFAULT,
     selectedListLayoutId: String,
     appSettings: com.kitsugi.animelist.data.settings.AppSettings,
     pageScrollState: LazyListState,
     onLogin: () -> Unit,
     onRefresh: () -> Unit,
+    /** İlgili kaynağın yenilemesi gerçekten sürüyor mu? Spinner buna göre açık kalır. */
+    isSyncing: Boolean = false,
     onEntryClick: (MediaEntry) -> Unit,
-    onIncrementProgress: (MediaEntry) -> Unit,
+    onEditEntry: ((MediaEntry) -> Unit)? = null,
+    onIncrementProgress: ((MediaEntry) -> Unit)? = null,
     onPosterLongClick: (String) -> Unit,
     accentColor: Color,
     horizontalPadding: Dp
@@ -868,11 +913,17 @@ fun MyListContentPage(
     }
 
     PullToRefreshBox(
-        isRefreshing = pageIsRefreshing,
+        // Spinner, istek gerçekten sürdüğü sürece (kaynak senkronu) açık kalır; eskiden
+        // onRefresh() hemen döndüğü için bir kare yanıp sönüyordu ve yenileme
+        // "hiç olmamış" gibi görünüyordu.
+        isRefreshing = pageIsRefreshing || isSyncing,
         onRefresh = {
             coroutineScope.launch {
                 pageIsRefreshing = true
                 onRefresh()
+                // Veri zaten tazeyse ağa hiç çıkılmaz; en azından kısa bir geri bildirim
+                // gösterelim ki dokunuş "yutulmuş" hissi vermesin.
+                kotlinx.coroutines.delay(400)
                 pageIsRefreshing = false
             }
         },
@@ -892,32 +943,34 @@ fun MyListContentPage(
                 isSimklSessionExpired = isSimklSessionExpired,
                 onLogin = onLogin
             )
+        } else if (isLoading || (isLibraryComputing && pageEntries.isEmpty())) {
+            MyListLoadingState()
         } else if (pageEntries.isEmpty() && searchQuery.isBlank()) {
             LazyColumn(
                 state = pageScrollState,
                 modifier = Modifier
                     .fillMaxSize()
+                    .testTag("my_list_content")
                     .padding(horizontal = horizontalPadding)
             ) {
                 item { MyListSyncPromptState() }
             }
         } else {
-            val useGlobalSearchResults = searchQuery.isNotBlank() && selectedTabIndex != MY_LIST_ALL_TAB_INDEX
-            val displayEntries = if (pageTabIndex == selectedTabIndex || useGlobalSearchResults) visibleEntries else pageEntries
-            // PERF: aktif olmayan pager sayfası için durum gruplaması her yeniden
-            // kompozisyonda yeniden hesaplanıyordu (kompozisyon sırasında 6 × tam liste
-            // taraması — kaydırma jesti sırasında komşu sayfalar da kompoze olur).
-            val displayGrouped = if (pageTabIndex == selectedTabIndex || useGlobalSearchResults) {
-                groupedVisibleEntries
-            } else {
-                remember(pageEntries) {
-                    val statusOrder = listOf(
-                        WatchStatus.Watching, WatchStatus.Repeating, WatchStatus.Planned,
-                        WatchStatus.Paused, WatchStatus.Dropped, WatchStatus.Completed
-                    )
-                    statusOrder.map { status ->
-                        status to pageEntries.filter { it.status == status }
-                    }.filter { it.second.isNotEmpty() }
+            val isActivePage = pageTabIndex == selectedTabIndex
+            // Aktif olmayan komşu sayfa da AYNI sıralamayı uygular. Önceden ham
+            // (sırasız, DB düzeni) pageEntries çiziliyordu: kaydırırken görülen
+            // sıra, sekme yerleştiği anda sıçrıyordu — "sıralama bozuk"
+            // izleniminin bir kaynağı da buydu.
+            val sortedPageEntries = remember(pageEntries, selectedSortId, appSettings.titleLanguage) {
+                applySort(pageEntries, selectedSortId, appSettings.titleLanguage)
+            }
+            val displayEntries = if (isActivePage) visibleEntries else sortedPageEntries
+            val groupingId = MyListGroupingIds.normalize(selectedGroupId)
+            val displaySections = remember(displayEntries, groupingId, visibleSections) {
+                if (visibleSections.isNotEmpty()) {
+                    visibleSections
+                } else {
+                    groupMyListEntries(displayEntries, groupingId)
                 }
             }
 
@@ -929,7 +982,7 @@ fun MyListContentPage(
                     .then(if (isTvDevice) Modifier.dpadVerticalFastScroll(pageScrollState) else Modifier),
                 verticalArrangement = Arrangement.Top
             ) {
-                item {
+                item(key = "result_count_header", contentType = "mylist_count_header") {
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = "${displayEntries.size} sonuç",
@@ -940,23 +993,20 @@ fun MyListContentPage(
                     )
                 }
                 if (displayEntries.isEmpty()) {
-                    item {
+                    item(key = "empty_result_card", contentType = "mylist_empty") {
                         EmptyListResultCard(
-                            searchQuery = if (pageTabIndex == selectedTabIndex) searchQuery else "",
-                            selectedStatusFilterId = if (pageTabIndex == selectedTabIndex) selectedStatusFilterId else "all",
-                            selectedTypeFilterId = "all",
-                            selectedFavoriteFilterId = "all",
-                            selectedScoreFilterId = "all",
-                            selectedYearFilterId = "all",
-                            selectedExtraFilterId = "all",
-                            selectedSortId = "newest"
+                            searchQuery = searchQuery,
+                            selectedStatusFilterId = selectedStatusFilterId,
+                            selectedTypeFilterId = selectedTypeFilterId,
+                            selectedFavoriteFilterId = selectedFavoriteFilterId,
+                            selectedScoreFilterId = selectedScoreFilterId,
+                            selectedYearFilterId = selectedYearFilterId,
+                            selectedExtraFilterId = selectedExtraFilterId,
+                            selectedSortId = selectedSortId
                         )
                         Spacer(modifier = Modifier.height(90.dp))
                     }
-                } else if ((selectedStatusFilterId == "completed" && pageTabIndex == selectedTabIndex) ||
-                    !appSettings.separatedListStyle
-                ) {
-                    // AniHyou paritesi: "Ayrılmış liste tarzını kullan" kapalıysa düz akış.
+                } else if (groupingId == MyListGroupingIds.NONE || !appSettings.separatedListStyle) {
                     MyListFlatContent(
                         visibleEntries = displayEntries,
                         selectedListLayoutId = selectedListLayoutId,
@@ -967,12 +1017,12 @@ fun MyListContentPage(
                         gridColumns = gridColumns,
                         sourceBadgesByEntryId = sourceBadgesByEntryId,
                         onEntryClick = onEntryClick,
-                        onIncrementProgress = onIncrementProgress,
+                        onEditEntry = onEditEntry,
                         onPosterLongClick = onPosterLongClick
                     )
                 } else {
-                    MyListGroupedContent(
-                        groupedEntries = displayGrouped,
+                    MyListSectionedContent(
+                        sections = displaySections,
                         selectedListLayoutId = selectedListLayoutId,
                         titleLanguage = appSettings.titleLanguage,
                         scoreFormat = appSettings.scoreFormat,
@@ -981,11 +1031,11 @@ fun MyListContentPage(
                         gridColumns = gridColumns,
                         sourceBadgesByEntryId = sourceBadgesByEntryId,
                         onEntryClick = onEntryClick,
-                        onIncrementProgress = onIncrementProgress,
+                        onEditEntry = onEditEntry,
                         onPosterLongClick = onPosterLongClick
                     )
                 }
-                item { Spacer(modifier = Modifier.height(90.dp)) }
+                item(key = "bottom_spacer", contentType = "mylist_spacer") { Spacer(modifier = Modifier.height(90.dp)) }
             }
         }
     }

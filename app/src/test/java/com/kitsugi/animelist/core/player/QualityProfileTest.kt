@@ -78,38 +78,68 @@ class QualityProfileTest {
     }
 
     @Test
-    fun `filterByBitrate excludes sources above limit`() {
-        // qualityValue is in "p" units; filterByBitrate multiplies by 8 to get kbps
-        // 720p * 8 = 5760 kbps; limit = 5000 → 720p excluded
-        val sources = makeSources(listOf(480, 720, 1080))
-        // 480 * 8 = 3840 ≤ 5000 → keep; 720 * 8 = 5760 > 5000 → drop; 1080 * 8 > 5000 → drop
-        val result = QualityDataHelper.filterByBitrate(sources, 5000)
-        assertEquals(1, result.size)
-        assertEquals(480, result.first().qualityValue)
+    fun `filterByBitrate uses actual bitrate metadata and preserves unknown values`() {
+        val sources = listOf(
+            source("known-under", quality = 1080, bitrateKbps = 4_500),
+            source("known-over", quality = 480, bitrateKbps = 5_500),
+            source("unknown-1080p", quality = 1080, bitrateKbps = null)
+        )
+
+        val result = QualityDataHelper.filterByBitrate(sources, 5_000)
+        assertEquals(listOf("known-under", "unknown-1080p"), result.map { it.title })
     }
 
     @Test
-    fun `filterByBitrate with 0 qualityValue source always passes`() {
-        // Unknown-bitrate sources should not be filtered out
-        val sources = makeSources(listOf(0, 1080))
-        val result = QualityDataHelper.filterByBitrate(sources, 1000)
-        assertTrue(result.any { it.qualityValue == 0 })
+    fun `filterByBitrate does not mistake resolution height for bitrate`() {
+        val sources = makeSources(listOf(480, 720, 1080))
+        val result = QualityDataHelper.filterByBitrate(sources, 1_000)
+
+        // Resolution metadata alone is insufficient to decide whether a source exceeds a bitrate cap.
+        assertEquals(listOf(480, 720, 1080), result.mapNotNull { it.qualityValue })
     }
 
     // ── Helper ────────────────────────────────────────────────────────────────
 
-    private fun makeSources(qualities: List<Int>): List<com.kitsugi.animelist.data.repository.StreamSource> {
-        return qualities.map { q ->
-            com.kitsugi.animelist.data.repository.StreamSource(
-                addonName    = "Test",
-                name         = "${q}p",
-                title        = "${q}p Test Stream",
-                url          = "https://cdn.example.com/${q}p.m3u8",
-                infoHash     = null,
-                fileIndex    = null,
-                qualityValue = q
-            )
-        }
+    private fun makeSources(qualities: List<Int>): List<com.kitsugi.animelist.data.repository.StreamSource> =
+        qualities.map { q -> source("${q}p", quality = q) }
+
+    private fun source(
+        title: String,
+        quality: Int?,
+        bitrateKbps: Int? = null
+    ) = com.kitsugi.animelist.data.repository.StreamSource(
+        addonName = "Test",
+        name = title,
+        title = title,
+        url = "https://cdn.example.com/$title.m3u8",
+        infoHash = null,
+        fileIndex = null,
+        qualityValue = quality,
+        bitrateKbps = bitrateKbps
+    )
+
+
+    // ── Oynatıcıya uygulanan çözünürlük tavanı ───────────────────────────────
+
+    @Test
+    fun `preference maps to a resolution cap for the player`() {
+        assertEquals(null, QualityPreference.AUTO.maxVideoHeight)
+        assertEquals(null, QualityPreference.P1080.maxVideoHeight)
+        assertEquals(720, QualityPreference.P720.maxVideoHeight)
+        assertEquals(480, QualityPreference.P480.maxVideoHeight)
+        assertEquals(360, QualityPreference.DATA_SAVER.maxVideoHeight)
     }
 
+    @Test
+    fun `profile exposes effective limits only when set`() {
+        assertEquals(null, QualityProfile.DEFAULT.effectiveMaxVideoHeight)
+        assertEquals(null, QualityProfile.DEFAULT.effectiveMaxBitrateKbps)
+
+        val strict = QualityProfile(QualityPreference.P720, 2500)
+        assertEquals(720, strict.effectiveMaxVideoHeight)
+        assertEquals(2500, strict.effectiveMaxBitrateKbps)
+
+        // 0 / negatif bit hızı "sınırsız" sayılır.
+        assertEquals(null, QualityProfile(QualityPreference.P480, 0).effectiveMaxBitrateKbps)
+    }
 }

@@ -29,17 +29,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.Share
-import androidx.compose.material.icons.rounded.Image
-import androidx.compose.material.icons.rounded.Favorite
-import androidx.compose.material.icons.rounded.FavoriteBorder
-import androidx.compose.material.icons.rounded.Tv
-import androidx.compose.material.icons.rounded.Book
-import androidx.compose.material.icons.rounded.Schedule
-import androidx.compose.material.icons.rounded.MenuBook
-import androidx.compose.material.icons.rounded.RssFeed
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.IconButton
@@ -205,9 +195,19 @@ fun KitsugiDetailHero(
     // Çift sabit olduğu için eşleşme otomatiktir; yedek aday olarak diğer tür
     // listenin sonuna eklenir (kullanıcı elle kaydırdığında veya birincil aday
     // yüklenemediğinde kullanılır).
-    val imagePlan = remember(wideArtworkCandidates, tallArtworkCandidates, usePosterArtwork) {
-        if (usePosterArtwork) (tallArtworkCandidates + wideArtworkCandidates).distinct()
+    // PERF: Tercih edilen yönde bir vitrin görseli başarıyla yüklenip çizildikten sonra
+    // gecikmeli gelen galleryItems/artwork yanıtlarının kaydırma ortasında resmi değiştirip
+    // vitrin yüksekliğini zıplatması lockedHeroUrl ile engellenir.
+    var lockedHeroUrl by remember(artworkKey, imageUrl, usePosterArtwork) { mutableStateOf<String?>(null) }
+    val imagePlan = remember(wideArtworkCandidates, tallArtworkCandidates, usePosterArtwork, lockedHeroUrl) {
+        val rawPlan = if (usePosterArtwork) (tallArtworkCandidates + wideArtworkCandidates).distinct()
         else (wideArtworkCandidates + tallArtworkCandidates).distinct()
+        val locked = lockedHeroUrl
+        if (locked != null && locked in rawPlan) {
+            listOf(locked) + rawPlan.filterNot { it == locked }
+        } else {
+            rawPlan
+        }
     }
 
     var imageIndex by remember(imagePlan) { mutableIntStateOf(0) }
@@ -245,16 +245,14 @@ fun KitsugiDetailHero(
         // BACKDROP'ta 16:9 bant kendi sınırını getirir; yine de ekranın %62'sini aşmasın.
         val bannerCapDp = if (usePosterArtwork) screenHeightDp else screenHeightDp * 0.62f
         val bannerHeight = (maxWidth / boxAspect).coerceAtMost(bannerCapDp.dp)
+        val heroBoxWidthDp = maxWidth.value
 
-        // Başlık, meta bilgileri ve rozetler ayrı bir koyu alan ayırmak yerine
-        // görselin alt bölümüne bindirilir. Böylece hem dikey hem yatay düzende
-        // vitrinin altında 220 dp'lik boş bir blok oluşmaz.
-        BoxWithConstraints(
+        // PERF: İkinci iç içe BoxWithConstraints kaldırıldı (gereksiz SubcomposeLayout geçişi önlendi).
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(bannerHeight)
         ) {
-            val heroBoxWidthDp = maxWidth.value
             val imageAreaModifier = Modifier
                 .fillMaxWidth()
                 .height(bannerHeight)
@@ -285,9 +283,19 @@ fun KitsugiDetailHero(
                     imageAreaModifier
                 }
                 val onFailed: () -> Unit = {
+                    if (lockedHeroUrl == displayedImageUrl) lockedHeroUrl = null
                     if (imageIndex < imagePlan.lastIndex) imageIndex += 1
                 }
-                val onAspect: (Float) -> Unit = { ratio -> loadedImageAspect = ratio }
+                val onAspect: (Float) -> Unit = { ratio ->
+                    val prev = loadedImageAspect
+                    if (prev == null || kotlin.math.abs(prev - ratio) > 0.03f) {
+                        loadedImageAspect = ratio
+                    }
+                    val matchesPreference = if (usePosterArtwork) ratio < 1.15f else ratio >= 1.15f
+                    if (matchesPreference && lockedHeroUrl == null) {
+                        lockedHeroUrl = displayedImageUrl
+                    }
+                }
                 // TEK KATMAN, TAM KAPSAMA: görsel alanı hiçbir modda boşluk/bulanık
                 // dolgu bırakmaz; kutu oranı görsele uyduğu için kırpma da ≈ sıfırdır.
                 KitsugiNsfwImage(
@@ -350,7 +358,7 @@ fun KitsugiDetailHero(
                 ) {
                     IconButton(onClick = onBackClick) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                            imageVector = Icons.ArrowBack,
                             contentDescription = stringResource(R.string.geri),
                             tint = KitsugiColors.TextPrimary
                         )
@@ -407,7 +415,7 @@ fun KitsugiDetailHero(
                             }
                         }) {
                             Icon(
-                                imageVector = Icons.Rounded.Share,
+                                imageVector = Icons.Share,
                                 contentDescription = stringResource(R.string.paylas),
                                 tint = KitsugiColors.TextPrimary
                             )
@@ -424,7 +432,7 @@ fun KitsugiDetailHero(
                         ) {
                             IconButton(onClick = onToggleFavoriteClick) {
                                 Icon(
-                                    imageVector = if (isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                                    imageVector = if (isFavorite) Icons.Favorite else Icons.FavoriteBorder,
                                     contentDescription = if (isFavorite) stringResource(R.string.action_favourite_remove) else "Favori Yap",
                                     tint = if (isFavorite) accentColor else KitsugiColors.TextPrimary
                                 )
@@ -486,7 +494,7 @@ fun KitsugiDetailHero(
                 ) {
                     // 1. Format
                     val isMangaType = typeLabel.contains("MANGA", ignoreCase = true)
-                    val formatIcon = if (isMangaType) Icons.Rounded.Book else Icons.Rounded.Tv
+                    val formatIcon = if (isMangaType) Icons.Book else Icons.Tv
                     val formatText = when {
                         typeLabel.contains("FİLM", ignoreCase = true) || typeLabel.contains("MOVIE", ignoreCase = true) -> stringResource(R.string.media_type_movie)
                         typeLabel.contains("DİZİ", ignoreCase = true) || typeLabel.contains("TVSHOW", ignoreCase = true) -> stringResource(R.string.media_type_tv)
@@ -498,7 +506,7 @@ fun KitsugiDetailHero(
                     // 2. Episodes / Chapters count — tek parça yapımlarda (film) bölüm sayacı
                     // gösterilmez; "1 Bölüm" satırı kaynak API'sinin dolgu değeriyle üretiliyordu.
                     if (formatText != "Film") {
-                        val countIcon = if (isMangaType) Icons.Rounded.MenuBook else Icons.Rounded.Schedule
+                        val countIcon = if (isMangaType) Icons.MenuBook else Icons.Schedule
                         val countText = if (totalEpisodes != null && totalEpisodes > 0) {
                             if (isMangaType) stringResource(R.string.hero_count_volumes_chapters, totalEpisodes)
                             else stringResource(R.string.hero_count_episodes, totalEpisodes)
@@ -511,7 +519,7 @@ fun KitsugiDetailHero(
 
                     // 3. Status
                     if (statusLabel != null) {
-                        val statusIcon = Icons.Rounded.RssFeed
+                        val statusIcon = Icons.RssFeed
                         MetadataIconText(icon = statusIcon, text = statusLabel, tint = statusColor ?: accentColor)
                     }
                 }
@@ -527,7 +535,7 @@ fun KitsugiDetailHero(
                             .padding(vertical = 2.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.Schedule,
+                            imageVector = Icons.Schedule,
                             contentDescription = stringResource(R.string.cd_airing_soon),
                             tint = KitsugiColors.AccentOrange,
                             modifier = Modifier.size(16.dp)
@@ -568,7 +576,8 @@ fun KitsugiDetailHero(
 
                     if (isFavorite) {
                         HeroDetailPill(
-                            text = "★ Favori",
+                            text = stringResource(R.string.favori_label),
+                            icon = Icons.HeartSolid,
                             color = accentColor
                         )
                     }
@@ -597,7 +606,8 @@ fun KitsugiDetailHero(
 @Composable
 private fun HeroDetailPill(
     text: String,
-    color: Color
+    color: Color,
+    icon: ImageVector? = null
 ) {
     Box(
         modifier = Modifier
@@ -605,12 +615,25 @@ private fun HeroDetailPill(
             .background(color.copy(alpha = 0.16f))
             .padding(horizontal = 10.dp, vertical = 6.dp)
     ) {
-        Text(
-            text = text,
-            color = color,
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.Bold
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = color,
+                    modifier = Modifier.size(12.dp)
+                )
+            }
+            Text(
+                text = text,
+                color = color,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold
+            )
+        }
     }
 }
 

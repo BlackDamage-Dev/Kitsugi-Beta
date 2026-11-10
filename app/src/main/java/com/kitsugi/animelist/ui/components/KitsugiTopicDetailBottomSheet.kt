@@ -1,6 +1,7 @@
 package com.kitsugi.animelist.ui.components
 
 import com.kitsugi.animelist.utils.KitsugiTranslateUtils
+import com.kitsugi.animelist.ui.utils.uniqueItems
 import com.kitsugi.animelist.utils.KitsugiTranslatePrefs
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import com.kitsugi.animelist.ui.theme.gradient.Text
@@ -16,9 +17,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.Reply
-import androidx.compose.material.icons.rounded.*
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -237,7 +236,7 @@ fun KitsugiTopicDetailBottomSheet(
                     )
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.Close,
+                        imageVector = Icons.Close,
                         contentDescription = stringResource(R.string.kapat),
                         tint = KitsugiColors.TextPrimary
                     )
@@ -272,7 +271,7 @@ fun KitsugiTopicDetailBottomSheet(
                         )
                     ) {
                         Icon(
-                            imageVector = if (isSubscribed) Icons.Rounded.NotificationsActive else Icons.Rounded.Notifications,
+                            imageVector = if (isSubscribed) Icons.NotificationsActive else Icons.Notifications,
                             contentDescription = "Abone Ol",
                             tint = if (isSubscribed) accentColor else KitsugiColors.TextPrimary
                         )
@@ -363,7 +362,7 @@ fun KitsugiTopicDetailBottomSheet(
                         modifier = Modifier.size(36.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.ContentCopy,
+                            imageVector = Icons.ContentCopy,
                             contentDescription = KitsugiStrings.get(R.string.action_copy),
                             tint = KitsugiColors.TextSecondary
                         )
@@ -488,7 +487,7 @@ fun KitsugiTopicDetailBottomSheet(
                                             .padding(horizontal = 8.dp, vertical = 4.dp)
                                     ) {
                                         Icon(
-                                            imageVector = if (isTopicLikedState) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                                            imageVector = if (isTopicLikedState) Icons.Favorite else Icons.FavoriteBorder,
                                             contentDescription = stringResource(R.string.begen),
                                             tint = if (isTopicLikedState) accentColor else KitsugiColors.TextSecondary,
                                             modifier = Modifier.size(20.dp)
@@ -506,7 +505,7 @@ fun KitsugiTopicDetailBottomSheet(
                                         onClick = { showReplyEditor = true }
                                     ) {
                                         Icon(
-                                            imageVector = Icons.AutoMirrored.Rounded.Reply,
+                                            imageVector = Icons.Reply,
                                             contentDescription = stringResource(R.string.yanitla),
                                             tint = KitsugiColors.TextSecondary,
                                             modifier = Modifier.size(20.dp)
@@ -575,7 +574,7 @@ fun KitsugiTopicDetailBottomSheet(
                     }
                 } else {
                     // Comments list items
-                    items(commentsList, key = { it.id }) { comment ->
+                    uniqueItems(commentsList, key = { it.id }) { comment ->
                         val displayComment = if (selectedLanguage == "turkish") {
                             translatedComments[comment.id] ?: comment.comment
                         } else {
@@ -622,7 +621,7 @@ fun KitsugiTopicDetailBottomSheet(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Icon(
-                        imageVector = Icons.AutoMirrored.Rounded.Reply,
+                        imageVector = Icons.Reply,
                         contentDescription = stringResource(R.string.yanitla),
                         tint = KitsugiColors.Background
                     )

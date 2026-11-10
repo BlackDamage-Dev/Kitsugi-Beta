@@ -10,8 +10,7 @@ import com.kitsugi.animelist.ui.theme.gradient.border
 import com.kitsugi.animelist.ui.utils.tvClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.*
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -122,7 +121,12 @@ internal fun CsInstalledPluginRow(
                         onError = { isError = true }
                     )
                 } else {
-                    Text("⚠️", style = MaterialTheme.typography.titleMedium)
+                    Icon(
+                        imageVector = Icons.AlertTriangle,
+                        contentDescription = null,
+                        tint = KitsugiColors.AccentOrange,
+                        modifier = Modifier.size(18.dp)
+                    )
                 }
             }
             Spacer(Modifier.width(12.dp))
@@ -227,7 +231,7 @@ internal fun CsInstalledPluginRow(
             }
             Spacer(Modifier.width(4.dp))
             IconButton(onClick = { onUninstallCsPlugin(plugin) }) {
-                Icon(Icons.Rounded.Delete, contentDescription = stringResource(R.string.kaldir), tint = KitsugiColors.AccentRed)
+                Icon(Icons.Delete, contentDescription = stringResource(R.string.kaldir), tint = KitsugiColors.AccentRed)
             }
         }
     } else {
@@ -270,7 +274,7 @@ internal fun CsInstalledPluginRow(
                             onError = { isError = true }
                         )
                     } else {
-                        Icon(Icons.Rounded.Extension, contentDescription = null, tint = accentColor, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Extension, contentDescription = null, tint = accentColor, modifier = Modifier.size(18.dp))
                     }
                 }
                 Spacer(Modifier.width(12.dp))
@@ -358,7 +362,7 @@ internal fun CsInstalledPluginRow(
                 )
                 Spacer(Modifier.width(4.dp))
                 IconButton(onClick = { onUninstallCsPlugin(plugin) }) {
-                    Icon(Icons.Rounded.Delete, contentDescription = stringResource(R.string.kaldir), tint = KitsugiColors.AccentRed)
+                    Icon(Icons.Delete, contentDescription = stringResource(R.string.kaldir), tint = KitsugiColors.AccentRed)
                 }
             }
 
@@ -385,7 +389,7 @@ internal fun CsInstalledPluginRow(
                         if (reinstallState == PluginInstallState.LOADING) {
                             CircularProgressIndicator(modifier = Modifier.size(14.dp), color = Color.White, strokeWidth = 2.dp)
                         } else {
-                            Icon(Icons.Rounded.ArrowCircleUp, contentDescription = null, tint = Color.White, modifier = Modifier.size(15.dp))
+                            Icon(Icons.ArrowCircleUp, contentDescription = null, tint = Color.White, modifier = Modifier.size(15.dp))
                         }
                         Spacer(Modifier.width(4.dp))
                         Text(
@@ -423,7 +427,7 @@ internal fun CsInstalledPluginRow(
                     },
                     modifier = Modifier.height(32.dp)
                 ) {
-                    Icon(Icons.Rounded.Refresh, contentDescription = null, tint = KitsugiColors.TextSecondary, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Refresh, contentDescription = null, tint = KitsugiColors.TextSecondary, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(4.dp))
                     Text(stringResource(R.string.yeniden_kur), color = KitsugiColors.TextSecondary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
@@ -465,7 +469,7 @@ internal fun CsInstalledPluginRow(
                         },
                         modifier = Modifier.height(32.dp)
                     ) {
-                        Icon(Icons.Rounded.Settings, contentDescription = null, tint = accentColor, modifier = Modifier.size(16.dp))
+                        Icon(Icons.Settings, contentDescription = null, tint = accentColor, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(4.dp))
                         Text(stringResource(R.string.ayarlar), color = accentColor, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
@@ -476,7 +480,7 @@ internal fun CsInstalledPluginRow(
                         onClick = { onExplorePlugin(plugin.name) },
                         modifier = Modifier.height(32.dp)
                     ) {
-                        Icon(Icons.Rounded.Explore, contentDescription = null, tint = accentColor, modifier = Modifier.size(16.dp))
+                        Icon(Icons.Explore, contentDescription = null, tint = accentColor, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(4.dp))
                         Text(stringResource(R.string.kesfet), color = accentColor, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
@@ -487,7 +491,7 @@ internal fun CsInstalledPluginRow(
                     onClick = { onVerifyPlugin(plugin.id, plugin.name) },
                     modifier = Modifier.height(32.dp)
                 ) {
-                    Icon(Icons.Rounded.OpenInBrowser, contentDescription = null, tint = KitsugiColors.TextSecondary, modifier = Modifier.size(16.dp))
+                    Icon(Icons.OpenInBrowser, contentDescription = null, tint = KitsugiColors.TextSecondary, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(4.dp))
                     Text(stringResource(R.string.inline_verify_56ac91e), color = KitsugiColors.TextSecondary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }

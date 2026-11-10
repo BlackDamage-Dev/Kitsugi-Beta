@@ -1,4 +1,4 @@
-﻿package com.kitsugi.animelist.data.remote
+package com.kitsugi.animelist.data.remote
 
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
@@ -51,7 +51,46 @@ class MangaRepoClient(context: android.content.Context) {
         const val KEIYOUSHI_REPO_JSON_URL =
             "https://raw.githubusercontent.com/keiyoushi/extensions/repo/repo.json"
 
-        /** Keiyoushi V2 ana index (JSON, 1396 eklenti, 1.45 MB). index.min.json DECOY'dur -- bunu kullanin. */
+        /** Kitsugi resmi Manga eklenti havuzu (varsayılan manga deposu). */
+        const val KITSUGI_MANGA_PLUGINS_SLUG = "f26901964-eng/Kitsugi-Manga-Plugins"
+        const val KITSUGI_MANGA_GITHUB_URL = "https://github.com/f26901964-eng/Kitsugi-Manga-Plugins"
+        // Follow the video-plugin repo convention: the source repo publishes its install
+        // catalog and APKs from the generated `builds` branch.
+        const val KITSUGI_MANGA_REPO_URL =
+            "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Manga-Plugins/builds/index.json"
+
+        val KITSUGI_MANGA_CANDIDATE_URLS = listOf(
+            KITSUGI_MANGA_REPO_URL,
+            "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Manga-Plugins/builds/plugins.json",
+            "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Manga-Plugins/main/index.json",
+            "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Manga-Plugins/main/plugins.json",
+        )
+
+        fun isKitsugiMangaRepoUrl(url: String?): Boolean {
+            val clean = url?.trim().orEmpty()
+            if (clean.isEmpty()) return false
+            return clean.contains("Kitsugi-Manga-Plugins", ignoreCase = true) ||
+                clean.contains("KitsugiMangaPlugins", ignoreCase = true)
+        }
+
+        fun normalizeMangaRepoUrl(url: String): String {
+            val trimmed = url.trim().trimEnd('/')
+            if (trimmed.isEmpty()) return trimmed
+            val githubRepoUrl = trimmed.removeSuffix(".git")
+            val isRepoRoot = githubRepoUrl.equals(KITSUGI_MANGA_PLUGINS_SLUG, ignoreCase = true) ||
+                githubRepoUrl.equals(KITSUGI_MANGA_GITHUB_URL, ignoreCase = true)
+            return if (isRepoRoot) KITSUGI_MANGA_REPO_URL else trimmed
+        }
+
+        fun displayNameForRepo(repoUrl: String): String {
+            return when {
+                isKitsugiMangaRepoUrl(repoUrl) -> "Kitsugi Manga Plugins"
+                repoUrl.contains("keiyoushi", ignoreCase = true) -> "Keiyoushi"
+                else -> repoUrl.substringAfterLast("/").substringBefore(".").ifBlank { "Manga Repo" }
+            }
+        }
+
+                /** Keiyoushi V2 ana index (JSON, 1396 eklenti, 1.45 MB). index.min.json DECOY'dur -- bunu kullanin. */
         const val KEIYOUSHI_INDEX_URL =
             "https://raw.githubusercontent.com/keiyoushi/extensions/repo/index.json"
 
@@ -134,8 +173,13 @@ class MangaRepoClient(context: android.content.Context) {
                 }
 
                 // versionCode V2'de string olarak geliyor
-                val versionCode = e.optString("versionCode", "0").toIntOrNull()
-                    ?: e.optInt("versionCode", 0)
+                // versionCode hem string ("106024") hem int olarak gelebiliyor.
+                val rawVersionCode = e.opt("versionCode")
+                val versionCode = when (rawVersionCode) {
+                    is Number -> rawVersionCode.toInt()
+                    is String -> rawVersionCode.trim().toIntOrNull() ?: 0
+                    else -> e.optInt("versionCode", 0)
+                }
 
                 val isNsfw = e.optString("contentWarning", "") == "CONTENT_WARNING_NSFW"
 
@@ -184,16 +228,22 @@ class MangaRepoClient(context: android.content.Context) {
                 val pkg = obj.optString("pkg", "").trim()
                 val lang = obj.optString("lang", "all").trim()
                 val version = obj.optString("version", "1.0").trim()
-                val versionCode = obj.optInt("code", 0)
+                val versionCode = obj.optInt("code", obj.optInt("versionCode", 0))
                 val isNsfw = obj.optInt("nsfw", 0) == 1
 
                 if (name.isBlank() || pkg.isBlank()) continue
 
                 val apkFileName = obj.optString("apk", "").trim().ifBlank { "$pkg.apk" }
-                val apkUrl = if (apkFileName.startsWith("http")) {
-                    apkFileName
-                } else {
-                    "${apkBaseUrl.trimEnd('/')}/$apkFileName"
+                // Özel repolar (Kitsugi-Manga-Plugins) katalogda MUTLAK `url` verir:
+                // APK'lar `builds/apk/` altındadır, katalog `main` dalından da okunabilir.
+                // Dosya adından base URL türetmek bu durumda yanlış adrese götürüyordu.
+                val explicitUrl = obj.optString("url", "").trim().ifBlank {
+                    obj.optString("apkUrl", "").trim()
+                }
+                val apkUrl = when {
+                    explicitUrl.startsWith("http", ignoreCase = true) -> explicitUrl
+                    apkFileName.startsWith("http", ignoreCase = true) -> apkFileName
+                    else -> "${apkBaseUrl.trimEnd('/')}/$apkFileName"
                 }
 
                 val iconUrl = obj.optString("iconUrl", "").takeIf { it.isNotBlank() }
@@ -252,10 +302,18 @@ class MangaRepoClient(context: android.content.Context) {
     }
 
     /**
-     * Verilen response body'nin Keiyoushi decoy (sahte) olup olmadigini kontrol eder.
-     * index.min.json artik 765 baytlik decoy -- gercek veri index.json'da.
+     * Decoy kontrolü SADECE Keiyoushi'nin kendi index'leri için geçerlidir.
+     *
+     * HATA: eski kod 5.000 bayttan küçük HER array yanıtını "decoy" sanıp Keiyoushi'nin
+     * 1.45 MB'lık V2 index'ine düşüyordu. Kullanıcının özel reposu tek eklentili,
+     * 487 baytlık geçerli bir V1 katalog yayınlıyor (builds/index.json); bu yüzden
+     * repo eklenince Manga-TR yerine 1396 Keiyoushi eklentisi listeleniyordu.
+     * Üçüncü parti repolar küçük olabilir — boyut onlar için güvenilirlik ölçütü değil.
      */
-    private fun isDecoyResponse(body: String): Boolean {
+    private fun shouldUseKeiyoushiFallback(repoUrl: String, body: String): Boolean {
+        val isKeiyoushiRepo = repoUrl.contains("keiyoushi", ignoreCase = true) ||
+            repoUrl.contains("index.min.json", ignoreCase = true)
+        if (!isKeiyoushiRepo) return false
         if (body.length < DECOY_THRESHOLD_BYTES) return true
         return DECOY_MARKERS.any { marker -> body.contains(marker, ignoreCase = true) }
     }
@@ -272,17 +330,9 @@ class MangaRepoClient(context: android.content.Context) {
     suspend fun fetchExtensionsAutoDetect(repoUrl: String): List<MangaExtensionInfo>? =
         withContext(Dispatchers.IO) {
             try {
-                val mirroredUrl = applyMirror(repoUrl)
-                Log.d(TAG, "fetchExtensionsAutoDetect cekiliyor: $mirroredUrl (original: $repoUrl)")
-                val request = Request.Builder().url(mirroredUrl).build()
-                val responseBody = client.newCall(request).execute().use { response ->
-                    if (!response.isSuccessful) {
-                        Log.e(TAG, "fetchExtensionsAutoDetect basarisiz (${response.code}): $mirroredUrl")
-                        return@withContext null
-                    }
-                    response.body?.string()
-                } ?: return@withContext null
-
+                Log.d(TAG, "fetchExtensionsAutoDetect cekiliyor: $repoUrl")
+                val responseBody = fetchBodyWithMirrorFallback(repoUrl)
+                    ?: return@withContext null
                 val trimmed = responseBody.trim()
 
                 // Keiyoushi V2: kok nesne ile baslar
@@ -292,23 +342,15 @@ class MangaRepoClient(context: android.content.Context) {
                 }
 
                 if (!trimmed.startsWith("[")) {
-                    Log.e(TAG, "Desteklenmeyen format: $mirroredUrl")
+                    Log.e(TAG, "Desteklenmeyen format: $repoUrl")
                     return@withContext null
                 }
 
                 // Decoy tespiti: kucuk/sahte yanit varsa V2 index.json'u cek
-                if (isDecoyResponse(trimmed)) {
-                    Log.w(TAG, "DECOY TESPIT EDILDI: $mirroredUrl -- Keiyoushi V2 index.json'a geciliyor")
-                    val v2Url = applyMirror(KEIYOUSHI_INDEX_URL)
-                    val v2Request = Request.Builder().url(v2Url).build()
-                    val v2Body = client.newCall(v2Request).execute().use { response ->
-                        if (!response.isSuccessful) {
-                            Log.e(TAG, "V2 index.json cekilemedi (${response.code}): $v2Url")
-                            return@withContext null
-                        }
-                        response.body?.string()
-                    } ?: return@withContext null
-
+                if (isMangaRepoDecoy(trimmed, repoUrl)) {
+                    Log.w(TAG, "DECOY TESPIT EDILDI: $repoUrl -- Keiyoushi V2 index.json'a geciliyor")
+                    val v2Body = fetchBodyWithMirrorFallback(KEIYOUSHI_INDEX_URL)
+                        ?: return@withContext null
                     val v2Trimmed = v2Body.trim()
                     return@withContext if (v2Trimmed.startsWith("{")) {
                         parseKeiyoushiV2Index(v2Trimmed)
@@ -326,7 +368,7 @@ class MangaRepoClient(context: android.content.Context) {
                 val isKeiyoushiV1 = firstObj?.has("pkg") == true
 
                 if (isKeiyoushiV1) {
-                    val baseUrl = deriveApkBaseUrl(mirroredUrl)
+                    val baseUrl = deriveApkBaseUrl(repoUrl)
                     parseKeiyoushiV1Index(trimmed, baseUrl)
                 } else {
                     parseNativePluginList(trimmed)
@@ -338,21 +380,40 @@ class MangaRepoClient(context: android.content.Context) {
         }
 
     /**
+     * raw.github.com yansisini dener, basarisiz olursa ORIJINAL URL'e duser.
+     * Onceki kod sadece yansiyi deniyordu; yansi/redirect bozulunca butun ozel
+     * repolar (ve APK indirmeleri) sessizce bos donuyordu.
+     */
+    private fun fetchBodyWithMirrorFallback(url: String): String? {
+        val candidates = linkedSetOf(applyMirror(url), url)
+        for (candidate in candidates) {
+            try {
+                val request = Request.Builder().url(candidate).build()
+                client.newCall(request).execute().use { response ->
+                    if (response.isSuccessful) {
+                        return response.body?.string()
+                    }
+                    Log.w(TAG, "Repo yaniti basarisiz (${response.code}): $candidate")
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Repo istegi hata ($candidate): ${e.message}")
+            }
+        }
+        Log.e(TAG, "Tum repo adresleri basarisiz: $url")
+        return null
+    }
+
+    /**
      * Keiyoushi repo.json'dan meta bilgileri (signing key fingerprint, index URL) ceker.
      * Bu bilgiler imza guven yonetimi icin kullanilir.
      */
-    suspend fun fetchRepoMeta(): JSONObject? = withContext(Dispatchers.IO) {
+    suspend fun fetchRepoMeta(): JSONObject? = fetchRepoMeta(KEIYOUSHI_REPO_JSON_URL)
+
+    /** Herhangi bir repo.json'dan meta (signingKeyFingerprint vb.) okur. */
+    suspend fun fetchRepoMeta(repoJsonUrl: String): JSONObject? = withContext(Dispatchers.IO) {
         try {
-            val url = applyMirror(KEIYOUSHI_REPO_JSON_URL)
-            val request = Request.Builder().url(url).build()
-            client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) {
-                    Log.w(TAG, "repo.json cekilemedi (${response.code})")
-                    return@withContext null
-                }
-                val body = response.body?.string() ?: return@withContext null
-                JSONObject(body)
-            }
+            val body = fetchBodyWithMirrorFallback(repoJsonUrl) ?: return@withContext null
+            JSONObject(body)
         } catch (e: Exception) {
             Log.w(TAG, "fetchRepoMeta hata: ${e.message}")
             null
@@ -367,26 +428,27 @@ class MangaRepoClient(context: android.content.Context) {
         apkBaseUrl: String = KEIYOUSHI_RELEASE_BASE
     ): List<MangaExtensionInfo>? = withContext(Dispatchers.IO) {
         try {
-            val mirroredUrl = applyMirror(indexUrl)
             val mirroredApkBase = applyMirror(apkBaseUrl)
-            Log.d(TAG, "Manga repo cekiliyor: $mirroredUrl (original: $indexUrl)")
-            val request = Request.Builder().url(mirroredUrl).build()
-            val responseBody = client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) {
-                    Log.e(TAG, "fetchExtensions basarisiz (${response.code}): $mirroredUrl")
-                    return@withContext null
-                }
-                response.body?.string()
-            } ?: return@withContext null
+            Log.d(TAG, "Manga repo cekiliyor: $indexUrl")
+            val responseBody = fetchBodyWithMirrorFallback(indexUrl)
+                ?: return@withContext null
 
             val trimmed = responseBody.trim()
             when {
                 trimmed.startsWith("{") -> parseKeiyoushiV2Index(trimmed)
-                isDecoyResponse(trimmed) -> {
+                trimmed.startsWith("[") && shouldUseKeiyoushiFallback(indexUrl, trimmed) -> {
                     Log.w(TAG, "fetchExtensions: decoy tespit edildi, V2 index.json'a geciliyor")
                     fetchExtensionsAutoDetect(KEIYOUSHI_INDEX_URL)
                 }
-                else -> parseKeiyoushiV1Index(trimmed, mirroredApkBase)
+                trimmed.startsWith("[") -> {
+                    val arr = JSONArray(trimmed)
+                    if (arr.length() > 0 && arr.optJSONObject(0)?.has("pkg") == true) {
+                        parseKeiyoushiV1Index(trimmed, mirroredApkBase)
+                    } else {
+                        parseNativePluginList(trimmed)
+                    }
+                }
+                else -> null
             }
         } catch (e: Exception) {
             Log.e(TAG, "fetchExtensions hata: ${e.message}", e)

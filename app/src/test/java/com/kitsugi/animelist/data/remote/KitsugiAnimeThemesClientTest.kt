@@ -80,6 +80,35 @@ class KitsugiAnimeThemesClientTest {
         assertTrue(!"https://a.animethemes.moe/op1.webm".isMp4Link())
     }
 
+    @Test
+    fun rankedLinksKeepEveryPlayableFallbackInOrder() {
+        val ranked = KitsugiAnimeThemesClient.rankThemeVideoLinks(
+            listOf(
+                candidate(link = "https://a.animethemes.moe/op1.webm", isNc = true, resolution = 1080),
+                candidate(link = "https://a.animethemes.moe/op1.mp4", isNc = true, resolution = 720),
+                candidate(link = "https://a.animethemes.moe/op1-480.webm", isNc = true, resolution = 480),
+                candidate(link = "https://a.animethemes.moe/op1.mp4", isNc = true, resolution = 720)
+            )
+        )
+        // Birincil: en iyi dosya (mp4/720p). Yedekler hafiften ağıra: 480p önce gelir,
+        // çünkü yedek yalnızca cihaz birinci dosyayı çözemediğinde deneniyor.
+        assertEquals(
+            listOf(
+                "https://a.animethemes.moe/op1.mp4",
+                "https://a.animethemes.moe/op1-480.webm",
+                "https://a.animethemes.moe/op1.webm"
+            ),
+            ranked
+        )
+        // Zincirin ilk elemanı tek-adres API'siyle aynı olmalı (geriye dönük uyum).
+        assertEquals(ranked.first(), KitsugiAnimeThemesClient.pickBestThemeVideoLink(
+            listOf(
+                candidate(link = "https://a.animethemes.moe/op1.webm", isNc = true, resolution = 1080),
+                candidate(link = "https://a.animethemes.moe/op1.mp4", isNc = true, resolution = 720)
+            )
+        ))
+    }
+
     private fun candidate(
         link: String,
         resolution: Int = 720,

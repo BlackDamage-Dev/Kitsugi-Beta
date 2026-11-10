@@ -37,18 +37,7 @@ private val API_KEY_REGEX = Regex("\"INNERTUBE_API_KEY\":\"([^\"]+)\"")
 private val VISITOR_DATA_REGEX = Regex("\"VISITOR_DATA\":\"([^\"]+)\"")
 private val QUALITY_LABEL_REGEX = Regex("(\\d{2,4})p")
 
-private data class YouTubeClient(
-    val key: String,
-    val id: String,
-    val version: String,
-    val userAgent: String,
-    val context: Map<String, Any>,
-    val priority: Int,
-    /** For TVHTML5_SIMPLY_EMBEDDED_PLAYER and similar — injects thirdParty.embedUrl into context. */
-    val embedUrl: String? = null,
-    /** Whether to send x-goog-visitor-id with this client's request. */
-    val needsVisitorData: Boolean = true
-)
+// Uses internal data class YouTubeClient from YouTubePlayerClients.kt
 
 private data class WatchConfig(
     val apiKey: String?,
@@ -191,7 +180,90 @@ class InAppYouTubeExtractor {
 
         /** How long cached visitor_data stays valid before a proactive refresh. */
         private const val CONFIG_TTL_MS = 3 * 60 * 60 * 1000L // 3 hours
+
+        /**
+         * Çözümlenmiş imzalı akış adresleri YouTube tarafından ~6 saat geçerli tutulur.
+         * Muhafazakâr bir pencere seçiyoruz: adres önbellekten döndüğünde hâlâ geçerli.
+         */
+        private const val PLAYBACK_SOURCE_CACHE_TTL_MS = 45 * 60 * 1000L // 45 minutes
+
+        /** Birincil akış açılamazsa denenecek en fazla yedek video akışı sayısı. */
+        private const val MAX_ALTERNATE_VIDEO_SOURCES = 3
     }
+
+    /**
+     * İndirme için gereken ham kaynak listesi.
+     *
+     * `TrailerPlaybackSource` yalnızca **oynatılabilir** adresi taşır (çoğunlukla YouTube
+     * HLS master playlist'i). İndirme için segment listesini çözebilmek adına extractor'ın
+     * gördüğü tüm adaylar (HLS manifest, ayrı video/ses, progressive) gerekir.
+     */
+    data class YouTubeDownloadCandidates(
+        val videoId: String,
+        val hlsManifestUrl: String?,
+        val adaptiveVideoUrl: String?,
+        val adaptiveAudioUrl: String?,
+        val progressiveUrl: String?
+    )
+
+    /**
+     * HLS manifest'ini media playlist'e indirger; master geldiyse en yüksek varyanta iner.
+     * İndirme motoru bu yardımcıyı kullanır, böylece HLS çözümleme mantığı tek yerde kalır.
+     */
+    internal suspend fun resolveHlsMediaPlaylist(
+        manifestUrl: String
+    ): YouTubeHlsMediaPlaylist? = withContext(Dispatchers.IO) {
+        var currentUrl = manifestUrl
+        repeat(3) {
+            val response = try {
+                performRequest(
+                    url = currentUrl,
+                    method = "GET",
+                    headers = YouTubeRequestPolicy.youtubePlaybackHeaders(DEFAULT_HEADERS)
+                )
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "HLS playlist okunamadı: ${e.message}")
+                return@withContext null
+            }
+            if (!response.ok) {
+                Log.w(TAG, "HLS playlist isteği başarısız (${response.status})")
+                return@withContext null
+            }
+
+            val media = YouTubeHlsMediaPlaylistParser.parse(currentUrl, response.body) ?: return@withContext null
+            if (media.segmentUrls.isNotEmpty()) return@withContext media
+
+            // Segment yoksa bu bir master playlist: en yüksek varyanta in.
+            val variant = YouTubeHlsManifestParser.parse(currentUrl, response.body)?.selectedVariantUrl
+                ?: return@withContext null
+            currentUrl = variant
+        }
+        null
+    }
+
+    /**
+     * Bir YouTube videosu için indirilebilir akış adaylarını döner (kalite sırasıyla).
+     * Hiçbir aday yoksa `null`.
+     */
+    suspend fun resolveDownloadCandidates(youtubeUrl: String): YouTubeDownloadCandidates? =
+        withContext(Dispatchers.IO) {
+            val videoId = extractVideoId(youtubeUrl) ?: return@withContext null
+            repeat(2) { attempt ->
+                try {
+                    val candidates = withTimeout(EXTRACTOR_TIMEOUT_MS) {
+                        collectCandidatesForDownload(videoId, forceRefreshConfig = attempt > 0)
+                    }
+                    if (candidates != null) return@withContext candidates
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (error: Exception) {
+                    Log.w(TAG, "Download candidate resolution failed (attempt=${attempt + 1}): ${error.message}")
+                }
+            }
+            null
+        }
 
     /**
      * Returns cached watch config, fetching from watch page only if:
@@ -257,8 +329,54 @@ class InAppYouTubeExtractor {
         Log.d(TAG, "Watch config invalidated")
     }
 
+    /**
+     * Aynı video için art arda yapılan çözümlemeleri tekilleştirir.
+     *
+     * NEDEN: küçük oynatıcı her açılışta tam bir YouTube çözümlemesi yapıyordu (watch
+     * sayfası + 4 istemci için player API). Kullanıcı satırı kapatıp yeniden açtığında
+     * bu süre baştan yaşanıyor ve bazı denemeler YouTube tarafında 429'a takılıp
+     * "video çalışmadı" olarak görünüyordu. İmzalı akış adresleri ~6 saat geçerli
+     * olduğundan bu süre boyunca önbellek güvenli.
+     */
+    private val sourceCache = com.kitsugi.animelist.core.memory.BoundedCache<String, CachedPlaybackSource>(
+        name = "youtube.playback.source",
+        maxEntries = 60
+    )
+
+    fun invalidatePlaybackSource(videoId: String) {
+        sourceCache.remove(videoId)
+    }
+
+    fun clearPlaybackSourceCache() {
+        sourceCache.clear()
+    }
+
+    internal fun headersForClient(clientKey: String): Map<String, String> {
+        val client = CLIENTS.firstOrNull { it.key == clientKey } ?: return emptyMap()
+        return mapOf(
+            "User-Agent" to client.userAgent,
+            "Origin" to "https://www.youtube.com",
+            "Referer" to "https://www.youtube.com/"
+        )
+    }
+
+
+    private data class CachedPlaybackSource(
+        val source: TrailerPlaybackSource,
+        val cachedAtMs: Long = System.currentTimeMillis()
+    )
+
     suspend fun extractPlaybackSource(youtubeUrl: String): TrailerPlaybackSource? = withContext(Dispatchers.IO) {
         if (youtubeUrl.isBlank()) return@withContext null
+
+        val videoId = extractVideoId(youtubeUrl)
+        if (videoId != null) {
+            val cached = sourceCache[videoId]
+            if (cached != null && System.currentTimeMillis() - cached.cachedAtMs < PLAYBACK_SOURCE_CACHE_TTL_MS) {
+                Log.d(TAG, "Playback source cache hit for $videoId")
+                return@withContext cached.source
+            }
+        }
 
         Log.d(TAG, "Starting Kotlin extraction for ${summarizeUrl(youtubeUrl)}")
         var source: TrailerPlaybackSource? = null
@@ -289,6 +407,9 @@ class InAppYouTubeExtractor {
         if (source == null) {
             Log.w(TAG, "Kotlin extraction returned no playable source for ${summarizeUrl(youtubeUrl)}")
         } else {
+            if (videoId != null) {
+                sourceCache[videoId] = CachedPlaybackSource(source)
+            }
             Log.d(
                 TAG,
                 "Kotlin extraction success for ${summarizeUrl(youtubeUrl)} " +
@@ -304,7 +425,125 @@ class InAppYouTubeExtractor {
         forceRefreshConfig: Boolean
     ): TrailerPlaybackSource? {
         val videoId = extractVideoId(youtubeUrl) ?: return null
+        val collected = collectCandidates(videoId, forceRefreshConfig) ?: return null
 
+        val bestProgressive = sortCandidates(collected.progressive).firstOrNull()
+        val bestVideo = pickBestForClient(collected.adaptiveVideo, PREFERRED_SEPARATE_CLIENT)
+        val bestAudio = pickBestForClient(collected.adaptiveAudio, PREFERRED_SEPARATE_CLIENT)
+        val bestManifest = collected.bestManifest
+
+        // Prefer the multiplexed HLS stream when available. Adaptive YouTube formats are
+        // frequently signed per-client and can become unusable between extraction and the
+        // first media request; selecting one here caused the inline player to sit at 00:00
+        // even though the same video had a valid HLS manifest. HLS also avoids the fragile
+        // separate video/audio merge and remains seekable in Media3.
+        if (bestManifest != null) {
+            Log.d(TAG, "Using HLS manifest from ${bestManifest.client} (${bestManifest.height}p)")
+            val altSources = buildAlternateSources(
+                progressive = collected.progressive,
+                adaptiveVideo = collected.adaptiveVideo,
+                adaptiveAudio = collected.adaptiveAudio,
+                excludeUrl = bestManifest.manifestUrl
+            )
+            return TrailerPlaybackSource(
+                videoUrl = bestManifest.manifestUrl,
+                audioUrl = null,
+                // HLS manifest'i 403/yaş kısıtı/boş playlist dönebiliyor. O anda oynatıcı
+                // siyah ekranda 00:00'da kalıyordu; artık aynı çıkarımdan elde edilmiş
+                // adaptive/progressive adayları sırayla denenecek.
+                alternateVideoUrls = altSources.videoUrls,
+                alternateAudioUrls = altSources.audioUrls
+            )
+        }
+
+        // No HLS available — try adaptive video + audio (best quality, separate streams).
+        kotlinx.coroutines.yield()
+        val resolvedVideo = bestVideo?.url?.let { resolveReachableUrl(it) }
+        val resolvedAudio = if (resolvedVideo != null) bestAudio?.url?.let { resolveReachableUrl(it) } else null
+
+        if (resolvedVideo != null) {
+            return TrailerPlaybackSource(videoUrl = resolvedVideo, audioUrl = resolvedAudio)
+        }
+
+        // No HLS/adaptive source — try progressive (combined video+audio, usually low quality)
+        val resolvedProgressive = bestProgressive?.url?.let { resolveReachableUrl(it) }
+        if (resolvedProgressive != null) {
+            return TrailerPlaybackSource(videoUrl = resolvedProgressive, audioUrl = null)
+        }
+
+        return null
+    }
+
+    /**
+     * Oynatıcının, birincil akış açılamadığında sırayla deneyeceği yedek akışlar.
+     *
+     * HLS manifest'i YouTube tarafında imzalandıktan sonra da geçersizleşebiliyor
+     * (özellikle yaş kısıtlı / telif uyarılı kısa videolarda manifest 403 döner). Tek
+     * URL ile devam etmek "video oynamıyor" şikâyetinin en sık nedeniydi.
+     */
+    private suspend fun buildAlternateSources(
+        progressive: List<StreamCandidate>,
+        adaptiveVideo: List<StreamCandidate>,
+        adaptiveAudio: List<StreamCandidate>,
+        excludeUrl: String
+    ): AlternateSources {
+        val videoUrls = mutableListOf<String>()
+        val audioUrls = mutableListOf<String?>()
+
+        val sortedVideo = adaptiveVideo
+            .sortedWith(compareByDescending<StreamCandidate> { it.height }.thenByDescending { it.score })
+            .take(MAX_ALTERNATE_VIDEO_SOURCES)
+        // Yedekler için `resolveReachableUrl` çağrılmaz: her aday için ek bir ağ sondası
+        // yapmak çıkarım bütçesini (30 sn) tüketip asıl akışı da kaybettiriyordu.
+        // İmzalı adresler doğrudan kullanılır; açılmazsa sıradaki adaya geçilir.
+        //
+        // Ses akışı, video akışıyla AYNI istemciden seçilmelidir: imza istemciye bağlıdır,
+        // farklı istemcinin sesi `403` dönebilir.
+        val audioByClient = adaptiveAudio
+            .sortedByDescending { it.score }
+            .groupBy { it.client }
+            .mapValues { (_, list) -> list.first().url }
+        val fallbackAudio = adaptiveAudio.sortedByDescending { it.score }.firstOrNull()?.url
+        for (candidate in sortedVideo) {
+            val video = candidate.url
+            if (video == excludeUrl || videoUrls.contains(video)) continue
+            videoUrls += video
+            audioUrls += audioByClient[candidate.client] ?: fallbackAudio
+        }
+
+        // Sesli tek dosya (progressive, genelde 360p) — son ve en uyumlu yedek.
+        val progressiveUrl = progressive
+            .sortedWith(compareByDescending<StreamCandidate> { it.height }.thenByDescending { it.score })
+            .firstOrNull { it.url != excludeUrl && !videoUrls.contains(it.url) }
+            ?.url
+        if (progressiveUrl != null) {
+            videoUrls += progressiveUrl
+            audioUrls += null
+        }
+
+        return AlternateSources(videoUrls, audioUrls)
+    }
+
+    private class AlternateSources(
+        val videoUrls: List<String>,
+        val audioUrls: List<String?>
+    )
+
+    /**
+     * player API sondajının ham sonucu. Oynatma yolu bunun yalnızca "en iyi" adaylarını
+     * kullanır; indirme yolu HLS manifestini segmentlerine ayırabilmek için ham listeyi görür.
+     */
+    private class CollectedCandidates(
+        val progressive: List<StreamCandidate>,
+        val adaptiveVideo: List<StreamCandidate>,
+        val adaptiveAudio: List<StreamCandidate>,
+        val bestManifest: ManifestCandidate?
+    )
+
+    private suspend fun collectCandidates(
+        videoId: String,
+        forceRefreshConfig: Boolean
+    ): CollectedCandidates? {
         // Use cached config instead of fetching watch page every time
         val config = ensureWatchConfig(forceRefresh = forceRefreshConfig)
         Log.d(TAG, "Using config: apiKey=${config.apiKey.take(10)}... visitor=${!config.visitorData.isNullOrBlank()}")
@@ -466,36 +705,32 @@ class InAppYouTubeExtractor {
             }
         }
 
-        val bestProgressive = sortCandidates(progressive).firstOrNull()
-        val bestVideo = pickBestForClient(adaptiveVideo, PREFERRED_SEPARATE_CLIENT)
-        val bestAudio = pickBestForClient(adaptiveAudio, PREFERRED_SEPARATE_CLIENT)
+        return CollectedCandidates(
+            progressive = progressive,
+            adaptiveVideo = adaptiveVideo,
+            adaptiveAudio = adaptiveAudio,
+            bestManifest = bestManifest
+        )
+    }
 
-        // Prefer the multiplexed HLS stream when available. Adaptive YouTube formats are
-        // frequently signed per-client and can become unusable between extraction and the
-        // first media request; selecting one here caused the inline player to sit at 00:00
-        // even though the same video had a valid HLS manifest. HLS also avoids the fragile
-        // separate video/audio merge and remains seekable in Media3.
-        if (bestManifest != null) {
-            Log.d(TAG, "Using HLS manifest from ${bestManifest.client} (${bestManifest.height}p)")
-            return TrailerPlaybackSource(videoUrl = bestManifest.manifestUrl, audioUrl = null)
-        }
+    private suspend fun collectCandidatesForDownload(
+        videoId: String,
+        forceRefreshConfig: Boolean
+    ): YouTubeDownloadCandidates? {
+        val collected = collectCandidates(videoId, forceRefreshConfig) ?: return null
+        val bestProgressive = sortCandidates(collected.progressive).firstOrNull()
+        val bestVideo = pickBestForClient(collected.adaptiveVideo, PREFERRED_SEPARATE_CLIENT)
+        val bestAudio = pickBestForClient(collected.adaptiveAudio, PREFERRED_SEPARATE_CLIENT)
+        val bestManifest = collected.bestManifest
 
-        // No HLS available — try adaptive video + audio (best quality, separate streams).
-        kotlinx.coroutines.yield()
-        val resolvedVideo = bestVideo?.url?.let { resolveReachableUrl(it) }
-        val resolvedAudio = if (resolvedVideo != null) bestAudio?.url?.let { resolveReachableUrl(it) } else null
-
-        if (resolvedVideo != null) {
-            return TrailerPlaybackSource(videoUrl = resolvedVideo, audioUrl = resolvedAudio)
-        }
-
-        // No HLS/adaptive source — try progressive (combined video+audio, usually low quality)
-        val resolvedProgressive = bestProgressive?.url?.let { resolveReachableUrl(it) }
-        if (resolvedProgressive != null) {
-            return TrailerPlaybackSource(videoUrl = resolvedProgressive, audioUrl = null)
-        }
-
-        return null
+        if (bestManifest == null && bestProgressive == null && bestVideo == null) return null
+        return YouTubeDownloadCandidates(
+            videoId = videoId,
+            hlsManifestUrl = bestManifest?.manifestUrl,
+            adaptiveVideoUrl = bestVideo?.url,
+            adaptiveAudioUrl = bestAudio?.url,
+            progressiveUrl = bestProgressive?.url
+        )
     }
 
     fun extractVideoId(input: String): String? {

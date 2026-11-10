@@ -26,6 +26,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
@@ -176,15 +177,21 @@ fun KitsugiPlasmaLoader(
     val shadeBrush = remember(c2) {
         Brush.verticalGradient(colors = listOf(Color.Transparent, c2.copy(alpha = 0.45f)))
     }
-    val lobeColors = remember(c1, c2) {
-        listOf(c1.copy(alpha = 0.55f), c2.copy(alpha = 0.30f), Color.Transparent)
+    val lobeBrush = remember(c1, c2) {
+        Brush.radialGradient(
+            colors = listOf(c1.copy(alpha = 0.55f), c2.copy(alpha = 0.30f), Color.Transparent)
+        )
     }
-    val coreColors = remember(c1, c2) {
-        listOf(c1, c2.copy(alpha = 0.70f), Color.Transparent)
+    val coreBrush = remember(c1, c2) {
+        Brush.radialGradient(
+            colors = listOf(c1, c2.copy(alpha = 0.70f), Color.Transparent)
+        )
     }
     // Aktif merkez (beyaz-sıcak nokta) — sıvı lavın kaynama hissi.
-    val hotCoreColors = remember(c1) {
-        listOf(Color.White.copy(alpha = 0.52f), c1.copy(alpha = 0.32f), Color.Transparent)
+    val hotCoreBrush = remember(c1) {
+        Brush.radialGradient(
+            colors = listOf(Color.White.copy(alpha = 0.52f), c1.copy(alpha = 0.32f), Color.Transparent)
+        )
     }
     // Küre kenarını koyulaştıran iç vinyet (3B hacim hissi). Merkez ve yarıçap
     // varsayılan bırakılır; Compose bunları çizim alanının merkezi ve
@@ -221,23 +228,24 @@ fun KitsugiPlasmaLoader(
             if (compact) {
                 // ── Kompakt ışık küresi (rozet, satır içi gösterge, buton içi) ──
                 // 30 dp altında metaball simülasyonu görsel olarak boğuluyor;
-                // aynı kimlik üç daireyle korunur.
+                // aynı kimlik üç daireyle korunur. ShaderBrush önbelleği bozulmasın diye
+                // ölçekleme Canvas matrisinde yapılır (kare başına sıfır JNI Shader tahsisi).
                 drawCircle(
                     brush = haloBrush,
                     radius = radius,
                     center = orbCenter
                 )
 
-                val coreRadius = radius * (0.52f + 0.12f * (coreGlowPulse - 1f))
-                drawCircle(
-                    brush = Brush.radialGradient(
-                        colors = coreColors,
-                        center = orbCenter,
-                        radius = coreRadius
-                    ),
-                    radius = coreRadius,
-                    center = orbCenter
-                )
+                val compactCoreScale = (0.52f + 0.12f * (coreGlowPulse - 1f)).coerceAtLeast(0.1f)
+                withTransform({
+                    scale(scaleX = compactCoreScale, scaleY = compactCoreScale, pivot = orbCenter)
+                }) {
+                    drawCircle(
+                        brush = coreBrush,
+                        radius = radius,
+                        center = orbCenter
+                    )
+                }
 
                 val orbitRad = Math.toRadians(mainRotation.toDouble())
                 drawCircle(
@@ -252,55 +260,53 @@ fun KitsugiPlasmaLoader(
             }
 
             // ── 2. Dönen plazma odakları (metaball simülasyonu) ─────────────────
-            // Her odak kendi radyal gradyanıyla, küre merkezi etrafında yörüngede
-            // döner. Hepsi daire; taşan kısımlar daire kırpmasıyla kesilir.
+            // Her odak önbellekli radyal fırçayla Canvas matrisi üzerinde ötelenip
+            // ölçeklenerek çizilir; kare başına yeni JNI RadialGradient üretilmez.
             repeat(3) { index ->
                 val direction = if (index % 2 == 0) 1f else -1f
                 val angleDeg = mainRotation * direction + index * 120f
                 val angleRad = Math.toRadians(angleDeg.toDouble())
                 val orbitRadius = radius * 0.34f
-                val lobeRadius = radius * 0.72f
-                val lobeCenter = Offset(
-                    (orbCenter.x + cos(angleRad) * orbitRadius).toFloat(),
-                    (orbCenter.y + sin(angleRad) * orbitRadius).toFloat()
-                )
+                val dx = (cos(angleRad) * orbitRadius).toFloat()
+                val dy = (sin(angleRad) * orbitRadius).toFloat()
+                withTransform({
+                    translate(left = dx, top = dy)
+                    scale(scaleX = 0.72f, scaleY = 0.72f, pivot = orbCenter)
+                }) {
+                    drawCircle(
+                        brush = lobeBrush,
+                        radius = radius,
+                        center = orbCenter,
+                        blendMode = BlendMode.Screen
+                    )
+                }
+            }
+
+            // ── 3. Akkor çekirdek (nefes alan merkez) ────────────────────────────
+            val coreScale = 0.48f * coreGlowPulse.coerceIn(0.8f, 1.2f)
+            withTransform({
+                scale(scaleX = coreScale, scaleY = coreScale, pivot = orbCenter)
+            }) {
                 drawCircle(
-                    brush = Brush.radialGradient(
-                        colors = lobeColors,
-                        center = lobeCenter,
-                        radius = lobeRadius
-                    ),
-                    radius = lobeRadius,
-                    center = lobeCenter,
+                    brush = coreBrush,
+                    radius = radius,
+                    center = orbCenter,
                     blendMode = BlendMode.Screen
                 )
             }
 
-            // ── 3. Akkor çekirdek (nefes alan merkez) ────────────────────────────
-            val coreRadius = (radius * 0.48f) * coreGlowPulse.coerceIn(0.8f, 1.2f)
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = coreColors,
-                    center = orbCenter,
-                    radius = coreRadius
-                ),
-                radius = coreRadius,
-                center = orbCenter,
-                blendMode = BlendMode.Screen
-            )
-
             // ── 4. Beyaz-sıcak merkez (kaynama hissi) ───────────────────────────
             // Sadece daire içinde kalır; dışarıya ışıma taşmaz.
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = hotCoreColors,
+            withTransform({
+                scale(scaleX = 0.17f, scaleY = 0.17f, pivot = orbCenter)
+            }) {
+                drawCircle(
+                    brush = hotCoreBrush,
+                    radius = radius,
                     center = orbCenter,
-                    radius = radius * 0.17f
-                ),
-                radius = radius * 0.17f,
-                center = orbCenter,
-                blendMode = BlendMode.Screen
-            )
+                    blendMode = BlendMode.Screen
+                )
+            }
 
             // ── 5. Cam küre hissi: iç highlight, alt gölge, kenar vinyeti ───────
             drawCircle(

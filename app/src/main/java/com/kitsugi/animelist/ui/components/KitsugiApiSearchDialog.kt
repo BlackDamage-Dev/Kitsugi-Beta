@@ -1,4 +1,4 @@
-@file:OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+﻿@file:OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 
 package com.kitsugi.animelist.ui.components
 
@@ -19,7 +19,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -186,7 +186,7 @@ fun KitsugiApiSearchDialog(
                                 modifier = Modifier
                                     .width(250.dp)
                                     .dpadVerticalFastScroll(leftScrollState)
-                                    .verticalScroll(leftScrollState),
+                                    .kitsugiVerticalScroll(leftScrollState),
                                 verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
                                 Text(
@@ -288,7 +288,7 @@ fun KitsugiApiSearchDialog(
                                 modifier = Modifier
                                     .weight(1f)
                                     .dpadVerticalFastScroll(rightScrollState)
-                                    .verticalScroll(rightScrollState),
+                                    .kitsugiVerticalScroll(rightScrollState),
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 if (results.isEmpty()) {
@@ -363,7 +363,7 @@ fun KitsugiApiSearchDialog(
                                 modifier = Modifier
                                     .width(250.dp)
                                     .then(if (isTvDevice) Modifier.dpadVerticalFastScroll(leftScrollState) else Modifier)
-                                    .verticalScroll(leftScrollState),
+                                    .kitsugiVerticalScroll(leftScrollState),
                                 verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
                             Text(
@@ -465,7 +465,7 @@ fun KitsugiApiSearchDialog(
                                 modifier = Modifier
                                     .weight(1f)
                                     .then(if (isTvDevice) Modifier.dpadVerticalFastScroll(rightScrollState) else Modifier)
-                                    .verticalScroll(rightScrollState),
+                                    .kitsugiVerticalScroll(rightScrollState),
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                             if (results.isEmpty()) {
@@ -506,7 +506,7 @@ fun KitsugiApiSearchDialog(
                         modifier = Modifier
                             .fillMaxWidth()
                             .heightIn(max = 520.dp)
-                            .verticalScroll(rememberScrollState())
+                            .kitsugiVerticalScroll(rememberScrollState())
                     ) {
                         Text(
                             text = stringResource(R.string.jikan_veya_anilist_uzerinden_anime_manga_ara_230bb2),
@@ -781,7 +781,7 @@ private fun ApiResultPreviewDialog(
                         Column(
                             modifier = Modifier
                                 .width(180.dp)
-                                .verticalScroll(rememberScrollState()),
+                                .kitsugiVerticalScroll(rememberScrollState()),
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
@@ -804,7 +804,7 @@ private fun ApiResultPreviewDialog(
                                 modifier = Modifier
                                     .weight(1f)
                                     .dpadVerticalFastScroll(rightScrollState)
-                                    .verticalScroll(rightScrollState),
+                                    .kitsugiVerticalScroll(rightScrollState),
                                 verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
                                 Text(
@@ -900,7 +900,7 @@ private fun ApiResultPreviewDialog(
                         Column(
                             modifier = Modifier
                                 .width(180.dp)
-                                .verticalScroll(rememberScrollState()),
+                                .kitsugiVerticalScroll(rememberScrollState()),
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
@@ -923,7 +923,7 @@ private fun ApiResultPreviewDialog(
                                 modifier = Modifier
                                     .weight(1f)
                                     .then(if (isTvDevice) Modifier.dpadVerticalFastScroll(rightScrollState) else Modifier)
-                                    .verticalScroll(rightScrollState),
+                                    .kitsugiVerticalScroll(rightScrollState),
                                 verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
                             Text(
@@ -991,7 +991,7 @@ private fun ApiResultPreviewDialog(
                         modifier = Modifier
                             .fillMaxWidth()
                             .heightIn(max = 560.dp)
-                            .verticalScroll(rememberScrollState())
+                            .kitsugiVerticalScroll(rememberScrollState())
                     ) {
                         PreviewPoster(
                             result = result,

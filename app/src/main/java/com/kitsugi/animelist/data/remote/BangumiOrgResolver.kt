@@ -1,5 +1,6 @@
 package com.kitsugi.animelist.data.remote
 
+import com.kitsugi.animelist.core.memory.BoundedCache
 import com.kitsugi.animelist.data.auth.BangumiApiClient
 import com.kitsugi.animelist.utils.PreferenceHelpers
 import kotlinx.coroutines.Dispatchers
@@ -8,7 +9,6 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
-import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Bangumi infobox'ından gelen **serbest metin** kurum adlarını kurumun kendi küresel adına
@@ -55,7 +55,8 @@ internal object BangumiOrgResolver {
      * Normalleştirilmiş kurum adı → çözülen küresel ad.
      * Boş metin "çözülemedi" anlamındadır (negatif önbellek).
      */
-    private val cache = ConcurrentHashMap<String, String>()
+    // Includes negative lookups; cap the process-lifetime cache so browsing new titles cannot grow it forever.
+    private val cache = BoundedCache<String, String>("bangumi.orgResolver", 1_000)
 
     /**
      * Bir detayın tüm kurum adlarını çözer. Kurum listeleri eşzamanlı çözülür; toplam süre

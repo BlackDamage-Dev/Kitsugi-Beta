@@ -49,10 +49,43 @@ data class ExplorePayload(
     val bangumiTvShows: List<JikanSearchResult>? = null,
     val bangumiMovies: List<JikanSearchResult>? = null,
     /**
-     * Yerel "ek tür" rafları (Bangumi REAL raflarının diğer kaynaklardaki karşılığı):
-     * kaynak API'si desteklemiyorsa null kalır ve keşfet bölümü gösterilmez.
+     * Kaynağa özgü tür rafları:
+     * Manhwa/Manhua ve Light Novel/romanlar. Bir kaynak desteklemiyorsa boş kalır ve
+     * keşfet kategorisi o kaynak için gösterilmez.
      */
     val manhwaManhua: List<JikanSearchResult>? = null,
     val novels: List<JikanSearchResult>? = null
 )
 
+/** Keşfet kısayollarındaki görsel gruplama; kategori ve veri rafı aynı modelden üretilir. */
+enum class ExploreCategoryGroup {
+    ANIME,
+    MANGA,
+    TV,
+    MOVIES,
+    MIXED,
+    OTHER
+}
+
+fun ExploreCategoryType.defaultExploreGroup(): ExploreCategoryGroup = when (this) {
+    ExploreCategoryType.TOP_ANIME,
+    ExploreCategoryType.TOP_RATED_ANIME,
+    ExploreCategoryType.TRENDING_ANIME,
+    ExploreCategoryType.AIRING_ANIME,
+    ExploreCategoryType.UPCOMING_ANIME,
+    ExploreCategoryType.MOVIE_ANIME,
+    ExploreCategoryType.SEASONAL_ANIME,
+    ExploreCategoryType.NEWLY_ADDED_ANIME -> ExploreCategoryGroup.ANIME
+
+    ExploreCategoryType.TOP_MANGA,
+    ExploreCategoryType.TOP_RATED_MANGA,
+    ExploreCategoryType.PUBLISHING_MANGA,
+    ExploreCategoryType.TRENDING_MANGA,
+    ExploreCategoryType.NEWLY_ADDED_MANGA,
+    ExploreCategoryType.MANHWA_MANHUA,
+    ExploreCategoryType.NOVELS -> ExploreCategoryGroup.MANGA
+
+    ExploreCategoryType.BANGUMI_TV -> ExploreCategoryGroup.TV
+    ExploreCategoryType.BANGUMI_MOVIES -> ExploreCategoryGroup.MOVIES
+    ExploreCategoryType.UPCOMING_MEDIA_TMDB -> ExploreCategoryGroup.MIXED
+}

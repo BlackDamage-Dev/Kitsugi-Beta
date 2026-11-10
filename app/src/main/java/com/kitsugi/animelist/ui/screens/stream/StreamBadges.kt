@@ -15,8 +15,7 @@ import com.kitsugi.animelist.ui.utils.tvClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Extension
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -75,7 +74,7 @@ fun AddonStatusChip(
             }
             state.addonName == "Tümü" -> {
                 Icon(
-                    imageVector = Icons.Rounded.Extension,
+                    imageVector = Icons.Extension,
                     contentDescription = null,
                     tint = if (isSelected) accentColor else KitsugiColors.TextSecondary,
                     modifier = Modifier.size(14.dp)

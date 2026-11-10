@@ -58,7 +58,9 @@ fun AppDialogHost(
         volumeProgress: Int,
         isPrivate: Boolean,
         isHiddenFromStatusLists: Boolean,
-        advancedScores: List<Double>?
+        advancedScores: List<Double>?,
+        tmdbWatchlist: Boolean?,
+        tmdbRating: Double?
     ) -> Unit,
 
     // Entry deletion confirm
@@ -103,7 +105,9 @@ fun AppDialogHost(
         // Sayfa ipucu: bilinen bir sağlayıcıya çözülüyorsa kaydın kendi kaynağını geçersiz kılar.
         // Takma adlar (bgm, jikan, themoviedb …) kanonik eşleyiciden geçirilir; düzenleyici
         // "tmdb" kaynağını Simkl olarak ele aldığı için tmdb de simkl'e çözülür.
-        val hintedSource = editingSourceHint?.let { hint ->
+        val hintedSource = if (com.kitsugi.animelist.data.auth.isTmdbAccountSource(entry.source)) {
+            com.kitsugi.animelist.data.auth.TMDB_ACCOUNT_SOURCE
+        } else editingSourceHint?.let { hint ->
             when (val canonical = com.kitsugi.animelist.data.remote.canonicalMediaSourceId(hint)) {
                 "anilist", "mal", "simkl", "kitsu", "shikimori", "bangumi" -> canonical
                 "tmdb" -> "simkl"
@@ -118,6 +122,7 @@ fun AppDialogHost(
             // jikan IS the MAL API — always resolve to "mal", only fall back to AniList if MAL isn't connected
             "mal", "jikan" -> if (isMal) "mal" else if (isAniList) "anilist" else "mal"
             "simkl" -> "simkl"
+            "tmdb_account" -> "tmdb_account"
             // Preserve the entry's provider editor; linked cross-provider IDs must not pick Simkl.
             "bangumi", "bgm", "bgm.tv" -> "bangumi"
             else -> {
@@ -145,12 +150,12 @@ fun AppDialogHost(
                 onDismissEditing()
                 onDeleteEditingEntry(entry)
             },
-            onConfirm = { title, subtitle, type, status, isAdult, progress, total, score, isFavorite, startDate, endDate, notes, tags, priority, isRepeating, repeatCount, repeatValue, volumeProgress, isPrivate, isHiddenFromStatusLists, advancedScores ->
+            onConfirm = { title, subtitle, type, status, isAdult, progress, total, score, isFavorite, startDate, endDate, notes, tags, priority, isRepeating, repeatCount, repeatValue, volumeProgress, isPrivate, isHiddenFromStatusLists, advancedScores, tmdbWatchlist, tmdbRating ->
                 onConfirmEdit(
                     title, subtitle, type, status, isAdult, progress, total, score,
                     isFavorite, startDate, endDate, notes, tags, priority,
                     isRepeating, repeatCount, repeatValue, volumeProgress,
-                    isPrivate, isHiddenFromStatusLists, advancedScores
+                    isPrivate, isHiddenFromStatusLists, advancedScores, tmdbWatchlist, tmdbRating
                 )
             }
         )

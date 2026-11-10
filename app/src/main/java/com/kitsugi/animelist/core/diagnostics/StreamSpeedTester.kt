@@ -80,7 +80,8 @@ object StreamSpeedTester {
             val dataSource = ParallelRangeDataSource(
                 upstream = okHttpFactory.createDataSource(),
                 parallelConnections = 3,
-                chunkSizeBytes = chunkSizeBytes
+                chunkSizeBytes = chunkSizeBytes,
+                upstreamFactory = okHttpFactory
             ).apply {
                 addTransferListener(transferListener)
             }

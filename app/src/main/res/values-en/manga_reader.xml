@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="reader_chapter_end">End of chapter</string>
+    <string name="reader_retry">Retry</string>
+    <string name="reader_chapters">Chapters</string>
+    <string name="reader_fullscreen">Fullscreen</string>
+    <string name="reader_auto_scroll">Start / stop auto-scroll</string>
+    <string name="reader_shortcuts">Keyboard shortcuts</string>
+    <string name="reader_webtoon_hint">One continuous strip: all images fit the same width. Pinch or double-tap to zoom the entire strip.</string>
+    <string name="reader_side_padding">Webtoon side padding</string>
+    <string name="reader_page_gap">Gap between images</string>
+    <string name="reader_scroll_amount">Tap / key scroll distance (screen percentage)</string>
+    <string name="reader_tap_scroll">Tap the top / bottom area to scroll</string>
+    <string name="reader_auto_scroll_speed">Auto-scroll speed: %1$d dp/s</string>
+    <string name="reader_sepia">Sepia</string>
+    <string name="reader_background">Page background</string>
+    <string name="reader_black">Black</string>
+    <string name="reader_dark_gray">Dark gray</string>
+    <string name="reader_white">White</string>
+    <string name="reader_volume_keys">Navigate with volume keys while controls are hidden</string>
+    <string name="reader_page_number">Page indicator while controls are hidden</string>
+    <string name="reader_keep_screen_on">Keep the screen on while reading</string>
+    <string name="reader_reset_preferences">Reset appearance and scroll preferences</string>
+    <string name="reader_go_to_page">Go to page</string>
+    <string name="reader_page_range">Page (1–%1$d)</string>
+    <string name="reader_go">Go</string>
+    <string name="reader_keys_horizontal">Horizontal navigation; respects right-to-left manga mode.</string>
+    <string name="reader_keys_vertical">Move down / up (J: down, K: up).</string>
+    <string name="reader_keys_screen">Forward / backward: webtoon scrolls by viewport distance, not by image.</string>
+    <string name="reader_keys_ends">Go to the beginning / end of the chapter.</string>
+    <string name="reader_keys_chapters">Next / previous chapter (holding a key will not skip chapters).</string>
+    <string name="reader_keys_menu">Show / hide controls.</string>
+    <string name="reader_keys_mode">Cycle reading mode.</string>
+    <string name="reader_keys_fit">Cycle image fit mode.</string>
+    <string name="reader_keys_zoom">Zoom the entire webtoon strip in / out.</string>
+    <string name="reader_keys_reset_zoom">Reset zoom.</string>
+    <string name="reader_keys_back">Close the open panel, reset strip zoom, hide controls, then exit the reader.</string>
+    <string name="reader_keys_focus">Move between buttons and activate the focused button.</string>
+    <string name="reader_keys_scope">Shortcuts work when the reading area has focus. They do not steal keys from dialogs, text fields or sliders. Volume keys are optional. Touch stops auto-scroll.</string>
+    <string name="reader_brightness_reset">Reset brightness to 100%</string>
+    <string name="reader_keys_toggle">Press the key that opened a panel a second time to close it (toggle).</string>
+</resources>

@@ -590,6 +590,42 @@ enum class PlatformErrorCode(
         fixRes = R.string.pf_err_tmd_7004_fix,
         retryable = true
     ),
+    TMD_7005(
+        code = "KTS-TMD-7005",
+        platform = ListPlatform.TMDB,
+        severity = PlatformErrorSeverity.WARNING,
+        titleRes = R.string.pf_err_tmd_7005_title,
+        whyRes = R.string.pf_err_tmd_7005_why,
+        fixRes = R.string.pf_err_tmd_7005_fix,
+        retryable = false
+    ),
+    TMD_7006(
+        code = "KTS-TMD-7006",
+        platform = ListPlatform.TMDB,
+        severity = PlatformErrorSeverity.ERROR,
+        titleRes = R.string.pf_err_tmd_7006_title,
+        whyRes = R.string.pf_err_tmd_7006_why,
+        fixRes = R.string.pf_err_tmd_7006_fix,
+        retryable = false
+    ),
+    TMD_7007(
+        code = "KTS-TMD-7007",
+        platform = ListPlatform.TMDB,
+        severity = PlatformErrorSeverity.WARNING,
+        titleRes = R.string.pf_err_tmd_7007_title,
+        whyRes = R.string.pf_err_tmd_7007_why,
+        fixRes = R.string.pf_err_tmd_7007_fix,
+        retryable = false
+    ),
+    TMD_7008(
+        code = "KTS-TMD-7008",
+        platform = ListPlatform.TMDB,
+        severity = PlatformErrorSeverity.WARNING,
+        titleRes = R.string.pf_err_tmd_7008_title,
+        whyRes = R.string.pf_err_tmd_7008_why,
+        fixRes = R.string.pf_err_tmd_7008_fix,
+        retryable = true
+    ),
 
     // ── Simkl ──
     SMK_8001(

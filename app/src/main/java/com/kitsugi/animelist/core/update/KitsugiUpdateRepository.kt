@@ -7,6 +7,7 @@ import com.kitsugi.animelist.core.network.KitsugiHttpClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.Request
+import java.io.IOException
 import org.json.JSONArray
 import org.json.JSONObject
 import java.text.SimpleDateFormat
@@ -56,18 +57,21 @@ class KitsugiUpdateRepository(
      * [checkForUpdate]'ten farkı:
      *  - Yeni sürüm koşulu aranmaz: kurulu sürüm en güncel olsa da son sürümün notları gösterilir.
      *  - APK eki zorunlu değildir; yalnızca notlar gösterileceği için indirme bağlantısı boş kalabilir.
-     *  - Sonuç [ReleaseNotesCache] ile diske yazılır ve [force] verilmedikçe önbellekten okunur;
-     *    böylece ekran her açılışta GitHub'ın kimliksiz istek sınırını (60/saat) tüketmez.
+     *  - Hakkında kartı GitHub'ı tek doğruluk kaynağı olarak kullanır; gecikebilen Codeberg aynası
+     *    sürüm notu diye eski bir sürümü göstermesin. Codeberg yedeği kurulum denetiminde korunur.
+     *  - Önbellek uygulama sürümüne bağlıdır; yeni APK eski sürümün notlarını yeniden kullanmaz.
      */
     suspend fun latestRelease(context: Context, force: Boolean = false): Result<AppRelease?> =
         withContext(Dispatchers.IO) {
             runCatching {
+                val appVersion = BuildConfig.VERSION_NAME
                 if (!force) {
-                    ReleaseNotesCache.read(context)?.let { return@runCatching it }
+                    ReleaseNotesCache.read(context, appVersion)?.let { return@runCatching it }
                 }
-                val json = fetchLatestReleaseJson() ?: return@runCatching null
+                val json = fetchLatestGitHubReleaseJson()
+                    ?: throw IOException("GitHub Releases API yanıt vermedi.")
                 val release = buildRelease(json, requireApk = false) ?: return@runCatching null
-                ReleaseNotesCache.write(context, release)
+                ReleaseNotesCache.write(context, release, appVersion)
                 release
             }
         }
@@ -84,38 +88,50 @@ class KitsugiUpdateRepository(
     )
 
     /**
-     * GitHub (birincil) → Codeberg (yedek) sırasıyla en son sürümün JSON yanıtını getirir.
-     * Her iki uç nokta da başarısız olursa null döner; çağıran taraf bunu "bilgi yok" sayar.
+     * Güncelleme denetimi için GitHub (birincil) → Codeberg (yedek) sırasıyla yanıt getirir.
+     * Kurulum akışı aynayı kullanabilir; sürüm notları ise yalnızca GitHub kaynağını kullanır.
      */
     private fun fetchLatestReleaseJson(): JSONObject? {
         val endpoints = listOf(
             String.format(GITHUB_RELEASES_API, githubOwner, githubRepo),
             String.format(CODEBERG_RELEASES_API, codebergOwner, codebergRepo)
         )
+        return endpoints.firstNotNullOfOrNull(::fetchReleaseJson)
+    }
 
-        for (url in endpoints) {
-            try {
-                val request = Request.Builder()
-                    .url(url)
-                    .header("User-Agent", "KitsugiApp/${BuildConfig.VERSION_NAME}")
-                    .header("Accept", "application/json")
-                    .build()
+    /** Sürüm notlarının kanonik kaynağı; gecikebilen Codeberg aynasına düşmez. */
+    private fun fetchLatestGitHubReleaseJson(): JSONObject? = fetchReleaseJson(
+        String.format(GITHUB_RELEASES_API, githubOwner, githubRepo)
+    )
 
-                val response = KitsugiHttpClient.client.newCall(request).execute()
-                if (response.isSuccessful) {
-                    val bodyString = response.body?.string()
-                    if (!bodyString.isNullOrBlank()) {
-                        Log.d(TAG, "Successfully fetched update release info from: $url")
-                        return JSONObject(bodyString)
-                    }
-                } else {
+    private fun fetchReleaseJson(url: String): JSONObject? {
+        return try {
+            val request = Request.Builder()
+                .url(url)
+                .header("User-Agent", "KitsugiApp/${BuildConfig.VERSION_NAME}")
+                .header("Accept", "application/json")
+                .header("Cache-Control", "no-cache")
+                .build()
+
+            KitsugiHttpClient.client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
                     Log.w(TAG, "Update check failed for $url with code: ${response.code}")
+                    null
+                } else {
+                    val bodyString = response.body?.string()
+                    if (bodyString.isNullOrBlank()) {
+                        Log.w(TAG, "Empty release response from: $url")
+                        null
+                    } else {
+                        Log.d(TAG, "Successfully fetched update release info from: $url")
+                        JSONObject(bodyString)
+                    }
                 }
-            } catch (e: Exception) {
-                Log.w(TAG, "Error checking update from $url: ${e.message}")
             }
+        } catch (e: Exception) {
+            Log.w(TAG, "Error checking update from $url: ${e.message}")
+            null
         }
-        return null
     }
 
     /**

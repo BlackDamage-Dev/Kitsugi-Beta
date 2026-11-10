@@ -25,6 +25,27 @@ object KitsugiHttpClient {
     }
 
     /**
+     * 🎧 Ortam sesi **akışları** için istemci (ExoPlayer `OkHttpDataSource`).
+     *
+     * Neden ayrı istemci:
+     *  - `callTimeout` **yok**: bir parça dakikalarca çalabilir; meta veri
+     *    istemcisindeki 20 sn'lik toplam tavan akışı ortasında keserdi.
+     *  - Bağlantı/kurulum hatalarında hızlı düş: 15 sn bağlan, 20 sn oku.
+     *    Böylece bozuk bir parça 25+30 sn boyunca "yükleniyor" göstermez.
+     *  - `RetryInterceptor` kaldırıldı: `StreamVoice` zaten kendi deneme
+     *    döngüsünü yönetiyor; iki katman üst üste binince tek parça için
+     *    6 istek atılıyordu.
+     */
+    val streamClient: OkHttpClient by lazy {
+        client.newBuilder()
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(20, TimeUnit.SECONDS)
+            .writeTimeout(15, TimeUnit.SECONDS)
+            .apply { interceptors().removeAll { it is RetryInterceptor } }
+            .build()
+    }
+
+    /**
      * Jikan istemcisi: [metadataClient] ile aynı, ancak [RetryInterceptor] YOK.
      *
      * Neden: RetryInterceptor 429/5xx/ağ hatasında isteği kota kapısı (JikanGateway) dışında
@@ -57,24 +78,64 @@ object KitsugiHttpClient {
     }
 
     /**
-     * Bangumi (`api.bgm.tv` + `next.bgm.tv/p1`) istemcisi.
+     * MDBList istemcisi: 429'da **yeniden deneme yok**.
      *
-     * Neden ayrı: ana [client] içindeki [RetryInterceptor] her denemeyi 3'e katlıyordu.
-     * `next.bgm.tv` yavaşladığında tek bir p1 isteği 20 sn × 3 = 60 sn'ye çıkıyor, detay
-     * sekmeleri bu yüzden dakikalarca skeleton'da kalıyordu ("Bangumi verisi 5 dakika
-     * gelmiyor" raporu). Bangumi istekleri idempotent GET'lerdir; kullanıcıya dönük
-     * ekranlarda hızlı başarısız olup v0 yedeğine geçmek, dakikalarca beklemekten iyidir.
-     * Yeniden deneme gerektiğinde çağıran katman (tek-uçuş + kısa devre) karar verir.
+     * Neden: MDBList'te her istek hesabın günlük kotasından (Free: 1.000/gün) düşer ve
+     * ana [client] içindeki [RetryInterceptor] 429 aldığında aynı isteği 2 kez daha
+     * gönderiyordu. Bu hem kotayı boşa tüketiyor hem de `X-RateLimit-Remaining`
+     * değerinin uygulamada görünen değerden hızlı düşmesine yol açıyordu. Kota zaten
+     * 429 ile kesinleştiği için yeniden denemek yalnızca zarar verir.
+     */
+    val mdbListClient: OkHttpClient by lazy {
+        metadataClient.newBuilder()
+            .callTimeout(15, TimeUnit.SECONDS)
+            .apply { interceptors().removeAll { it is RetryInterceptor } }
+            .build()
+    }
+
+    /**
+     * Bangumi istemcisi: [RetryInterceptor] YOK ve 14 sn toplam çağrı tavanı uygulanır.
      */
     val bangumiClient: OkHttpClient by lazy {
         client.newBuilder()
-            .connectTimeout(10, TimeUnit.SECONDS)
-            .readTimeout(12, TimeUnit.SECONDS)
-            .writeTimeout(12, TimeUnit.SECONDS)
             .callTimeout(14, TimeUnit.SECONDS)
             .apply { interceptors().removeAll { it is RetryInterceptor } }
             .build()
     }
+
+    /**
+     * Çapraz liste eşitleme yazımları için istemci (MAL, Kitsu, Shikimori, Simkl).
+     * 25 sn toplam çağrı tavanı ile asılı kalan istekleri keser.
+     */
+    val syncClient: OkHttpClient by lazy {
+        client.newBuilder()
+            .callTimeout(25, TimeUnit.SECONDS)
+            .build()
+    }
+
+    /**
+     * T-IND-1 (2026-11-09): Video indirme hattının ÖZEL istemcisi.
+     *
+     * NEDEN: [client] üzerindeki [RetryInterceptor] 429/5xx/ağ hatasında isteği anında
+     * (≤5 sn Retry-After üstüyle) 2 kez daha gönderiyordu. İndiricinin kendi segment retry'ı
+     * ile çarpılınca tek segment için 9'a kadar istek kısa pencerede çıkıp CDN hız sınırını
+     * (429) daha da büyütüyordu ("segment alınamadı: 429" sarmalı). İndirme hattında yeniden
+     * deneme kararını tamamen [com.kitsugi.animelist.core.download.AnimeDownloader] +
+     * [com.kitsugi.animelist.core.download.DownloadResilience] verir: kaynak politikasına
+     * göre üstel backoff, Retry-After ve tempo (pacing) uygulanır.
+     *
+     * readTimeout uzun: yavaş CDN segmentlerinde 30 sn okuma sınırı indirmeyi ortadan
+     * kesiyordu; 120 sn verilir (callTimeout yok — büyük dosyalar dakikalarca sürebilir).
+     */
+    val downloadClient: OkHttpClient by lazy {
+        client.newBuilder()
+            .apply { interceptors().removeAll { it is RetryInterceptor } }
+            .connectTimeout(20, TimeUnit.SECONDS)
+            .readTimeout(120, TimeUnit.SECONDS)
+            .writeTimeout(30, TimeUnit.SECONDS)
+            .build()
+    }
+
 
     val client: OkHttpClient by lazy {
         OkHttpClient.Builder()
@@ -98,6 +159,9 @@ object KitsugiHttpClient {
             .retryOnConnectionFailure(true)
             .followRedirects(true)
             .followSslRedirects(true)
+            // PlatformFailureInterceptor wraps retries so a transient 429 that succeeds on retry
+            // is not surfaced as a failed source in the current screen.
+            .addInterceptor(PlatformFailureInterceptor())
             .addInterceptor(RetryInterceptor(maxRetries = 2))
             .addInterceptor(
                 Interceptor { chain ->
@@ -108,6 +172,10 @@ object KitsugiHttpClient {
                     }
                     if (original.header("Accept-Language") == null) {
                         reqBuilder.header("Accept-Language", "tr-TR,tr;q=0.9,en;q=0.8")
+                    }
+                    // Manga-TR covers use a different CDN and may enforce hotlink protection.
+                    if ((original.url.host.equals("mngtr.site", true) || original.url.host.endsWith(".mngtr.site", true)) && original.header("Referer") == null) {
+                        reqBuilder.header("Referer", "https://manga-tr.com")
                     }
                     // Fandom görsel CDN'i (static.wikia.nocookie.net): tarayıcı dışı istemcilere
                     // Referer/Accept olmadan 403 dönebiliyor ya da içerik pazarlığında AVIF seçebiliyor
@@ -124,8 +192,13 @@ object KitsugiHttpClient {
                     chain.proceed(reqBuilder.build())
                 }
             )
+            // This is inside RetryInterceptor, so every actual retry is paced as well.
+            .addInterceptor(SimklRateLimitInterceptor())
             // En içte: her deneme (RetryInterceptor dahil) için gerçek HTTP kodunu görür.
             .addInterceptor(PlatformFailureInterceptor())
+            // v2.4.342: her deneme kalıcı günlüğe yazılır (host, yol, kod, süre, kota başlıkları).
+            // Kullanıcı "hangi kaynak ne zaman ne döndü" sorusunu sonradan cevaplayabilsin.
+            .addInterceptor(KitsugiNetworkLogInterceptor())
             .build()
     }
 }

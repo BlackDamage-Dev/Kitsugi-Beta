@@ -245,9 +245,19 @@ internal object BangumiSubjectTitleResolver {
                     }
                 }.awaitAll().forEach { chunkResult ->
                     if (chunkResult == null) return@forEach
+                    val appCtx = com.kitsugi.animelist.KitsugiApplication.getInstance()?.applicationContext
                     for ((rawId, latin) in chunkResult.resolved) {
                         BangumiTitleCache.put(rawId, latin.romaji, latin.english, latin.native)
                         result[rawId] = usableLatin(BangumiTitleCache.get(rawId)) ?: latin
+                        val malId = chunkResult.matchedMalIds[rawId]
+                        val req = requests.firstOrNull { it.rawId == rawId }
+                        if (appCtx != null && malId != null && malId > 0 && req != null) {
+                            val resolvedSubjectType = req.subjectType
+                                ?: BangumiIdNamespace.subjectTypeFor(req.mediaType)
+                            runCatching {
+                                BangumiLocalMappingCache.put(appCtx, malId, resolvedSubjectType, rawId)
+                            }
+                        }
                     }
                 }
             }
@@ -385,10 +395,20 @@ internal object BangumiSubjectTitleResolver {
                     }.awaitAll().forEach { chunkResult ->
                         if (chunkResult == null) return@forEach
                         completedAniList.addAll(chunkResult.unmatched)
+                        val appCtx = com.kitsugi.animelist.KitsugiApplication.getInstance()?.applicationContext
                         for ((rawId, latin) in chunkResult.resolved) {
                             completedAniList += rawId
                             BangumiTitleCache.put(rawId, latin.romaji, latin.english, latin.native)
                             result[rawId] = usableLatin(BangumiTitleCache.get(rawId)) ?: latin
+                            val malId = chunkResult.matchedMalIds[rawId]
+                            val req = anilistPending.firstOrNull { it.rawId == rawId }
+                            if (appCtx != null && malId != null && malId > 0 && req != null) {
+                                val resolvedSubjectType = req.subjectType
+                                    ?: BangumiIdNamespace.subjectTypeFor(req.mediaType)
+                                runCatching {
+                                    BangumiLocalMappingCache.put(appCtx, malId, resolvedSubjectType, rawId)
+                                }
+                            }
                         }
                     }
                 }
@@ -547,7 +567,8 @@ internal object BangumiSubjectTitleResolver {
 
     internal data class AniListChunkResult(
         val resolved: Map<Int, BangumiTitleCache.LatinTitles>,
-        val unmatched: List<Int>
+        val unmatched: List<Int>,
+        val matchedMalIds: Map<Int, Int> = emptyMap()
     )
 
     private suspend fun resolveChunkViaAniList(chunk: List<Request>): AniListChunkResult? {
@@ -568,7 +589,7 @@ internal object BangumiSubjectTitleResolver {
             sb.append("a").append(index)
                 .append(": Page(page: 1, perPage: 5) { media(search: \$s").append(index)
                 .append(", type: \$t").append(index)
-                .append(", sort: SEARCH_MATCH) { title { romaji english native } synonyms } }\n")
+                .append(", sort: SEARCH_MATCH) { id idMal title { romaji english native } synonyms } }\n")
         }
         sb.append("}")
         val variables = JSONObject()
@@ -586,6 +607,7 @@ internal object BangumiSubjectTitleResolver {
      */
     internal fun matchAniListResponse(chunk: List<Request>, response: JSONObject?): AniListChunkResult {
         val resolved = HashMap<Int, BangumiTitleCache.LatinTitles>()
+        val matchedMalIds = HashMap<Int, Int>()
         val unmatched = mutableListOf<Int>()
         val data = response?.optJSONObject("data") ?: return AniListChunkResult(emptyMap(), emptyList())
         for ((index, req) in chunk.withIndex()) {
@@ -596,6 +618,7 @@ internal object BangumiSubjectTitleResolver {
             }
             val media = data.optJSONObject("a$index")?.optJSONArray("media").objects()
             var match: BangumiTitleCache.LatinTitles? = null
+            var matchMalId: Int? = null
             for (m in media) {
                 val title = m.optJSONObject("title") ?: continue
                 val candidates = buildList {
@@ -616,12 +639,18 @@ internal object BangumiSubjectTitleResolver {
                         title.strOrNull("english"),
                         title.strOrNull("native")
                     )
+                    matchMalId = m.optInt("idMal", 0).takeIf { it > 0 }
                     break
                 }
             }
-            if (match != null) resolved[req.rawId] = match else unmatched += req.rawId
+            if (match != null) {
+                resolved[req.rawId] = match
+                if (matchMalId != null) matchedMalIds[req.rawId] = matchMalId
+            } else {
+                unmatched += req.rawId
+            }
         }
-        return AniListChunkResult(resolved, unmatched)
+        return AniListChunkResult(resolved, unmatched, matchedMalIds)
     }
 
     // ── Yardımcılar ───────────────────────────────────────────────────────────

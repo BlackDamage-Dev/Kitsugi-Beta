@@ -11,6 +11,8 @@ bash "$KOTLINC" \
  app/src/main/java/com/kitsugi/animelist/core/player/AniSkipPolicy.kt \
  app/src/main/java/com/kitsugi/animelist/core/player/PlayerGesturePolicy.kt \
  app/src/main/java/com/kitsugi/animelist/core/player/engine/MpvPlaybackPolicy.kt \
+ app/src/main/java/com/kitsugi/animelist/core/player/DolbyVisionStreamHints.kt \
+ app/src/main/java/com/kitsugi/animelist/core/player/engine/MpvDolbyVisionPolicy.kt \
  app/src/main/java/com/kitsugi/animelist/core/player/engine/MpvTlsPolicy.kt \
  app/src/main/java/com/kitsugi/animelist/core/player/SubtitleInput.kt \
  app/src/main/java/com/kitsugi/animelist/core/player/engine/MpvTrack.kt \

@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.ui.components
+﻿package com.kitsugi.animelist.ui.components
 
 import com.kitsugi.animelist.ui.utils.localizedLabel
 import android.app.DatePickerDialog
@@ -22,28 +22,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.Label
-import androidx.compose.material.icons.automirrored.rounded.Notes
-import androidx.compose.material.icons.rounded.Bookmark
-import androidx.compose.material.icons.rounded.Book
-import androidx.compose.material.icons.rounded.CalendarToday
-import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.DateRange
-import androidx.compose.material.icons.rounded.Delete
-import androidx.compose.material.icons.rounded.EventAvailable
-import androidx.compose.material.icons.rounded.FormatListNumbered
-import androidx.compose.material.icons.rounded.Lock
-import androidx.compose.material.icons.rounded.Pause
-import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.PriorityHigh
-import androidx.compose.material.icons.rounded.Repeat
-import androidx.compose.material.icons.rounded.RepeatOne
-import androidx.compose.material.icons.rounded.Star
-import androidx.compose.material.icons.rounded.StarBorder
-import androidx.compose.material.icons.rounded.Tag
-import androidx.compose.material.icons.rounded.VisibilityOff
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.HorizontalDivider
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.MaterialTheme
@@ -61,7 +41,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.kitsugi.animelist.data.auth.AniListSyncManager
 import com.kitsugi.animelist.data.auth.ExternalAuthManager
-import androidx.compose.material.icons.rounded.List
 import kotlin.math.roundToInt
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -148,7 +127,9 @@ fun KitsugiEditMediaSheet(
         volumeProgress: Int,
         isPrivate: Boolean,
         isHiddenFromStatusLists: Boolean,
-        advancedScores: List<Double>?
+        advancedScores: List<Double>?,
+        tmdbWatchlist: Boolean?,
+        tmdbRating: Double?
     ) -> Unit
 ) {
     val isEditing = initialEntry?.id?.let { it > 0 } == true
@@ -156,6 +137,8 @@ fun KitsugiEditMediaSheet(
         initialEntry?.let { "${it.source}:${it.id}:${it.malId}:${it.title}" } ?: "new:$source"
     }
     val accentColor  = LocalKitsugiAccent.current
+    val isTmdbAccount = com.kitsugi.animelist.data.auth.isTmdbAccountSource(source) ||
+        initialEntry?.source?.let { com.kitsugi.animelist.data.auth.isTmdbAccountSource(it) } == true
     val isKitsu = when (source.lowercase()) {
         "kitsu" -> true
         else -> initialEntry?.source?.lowercase() == "kitsu"
@@ -173,20 +156,20 @@ fun KitsugiEditMediaSheet(
     }
     val isAniList = when (source.lowercase()) {
         "anilist" -> true
-        "mal", "jikan", "myanimelist", "kitsu", "shikimori", "simkl", "tmdb", "bangumi", "bgm", "bgm.tv" -> false
-        else -> !isKitsu && !isShikimori && !isBangumi && initialEntry?.aniListEntryId != null
+        "mal", "jikan", "myanimelist", "kitsu", "shikimori", "simkl", "tmdb", "tmdb_account", "bangumi", "bgm", "bgm.tv" -> false
+        else -> !isTmdbAccount && !isKitsu && !isShikimori && !isBangumi && initialEntry?.aniListEntryId != null
     }
     val isMal = when (source.lowercase()) {
         "mal", "jikan", "myanimelist" -> true
-        "anilist", "kitsu", "shikimori", "simkl", "tmdb", "bangumi", "bgm", "bgm.tv" -> false
-        else -> !isKitsu && !isShikimori && !isBangumi && !isAniList && (initialEntry?.malId != null || initialEntry?.source == "mal")
+        "anilist", "kitsu", "shikimori", "simkl", "tmdb", "tmdb_account", "bangumi", "bgm", "bgm.tv" -> false
+        else -> !isTmdbAccount && !isKitsu && !isShikimori && !isBangumi && !isAniList && (initialEntry?.malId != null || initialEntry?.source == "mal")
     }
     val isSimkl = when (source.lowercase()) {
         "simkl", "tmdb" -> true
-        "anilist", "mal", "jikan", "myanimelist", "kitsu", "shikimori", "bangumi", "bgm", "bgm.tv" -> false
-        else -> !isKitsu && !isShikimori && !isBangumi && !isAniList && !isMal && (initialEntry?.simklId != null || initialEntry?.source == "simkl")
+        "anilist", "mal", "jikan", "myanimelist", "kitsu", "shikimori", "tmdb_account", "bangumi", "bgm", "bgm.tv" -> false
+        else -> !isTmdbAccount && !isKitsu && !isShikimori && !isBangumi && !isAniList && !isMal && (initialEntry?.simklId != null || initialEntry?.source == "simkl")
     }
-    val isManual     = !isAniList && !isMal && !isSimkl && !isKitsu && !isShikimori && !isBangumi
+    val isManual     = !isAniList && !isMal && !isSimkl && !isKitsu && !isShikimori && !isBangumi && !isTmdbAccount
 
     // ── State ──────────────────────────────────────────────────────────────
     // Otomatik tarih/ilerleme kuralı panel açılır açılmaz uygulanır: böylece
@@ -227,10 +210,21 @@ fun KitsugiEditMediaSheet(
 
     // AniHyou paritesi: 0,5 puanlama adımı seçiliyken kullanılan kayan puan durumu (0-10)
     var scoreHalf by rememberSaveable(editorEntryKey) {
-        mutableFloatStateOf((initialEntry?.score ?: 0).toFloat())
+        mutableFloatStateOf((initialEntry?.tmdbRating ?: initialEntry?.score?.toDouble() ?: 0.0).toFloat())
     }
 
     var isFavorite     by rememberSaveable(editorEntryKey) { mutableStateOf(initialEntry?.isFavorite ?: false) }
+    var tmdbWatchlist  by rememberSaveable(editorEntryKey) {
+        mutableStateOf(initialEntry?.tmdbWatchlist ?: (initialEntry?.status == WatchStatus.Planned))
+    }
+    var showTmdbListsDialog by rememberSaveable(editorEntryKey) { mutableStateOf(false) }
+    var isTmdbStateLoading by rememberSaveable(editorEntryKey) {
+        mutableStateOf(isTmdbAccount && initialEntry?.tmdbId != null)
+    }
+    var tmdbWatchlistEdited by rememberSaveable(editorEntryKey) { mutableStateOf(false) }
+    var tmdbFavoriteEdited by rememberSaveable(editorEntryKey) { mutableStateOf(false) }
+    var tmdbRatingEdited by rememberSaveable(editorEntryKey) { mutableStateOf(false) }
+    var tmdbStateError by remember(editorEntryKey) { mutableStateOf<String?>(null) }
     var startDateText  by rememberSaveable(editorEntryKey) { mutableStateOf(autoOnOpen.startDate.orEmpty()) }
     var endDateText    by rememberSaveable(editorEntryKey) { mutableStateOf(autoOnOpen.endDate.orEmpty()) }
     var notes          by rememberSaveable(editorEntryKey) { mutableStateOf(initialEntry?.notes.orEmpty()) }
@@ -247,6 +241,43 @@ fun KitsugiEditMediaSheet(
     // AniList Metadata / Advanced Scoring / Custom Lists
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
+
+    LaunchedEffect(editorEntryKey, isTmdbAccount) {
+        if (!isTmdbAccount) return@LaunchedEffect
+        val tmdbId = initialEntry?.tmdbId?.takeIf { it > 0 }
+        val entryType = initialEntry?.type
+        val sessionId = com.kitsugi.animelist.data.auth.TmdbAuthStore.sessionId(context)
+        val accountId = com.kitsugi.animelist.data.auth.TmdbAuthStore.accountId(context)
+        if (tmdbId == null || entryType == null || sessionId.isNullOrBlank() || accountId == null) {
+            isTmdbStateLoading = false
+            return@LaunchedEffect
+        }
+        isTmdbStateLoading = true
+        tmdbStateError = null
+        try {
+            val accountState = withContext(Dispatchers.IO) {
+                com.kitsugi.animelist.data.remote.TmdbAccountClient.fetchAccountState(
+                    sessionId = sessionId,
+                    type = entryType,
+                    tmdbId = tmdbId
+                )
+            }
+            if (!com.kitsugi.animelist.data.auth.TmdbAuthStore.matchesSession(context, sessionId, accountId)) {
+                return@LaunchedEffect
+            }
+            if (!tmdbWatchlistEdited) tmdbWatchlist = accountState.watchlist
+            if (!tmdbFavoriteEdited) isFavorite = accountState.favorite
+            if (!tmdbRatingEdited) scoreHalf = accountState.rating?.toFloat() ?: 0f
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            com.kitsugi.animelist.data.platform.PlatformFailureRegistry.reportAndResolve("tmdb", error)
+            tmdbStateError = error.message ?: context.getString(R.string.tmdb_editor_account_state_fallback)
+        } finally {
+            isTmdbStateLoading = false
+        }
+    }
+
     val aniListToken = androidx.compose.runtime.remember { ExternalAuthManager.getAniListToken(context) }
     var showCustomListsDialog by androidx.compose.runtime.remember { mutableStateOf(false) }
     var isLoadingMetadata by androidx.compose.runtime.remember { mutableStateOf(false) }
@@ -323,8 +354,8 @@ fun KitsugiEditMediaSheet(
     val advancedAverage = if (activeAdvancedScores.isNotEmpty()) activeAdvancedScores.average() else 0.0
     // AniHyou paritesi: "Puanlama adımları" 0,5 ise yıldızlar yerine ±0,5 stepper geçer.
     val scoreStepPref = com.kitsugi.animelist.data.settings.KitsugiContentPrefs.scoreStep
-    val halfStepMode = scoreStepPref == 0.5f && !advancedScoresEnabled &&
-        (scoreFormat == "POINT_10" || scoreFormat == "POINT_100" || scoreFormat == "POINT_5")
+    val halfStepMode = isTmdbAccount || (scoreStepPref == 0.5f && !advancedScoresEnabled &&
+        (scoreFormat == "POINT_10" || scoreFormat == "POINT_100" || scoreFormat == "POINT_5"))
     val effectiveScoreRaw = if (advancedScoresEnabled && advancedScoresCategories.isNotEmpty()) {
         advancedAverage.roundToInt()
     } else if (halfStepMode) {
@@ -333,7 +364,9 @@ fun KitsugiEditMediaSheet(
         scoreRaw
     }
 
-    val parsedScore: Int? = if (effectiveScoreRaw <= 0) null else when (scoreFormat) {
+    val parsedScore: Int? = if (isTmdbAccount) {
+        scoreHalf.roundToInt().takeIf { scoreHalf > 0f }
+    } else if (effectiveScoreRaw <= 0) null else when (scoreFormat) {
         "POINT_100"      -> (effectiveScoreRaw / 10).coerceIn(0, 10)
         "POINT_10_DECIMAL" -> effectiveScoreRaw.coerceIn(0, 10)
         "POINT_5"        -> (effectiveScoreRaw * 2).coerceIn(0, 10)
@@ -348,7 +381,7 @@ fun KitsugiEditMediaSheet(
         !EntryAutoRules.isBlankDate(endDateText) &&
         startDateText.isValidDateOrBlank() && endDateText.isValidDateOrBlank() &&
         endDateText < startDateText
-    val canSave = (isManual && title.isNotBlank() || !isManual) &&
+    val canSave = !isTmdbStateLoading && (isManual && title.isNotBlank() || !isManual) &&
             startDateText.trim().isValidDateOrBlank() &&
             endDateText.trim().isValidDateOrBlank()
 
@@ -357,6 +390,7 @@ fun KitsugiEditMediaSheet(
 
     // ── Platform info ──────────────────────────────────────────────────────
     val platformName = when {
+        isTmdbAccount -> "TMDB"
         isKitsu     -> "Kitsu"
         isShikimori -> "Shikimori"
         isBangumi   -> "Bangumi"
@@ -366,6 +400,7 @@ fun KitsugiEditMediaSheet(
         else        -> "Yerel Kitaplık"
     }
     val platformColor = when {
+        isTmdbAccount -> Color(0xFF01B4E4)
         isKitsu     -> Color(0xFFFD755C)
         isShikimori -> Color(0xFF8E44AD)
         isBangumi   -> Color(0xFFF09199)
@@ -452,13 +487,17 @@ fun KitsugiEditMediaSheet(
                             if (isManual) selectedType else initialEntry?.type ?: MediaType.Anime,
                             selectedStatus,
                             if (isManual) isAdult else initialEntry?.isAdult ?: false,
-                            parsedProgress, parsedTotal, parsedScore, isFavorite,
+                            parsedProgress, parsedTotal,
+                            if (isTmdbAccount && !tmdbRatingEdited) initialEntry?.score else parsedScore,
+                            if (isTmdbAccount && !tmdbFavoriteEdited) initialEntry?.isFavorite ?: false else isFavorite,
                             normalizedStart, normalizedEnd,
                             notes.trim().takeIf { it.isNotBlank() },
                             tags.trim().takeIf { it.isNotBlank() },
                             priority, isRepeating, repeatCount, repeatValue, volumeProgress,
                             isPrivate, isHiddenFromStatusLists,
-                            advancedScoresList
+                            advancedScoresList,
+                            if (isTmdbAccount && tmdbWatchlistEdited) tmdbWatchlist else initialEntry?.tmdbWatchlist,
+                            if (isTmdbAccount && tmdbRatingEdited) scoreHalf.toDouble().takeIf { it > 0.0 } else initialEntry?.tmdbRating
                         )
                     }
                 ) {
@@ -476,7 +515,7 @@ fun KitsugiEditMediaSheet(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .verticalScroll(scrollState)
+                    .kitsugiVerticalScroll(scrollState)
                     .padding(bottom = 32.dp)
             ) {
 
@@ -503,8 +542,8 @@ fun KitsugiEditMediaSheet(
                         MediaType.TvShow -> "Dizi"
                     }
                     val typeIcon = when (selectedType) {
-                        MediaType.Manga -> Icons.Rounded.Book
-                        else            -> Icons.Rounded.PlayArrow
+                        MediaType.Manga -> Icons.Book
+                        else            -> Icons.PlayArrow
                     }
                     SheetRow(
                         icon = typeIcon, label = stringResource(R.string.tur), value = typeValue,
@@ -540,20 +579,20 @@ fun KitsugiEditMediaSheet(
                     // AniList için Repeating ayrı bir status, MAL için flag
                     val statusPills = if (isAniList || isShikimori) {
                         listOf(
-                            WatchStatus.Watching  to Icons.Rounded.PlayArrow,
-                            WatchStatus.Completed to Icons.Rounded.Check,
-                            WatchStatus.Paused    to Icons.Rounded.Pause,
-                            WatchStatus.Dropped   to Icons.Rounded.Delete,
-                            WatchStatus.Planned   to Icons.Rounded.Bookmark,
-                            WatchStatus.Repeating to Icons.Rounded.Repeat
+                            WatchStatus.Watching  to Icons.PlayArrow,
+                            WatchStatus.Completed to Icons.Check,
+                            WatchStatus.Paused    to Icons.Pause,
+                            WatchStatus.Dropped   to Icons.Delete,
+                            WatchStatus.Planned   to Icons.Bookmark,
+                            WatchStatus.Repeating to Icons.Repeat
                         )
                     } else {
                         listOf(
-                            WatchStatus.Watching  to Icons.Rounded.PlayArrow,
-                            WatchStatus.Completed to Icons.Rounded.Check,
-                            WatchStatus.Paused    to Icons.Rounded.Pause,
-                            WatchStatus.Dropped   to Icons.Rounded.Delete,
-                            WatchStatus.Planned   to Icons.Rounded.Bookmark
+                            WatchStatus.Watching  to Icons.PlayArrow,
+                            WatchStatus.Completed to Icons.Check,
+                            WatchStatus.Paused    to Icons.Pause,
+                            WatchStatus.Dropped   to Icons.Delete,
+                            WatchStatus.Planned   to Icons.Bookmark
                         )
                     }
                     statusPills.forEach { (status, icon) ->
@@ -611,6 +650,68 @@ fun KitsugiEditMediaSheet(
                     }
                 }
 
+                if (isTmdbAccount) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = stringResource(R.string.tmdb_editor_account),
+                        color = platformColor,
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                    )
+                    SheetRow(
+                        icon = Icons.Rounded.Bookmark,
+                        label = stringResource(R.string.tmdb_editor_watchlist),
+                        switchChecked = tmdbWatchlist,
+                        onSwitchCheckedChange = {
+                            tmdbWatchlist = it
+                            tmdbWatchlistEdited = true
+                        }
+                    )
+                    SheetRow(
+                        icon = Icons.Rounded.Star,
+                        label = stringResource(R.string.tmdb_editor_favorite),
+                        switchChecked = isFavorite,
+                        onSwitchCheckedChange = {
+                            isFavorite = it
+                            tmdbFavoriteEdited = true
+                        }
+                    )
+                    SheetRow(
+                        icon = Icons.Rounded.List,
+                        label = stringResource(R.string.tmdb_editor_custom_lists),
+                        onClick = if (initialEntry?.type == MediaType.Movie && initialEntry.tmdbId != null) {
+                            { showTmdbListsDialog = true }
+                        } else null
+                    )
+                    if (isTmdbStateLoading) {
+                        Text(
+                            text = stringResource(R.string.tmdb_editor_account_state_loading),
+                            color = KitsugiColors.TextMuted,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                        )
+                    }
+                    tmdbStateError?.let { message ->
+                        Text(
+                            text = message,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                        )
+                    }
+                    Text(
+                        text = if (initialEntry?.type == MediaType.Movie) {
+                            stringResource(R.string.tmdb_editor_native_movie_description)
+                        } else {
+                            stringResource(R.string.tmdb_editor_native_tv_description)
+                        },
+                        color = KitsugiColors.TextMuted,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                    )
+                }
+
                 // ── Star Rating ────────────────────────────────────────────
                 Spacer(modifier = Modifier.height(16.dp))
                 Column(
@@ -642,11 +743,17 @@ fun KitsugiEditMediaSheet(
                     if (halfStepMode) {
                         // AniHyou paritesi: 0,5 adımlı puan girişi (kaynaklara tam sayı yuvarlanarak yazılır)
                         SheetRow(
-                            icon = Icons.Rounded.Star,
+                            icon = Icons.Star,
                             label = "Puan (0,5 adım)",
                             value = String.format(java.util.Locale.US, "%.1f", scoreHalf),
-                            onDecrement = { scoreHalf = (scoreHalf - 0.5f).coerceAtLeast(0f) },
-                            onIncrement = { scoreHalf = (scoreHalf + 0.5f).coerceAtMost(10f) }
+                            onDecrement = {
+                                scoreHalf = (scoreHalf - 0.5f).coerceAtLeast(0f)
+                                if (isTmdbAccount) tmdbRatingEdited = true
+                            },
+                            onIncrement = {
+                                scoreHalf = (scoreHalf + 0.5f).coerceAtMost(10f)
+                                if (isTmdbAccount) tmdbRatingEdited = true
+                            }
                         )
                     }
                     if (!halfStepMode) Row(
@@ -672,7 +779,7 @@ fun KitsugiEditMediaSheet(
                             }
                             
                             Icon(
-                                imageVector = if (filled) Icons.Rounded.Star else Icons.Rounded.StarBorder,
+                                imageVector = if (filled) Icons.Star else Icons.StarBorder,
                                 contentDescription = "Puan $i",
                                 tint = if (filled) scoreColor else KitsugiColors.TextMuted,
                                 modifier = clickableModifier
@@ -710,7 +817,7 @@ fun KitsugiEditMediaSheet(
                         }
                         
                         SheetRow(
-                            icon = Icons.Rounded.Star,
+                            icon = Icons.Star,
                             label = category,
                             value = formattedValue,
                             onDecrement = {
@@ -739,7 +846,7 @@ fun KitsugiEditMediaSheet(
                     selectedType == MediaType.Movie -> "İlerleme"
                     else -> "Bölümler"
                 }
-                val progressIcon = if (selectedType == MediaType.Manga) Icons.Rounded.Book else Icons.Rounded.PlayArrow
+                val progressIcon = if (selectedType == MediaType.Manga) Icons.Book else Icons.PlayArrow
 
                 SheetRow(
                     icon = progressIcon, label = progressLabel,
@@ -762,7 +869,7 @@ fun KitsugiEditMediaSheet(
                 // Manga volume progress (MAL & manual)
                 if (selectedType == MediaType.Manga && !isAniList && !isKitsu) {
                     SheetRow(
-                        icon = Icons.Rounded.Bookmark, label = "Ciltler (Volume)",
+                        icon = Icons.Bookmark, label = "Ciltler (Volume)",
                         value = volumeProgress.toString(),
                         onValueChange = { v -> v.toIntOrNull()?.let { volumeProgress = it } },
                         valuePlaceholder = "0",
@@ -774,7 +881,7 @@ fun KitsugiEditMediaSheet(
                 // Total episodes (manual only)
                 if (isManual) {
                     SheetRow(
-                        icon = Icons.Rounded.FormatListNumbered, label = stringResource(R.string.toplam_sayi),
+                        icon = Icons.FormatListNumbered, label = stringResource(R.string.toplam_sayi),
                         value = totalText,
                         onValueChange = { v ->
                             if (v.isEmpty()) totalText = ""
@@ -790,7 +897,7 @@ fun KitsugiEditMediaSheet(
 
                 // ── Dates ──────────────────────────────────────────────────
                 SheetRow(
-                    icon = Icons.Rounded.CalendarToday, label = stringResource(R.string.baslangic_tarihi),
+                    icon = Icons.CalendarToday, label = stringResource(R.string.baslangic_tarihi),
                     value = startDateText.ifBlank { stringResource(R.string.tarih_secilmemis) },
                     onClick = { selectDate(startDateText) { startDateText = it } },
                     onClearClick = if (startDateText.isNotBlank()) { { startDateText = "" } } else null
@@ -801,7 +908,7 @@ fun KitsugiEditMediaSheet(
                     onClear = if (startDateText.isNotBlank()) { { startDateText = "" } } else null
                 )
                 SheetRow(
-                    icon = Icons.Rounded.EventAvailable, label = stringResource(R.string.bitis_tarihi),
+                    icon = Icons.EventAvailable, label = stringResource(R.string.bitis_tarihi),
                     value = endDateText.ifBlank { stringResource(R.string.tarih_secilmemis) },
                     onClick = { selectDate(endDateText) { endDateText = it } },
                     onClearClick = if (endDateText.isNotBlank()) { { endDateText = "" } } else null
@@ -830,21 +937,21 @@ fun KitsugiEditMediaSheet(
                         val activeLists = customListsMap.filter { it.value }.keys.toList()
                         val listsValue = if (activeLists.isEmpty()) "Hiçbiri" else activeLists.joinToString(", ")
                         SheetRow(
-                            icon = Icons.Rounded.List,
+                            icon = Icons.List,
                             label = stringResource(R.string.ozel_listeler),
                             value = listsValue,
                             onClick = { showCustomListsDialog = true }
                         )
                     }
                     SheetRow(
-                        icon = Icons.Rounded.Star, label = "Favori",
+                        icon = Icons.Star, label = "Favori",
                         switchChecked = isFavorite, onSwitchCheckedChange = { isFavorite = it }
                     )
                     // AniList'te Repeating bir status (pill olarak seçilir), isRepeating toggle'ı
                     // sadece MAL içindir. Ancak repeatCount AniList 'repeat' alanına yazılır.
                     if (selectedStatus == WatchStatus.Repeating) {
                         SheetRow(
-                            icon = Icons.Rounded.RepeatOne,
+                            icon = Icons.RepeatOne,
                             label = if (selectedType == MediaType.Manga) "Toplam Tekrar Okuma" else "Toplam Tekrar İzleme",
                             value = repeatCount.toString(),
                             onDecrement = { repeatCount = (repeatCount - 1).coerceAtLeast(0) },
@@ -852,11 +959,11 @@ fun KitsugiEditMediaSheet(
                         )
                     }
                     SheetRow(
-                        icon = Icons.Rounded.Lock, label = "Gizli",
+                        icon = Icons.Lock, label = "Gizli",
                         switchChecked = isPrivate, onSwitchCheckedChange = { isPrivate = it }
                     )
                     SheetRow(
-                        icon = Icons.Rounded.VisibilityOff, label = stringResource(R.string.durum_listelerinden_gizle),
+                        icon = Icons.VisibilityOff, label = stringResource(R.string.durum_listelerinden_gizle),
                         switchChecked = isHiddenFromStatusLists,
                         onSwitchCheckedChange = { isHiddenFromStatusLists = it }
                     )
@@ -865,7 +972,7 @@ fun KitsugiEditMediaSheet(
                 // Kitsu: gizlilik (private) — tarih ve not zaten ortak alanlar
                 if (isKitsu) {
                     SheetRow(
-                        icon = Icons.Rounded.Lock, label = "Gizli",
+                        icon = Icons.Lock, label = "Gizli",
                         switchChecked = isPrivate, onSwitchCheckedChange = { isPrivate = it }
                     )
                 }
@@ -873,7 +980,7 @@ fun KitsugiEditMediaSheet(
                 // Shikimori: "Yeniden İzleniyor" durumunda tekrar sayısı (user_rate.rewatches)
                 if (isShikimori && selectedStatus == WatchStatus.Repeating) {
                     SheetRow(
-                        icon = Icons.Rounded.RepeatOne,
+                        icon = Icons.RepeatOne,
                         label = if (selectedType == MediaType.Manga) "Toplam Tekrar Okuma" else "Toplam Tekrar İzleme",
                         value = repeatCount.toString(),
                         onDecrement = { repeatCount = (repeatCount - 1).coerceAtLeast(0) },
@@ -891,12 +998,12 @@ fun KitsugiEditMediaSheet(
                     val bangumiSubjectId = com.kitsugi.animelist.data.remote.BangumiIdNamespace
                         .rawIdFromStable(initialEntry?.malId)
                     SheetRow(
-                        icon = Icons.Rounded.Tag,
+                        icon = Icons.Tag,
                         label = "Bangumi Koleksiyonu",
                         value = bangumiSubjectId?.let { "#$it" } ?: "Başlıkla eşleştirilir"
                     )
                     SheetRow(
-                        icon = Icons.Rounded.Lock, label = "Gizli",
+                        icon = Icons.Lock, label = "Gizli",
                         switchChecked = isPrivate, onSwitchCheckedChange = { isPrivate = it }
                     )
                     Spacer(modifier = Modifier.height(10.dp))
@@ -905,7 +1012,7 @@ fun KitsugiEditMediaSheet(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Rounded.Label,
+                            imageVector = Icons.Label,
                             contentDescription = "Etiketler",
                             tint = KitsugiColors.TextSecondary,
                             modifier = Modifier.size(24.dp)
@@ -922,22 +1029,22 @@ fun KitsugiEditMediaSheet(
                 // MAL only
                 if (isMal) {
                     SheetRow(
-                        icon = Icons.Rounded.Star, label = "Favori",
+                        icon = Icons.Star, label = "Favori",
                         switchChecked = isFavorite, onSwitchCheckedChange = { isFavorite = it }
                     )
                     val priorityText = when (priority) { 1 -> "Orta"; 2 -> "Yüksek"; else -> "Düşük" }
                     SheetRow(
-                        icon = Icons.Rounded.PriorityHigh, label = stringResource(R.string.oncelik), value = priorityText,
+                        icon = Icons.PriorityHigh, label = stringResource(R.string.oncelik), value = priorityText,
                         onDecrement = { priority = (priority - 1).coerceAtLeast(0) },
                         onIncrement = { priority = (priority + 1).coerceAtMost(2) }
                     )
                     SheetRow(
-                        icon = Icons.Rounded.Repeat,
+                        icon = Icons.Repeat,
                         label = if (selectedType == MediaType.Manga) "Yeniden Okunuyor" else "Yeniden İzleniyor",
                         switchChecked = isRepeating, onSwitchCheckedChange = { isRepeating = it }
                     )
                     SheetRow(
-                        icon = Icons.Rounded.RepeatOne,
+                        icon = Icons.RepeatOne,
                         label = if (selectedType == MediaType.Manga) "Toplam Tekrar Okuma" else "Toplam Tekrar İzleme",
                         value = repeatCount.toString(),
                         onDecrement = { repeatCount = (repeatCount - 1).coerceAtLeast(0) },
@@ -947,7 +1054,7 @@ fun KitsugiEditMediaSheet(
                         1 -> "Çok Düşük"; 2 -> "Düşük"; 3 -> "Orta"; 4 -> "Yüksek"; 5 -> "Çok Yüksek"; else -> "─"
                     }
                     SheetRow(
-                        icon = Icons.Rounded.DateRange,
+                        icon = Icons.DateRange,
                         label = if (selectedType == MediaType.Manga) "Tekrar Okuma Değeri" else "Tekrar İzleme Değeri",
                         value = repeatValueText,
                         onDecrement = { repeatValue = (repeatValue - 1).coerceAtLeast(0) },
@@ -960,7 +1067,7 @@ fun KitsugiEditMediaSheet(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Rounded.Label,
+                            imageVector = Icons.Label,
                             contentDescription = "Etiketler",
                             tint = KitsugiColors.TextSecondary,
                             modifier = Modifier.size(24.dp)
@@ -977,17 +1084,17 @@ fun KitsugiEditMediaSheet(
                 // Simkl only
                 if (isSimkl) {
                     SheetRow(
-                        icon = Icons.Rounded.Star, label = "Favori",
+                        icon = Icons.Star, label = "Favori",
                         switchChecked = isFavorite, onSwitchCheckedChange = { isFavorite = it }
                     )
                     SheetRow(
-                        icon = Icons.Rounded.Repeat,
+                        icon = Icons.Repeat,
                         label = if (selectedType == MediaType.Manga) "Yeniden Okunuyor" else "Yeniden İzleniyor",
                         switchChecked = isRepeating, onSwitchCheckedChange = { isRepeating = it }
                     )
                     if (isRepeating) {
                         SheetRow(
-                            icon = Icons.Rounded.RepeatOne,
+                            icon = Icons.RepeatOne,
                             label = if (selectedType == MediaType.Manga) "Toplam Tekrar Okuma" else "Toplam Tekrar İzleme",
                             value = repeatCount.toString(),
                             onDecrement = { repeatCount = (repeatCount - 1).coerceAtLeast(0) },
@@ -1001,7 +1108,7 @@ fun KitsugiEditMediaSheet(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Rounded.Label,
+                            imageVector = Icons.Label,
                             contentDescription = "Etiketler",
                             tint = KitsugiColors.TextSecondary,
                             modifier = Modifier.size(24.dp)
@@ -1016,11 +1123,11 @@ fun KitsugiEditMediaSheet(
                 }
                 if (isManual) {
                     SheetRow(
-                        icon = Icons.Rounded.Star, label = "Favori",
+                        icon = Icons.Star, label = "Favori",
                         switchChecked = isFavorite, onSwitchCheckedChange = { isFavorite = it }
                     )
                     SheetRow(
-                        icon = Icons.Rounded.Lock, label = stringResource(R.string.s18_icerik),
+                        icon = Icons.Lock, label = stringResource(R.string.s18_icerik),
                         switchChecked = isAdult, onSwitchCheckedChange = { isAdult = it }
                     )
                 }
@@ -1034,7 +1141,7 @@ fun KitsugiEditMediaSheet(
                     verticalAlignment = Alignment.Top
                 ) {
                     Icon(
-                        imageVector = Icons.AutoMirrored.Rounded.Notes,
+                        imageVector = Icons.Notes,
                         contentDescription = "Notlar",
                         tint = KitsugiColors.TextSecondary,
                         modifier = Modifier.size(24.dp).padding(top = 12.dp)
@@ -1063,7 +1170,7 @@ fun KitsugiEditMediaSheet(
                     Spacer(modifier = Modifier.height(16.dp))
                     HorizontalDivider(color = KitsugiColors.Border, modifier = Modifier.padding(horizontal = 16.dp))
                     SheetRow(
-                        icon = Icons.Rounded.Delete, label = "Sil",
+                        icon = Icons.Delete, label = "Sil",
                         onClick = onDeleteClick,
                         modifier = Modifier.padding(vertical = 4.dp)
                     )
@@ -1073,6 +1180,7 @@ fun KitsugiEditMediaSheet(
                 Spacer(modifier = Modifier.height(18.dp))
                 // Bu platforma gönderilmeyen alanları açıkça belirt (kullanıcı yanılmasın)
                 val unsyncedHint = when {
+                    isTmdbAccount -> stringResource(R.string.tmdb_editor_local_fields_note)
                     isShikimori -> "Tarihler ve favori Shikimori'ye gönderilmez; yalnızca Kitsugi'de saklanır."
                     isBangumi   -> "Tarihler ve favori Bangumi'ye gönderilmez; yalnızca Kitsugi'de saklanır."
                     isSimkl     -> "Not, tarih ve favori Simkl'e gönderilmez; yalnızca Kitsugi'de saklanır."
@@ -1088,6 +1196,7 @@ fun KitsugiEditMediaSheet(
                     )
                 }
                 val syncNote = when {
+                    isTmdbAccount -> stringResource(R.string.tmdb_editor_sync_note)
                     isKitsu     -> "Not: Değişiklikler otomatik olarak Kitsu hesabınızla senkronize edilecektir."
                     isShikimori -> "Not: Değişiklikler otomatik olarak Shikimori hesabınızla senkronize edilecektir."
                     isBangumi   -> "Not: Değişiklikler otomatik olarak Bangumi hesabınızla senkronize edilecektir."
@@ -1107,6 +1216,13 @@ fun KitsugiEditMediaSheet(
                 }
             }
         }
+    }
+
+    if (showTmdbListsDialog && initialEntry != null) {
+        KitsugiTmdbListsDialog(
+            entry = initialEntry,
+            onDismiss = { showTmdbListsDialog = false }
+        )
     }
 
     if (showCustomListsDialog && viewerCustomLists.isNotEmpty()) {
@@ -1167,7 +1283,7 @@ fun KitsugiCustomListsSelectionDialog(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(250.dp)
-                    .verticalScroll(rememberScrollState()),
+                    .kitsugiVerticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 viewerCustomLists.forEach { listName ->
@@ -1197,7 +1313,7 @@ fun KitsugiCustomListsSelectionDialog(
                         )
                         if (checked) {
                             Icon(
-                                imageVector = Icons.Rounded.Check,
+                                imageVector = Icons.Check,
                                 contentDescription = stringResource(R.string.secili),
                                 tint = accentColor,
                                 modifier = Modifier.size(20.dp)

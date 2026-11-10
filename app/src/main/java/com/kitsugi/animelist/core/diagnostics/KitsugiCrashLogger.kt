@@ -37,6 +37,7 @@ object KitsugiCrashLogger {
     private const val MAX_HISTORY_BYTES  = 400 * 1024L  // 400 KB
     private const val MAX_LOGCAT_LINES   = 500
     private const val PREFS_NAME         = "kitsugi_crash_prefs"
+    private const val LAST_CRASH_PID_KEY = "last_crash_pid"
 
     // SimpleDateFormat thread-safe DEĞİLDİR → kilit altında kullanılır.
     private val dateFmt = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.US)
@@ -58,9 +59,12 @@ object KitsugiCrashLogger {
             if (!throwable.message.isNullOrBlank()) append(": ${throwable.message}")
         }.take(300)
 
+        // 4. satır: çöken sürecin pid'i. Oturum gözetmeni bir sonraki açılışta aynı ölümü
+        // ikinci kez "sessiz çökme" diye raporlamasın diye kullanılır (ilk 3 satır geriye uyumlu).
+        val pid = android.os.Process.myPid()
         try {
             File(context.filesDir, PENDING_FLAG_FILE).writeText(
-                "$stamp\n${thread.name}\n$headline\n"
+                "$stamp\n${thread.name}\n$headline\n$pid\n"
             )
         } catch (_: Throwable) {}
 
@@ -71,8 +75,25 @@ object KitsugiCrashLogger {
                 .putBoolean("has_unclean_exit", false)
                 .putLong("last_crash_time", stamp)
                 .putString("last_crash_title", headline)
+                .putInt(LAST_CRASH_PID_KEY, pid)
                 .commit()
         } catch (_: Throwable) {}
+    }
+
+    /**
+     * [pid] numaralı süreç, [sinceMs] anından sonra bu yakalayıcı tarafından kaydedilmiş bir
+     * çökmeyle mi sonlandı? (PID'ler yeniden kullanılabildiği için zaman da karşılaştırılır.)
+     * Oturum gözetmeni aynı ölüm için ikinci bir "temiz olmayan kapanma" raporu üretmesin.
+     */
+    fun wasCrashRecordedForPid(context: Context, pid: Int, sinceMs: Long): Boolean {
+        if (pid <= 0) return false
+        return try {
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            prefs.getInt(LAST_CRASH_PID_KEY, -1) == pid &&
+                prefs.getLong("last_crash_time", 0L) >= sinceMs
+        } catch (_: Throwable) {
+            false
+        }
     }
 
     // ── Çökme Raporu Oluşturma ─────────────────────────────────────────────────
@@ -346,9 +367,10 @@ object KitsugiCrashLogger {
                 uncleanTime > 0 && uncleanTime >= primaryTime -> unclean.readText()
                 primaryTime > 0 -> primary.readText()
                 stageBlock.isNotBlank() ->
-                    "▶ UYGULAMA ANA EKRAN AÇILMADAN KAPANDI\n" +
-                        "(Bu sürüm için kayıtlı Java çökme raporu yok — sessiz/native ölüm.\n" +
-                        " Aşağıdaki başlatma aşaması izi son çalışan init adımını gösterir.)"
+                    "▶ ÖNCEKİ OTURUM ANA EKRANA ULAŞMADAN SONLANDI\n" +
+                        "(Bu sürüm için kayıtlı Java çökme raporu yok. Bu tek başına çökme kanıtı değildir;\n" +
+                        " kullanıcı kapatması, sistem sonlandırması veya native ölüm olabilir.\n" +
+                        " Aşağıdaki başlatma aşaması izi yalnızca son çalışan init adımını gösterir.)"
                 else -> {
                     val nativeTrace = NativeCrashBridge.readRecentNativeCrash(
                         context = context,

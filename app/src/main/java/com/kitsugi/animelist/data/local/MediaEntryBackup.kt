@@ -51,11 +51,14 @@ object MediaEntryBackup {
                 .put("isPrivate", entry.isPrivate)
                 .put("isHiddenFromStatusLists", entry.isHiddenFromStatusLists)
                 .put("updatedAt", entry.updatedAt)
+                .put("addedAt", entry.addedAt)
                 .put("titleEnglish", entry.titleEnglish)
                 .put("titleJapanese", entry.titleJapanese)
                 .put("malListId", entry.malListId)
                 .put("tmdbId", entry.tmdbId)
                 .put("simklId", entry.simklId)
+                .put("tmdbWatchlist", entry.tmdbWatchlist)
+                .put("tmdbRating", entry.tmdbRating)
 
             array.put(item)
         }
@@ -129,11 +132,15 @@ object MediaEntryBackup {
                 isPrivate = item.optBoolean("isPrivate", false),
                 isHiddenFromStatusLists = item.optBoolean("isHiddenFromStatusLists", false),
                 updatedAt = item.optLong("updatedAt", 0L),
+                // Eski yedeklerde alan yok → 0; replaceAll vekil olarak updatedAt kullanır.
+                addedAt = item.optLong("addedAt", 0L),
                 titleEnglish = item.optionalString("titleEnglish"),
                 titleJapanese = item.optionalString("titleJapanese"),
                 malListId = if (item.has("malListId") && !item.isNull("malListId")) item.getLong("malListId") else null,
                 tmdbId = item.optionalInt("tmdbId"),
-                simklId = item.optionalInt("simklId")
+                simklId = item.optionalInt("simklId"),
+                tmdbWatchlist = item.optionalBoolean("tmdbWatchlist"),
+                tmdbRating = item.optionalDouble("tmdbRating")
             )
 
             result.add(entry)
@@ -189,7 +196,10 @@ object MediaEntryBackup {
                         val engImp = imported.titleEnglish?.let { com.kitsugi.animelist.model.MediaIdentity.normalizedTitle(it) }
                         !engLocal.isNullOrBlank() && engLocal == engImp
                     }
-                    keyMatch ?: exactTitleMatch ?: exactEngMatch ?: matches.maxByOrNull { it.updatedAt } ?: matches.first()
+                    // (E78) "En yeni eşleşme" aday sırasına bağlı seçilemez: tek kaynak sıra.
+                    keyMatch ?: exactTitleMatch ?: exactEngMatch
+                        ?: com.kitsugi.animelist.data.auth.CrossSyncMergePolicy.newestOrNull(matches)
+                        ?: matches.first()
                 }
             }
 
@@ -223,9 +233,13 @@ object MediaEntryBackup {
                     malId = malId ?: existing.malId,
                     simklId = imported.simklId ?: existing.simklId,
                     tmdbId = imported.tmdbId ?: existing.tmdbId,
+                    tmdbWatchlist = imported.tmdbWatchlist ?: existing.tmdbWatchlist,
+                    tmdbRating = imported.tmdbRating ?: existing.tmdbRating,
                     aniListEntryId = imported.aniListEntryId ?: existing.aniListEntryId,
                     malListId = imported.malListId ?: existing.malListId,
                     updatedAt = imported.updatedAt,
+                    // Yedekteki eklenme zamanı (varsa) kazanır; yoksa yereldeki korunur.
+                    addedAt = resolveAddedAt(imported, existingAddedAt = existing.addedAt),
                     titleEnglish = imported.titleEnglish ?: existing.titleEnglish,
                     titleJapanese = imported.titleJapanese ?: existing.titleJapanese,
                     isPrivate = imported.isPrivate,
@@ -255,6 +269,25 @@ object MediaEntryBackup {
 
     private fun JSONObject.optionalString(key: String): String? =
         if (!has(key) || isNull(key)) null else getString(key)
+
+    private fun JSONObject.optionalBoolean(key: String): Boolean? {
+        if (!has(key) || isNull(key)) return null
+        return when (val raw = opt(key)) {
+            is Boolean -> raw
+            is Number -> raw.toInt() != 0
+            is String -> raw.toBooleanStrictOrNull()
+            else -> null
+        }
+    }
+
+    private fun JSONObject.optionalDouble(key: String): Double? {
+        if (!has(key) || isNull(key)) return null
+        return when (val raw = opt(key)) {
+            is Number -> raw.toDouble()
+            is String -> raw.toDoubleOrNull()
+            else -> null
+        }
+    }
 
     private fun JSONObject.optionalInt(key: String): Int? {
         if (!has(key) || isNull(key)) return null

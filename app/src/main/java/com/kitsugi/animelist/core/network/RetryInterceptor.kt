@@ -10,12 +10,11 @@ import java.io.IOException
  * üstel geri çekilme (exponential backoff) ile yeniden deneme.
  *
  * — 5xx hatası → 300ms, 600ms gecikme ile 2 retry
- * — 429 Too Many Requests → Retry-After header'a uyulur (max 10s)
+ * — 429 Too Many Requests → Retry-After'ın ilk beklemesi en fazla 5 sn; Simkl gate kalan
+ *   Retry-After cooldown'unu tüm Simkl çağrıları için korur.
  * — IOException → 400ms, 800ms gecikme ile 2 retry
  *
- * NOT: Thread.sleep() yerine kısa, non-blocking gecikmeler kullanılır.
- * OkHttp kendi Dispatcher thread pool'unu yönetir; Thread.sleep() ile
- * thread'leri bloke etmek pool tükenmesine ve ağ donmasına yol açar.
+ * Bekleme yalnızca OkHttp dispatcher worker'ında yapılır, ana/UI thread'inde değil.
  */
 class RetryInterceptor(
     private val maxRetries: Int = 2
@@ -23,9 +22,8 @@ class RetryInterceptor(
 
     companion object {
         private const val TAG = "RetryInterceptor"
-        // 429 beklemesi çağıran thread'i (ve UI'ı bekleten detay sekmelerini) bloke eder.
-        // 30 sn'lik Retry-After, tek bir sekmeyi dakikalarca skeleton'da bırakıyordu; üst sınır 5 sn.
-        // Daha uzun limit durumunda çağıran taraf bu isteği kısa sürede hata/boş olarak alır.
+        // Retry çağrısındaki ilk beklemeyi 5 sn ile sınırla; Simkl'ın ortak kapısı, Simkl
+        // Retry-After daha uzunsa sonraki denemeyi yine de cooldown bitene kadar bekletir.
         private const val MAX_RETRY_AFTER_MS = 5_000L
     }
 
@@ -45,25 +43,27 @@ class RetryInterceptor(
             try {
                 val response = chain.proceed(request)
 
-                // 429 Too Many Requests — Retry-After header'a uy (max 30s)
+                // 429 Too Many Requests — honor Retry-After. The Simkl gate also shares this
+                // cooldown with requests from other screens and retries.
                 if (response.code == 429 && attempt < maxRetries) {
-                    val retryAfterSeconds = response.header("Retry-After")?.toLongOrNull() ?: 3L
-                    val delayMs = minOf(retryAfterSeconds * 1000L, MAX_RETRY_AFTER_MS)
-                    Log.w(TAG, "429 alındı. Retry-After: ${delayMs}ms — ${request.url}")
+                    val delayMs = SimklRateLimitPolicy.retryAfterMillis(response.header("Retry-After"))
+                        ?.coerceAtMost(MAX_RETRY_AFTER_MS) ?: 3_000L
+                    Log.w(TAG, "429 alındı. Retry-After: ${delayMs}ms — ${request.url.host}${request.url.encodedPath}")
                     response.close()
-                    
-                    val deadline = System.currentTimeMillis() + delayMs
-                    while (System.currentTimeMillis() < deadline) {
-                        if (chain.call().isCanceled()) {
-                            throw java.io.IOException("Canceled")
-                        }
-                        try {
-                            Thread.sleep(minOf(100L, deadline - System.currentTimeMillis()).coerceAtLeast(0L))
-                        } catch (ie: InterruptedException) {
-                            throw java.io.IOException("Interrupted", ie)
-                        }
-                    }
+                    sleepBeforeRetry(chain, delayMs)
                     return@repeat // devam et, retry
+                }
+
+                // Simkl reports its per-user write lock as HTTP 400 + `rate_limit` (not 429).
+                // The provider asks clients to wait and retry once, rather than immediately
+                // repeating the write until it is accepted.
+                if (attempt == 0 && attempt < maxRetries && isSimklWriteRateLimited(request, response)) {
+                    val delayMs = SimklRateLimitPolicy.retryAfterMillis(response.header("Retry-After"))
+                        ?.coerceAtMost(MAX_RETRY_AFTER_MS) ?: SimklRateLimitPolicy.DEFAULT_COOLDOWN_MS
+                    Log.w(TAG, "Simkl write rate limit. Waiting ${delayMs}ms before one retry")
+                    response.close()
+                    sleepBeforeRetry(chain, delayMs)
+                    return@repeat
                 }
 
                 // 5xx Server Error — exponential backoff (max 600ms)
@@ -99,5 +99,30 @@ class RetryInterceptor(
 
         // Tüm denemeler bitti, son exception'ı fırlat
         throw lastException ?: IOException("Request failed after $maxRetries retries: ${request.url}")
+    }
+
+    private fun isSimklWriteRateLimited(
+        request: okhttp3.Request,
+        response: Response,
+    ): Boolean =
+        request.url.host.equals("api.simkl.com", ignoreCase = true) &&
+            !request.method.equals("GET", ignoreCase = true) &&
+            !request.method.equals("HEAD", ignoreCase = true) &&
+            response.code == 400 &&
+            SimklRateLimitPolicy.isRateLimitedResponse(response)
+
+    private fun sleepBeforeRetry(chain: Interceptor.Chain, delayMillis: Long) {
+        var remaining = delayMillis
+        while (remaining > 0L) {
+            if (chain.call().isCanceled()) throw IOException("Canceled")
+            val slice = minOf(remaining, 100L)
+            try {
+                Thread.sleep(slice)
+            } catch (interrupted: InterruptedException) {
+                Thread.currentThread().interrupt()
+                throw IOException("Canceled", interrupted)
+            }
+            remaining -= slice
+        }
     }
 }

@@ -5,19 +5,17 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Row
-import com.kitsugi.animelist.ui.theme.gradient.background
-import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Restore
-import androidx.compose.material.icons.rounded.Translate
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.draw.clip
+import com.kitsugi.animelist.ui.theme.gradient.background
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -69,7 +67,7 @@ fun KitsugiTranslateIconButton(
     modifier: Modifier = Modifier,
     isLoading: Boolean = LocalKitsugiTranslationLoading.current,
     tint: Color = LocalKitsugiAccent.current,
-    icon: ImageVector = Icons.Rounded.Translate,
+    icon: ImageVector = Icons.Translate,
     contentDescription: String? = null,
     iconSize: Dp = 24.dp,
     ringSize: Dp = 32.dp,
@@ -205,7 +203,7 @@ fun KitsugiOriginalToggleChip(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
-            imageVector = if (showingOriginal) Icons.Rounded.Translate else Icons.Rounded.Restore,
+            imageVector = if (showingOriginal) Icons.Translate else Icons.Restore,
             contentDescription = null,
             tint = tint,
             modifier = Modifier.size(12.dp)

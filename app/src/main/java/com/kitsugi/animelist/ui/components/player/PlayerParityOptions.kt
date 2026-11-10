@@ -4,8 +4,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.*
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -47,7 +46,7 @@ private fun AudioOptions(settings: AppSettings, store: SettingsDataStore, scope:
         SavedTextOption(
             stringResource(R.string.player_audio_languages),
             settings.preferredAudioLanguages,
-            Icons.Rounded.VolumeUp
+            Icons.VolumeUp
         ) { scope.launch { store.setPreferredAudioLanguages(it) } }
         ParitySwitchRow(
             stringResource(R.string.player_advanced_pitch),
@@ -62,17 +61,17 @@ private fun SubtitlesOptions(settings: AppSettings, store: SettingsDataStore, sc
         SavedTextOption(
             stringResource(R.string.player_subtitle_whitelist),
             settings.subtitleWhitelist,
-            Icons.Rounded.Subtitles
+            Icons.Subtitles
         ) { scope.launch { store.setSubtitleWhitelist(it) } }
         SavedTextOption(
             stringResource(R.string.player_subtitle_blacklist),
             settings.subtitleBlacklist,
-            Icons.Rounded.Subtitles
+            Icons.Subtitles
         ) { scope.launch { store.setSubtitleBlacklist(it) } }
         SavedTextOption(
             stringResource(R.string.player_subtitle_font),
             settings.subtitleFont,
-            Icons.Rounded.TextFields
+            Icons.TextFields
         ) { scope.launch { store.setSubtitleFont(it) } }
         ParitySwitchRow(
             stringResource(R.string.player_advanced_ass),
@@ -94,7 +93,7 @@ private fun SubtitlesOptions(settings: AppSettings, store: SettingsDataStore, sc
             stringResource(R.string.player_border_style),
             settings.subtitleBorderStyle,
             listOf("outline-and-shadow" to stringResource(R.string.player_advanced_border_outline), "opaque-box" to stringResource(R.string.player_advanced_border_opaque), "background-box" to stringResource(R.string.player_advanced_border_background)),
-            Icons.Rounded.Subtitles
+            Icons.Subtitles
         ) { scope.launch { store.setSubtitleBorderStyle(it) } }
     }
 }
@@ -218,19 +217,19 @@ private fun GesturesOptions(settings: AppSettings, store: SettingsDataStore, sco
             stringResource(R.string.player_advanced_tap_left),
             settings.leftDoubleTapGesture,
             options,
-            Icons.Rounded.TouchApp
+            Icons.TouchApp
         ) { scope.launch { store.setLeftDoubleTapGesture(it) } }
         ParityChoiceOption(
             stringResource(R.string.player_advanced_tap_center),
             settings.centerDoubleTapGesture,
             options,
-            Icons.Rounded.TouchApp
+            Icons.TouchApp
         ) { scope.launch { store.setCenterDoubleTapGesture(it) } }
         ParityChoiceOption(
             stringResource(R.string.player_advanced_tap_right),
             settings.rightDoubleTapGesture,
             options,
-            Icons.Rounded.TouchApp
+            Icons.TouchApp
         ) { scope.launch { store.setRightDoubleTapGesture(it) } }
     }
 }

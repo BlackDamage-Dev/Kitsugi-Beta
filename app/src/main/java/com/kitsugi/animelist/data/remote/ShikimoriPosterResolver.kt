@@ -75,7 +75,7 @@ object ShikimoriPosterResolver {
     internal var hostOverride: String? = null
 
     private val activeHost: String
-        get() = hostOverride ?: HOST
+        get() = hostOverride ?: com.kitsugi.animelist.data.auth.ShikimoriApiClient.preferredBaseUrl()
 
     private val cache = BoundedCache<String, Poster>("shikimori.poster", 1500)
 
@@ -266,7 +266,12 @@ object ShikimoriPosterResolver {
 
         return runCatching {
             PlatformRateLimiter.acquire("shikimori")
-            KitsugiHttpClient.client.newCall(request).execute().use { response ->
+            val mirrors = hostOverride?.let { listOf(it) }
+                ?: com.kitsugi.animelist.data.auth.ShikimoriApiClient.baseUrlCandidates()
+            com.kitsugi.animelist.data.auth.ShikimoriApiClient.executeShikimori(
+                request = request,
+                candidateBaseUrls = mirrors
+            ).use { response ->
                 if (!response.isSuccessful) {
                     Log.w(TAG, "GraphQL poster isteği başarısız: HTTP ${response.code} (${kind.field}, ${ids.size} kimlik)")
                     return@use null

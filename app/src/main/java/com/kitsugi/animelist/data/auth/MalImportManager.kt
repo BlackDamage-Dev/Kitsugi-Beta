@@ -21,13 +21,13 @@ object MalImportManager {
     private const val ANIME_LIST_URL =
         "https://api.myanimelist.net/v2/users/@me/animelist" +
         "?fields=id,title,alternative_titles,main_picture,start_date,end_date,media_type,status,num_episodes,start_season,nsfw,genres,rating," +
-        "list_status%7Bstatus,score,num_episodes_watched,start_date,finish_date,is_favorited,priority,is_repeating,num_times_rewatched,rewatch_value,tags,comments,updated_at%7D" +
+        "list_status%7Bstatus,score,num_episodes_watched,start_date,finish_date,is_favorited,priority,is_rewatching,num_times_rewatched,rewatch_value,tags,comments,updated_at%7D" +
         "&limit=100&nsfw=true"
 
     private const val MANGA_LIST_URL =
         "https://api.myanimelist.net/v2/users/@me/mangalist" +
         "?fields=id,title,alternative_titles,main_picture,start_date,end_date,media_type,status,num_chapters,start_season,num_volumes,nsfw,genres," +
-        "list_status%7Bstatus,score,num_chapters_read,num_volumes_read,start_date,finish_date,is_favorited,priority,is_repeating,num_times_reread,reread_value,tags,comments,updated_at%7D" +
+        "list_status%7Bstatus,score,num_chapters_read,num_volumes_read,start_date,finish_date,is_favorited,priority,is_rereading,num_times_reread,reread_value,tags,comments,updated_at%7D" +
         "&limit=100&nsfw=true"
 
     internal fun buildAnimeListUrl(showAdultContent: Boolean): String =
@@ -38,34 +38,76 @@ object MalImportManager {
 
     suspend fun fetchAnimeList(
         accessToken: String,
-        showAdultContent: Boolean = false
+        showAdultContent: Boolean = false,
+        context: android.content.Context? = null
     ): List<MediaEntry> {
         val url = buildAnimeListUrl(showAdultContent)
         return withContext(Dispatchers.IO) {
-            fetchPaginatedList(accessToken, url)
+            fetchWithOptionalAuthRetry(accessToken, context) { active ->
+                fetchPaginatedList(active, url)
+            }
         }
     }
 
     suspend fun fetchMangaList(
         accessToken: String,
-        showAdultContent: Boolean = false
+        showAdultContent: Boolean = false,
+        context: android.content.Context? = null
     ): List<MediaEntry> {
         val url = buildMangaListUrl(showAdultContent)
         return withContext(Dispatchers.IO) {
-            fetchPaginatedList(accessToken, url)
+            fetchWithOptionalAuthRetry(accessToken, context) { active ->
+                fetchPaginatedList(active, url)
+            }
         }
     }
 
     suspend fun fetchAllLists(
         accessToken: String,
-        showAdultContent: Boolean = false
+        showAdultContent: Boolean = false,
+        context: android.content.Context? = null
     ): List<MediaEntry> {
         return withContext(Dispatchers.IO) {
-            val anime = fetchAnimeList(accessToken, showAdultContent)
-            val manga = fetchMangaList(accessToken, showAdultContent)
-            anime + manga
+            fetchWithOptionalAuthRetry(accessToken, context) { active ->
+                val anime = fetchPaginatedList(active, buildAnimeListUrl(showAdultContent))
+                val manga = fetchPaginatedList(active, buildMangaListUrl(showAdultContent))
+                anime + manga
+            }
         }
     }
+
+    private suspend fun <T> fetchWithOptionalAuthRetry(
+        accessToken: String,
+        context: android.content.Context?,
+        block: (String) -> T
+    ): T {
+        return try {
+            block(accessToken)
+        } catch (e: Exception) {
+            val is401 = e.message?.contains("401") == true || e.message?.contains("invalid_token", ignoreCase = true) == true
+            if (!is401 || context == null) throw e
+            val refreshed = ExternalAuthManager.forceRefreshMalToken(context)
+            if (refreshed.isNullOrBlank()) {
+                ExternalAuthManager.markSessionExpired(context, "mal")
+                throw IllegalStateException("MyAnimeList oturumu sona erdi (HTTP 401)", e)
+            }
+            block(refreshed)
+        }
+    }
+
+    /**
+     * `list_status` seçicisinden `is_favorited` alanını çıkarır.
+     *
+     * NEDEN: MAL API v2 `MyListStatusObject` şemasında `is_favorited` **YOKTUR** (resmî
+     * şema: status, score, num_*_watched, is_rewatching, updated_at, start_date, finish_date,
+     * priority, num_times_*, *_value, tags, comments). Favori alanı sunulmadığı için
+     * (bağımsız istemciler de favorileri Jikan üzerinden okuyor) istek
+     * `400 invalid field` ile **tümden** düşebilir; o zaman MAL içe aktarma hiç çalışmaz.
+     * Bu yardımcı, 400 alındığında alanı atıp sayfayı yeniden dener.
+     */
+    internal fun withoutFavoritedField(url: String): String = url
+        .replace("is_favorited,", "")
+        .replace(",is_favorited", "")
 
     private fun fetchPaginatedList(
         accessToken: String,
@@ -73,13 +115,20 @@ object MalImportManager {
     ): List<MediaEntry> {
         val allEntries = mutableListOf<MediaEntry>()
         var nextUrl: String? = startUrl
+        // MAL bilinmeyen alanı reddederse yalnızca bu bayrak açılır ve sayfa tekrar denenir.
+        var dropFavoritedField = false
 
         val visited = mutableSetOf<String>()
         while (nextUrl != null) {
             check(visited.add(nextUrl)) { "MAL sayfalama döngüsü algılandı" }
             val pageUri = java.net.URI(nextUrl)
             require(pageUri.scheme == "https" && pageUri.host == "api.myanimelist.net") { "Geçersiz MAL sayfa adresi" }
-            val response = getJson(accessToken = accessToken, urlString = nextUrl)
+            val response = fetchPageWithFieldFallback(
+                accessToken = accessToken,
+                url = nextUrl,
+                dropFavoritedField = { dropFavoritedField },
+                onDropFavoritedField = { dropFavoritedField = true }
+            )
             val root = JSONObject(response)
             val dataArray = root.getJSONArray("data")
 
@@ -96,6 +145,32 @@ object MalImportManager {
         }
 
         return allEntries
+    }
+
+    /**
+     * Sayfayı getirir; `is_favorited` yüzünden 400 gelirse alanı atıp BİR KEZ daha dener.
+     * Sonraki sayfalarda da alan atlanır (MAL'ın `paging.next` adresi aynı seçiciyi taşır).
+     */
+    private fun fetchPageWithFieldFallback(
+        accessToken: String,
+        url: String,
+        dropFavoritedField: () -> Boolean,
+        onDropFavoritedField: () -> Unit
+    ): String {
+        val firstTry = if (dropFavoritedField()) withoutFavoritedField(url) else url
+        return try {
+            getJson(accessToken = accessToken, urlString = firstTry)
+        } catch (e: IllegalStateException) {
+            val message = e.message.orEmpty()
+            val looksLikeBadRequest = message.contains(": 400") || message.contains("invalid field") ||
+                message.contains("bad_request")
+            if (!dropFavoritedField() && looksLikeBadRequest && url.contains("is_favorited")) {
+                onDropFavoritedField()
+                getJson(accessToken = accessToken, urlString = withoutFavoritedField(url))
+            } else {
+                throw e
+            }
+        }
     }
 
     private fun nodeToMediaEntry(
@@ -131,16 +206,24 @@ object MalImportManager {
         val imageUrl = picture?.optNullableString("large")
             ?: picture?.optNullableString("medium")
 
-        val status = convertMalListStatus(
-            listStatus.optNullableString("status").orEmpty()
-        )
+        val rawStatus = listStatus.optNullableString("status").orEmpty()
+        val status = convertMalListStatus(rawStatus)
 
         val score = listStatus.optInt("score", 0).takeIf { it > 0 }
 
+        // MAL'ın `my_list_status` nesnesinde ilerleme alanının adı UCUNA göre değişir:
+        //  - liste ucu (`/users/@me/animelist`)      → `num_episodes_watched`
+        //  - tek kayıt ucu (`/anime/{id}`)           → `num_watched_episodes`
+        // MAL-Sync de bu yüzden iki adı eşitler ("// Handle api bug", MyAnimeList_api/single.ts).
+        // Tek ad okumak, uç/yanıt değiştiğinde ilerlemeyi **0** okumak ve bu 0'ı diğer beş
+        // sağlayıcıya yazmak demekti (sessiz veri kaybı). İkisi de okunur; büyük olan kazanır.
         val progress = if (mediaType == MediaType.Manga) {
             listStatus.optInt("num_chapters_read", 0)
         } else {
-            listStatus.optInt("num_episodes_watched", 0)
+            maxOf(
+                listStatus.optInt("num_episodes_watched", 0),
+                listStatus.optInt("num_watched_episodes", 0)
+            )
         }.coerceAtLeast(0)
 
         val total = if (mediaType == MediaType.Manga) {
@@ -156,7 +239,20 @@ object MalImportManager {
         }.coerceAtLeast(0)
 
         val priority = listStatus.optInt("priority", 0)
-        val isRepeating = listStatus.optBoolean("is_repeating", false)
+        // MAL API v2 `list_status` alanları: anime için `is_rewatching`, manga için
+        // `is_rereading`. `is_repeating` MAL sözleşmesinde YOKTUR — eskiden bu alan
+        // istendiği için tekrar durumu hiç okunamıyordu (ve geçersiz alan isteği
+        // 400'e yol açabiliyordu). Eski kayıtlarla uyum için yine de okunur.
+        // `rewatching`/`rereading` durum SÖZLERİ (eski MAL v1 / bazı istemciler) ayrı bir
+        // WatchStatus değildir: MAL'da kayıt `watching`/`reading` kalır, tekrar bilgisi
+        // bayrakla taşınır. `WatchStatus.Repeating`e ÇEVİRMEK yanlış olurdu çünkü geri
+        // yazımda MAL `Repeating`i `completed` olarak kodluyor (bkz. MalSyncManager.toMalStatus)
+        // — devam eden bir yapım içe aktarılırken "tamamlandı"ya dönerdi.
+        val isRepeating = listStatus.optBoolean("is_rewatching", false) ||
+            listStatus.optBoolean("is_rereading", false) ||
+            listStatus.optBoolean("is_repeating", false) ||
+            rawStatus.equals("rewatching", ignoreCase = true) ||
+            rawStatus.equals("rereading", ignoreCase = true)
         val repeatCount = if (mediaType == MediaType.Manga) {
             listStatus.optInt("num_times_reread", 0)
         } else {
@@ -172,12 +268,21 @@ object MalImportManager {
         val notes = listStatus.optNullableString("comments")
 
         val tagsJsonArray = listStatus.optJSONArray("tags")
+        // MAL `tags` dizisi sözleşmede düz string listesidir; ancak bazı yanıtlar
+        // {"name": "..."} nesnesi döndürüyor. Nesne gelirse `optString` ham JSON
+        // metnini yazacağı için adı ayrıca okuyoruz.
         val tags = if (tagsJsonArray != null) {
             val list = mutableListOf<String>()
             for (i in 0 until tagsJsonArray.length()) {
-                list.add(tagsJsonArray.optString(i))
+                val element = tagsJsonArray.opt(i)
+                val name = when (element) {
+                    is JSONObject -> element.optNullableString("name")
+                    is String -> element
+                    else -> null
+                }
+                name?.takeIf { it.isNotBlank() }?.let { list.add(it) }
             }
-            list.joinToString(", ")
+            list.joinToString(", ").takeIf { it.isNotBlank() }
         } else null
 
         val isFavorite = listStatus.optBoolean("is_favorited", false)

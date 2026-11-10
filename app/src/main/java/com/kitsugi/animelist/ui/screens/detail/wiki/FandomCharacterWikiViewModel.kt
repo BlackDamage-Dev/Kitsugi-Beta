@@ -370,7 +370,16 @@ class FandomCharacterWikiViewModel(application: Application) : AndroidViewModel(
 
     /** Orijinal / çeviri geçişi: bu anahtar için orijinal metnin gösterilip gösterilmeyeceğini değiştirir. */
     fun toggleOriginal(key: String) {
+        val wasOriginal = key in _originalKeys.value
         _originalKeys.update { if (key in it) it - key else it + key }
+        // A user can tap Original before the section translation finishes. Switching
+        // back must request the missing translation instead of leaving the raw text on
+        // screen until a later unrelated recomposition.
+        if (wasOriginal && !_translations.value.hasWikiTranslation(key)) {
+            viewModelScope.launch {
+                if (isAutoTranslateEnabled()) translate(key)
+            }
+        }
     }
 
     fun loadSection(index: Int) {
@@ -1019,35 +1028,6 @@ class FandomCharacterWikiViewModel(application: Application) : AndroidViewModel(
     }
 
     fun retryReaderSection(index: Int) = loadReaderSection(index)
-
-    /**
-     * WebView içinde DOKUNULAN wiki bağlantısını yeni sekmede açar (Chrome davranışı).
-     * `true` → yeni sekme açıldı (WebView gezinmeyi iptal eder); `false` → mevcut sekmede
-     * normal gezinme (makale olmayan sayfa, aynı sayfa veya 12 sekme sınırı).
-     */
-    fun openReaderWebLink(url: String): Boolean {
-        val rootPage = (_state.value as? UiState.Ready)?.page ?: return false
-        val active = readerBrowserController.activeLocation
-        val activeWiki = active?.wikiId ?: rootPage.wikiId
-        // Yalnızca DÜZ makale bağlantıları sekme olur; çapa/diff/action/Special vb. aynı
-        // sekmede yüklenir (sekme kimliği yok, aksi hâlde bilgi kaybı olurdu).
-        val resolved = FandomUrls.readerLinkTarget(url, activeWiki, active?.title.orEmpty())
-            ?: return false
-        resolved.articleTitle ?: return false
-        val parsed = FandomUrls.parseArticleUrl(resolved.url, activeWiki) ?: return false
-        val location = FandomReaderLocation(parsed.first, parsed.second)
-        if (active != null && active.wikiId.equals(location.wikiId, ignoreCase = true) &&
-            active.title.replace('_', ' ').trim()
-                .equals(location.title.replace('_', ' ').trim(), ignoreCase = true)
-        ) return false
-        if (readerBrowserController.snapshot.tabs.size >= FandomReaderBrowserController.MAX_TABS) {
-            return false
-        }
-        val target = readerBrowserController.openInNewTab(location) ?: return false
-        _readerBrowser.value = readerBrowserController.snapshot
-        loadReaderLocation(target)
-        return true
-    }
 
     /**
      * İlgili sayfa kartı / metin içi bağlantı: Chrome/Brave gibi aktif sekmenin hemen

@@ -133,18 +133,30 @@ internal object CsTitleMatcher {
     }
 
     /**
+     * Extracts only an explicitly marked season from a title. Unlike [parseSeasonFromTitle],
+     * this never treats a trailing number as a season, which matters for episode labels such as
+     * "Episode 2".
+     */
+    fun parseExplicitSeasonFromTitle(title: String): Int? {
+        val normalized = Normalizer.normalize(title, Normalizer.Form.NFKC).lowercase(Locale.ROOT).trim()
+        parseMarkedSeason(normalized)?.let { return it }
+
+        // Common episode-label form: "2x05". The trailing episode number is not a season.
+        Regex("""(?<![0-9])(\d{1,2})\s*[x×]\s*\d{1,3}(?![0-9])""", RegexOption.IGNORE_CASE)
+            .find(normalized)?.groupValues?.getOrNull(1)?.toIntOrNull()?.let { return it }
+
+        val romanMatch = romanSeasonPattern.find(normalized) ?: return null
+        val roman = romanMatch.value.trim().trimStart(':', '：', '-', '(', '[').lowercase(Locale.ROOT)
+        return romanValues.firstOrNull { (token, _) -> roman == token }?.second
+    }
+
+    /**
      * Extracts a season/part number in common English, Turkish, Japanese, and Chinese formats.
      * A plain trailing number is accepted for common sequel-style anime titles (e.g. "Overlord 4").
      */
     fun parseSeasonFromTitle(title: String): Int? {
         val normalized = Normalizer.normalize(title, Normalizer.Form.NFKC).lowercase(Locale.ROOT).trim()
-        parseMarkedSeason(normalized)?.let { return it }
-
-        val romanMatch = romanSeasonPattern.find(normalized)
-        if (romanMatch != null) {
-            val roman = romanMatch.value.trim().trimStart(':', '：', '-', '(', '[').lowercase(Locale.ROOT)
-            romanValues.firstOrNull { (token, _) -> roman == token }?.let { return it.second }
-        }
+        parseExplicitSeasonFromTitle(normalized)?.let { return it }
 
         // Only a short, terminal number is treated as a sequel season; years are never accepted.
         val trailing = trailingSeasonNumberPattern.find(normalized)?.groupValues?.getOrNull(1)?.toIntOrNull()
@@ -615,7 +627,11 @@ internal object CsTitleMatcher {
     /** Unicode NFKC + punctuation folding, preserving Japanese, Chinese, and other scripts. */
     fun normalizeTitleForMatch(title: String): String {
         if (title.isBlank()) return ""
-        var normalized = Normalizer.normalize(title, Normalizer.Form.NFKC).lowercase(Locale.ROOT)
+        var normalized = Normalizer.normalize(title, Normalizer.Form.NFKC)
+            .lowercase(Locale.ROOT)
+            // Locale.ROOT lowercases capital dotted İ to `i` + U+0307. Keeping that mark
+            // turns it into a word boundary below, splitting "İstanbul" into "i stanbul".
+            .replace("\u0307", "")
         // Treat dotted/dotless Turkish i and common Turkish characters like their ASCII spellings.
         normalized = normalized
             .replace('ı', 'i')

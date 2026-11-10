@@ -330,6 +330,42 @@ class CsTitleMatcherTest {
     }
 
     @Test
+    fun matcherNormalizesTurkishDottedIAndAsciiTransliterations() {
+        assertEquals("istanbul cagisi", CsTitleMatcher.normalizeTitleForMatch("İstanbul Çağısı"))
+        val match = CsTitleMatcher.findBestMatch(
+            results = listOf(createSearchResponse("İstanbul Çağrısı", 2024)),
+            mainTitle = "Istanbul Cagrisi",
+            altTitles = emptyList(),
+            targetYear = 2024,
+            targetSeason = 1,
+            isMovie = false
+        )
+
+        assertEquals("İstanbul Çağrısı", match?.name)
+    }
+
+    @Test
+    fun matcherRejectsUnrelatedAnimeForTurkishSeriesTitle() {
+        val unrelatedAnimeTrailerResult = createSearchResponse(
+            "Arifureta: From Commonplace to World's Strongest Season 2",
+            "https://example.com/arifureta-season-2",
+            2022,
+            TvType.Anime
+        )
+
+        val match = CsTitleMatcher.findBestMatch(
+            results = listOf(unrelatedAnimeTrailerResult),
+            mainTitle = "Osmanlı Tokadı",
+            altTitles = emptyList(),
+            targetYear = 2013,
+            targetSeason = 1,
+            isMovie = false
+        )
+
+        assertNull("An unrelated provider result must never supply this title's trailer", match)
+    }
+
+    @Test
     fun matcherRejectsOnlyFirstWordFranchiseCollision() {
         val results = listOf(
             createSearchResponse("Naruto", 2002),
@@ -747,21 +783,28 @@ class CsTitleMatcherTest {
         type: TvType = TvType.Anime
     ): SearchResponse {
         val cls = Class.forName("com.lagradost.cloudstream3.AnimeSearchResponse")
-        val ctor = cls.constructors.firstOrNull { it.parameterCount >= 3 }
+        val ctor = cls.constructors
+            .filter { !it.isSynthetic && it.parameterTypes.none { p -> p.name.contains("DefaultConstructorMarker") } }
+            .firstOrNull { it.parameterCount >= 3 }
+            ?: cls.constructors.firstOrNull { it.parameterCount >= 3 }
             ?: throw IllegalStateException("Could not find AnimeSearchResponse constructor")
         val args = Array<Any?>(ctor.parameterCount) { null }
-        args[0] = name
-        args[1] = url
-        args[2] = "DummyProvider"
-        if (ctor.parameterCount > 3) args[3] = type
-
         val paramTypes = ctor.parameterTypes
-        for (i in 4 until ctor.parameterCount) {
+        for (i in 0 until ctor.parameterCount) {
             val pType = paramTypes[i]
-            if (pType == java.util.Set::class.java) {
-                args[i] = emptySet<Any>()
-            } else if (pType == java.util.Map::class.java) {
-                args[i] = emptyMap<Any, Any>()
+            when {
+                i == 0 -> args[i] = name
+                i == 1 -> args[i] = url
+                i == 2 -> args[i] = "DummyProvider"
+                i == 3 && pType.isAssignableFrom(type.javaClass) -> args[i] = type
+                pType == java.lang.Integer.TYPE -> args[i] = 0
+                pType == java.lang.Boolean.TYPE -> args[i] = false
+                pType == java.lang.Long.TYPE -> args[i] = 0L
+                pType == java.lang.Float.TYPE -> args[i] = 0f
+                pType == java.lang.Double.TYPE -> args[i] = 0.0
+                pType == java.util.Set::class.java -> args[i] = emptySet<Any>()
+                pType == java.util.Map::class.java -> args[i] = emptyMap<Any, Any>()
+                else -> args[i] = null
             }
         }
 

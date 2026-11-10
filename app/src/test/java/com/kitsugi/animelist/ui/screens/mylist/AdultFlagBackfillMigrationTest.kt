@@ -99,8 +99,29 @@ class AdultFlagBackfillMigrationTest {
     }
 
     @Test
+    fun bangumiStableIdIsConvertedToRawSubjectId() {
+        val plan = AdultFlagBackfillMigration.plan(
+            entity(id = 6, source = "bangumi", malId = 500_000_876)
+        )
+        assertEquals(AdultFlagBackfillMigration.Lookup.Bangumi(876), plan)
+        assertEquals("bgm:876", AdultFlagBackfillMigration.checkedKey(plan))
+    }
+
+    @Test
+    fun legacyBangumiRawIdIsResolvedOnlyInBangumiNamespace() {
+        assertEquals(
+            AdultFlagBackfillMigration.Lookup.Bangumi(321),
+            AdultFlagBackfillMigration.plan(entity(id = 7, source = "bgm.tv", malId = 321))
+        )
+        assertEquals(
+            AdultFlagBackfillMigration.Lookup.None,
+            AdultFlagBackfillMigration.plan(entity(id = 8, source = "simkl", malId = 500_000_321))
+        )
+    }
+
+    @Test
     fun rowsWithoutResolvableIdentityAreSkipped() {
-        val plan = AdultFlagBackfillMigration.plan(entity(id = 6, source = "simkl"))
+        val plan = AdultFlagBackfillMigration.plan(entity(id = 9, source = "simkl"))
         assertEquals(AdultFlagBackfillMigration.Lookup.None, plan)
         assertNull(AdultFlagBackfillMigration.checkedKey(plan))
     }

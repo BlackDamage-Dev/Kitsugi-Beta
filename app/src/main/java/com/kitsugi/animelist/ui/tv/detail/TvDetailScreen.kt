@@ -4,6 +4,7 @@ import android.view.KeyEvent
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
+import com.kitsugi.animelist.ui.components.KitsugiEmojiLabel
 import com.kitsugi.animelist.ui.theme.gradient.background
 import com.kitsugi.animelist.ui.theme.gradient.border
 import androidx.compose.foundation.focusGroup
@@ -15,13 +16,11 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Bookmarks
-import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.Movie
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.ui.platform.LocalContext
 import com.kitsugi.animelist.ui.components.KitsugiUiverseGlowButton
 import com.kitsugi.animelist.ui.theme.gradient.Icon
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import com.kitsugi.animelist.ui.theme.gradient.Text
 import androidx.compose.ui.res.stringResource
@@ -75,7 +74,7 @@ import com.kitsugi.animelist.ui.screens.detail.DetailTabState
 import com.kitsugi.animelist.ui.screens.detail.DetailTvPeopleRailSkeleton
 import com.kitsugi.animelist.ui.screens.detail.DetailTvRelationsRailSkeleton
 import com.kitsugi.animelist.ui.screens.detail.DetailTvEpisodesRailSkeleton
-import com.kitsugi.animelist.ui.screens.detail.DetailStatsLoadingSkeleton
+import com.kitsugi.animelist.ui.screens.detail.DetailTvStatsLoadingSkeleton
 import com.kitsugi.animelist.ui.theme.LocalKitsugiAccent
 import com.kitsugi.animelist.ui.theme.KitsugiColors
 import com.kitsugi.animelist.ui.theme.KitsugiTvTokens
@@ -91,6 +90,7 @@ import com.kitsugi.animelist.ui.components.KitsugiCinematicLoadingScreen
 import com.kitsugi.animelist.utils.toTurkishStaffRole
 import com.kitsugi.animelist.utils.toTurkishRelationType
 import com.kitsugi.animelist.utils.toTurkishCharacterRole
+import com.kitsugi.animelist.utils.toFriendlySourceLabel
 import com.kitsugi.animelist.ui.components.safeBlur
 import com.kitsugi.animelist.utils.KitsugiStrings
 
@@ -106,7 +106,7 @@ fun TvDetailScreen(
     onNavigateToRelationDetail: (JikanSearchResult) -> Unit,
     onCharacterClick: (characterId: Int, source: String, name: String?, imageUrl: String?) -> Unit,
     onStaffClick: (staffId: Int, source: String, name: String?, imageUrl: String?) -> Unit,
-    titleLanguage: String = "ROMAJI",
+    titleLanguage: String = "ENGLISH",
     viewModel: ApiResultDetailViewModel = viewModel()
 ) {
     val accentColor = LocalKitsugiAccent.current
@@ -430,7 +430,7 @@ fun TvDetailScreen(
                                     BadgeText(text = displayResult.year.toString())
                                 }
                                 if (displayResult.score != null && displayResult.score > 0) {
-                                    BadgeText(text = "⭐ %.1f".format(displayResult.score.toDouble()))
+                                    KitsugiEmojiLabel(label = "%.1f".format(displayResult.score.toDouble()), icon = Icons.StarSolid, iconSize = 11.dp, color = LocalContentColor.current, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
                                 }
                                 if (displayResult.isAdult) {
                                     BadgeText(text = "18+", color = Color(0xFFD32F2F))
@@ -496,7 +496,7 @@ fun TvDetailScreen(
                                     },
                                     focusRequester = playButtonFocusRequester,
                                     text = if (isMovie) stringResource(R.string.tv_detail_play) else stringResource(R.string.tv_detail_select_episode),
-                                    icon = Icons.Rounded.PlayArrow,
+                                    icon = Icons.PlayArrow,
                                     backgroundColor = accentColor,
                                     textColor = Color.White,
                                     modifier = Modifier.focusProperties {
@@ -518,7 +518,7 @@ fun TvDetailScreen(
                                     onClick = onToggleLibrary,
                                     focusRequester = libraryButtonFocusRequester,
                                     text = if (existingEntry != null) stringResource(R.string.tv_detail_remove_library) else stringResource(R.string.tv_detail_add_library),
-                                    icon = Icons.Rounded.Bookmarks,
+                                    icon = Icons.Bookmarks,
                                     backgroundColor = KitsugiColors.SurfaceStrong,
                                     textColor = KitsugiColors.TextPrimary,
                                     modifier = Modifier.focusProperties {
@@ -538,7 +538,7 @@ fun TvDetailScreen(
                                     onClick = { loadAndShowTrailer() },
                                     focusRequester = trailerButtonFocusRequester,
                                     text = stringResource(R.string.tv_detail_trailer),
-                                    icon = Icons.Rounded.Movie,
+                                    icon = Icons.Movie,
                                     backgroundColor = KitsugiColors.SurfaceStrong,
                                     textColor = KitsugiColors.TextPrimary,
                                     modifier = Modifier.focusProperties {
@@ -966,7 +966,7 @@ fun TvDetailScreen(
                                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                                     color = KitsugiColors.TextPrimary
                                 )
-                                DetailStatsLoadingSkeleton()
+                                DetailTvStatsLoadingSkeleton()
                             }
                         }
                         is DetailTabState.Success -> currentStats.data?.let { statsData ->
@@ -1045,6 +1045,7 @@ fun TvDetailScreen(
                     },
                     onRetry = {
                         if (trailerOverlayTitle == displayTitle) {
+                            trailerService.clearCache()
                             loadAndShowTrailer()
                         } else {
                             val currentSource = trailerPlaybackSource
@@ -1256,11 +1257,22 @@ private fun TvEpisodeCard(
                             .background(Color(0xFFFFB300), RoundedCornerShape(4.dp))
                             .padding(horizontal = 6.dp, vertical = 2.dp)
                     ) {
-                        Text(
-                            text = "⭐ %.1f".format(rating),
-                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                            color = Color.Black
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(3.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.StarSolid,
+                                contentDescription = null,
+                                tint = Color.Black,
+                                modifier = Modifier.size(9.dp)
+                            )
+                            Text(
+                                text = "%.1f".format(rating),
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                color = Color.Black
+                            )
+                        }
                     }
                 }
             }
@@ -1546,10 +1558,13 @@ private fun TvStatsSection(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text(
-                            text = "${s.score}★",
+                        KitsugiEmojiLabel(
+                            label = "${s.score}",
+                            icon = Icons.StarSolid,
+                            iconSize = 9.dp,
                             color = KitsugiColors.TextSecondary,
-                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
                             modifier = Modifier.width(30.dp)
                         )
                         Box(
@@ -1727,8 +1742,10 @@ private fun TvReviewCard(review: KitsugiReview) {
                 )
             }
             if (review.helpfulCount != null && review.helpfulCount > 0) {
-                Text(
-                    text = "👍 ${review.helpfulCount}",
+                KitsugiEmojiLabel(
+                    label = "${review.helpfulCount}",
+                    icon = Icons.ThumbsUp,
+                    iconSize = 10.dp,
                     color = KitsugiColors.TextMuted,
                     style = MaterialTheme.typography.labelSmall
                 )
@@ -1765,6 +1782,7 @@ private fun TvThemeCard(
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Row(
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
@@ -1776,23 +1794,49 @@ private fun TvThemeCard(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.PlayArrow,
+                    imageVector = Icons.PlayArrow,
                     contentDescription = null,
                     tint = accentColor,
                     modifier = Modifier.size(20.dp)
                 )
             }
-            Column {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = if (isOpening) stringResource(R.string.acilis_temasi_x, index + 1) else stringResource(R.string.kapanis_temasi_x, index + 1),
                     style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                    color = accentColor
+                    color = accentColor,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
-                Text(
-                    text = "Uygulamada Oynat",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = KitsugiColors.TextMuted
-                )
+                val cleanSrc = com.kitsugi.animelist.data.remote.canonicalVideoSource(theme.source)
+                if (cleanSrc.isNotEmpty()) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        if (com.kitsugi.animelist.ui.components.KitsugiPlatformLogos.resFor(cleanSrc) != null) {
+                            com.kitsugi.animelist.ui.components.KitsugiPlatformLogo(
+                                platformId = cleanSrc,
+                                size = 12.dp,
+                                cornerRadius = 3.dp
+                            )
+                        }
+                        Text(
+                            text = cleanSrc.toFriendlySourceLabel(),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = KitsugiColors.TextSecondary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                } else {
+                    Text(
+                        text = stringResource(R.string.ui_play_in_app),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = KitsugiColors.TextMuted,
+                        maxLines = 1
+                    )
+                }
             }
         }
 

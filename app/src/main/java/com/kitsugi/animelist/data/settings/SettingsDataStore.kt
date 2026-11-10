@@ -16,6 +16,8 @@ import com.kitsugi.animelist.ui.screens.search.SearchHistoryItem
 import com.kitsugi.animelist.ui.screens.search.SearchPlatform
 import com.kitsugi.animelist.model.MediaType
 import com.kitsugi.animelist.ui.screens.fullscreen.AudioChannels
+import com.kitsugi.animelist.data.manga.MangaReaderPreferences
+import com.kitsugi.animelist.data.manga.MangaWebtoonPreferences
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -35,7 +37,9 @@ class SettingsDataStore(
         "show_anime_logos", "player_preference", "is_autoplay_enabled", "skip_intro_duration_sec",
         "default_subtitle_size", "default_subtitle_color", "subtitle_bold", "subtitle_outline_enabled",
         "manga_reading_mode", "manga_color_filter", "manga_fit_mode", "search_history_enabled",
-        "tmdb_language"
+        "manga_search_title_language", "manga_search_follow_title_language",
+        "tmdb_language",
+        "manga_chapter_sort", "manga_chapter_display_mode"
     )
 
     val cloudSettingsFlow: Flow<Map<String, Any>> = context.settingsDataStore.data.map { prefs ->
@@ -51,13 +55,36 @@ class SettingsDataStore(
                     "show_adult_content", "blur_adult_media", "hide_scores", "show_anime_logos",
                     "is_autoplay_enabled", "subtitle_bold", "subtitle_outline_enabled",
                     "search_history_enabled", "separated_list_style", "show_low_priority",
-                    "fuzzy_search_enabled", "separate_novels_manga" -> if (value is Boolean) prefs[booleanPreferencesKey(name)] = value
+                    "fuzzy_search_enabled", "separate_novels_manga",
+                    "manga_search_follow_title_language" -> if (value is Boolean) prefs[booleanPreferencesKey(name)] = value
                     "skip_intro_duration_sec", "default_subtitle_size", "default_subtitle_color" ->
                         if (value is Int) prefs[intPreferencesKey(name)] = value
                     else -> if (value is String) prefs[stringPreferencesKey(name)] = value
                 }
             }
         }
+    }
+
+    companion object {
+        /**
+         * Varsayılan başlık dili artık **İngilizce**.
+         *
+         * Kullanıcı Ayarlar > Görünüm & Tercihler bölümünden Romaji / Ana Dil / Japonca
+         * seçeneklerini seçebilir; ancak hiç seçim yapılmamışsa (veya ayar hiç
+         * kaydedilmemişse) uygulama İngilizce başlıkları gösterir.
+         */
+        const val DEFAULT_TITLE_LANGUAGE: String = "ENGLISH"
+
+        /** Varsayılan ekip & karakter adı dili: **İngilizce**. */
+        const val DEFAULT_STAFF_NAME_LANGUAGE: String = "ENGLISH"
+
+        /** Varsayılan dizi & film (TMDB) başlık/açıklama dili: **Türkçe**. */
+        const val DEFAULT_TMDB_LANGUAGE: String = "tr"
+
+        const val SORT_OVERRIDE_PREFIX = "manga_sort_override_"
+
+        fun sortOverrideKey(mangaUrl: String): String =
+            SORT_OVERRIDE_PREFIX + mangaUrl.hashCode().toUInt().toString(16)
     }
 
     private object Keys {
@@ -129,8 +156,57 @@ class SettingsDataStore(
         val BackBufferDurationMs = intPreferencesKey("back_buffer_duration_ms")
         val MangaReadingMode = stringPreferencesKey("manga_reading_mode")
         val MangaColorFilter = stringPreferencesKey("manga_color_filter")
+        val MangaSaturation = intPreferencesKey("manga_saturation")
+        val MangaContrast = intPreferencesKey("manga_contrast")
+        val MangaHue = intPreferencesKey("manga_hue")
         val MangaFitMode = stringPreferencesKey("manga_fit_mode")
         val MangaBrightness = floatPreferencesKey("manga_brightness")
+        val MangaReaderOptionsJson = stringPreferencesKey("manga_reader_options_json")
+        val MangaReaderPresetsJson = stringPreferencesKey("manga_reader_presets_json")
+        val MangaKeepScreenOn = booleanPreferencesKey("manga_keep_screen_on")
+        val MangaAutoFullscreen = booleanPreferencesKey("manga_auto_fullscreen")
+        val MangaImmersive = booleanPreferencesKey("manga_immersive")
+        // Bölüm listesi sıralaması: "OldestFirst" (varsayılan, 1 → N), "NewestFirst",
+        // "RecentlyUpdated". Ayrıca manga bazında ezme: MangaSortOverride_<mangaUrl>
+        val MangaChapterSort = stringPreferencesKey("manga_chapter_sort")
+        val MangaChapterDisplayMode = stringPreferencesKey("manga_chapter_display_mode")
+        // Okuyucu ekstra: bölüm sonunda otomatik sonraki bölüme geçiş, okunanı atla.
+        val MangaSkipReadChapters = booleanPreferencesKey("manga_skip_read_chapters")
+        val MangaAutoAdvanceChapter = booleanPreferencesKey("manga_auto_advance_chapter")
+        val MangaWebtoonAutoNext = booleanPreferencesKey("manga_webtoon_auto_next")
+        // Bölüm yer imleri (bookmark) — Mihon'daki ★ davranışı.
+        val MangaBookmarkedChapters = stringPreferencesKey("manga_bookmarked_chapters")
+        // Mihon "crop borders": sayfa kenarındaki beyaz/siyah boşluğu kırp.
+        val MangaCropBorders = booleanPreferencesKey("manga_crop_borders")
+        val MangaCropBordersWebtoon = booleanPreferencesKey("manga_crop_borders_webtoon")
+        val MangaWebtoonPadding = intPreferencesKey("manga_webtoon_padding")
+        val MangaWebtoonGap = intPreferencesKey("manga_webtoon_gap")
+        val MangaShowPageNumber = booleanPreferencesKey("manga_show_page_number")
+        val MangaWebtoonZoom = booleanPreferencesKey("manga_webtoon_zoom")
+        val MangaWideRotation = stringPreferencesKey("manga_wide_rotation")
+        val MangaWideRotationWebtoon = stringPreferencesKey("manga_wide_rotation_webtoon")
+        val MangaInvertTapZones = booleanPreferencesKey("manga_invert_tap_zones")
+        val MangaTapLayout = stringPreferencesKey("manga_tap_layout")
+        val MangaTapGrid = stringPreferencesKey("manga_tap_grid")
+        val MangaLongTapGrid = stringPreferencesKey("manga_long_tap_grid")
+        val MangaWebtoonTapScroll = booleanPreferencesKey("manga_webtoon_tap_scroll")
+        val MangaReaderBackground = stringPreferencesKey("manga_reader_background")
+        val MangaDoublePage = booleanPreferencesKey("manga_double_page")
+        val MangaCoverAlone = booleanPreferencesKey("manga_cover_alone")
+        val MangaDualPage = booleanPreferencesKey("manga_dual_page")
+        val MangaDualPageFirstSolo = booleanPreferencesKey("manga_dual_page_first_solo")
+        val MangaStitchDualPages = booleanPreferencesKey("manga_stitch_dual_pages")
+        val MangaAutoScrollSpeed = intPreferencesKey("manga_auto_scroll_speed")
+        val MangaHiddenPageCounter = booleanPreferencesKey("manga_hidden_page_counter")
+        val MangaWebtoonAutoScrollSpeed = intPreferencesKey("manga_webtoon_auto_scroll_speed")
+        val MangaWebtoonScrollPercent = intPreferencesKey("manga_webtoon_scroll_percent")
+        val MangaPreloadAhead = intPreferencesKey("manga_preload_ahead")
+        val MangaVolumeKeys = booleanPreferencesKey("manga_volume_keys")
+        val MangaInvertVolumeKeys = booleanPreferencesKey("manga_invert_volume_keys")
+        /** Kaynak arama dili: ENGLISH / ROMAJI / NATIVE / LOCAL. */
+        val MangaSearchTitleLanguage = stringPreferencesKey("manga_search_title_language")
+        /** Arama dili genel başlık dilini takip etsin mi. */
+        val MangaSearchFollowTitleLanguage = booleanPreferencesKey("manga_search_follow_title_language")
         val DnsChoice = intPreferencesKey("dns_choice")
         // ─── GitHub Vekil Sunucu ───────────────────────────────────────────────
         val UseGithubProxy = booleanPreferencesKey("use_github_proxy")
@@ -173,6 +249,8 @@ class SettingsDataStore(
         // Açıklama Otomatik Çevirisi
         val WikiPageTheme = stringPreferencesKey("wiki_page_theme")
         val WikiTextZoom = intPreferencesKey("wiki_text_zoom")
+        /** Sayfa görünümü: true = masaüstü düzeni, false = mobil düzen (varsayılan). */
+        val WikiDesktopLayout = booleanPreferencesKey("wiki_desktop_layout")
         val WikiAdBlockDisabledHosts = stringSetPreferencesKey("wiki_adblock_disabled_hosts")
         val AutoTranslateEnabled = booleanPreferencesKey("auto_translate_enabled")
         val PreferredTranslator = stringPreferencesKey("preferred_translator")
@@ -195,6 +273,7 @@ class SettingsDataStore(
         val LastUsedTab = stringPreferencesKey("last_used_tab")
         val AppLanguage = stringPreferencesKey("app_language")
         val AccountBackupEnabled = booleanPreferencesKey("account_backup_enabled")
+        val AccountAddonSyncEnabled = booleanPreferencesKey("account_addon_sync_enabled")
         val AccountSearchSyncEnabled = booleanPreferencesKey("account_search_sync_enabled")
         val AccountNotificationSyncEnabled = booleanPreferencesKey("account_notification_sync_enabled")
         val FixedNavBar = booleanPreferencesKey("fixed_nav_bar")
@@ -225,6 +304,8 @@ class SettingsDataStore(
         val SimklNotificationsEnabled = booleanPreferencesKey("simkl_notifications_enabled")
         val KitsuNotificationsEnabled = booleanPreferencesKey("kitsu_notifications_enabled")
         val ShikimoriNotificationsEnabled = booleanPreferencesKey("shikimori_notifications_enabled")
+        val TmdbNotificationsEnabled = booleanPreferencesKey("tmdb_notifications_enabled")
+        val BangumiNotificationsEnabled = booleanPreferencesKey("bangumi_notifications_enabled")
         val NotificationInterval = intPreferencesKey("notification_interval")
         val SearchHistoryEnabled = booleanPreferencesKey("search_history_enabled")
         // ─── T1.7 – StillWatching + PostPlayMode + AutoplaySessionRules ──────
@@ -257,6 +338,7 @@ class SettingsDataStore(
         val SyncEnabledKitsu = booleanPreferencesKey("sync_enabled_kitsu")
         val SyncEnabledShikimori = booleanPreferencesKey("sync_enabled_shikimori")
         val SyncEnabledBangumi = booleanPreferencesKey("sync_enabled_bangumi")
+        val SyncEnabledTmdb = booleanPreferencesKey("sync_enabled_tmdb")
         val KitsuUsername = stringPreferencesKey("kitsu_username")
         val KitsuProfileImageUri = stringPreferencesKey("kitsu_profile_image_uri")
         val ShikimoriUsername = stringPreferencesKey("shikimori_username")
@@ -266,6 +348,7 @@ class SettingsDataStore(
         // ─── MPV Gelişmiş Oynatıcı Ayarları ───────────────────────────────────────
         val MpvGpuRenderer = stringPreferencesKey("mpv_gpu_renderer")
         val MpvHwdecMode = stringPreferencesKey("mpv_hwdec_mode")
+        val MpvDolbyVisionAutoFix = booleanPreferencesKey("mpv_dolby_vision_auto_fix")
         val MpvDebandMode = stringPreferencesKey("mpv_deband_mode")
         val MpvForceYuv420p = booleanPreferencesKey("mpv_force_yuv420p")
         val MpvDemuxerCacheMb = intPreferencesKey("mpv_demuxer_cache_mb")
@@ -279,6 +362,7 @@ class SettingsDataStore(
         val SubtitleShadowOffset = floatPreferencesKey("subtitle_shadow_offset")
         val SubtitleBorderColor = intPreferencesKey("subtitle_border_color")
         val SubtitleBorderSize = floatPreferencesKey("subtitle_border_size")
+        val SubtitleFontSize = intPreferencesKey("subtitle_font_size")
         val SubtitleFont = stringPreferencesKey("subtitle_font")
         val SubtitleBorderStyle = stringPreferencesKey("subtitle_border_style")
         val SubtitleFontScale = floatPreferencesKey("subtitle_font_scale")
@@ -295,6 +379,16 @@ class SettingsDataStore(
         val AudioChannelsConfig = stringPreferencesKey("pref_audio_channels_config")
         val PlayerStatisticsPage = intPreferencesKey("pref_player_statistics_page")
         val ScrobbleThreshold = floatPreferencesKey("pref_scrobble_threshold")
+        // ─── v2.4.341: Otomatik liste takibi (oynatıcı → liste köprüsü) ───────────
+        /** Kullanıcı deneysel özelliği açtığını onayladı mı? */
+        val AutoTrackExperimentalConsent = booleanPreferencesKey("auto_track_experimental_consent")
+        val AutoTrackEnabled = booleanPreferencesKey("auto_track_enabled")
+        val AutoTrackAddNew = booleanPreferencesKey("auto_track_add_new")
+        val AutoTrackRespectDropped = booleanPreferencesKey("auto_track_respect_dropped")
+        val QuickRateEnabled = booleanPreferencesKey("quick_rate_enabled")
+        val QuickRateSeconds = intPreferencesKey("quick_rate_seconds")
+        val AutoTrackSyncSources = booleanPreferencesKey("auto_track_sync_sources")
+        val AutoTrackMinSeconds = intPreferencesKey("auto_track_min_seconds")
         val ShowLoadingCircle = booleanPreferencesKey("pref_show_loading_circle")
         val ShowCurrentChapter = booleanPreferencesKey("pref_show_current_chapter")
         val PlayerTimeToDisappearMs = intPreferencesKey("pref_player_time_to_disappear_ms")
@@ -316,6 +410,20 @@ class SettingsDataStore(
         val EnableNetflixStyleIntroSkip = booleanPreferencesKey("pref_enable_netflix_style_intro_skip")
         val WaitingTimeIntroSkip = intPreferencesKey("pref_waiting_time_intro_skip")
         val ScreenshotSubtitles = booleanPreferencesKey("pref_screenshot_subtitles")
+        // ─── Klavye / gamepad oynatıcı kısayolları ───────────────────────────
+        val KeyboardEnabled = booleanPreferencesKey("player_keyboard_enabled")
+        val KeyboardAutoDetect = booleanPreferencesKey("player_keyboard_auto_detect")
+        val KeyboardOsdEnabled = booleanPreferencesKey("player_keyboard_osd_enabled")
+        val KeyboardOsdDurationScale = floatPreferencesKey("player_keyboard_osd_duration_scale")
+        val KeyboardOpensFullOsd = booleanPreferencesKey("player_keyboard_opens_full_osd")
+        val KeyboardHelpEnabled = booleanPreferencesKey("player_keyboard_help_enabled")
+        val KeyboardDisabledShortcuts = stringPreferencesKey("player_keyboard_disabled_shortcuts")
+        val KeyboardCustomBindings = stringPreferencesKey("player_keyboard_custom_bindings")
+        val KeyboardGamepadEnabled = booleanPreferencesKey("player_keyboard_gamepad_enabled")
+        val KeyboardSeekStepSeconds = intPreferencesKey("player_keyboard_seek_step_seconds")
+        val KeyboardPreciseSeekSeconds = intPreferencesKey("player_keyboard_precise_seek_seconds")
+        val KeyboardLargeSeekSeconds = intPreferencesKey("player_keyboard_large_seek_seconds")
+        val KeyboardHoldToAccelerate = booleanPreferencesKey("player_keyboard_hold_to_accelerate")
         val PreserveWatchingPosition = booleanPreferencesKey("pref_preserve_watching_position")
         val DefaultPlayerOrientation = stringPreferencesKey("pref_default_player_orientation")
         val PipEpisodeToasts = booleanPreferencesKey("pref_pip_episode_toasts")
@@ -356,6 +464,30 @@ class SettingsDataStore(
         val DownloadNewUnseenEpisodesOnly = booleanPreferencesKey("download_new_unread_episodes_only")
         // ── Altyazı İndirme Dil Filtresi ──────────────────────────────────────
         val SubtitleDownloadLanguages = stringPreferencesKey("subtitle_download_languages")
+
+        // ─── Okuyucu Ortam Sesi (Ambient) ───────────────────────────────────
+        val MusicEnabled = booleanPreferencesKey("music_enabled")
+        val MusicAutoRecommend = booleanPreferencesKey("music_auto_recommend")
+        val MusicAutoPlay = booleanPreferencesKey("music_auto_play")
+        val MusicAutoPlayVolume = floatPreferencesKey("music_auto_play_volume")
+        val MusicAutoPlayDelay = intPreferencesKey("music_auto_play_delay")
+        val MusicAutoPlayHeadphonesOnly = booleanPreferencesKey("music_auto_play_headphones_only")
+        val MusicAutoPlayMuteOnSilent = booleanPreferencesKey("music_auto_play_mute_on_silent")
+        val MusicAutoPlayIncludeOnline = booleanPreferencesKey("music_auto_play_include_online")
+        val MusicMasterVolume = floatPreferencesKey("music_master_volume")
+        val MusicChannelVolume = floatPreferencesKey("music_channel_volume")
+        val MusicAmbientVolume = floatPreferencesKey("music_ambient_volume")
+        val MusicContinueOnExit = booleanPreferencesKey("music_continue_on_exit")
+        val MusicJamendoEnabled = booleanPreferencesKey("music_jamendo_enabled")
+        val MusicJamendoClientId = stringPreferencesKey("music_jamendo_client_id")
+        val MusicFreesoundEnabled = booleanPreferencesKey("music_freesound_enabled")
+        val MusicFreesoundApiKey = stringPreferencesKey("music_freesound_api_key")
+        val MusicOpenverseEnabled = booleanPreferencesKey("music_openverse_enabled")
+        val MusicOpenverseToken = stringPreferencesKey("music_openverse_token")
+        val MusicArchiveEnabled = booleanPreferencesKey("music_archive_enabled")
+        val MusicAudiusEnabled = booleanPreferencesKey("music_audius_enabled")
+        val MusicAudiusApiKey = stringPreferencesKey("music_audius_api_key")
+        val MusicLastPresetId = stringPreferencesKey("music_last_preset_id")
 
         // ─── Kaynak Seçimi Kalıcılığı (Keşfet / Arama / Listem) ───────────────────
         // Kullanıcının bir ekranda seçtiği kaynak, uygulama kapatılıp açıldığında
@@ -452,10 +584,10 @@ class SettingsDataStore(
                     bangumiProfileImageUri = preferences[Keys.BangumiProfileImageUri] ?: "",
                     profileImageUri = preferences[Keys.ProfileImageUri] ?: "",
                     bannerImageUri = preferences[Keys.BannerImageUri] ?: "",
-                    titleLanguage = preferences[Keys.TitleLanguage] ?: "ROMAJI",
+                    titleLanguage = preferences[Keys.TitleLanguage] ?: DEFAULT_TITLE_LANGUAGE,
                     scoreFormat = preferences[Keys.ScoreFormat] ?: "POINT_10",
                     scoreStep = preferences[Keys.ScoreStep] ?: "1",
-                    staffNameLanguage = preferences[Keys.StaffNameLanguage] ?: "ROMAJI",
+                    staffNameLanguage = preferences[Keys.StaffNameLanguage] ?: DEFAULT_STAFF_NAME_LANGUAGE,
                     separatedListStyle = preferences[Keys.SeparatedListStyle] ?: true,
                     showLowPriority = preferences[Keys.ShowLowPriority] ?: false,
                     priorityColorsJson = preferences[Keys.PriorityColorsJson] ?: "",
@@ -467,6 +599,7 @@ class SettingsDataStore(
                     hideScores = preferences[Keys.HideScores] ?: false,
                     showAnimeLogos = preferences[Keys.ShowAnimeLogos] ?: false,
                     accountBackupEnabled = preferences[Keys.AccountBackupEnabled] ?: true,
+                    accountAddonSyncEnabled = preferences[Keys.AccountAddonSyncEnabled] ?: true,
                     accountSearchSyncEnabled = preferences[Keys.AccountSearchSyncEnabled] ?: true,
                     accountNotificationSyncEnabled = preferences[Keys.AccountNotificationSyncEnabled] ?: true,
                     syncEnabledAnilist = preferences[Keys.SyncEnabledAnilist] ?: true,
@@ -474,7 +607,8 @@ class SettingsDataStore(
                     syncEnabledSimkl = preferences[Keys.SyncEnabledSimkl] ?: true,
                     syncEnabledKitsu = preferences[Keys.SyncEnabledKitsu] ?: true,
                     syncEnabledShikimori = preferences[Keys.SyncEnabledShikimori] ?: true,
-                    syncEnabledBangumi = preferences[Keys.SyncEnabledBangumi] ?: true
+                    syncEnabledBangumi = preferences[Keys.SyncEnabledBangumi] ?: true,
+                    syncEnabledTmdb = preferences[Keys.SyncEnabledTmdb] ?: true
                 ),
                 themeUi = ThemeAndAppUiSettings(
                     selectedThemeId = preferences[Keys.SelectedThemeId] ?: "mint",
@@ -565,10 +699,18 @@ class SettingsDataStore(
                     preserveWatchingPosition = preferences[Keys.PreserveWatchingPosition] ?: true,
                     defaultPlayerOrientation = preferences[Keys.DefaultPlayerOrientation] ?: "SENSOR_LANDSCAPE",
                     pipEpisodeToasts = preferences[Keys.PipEpisodeToasts] ?: true,
-                    pipOnExit = preferences[Keys.PipOnExit] ?: true
+                    pipOnExit = preferences[Keys.PipOnExit] ?: true,
+                    autoTrackEnabled = preferences[Keys.AutoTrackEnabled] ?: false,
+                    autoTrackAddNew = preferences[Keys.AutoTrackAddNew] ?: true,
+                    autoTrackRespectDropped = preferences[Keys.AutoTrackRespectDropped] ?: true,
+                    quickRateEnabled = preferences[Keys.QuickRateEnabled] ?: true,
+                    quickRateSeconds = preferences[Keys.QuickRateSeconds] ?: 20,
+                    autoTrackSyncSources = preferences[Keys.AutoTrackSyncSources] ?: true,
+                    autoTrackMinSeconds = preferences[Keys.AutoTrackMinSeconds] ?: 60
                 ),
                 mpvSubtitle = MpvAndSubtitleSettings(
                     defaultSubtitleSize = preferences[Keys.DefaultSubtitleSize] ?: 16,
+                    subtitleFontSize = (preferences[Keys.SubtitleFontSize] ?: 45).coerceIn(1, 100),
                     defaultSubtitleColor = preferences[Keys.DefaultSubtitleColor] ?: 0xFFFFFFFF.toInt(),
                     subtitleBold = preferences[Keys.SubtitleBold] ?: false,
                     subtitleOutlineEnabled = preferences[Keys.SubtitleOutlineEnabled] ?: true,
@@ -584,6 +726,7 @@ class SettingsDataStore(
                     audioPitchCorrection = preferences[Keys.AudioPitchCorrection] ?: true,
                     mpvGpuRenderer = preferences[Keys.MpvGpuRenderer] ?: "gpu",
                     mpvHwdecMode = preferences[Keys.MpvHwdecMode] ?: "auto-safe",
+                    mpvDolbyVisionAutoFix = preferences[Keys.MpvDolbyVisionAutoFix] ?: true,
                     mpvDebandMode = preferences[Keys.MpvDebandMode] ?: "none",
                     mpvForceYuv420p = preferences[Keys.MpvForceYuv420p] ?: false,
                     mpvDemuxerCacheMb = preferences[Keys.MpvDemuxerCacheMb] ?: 64,
@@ -638,7 +781,7 @@ class SettingsDataStore(
                     tmdbUserApiKey = preferences[Keys.TmdbUserApiKey] ?: "",
                     tmdbModernHomeEnabled = preferences[Keys.TmdbModernHomeEnabled] ?: true,
                     tmdbEnrichContinueWatching = preferences[Keys.TmdbEnrichContinueWatching] ?: true,
-                    tmdbLanguage = preferences[Keys.TmdbLanguage] ?: "tr",
+                    tmdbLanguage = preferences[Keys.TmdbLanguage] ?: DEFAULT_TMDB_LANGUAGE,
                     tmdbUseArtwork = preferences[Keys.TmdbUseArtwork] ?: true,
                     tmdbUseBasicInfo = preferences[Keys.TmdbUseBasicInfo] ?: true,
                     tmdbUseDetails = preferences[Keys.TmdbUseDetails] ?: true,
@@ -661,8 +804,34 @@ class SettingsDataStore(
                     mdbListShowTrakt = preferences[Keys.MdbListShowTrakt] ?: false,
                     fanartTvApiKey = preferences[Keys.FanartTvApiKey] ?: "",
                     fanartTvEnabled = preferences[Keys.FanartTvEnabled] ?: true,
-                    wikiPageTheme = preferences[Keys.WikiPageTheme] ?: "SITE",
+                    musicEnabled = preferences[Keys.MusicEnabled] ?: true,
+                    musicAutoRecommend = preferences[Keys.MusicAutoRecommend] ?: true,
+                    musicAutoPlay = preferences[Keys.MusicAutoPlay] ?: false,
+                    musicAutoPlayVolume = preferences[Keys.MusicAutoPlayVolume] ?: 0.6f,
+                    musicAutoPlayDelaySeconds = preferences[Keys.MusicAutoPlayDelay] ?: 3,
+                    musicAutoPlayHeadphonesOnly =
+                        preferences[Keys.MusicAutoPlayHeadphonesOnly] ?: false,
+                    musicAutoPlayMuteOnSilentDevice =
+                        preferences[Keys.MusicAutoPlayMuteOnSilent] ?: false,
+                    musicAutoPlayIncludeOnline =
+                        preferences[Keys.MusicAutoPlayIncludeOnline] ?: false,
+                    musicMasterVolume = preferences[Keys.MusicMasterVolume] ?: 0.8f,
+                    musicChannelVolume = preferences[Keys.MusicChannelVolume] ?: 0.5f,
+                    musicAmbientVolume = preferences[Keys.MusicAmbientVolume] ?: 0.6f,
+                    musicContinueOnExit = preferences[Keys.MusicContinueOnExit] ?: true,
+                    musicJamendoEnabled = preferences[Keys.MusicJamendoEnabled] ?: false,
+                    musicJamendoClientId = preferences[Keys.MusicJamendoClientId] ?: "",
+                    musicFreesoundEnabled = preferences[Keys.MusicFreesoundEnabled] ?: false,
+                    musicFreesoundApiKey = preferences[Keys.MusicFreesoundApiKey] ?: "",
+                    musicOpenverseEnabled = preferences[Keys.MusicOpenverseEnabled] ?: true,
+                    musicOpenverseToken = preferences[Keys.MusicOpenverseToken] ?: "",
+                    musicArchiveEnabled = preferences[Keys.MusicArchiveEnabled] ?: true,
+                    musicAudiusEnabled = preferences[Keys.MusicAudiusEnabled] ?: true,
+                    musicAudiusApiKey = preferences[Keys.MusicAudiusApiKey] ?: "",
+                    musicLastPresetId = preferences[Keys.MusicLastPresetId] ?: "",
+                    wikiPageTheme = preferences[Keys.WikiPageTheme] ?: "APP",
                     wikiTextZoom = preferences[Keys.WikiTextZoom] ?: 100,
+                    wikiDesktopLayout = preferences[Keys.WikiDesktopLayout] ?: false,
                     wikiAdBlockDisabledHosts = preferences[Keys.WikiAdBlockDisabledHosts] ?: emptySet(),
                     autoTranslateEnabled = preferences[Keys.AutoTranslateEnabled] ?: false,
                     preferredTranslator = preferences[Keys.PreferredTranslator] ?: "DEFAULT",
@@ -676,13 +845,86 @@ class SettingsDataStore(
                     simklNotificationsEnabled = preferences[Keys.SimklNotificationsEnabled] ?: false,
                     kitsuNotificationsEnabled = preferences[Keys.KitsuNotificationsEnabled] ?: false,
                     shikimoriNotificationsEnabled = preferences[Keys.ShikimoriNotificationsEnabled] ?: false,
+                    tmdbNotificationsEnabled = preferences[Keys.TmdbNotificationsEnabled] ?: false,
+                    bangumiNotificationsEnabled = preferences[Keys.BangumiNotificationsEnabled] ?: false,
                     notificationInterval = preferences[Keys.NotificationInterval] ?: 180
                 ),
                 downloads = DownloadAndMangaSettings(
-                    mangaReadingMode = preferences[Keys.MangaReadingMode] ?: "RightToLeft",
-                    mangaColorFilter = preferences[Keys.MangaColorFilter] ?: "Normal",
+                    mangaReadingMode = MangaReaderPreferences.readingMode(preferences[Keys.MangaReadingMode] ?: "RightToLeft").name,
+                    mangaColorFilter = MangaReaderPreferences.colorFilter(preferences[Keys.MangaColorFilter] ?: "Normal").name,
+                    mangaSaturation = (preferences[Keys.MangaSaturation] ?: 100).coerceIn(0, 200),
+                    mangaContrast = (preferences[Keys.MangaContrast] ?: 100).coerceIn(50, 200),
+                    mangaHue = (preferences[Keys.MangaHue] ?: 0).coerceIn(-180, 180),
                     mangaFitMode = preferences[Keys.MangaFitMode] ?: "FitScreen",
-                    mangaBrightness = preferences[Keys.MangaBrightness] ?: 1.0f,
+                    mangaBrightness = MangaReaderPreferences.finite(preferences[Keys.MangaBrightness] ?: 1.0f, 1.0f, 0.1f, 1.0f),
+                    mangaReaderOptions = com.kitsugi.animelist.data.manga.MangaReaderOptions.fromJson(
+                        raw = preferences[Keys.MangaReaderOptionsJson],
+                        fallback = com.kitsugi.animelist.data.manga.MangaReaderOptions(
+                            readingMode = com.kitsugi.animelist.data.manga.ReadingMode.fromKey(preferences[Keys.MangaReadingMode]),
+                            colorFilter = com.kitsugi.animelist.data.manga.ColorFilterType.fromKey(preferences[Keys.MangaColorFilter]),
+                            fitMode = com.kitsugi.animelist.data.manga.MangaFitMode.fromKey(preferences[Keys.MangaFitMode]),
+                            brightness = MangaReaderPreferences.finite(preferences[Keys.MangaBrightness] ?: 1.0f, 1.0f, 0.1f, 1.0f)
+                        )
+                    ),
+                    mangaReaderPresets = runCatching {
+                        val raw = preferences[Keys.MangaReaderPresetsJson]
+                        if (raw.isNullOrBlank()) emptyMap()
+                        else {
+                            val obj = org.json.JSONObject(raw)
+                            buildMap {
+                                obj.keys().forEach { k -> put(k, obj.optString(k, "")) }
+                            }
+                        }
+                    }.getOrDefault(emptyMap()),
+                    mangaKeepScreenOn = preferences[Keys.MangaKeepScreenOn] ?: true,
+                    mangaAutoFullscreen = preferences[Keys.MangaAutoFullscreen] ?: true,
+                    mangaImmersive = preferences[Keys.MangaImmersive] ?: false,
+                    mangaChapterSort = preferences[Keys.MangaChapterSort] ?: "OldestFirst",
+                    mangaChapterDisplayMode = preferences[Keys.MangaChapterDisplayMode] ?: "Number",
+                    mangaSkipReadChapters = preferences[Keys.MangaSkipReadChapters] ?: false,
+                    mangaAutoAdvanceChapter = preferences[Keys.MangaAutoAdvanceChapter] ?: false,
+                    mangaWebtoonAutoNext = preferences[Keys.MangaWebtoonAutoNext] ?: false,
+                    mangaBookmarkedChapters = preferences[Keys.MangaBookmarkedChapters] ?: "",
+                    mangaCropBorders = preferences[Keys.MangaCropBorders] ?: false,
+                    mangaCropBordersWebtoon = preferences[Keys.MangaCropBordersWebtoon] ?: false,
+                    mangaWebtoonPadding = (preferences[Keys.MangaWebtoonPadding] ?: 0).coerceIn(0, 64),
+                    mangaWebtoonGap = (preferences[Keys.MangaWebtoonGap] ?: 0).coerceIn(0, 32),
+                    mangaShowPageNumber = preferences[Keys.MangaShowPageNumber] ?: true,
+                    mangaWebtoon = MangaWebtoonPreferences(
+                        sidePaddingDp = preferences[Keys.MangaWebtoonPadding] ?: 0,
+                        pageGapDp = preferences[Keys.MangaWebtoonGap] ?: 0,
+                        scrollPercent = preferences[Keys.MangaWebtoonScrollPercent] ?: 90,
+                        tapToScroll = preferences[Keys.MangaWebtoonTapScroll] ?: true,
+                        volumeKeys = preferences[Keys.MangaVolumeKeys] ?: false,
+                        autoScrollDpPerSecond = preferences[Keys.MangaWebtoonAutoScrollSpeed] ?: 32,
+                        background = preferences[Keys.MangaReaderBackground] ?: "Black",
+                        showPageNumber = preferences[Keys.MangaShowPageNumber] ?: true,
+                        keepScreenOn = preferences[Keys.MangaKeepScreenOn] ?: true,
+                    ).sanitized(),
+                    mangaWebtoonZoom = preferences[Keys.MangaWebtoonZoom] ?: false,
+                    mangaWideRotation = (preferences[Keys.MangaWideRotation] ?: "Off").takeIf { it in setOf("Off", "Clockwise", "CounterClockwise") } ?: "Off",
+                    mangaWideRotationWebtoon = (preferences[Keys.MangaWideRotationWebtoon] ?: "Off").takeIf { it in setOf("Off", "Clockwise", "CounterClockwise") } ?: "Off",
+                    mangaInvertTapZones = preferences[Keys.MangaInvertTapZones] ?: false,
+                    mangaTapLayout = (preferences[Keys.MangaTapLayout] ?: "Default").takeIf { it in setOf("Default", "LeftHand", "RightHand", "Custom") } ?: "Default",
+                    mangaTapGrid = (preferences[Keys.MangaTapGrid] ?: "PMNPMNPMN").takeIf { it.length == 9 && it.all { c -> c in "PMNX" } } ?: "PMNPMNPMN",
+                    mangaLongTapGrid = (preferences[Keys.MangaLongTapGrid] ?: "XXXXXXXXX").takeIf { it.length == 9 && it.all { c -> c in "PMNX" } } ?: "XXXXXXXXX",
+                    mangaWebtoonTapScroll = preferences[Keys.MangaWebtoonTapScroll] ?: true,
+                    mangaReaderBackground = preferences[Keys.MangaReaderBackground] ?: "Black",
+                    mangaDoublePage = preferences[Keys.MangaDualPage] ?: preferences[Keys.MangaDoublePage] ?: false,
+                    mangaCoverAlone = preferences[Keys.MangaDualPageFirstSolo] ?: preferences[Keys.MangaCoverAlone] ?: false,
+                    mangaDualPage = preferences[Keys.MangaDualPage] ?: preferences[Keys.MangaDoublePage] ?: false,
+                    mangaDualPageFirstSolo = preferences[Keys.MangaDualPageFirstSolo] ?: preferences[Keys.MangaCoverAlone] ?: true,
+                    mangaStitchDualPages = preferences[Keys.MangaStitchDualPages] ?: true,
+                    mangaAutoScrollSpeed = (preferences[Keys.MangaAutoScrollSpeed] ?: preferences[Keys.MangaWebtoonAutoScrollSpeed] ?: 160).coerceIn(20, 500),
+                    mangaHiddenPageCounter = preferences[Keys.MangaHiddenPageCounter] ?: true,
+                    mangaWebtoonAutoScrollSpeed = (preferences[Keys.MangaAutoScrollSpeed] ?: preferences[Keys.MangaWebtoonAutoScrollSpeed] ?: 160).coerceIn(20, 500),
+                    mangaWebtoonScrollPercent = (preferences[Keys.MangaWebtoonScrollPercent] ?: 90).coerceIn(25, 100),
+                    mangaPreloadAhead = (preferences[Keys.MangaPreloadAhead] ?: -1).coerceIn(-1, 5),
+                    mangaVolumeKeys = preferences[Keys.MangaVolumeKeys] ?: false,
+                    mangaInvertVolumeKeys = preferences[Keys.MangaInvertVolumeKeys] ?: false,
+                    mangaSearchTitleLanguage = preferences[Keys.MangaSearchTitleLanguage] ?: "ENGLISH",
+                    mangaSearchFollowTitleLanguage =
+                        preferences[Keys.MangaSearchFollowTitleLanguage] ?: true,
                     customImageDownloadUri = preferences[Keys.CustomImageDownloadUri] ?: "",
                     videoDownloadUri = preferences[Keys.VideoDownloadUri] ?: "",
                     downloaderPreference = preferences[Keys.DownloaderPreference] ?: "INTERNAL",
@@ -710,6 +952,21 @@ class SettingsDataStore(
                     downloadNewUnreadChaptersOnly = preferences[Keys.DownloadNewUnreadChaptersOnly] ?: false,
                     downloadNewUnseenEpisodesOnly = preferences[Keys.DownloadNewUnseenEpisodesOnly] ?: false,
                     subtitleDownloadLanguages = preferences[Keys.SubtitleDownloadLanguages] ?: "tr"
+                ),
+                keyboard = PlayerKeyboardSettings(
+                    keyboardEnabled = preferences[Keys.KeyboardEnabled] ?: true,
+                    autoDetectExternalKeyboard = preferences[Keys.KeyboardAutoDetect] ?: true,
+                    keyboardOsdEnabled = preferences[Keys.KeyboardOsdEnabled] ?: true,
+                    keyboardOsdDurationScale = (preferences[Keys.KeyboardOsdDurationScale] ?: 1f).coerceIn(0.35f, 2.5f),
+                    keyboardOpensFullOsd = preferences[Keys.KeyboardOpensFullOsd] ?: false,
+                    keyboardHelpEnabled = preferences[Keys.KeyboardHelpEnabled] ?: true,
+                    disabledShortcuts = preferences[Keys.KeyboardDisabledShortcuts] ?: "",
+                    customBindings = preferences[Keys.KeyboardCustomBindings] ?: "",
+                    gamepadEnabled = preferences[Keys.KeyboardGamepadEnabled] ?: true,
+                    keyboardSeekStepSeconds = (preferences[Keys.KeyboardSeekStepSeconds] ?: 5).coerceIn(1, 120),
+                    keyboardPreciseSeekSeconds = (preferences[Keys.KeyboardPreciseSeekSeconds] ?: 1).coerceIn(1, 30),
+                    keyboardLargeSeekSeconds = (preferences[Keys.KeyboardLargeSeekSeconds] ?: 60).coerceIn(5, 600),
+                    keyboardHoldToAccelerate = preferences[Keys.KeyboardHoldToAccelerate] ?: true
                 )
             )
             // Çeviri intent'leri (suspend olmayan bağlamlar) ayarlara senkron erişebilsin.
@@ -1114,11 +1371,40 @@ class SettingsDataStore(
         }
     }
 
+    /** Global and series modes come from one snapshot so switching scope is atomic. */
+    fun mangaReadingModeForSeries(seriesId: String): Flow<Pair<String, String?>> {
+        val key = stringPreferencesKey("manga_series_mode_" + seriesId)
+        return context.settingsDataStore.data.map { preferences ->
+            (preferences[Keys.MangaReadingMode] ?: "RightToLeft") to preferences[key]
+        }
+    }
+
+    suspend fun setMangaSeriesModeEnabled(seriesId: String, enabled: Boolean) {
+        val key = stringPreferencesKey("manga_series_mode_" + seriesId)
+        context.settingsDataStore.edit { preferences ->
+            if (enabled) preferences[key] = preferences[Keys.MangaReadingMode] ?: "RightToLeft"
+            else preferences.remove(key)
+        }
+    }
+
+    /** Changes the active scope without modifying the other scope. */
+    suspend fun setMangaReadingModeForSeries(seriesId: String, mode: String) {
+        val key = stringPreferencesKey("manga_series_mode_" + seriesId)
+        context.settingsDataStore.edit { preferences ->
+            if (preferences[key] != null) preferences[key] = mode
+            else preferences[Keys.MangaReadingMode] = mode
+        }
+    }
+
     suspend fun setMangaReadingMode(mode: String) {
         context.settingsDataStore.edit { preferences ->
             preferences[Keys.MangaReadingMode] = mode
         }
     }
+
+    suspend fun setMangaSaturation(value: Int) { context.settingsDataStore.edit { it[Keys.MangaSaturation] = value.coerceIn(0, 200) } }
+    suspend fun setMangaHue(value: Int) { context.settingsDataStore.edit { it[Keys.MangaHue] = value.coerceIn(-180, 180) } }
+    suspend fun setMangaContrast(value: Int) { context.settingsDataStore.edit { it[Keys.MangaContrast] = value.coerceIn(50, 200) } }
 
     suspend fun setMangaColorFilter(filter: String) {
         context.settingsDataStore.edit { preferences ->
@@ -1132,19 +1418,240 @@ class SettingsDataStore(
         }
     }
 
-    suspend fun setMangaBrightness(brightness: Float) {
+    suspend fun setMangaKeepScreenOn(enabled: Boolean) {
         context.settingsDataStore.edit { preferences ->
-            preferences[Keys.MangaBrightness] = brightness
+            preferences[Keys.MangaKeepScreenOn] = enabled
         }
     }
 
+    suspend fun setMangaAutoFullscreen(enabled: Boolean) {
+        context.settingsDataStore.edit { preferences ->
+            preferences[Keys.MangaAutoFullscreen] = enabled
+        }
+    }
+
+    /** Bölüm listesi varsayılan sıralaması (tüm mangalar için). */
+    suspend fun setMangaChapterSort(sortName: String) {
+        context.settingsDataStore.edit { preferences ->
+            preferences[Keys.MangaChapterSort] = sortName
+        }
+    }
+
+    /** Bölüm satırı etiket biçimi: Number / Title. */
+    suspend fun setMangaChapterDisplayMode(modeName: String) {
+        context.settingsDataStore.edit { preferences ->
+            preferences[Keys.MangaChapterDisplayMode] = modeName
+        }
+    }
+
+    suspend fun setMangaSkipReadChapters(enabled: Boolean) {
+        context.settingsDataStore.edit { preferences ->
+            preferences[Keys.MangaSkipReadChapters] = enabled
+        }
+    }
+
+    suspend fun setMangaAutoAdvanceChapter(enabled: Boolean) {
+        context.settingsDataStore.edit { preferences ->
+            preferences[Keys.MangaAutoAdvanceChapter] = enabled
+        }
+    }
+
+    /**
+     * Yer imli bölüm listesini kaydeder (Mihon'daki ★ davranışı).
+     *
+     * Kalıcılık için tek bir string anahtar kullanılır: yüzlerce bölümde her biri için ayrı
+     * anahtar açmak DataStore'u şişirirdi. URL'ler `|` ile ayrılır (URL içinde geçmez).
+     */
+    suspend fun setMangaBookmarkedChapters(urls: Set<String>) {
+        context.settingsDataStore.edit { preferences ->
+            preferences[Keys.MangaBookmarkedChapters] = urls.joinToString("|")
+        }
+    }
+
+    /**
+     * Tek bir manga için sıralama ezmesi yazar; `null` verilirse ezme kaldırılır ve manga
+     * genel varsayılana döner.
+     *
+     * Anahtar adı manga URL'sinden türetilir; URL'ler çok uzun olabildiği için
+     * anahtar adı `hashCode` ile sabitlenir (DataStore anahtar adı uzunluğu sorun değil ama
+     * dosya boyutu ve okunabilirlik için kısa tutuluyor).
+     */
+    suspend fun setMangaChapterSortOverride(mangaUrl: String, sortName: String?) {
+        if (mangaUrl.isBlank()) return
+        val key = stringPreferencesKey(sortOverrideKey(mangaUrl))
+        context.settingsDataStore.edit { preferences ->
+            if (sortName == null) preferences.remove(key) else preferences[key] = sortName
+        }
+    }
+
+    /** Sayfa kenarlarını kırp (Mihon "crop borders"). */
+    suspend fun setMangaCropBorders(enabled: Boolean) {
+        context.settingsDataStore.edit { preferences ->
+            preferences[Keys.MangaCropBorders] = enabled
+        }
+    }
+
+    /** Tek manga için geçerli sıralama: ezme varsa o, yoksa genel tercih. */
+    suspend fun getMangaChapterSort(mangaUrl: String): String {
+        val prefs = context.settingsDataStore.data.first()
+        val override = prefs[stringPreferencesKey(sortOverrideKey(mangaUrl))]
+        return override ?: prefs[Keys.MangaChapterSort] ?: "OldestFirst"
+    }
+
+    suspend fun setMangaBrightness(brightness: Float) {
+        val safeBrightness = normalizeMangaBrightness(brightness)
+        context.settingsDataStore.edit { preferences ->
+            preferences[Keys.MangaBrightness] = safeBrightness
+        }
+        runCatching {
+            val current = settingsFlow.first().mangaReaderOptions
+            setMangaReaderOptions(current.copy(brightness = safeBrightness))
+        }
+    }
+
+    suspend fun setMangaReaderPresets(presets: Map<String, String>) {
+        context.settingsDataStore.edit { preferences ->
+            preferences[Keys.MangaReaderPresetsJson] = org.json.JSONObject().apply {
+                presets.forEach { (k, v) -> put(k, v) }
+            }.toString()
+        }
+    }
+
+    suspend fun setMangaReaderOptions(options: com.kitsugi.animelist.data.manga.MangaReaderOptions) {
+        context.settingsDataStore.edit { preferences ->
+            preferences[Keys.MangaReaderOptionsJson] = options.toJson()
+            preferences[Keys.MangaReadingMode] = options.readingMode.toKey()
+            preferences[Keys.MangaColorFilter] = options.colorFilter.key
+            preferences[Keys.MangaFitMode] = options.fitMode.key
+            preferences[Keys.MangaBrightness] = options.brightness
+        }
+    }
+
+    /** Kaynak arama dili (ENGLISH / ROMAJI / NATIVE / LOCAL). */
+    suspend fun setMangaSearchTitleLanguage(language: String) {
+        val safe = when (language.uppercase()) {
+            "ENGLISH", "EN" -> "ENGLISH"
+            "NATIVE", "ORIGINAL" -> "NATIVE"
+            "LOCAL", "TURKISH" -> "LOCAL"
+            else -> "ROMAJI"
+        }
+        context.settingsDataStore.edit { it[Keys.MangaSearchTitleLanguage] = safe }
+    }
+
+    /** Arama dili genel başlık dili ayarını takip etsin mi. */
+    suspend fun setMangaSearchFollowTitleLanguage(follow: Boolean) {
+        context.settingsDataStore.edit { it[Keys.MangaSearchFollowTitleLanguage] = follow }
+    }
+
+    suspend fun setMangaWebtoonPadding(value: Int) {
+        context.settingsDataStore.edit { it[Keys.MangaWebtoonPadding] = value.coerceIn(0, 64) }
+    }
+
+    suspend fun setMangaWebtoonGap(value: Int) {
+        context.settingsDataStore.edit { it[Keys.MangaWebtoonGap] = value.coerceIn(0, 32) }
+    }
+
+    suspend fun setMangaShowPageNumber(value: Boolean) {
+        context.settingsDataStore.edit { it[Keys.MangaShowPageNumber] = value }
+    }
+
+    suspend fun setMangaWideRotation(value: String, webtoon: Boolean) {
+        val safe = value.takeIf { it in setOf("Off", "Clockwise", "CounterClockwise") } ?: "Off"
+        context.settingsDataStore.edit { it[if (webtoon) Keys.MangaWideRotationWebtoon else Keys.MangaWideRotation] = safe }
+    }
+    suspend fun setMangaWebtoonZoom(value: Boolean) { context.settingsDataStore.edit { it[Keys.MangaWebtoonZoom] = value } }
+
+    suspend fun setMangaCropBordersWebtoon(value: Boolean) { context.settingsDataStore.edit { it[Keys.MangaCropBordersWebtoon] = value } }
+
+    suspend fun setMangaImmersive(value: Boolean) { context.settingsDataStore.edit { it[Keys.MangaImmersive] = value } }
+
+    suspend fun resetMangaTapGrids() {
+        context.settingsDataStore.edit { it[Keys.MangaTapGrid] = "PMNPMNPMN"; it[Keys.MangaLongTapGrid] = "XXXXXXXXX" }
+    }
+
+    suspend fun setMangaTapGrid(value: String, longPress: Boolean) {
+        if (value.length != 9 || value.any { it !in "PMNX" }) return
+        context.settingsDataStore.edit { it[if (longPress) Keys.MangaLongTapGrid else Keys.MangaTapGrid] = value }
+    }
+
+    suspend fun setMangaTapLayout(value: String) {
+        context.settingsDataStore.edit { it[Keys.MangaTapLayout] = value.takeIf { layout -> layout in setOf("Default", "LeftHand", "RightHand", "Custom") } ?: "Default" }
+    }
+    suspend fun setMangaInvertTapZones(value: Boolean) {
+        context.settingsDataStore.edit { it[Keys.MangaInvertTapZones] = value }
+    }
+
+    suspend fun setMangaWebtoonTapScroll(value: Boolean) {
+        context.settingsDataStore.edit { it[Keys.MangaWebtoonTapScroll] = value }
+    }
+
+    suspend fun setMangaWebtoonAutoNext(value: Boolean) {
+        context.settingsDataStore.edit { it[Keys.MangaWebtoonAutoNext] = value }
+    }
+
+    suspend fun setMangaReaderBackground(value: String) {
+        context.settingsDataStore.edit { it[Keys.MangaReaderBackground] = value }
+    }
+
+    suspend fun setMangaDoublePage(value: Boolean) {
+        context.settingsDataStore.edit {
+            it[Keys.MangaDoublePage] = value
+            it[Keys.MangaDualPage] = value
+        }
+    }
+    suspend fun setMangaCoverAlone(value: Boolean) {
+        context.settingsDataStore.edit {
+            it[Keys.MangaCoverAlone] = value
+            it[Keys.MangaDualPageFirstSolo] = value
+        }
+    }
+    suspend fun setMangaDualPage(value: Boolean) { setMangaDoublePage(value) }
+    suspend fun setMangaDualPageFirstSolo(value: Boolean) { setMangaCoverAlone(value) }
+    suspend fun setMangaStitchDualPages(value: Boolean) {
+        context.settingsDataStore.edit { it[Keys.MangaStitchDualPages] = value }
+    }
+    suspend fun setMangaHiddenPageCounter(value: Boolean) {
+        context.settingsDataStore.edit { it[Keys.MangaHiddenPageCounter] = value }
+    }
+    suspend fun setMangaAutoScrollSpeed(value: Int) {
+        val clamped = value.coerceIn(20, 500)
+        context.settingsDataStore.edit {
+            it[Keys.MangaAutoScrollSpeed] = clamped
+            it[Keys.MangaWebtoonAutoScrollSpeed] = clamped
+        }
+    }
+
+    suspend fun setMangaWebtoonScrollPercent(value: Int) { context.settingsDataStore.edit { it[Keys.MangaWebtoonScrollPercent] = value.coerceIn(25, 100) } }
+    suspend fun setMangaPreloadAhead(value: Int) { context.settingsDataStore.edit { it[Keys.MangaPreloadAhead] = value.coerceIn(-1, 5) } }
+
+    suspend fun setMangaWebtoonAutoScrollSpeed(value: Int) {
+        context.settingsDataStore.edit { it[Keys.MangaWebtoonAutoScrollSpeed] = value.coerceIn(8, 160) }
+    }
+
+    suspend fun setMangaWebtoonPreferences(value: MangaWebtoonPreferences) {
+        val safe = value.sanitized()
+        context.settingsDataStore.edit { prefs ->
+            prefs[Keys.MangaWebtoonPadding] = safe.sidePaddingDp
+            prefs[Keys.MangaWebtoonGap] = safe.pageGapDp
+            prefs[Keys.MangaWebtoonScrollPercent] = safe.scrollPercent
+            prefs[Keys.MangaWebtoonTapScroll] = safe.tapToScroll
+            prefs[Keys.MangaVolumeKeys] = safe.volumeKeys
+            prefs[Keys.MangaWebtoonAutoScrollSpeed] = safe.autoScrollDpPerSecond
+            prefs[Keys.MangaReaderBackground] = safe.background
+            prefs[Keys.MangaShowPageNumber] = safe.showPageNumber
+            prefs[Keys.MangaKeepScreenOn] = safe.keepScreenOn
+        }
+    }
+
+    suspend fun setMangaVolumeKeys(value: Boolean) { context.settingsDataStore.edit { it[Keys.MangaVolumeKeys] = value } }
+    suspend fun setMangaInvertVolumeKeys(value: Boolean) { context.settingsDataStore.edit { it[Keys.MangaInvertVolumeKeys] = value } }
     // ─── Harici API Entegrasyonları set fonksiyonları ─────────────────────────────────────
 
     suspend fun setTmdbUserApiKey(key: String) {
         context.settingsDataStore.edit { preferences ->
             preferences[Keys.TmdbUserApiKey] = key.trim()
         }
-        val language = context.settingsDataStore.data.first()[Keys.TmdbLanguage] ?: "tr"
+        val language = context.settingsDataStore.data.first()[Keys.TmdbLanguage] ?: DEFAULT_TMDB_LANGUAGE
         com.kitsugi.animelist.data.remote.TmdbApiClient.updateCache(key, language)
     }
 
@@ -1290,6 +1797,11 @@ class SettingsDataStore(
         }
     }
 
+    /** Wiki açılır sayfasının görünüm düzeni; seçim sekmeler ve oturumlar arasında korunur. */
+    suspend fun setWikiDesktopLayout(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.WikiDesktopLayout] = enabled }
+    }
+
     /** Local per-wiki exception; never changes filtering in other application WebViews. */
     suspend fun setWikiAdBlockEnabled(host: String, enabled: Boolean) {
         val normalized = host.lowercase(java.util.Locale.ROOT)
@@ -1410,6 +1922,12 @@ class SettingsDataStore(
     suspend fun setAccountBackupEnabled(enabled: Boolean) {
         context.settingsDataStore.edit { preferences ->
             preferences[Keys.AccountBackupEnabled] = enabled
+        }
+    }
+
+    suspend fun setAccountAddonSyncEnabled(enabled: Boolean) {
+        context.settingsDataStore.edit { preferences ->
+            preferences[Keys.AccountAddonSyncEnabled] = enabled
         }
     }
 
@@ -1536,6 +2054,16 @@ class SettingsDataStore(
         context.settingsDataStore.edit { it[Keys.ShikimoriNotificationsEnabled] = enabled }
     }
 
+    /** TMDB account polling/dedupe notifications (not a TMDB native notification feed). */
+    suspend fun setTmdbNotificationsEnabled(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.TmdbNotificationsEnabled] = enabled }
+    }
+
+    /** Bangumi bildirimleri (DOING koleksiyonu + yayın takvimi eşleşmesi). */
+    suspend fun setBangumiNotificationsEnabled(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.BangumiNotificationsEnabled] = enabled }
+    }
+
     suspend fun setNotificationInterval(minutes: Int) {
         context.settingsDataStore.edit { it[Keys.NotificationInterval] = minutes }
     }
@@ -1637,6 +2165,10 @@ class SettingsDataStore(
         context.settingsDataStore.edit { it[Keys.SyncEnabledBangumi] = enabled }
     }
 
+    suspend fun setSyncEnabledTmdb(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.SyncEnabledTmdb] = enabled }
+    }
+
     suspend fun saveKitsuProfileInfo(username: String, avatarUrl: String? = null) {
         context.settingsDataStore.edit {
             it[Keys.KitsuUsername] = username
@@ -1689,6 +2221,10 @@ class SettingsDataStore(
         context.settingsDataStore.edit { it[Keys.MpvHwdecMode] = mode }
     }
 
+    suspend fun setMpvDolbyVisionAutoFix(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.MpvDolbyVisionAutoFix] = enabled }
+    }
+
     suspend fun setMpvDebandMode(mode: String) {
         context.settingsDataStore.edit { it[Keys.MpvDebandMode] = mode }
     }
@@ -1735,6 +2271,10 @@ class SettingsDataStore(
 
     suspend fun setSubtitleBorderSize(size: Float) {
         context.settingsDataStore.edit { it[Keys.SubtitleBorderSize] = size.coerceIn(0f, 6f) }
+    }
+
+    suspend fun setSubtitleFontSize(size: Int) {
+        context.settingsDataStore.edit { it[Keys.SubtitleFontSize] = size.coerceIn(1, 100) }
     }
 
     suspend fun setSubtitleFont(font: String) {
@@ -1916,6 +2456,40 @@ class SettingsDataStore(
         context.settingsDataStore.edit { it[Keys.ScrobbleThreshold] = value.coerceIn(0.1f, 1.0f) }
     }
 
+    // ─── Otomatik liste takibi ───────────────────────────────────────────────────
+
+    suspend fun setAutoTrackEnabled(value: Boolean) {
+        context.settingsDataStore.edit {
+            it[Keys.AutoTrackEnabled] = value
+            // true değeri yalnızca onay diyaloğu kabul edildikten sonra yazılır.
+            if (value) it[Keys.AutoTrackExperimentalConsent] = true
+        }
+    }
+
+    suspend fun setAutoTrackAddNew(value: Boolean) {
+        context.settingsDataStore.edit { it[Keys.AutoTrackAddNew] = value }
+    }
+
+    suspend fun setAutoTrackRespectDropped(value: Boolean) {
+        context.settingsDataStore.edit { it[Keys.AutoTrackRespectDropped] = value }
+    }
+
+    suspend fun setQuickRateEnabled(value: Boolean) {
+        context.settingsDataStore.edit { it[Keys.QuickRateEnabled] = value }
+    }
+
+    suspend fun setQuickRateSeconds(value: Int) {
+        context.settingsDataStore.edit { it[Keys.QuickRateSeconds] = value.coerceIn(5, 60) }
+    }
+
+    suspend fun setAutoTrackSyncSources(value: Boolean) {
+        context.settingsDataStore.edit { it[Keys.AutoTrackSyncSources] = value }
+    }
+
+    suspend fun setAutoTrackMinSeconds(value: Int) {
+        context.settingsDataStore.edit { it[Keys.AutoTrackMinSeconds] = value.coerceIn(15, 600) }
+    }
+
     suspend fun setShowLoadingCircle(value: Boolean) {
         context.settingsDataStore.edit { it[Keys.ShowLoadingCircle] = value }
     }
@@ -2000,6 +2574,60 @@ class SettingsDataStore(
         context.settingsDataStore.edit { it[Keys.ScreenshotSubtitles] = value }
     }
 
+    // ── Klavye / gamepad kısayolları ─────────────────────────────────────────
+    suspend fun setKeyboardEnabled(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.KeyboardEnabled] = enabled }
+    }
+
+    suspend fun setKeyboardAutoDetect(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.KeyboardAutoDetect] = enabled }
+    }
+
+    suspend fun setKeyboardOsdEnabled(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.KeyboardOsdEnabled] = enabled }
+    }
+
+    suspend fun setKeyboardOsdDurationScale(scale: Float) {
+        context.settingsDataStore.edit { it[Keys.KeyboardOsdDurationScale] = scale.coerceIn(0.35f, 2.5f) }
+    }
+
+    /** Tam OSD (üst/alt bar) klavye ile açılsın mı? Varsayılan: hayır, yalnızca gösterge. */
+    suspend fun setKeyboardOpensFullOsd(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.KeyboardOpensFullOsd] = enabled }
+    }
+
+    suspend fun setKeyboardHelpEnabled(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.KeyboardHelpEnabled] = enabled }
+    }
+
+    suspend fun setKeyboardDisabledShortcuts(raw: String) {
+        context.settingsDataStore.edit { it[Keys.KeyboardDisabledShortcuts] = raw }
+    }
+
+    suspend fun setKeyboardCustomBindings(raw: String) {
+        context.settingsDataStore.edit { it[Keys.KeyboardCustomBindings] = raw }
+    }
+
+    suspend fun setGamepadEnabled(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.KeyboardGamepadEnabled] = enabled }
+    }
+
+    suspend fun setKeyboardSeekStepSeconds(seconds: Int) {
+        context.settingsDataStore.edit { it[Keys.KeyboardSeekStepSeconds] = seconds.coerceIn(1, 120) }
+    }
+
+    suspend fun setKeyboardPreciseSeekSeconds(seconds: Int) {
+        context.settingsDataStore.edit { it[Keys.KeyboardPreciseSeekSeconds] = seconds.coerceIn(1, 30) }
+    }
+
+    suspend fun setKeyboardLargeSeekSeconds(seconds: Int) {
+        context.settingsDataStore.edit { it[Keys.KeyboardLargeSeekSeconds] = seconds.coerceIn(5, 600) }
+    }
+
+    suspend fun setKeyboardHoldToAccelerate(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.KeyboardHoldToAccelerate] = enabled }
+    }
+
     suspend fun setPreserveWatchingPosition(value: Boolean) {
         context.settingsDataStore.edit { it[Keys.PreserveWatchingPosition] = value }
     }
@@ -2042,5 +2670,73 @@ class SettingsDataStore(
 
     suspend fun setDefaultIntroLength(value: Int) {
         context.settingsDataStore.edit { it[Keys.DefaultIntroLength] = value.coerceIn(5, 300) }
+    }
+
+    // ─── Okuyucu Ortam Sesi (Ambient) Setters ───────────────────────────────
+    suspend fun setMusicEnabled(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.MusicEnabled] = enabled }
+    }
+    suspend fun setMusicAutoRecommend(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.MusicAutoRecommend] = enabled }
+    }
+    suspend fun setMusicAutoPlay(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.MusicAutoPlay] = enabled }
+    }
+    suspend fun setMusicAutoPlayVolume(value: Float) {
+        context.settingsDataStore.edit { it[Keys.MusicAutoPlayVolume] = value.coerceIn(0f, 1f) }
+    }
+    suspend fun setMusicAutoPlayDelay(seconds: Int) {
+        context.settingsDataStore.edit { it[Keys.MusicAutoPlayDelay] = seconds.coerceIn(0, 30) }
+    }
+    suspend fun setMusicAutoPlayHeadphonesOnly(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.MusicAutoPlayHeadphonesOnly] = enabled }
+    }
+    suspend fun setMusicAutoPlayMuteOnSilent(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.MusicAutoPlayMuteOnSilent] = enabled }
+    }
+    suspend fun setMusicAutoPlayIncludeOnline(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.MusicAutoPlayIncludeOnline] = enabled }
+    }
+    suspend fun setMusicMasterVolume(value: Float) {
+        context.settingsDataStore.edit { it[Keys.MusicMasterVolume] = value.coerceIn(0f, 1f) }
+    }
+    suspend fun setMusicChannelVolume(value: Float) {
+        context.settingsDataStore.edit { it[Keys.MusicChannelVolume] = value.coerceIn(0f, 1f) }
+    }
+    suspend fun setMusicAmbientVolume(value: Float) {
+        context.settingsDataStore.edit { it[Keys.MusicAmbientVolume] = value.coerceIn(0f, 1f) }
+    }
+    suspend fun setMusicContinueOnExit(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.MusicContinueOnExit] = enabled }
+    }
+    suspend fun setMusicJamendoEnabled(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.MusicJamendoEnabled] = enabled }
+    }
+    suspend fun setMusicJamendoClientId(clientId: String) {
+        context.settingsDataStore.edit { it[Keys.MusicJamendoClientId] = clientId.trim() }
+    }
+    suspend fun setMusicFreesoundEnabled(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.MusicFreesoundEnabled] = enabled }
+    }
+    suspend fun setMusicFreesoundApiKey(key: String) {
+        context.settingsDataStore.edit { it[Keys.MusicFreesoundApiKey] = key.trim() }
+    }
+    suspend fun setMusicOpenverseEnabled(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.MusicOpenverseEnabled] = enabled }
+    }
+    suspend fun setMusicOpenverseToken(token: String) {
+        context.settingsDataStore.edit { it[Keys.MusicOpenverseToken] = token.trim() }
+    }
+    suspend fun setMusicArchiveEnabled(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.MusicArchiveEnabled] = enabled }
+    }
+    suspend fun setMusicAudiusEnabled(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.MusicAudiusEnabled] = enabled }
+    }
+    suspend fun setMusicAudiusApiKey(key: String) {
+        context.settingsDataStore.edit { it[Keys.MusicAudiusApiKey] = key.trim() }
+    }
+    suspend fun setMusicLastPresetId(presetId: String) {
+        context.settingsDataStore.edit { it[Keys.MusicLastPresetId] = presetId }
     }
 }

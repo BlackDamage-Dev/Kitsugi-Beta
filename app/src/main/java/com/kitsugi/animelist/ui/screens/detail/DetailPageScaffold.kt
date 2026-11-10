@@ -1,4 +1,4 @@
-@file:OptIn(
+﻿@file:OptIn(
     androidx.compose.foundation.ExperimentalFoundationApi::class,
     androidx.compose.material3.ExperimentalMaterial3Api::class
 )
@@ -24,10 +24,9 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import com.kitsugi.animelist.ui.components.KitsugiPullToRefreshIndicator
@@ -52,8 +51,12 @@ import com.kitsugi.animelist.ui.theme.LocalIsTv
 import com.kitsugi.animelist.ui.theme.LocalIsTvDevice
 import com.kitsugi.animelist.ui.theme.LocalKitsugiAccent
 import com.kitsugi.animelist.ui.utils.KitsugiScrollDefaults
+import com.kitsugi.animelist.ui.utils.detailPagerHeight
 import com.kitsugi.animelist.ui.utils.dpadVerticalFastScroll
+import com.kitsugi.animelist.ui.utils.rememberDetailPagerContentHeightPx
+import com.kitsugi.animelist.ui.utils.rememberDetailPagerMinHeightPx
 import com.kitsugi.animelist.ui.utils.tvClickable
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import androidx.compose.ui.res.stringResource
 import com.kitsugi.animelist.R
@@ -103,13 +106,48 @@ fun DetailPageScaffold(
 
     val leftPanelFocusRequester = remember { FocusRequester() }
     val tabBarFocusRequester = remember { FocusRequester() }
-    val selectedTab = pagerState.currentPage
-    // Yapışkan başlık yüksekliği index == 2 sınırında gidip gelmesin.
+    // ── KASMA FIX (2026-11-05) ────────────────────────────────────────────────
+    // `pagerState.currentPage` burada KOMPOZİSYONDA okunmaz. Eskiden okunuyordu ve
+    // her sekme geçişinde tüm detay iskeleti (sticky başlık + tab bar + HorizontalPager
+    // + görünür sayfa içeriği) yeniden kompoze ediliyordu. Bu da özellikle Resimler
+    // (yüzlerce görselli) ve Videolar sekmeleri arasında kaydırırken kare düşmesine
+    // yol açıyordu. Sekme barının otomatik kaydırması artık `snapshotFlow` ile,
+    // çip seçim durumu ise yalnızca ilgili çipin kendi kapsamında okunuyor.
+    val currentPageFlow = remember(pagerState) {
+        snapshotFlow { pagerState.currentPage }.distinctUntilChanged()
+    }
+    // Dikey modda LazyColumn öğeleri: 0 = "hero", 1 = stickyHeader("tabs"), 2 = "content".
+    // stickyHeader tepeye sabitlendiğinde firstVisibleItemIndex == 1 olur ve kaydırma boyunca 1 kalır;
+    // bu nedenle showAtIndex = 1, hideAtIndex = 0 (88.dp histerezis ile sıfır titreşim) kullanılır.
     val showFloatingHeader = rememberDetailStickyHeaderVisible(
         listState = listState,
-        showAtIndex = 3,
-        hideAtIndex = 1
+        showAtIndex = 1,
+        hideAtIndex = 0
     )
+
+    // Önceden ziyaret edilmiş (önbellekte hazır) bir detay sayfasına girildiğinde ilk karede (Frame 0)
+    // hem geçiş animasyonunun hem vitrinin hem de ağır sekme gövdesinin aynı anda ana iş parçacığına
+    // binmesini önlemek için sekme gövdesini 1 kare (vsync) sonra monte et.
+    val startedPreloaded = remember { !isLoading && !isError }
+    var pagerBodyReady by remember { mutableStateOf(!startedPreloaded) }
+    LaunchedEffect(isLoading, isError) {
+        if (!isLoading && !isError && !pagerBodyReady) {
+            withFrameNanos { }
+            pagerBodyReady = true
+        }
+    }
+
+    val onSelectTab: (Int) -> Unit = remember(pagerState, coroutineScope) {
+        { index: Int ->
+            coroutineScope.launch {
+                if (kotlin.math.abs(index - pagerState.currentPage) <= 1) {
+                    pagerState.animateScrollToPage(index)
+                } else {
+                    pagerState.scrollToPage(index)
+                }
+            }
+        }
+    }
 
     when {
         isLoading -> loadingScreen()
@@ -153,7 +191,7 @@ fun DetailPageScaffold(
                                         .weight(leftPanelWeight)
                                         .fillMaxSize()
                                         .then(if (isTvDevice) Modifier.dpadVerticalFastScroll(leftScrollState) else Modifier)
-                                        .verticalScroll(leftScrollState)
+                                        .kitsugiVerticalScroll(leftScrollState)
                                 ) {
                                     leftPanel(leftPanelFocusRequester, tabBarFocusRequester)
                                 }
@@ -165,8 +203,10 @@ fun DetailPageScaffold(
                                     .weight(rightPanelWeight)
                                     .fillMaxSize()
                             ) {
-                                LaunchedEffect(selectedTab) {
-                                    tabListState.animateScrollToItem(selectedTab)
+                                LaunchedEffect(currentPageFlow) {
+                                    currentPageFlow.collect { page ->
+                                        tabListState.animateScrollToItem(page)
+                                    }
                                 }
                                 LazyRow(
                                     state = tabListState,
@@ -177,12 +217,15 @@ fun DetailPageScaffold(
                                         .padding(horizontal = 16.dp, vertical = 12.dp),
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    itemsIndexed(tabs) { index, tabTitle ->
+                                    itemsIndexed(
+                                        tabs,
+                                        key = { index, tabTitle -> "tab_${index}_$tabTitle" }
+                                    ) { index, tabTitle ->
                                         DetailTabChip(
                                             title = tabTitle,
-                                            isSelected = selectedTab == index,
+                                            isSelected = pagerState.currentPage == index,
                                             accentColor = accentColor,
-                                            onClick = { coroutineScope.launch { pagerState.animateScrollToPage(index) } }
+                                            onClick = { onSelectTab(index) }
                                         )
                                     }
                                 }
@@ -207,10 +250,14 @@ fun DetailPageScaffold(
                                                 modifier = Modifier
                                                     .fillMaxSize()
                                                     .then(if (isTvDevice) Modifier.dpadVerticalFastScroll(pageScrollState) else Modifier)
-                                                    .verticalScroll(pageScrollState)
+                                                    .kitsugiVerticalScroll(pageScrollState)
                                                     .padding(horizontal = 16.dp, vertical = 8.dp)
                                             ) {
-                                                pageContent(page)
+                                                CompositionLocalProvider(
+                                                    LocalDetailPagingActive provides (page == pagerState.settledPage)
+                                                ) {
+                                                    pageContent(page)
+                                                }
                                             }
                                         }
                                     }
@@ -238,14 +285,16 @@ fun DetailPageScaffold(
                                 // ── Sekme Barı — STICKY HEADER ──
                                 stickyHeader(key = "tabs") {
                                     val stickyAccent = LocalKitsugiAccent.current
-                                    LaunchedEffect(selectedTab) {
-                                        val itemInfo = tabListState.layoutInfo.visibleItemsInfo
-                                            .firstOrNull { it.index == selectedTab }
-                                        if (itemInfo != null) {
-                                            val centerOffset = (tabListState.layoutInfo.viewportEndOffset - itemInfo.size) / 2
-                                            tabListState.animateScrollToItem(selectedTab, -centerOffset)
-                                        } else {
-                                            tabListState.animateScrollToItem(selectedTab)
+                                    LaunchedEffect(tabListState, currentPageFlow) {
+                                        currentPageFlow.collect { page ->
+                                            val itemInfo = tabListState.layoutInfo.visibleItemsInfo
+                                                .firstOrNull { it.index == page }
+                                            if (itemInfo != null) {
+                                                val centerOffset = (tabListState.layoutInfo.viewportEndOffset - itemInfo.size) / 2
+                                                tabListState.animateScrollToItem(page, -centerOffset)
+                                            } else {
+                                                tabListState.animateScrollToItem(page)
+                                            }
                                         }
                                     }
 
@@ -265,7 +314,7 @@ fun DetailPageScaffold(
                                             ) {
                                                 IconButton(onClick = onBackClick) {
                                                     Icon(
-                                                        imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                                                        imageVector = Icons.ArrowBack,
                                                         contentDescription = stringResource(R.string.geri),
                                                         tint = KitsugiColors.TextPrimary
                                                     )
@@ -291,12 +340,15 @@ fun DetailPageScaffold(
                                                 .padding(horizontal = 8.dp, vertical = 10.dp),
                                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                                         ) {
-                                            itemsIndexed(tabs) { index, tabTitle ->
+                                            itemsIndexed(
+                                                tabs,
+                                                key = { index, tabTitle -> "tab_${index}_$tabTitle" }
+                                            ) { index, tabTitle ->
                                                 DetailTabChip(
                                                     title = tabTitle,
-                                                    isSelected = selectedTab == index,
+                                                    isSelected = pagerState.currentPage == index,
                                                     accentColor = stickyAccent,
-                                                    onClick = { coroutineScope.launch { pagerState.animateScrollToPage(index) } }
+                                                    onClick = { onSelectTab(index) }
                                                 )
                                             }
                                         }
@@ -311,50 +363,40 @@ fun DetailPageScaffold(
 
                                 // ── Sekme İçerikleri ──
                                 item(key = "content") {
+                                    /**
+                                     * ── KASMA FIX (2026-11-05) ────────────────────────────────
+                                     * Eski kod `pagerState.currentPageOffsetFraction` değerini
+                                     * KOMPOZİSYONDA okuyup sayfa yüksekliğini hesaplıyordu.
+                                     * `currentPageOffsetFraction` kaydırma boyunca her karede değiştiği
+                                     * için bu, parmağı hareket ettirdiğiniz HER KAREde `item(key = "content")`
+                                     * kapsamının (yani HorizontalPager + görünür sayfanın tamamının)
+                                     * yeniden kompoze edilmesi demekti. 245 görselli Resimler sekmesi
+                                     * açıkken bu, kare süresini 300–1200 ms'ye çıkarıyordu.
+                                     *
+                                     * Yeni yaklaşım: yükseklik `derivedStateOf` içinde tutulur ve
+                                     * YALNIZCA LAYOUT fazında (`Modifier.layout` içinde) okunur.
+                                     * Snapshot sisteminde layout fazındaki okuma sadece layout'u
+                                     * geçersiz kılar; kompozisyon atlanır. Böylece kaydırma
+                                     * sırasında sayfa içerikleri hiç yeniden kompoze olmaz.
+                                     */
                                     val pageHeights = remember { mutableStateMapOf<Int, Int>() }
-                                    val currentPage = pagerState.currentPage
-                                    val currentPageOffset = pagerState.currentPageOffsetFraction
-                                    val targetPage = when {
-                                        currentPageOffset > 0f -> currentPage + 1
-                                        currentPageOffset < 0f -> currentPage - 1
-                                        else -> currentPage
-                                    }
-                                    val currentHeightPx = pageHeights[currentPage] ?: 0
-                                    val targetHeightPx = pageHeights[targetPage] ?: currentHeightPx
-                                    val interpolatedHeightDp = remember(currentHeightPx, targetHeightPx, currentPageOffset) {
-                                        val heightPx = when {
-                                            currentHeightPx > 0 && targetHeightPx > 0 ->
-                                                currentHeightPx + (targetHeightPx - currentHeightPx) * kotlin.math.abs(currentPageOffset)
-                                            currentHeightPx > 0 -> currentHeightPx.toFloat()
-                                            else -> 0f
-                                        }
-                                        if (heightPx > 0f) with(density) { heightPx.toDp() } else null
-                                    }
-                                    val screenHeightDp = LocalConfiguration.current.screenHeightDp
+                                    val pagerHeightPxState = rememberDetailPagerContentHeightPx(pagerState, pageHeights)
+                                    val minPagerHeightPx = rememberDetailPagerMinHeightPx()
 
-                                    HorizontalPager(
-                                        state = pagerState,
-                                        userScrollEnabled = !isTv,
-                                        beyondViewportPageCount = 0,
-                                        pageSpacing = 12.dp,
-                                        verticalAlignment = Alignment.Top,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .layout { measurable, constraints ->
-                                                val minPagerHeightPx = with(density) { (screenHeightDp - 64).dp.roundToPx() }.coerceAtLeast(0)
-                                                val placeable = measurable.measure(
-                                                    constraints.copy(
-                                                        minHeight = minPagerHeightPx,
-                                                        maxHeight = androidx.compose.ui.unit.Constraints.Infinity
-                                                    )
-                                                )
-                                                val height = (interpolatedHeightDp?.roundToPx()
-                                                    ?.coerceAtLeast(minPagerHeightPx) ?: placeable.height)
-                                                    .coerceIn(minPagerHeightPx, 16_000_000)
-                                                layout(placeable.width, height) { placeable.placeRelative(0, 0) }
-                                            }
-                                            .clipToBounds()
-                                    ) { page ->
+                                    if (!pagerBodyReady) {
+                                        Spacer(modifier = Modifier.fillMaxWidth().height(600.dp))
+                                    } else {
+                                        HorizontalPager(
+                                            state = pagerState,
+                                            userScrollEnabled = !isTv,
+                                            beyondViewportPageCount = 0,
+                                            pageSpacing = 12.dp,
+                                            verticalAlignment = Alignment.Top,
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .detailPagerHeight(pagerHeightPxState, minPagerHeightPx)
+                                                .clipToBounds()
+                                        ) { page ->
                                         Box(
                                             modifier = Modifier
                                                 .fillMaxWidth()
@@ -369,9 +411,14 @@ fun DetailPageScaffold(
                                                             .recordStablePageHeight(pageHeights, page, it.size.height)
                                                     }
                                             ) {
-                                                pageContent(page)
+                                                CompositionLocalProvider(
+                                                    LocalDetailPagingActive provides (page == pagerState.settledPage)
+                                                ) {
+                                                    pageContent(page)
+                                                }
                                             }
                                         }
+                                    }
                                     }
 
                                     Spacer(modifier = Modifier.height(90.dp))

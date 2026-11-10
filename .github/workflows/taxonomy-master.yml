@@ -1,0 +1,135 @@
+name: 🧩 Ortak Taksonomi Doğrulama
+
+# Tür / etiket / kurum katmanı sözleşmesi.
+#
+# Neden üç katman:
+#   1. Python doğrulayıcı → sözlük tutarlılığı (K1–K9), dil dosyası eşitliği,
+#      Shikimori'nin resmî tür kapsamı, TR/EN içinde Kiril sızıntısı
+#   2. Üreteç `--check`     → dil dosyaları sözlükle uyumlu mu (elle düzenleme unutulmuş mu)
+#   3. JUnit                → gerçek davranış: `Экшен` ≡ `Action` ≡ `动作`, Kiril transliterasyonu,
+#                             kurum birleştirme, stüdyo/yapımcı tekrarı
+
+on:
+  push:
+    branches: ['arena/**', 'main']
+    paths:
+      - 'diag/taxonomy_master/**'
+      - 'scripts/check_taxonomy_master.py'
+      - 'scripts/audit_taxonomy_sources.py'
+      - 'scripts/sync_taxonomy_tag_strings.py'
+      - 'scripts/sync_bangumi_tag_strings.py'
+      - 'scripts/sync_org_latin_strings.py'
+      - 'scripts/gen_taxonomy_catalog.py'
+      - 'scripts/check_search_catalog.py'
+      - 'diag/bangumi_master/org_latin.tsv'
+      - 'app/src/main/resources/bangumi/tags.tsv'
+      - 'app/src/main/resources/bangumi/orgs.tsv'
+      - 'app/src/main/res/raw/taxonomy_catalog.json'
+      - 'app/src/main/java/com/kitsugi/animelist/ui/screens/search/**'
+      - 'app/src/main/java/com/kitsugi/animelist/utils/RussianTaxonomyDictionary.kt'
+      - 'app/src/main/java/com/kitsugi/animelist/utils/KitsugiTaxonomyLabels.kt'
+      - 'app/src/main/java/com/kitsugi/animelist/data/remote/KitsugiTaxonomyMerge.kt'
+      - 'app/src/main/java/com/kitsugi/animelist/data/remote/KitsugiTaxonomySources.kt'
+      - 'app/src/main/res/values/strings.xml'
+      - 'app/src/main/res/values-en/strings.xml'
+      - 'app/src/test/java/com/kitsugi/animelist/utils/TaxonomyLabelsTest.kt'
+      - '.github/workflows/taxonomy-master.yml'
+  pull_request:
+    paths:
+      - 'scripts/check_taxonomy_master.py'
+      - 'scripts/audit_taxonomy_sources.py'
+      - 'scripts/gen_taxonomy_catalog.py'
+      - 'scripts/check_search_catalog.py'
+      - 'app/src/main/res/raw/taxonomy_catalog.json'
+      - 'app/src/main/java/com/kitsugi/animelist/ui/screens/search/**'
+      - 'app/src/main/java/com/kitsugi/animelist/utils/RussianTaxonomyDictionary.kt'
+      - 'app/src/main/java/com/kitsugi/animelist/utils/KitsugiTaxonomyLabels.kt'
+      - 'app/src/main/java/com/kitsugi/animelist/data/remote/KitsugiTaxonomy*.kt'
+      - '.github/workflows/taxonomy-master.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: taxonomy-master-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: 🐍 Sözlük + dil dosyası denetimi
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: 📥 Repo klonla
+        uses: actions/checkout@v4
+
+      - name: 🔎 Taksonomi sözlüğü (K1–K9)
+        run: |
+          python3 scripts/check_taxonomy_master.py --worklist --json
+
+      - name: 🧭 Kaynak kapsama matrisi
+        run: |
+          # Her kaynak tür/etiket/kurum alanlarını okumaya devam ediyor mu?
+          python3 scripts/audit_taxonomy_sources.py --strict
+
+      - name: ♻️ Üreteç güncellik denetimi (--check)
+        run: |
+          set -euo pipefail
+          python3 scripts/sync_taxonomy_tag_strings.py --check
+          python3 scripts/sync_bangumi_tag_strings.py --check
+          python3 scripts/sync_org_latin_strings.py --check
+          python3 scripts/fix_cjk_ui_strings.py --check
+          python3 scripts/gen_taxonomy_catalog.py --check
+          python3 scripts/check_search_catalog.py --check
+          if ! git diff --quiet; then
+            echo "::error::Üreteç çıktısı depodan farklı — sync_*_tag_strings.py çalıştırıp commit edin"
+            git diff --stat
+            exit 1
+          fi
+
+      - name: 🌍 TR/EN kaynak eşitliği
+        run: python3 scripts/check_localization_resource_parity.py
+
+      - name: 🧾 İş listesini yükle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: taxonomy-worklist
+          path: diag/taxonomy_master/worklist.tsv
+          retention-days: 14
+
+  test:
+    name: 🧪 TaxonomyLabelsTest
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: 📥 Repo klonla
+        uses: actions/checkout@v4
+
+      - name: ☕ JDK 17 kur
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: 🤖 Gradle kur + önbellek
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: 📦 Eksik SDK paketlerini yükle
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "cmake;3.22.1" "platforms;android-36" "build-tools;36.0.0"
+
+      - name: 🧪 Birim testleri
+        run: |
+          chmod +x gradlew
+          set -o pipefail
+          ./gradlew :app:testFossDebugUnitTest --tests 'com.kitsugi.animelist.utils.TaxonomyLabelsTest' --stacktrace --console=plain 2>&1 | tee test.log
+        env:
+          GRADLE_OPTS: -Dfile.encoding=UTF-8
+
+      - name: 🩺 Test günlüğünü yükle
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: taxonomy-test-log
+          path: test.log
+          retention-days: 7

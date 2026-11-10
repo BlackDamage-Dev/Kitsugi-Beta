@@ -18,4 +18,5 @@ Updates are an explicit reviewed maintenance operation via `scripts/update_wiki_
 - Ghostery Adblocker: https://github.com/ghostery/adblocker — MPL-2.0.
   Reviewed browser integration and separation of request filtering/cosmetic filtering. Not embedded as an engine or dependency.
 
-`dom-translator.js`, `adblock-cosmetic.js` and the Kotlin coordinator/matcher were authored for Kitsugi. This implementation is not AdBlocker Ultimate, Chrome Translate or Brave Shields and does not claim their full coverage or rule-format compatibility.
+`dom-translator.js`, `adblock-cosmetic.js`, `page-appearance.js`, `page-fit.js` and the Kotlin
+coordinator/matcher were authored for Kitsugi. This implementation is not AdBlocker Ultimate, Chrome Translate or Brave Shields and does not claim their full coverage or rule-format compatibility.

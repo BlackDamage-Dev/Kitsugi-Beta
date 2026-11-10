@@ -1,5 +1,9 @@
-package com.kitsugi.animelist.ui.components
+﻿package com.kitsugi.animelist.ui.components
 
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
+import com.kitsugi.animelist.ui.theme.gradient.Icon
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.graphics.vector.ImageVector
 import com.kitsugi.animelist.ui.utils.localizedLabel
 import com.kitsugi.animelist.ui.theme.gradient.background
 import androidx.compose.foundation.layout.Arrangement
@@ -15,7 +19,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import com.kitsugi.animelist.ui.theme.gradient.Text
@@ -154,7 +158,7 @@ fun KitsugiMediaEntryDetailDialog(
                     Column(
                         modifier = Modifier
                             .width(180.dp)
-                            .verticalScroll(rememberScrollState()),
+                            .kitsugiVerticalScroll(rememberScrollState()),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
@@ -221,7 +225,7 @@ fun KitsugiMediaEntryDetailDialog(
                     Column(
                         modifier = Modifier
                             .weight(1f)
-                            .verticalScroll(rememberScrollState()),
+                            .kitsugiVerticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Text(
@@ -252,7 +256,8 @@ fun KitsugiMediaEntryDetailDialog(
 
                             if (entry.isFavorite) {
                                 DetailPill(
-                                    text = "★ Favori",
+                                    text = stringResource(R.string.favori_label),
+                                    icon = Icons.HeartSolid,
                                     color = accentColor
                                 )
                             }
@@ -280,7 +285,7 @@ fun KitsugiMediaEntryDetailDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(max = 620.dp)
-                        .verticalScroll(rememberScrollState())
+                        .kitsugiVerticalScroll(rememberScrollState())
                 ) {
                     DetailPoster(
                         entry = entry,
@@ -324,7 +329,8 @@ fun KitsugiMediaEntryDetailDialog(
 
                         if (entry.isFavorite) {
                             DetailPill(
-                                text = "★ Favori",
+                                text = stringResource(R.string.favori_label),
+                                icon = Icons.HeartSolid,
                                 color = accentColor
                             )
                         }
@@ -628,7 +634,8 @@ private fun DetailInfoRow(
 @Composable
 private fun DetailPill(
     text: String,
-    color: Color
+    color: Color,
+    icon: ImageVector? = null
 ) {
     Box(
         modifier = Modifier
@@ -636,12 +643,25 @@ private fun DetailPill(
             .background(color.copy(alpha = 0.16f))
             .padding(horizontal = 10.dp, vertical = 6.dp)
     ) {
-        Text(
-            text = text,
-            color = color,
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.Bold
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = color,
+                    modifier = Modifier.size(12.dp)
+                )
+            }
+            Text(
+                text = text,
+                color = color,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold
+            )
+        }
     }
 }
 

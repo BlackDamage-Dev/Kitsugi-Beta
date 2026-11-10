@@ -9,33 +9,71 @@ class SourceConfigStore(context: Context) {
     private val prefs = context.getSharedPreferences("manga_source_config", Context.MODE_PRIVATE)
 
     fun getActiveDomain(source: MangaSource): String? {
-        return prefs.getString(key(source, KEY_ACTIVE_DOMAIN), null)
+        val stored = prefs.getString(key(source, KEY_ACTIVE_DOMAIN), null)
             ?.trim()
             ?.takeIf { it.isNotBlank() }
+            ?: return null
+
+        // Eski sürümlerde SourceMirrorResolver 403/503 yanıtlarını "erişilebilir"
+        // sayıp Manga-TR için mangatr.net / manga-tr.net gibi ilgisiz alan adlarını
+        // otomatik kaydetmişti. Kullanıcı elle girmediyse bu kirli kaydı temizle.
+        if (MangaTrCompat.isMangaTr(source) &&
+            !isUserExplicitDomain(source) &&
+            !isMangaTrHost(stored)
+        ) {
+            prefs.edit()
+                .remove(key(source, KEY_ACTIVE_DOMAIN))
+                .remove(key(source, KEY_USER_DOMAIN_EXPLICIT))
+                .apply()
+            return null
+        }
+
+        return stored
     }
 
-    fun setActiveDomain(source: MangaSource, domain: String?) {
+    fun isUserExplicitDomain(source: MangaSource): Boolean =
+        prefs.getBoolean(key(source, KEY_USER_DOMAIN_EXPLICIT), false)
+
+    fun setActiveDomain(source: MangaSource, domain: String?, userExplicit: Boolean = false) {
         prefs.edit().apply {
             if (domain.isNullOrBlank()) {
                 remove(key(source, KEY_ACTIVE_DOMAIN))
+                remove(key(source, KEY_USER_DOMAIN_EXPLICIT))
             } else {
                 putString(key(source, KEY_ACTIVE_DOMAIN), sanitizeDomain(domain))
+                putBoolean(key(source, KEY_USER_DOMAIN_EXPLICIT), userExplicit)
             }
         }.apply()
     }
 
     fun setActiveDomainValidated(source: MangaSource, domain: String?): Boolean {
         if (domain.isNullOrBlank()) {
-            setActiveDomain(source, null)
+            setActiveDomain(source, null, userExplicit = false)
             return true
         }
         val normalized = validateDomain(domain) ?: return false
-        setActiveDomain(source, normalized)
+        setActiveDomain(source, normalized, userExplicit = true)
         return true
     }
 
+    /**
+     * ⚠️ ÖZYİNYELEME KORUMASI (2026-11-10 çökmesi — Issue B)
+     *
+     * Eski hâli `source.baseUrl` okuyordu. `baseUrl` bazı kaynaklarda (MihonSourceWrapper)
+     * dinamik bir getter'dır ve **bu depoya** geri döner:
+     *
+     *     getPreferredBaseUrl() → source.baseUrl → wrapper.baseUrl
+     *         → getPreferredBaseUrl(this, raw) → getActiveDomain() → key() → …
+     *
+     * Yeni hâlde yalnızca değişmez `originalBaseUrl` okunur; zincir burada kapanır.
+     * `originalBaseUrl`'i de dinamik olan bir kaynak olsa bile derinlik sayacı devrededir.
+     */
     fun getPreferredBaseUrl(source: MangaSource): String? {
-        return getPreferredBaseUrl(source, source.baseUrl)
+        val raw = runCatching { source.originalBaseUrl }.getOrNull()
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+            ?: return null
+        return getPreferredBaseUrl(source, raw)
     }
 
     fun getPreferredBaseUrl(source: MangaSource, rawBaseUrl: String): String? {
@@ -84,6 +122,7 @@ class SourceConfigStore(context: Context) {
     fun clearAllForSource(source: MangaSource) {
         prefs.edit()
             .remove(key(source, KEY_ACTIVE_DOMAIN))
+            .remove(key(source, KEY_USER_DOMAIN_EXPLICIT))
             .remove(key(source, KEY_SLOWDOWN_ENABLED))
             .remove(key(source, KEY_USER_AGENT))
             .apply()
@@ -114,12 +153,38 @@ class SourceConfigStore(context: Context) {
             .lowercase(Locale.ROOT)
     }
 
+    /**
+     * ⚠️ ÖZYİNYELEME (RECURSION) KALKANI
+     * ───────────────────────────────────
+     * `stableSourceKey()` kaynağın adresini okur; kaynağın adresi de (MihonSourceWrapper)
+     * bu depodan aktif alan adını ister. Tek bir hatalı/dinamik getter bu zinciri
+     * `StackOverflowError` ile süreç ölümüne çevirir (2026-11-10 raporu).
+     *
+     * Derinlik sayacı sayesinde döngü tespit edilirse kimlik, ağ erişimi olmayan
+     * güvenli bir ada düşer; uygulama çökmez, en fazla o kaynağın ayarı okunamaz.
+     */
     private fun key(source: MangaSource, suffix: String): String {
-        return "${source.stableSourceKey()}::$suffix"
+        val depth = keyDepth.get()
+        if (depth >= MAX_KEY_DEPTH) {
+            val fallback = "${source.lang.lowercase(Locale.ROOT)}|${source.name.trim().lowercase(Locale.ROOT)}"
+            return "$fallback::$suffix"
+        }
+        keyDepth.set(depth + 1)
+        return try {
+            "${source.stableSourceKey()}::$suffix"
+        } finally {
+            keyDepth.set(depth)
+        }
     }
 
+    private val keyDepth = ThreadLocal.withInitial { 0 }
+
     private companion object {
+        /** Aynı thread'de izin verilen en fazla iç içe anahtar üretimi. */
+        const val MAX_KEY_DEPTH = 4
+
         const val KEY_ACTIVE_DOMAIN = "active_domain"
+        const val KEY_USER_DOMAIN_EXPLICIT = "user_domain_explicit"
         const val KEY_SLOWDOWN_ENABLED = "slowdown_enabled"
         const val KEY_USER_AGENT = "user_agent"
     }

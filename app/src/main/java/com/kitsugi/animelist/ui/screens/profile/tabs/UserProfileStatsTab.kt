@@ -13,13 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.BarChart
-import androidx.compose.material.icons.rounded.Groups
-import androidx.compose.material.icons.rounded.Label
-import androidx.compose.material.icons.rounded.Movie
-import androidx.compose.material.icons.rounded.Person
-import androidx.compose.material.icons.rounded.Sell
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.MaterialTheme
 import com.kitsugi.animelist.ui.theme.gradient.Text
 import androidx.compose.runtime.Composable
@@ -71,7 +65,7 @@ fun UserProfileStatsTab(
             KitsugiStatsCard {
                 KitsugiStatsCardHeader(
                     title = stringResource(R.string.profile_stats_general),
-                    icon = Icons.Rounded.BarChart,
+                    icon = Icons.BarChart,
                     subtitle = stringResource(R.string.profile_tab_statistics),
                     accentColor = accentColor
                 )
@@ -125,11 +119,11 @@ fun UserProfileStatsTab(
             else -> stringResource(R.string.detail_section_studios)
         }
         val rankedIcon = when (statsSubTab) {
-            1 -> Icons.Rounded.Movie
-            2 -> Icons.Rounded.Label
-            3 -> Icons.Rounded.Groups
-            4 -> Icons.Rounded.Person
-            else -> Icons.Rounded.Sell
+            1 -> Icons.Movie
+            2 -> Icons.Label
+            3 -> Icons.Groups
+            4 -> Icons.Person
+            else -> Icons.Sell
         }
 
         Column(

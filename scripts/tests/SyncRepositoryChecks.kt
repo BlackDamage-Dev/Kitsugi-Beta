@@ -28,6 +28,7 @@ private class MemoryMediaDao(entries: List<MediaEntry> = emptyList()) : MediaEnt
     override suspend fun deleteByIds(ids: List<Int>) { rows.removeAll { it.id in ids } }
     override suspend fun deleteBySource(source: String) { rows.removeAll { it.source == source } }
     override suspend fun deleteAll() { rows.clear() }
+    override suspend fun deletePendingSyncJobs(ids: List<Int>) { /* queue is owned by MemoryQueue in these checks */ }
     override suspend fun replaceAllTransaction(entities: List<MediaEntryEntity>) {
         replaceInvocations++; super.replaceAllTransaction(entities)
     }

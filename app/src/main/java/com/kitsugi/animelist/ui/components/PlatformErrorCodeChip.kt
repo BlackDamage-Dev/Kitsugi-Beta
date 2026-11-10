@@ -19,6 +19,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.kitsugi.animelist.data.platform.ListPlatform
 import com.kitsugi.animelist.data.platform.PlatformErrorCode
 import com.kitsugi.animelist.data.platform.PlatformErrorSeverity
 import com.kitsugi.animelist.ui.theme.KitsugiColors
@@ -28,20 +29,26 @@ import com.kitsugi.animelist.ui.theme.KitsugiColors
  *
  * Yükleme ekranı gibi dar alanlarda kullanılır; tam neden/çözüm metni için
  * [PlatformErrorExplanationBlock] kullanılır.
+ *
+ * [platform] verilirse rozet, kod genel olsa bile (`KTS-COM-…`) hatanın hangi
+ * kaynaktan geldiğini `Kitsu · …` biçiminde gösterir.
  */
 @Composable
 fun PlatformErrorCodeChip(
     code: PlatformErrorCode,
     modifier: Modifier = Modifier,
+    platform: ListPlatform? = null,
 ) {
     val tint = code.severity.chipTint()
     val title = stringResource(code.titleRes)
+    val platformLabel = if (platform != null) stringResource(platform.labelRes) else null
+    val friendlyTitle = if (platformLabel != null) "$platformLabel · $title" else title
     Row(
         modifier = modifier
             .clip(RoundedCornerShape(999.dp))
             .background(tint.copy(alpha = 0.12f))
             .border(1.dp, tint.copy(alpha = 0.35f), RoundedCornerShape(999.dp))
-            .semantics { contentDescription = "${code.code}: $title" }
+            .semantics { contentDescription = "${code.code}: $friendlyTitle" }
             .padding(horizontal = 10.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -55,7 +62,7 @@ fun PlatformErrorCodeChip(
             overflow = TextOverflow.Clip,
         )
         Text(
-            text = title,
+            text = friendlyTitle,
             color = KitsugiColors.TextSecondary,
             fontSize = 10.sp,
             fontWeight = FontWeight.SemiBold,

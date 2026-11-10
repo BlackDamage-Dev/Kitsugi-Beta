@@ -1,6 +1,10 @@
 package com.kitsugi.animelist.data.settings
 
 import com.kitsugi.animelist.ui.screens.fullscreen.AudioChannels
+import com.kitsugi.animelist.data.manga.MangaWebtoonPreferences
+
+internal fun normalizeMangaBrightness(value: Float): Float =
+    if (value.isFinite()) value.coerceIn(0.1f, 1f) else 1f
 
 /**
  * Uygulama ayarları grup modelleri ve birleşik [AppSettings] cephesi.
@@ -34,10 +38,10 @@ data class ProfileAndListSettings(
     val bangumiProfileImageUri: String = "",
     val profileImageUri: String = "",
     val bannerImageUri: String = "",
-    val titleLanguage: String = "ROMAJI",
+    val titleLanguage: String = "ENGLISH",
     val scoreFormat: String = "POINT_10",
     val scoreStep: String = "1",
-    val staffNameLanguage: String = "ROMAJI",
+    val staffNameLanguage: String = "ENGLISH",
     val separatedListStyle: Boolean = true,
     val showLowPriority: Boolean = false,
     val priorityColorsJson: String = "",
@@ -49,6 +53,7 @@ data class ProfileAndListSettings(
     val hideScores: Boolean = false,
     val showAnimeLogos: Boolean = false,
     val accountBackupEnabled: Boolean = true,
+    val accountAddonSyncEnabled: Boolean = true,
     val accountSearchSyncEnabled: Boolean = true,
     val accountNotificationSyncEnabled: Boolean = true,
     val syncEnabledAnilist: Boolean = false,
@@ -56,7 +61,8 @@ data class ProfileAndListSettings(
     val syncEnabledSimkl: Boolean = false,
     val syncEnabledKitsu: Boolean = false,
     val syncEnabledShikimori: Boolean = false,
-    val syncEnabledBangumi: Boolean = false
+    val syncEnabledBangumi: Boolean = false,
+    val syncEnabledTmdb: Boolean = false
 )
 
 data class ThemeAndAppUiSettings(
@@ -140,11 +146,33 @@ data class PlayerOverlaySettings(
     val preserveWatchingPosition: Boolean = true,
     val defaultPlayerOrientation: String = "SENSOR_LANDSCAPE",
     val pipEpisodeToasts: Boolean = true,
-    val pipOnExit: Boolean = true
+    val pipOnExit: Boolean = true,
+
+    // ─── Otomatik liste takibi (oynatıcı → liste) — DENEYSEL, VARSAYILAN KAPALI ─
+    /**
+     * Oynatma başladığında içerik otomatik olarak "İzleniyor"a çekilsin mi?
+     *
+     * **Varsayılan `false`.** Deneysel özellik: kullanıcı Ayarlar → Deneysel bölümünden
+     * elle açıp onay penceresini kabul etmedikçe hiçbir liste/geçmiş yazımı yapılmaz.
+     */
+    val autoTrackEnabled: Boolean = false,
+    /** Listede olmayan içerik oynatılınca otomatik eklensin mi? */
+    val autoTrackAddNew: Boolean = true,
+    /** "Bırakıldı" işaretli kayıtlar otomatik takiple ezilmesin. */
+    val autoTrackRespectDropped: Boolean = true,
+    /** Bitişte küçük "hızlı puanla" çubuğu çıksın mı? */
+    val quickRateEnabled: Boolean = true,
+    /** Çubuğun ekranda kalma süresi (saniye). */
+    val quickRateSeconds: Int = 20,
+    /** Otomatik değişiklikler bağlı tüm platformlara yayılsın mı? */
+    val autoTrackSyncSources: Boolean = true,
+    /** Otomatik takip için en kısa video süresi (saniye) — klipler/fragmanlar hariç. */
+    val autoTrackMinSeconds: Int = 60
 )
 
 data class MpvAndSubtitleSettings(
     val defaultSubtitleSize: Int = 16,
+    val subtitleFontSize: Int = 45,
     val defaultSubtitleColor: Int = 0xFFFFFFFF.toInt(),
     val subtitleBold: Boolean = false,
     val subtitleOutlineEnabled: Boolean = true,
@@ -160,6 +188,11 @@ data class MpvAndSubtitleSettings(
     val audioPitchCorrection: Boolean = true,
     val mpvGpuRenderer: String = "gpu",
     val mpvHwdecMode: String = "auto-safe",
+    /**
+     * Dolby Vision içerikte vo/hwdec'i otomatik düzeltir: gpu-next + (P5/bilinmeyen
+     * profilde) yazılım çözme. Kapatılırsa kullanıcının kendi MPV ayarları aynen kalır.
+     */
+    val mpvDolbyVisionAutoFix: Boolean = true,
     val mpvDebandMode: String = "none",
     val mpvForceYuv420p: Boolean = false,
     val mpvDemuxerCacheMb: Int = 64,
@@ -239,8 +272,64 @@ data class IntegrationsAndNotificationsSettings(
     val mdbListShowTrakt: Boolean = false,
     val fanartTvApiKey: String = "",
     val fanartTvEnabled: Boolean = true,
-    val wikiPageTheme: String = "SITE",
+    // ─── Okuyucu Ortam Sesi (Ambient) ───────────────────────────────────────
+    val musicEnabled: Boolean = true,
+    val musicAutoRecommend: Boolean = true,
+    val musicMasterVolume: Float = 0.8f,
+    val musicChannelVolume: Float = 0.5f,
+    val musicAmbientVolume: Float = 0.6f,
+    /** Okuyucudan çıkınca ses devam etsin (ön plan servisi). Varsayılan: açık. */
+    val musicContinueOnExit: Boolean = true,
+    val musicJamendoEnabled: Boolean = false,
+    val musicJamendoClientId: String = "",
+    val musicFreesoundEnabled: Boolean = false,
+    val musicFreesoundApiKey: String = "",
+    val musicOpenverseEnabled: Boolean = true,
+    val musicOpenverseToken: String = "",
+    val musicArchiveEnabled: Boolean = true,
+    /** Audius anahtarsız da çalışır; anahtar girilirse kota yükselir. */
+    val musicAudiusEnabled: Boolean = true,
+    val musicAudiusApiKey: String = "",
+    val musicLastPresetId: String = "",
+
+    // ─── Otomatik çalma davranışı ────────────────────────────────────────
+    /**
+     * Okuyucu açılınca içeriğe uygun ses otomatik başlasın mı.
+     *
+     * `musicEnabled` + `musicAutoRecommend` ile birlikte üçlü bir kapı:
+     *  - musicEnabled = false        → hiçbir şey çalmaz
+     *  - musicAutoRecommend = false  → öneri hesaplanmaz
+     *  - musicAutoPlay = true        → hesaplanan öneri otomatik başlar
+     */
+    val musicAutoPlay: Boolean = false,
+    /** Okuyucu açıldıktan sonra sesin başlaması için gecikme (saniye). */
+    val musicAutoPlayDelaySeconds: Int = 3,
+    /** Otomatik başlatılan sesin seviyesi (0.05..1.0). */
+    val musicAutoPlayVolume: Float = 0.6f,
+    /** Yalnızca kablolu kulaklık / Bluetooth bağlıyken otomatik çal. */
+    val musicAutoPlayHeadphonesOnly: Boolean = false,
+    /**
+     * Cihaz sessiz / titreşim modundayken otomatik çalmayı engelle.
+     *
+     * ⚠️ Varsayılan **false**: telefon sessizdeyken medya sesi zaten
+     * kısılmaz; bu kapı açık olsaydı kullanıcı "otomatik başlat açık ama
+     * ses yok" durumuyla karşılaşırdı. İsteyen panelden açar.
+     */
+    val musicAutoPlayMuteOnSilentDevice: Boolean = false,
+    /**
+     * Otomatik başlatmada **çevrimiçi kaynaklar** da kullanılsın mı.
+     *
+     * `false` (varsayılan): yalnızca cihaz içi prosedürel sesler — anında,
+     * çevrimdışı, veri harcamaz.
+     * `true`: içerik duygusuna uygun parça, etkin çevrimiçi kaynaklarda
+     * (Openverse/Archive/Audius/Jamendo/Freesound) aranır; sonuç gelmezse
+     * sessizce prosedürel karışıma düşülür.
+     */
+    val musicAutoPlayIncludeOnline: Boolean = false,
+    val wikiPageTheme: String = "APP",
     val wikiTextZoom: Int = 100,
+    /** Wiki açılır sayfası son seçilen düzeni hatırlar; varsayılan MOBİL düzendir. */
+    val wikiDesktopLayout: Boolean = false,
     val wikiAdBlockDisabledHosts: Set<String> = emptySet(),
     val autoTranslateEnabled: Boolean = false,
     val preferredTranslator: String = "DEFAULT",
@@ -252,14 +341,98 @@ data class IntegrationsAndNotificationsSettings(
     val simklNotificationsEnabled: Boolean = false,
     val kitsuNotificationsEnabled: Boolean = false,
     val shikimoriNotificationsEnabled: Boolean = false,
+    val tmdbNotificationsEnabled: Boolean = false,
+    /**
+     * Bangumi bildirimleri. Bangumi'nin bildirim ucu yok; kayıtlar "在 看" koleksiyonu
+     * + yayın takvimi eşleşmesinden üretilir. Diğer kaynaklar gibi ayrı anahtar olması
+     * kullanıcının Bangumi'yi tek başına açıp kapatabilmesini sağlar.
+     */
+    val bangumiNotificationsEnabled: Boolean = false,
     val notificationInterval: Int = 180
 )
 
 data class DownloadAndMangaSettings(
     val mangaReadingMode: String = "RightToLeft",
     val mangaColorFilter: String = "Normal",
+    val mangaSaturation: Int = 100,
+    val mangaContrast: Int = 100,
+    val mangaHue: Int = 0,
     val mangaFitMode: String = "FitScreen",
     val mangaBrightness: Float = 1.0f,
+    /**
+     * Manga okuyucunun tamamlanmış ayar seti (tek doğruluk kaynağı).
+     * Diğer alanlar geriye dönük uyum için korunur ve bu nesneyle senkron yazılır.
+     */
+    val mangaReaderOptions: com.kitsugi.animelist.data.manga.MangaReaderOptions =
+        com.kitsugi.animelist.data.manga.MangaReaderOptions(),
+    /**
+     * Manga bazlı okuma biçimi hatırlama: `mangaUrl → readingShape` (tek harita).
+     * `MangaReaderOptions.perMangaMode` açıkken doldurulur.
+     */
+    val mangaReaderPresets: Map<String, String> = emptyMap(),
+    /** Okurken ekranın kapanmasını engelle (webtoon okurken çok işe yarar). */
+    val mangaKeepScreenOn: Boolean = true,
+    /** Okuyucu açıldığında sistem barlarını (durum/gezinme) otomatik gizle. */
+    val mangaAutoFullscreen: Boolean = true,
+    val mangaImmersive: Boolean = false,
+    val mangaWebtoonPadding: Int = 0,
+    val mangaWebtoonGap: Int = 0,
+    val mangaShowPageNumber: Boolean = true,
+    val mangaWebtoon: MangaWebtoonPreferences = MangaWebtoonPreferences(),
+    /**
+     * Bölüm listesi sıralaması — `ChapterSortMode` adı.
+     *
+     * Varsayılan `"OldestFirst"`: liste **1'den** başlar ve numara büyüyerek gider.
+     * Kullanıcı isterse "Yeni → Eski" seçebilir; tercih kalıcıdır.
+     */
+    val mangaChapterSort: String = "OldestFirst",
+    /** Bölüm satırı etiket biçimi: `"Number"` (Bölüm 42) veya `"Title"`. */
+    val mangaChapterDisplayMode: String = "Number",
+    /** Bölüm sonuna gelince okunmuş bölümleri atlayıp sonrakine geç. */
+    val mangaSkipReadChapters: Boolean = false,
+    /** Bölüm bitince otomatik olarak sonraki bölüme geç. */
+    val mangaAutoAdvanceChapter: Boolean = false,
+    val mangaWebtoonAutoNext: Boolean = false,
+    /** Yer imli (★) bölümlerin URL listesi — virgülle ayrılmış. */
+    val mangaBookmarkedChapters: String = "",
+    /**
+     * Sayfa kenarındaki taranmış boşluğu kırp (Mihon'daki "crop borders").
+     *
+     * Özellikle eski taramalarda kenarlarda 20-40 px siyah/beyaz şerit olur; kırpma
+     * sayfayı ekrana daha büyük sığdırır.
+     */
+    val mangaCropBorders: Boolean = false,
+    val mangaCropBordersWebtoon: Boolean = false,
+    val mangaWebtoonZoom: Boolean = false,
+    val mangaWideRotation: String = "Off",
+    val mangaWideRotationWebtoon: String = "Off",
+    val mangaInvertTapZones: Boolean = false,
+    val mangaTapLayout: String = "Default",
+    val mangaTapGrid: String = "PMNPMNPMN",
+    val mangaLongTapGrid: String = "XXXXXXXXX",
+    val mangaWebtoonTapScroll: Boolean = true,
+    val mangaReaderBackground: String = "Black",
+    val mangaDoublePage: Boolean = false,
+    val mangaCoverAlone: Boolean = false,
+    val mangaDualPage: Boolean = false,
+    val mangaDualPageFirstSolo: Boolean = true,
+    val mangaStitchDualPages: Boolean = true,
+    val mangaAutoScrollSpeed: Int = 160,
+    val mangaHiddenPageCounter: Boolean = true,
+    val mangaWebtoonAutoScrollSpeed: Int = 32,
+    val mangaWebtoonScrollPercent: Int = 90,
+    val mangaPreloadAhead: Int = -1,
+    val mangaVolumeKeys: Boolean = false,
+    val mangaInvertVolumeKeys: Boolean = false,
+    // ─── Kaynak arama dili ────────────────────────────────────────────────────
+    /**
+     * Manga/manhwa/manhua kaynaklarında arama hangi adla yapılsın:
+     * "ENGLISH" | "ROMAJI" | "NATIVE" | "LOCAL".
+     * (Kullanıcı şikâyeti: "Oku" butonu başlık dili ayarına uymuyordu.)
+     */
+    val mangaSearchTitleLanguage: String = "ENGLISH",
+    /** true → arama dili, genel "Başlık Dili" ayarını takip eder. */
+    val mangaSearchFollowTitleLanguage: Boolean = true,
     val customImageDownloadUri: String = "",
     val videoDownloadUri: String = "",
     val downloaderPreference: String = "INTERNAL",
@@ -289,6 +462,46 @@ data class DownloadAndMangaSettings(
     val subtitleDownloadLanguages: String = "tr"
 )
 
+/**
+ * Klavye ve gamepad destekli oynatıcı kısayolları.
+ *
+ * Tek bir grup altında toplanmasının nedeni, `AppSettings` cephesinin Dalvik
+ * 255-yazmaç sınırına dokunmadan genişleyebilmesi (bkz. dosya başındaki mimari not).
+ *
+ * [PlayerShortcutAction] adları `disabledShortcuts` içinde **virgülle ayrılmış**
+ * tutulur; `Set<String>` DataStore'da doğrudan saklanamıyor.
+ * [customBindings] biçimi: `"shift+keycode22=F,keycode66=PLAY_PAUSE"` — küçük ve
+ * insan tarafından okunabilir, bozulursa sessizce yok sayılır.
+ */
+data class PlayerKeyboardSettings(
+    /** Özel klavye kısayolları açık mı? Kapalıyken oynatıcı klavye olaylarını MPV'ye bırakır. */
+    val keyboardEnabled: Boolean = true,
+    /** Harici klavye/gamepad takılıyken kısayollar devreye girsin mi (otomatik algılama). */
+    val autoDetectExternalKeyboard: Boolean = true,
+    /** Tuş basımında aksiyon göstergesi (küçük OSD) çizilsin mi? */
+    val keyboardOsdEnabled: Boolean = true,
+    /** Gösterge süresi çarpanı (0,5× … 2×). Varsayılan 1×. */
+    val keyboardOsdDurationScale: Float = 1f,
+    /** Tam OSD (üst/alt bar) klavyeyle açılsın mı? Varsayılan HAYIR: sadece gösterge. */
+    val keyboardOpensFullOsd: Boolean = false,
+    /** Kısayol yardım ekranı (?) açılabilsin mi? */
+    val keyboardHelpEnabled: Boolean = true,
+    /** Kullanıcının kapattığı eylemler, ör. "EXIT,SCREENSHOT". */
+    val disabledShortcuts: String = "",
+    /** Kullanıcının özel tuş eşlemeleri (boşsa varsayılan tablo geçerlidir). */
+    val customBindings: String = "",
+    /** Gamepad (oyun kolu) kısayolları açık mı? */
+    val gamepadEnabled: Boolean = true,
+    /** Normal arama adımı (sn) — ← / → tuşları. Varsayılan 5 sn. */
+    val keyboardSeekStepSeconds: Int = 5,
+    /** Hassas arama adımı (sn) — Shift + ← / →. Varsayılan 1 sn. */
+    val keyboardPreciseSeekSeconds: Int = 1,
+    /** Uzun arama adımı (sn) — ↑ / ↓. Varsayılan 60 sn. */
+    val keyboardLargeSeekSeconds: Int = 60,
+    /** Tuşa basılı tutulduğunda arama adımının katlanarak hızlanması. */
+    val keyboardHoldToAccelerate: Boolean = true
+)
+
 data class AppSettings(
     val profile: ProfileAndListSettings = ProfileAndListSettings(),
     val themeUi: ThemeAndAppUiSettings = ThemeAndAppUiSettings(),
@@ -297,7 +510,8 @@ data class AppSettings(
     val mpvSubtitle: MpvAndSubtitleSettings = MpvAndSubtitleSettings(),
     val gestures: GestureAndSkipSettings = GestureAndSkipSettings(),
     val integrations: IntegrationsAndNotificationsSettings = IntegrationsAndNotificationsSettings(),
-    val downloads: DownloadAndMangaSettings = DownloadAndMangaSettings()
+    val downloads: DownloadAndMangaSettings = DownloadAndMangaSettings(),
+    val keyboard: PlayerKeyboardSettings = PlayerKeyboardSettings()
 ) {
     val selectedThemeId: String get() = themeUi.selectedThemeId
     val showAdultContent: Boolean get() = themeUi.showAdultContent
@@ -340,6 +554,7 @@ data class AppSettings(
     val isAutoplayEnabled: Boolean get() = playback.isAutoplayEnabled
     val skipIntroDurationSec: Int get() = playback.skipIntroDurationSec
     val defaultSubtitleSize: Int get() = mpvSubtitle.defaultSubtitleSize
+    val subtitleFontSize: Int get() = mpvSubtitle.subtitleFontSize
     val defaultSubtitleColor: Int get() = mpvSubtitle.defaultSubtitleColor
     val subtitleBold: Boolean get() = mpvSubtitle.subtitleBold
     val subtitleOutlineEnabled: Boolean get() = mpvSubtitle.subtitleOutlineEnabled
@@ -351,9 +566,52 @@ data class AppSettings(
     val bufferForPlaybackAfterRebufferMs: Int get() = playback.bufferForPlaybackAfterRebufferMs
     val backBufferDurationMs: Int get() = playback.backBufferDurationMs
     val mangaReadingMode: String get() = downloads.mangaReadingMode
+    val mangaWebtoon: MangaWebtoonPreferences get() = downloads.mangaWebtoon
     val mangaColorFilter: String get() = downloads.mangaColorFilter
+    val mangaSaturation: Int get() = downloads.mangaSaturation
+    val mangaContrast: Int get() = downloads.mangaContrast
+    val mangaHue: Int get() = downloads.mangaHue
     val mangaFitMode: String get() = downloads.mangaFitMode
     val mangaBrightness: Float get() = downloads.mangaBrightness
+    val mangaReaderOptions: com.kitsugi.animelist.data.manga.MangaReaderOptions get() = downloads.mangaReaderOptions
+    val mangaReaderPresets: Map<String, String> get() = downloads.mangaReaderPresets
+    val mangaKeepScreenOn: Boolean get() = downloads.mangaKeepScreenOn
+    val mangaAutoFullscreen: Boolean get() = downloads.mangaAutoFullscreen
+    val mangaImmersive: Boolean get() = downloads.mangaImmersive
+    val mangaChapterSort: String get() = downloads.mangaChapterSort
+    val mangaChapterDisplayMode: String get() = downloads.mangaChapterDisplayMode
+    val mangaSkipReadChapters: Boolean get() = downloads.mangaSkipReadChapters
+    val mangaAutoAdvanceChapter: Boolean get() = downloads.mangaAutoAdvanceChapter
+    val mangaWebtoonAutoNext: Boolean get() = downloads.mangaWebtoonAutoNext
+    val mangaBookmarkedChapters: String get() = downloads.mangaBookmarkedChapters
+    val mangaCropBorders: Boolean get() = downloads.mangaCropBorders
+    val mangaCropBordersWebtoon: Boolean get() = downloads.mangaCropBordersWebtoon
+    val mangaWebtoonZoom: Boolean get() = downloads.mangaWebtoonZoom
+    val mangaWideRotation: String get() = downloads.mangaWideRotation
+    val mangaWideRotationWebtoon: String get() = downloads.mangaWideRotationWebtoon
+    val mangaInvertTapZones: Boolean get() = downloads.mangaInvertTapZones
+    val mangaTapLayout: String get() = downloads.mangaTapLayout
+    val mangaTapGrid: String get() = downloads.mangaTapGrid
+    val mangaLongTapGrid: String get() = downloads.mangaLongTapGrid
+    val mangaWebtoonTapScroll: Boolean get() = downloads.mangaWebtoonTapScroll
+    val mangaReaderBackground: String get() = downloads.mangaReaderBackground
+    val mangaDoublePage: Boolean get() = downloads.mangaDoublePage
+    val mangaCoverAlone: Boolean get() = downloads.mangaCoverAlone
+    val mangaDualPage: Boolean get() = downloads.mangaDualPage
+    val mangaDualPageFirstSolo: Boolean get() = downloads.mangaDualPageFirstSolo
+    val mangaStitchDualPages: Boolean get() = downloads.mangaStitchDualPages
+    val mangaAutoScrollSpeed: Int get() = downloads.mangaAutoScrollSpeed
+    val mangaHiddenPageCounter: Boolean get() = downloads.mangaHiddenPageCounter
+    val mangaWebtoonAutoScrollSpeed: Int get() = downloads.mangaWebtoonAutoScrollSpeed
+    val mangaWebtoonScrollPercent: Int get() = downloads.mangaWebtoonScrollPercent
+    val mangaPreloadAhead: Int get() = downloads.mangaPreloadAhead
+    val mangaVolumeKeys: Boolean get() = downloads.mangaVolumeKeys
+    val mangaInvertVolumeKeys: Boolean get() = downloads.mangaInvertVolumeKeys
+    val mangaWebtoonPadding: Int get() = downloads.mangaWebtoonPadding
+    val mangaWebtoonGap: Int get() = downloads.mangaWebtoonGap
+    val mangaShowPageNumber: Boolean get() = downloads.mangaShowPageNumber
+    val mangaSearchTitleLanguage: String get() = downloads.mangaSearchTitleLanguage
+    val mangaSearchFollowTitleLanguage: Boolean get() = downloads.mangaSearchFollowTitleLanguage
     val dnsChoice: Int get() = integrations.dnsChoice
     val useGithubProxy: Boolean get() = integrations.useGithubProxy
     val tmdbEnabled: Boolean get() = integrations.tmdbEnabled
@@ -389,6 +647,7 @@ data class AppSettings(
     val animeSkipClientId: String get() = gestures.animeSkipClientId
     val wikiPageTheme: String get() = integrations.wikiPageTheme
     val wikiTextZoom: Int get() = integrations.wikiTextZoom
+    val wikiDesktopLayout: Boolean get() = integrations.wikiDesktopLayout
     val wikiAdBlockDisabledHosts: Set<String> get() = integrations.wikiAdBlockDisabledHosts
     val autoTranslateEnabled: Boolean get() = integrations.autoTranslateEnabled
     val preferredTranslator: String get() = integrations.preferredTranslator
@@ -410,6 +669,7 @@ data class AppSettings(
     val lastUsedTab: String get() = themeUi.lastUsedTab
     val appLanguage: String get() = themeUi.appLanguage
     val accountBackupEnabled: Boolean get() = profile.accountBackupEnabled
+    val accountAddonSyncEnabled: Boolean get() = profile.accountAddonSyncEnabled
     val accountSearchSyncEnabled: Boolean get() = profile.accountSearchSyncEnabled
     val accountNotificationSyncEnabled: Boolean get() = profile.accountNotificationSyncEnabled
     val fixedNavBar: Boolean get() = themeUi.fixedNavBar
@@ -436,6 +696,8 @@ data class AppSettings(
     val simklNotificationsEnabled: Boolean get() = integrations.simklNotificationsEnabled
     val kitsuNotificationsEnabled: Boolean get() = integrations.kitsuNotificationsEnabled
     val shikimoriNotificationsEnabled: Boolean get() = integrations.shikimoriNotificationsEnabled
+    val tmdbNotificationsEnabled: Boolean get() = integrations.tmdbNotificationsEnabled
+    val bangumiNotificationsEnabled: Boolean get() = integrations.bangumiNotificationsEnabled
     val notificationInterval: Int get() = integrations.notificationInterval
     val searchHistoryEnabled: Boolean get() = themeUi.searchHistoryEnabled
     val stillWatchingEnabled: Boolean get() = playback.stillWatchingEnabled
@@ -463,6 +725,7 @@ data class AppSettings(
     val syncEnabledKitsu: Boolean get() = profile.syncEnabledKitsu
     val syncEnabledShikimori: Boolean get() = profile.syncEnabledShikimori
     val syncEnabledBangumi: Boolean get() = profile.syncEnabledBangumi
+    val syncEnabledTmdb: Boolean get() = profile.syncEnabledTmdb
     val subtitleSpeed: Float get() = mpvSubtitle.subtitleSpeed
     val videoFiltersJson: String get() = mpvSubtitle.videoFiltersJson
     val speedPresets: String get() = mpvSubtitle.speedPresets
@@ -472,6 +735,7 @@ data class AppSettings(
     val audioPitchCorrection: Boolean get() = mpvSubtitle.audioPitchCorrection
     val mpvGpuRenderer: String get() = mpvSubtitle.mpvGpuRenderer
     val mpvHwdecMode: String get() = mpvSubtitle.mpvHwdecMode
+    val mpvDolbyVisionAutoFix: Boolean get() = mpvSubtitle.mpvDolbyVisionAutoFix
     val mpvDebandMode: String get() = mpvSubtitle.mpvDebandMode
     val mpvForceYuv420p: Boolean get() = mpvSubtitle.mpvForceYuv420p
     val mpvDemuxerCacheMb: Int get() = mpvSubtitle.mpvDemuxerCacheMb
@@ -494,6 +758,15 @@ data class AppSettings(
     val playerStatisticsPage: Int get() = playerUi.playerStatisticsPage
     val playerSpeed: Float get() = playerUi.playerSpeed
     val scrobbleThreshold: Float get() = playerUi.scrobbleThreshold
+
+    // ─── Otomatik liste takibi ────────────────────────────────────────────────
+    val autoTrackEnabled: Boolean get() = playerUi.autoTrackEnabled
+    val autoTrackAddNew: Boolean get() = playerUi.autoTrackAddNew
+    val autoTrackRespectDropped: Boolean get() = playerUi.autoTrackRespectDropped
+    val quickRateEnabled: Boolean get() = playerUi.quickRateEnabled
+    val quickRateSeconds: Int get() = playerUi.quickRateSeconds
+    val autoTrackSyncSources: Boolean get() = playerUi.autoTrackSyncSources
+    val autoTrackMinSeconds: Int get() = playerUi.autoTrackMinSeconds
     val showLoadingCircle: Boolean get() = playerUi.showLoadingCircle
     val showCurrentChapter: Boolean get() = playerUi.showCurrentChapter
     val playerTimeToDisappearMs: Int get() = playerUi.playerTimeToDisappearMs
@@ -550,6 +823,45 @@ data class AppSettings(
     val downloadNewUnreadChaptersOnly: Boolean get() = downloads.downloadNewUnreadChaptersOnly
     val downloadNewUnseenEpisodesOnly: Boolean get() = downloads.downloadNewUnseenEpisodesOnly
     val subtitleDownloadLanguages: String get() = downloads.subtitleDownloadLanguages
+
+    // ── Klavye / gamepad kısayolları ─────────────────────────────────────────
+    val keyboardEnabled: Boolean get() = keyboard.keyboardEnabled
+    val autoDetectExternalKeyboard: Boolean get() = keyboard.autoDetectExternalKeyboard
+    val keyboardOsdEnabled: Boolean get() = keyboard.keyboardOsdEnabled
+    val keyboardOsdDurationScale: Float get() = keyboard.keyboardOsdDurationScale
+    val keyboardOpensFullOsd: Boolean get() = keyboard.keyboardOpensFullOsd
+    val keyboardHelpEnabled: Boolean get() = keyboard.keyboardHelpEnabled
+    val disabledShortcuts: String get() = keyboard.disabledShortcuts
+    val customBindings: String get() = keyboard.customBindings
+    val gamepadEnabled: Boolean get() = keyboard.gamepadEnabled
+    val keyboardSeekStepSeconds: Int get() = keyboard.keyboardSeekStepSeconds
+    val keyboardPreciseSeekSeconds: Int get() = keyboard.keyboardPreciseSeekSeconds
+    val keyboardLargeSeekSeconds: Int get() = keyboard.keyboardLargeSeekSeconds
+    val keyboardHoldToAccelerate: Boolean get() = keyboard.keyboardHoldToAccelerate
+
+    // ─── Okuyucu Ortam Sesi (Ambient) delegasyonları ─────────────────────────
+    val musicEnabled: Boolean get() = integrations.musicEnabled
+    val musicAutoRecommend: Boolean get() = integrations.musicAutoRecommend
+    val musicMasterVolume: Float get() = integrations.musicMasterVolume
+    val musicChannelVolume: Float get() = integrations.musicChannelVolume
+    val musicAmbientVolume: Float get() = integrations.musicAmbientVolume
+    val musicContinueOnExit: Boolean get() = integrations.musicContinueOnExit
+    val musicAutoPlay: Boolean get() = integrations.musicAutoPlay
+    val musicAutoPlayDelaySeconds: Int get() = integrations.musicAutoPlayDelaySeconds
+    val musicAutoPlayVolume: Float get() = integrations.musicAutoPlayVolume
+    val musicAutoPlayHeadphonesOnly: Boolean get() = integrations.musicAutoPlayHeadphonesOnly
+    val musicAutoPlayMuteOnSilentDevice: Boolean get() = integrations.musicAutoPlayMuteOnSilentDevice
+    val musicAutoPlayIncludeOnline: Boolean get() = integrations.musicAutoPlayIncludeOnline
+    val musicJamendoEnabled: Boolean get() = integrations.musicJamendoEnabled
+    val musicJamendoClientId: String get() = integrations.musicJamendoClientId
+    val musicFreesoundEnabled: Boolean get() = integrations.musicFreesoundEnabled
+    val musicFreesoundApiKey: String get() = integrations.musicFreesoundApiKey
+    val musicOpenverseEnabled: Boolean get() = integrations.musicOpenverseEnabled
+    val musicOpenverseToken: String get() = integrations.musicOpenverseToken
+    val musicArchiveEnabled: Boolean get() = integrations.musicArchiveEnabled
+    val musicAudiusEnabled: Boolean get() = integrations.musicAudiusEnabled
+    val musicAudiusApiKey: String get() = integrations.musicAudiusApiKey
+    val musicLastPresetId: String get() = integrations.musicLastPresetId
 }
 
 enum class FrameRateMatchingMode {

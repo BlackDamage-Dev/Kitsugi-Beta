@@ -145,25 +145,12 @@ class AddonViewModel(application: Application) : AndroidViewModel(application) {
                     )
                 }
             } else if (existing.subtitleTypes == null) {
-                addonDao.updateAddon(existing.copy(subtitleTypes = "movie,series", isEnabled = true))
+                addonDao.updateAddon(existing.copy(subtitleTypes = "movie,series"))
             }
         }
  
-        val deprecatedV2 = addonDao.getAllAddons().find {
-            it.manifestUrl.contains("opensubtitles.strem.io", ignoreCase = true) &&
-            !it.manifestUrl.contains("opensubtitles-v3", ignoreCase = true)
-        }
-        if (deprecatedV2 != null) {
-            addonDao.deleteAddon(deprecatedV2)
-        }
- 
-        val deprecatedTurkceAltyazi = addonDao.getAllAddons().find {
-            it.manifestUrl.contains("turkcealtyaziorg", ignoreCase = true)
-        }
-        if (deprecatedTurkceAltyazi != null) {
-            addonDao.deleteAddon(deprecatedTurkceAltyazi)
-        }
-
+        // Never delete installed providers during startup. A provider may have been
+        // explicitly installed by the user, even if it is no longer a default.
         val all = addonDao.getAllAddons()
         for (addon in all) {
             if (addon.subtitleTypes == null && (

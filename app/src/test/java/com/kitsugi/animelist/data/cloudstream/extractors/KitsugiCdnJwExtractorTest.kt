@@ -12,6 +12,34 @@ import java.util.Base64
  */
 class KitsugiCdnJwExtractorTest {
 
+    @Test
+    fun parseVariants_keepsAllQualitiesAndExtensionlessUris() {
+        val variants = KitsugiCdnJwExtractor.parseVariants(
+            "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1000000,RESOLUTION=1280x720\nlow.m3u8\n#EXT-X-STREAM-INF:BANDWIDTH=3000000,RESOLUTION=1920x1080\n/high?token=abc",
+            "https://cdn.example/video/master.txt"
+        )
+        assertEquals(listOf(720, 1080), variants.map { it.height })
+        assertEquals("https://cdn.example/video/low.m3u8", variants[0].url)
+        assertEquals("https://cdn.example/high?token=abc", variants[1].url)
+    }
+
+    @Test
+    fun parseVariants_unknownResolutionStaysUnknownAndDuplicatesRemoved() {
+        val variants = KitsugiCdnJwExtractor.parseVariants(
+            "https://cdn.example/720p.m3u8\nhttps://cdn.example/720p.m3u8\nhttps://cdn.example/other.m3u8",
+            "https://cdn.example/master.txt"
+        )
+        assertEquals(2, variants.size)
+        assertEquals(720, variants[0].height)
+        assertNull(variants[1].height)
+    }
+
+    @Test
+    fun parseVariants_mediaSegmentsAndErrorPagesAreNotQualities() {
+        assertTrue(KitsugiCdnJwExtractor.parseVariants("#EXTM3U\n#EXTINF:6,\nsegment.ts", "https://cdn.example/hls/master.txt").isEmpty())
+        assertTrue(KitsugiCdnJwExtractor.parseVariants("<html>blocked</html>", "https://cdn.example/master.txt").isEmpty())
+    }
+
     // ── origin / header ────────────────────────────────────────────────────────
 
     @Test

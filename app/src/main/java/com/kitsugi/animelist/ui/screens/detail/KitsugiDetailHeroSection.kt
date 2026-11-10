@@ -24,18 +24,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.Share
-import androidx.compose.material.icons.rounded.Image
-import androidx.compose.material.icons.rounded.Favorite
-import androidx.compose.material.icons.rounded.FavoriteBorder
-import androidx.compose.material.icons.rounded.Tv
-import androidx.compose.material.icons.rounded.Book
-import androidx.compose.material.icons.rounded.Schedule
-import androidx.compose.material.icons.rounded.MenuBook
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.material.icons.rounded.RssFeed
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -103,7 +93,10 @@ internal fun DetailHero(
     // Eşlerden biri yoksa diğeri gösterilir; görsel alanı yine Crop ile TAM kaplanır.
     val configuration = LocalConfiguration.current
     val screenHeightDp = configuration.screenHeightDp.toFloat()
-    val isLandscapeScreen = configuration.screenWidthDp > configuration.screenHeightDp
+    val artworkPreference = remember(configuration.screenWidthDp, configuration.screenHeightDp) {
+        resolveHeroArtworkPreference(configuration.screenWidthDp, configuration.screenHeightDp)
+    }
+    val usePosterArtwork = artworkPreference == HeroArtworkPreference.POSTER
 
     val posterUrl = remember(entry.imageUrl) { KitsugiHeroArtworkResolver.upgradeNativePosterUrl(entry.imageUrl) }
     val wideGalleryUrls = remember(galleryItems) {
@@ -115,11 +108,22 @@ internal fun DetailHero(
     val tallCandidates = remember(posterUrl, tallGalleryUrls) {
         listOfNotNull(posterUrl) + tallGalleryUrls
     }
-    // YÖN ⇄ GÖRSEL OTOMATİK EŞLEŞMESİ: yatay modda dikey poster birincil,
-    // dikey modda yatay arka plan birincil (çift sabit olduğu için eşleşme otomatiktir).
-    val imagePlan = remember(wideGalleryUrls, tallCandidates, isLandscapeScreen) {
-        if (isLandscapeScreen) (tallCandidates + wideGalleryUrls).distinct()
+    // YÖN ⇄ GÖRSEL OTOMATİK EŞLEŞMESİ:
+    //  - POSTER tercihi (yatay mod + uzun-dar telefonlar): dikey poster birincil.
+    //  - BACKDROP tercihi (daha kare/tablet benzeri cihazlar): yatay arka plan birincil.
+    // PERF: Tercih edilen yönde bir vitrin görseli başarıyla yüklenip çizildikten sonra
+    // arka planda gecikmeli gelen galleryItems listesinin görseli kaydırma ortasında
+    // değiştirip vitrin yüksekliğini zıplatması lockedHeroUrl ile engellenir.
+    var lockedHeroUrl by remember(entry.id, usePosterArtwork) { mutableStateOf<String?>(null) }
+    val imagePlan = remember(wideGalleryUrls, tallCandidates, usePosterArtwork, lockedHeroUrl) {
+        val rawPlan = if (usePosterArtwork) (tallCandidates + wideGalleryUrls).distinct()
         else (wideGalleryUrls + tallCandidates).distinct()
+        val locked = lockedHeroUrl
+        if (locked != null && locked in rawPlan) {
+            listOf(locked) + rawPlan.filterNot { it == locked }
+        } else {
+            rawPlan
+        }
     }
     var imageIndex by remember(imagePlan) { mutableIntStateOf(0) }
     val heroImageModel = imagePlan.getOrNull(imageIndex)
@@ -130,28 +134,24 @@ internal fun DetailHero(
     BoxWithConstraints(
         modifier = Modifier.fillMaxWidth()
     ) {
-        // GÖRSEL ALANININ ŞEKLİ: yönün varsayılan oranıyla başlar, görsel yüklenince
-        // GERÇEK en-boy oranına kilitlenir → kutu, gösterdiği görselle birebir aynı
-        // şekle gelir ve görsel (Crop ile) alanı TAM kaplar; kırpma/boşluk ≈ sıfır.
-        //  - YATAY mod → 2:3 DİKEY poster kutusu (uzun-dar).
-        //  - DİKEY mod → 16:9 YATAY arka plan bandı (geniş-kısa).
-        val defaultBoxAspect = if (isLandscapeScreen) 2f / 3f else 16f / 9f
+        // GÖRSEL ALANININ ŞEKLİ: ekran yönü/boyutuna göre varsayılan oranla başlar,
+        // görsel yüklenince GERÇEK en-boy oranına kilitlenir → kutu, gösterdiği görselle
+        // birebir aynı şekle gelir ve görsel (Crop ile) alanı TAM kaplar; kırpma/boşluk ≈ sıfır.
+        val defaultBoxAspect = if (usePosterArtwork) 2f / 3f else 16f / 9f
         val boxAspect = (loadedImageAspect ?: defaultBoxAspect).coerceIn(
-            minimumValue = if (isLandscapeScreen) 0.5f else 1.0f,
-            maximumValue = if (isLandscapeScreen) 1.6f else 2.2f
+            minimumValue = if (usePosterArtwork) 0.5f else 1.0f,
+            maximumValue = if (usePosterArtwork) 1.6f else 2.2f
         )
-        val bannerCapDp = if (isLandscapeScreen) screenHeightDp else screenHeightDp * 0.62f
+        val bannerCapDp = if (usePosterArtwork) screenHeightDp else screenHeightDp * 0.62f
         val bannerHeight = (maxWidth / boxAspect).coerceAtMost(bannerCapDp.dp)
+        val heroBoxWidthDp = maxWidth.value
 
-        // Başlık, meta bilgileri ve rozetler ayrı bir koyu alan ayırmak yerine
-        // görselin alt bölümüne bindirilir. Böylece hem dikey hem yatay düzende
-        // vitrinin altında gereksiz boş bir blok kalmaz.
-        BoxWithConstraints(
+        // PERF: İkinci iç içe BoxWithConstraints kaldırıldı (gereksiz SubcomposeLayout geçişi önlendi).
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(bannerHeight)
         ) {
-            val heroBoxWidthDp = maxWidth.value
             val imageAreaModifier = Modifier
                 .fillMaxWidth()
                 .height(bannerHeight)
@@ -183,9 +183,19 @@ internal fun DetailHero(
                     contentScale = ContentScale.Crop,
                     alignment = heroAlignmentValue,
                     onLoadingFailed = {
+                        if (lockedHeroUrl == displayedImageUrl) lockedHeroUrl = null
                         if (imageIndex < imagePlan.lastIndex) imageIndex += 1
                     },
-                    onImageAspectResolved = { ratio -> loadedImageAspect = ratio },
+                    onImageAspectResolved = { ratio ->
+                        val prev = loadedImageAspect
+                        if (prev == null || kotlin.math.abs(prev - ratio) > 0.03f) {
+                            loadedImageAspect = ratio
+                        }
+                        val matchesPreference = if (usePosterArtwork) ratio < 1.15f else ratio >= 1.15f
+                        if (matchesPreference && lockedHeroUrl == null) {
+                            lockedHeroUrl = displayedImageUrl
+                        }
+                    },
                     highQuality = true
                 )
             } else {
@@ -237,7 +247,7 @@ internal fun DetailHero(
                 ) {
                     IconButton(onClick = onBackClick) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                            imageVector = Icons.ArrowBack,
                             contentDescription = stringResource(R.string.geri),
                             tint = KitsugiColors.TextPrimary
                         )
@@ -285,7 +295,7 @@ internal fun DetailHero(
                     ) {
                         IconButton(onClick = shareAction) {
                             Icon(
-                                imageVector = Icons.Rounded.Share,
+                                imageVector = Icons.Share,
                                 contentDescription = stringResource(R.string.paylas),
                                 tint = KitsugiColors.TextPrimary
                             )
@@ -302,7 +312,7 @@ internal fun DetailHero(
                         ) {
                             IconButton(onClick = onToggleFavoriteClick) {
                                 Icon(
-                                    imageVector = if (entry.isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                                    imageVector = if (entry.isFavorite) Icons.Favorite else Icons.FavoriteBorder,
                                     contentDescription = if (entry.isFavorite) stringResource(R.string.action_favourite_remove) else "Favori Yap",
                                     tint = if (entry.isFavorite) accentColor else KitsugiColors.TextPrimary
                                 )
@@ -366,7 +376,7 @@ internal fun DetailHero(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     // 1. Format
-                    val formatIcon = if (entry.type == MediaType.Manga) Icons.Rounded.Book else Icons.Rounded.Tv
+                    val formatIcon = if (entry.type == MediaType.Manga) Icons.Book else Icons.Tv
                     val formatText = when (entry.type) {
                         MediaType.Anime -> "TV"
                         else -> entry.type.localizedLabel()
@@ -374,7 +384,7 @@ internal fun DetailHero(
                     MetadataIconText(icon = formatIcon, text = formatText, tint = accentColor)
 
                     // 2. Episodes / Chapters count
-                    val countIcon = if (entry.type == MediaType.Manga) Icons.Rounded.MenuBook else Icons.Rounded.Schedule
+                    val countIcon = if (entry.type == MediaType.Manga) Icons.MenuBook else Icons.Schedule
                     val totalVal = entry.total
                     val countText = if (totalVal != null && totalVal > 0) {
                         if (entry.type == MediaType.Manga) stringResource(R.string.hero_count_volumes_chapters, totalVal)
@@ -386,7 +396,7 @@ internal fun DetailHero(
                     MetadataIconText(icon = countIcon, text = countText, tint = accentColor)
 
                     // 3. Status
-                    val statusIcon = Icons.Rounded.RssFeed
+                    val statusIcon = Icons.RssFeed
                     MetadataIconText(icon = statusIcon, text = entry.status.localizedLabel(), tint = statusColor)
                 }
 
@@ -401,7 +411,7 @@ internal fun DetailHero(
                             .padding(vertical = 2.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.Schedule,
+                            imageVector = Icons.Schedule,
                             contentDescription = stringResource(R.string.cd_airing_soon),
                             tint = KitsugiColors.AccentOrange,
                             modifier = Modifier.size(16.dp)
@@ -435,7 +445,8 @@ internal fun DetailHero(
 
                     if (entry.isFavorite) {
                         DetailPill(
-                            text = "★ Favori",
+                            text = stringResource(R.string.favori_label),
+                            icon = Icons.HeartSolid,
                             color = accentColor
                         )
                     }

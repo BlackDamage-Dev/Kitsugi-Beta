@@ -124,6 +124,7 @@ public class MatroskaExtractor implements Extractor {
    * existing behavior unless this hook is provided.
    */
   public interface DolbyVisionSampleTransformer {
+    default boolean useHevcBaseLayer(@Nullable String codecs) { return false; }
 
     /**
      * Returns whether this transformer actually wants to process samples for the given track.
@@ -1811,7 +1812,7 @@ public class MatroskaExtractor implements Extractor {
       input.readFully(blockAdditionalData, 0, contentSize);
       track.pendingDolbyVisionBlockAdditionalData = blockAdditionalData;
 
-      if (dolbyVisionSampleTransformer != null) {
+      if (dolbyVisionSampleTransformer != null && !track.hasContentEncryption) {
         try {
           byte[] transformed =
               dolbyVisionSampleTransformer.onDolbyVisionBlockAdditionalData(
@@ -2883,7 +2884,7 @@ public class MatroskaExtractor implements Extractor {
         if (dolbyVisionConfig != null) {
           codecs = dolbyVisionConfig.codecs;
           mimeType = MimeTypes.VIDEO_DOLBY_VISION;
-          if (dolbyVisionSampleTransformer != null) {
+          if (dolbyVisionSampleTransformer != null && !hasContentEncryption) {
             @Nullable
             String transformedCodecs =
                     dolbyVisionSampleTransformer.onDolbyVisionCodecString(
@@ -2898,14 +2899,14 @@ public class MatroskaExtractor implements Extractor {
               }
             }
             if (MimeTypes.VIDEO_DOLBY_VISION.equals(mimeType) && hevcCodecsString != null) {
-              if (DolbyVisionCompatibility.isHdr10BaseLayerModeActive()) {
+              if (dolbyVisionSampleTransformer.useHevcBaseLayer(dolbyVisionConfig.codecs)) {
                 mimeType = MimeTypes.VIDEO_H265;
                 codecs = hevcCodecsString;
               }
             }
           }
         }
-      } else if (dolbyVisionSampleTransformer != null && codecs != null) {
+      } else if (dolbyVisionSampleTransformer != null && !hasContentEncryption && codecs != null) {
         String lower = codecs.toLowerCase(Locale.ROOT);
         if (lower.startsWith("dvhe.")
             || lower.startsWith("dvh1.")
@@ -2926,7 +2927,7 @@ public class MatroskaExtractor implements Extractor {
           }
         }
       }
-      if (DolbyVisionCompatibility.shouldMapDolbyVisionProfile7(mimeType, codecs)) {
+      if (!hasContentEncryption && DolbyVisionCompatibility.shouldMapDolbyVisionProfile7(mimeType, codecs)) {
         // NOTE: Vendored for app-level (AAR) DV7 use. The original called
         // NalUnitUtil.getH265BaseLayerCodecsString(initializationData) (a
         // post-1.8.0 API absent from the stock media3 we link against). This
@@ -3026,7 +3027,7 @@ public class MatroskaExtractor implements Extractor {
               .setDrmInitData(drmInitData)
               .build();
       requiresDolbyVisionTransform =
-          dolbyVisionSampleTransformer != null
+          !hasContentEncryption && dolbyVisionSampleTransformer != null
               && dolbyVisionSampleTransformer.shouldTransform(codecs, dolbyVisionConfigBytes);
       isHevc = CODEC_ID_H265.equals(codecId);
     }

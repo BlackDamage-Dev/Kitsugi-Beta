@@ -1,4 +1,4 @@
-@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+﻿@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 
 package com.kitsugi.animelist.ui.components
 import com.kitsugi.animelist.R
@@ -25,11 +25,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.FilterAlt
-import androidx.compose.material.icons.rounded.Sort
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.MaterialTheme
 import com.kitsugi.animelist.ui.theme.gradient.Text
@@ -43,6 +40,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -51,51 +49,51 @@ import com.kitsugi.animelist.ui.theme.LocalKitsugiAccent
 
 data class KitsugiGenreItem(
     val id: String,
-    val emoji: String,
+    val icon: ImageVector,
     @StringRes val nameRes: Int,
     val keywords: List<String>
 ) {
     @Composable
     @ReadOnlyComposable
-    fun displayLabel(): String = "$emoji ${stringResource(nameRes)}"
+    fun displayLabel(): String = stringResource(nameRes)
 }
 
 val KITSUGI_MEDIA_GENRES = listOf(
-    KitsugiGenreItem("ALL", "✨", R.string.studio_type_all, emptyList()),
-    KitsugiGenreItem("DRAMA", "🎭", R.string.genre_drama, listOf("drama", "dram")),
-    KitsugiGenreItem("ACTION", "💥", R.string.genre_action, listOf("action", "aksiyon")),
-    KitsugiGenreItem("ROMANCE", "💖", R.string.genre_romance, listOf("romance", "romantik", "romantizm")),
-    KitsugiGenreItem("COMEDY", "😂", R.string.genre_comedy, listOf("comedy", "komedi")),
-    KitsugiGenreItem("FANTASY", "🧙‍♂️", R.string.genre_fantasy, listOf("fantasy", "fantastik")),
-    KitsugiGenreItem("SCIFI", "🚀", R.string.genre_scifi, listOf("sci-fi", "scifi", "science fiction", "bilim kurgu")),
-    KitsugiGenreItem("MYSTERY", "🔍", R.string.genre_mystery, listOf("mystery", "gizem")),
-    KitsugiGenreItem("HORROR", "👻", R.string.genre_horror, listOf("horror", "korku")),
-    KitsugiGenreItem("SLICEOFLIFE", "☕", R.string.genre_slice_of_life, listOf("slice of life", "günlük yaşam", "iyileştirici", "iyilestirici")),
-    KitsugiGenreItem("ADVENTURE", "🧭", R.string.genre_adventure, listOf("adventure", "macera")),
-    KitsugiGenreItem("SUPERNATURAL", "🔮", R.string.genre_supernatural, listOf("supernatural", "doğaüstü", "dogaustu")),
-    KitsugiGenreItem("PSYCHOLOGICAL", "🧠", R.string.genre_psychological, listOf("psychological", "psikolojik")),
-    KitsugiGenreItem("SPORTS", "⚽", R.string.genre_sports, listOf("sports", "spor")),
-    KitsugiGenreItem("THRILLER", "🕵️‍♂️", R.string.genre_thriller, listOf("thriller", "suspense", "gerilim")),
-    KitsugiGenreItem("MECHA", "🤖", R.string.genre_mecha, listOf("mecha", "robot")),
-    KitsugiGenreItem("MUSIC", "🎵", R.string.genre_music, listOf("music", "müzik", "muzik")),
-    KitsugiGenreItem("HISTORICAL", "📜", R.string.genre_historical, listOf("historical", "tarihi", "tarih")),
-    KitsugiGenreItem("MILITARY", "⚔️", R.string.genre_military, listOf("military", "askeri", "savaş", "savas")),
-    KitsugiGenreItem("SCHOOL", "🎒", R.string.genre_school, listOf("school", "okul"))
+    KitsugiGenreItem("ALL", Icons.Sparkles, R.string.studio_type_all, emptyList()),
+    KitsugiGenreItem("DRAMA", Icons.Theater, R.string.genre_drama, listOf("drama", "dram")),
+    KitsugiGenreItem("ACTION", Icons.Flame, R.string.genre_action, listOf("action", "aksiyon")),
+    KitsugiGenreItem("ROMANCE", Icons.HeartSolid, R.string.genre_romance, listOf("romance", "romantik", "romantizm")),
+    KitsugiGenreItem("COMEDY", Icons.Laugh, R.string.genre_comedy, listOf("comedy", "komedi")),
+    KitsugiGenreItem("FANTASY", Icons.WandSparkles, R.string.genre_fantasy, listOf("fantasy", "fantastik")),
+    KitsugiGenreItem("SCIFI", Icons.Rocket, R.string.genre_scifi, listOf("sci-fi", "scifi", "science fiction", "bilim kurgu")),
+    KitsugiGenreItem("MYSTERY", Icons.Search, R.string.genre_mystery, listOf("mystery", "gizem")),
+    KitsugiGenreItem("HORROR", Icons.Ghost, R.string.genre_horror, listOf("horror", "korku")),
+    KitsugiGenreItem("SLICEOFLIFE", Icons.Coffee, R.string.genre_slice_of_life, listOf("slice of life", "günlük yaşam", "iyileştirici", "iyilestirici")),
+    KitsugiGenreItem("ADVENTURE", Icons.Compass, R.string.genre_adventure, listOf("adventure", "macera")),
+    KitsugiGenreItem("SUPERNATURAL", Icons.Moon, R.string.genre_supernatural, listOf("supernatural", "doğaüstü", "dogaustu")),
+    KitsugiGenreItem("PSYCHOLOGICAL", Icons.Brain, R.string.genre_psychological, listOf("psychological", "psikolojik")),
+    KitsugiGenreItem("SPORTS", Icons.Dumbbell, R.string.genre_sports, listOf("sports", "spor")),
+    KitsugiGenreItem("THRILLER", Icons.VenetianMask, R.string.genre_thriller, listOf("thriller", "suspense", "gerilim")),
+    KitsugiGenreItem("MECHA", Icons.Bot, R.string.genre_mecha, listOf("mecha", "robot")),
+    KitsugiGenreItem("MUSIC", Icons.AudioLines, R.string.genre_music, listOf("music", "müzik", "muzik")),
+    KitsugiGenreItem("HISTORICAL", Icons.Landmark, R.string.genre_historical, listOf("historical", "tarihi", "tarih")),
+    KitsugiGenreItem("MILITARY", Icons.Swords, R.string.genre_military, listOf("military", "askeri", "savaş", "savas")),
+    KitsugiGenreItem("SCHOOL", Icons.School, R.string.genre_school, listOf("school", "okul"))
 )
 
-enum class KitsugiGridSortOption(val emoji: String, @StringRes val titleRes: Int) {
-    DEFAULT("🏆", R.string.studio_sort_default),
-    SCORE_DESC("⭐", R.string.sort_score_desc),
-    SCORE_ASC("📉", R.string.sort_score_asc),
-    POPULARITY_DESC("👥", R.string.sort_popularity_desc),
-    YEAR_DESC("📅", R.string.sort_year_desc),
-    YEAR_ASC("⏳", R.string.sort_year_asc),
-    TITLE_ASC("🔤", R.string.studio_sort_title_asc),
-    TITLE_DESC("🔠", R.string.studio_sort_title_desc);
+enum class KitsugiGridSortOption(val icon: ImageVector, @StringRes val titleRes: Int) {
+    DEFAULT(Icons.Trophy, R.string.studio_sort_default),
+    SCORE_DESC(Icons.TrendingDown, R.string.sort_score_desc),
+    SCORE_ASC(Icons.TrendingUp, R.string.sort_score_asc),
+    POPULARITY_DESC(Icons.Users, R.string.sort_popularity_desc),
+    YEAR_DESC(Icons.CalendarArrowDown, R.string.sort_year_desc),
+    YEAR_ASC(Icons.CalendarArrowUp, R.string.sort_year_asc),
+    TITLE_ASC(Icons.ArrowDownAZ, R.string.studio_sort_title_asc),
+    TITLE_DESC(Icons.ArrowUpZA, R.string.studio_sort_title_desc);
 
     @Composable
     @ReadOnlyComposable
-    fun displayLabel(): String = "$emoji ${stringResource(titleRes)}"
+    fun displayLabel(): String = stringResource(titleRes)
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -196,16 +194,20 @@ fun KitsugiMediaFilterBottomSheet(
                         .fillMaxWidth()
                         .padding(horizontal = 20.dp, vertical = 2.dp)
                 ) {
-                    Text(
-                        text = stringResource(R.string.filtre_kaynak_sunucu_bilgi, sourceLabel),
+                    KitsugiEmojiLabel(
+                        label = stringResource(R.string.filtre_kaynak_sunucu_bilgi, sourceLabel),
                         color = KitsugiColors.TextMuted,
-                        style = MaterialTheme.typography.labelSmall
+                        style = MaterialTheme.typography.labelSmall,
+                        iconSize = 12.dp,
+                        icon = Icons.Cloud
                     )
                     if (localSelectionSummary.isNotBlank()) {
-                        Text(
-                            text = stringResource(R.string.filtre_kaynak_yerel_bilgi, localSelectionSummary),
+                        KitsugiEmojiLabel(
+                            label = stringResource(R.string.filtre_kaynak_yerel_bilgi, localSelectionSummary),
                             color = KitsugiColors.TextMuted,
-                            style = MaterialTheme.typography.labelSmall
+                            style = MaterialTheme.typography.labelSmall,
+                            iconSize = 12.dp,
+                            icon = Icons.Smartphone
                         )
                     }
                 }
@@ -216,13 +218,13 @@ fun KitsugiMediaFilterBottomSheet(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
+                    .kitsugiVerticalScroll(rememberScrollState())
                     .padding(horizontal = 20.dp)
             ) {
                 // ── 1. SIRALAMA VE AYIRMA ────────────────────────────────────
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
-                        imageVector = Icons.Rounded.Sort,
+                        imageVector = Icons.Sort,
                         contentDescription = null,
                         tint = accentColor,
                         modifier = Modifier.size(18.dp)
@@ -262,18 +264,19 @@ fun KitsugiMediaFilterBottomSheet(
                             contentAlignment = Alignment.Center
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = if (sortIsServer(sort)) sort.displayLabel()
-                                        else "📱 ${sort.displayLabel()}",
+                                KitsugiEmojiLabel(
+                                    label = sort.displayLabel(),
                                     color = (if (isSelected) accentColor else KitsugiColors.TextPrimary)
                                         .copy(alpha = if (sortIsServer(sort)) 1f else 0.62f),
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                    fontSize = 13.sp
+                                    style = MaterialTheme.typography.bodySmall,
+                                    iconSize = 13.dp,
+                                    icon = if (sortIsServer(sort)) sort.icon else Icons.Smartphone
                                 )
                                 if (isSelected) {
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Icon(
-                                        imageVector = Icons.Rounded.Check,
+                                        imageVector = Icons.Check,
                                         contentDescription = null,
                                         tint = accentColor,
                                         modifier = Modifier.size(14.dp)
@@ -289,7 +292,7 @@ fun KitsugiMediaFilterBottomSheet(
                 // ── 2. TÜR FİLTRESİ ──────────────────────────────────────────
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
-                        imageVector = Icons.Rounded.FilterAlt,
+                        imageVector = Icons.FilterAlt,
                         contentDescription = null,
                         tint = accentColor,
                         modifier = Modifier.size(18.dp)
@@ -329,18 +332,19 @@ fun KitsugiMediaFilterBottomSheet(
                             contentAlignment = Alignment.Center
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = if (genreIsServer(genre.id)) genre.displayLabel()
-                                        else "📱 ${genre.displayLabel()}",
+                                KitsugiEmojiLabel(
+                                    label = genre.displayLabel(),
                                     color = (if (isSelected) accentColor else KitsugiColors.TextPrimary)
                                         .copy(alpha = if (genreIsServer(genre.id)) 1f else 0.62f),
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                    fontSize = 13.sp
+                                    style = MaterialTheme.typography.bodySmall,
+                                    iconSize = 13.dp,
+                                    icon = if (genreIsServer(genre.id)) genre.icon else Icons.Smartphone
                                 )
                                 if (isSelected) {
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Icon(
-                                        imageVector = Icons.Rounded.Check,
+                                        imageVector = Icons.Check,
                                         contentDescription = null,
                                         tint = accentColor,
                                         modifier = Modifier.size(14.dp)

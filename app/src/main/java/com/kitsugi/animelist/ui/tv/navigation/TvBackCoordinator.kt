@@ -58,6 +58,7 @@ class TvBackCoordinator(
         navigationState.mangaReaderTarget != null -> "mangaReader"
         navigationState.detailBackStack.isNotEmpty() -> "detail[${navigationState.detailBackStack.size}]"
         navigationState.mangaDetailTarget != null -> "mangaDetail"
+        navigationState.isMangaLibraryActive -> "mangaLibrary"
         navigationState.isMangaSourceHealthActive -> "mangaSourceHealth"
         navigationState.isMangaExtensionActive -> "mangaExtension"
         navigationState.isAddonsActive -> "addons"

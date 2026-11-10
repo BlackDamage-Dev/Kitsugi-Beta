@@ -2,6 +2,7 @@ package com.kitsugi.animelist.ui.screens.search
 
 import com.kitsugi.animelist.data.remote.JikanSearchResult
 import com.kitsugi.animelist.model.MediaType
+import com.kitsugi.animelist.utils.TaxonomyOrgRole
 import com.kitsugi.animelist.ui.screens.search.composables.KitsugiCountryOfOrigin
 import com.kitsugi.animelist.ui.screens.search.composables.KitsugiMediaFormat
 import com.kitsugi.animelist.ui.screens.search.composables.KitsugiMediaSeason
@@ -55,6 +56,17 @@ data class MultiPlatformResults(
         isLoadingAniList || isLoadingMal || isLoadingTmdb ||
         isLoadingShikimori || isLoadingKitsu || isLoadingSimkl || isLoadingBangumi
 
+    fun hasResultsFor(platform: com.kitsugi.animelist.data.platform.ListPlatform): Boolean = when (platform) {
+        com.kitsugi.animelist.data.platform.ListPlatform.ANILIST -> aniListResults.isNotEmpty()
+        com.kitsugi.animelist.data.platform.ListPlatform.MAL -> malResults.isNotEmpty()
+        com.kitsugi.animelist.data.platform.ListPlatform.TMDB -> tmdbResults.isNotEmpty()
+        com.kitsugi.animelist.data.platform.ListPlatform.SHIKIMORI -> shikimoriResults.isNotEmpty()
+        com.kitsugi.animelist.data.platform.ListPlatform.KITSU -> kitsuResults.isNotEmpty()
+        com.kitsugi.animelist.data.platform.ListPlatform.SIMKL -> simklResults.isNotEmpty()
+        com.kitsugi.animelist.data.platform.ListPlatform.BANGUMI -> bangumiResults.isNotEmpty()
+        else -> false
+    }
+
     companion object {
         /**
          * Yalnızca gerçekten sorgulanacak kaynaklar "yükleniyor" işaretlenir.
@@ -97,6 +109,8 @@ data class SearchUiState(
     val results: List<JikanSearchResult> = emptyList(),
     val multiResults: MultiPlatformResults = MultiPlatformResults(),
     val searchHistory: List<SearchHistoryItem> = emptyList(),
+    val searchHistoryEnabled: Boolean = true,
+    val lastDeletedHistoryItem: SearchHistoryItem? = null,
     val isLoading: Boolean = false,
     val isLoadingMore: Boolean = false,
     val page: Int = 1,
@@ -107,6 +121,8 @@ data class SearchUiState(
     val platformErrorCode: com.kitsugi.animelist.data.platform.PlatformErrorCode? = null,
     /** Bu aramada hata veren kaynaklar (kaynak → platform hata kodu). */
     val sourceErrorCodes: Map<com.kitsugi.animelist.data.platform.ListPlatform, com.kitsugi.animelist.data.platform.PlatformErrorCode> = emptyMap(),
+    /** Seçili filtreleri desteklemediği için bu aramada bilinçli olarak atlanan kaynaklar. */
+    val skippedSourceIds: List<String> = emptyList(),
     val isFilterSheetOpen: Boolean = false,
     val showMoreFilters: Boolean = true,
 
@@ -133,6 +149,15 @@ data class SearchUiState(
     val genres: List<String> = emptyList(),
     val excludedGenres: List<String> = emptyList(),
     val tags: List<String> = emptyList(),
+    val organizations: List<OrgFilter> = emptyList(),
+
+    // ── Kurum (stüdyo / yapımcı / şirket / kanal) filtreleri ────────────────
+    /**
+     * Ortak filtre çatısının kurum seçimleri. Her kayıt kendi kaynağının kimlik
+     * uzayına aittir; motor değişince seçim kaybolmaz, yalnızca sunucu tarafında
+     * uygulanabildiği kaynakta aramaya yansır (bkz. [SearchCommonFiltersBridge]).
+     */
+    val institutions: List<CommonInstitution> = emptyList(),
 
     // ── AniHyou-style chip filters (AniList-only) ──────────────────────────
     val selectedFormats: List<KitsugiMediaFormat> = emptyList(),
@@ -166,52 +191,111 @@ data class SearchUiState(
     val effectiveSortApiValue: String get() =
         if (isSortDescending) sortSearch.descApiValue else sortSearch.ascApiValue
 
-    /** True if any filter besides the default sort is active */
-    val hasFiltersApplied: Boolean get() = activeFilterCount > 0
+    /**
+     * "Tümü" modu çoklu kaynak raf görünümüdür; sayfalanmış tek bir sonuç listesi değildir.
+     * Bu modda aşağı kaydırmak yeni sayfa çekmemeli, yalnızca mevcut rafları kaydırmalıdır;
+     * daha fazla sonuç görmek isteyen kullanıcı raf başlığındaki "Tümünü Gör"e basar.
+     */
+    val isShelfMode: Boolean get() =
+        (selectedEngine == SearchSourceEngine.ALL || currentTab == KitsugiSearchTab.All) &&
+            selectedScope != SearchScope.CHARACTER &&
+            selectedScope != SearchScope.STAFF
+
+    /** Organization selection is preview-only until the provider capability mapping is shipped. */
+    val hasFiltersApplied: Boolean get() = activeFilterCount > organizations.size
 
     val activeFilterCount: Int get() {
-        return when (selectedEngine) {
+        return organizations.size + when (selectedEngine) {
             SearchSourceEngine.ALL -> {
                 var c = 0
                 if (genres.isNotEmpty()) c += genres.size
+                if (excludedGenres.isNotEmpty()) c += excludedGenres.size
                 if (tags.isNotEmpty()) c += tags.size
+                if (selectedFormats.isNotEmpty()) c += selectedFormats.size
+                if (selectedStatuses.isNotEmpty()) c += selectedStatuses.size
+                if (country != null) c++
+                if (selectedSources.isNotEmpty()) c += selectedSources.size
                 if (startYear != null || endYear != null) c++
                 if (season != null) c++
+                if (minScore != null || maxScore != null) c++
+                if (minEpCh != null || maxEpCh != null) c++
+                if (minDuration != null || maxDuration != null) c++
+                if (onMyList != null) c++
+                if (isDoujin != null) c++
                 if (isAdultFilter != null) c++
+                if (institutions.isNotEmpty()) c += institutions.size
+                if (detailSearchFilterRequest != null && c == 0) {
+                    c += detailSearchFilterRequest.activeFacetCount
+                }
                 // Detay sayfası çip tıklamalarından gelen kimlik facetleri (stüdyo/
                 // yapımcı/dergi/kanal): sayılırlarsa boş sorguyla arama tetiklenir.
-                if (malSpecificFilters.producerId != null) c++
-                if (malSpecificFilters.magazineId != null) c++
-                if (tmdbSpecificFilters.networkId != null) c++
+                // Kurum listesinde zaten sayılan kimlikler ikinci kez sayılmaz.
+                if (institutions.isEmpty() && detailSearchFilterRequest == null) {
+                    if (malSpecificFilters.producerId != null) c++
+                    if (malSpecificFilters.magazineId != null) c++
+                    if (tmdbSpecificFilters.networkId != null) c++
+                    if (tmdbSpecificFilters.companyId != null) c++
+                }
+                if (c == 0) {
+                    c += aniListSpecificFilters.activeCount +
+                        malSpecificFilters.activeCount +
+                        tmdbSpecificFilters.activeCount +
+                        shikimoriSpecificFilters.activeCount +
+                        kitsuSpecificFilters.activeCount +
+                        simklSpecificFilters.activeCount +
+                        bangumiSpecificFilters.activeCount
+                }
                 c
             }
+            // Kanonik tür/etiket/yıl/puan değerleri her zaman motor paketine de
+            // yansıtıldığı için ağırlıklı olarak paket sayılır. Kök alanlarda
+            // (legacy çipler) bir değer varsa ve pakette karşılığı yoksa o da
+            // sayılır; aynı filtre iki kez sayılmaz.
             SearchSourceEngine.ANILIST -> {
-                var count = 0
-                if (genres.isNotEmpty()) count += genres.size
-                if (excludedGenres.isNotEmpty()) count += excludedGenres.size
-                if (tags.isNotEmpty()) count += tags.size
-                if (selectedFormats.isNotEmpty()) count += selectedFormats.size
-                if (selectedStatuses.isNotEmpty()) count += selectedStatuses.size
-                if (country != null) count++
-                if (selectedSources.isNotEmpty()) count += selectedSources.size
-                if (startYear != null) count++
-                if (endYear != null) count++
-                if (season != null) count++
-                if (minScore != null || maxScore != null) count++
-                if (minEpCh != null || maxEpCh != null) count++
-                if (minDuration != null || maxDuration != null) count++
-                if (onMyList != null) count++
-                if (isDoujin != null) count++
-                if (isAdultFilter != null) count++
-                count + aniListSpecificFilters.activeCount
+                val f = aniListSpecificFilters
+                var count = f.activeCount
+                if (f.formats.isEmpty() && selectedFormats.isNotEmpty()) count += selectedFormats.size
+                if (f.statuses.isEmpty() && selectedStatuses.isNotEmpty()) count += selectedStatuses.size
+                if (f.country == null && country != null) count++
+                if (f.sources.isEmpty() && selectedSources.isNotEmpty()) count += selectedSources.size
+                if (f.season == null && season != null) count++
+                if (f.startYear == null && startYear != null) count++
+                if (f.endYear == null && endYear != null) count++
+                if (f.minScore == null && minScore != null) count++
+                if (f.maxScore == null && maxScore != null) count++
+                if (f.onMyList == null && onMyList != null) count++
+                if (f.isDoujin == null && isDoujin != null) count++
+                if (f.isAdult == null && isAdultFilter != null) count++
+                count
             }
-            SearchSourceEngine.MAL -> malSpecificFilters.activeCount
-            SearchSourceEngine.TMDB -> tmdbSpecificFilters.activeCount
-            SearchSourceEngine.SHIKIMORI -> shikimoriSpecificFilters.activeCount
-            SearchSourceEngine.KITSU -> kitsuSpecificFilters.activeCount
-            SearchSourceEngine.SIMKL -> simklSpecificFilters.activeCount
-            SearchSourceEngine.BANGUMI -> bangumiSpecificFilters.activeCount
+            // Kalan motorlar: paket sayılır. Paket boşsa (ör. seçilen tür bu
+            // kaynağın kimlik uzayına çevrilemedi, ya da seçim henüz projeksiyona
+            // yansımadı) kanonik kök alanlar sayılır. Aksi hâlde yalnızca kök
+            // alanda duran bir seçimle boş sorgu araması hiç çalışmıyor ve sayfa
+            // "filtre seçtim ama tepki yok" görünüyordu.
+            SearchSourceEngine.MAL -> countForBundle(malSpecificFilters.activeCount)
+            SearchSourceEngine.TMDB -> countForBundle(tmdbSpecificFilters.activeCount)
+            SearchSourceEngine.SHIKIMORI -> countForBundle(shikimoriSpecificFilters.activeCount)
+            SearchSourceEngine.KITSU -> countForBundle(kitsuSpecificFilters.activeCount)
+            SearchSourceEngine.SIMKL -> countForBundle(simklSpecificFilters.activeCount)
+            SearchSourceEngine.BANGUMI -> countForBundle(bangumiSpecificFilters.activeCount)
         }
+    }
+
+    /**
+     * Motor paketindeki filtre sayısı; paket boşsa kanonik kök alanlara düşer.
+     * Aynı filtre iki kez sayılmaz (biri ya da diğeri kullanılır).
+     */
+    private fun countForBundle(bundleCount: Int): Int {
+        if (bundleCount > 0) return bundleCount
+        var count = 0
+        if (genres.isNotEmpty()) count += genres.size
+        if (excludedGenres.isNotEmpty()) count += excludedGenres.size
+        if (tags.isNotEmpty()) count += tags.size
+        if (institutions.isNotEmpty()) count += institutions.size
+        if (startYear != null || endYear != null) count++
+        if (minScore != null || maxScore != null) count++
+        return count
     }
 
     /** Returns the legacy SearchFilters object for backward-compatible ViewModel code. */
@@ -221,6 +305,7 @@ data class SearchUiState(
         genres = genres,
         excludedGenres = excludedGenres,
         tags = tags,
+        organizations = organizations,
         minYear = startYear,
         maxYear = endYear,
         season = season?.apiValue,
@@ -233,7 +318,12 @@ data class SearchUiState(
 data class SearchHistoryItem(
     val query: String,
     val platform: SearchPlatform,
-    val mediaType: MediaType
+    val mediaType: MediaType,
+    val timestamp: Long = 0L,
+    val engine: SearchSourceEngine = SearchSourceEngine.ALL,
+    val scope: SearchScope = SearchScope.ALL_MIXED,
+    val isPinned: Boolean = false,
+    val searchCount: Int = 1
 )
 
 enum class SearchPlatform(val label: String) {
@@ -247,6 +337,9 @@ enum class SearchPlatform(val label: String) {
     Bangumi("Bangumi"),
     CS3("Eklentiler")
 }
+
+/** One catalog organization, identified by stable key and role (not by translated name). */
+data class OrgFilter(val role: TaxonomyOrgRole, val canonicalKey: String)
 
 /**
  * Legacy filter bag kept for backward compatibility with JikanApiClient
@@ -263,7 +356,8 @@ data class SearchFilters(
     val season: String? = null,
     val minScore: Int? = null,
     val maxScore: Int? = null,
-    val sort: String? = "POPULARITY_DESC"
+    val sort: String? = "POPULARITY_DESC",
+    val organizations: List<OrgFilter> = emptyList()
 ) {
     fun isDefault(): Boolean =
         format == null &&
@@ -271,6 +365,7 @@ data class SearchFilters(
         genres.isEmpty() &&
         excludedGenres.isEmpty() &&
         tags.isEmpty() &&
+        organizations.isEmpty() &&
         minYear == null &&
         maxYear == null &&
         season == null &&

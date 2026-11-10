@@ -3,8 +3,11 @@ package com.kitsugi.animelist.ui.screens.mylist
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
+import com.kitsugi.animelist.data.auth.BangumiAdultResolver
+import com.kitsugi.animelist.data.auth.BangumiAuthStore
 import com.kitsugi.animelist.data.local.MediaEntryDao
 import com.kitsugi.animelist.data.local.MediaEntryEntity
+import com.kitsugi.animelist.data.remote.BangumiIdNamespace
 import com.kitsugi.animelist.data.remote.ShikimoriAdultResolver
 import com.kitsugi.animelist.data.remote.TmdbAdultResolver
 import com.kitsugi.animelist.data.remote.TmdbApiClient
@@ -26,6 +29,8 @@ import kotlinx.coroutines.flow.first
  *    Listem → Simkl ekranında (ve "Tümü" sekmesinde) afişler bulanıklanmaz.
  *  • **Shikimori** — REST liste yanıtları `rating`/`genres` taşımaz (aynı sınıf hata;
  *    bu onarım onun yerini alır).
+ *  • **Bangumi** — kullanıcı koleksiyonu içindeki kısaltılmış `subject` nesnesi `nsfw`
+ *    alanını taşımaz; detay `GET /v0/subjects/{id}` ile doğrulanması gerekir.
  *
  * ## Çözüm
  * Kaydın taşıdığı kanonik kimlikle, +18 bilgisini güvenilir veren birinci el kaynaktan
@@ -35,6 +40,8 @@ import kotlinx.coroutines.flow.first
  *    kimlik doğrulaması gerektirmez, 50 kimliklik tek istekle toplu çözümlenir ve
  *    Shikimori anime/manga kimliklerini MAL ile paylaşır.
  *  • TMDB kimliği olan film/dizi → TMDB ayrıntısındaki `adult` bayrağı ([TmdbAdultResolver]).
+ *  • Bangumi kaynaklı satır → Bangumi `subject.nsfw` alanı; yerel listedeki stable ID,
+ *    gerçek `subject_id` değerine çevrilir.
  *
  * Kurallar:
  *  • Yalnızca `isAdult` false→true yönünde yazılır; mevcut yetişkin işaretleri ASLA kaldırılmaz.
@@ -51,13 +58,17 @@ internal object AdultFlagBackfillMigration {
     private const val KEY_LAST_ATTEMPT = "adult_flag_backfill_last_attempt_ms"
     private const val KEY_RESCAN = "adult_flag_backfill_rescan"
     private const val KEY_CHECKED = "adult_flag_backfill_checked_ids"
-    private const val MIGRATION_VERSION = 1
+    // v2: Bangumi koleksiyon satırlarının NSFW bilgisini de kaynak detayından doldur.
+    private const val MIGRATION_VERSION = 2
 
     /** Yinelenen turlar arasındaki bekleme (yeni içe aktarım [requestRescan] ile sıfırlar). */
     private const val RETRY_COOLDOWN_MS = 12 * 60 * 60 * 1000L
 
     /** Tek turda işlenecek maksimum satır (Shikimori 50'lik paketlerle gider). */
     private const val MAX_ROWS_PER_RUN = 600
+
+    /** Bangumi detay API'si ID başına istek istediğinden tek turdaki maliyeti sınırla. */
+    private const val MAX_BANGUMI_LOOKUPS_PER_RUN = 60
 
     /** "Çözüldü ve +18 değil" defterinin üst sınırı. */
     private const val MAX_CHECKED_KEYS = 20_000
@@ -78,6 +89,8 @@ internal object AdultFlagBackfillMigration {
         data class Shikimori(val kind: ShikimoriAdultResolver.Kind, val id: Int) : Lookup
         /** TMDB ayrıntı sorgusu (kimlik = TMDB ID). */
         data class Tmdb(val id: Int, val isMovie: Boolean) : Lookup
+        /** Bangumi subject ayrıntısı (kimlik = ham `subject_id`). */
+        data class Bangumi(val subjectId: Int) : Lookup
         /** Güvenilir kimlik yok → kayda dokunulmaz. */
         data object None : Lookup
     }
@@ -91,7 +104,14 @@ internal object AdultFlagBackfillMigration {
         // `source == "tmdb"` satırlarında malId alanı TMDB kimliğini taşıyabilir
         // (bkz. MediaGalleryIdentity yorumu) → o satırlarda malId'yi MAL sanmayız.
         val isTmdbSource = entity.source.equals("tmdb", ignoreCase = true)
+        val isBangumiSource = entity.source.equals("bangumi", ignoreCase = true) ||
+            entity.source.equals("bgm", ignoreCase = true) ||
+            entity.source.equals("bgm.tv", ignoreCase = true)
         return when {
+            isBangumiSource -> {
+                val subjectId = BangumiIdNamespace.rawIdOrNull(malId)
+                if (subjectId != null) Lookup.Bangumi(subjectId) else Lookup.None
+            }
             isTmdbSource -> {
                 val id = if (tmdbId > 0) tmdbId else malId.takeIf { it in 1..99_999_999 } ?: 0
                 if (id <= 0) Lookup.None
@@ -111,6 +131,7 @@ internal object AdultFlagBackfillMigration {
     internal fun checkedKey(lookup: Lookup): String? = when (lookup) {
         is Lookup.Shikimori -> "sk:${lookup.kind.name}:${lookup.id}"
         is Lookup.Tmdb -> "tm:${if (lookup.isMovie) "m" else "t"}:${lookup.id}"
+        is Lookup.Bangumi -> "bgm:${lookup.subjectId}"
         Lookup.None -> null
     }
 
@@ -145,12 +166,28 @@ internal object AdultFlagBackfillMigration {
             return
         }
 
-        val budgeted = candidates.take(MAX_ROWS_PER_RUN)
-        val deferred = candidates.size - budgeted.size
+        // Bangumi için API'de toplu subject ayrıntı ucu yok; ID başına bir istek gerekir.
+        // Son eklenen listeleri önce işlemek için DAO'nun id-desc sırası korunur ve her tur
+        // en fazla 60 farklı subject sorgulanır. Kalanlar bir sonraki taramaya bırakılır.
+        val bangumiCandidatesById = linkedMapOf<Int, MutableList<MediaEntryEntity>>()
+        val otherCandidates = mutableListOf<MediaEntryEntity>()
+        candidates.forEach { entity ->
+            when (val lookup = plan(entity)) {
+                is Lookup.Bangumi -> bangumiCandidatesById
+                    .getOrPut(lookup.subjectId) { mutableListOf() }.add(entity)
+                else -> otherCandidates.add(entity)
+            }
+        }
+        val selectedBangumiGroups = bangumiCandidatesById.entries.take(MAX_BANGUMI_LOOKUPS_PER_RUN)
+        val budgetedOther = otherCandidates.take(MAX_ROWS_PER_RUN)
+        val budgeted = budgetedOther + selectedBangumiGroups.flatMap { it.value }
+        val deferred = (otherCandidates.size - budgetedOther.size) +
+            bangumiCandidatesById.entries.drop(MAX_BANGUMI_LOOKUPS_PER_RUN).sumOf { it.value.size }
 
         // Kimlik → o kimliği taşıyan satırlar (aynı yapım birden çok kaynakta satır olabilir).
         val shikimoriRows = HashMap<ShikimoriAdultResolver.Kind, MutableMap<Int, MutableList<MediaEntryEntity>>>()
         val tmdbRows = HashMap<Boolean, MutableMap<Int, MutableList<MediaEntryEntity>>>()
+        val bangumiRows = LinkedHashMap<Int, MutableList<MediaEntryEntity>>()
         budgeted.forEach { entity ->
             when (val lookup = plan(entity)) {
                 is Lookup.Shikimori -> shikimoriRows
@@ -159,6 +196,8 @@ internal object AdultFlagBackfillMigration {
                 is Lookup.Tmdb -> tmdbRows
                     .getOrPut(lookup.isMovie) { HashMap() }
                     .getOrPut(lookup.id) { mutableListOf() }.add(entity)
+                is Lookup.Bangumi -> bangumiRows
+                    .getOrPut(lookup.subjectId) { mutableListOf() }.add(entity)
                 Lookup.None -> Unit
             }
         }
@@ -175,6 +214,34 @@ internal object AdultFlagBackfillMigration {
                     rowsById[id].orEmpty().forEach { entity -> flagRow(dao, entity) { flagged++ } }
                 } else {
                     notAdult.add("sk:${kind.name}:$id")
+                }
+            }
+        }
+
+        if (bangumiRows.isNotEmpty()) {
+            val token = try {
+                BangumiAuthStore.getValidToken(context)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                Log.w(TAG, "Bangumi oturumu okunamadı: ${error.message}")
+                null
+            }
+            if (token.isNullOrBlank()) {
+                // Oturum yoksa bu kaynak şu an çözülemez. Kaydı false olarak işaretleme;
+                // Bangumi yeniden içe aktarıldığında requestRescan bu taramayı tekrar açar.
+                Log.w(TAG, "Bangumi oturumu yok — NSFW taraması sonraki içe aktarıma bırakıldı.")
+            } else {
+                val flags = BangumiAdultResolver.resolveAdultFlags(token, bangumiRows.keys)
+                if (!flags.keys.containsAll(bangumiRows.keys)) networkIncomplete = true
+                flags.forEach { (subjectId, isAdult) ->
+                    if (isAdult) {
+                        bangumiRows[subjectId].orEmpty().forEach { entity ->
+                            flagRow(dao, entity) { flagged++ }
+                        }
+                    } else {
+                        notAdult.add("bgm:$subjectId")
+                    }
                 }
             }
         }

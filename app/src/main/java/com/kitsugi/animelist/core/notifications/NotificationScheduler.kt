@@ -8,37 +8,18 @@ import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.kitsugi.animelist.data.auth.ExternalAuthManager
-import com.kitsugi.animelist.data.settings.AppSettings
 import com.kitsugi.animelist.data.settings.SettingsDataStore
 import kotlinx.coroutines.flow.first
 import java.util.concurrent.TimeUnit
 
-internal data class NotificationAccountLinks(
-    val aniList: Boolean,
-    val mal: Boolean,
-    val simkl: Boolean,
-    val kitsu: Boolean,
-    val shikimori: Boolean,
-    val bangumi: Boolean
-) {
-    val any: Boolean
-        get() = aniList || mal || simkl || kitsu || shikimori || bangumi
-}
-
-internal fun shouldScheduleNotificationWork(
-    settings: AppSettings,
-    accounts: NotificationAccountLinks
-): Boolean =
-    (settings.airingNotificationsEnabled && accounts.any) ||
-        (settings.aniListNotificationsEnabled && accounts.aniList) ||
-        (settings.malNotificationsEnabled && accounts.mal) ||
-        (settings.simklNotificationsEnabled && accounts.simkl) ||
-        (settings.kitsuNotificationsEnabled && accounts.kitsu) ||
-        (settings.shikimoriNotificationsEnabled && accounts.shikimori)
+import com.kitsugi.animelist.data.settings.AppSettings
 
 object NotificationScheduler {
     private const val TAG = "NotificationScheduler"
-    private const val WORK_NAME = "airing_notifications_work"
+    /** Teşhis paneli bu isimle WorkManager durumunu sorgular. */
+    const val WORK_NAME = "airing_notifications_work"
+    private const val GATE_PREFS = "kitsugi_notif_gate"
+    private const val GATE_KEY = "gate"
 
     /**
      * Schedules only when at least one enabled notification source has a linked account.
@@ -94,7 +75,8 @@ object NotificationScheduler {
             simkl = !ExternalAuthManager.getSimklToken(context).isNullOrBlank(),
             kitsu = !ExternalAuthManager.getKitsuToken(context).isNullOrBlank(),
             shikimori = !ExternalAuthManager.getShikimoriToken(context).isNullOrBlank(),
-            bangumi = ExternalAuthManager.getAuthState(context).isBangumiConnected
+            bangumi = ExternalAuthManager.getAuthState(context).isBangumiConnected,
+            tmdb = com.kitsugi.animelist.data.auth.TmdbAuthStore.isConnected(context)
         )
 
     private fun enqueuePeriodicWork(context: Context, intervalMinutes: Int) {
@@ -120,6 +102,23 @@ object NotificationScheduler {
             ExistingPeriodicWorkPolicy.UPDATE,
             workRequest
         )
+    }
+
+    /**
+     * Yalnızca bildirim izni/cihaz ayarı **değiştiyse** planlı işi uzlaştırır.
+     *
+     * Her `onStart`'ta koşulsuz `reconcile` çağırmak gereksiz; burada son bilinen
+     * durum saklanır ve yalnızca geçiş olduğunda iş kurulur/iptal edilir.
+     * Örnek: kullanıcı sistem ayarlarından bildirimleri kapatıp geri döner.
+     */
+    suspend fun reconcileIfGateChanged(context: Context): Boolean {
+        val appContext = context.applicationContext
+        val gateName = KitsugiNotificationDispatcher.gate(appContext).name
+        val prefs = appContext.getSharedPreferences(GATE_PREFS, Context.MODE_PRIVATE)
+        val previous = prefs.getString(GATE_KEY, null)
+        if (previous == gateName) return false
+        prefs.edit().putString(GATE_KEY, gateName).apply()
+        return reconcile(appContext)
     }
 
     /** Cancels the scheduled work request. */

@@ -228,8 +228,8 @@ object CsStreamSanitizer {
             kept += stream
         }
 
-        // 3) URL bazlı tekrar
-        val seen = HashSet<String>()
+        // 3) URL ve oynatma koşulları aynı olan tekrarlar
+        val seen = HashSet<List<Any?>>()
         val deduped = ArrayList<StreamSource>(kept.size)
         for (stream in kept) {
             val key = stream.url.orEmpty().substringBefore('#').trim()
@@ -237,7 +237,17 @@ object CsStreamSanitizer {
                 deduped += stream
                 continue
             }
-            if (seen.add(key)) deduped += stream else droppedCount++
+            val identity = listOf(
+                key,
+                CsPlaybackHeaders.identity(stream.requestHeaders),
+                stream.externalAudioUrl,
+                stream.quality,
+                stream.qualityValue,
+                stream.csStreamType,
+                stream.csExtractorData,
+                stream.mediaType
+            )
+            if (seen.add(identity)) deduped += stream else droppedCount++
         }
 
         if (dropped.isNotEmpty()) {

@@ -90,27 +90,30 @@ class DetailHeroGallerySelectionTest {
     }
 
     @Test
-    fun `tall narrow and standard phone in portrait prefers poster artwork`() {
-        // e.g. 390x844 (ratio ~0.46 <= 0.75) or 360x800 (ratio 0.45)
+    fun `portrait phones prefer backdrop artwork regardless of aspect ratio`() {
+        // Keşfet/Listem tutarlılığı: dikey telefonda (oran ne olursa olsun)
+        // yatay arka plan gösterilir; eski <=0.75 eşiği her telefonda postere
+        // düşürüp Keşfet detayında yanlışlıkla tam ekran poster gösteriyordu.
         val modernPhone = resolveHeroArtworkPreference(screenWidthDp = 390, screenHeightDp = 844)
-        assertEquals(HeroArtworkPreference.POSTER, modernPhone)
+        assertEquals(HeroArtworkPreference.BACKDROP, modernPhone)
 
         val ultraTallPhone = resolveHeroArtworkPreference(screenWidthDp = 360, screenHeightDp = 800)
-        assertEquals(HeroArtworkPreference.POSTER, ultraTallPhone)
+        assertEquals(HeroArtworkPreference.BACKDROP, ultraTallPhone)
 
-        // v2.4.338+: Standard 16:9 phone portrait (360x640, ratio 0.5625 <= 0.75) prefers POSTER
         val standardPhone = resolveHeroArtworkPreference(screenWidthDp = 360, screenHeightDp = 640)
-        assertEquals(HeroArtworkPreference.POSTER, standardPhone)
+        assertEquals(HeroArtworkPreference.BACKDROP, standardPhone)
     }
 
     @Test
-    fun `square or wide tablet portrait prefers backdrop artwork`() {
-        // e.g. square device portrait: 800x900 (ratio ~0.89 > 0.75)
+    fun `portrait tablets and square devices prefer backdrop artwork`() {
         val squareDevice = resolveHeroArtworkPreference(screenWidthDp = 800, screenHeightDp = 900)
         assertEquals(HeroArtworkPreference.BACKDROP, squareDevice)
 
-        // Wide tablet portrait: 600x700 (ratio ~0.86 > 0.75)
         val wideTablet = resolveHeroArtworkPreference(screenWidthDp = 600, screenHeightDp = 700)
         assertEquals(HeroArtworkPreference.BACKDROP, wideTablet)
+
+        // Kare ekran (w == h) yatay sayılmaz -> arka plan.
+        val exactSquare = resolveHeroArtworkPreference(screenWidthDp = 800, screenHeightDp = 800)
+        assertEquals(HeroArtworkPreference.BACKDROP, exactSquare)
     }
 }

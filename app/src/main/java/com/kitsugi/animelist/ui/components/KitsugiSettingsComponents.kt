@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.ui.components
+﻿package com.kitsugi.animelist.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.material3.LocalContentColor
@@ -15,7 +15,7 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.ui.draw.drawWithContent
@@ -56,8 +56,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Check
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
@@ -787,7 +786,7 @@ fun KitsugiDropdownMenu(
                 Column(
                     modifier = modifier
                         .widthIn(min = 168.dp, max = 320.dp)
-                        .verticalScroll(rememberScrollState())
+                        .kitsugiVerticalScroll(rememberScrollState())
                         .padding(6.dp),
                     content = content
                 )
@@ -853,7 +852,7 @@ private fun KitsugiSettingsDropdownDialog(
                             modifier = modifier
                                 .fillMaxWidth()
                                 .weight(1f, fill = false)
-                                .verticalScroll(rememberScrollState())
+                                .kitsugiVerticalScroll(rememberScrollState())
                                 .padding(horizontal = 16.dp, vertical = 4.dp),
                             content = content
                         )
@@ -996,7 +995,7 @@ fun KitsugiMenuItem(
             selected -> {
                 Spacer(modifier = Modifier.width(8.dp))
                 Icon(
-                    imageVector = Icons.Rounded.Check,
+                    imageVector = Icons.Check,
                     contentDescription = null,
                     tint = accentColor,
                     modifier = Modifier

@@ -2,6 +2,7 @@ package com.kitsugi.animelist.data.remote
 
 import android.util.Log
 import com.kitsugi.animelist.model.MediaType
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -116,11 +117,11 @@ object KitsugiShikimoriClient {
                             year = year,
                             source = "shikimori",
                             realMalId = item.optInt("myanimelist_id").takeIf { it in 1..99_999_999 },
-                            titleEnglish = romajiTitle.ifBlank { null }
+                            titleRomaji = romajiTitle.ifBlank { null }
                         )
                     )
                 }
-                withResolvedPosters(ShikimoriPosterResolver.Kind.ANIME, results)
+                withResolvedMediaMetadata(ShikimoriPosterResolver.Kind.ANIME, results)
             }.getOrElse { err ->
                 Log.e(TAG, "Shikimori searchAnime exception: ${err.message}", err)
                 emptyList()
@@ -165,11 +166,11 @@ object KitsugiShikimoriClient {
                             year = year,
                             source = "shikimori",
                             realMalId = item.optInt("myanimelist_id").takeIf { it in 1..99_999_999 },
-                            titleEnglish = romajiTitle.ifBlank { null }
+                            titleRomaji = romajiTitle.ifBlank { null }
                         )
                     )
                 }
-                withResolvedPosters(ShikimoriPosterResolver.Kind.MANGA, results)
+                withResolvedMediaMetadata(ShikimoriPosterResolver.Kind.MANGA, results)
             }.getOrElse { err ->
                 Log.e(TAG, "Shikimori searchManga exception: ${err.message}", err)
                 emptyList()
@@ -259,11 +260,11 @@ object KitsugiShikimoriClient {
                         year = yr,
                         source = "shikimori",
                         realMalId = item.optInt("myanimelist_id").takeIf { it in 1..99_999_999 },
-                        titleEnglish = romajiTitle.ifBlank { null }
+                        titleRomaji = romajiTitle.ifBlank { null }
                     )
                 )
             }
-            withResolvedPosters(
+            withResolvedMediaMetadata(
                 if (mediaType == com.kitsugi.animelist.model.MediaType.Manga) ShikimoriPosterResolver.Kind.MANGA
                 else ShikimoriPosterResolver.Kind.ANIME,
                 results
@@ -432,11 +433,12 @@ object KitsugiShikimoriClient {
                 KitsugiApiBase.runWithRateLimit {
                     val response = KitsugiApiBase.executeGetRequestResilient(url) ?: return@runWithRateLimit null
                     val data = JSONObject(response)
+                    val metadata = ShikimoriDetailParser.parse(data, mediaType)
 
-                    val russianTitle = data.optString("russian").takeIf { it.isNotBlank() }
-                    val romajiTitle = data.optString("name").takeIf { it.isNotBlank() }
-                    val engTitle = data.optJSONArray("english")?.optString(0)?.takeIf { it.isNotBlank() }
-                    val japTitle = data.optJSONArray("japanese")?.optString(0)?.takeIf { it.isNotBlank() }
+                    val russianTitle = metadata.russianTitle
+                    val romajiTitle = data.optNullableString("name")
+                    val engTitle = metadata.englishTitle
+                    val japTitle = metadata.japaneseTitle
                     val mainTitle = romajiTitle ?: engTitle ?: russianTitle ?: "Bilinmeyen"
 
                     val relativeImg = data.optJSONObject("image")?.optString("original")
@@ -461,15 +463,13 @@ object KitsugiShikimoriClient {
                     }
 
                     val ratingRaw = data.optString("rating", "").lowercase()
-                    val statusRaw = data.optString("status", "")
-                    val statusStr = when (statusRaw) {
-                        "released" -> "Finished Airing"
-                        "ongoing"  -> "Currently Airing"
-                        "anons"    -> "Not yet aired"
-                        else       -> statusRaw
-                    }.toTurkishStatus()
+                    val statusStr = metadata.status?.toTurkishStatus()
 
                     val genresList = mutableListOf<String>()
+                    // `kind` alanı Shikimori'nin kendi sınıflandırmasıdır: theme/demographic
+                    // ayrımı korunur (birleştirme ve filtre bu alanları ayrı kullanır).
+                    val shikiThemes = mutableListOf<String>()
+                    val shikiDemographics = mutableListOf<String>()
                     val shikiTags = mutableListOf<KitsugiTag>()
                     val genresArr = data.optJSONArray("genres")
                     if (genresArr != null) {
@@ -479,6 +479,10 @@ object KitsugiShikimoriClient {
                             val gKind = gObj.optString("kind", "").lowercase()
                             if (gName.isNotBlank()) {
                                 genresList.add(gName)
+                                when (gKind) {
+                                    "theme" -> shikiThemes.add(gName)
+                                    "demographic" -> shikiDemographics.add(gName)
+                                }
                                 if (gKind == "theme" || gKind == "demographic" || !com.kitsugi.animelist.ui.screens.search.CanonicalFilterBridge.isOfficialAniListGenre(gName)) {
                                     shikiTags.add(
                                         KitsugiTag(
@@ -524,6 +528,22 @@ object KitsugiShikimoriClient {
                         }
                     }
 
+                    // ── Lisans verenler / yayınevleri ──────────────────────────
+                    // Shikimori `licensors` DÜZ STRING dizisidir (bazı kayıtlarda nesne),
+                    // `publishers` (manga) ise nesne dizisidir. İkisi de kurumdur; daha önce
+                    // hiç okunmuyordu → Shikimori kaynaklı sayfalarda lisans veren/yayıncı
+                    // listesi boş görünüyordu. Rusça adlar Latin harflerine çevrilir.
+                    val shikiLicensors = parseShikimoriOrgArray(
+                        data.optJSONArray("licensors"),
+                        StudioRole.LICENSOR
+                    )
+                    val shikiPublishers = parseShikimoriOrgArray(
+                        data.optJSONArray("publishers"),
+                        StudioRole.PUBLISHER
+                    )
+                    val shikiProdOrgs = (shikiLicensors + shikiPublishers)
+                        .filter { org -> studiosList.none { it.name.equals(org.name, ignoreCase = true) } }
+
                     // NOT: Shikimori ID'si MAL ID'si DEĞİLDİR! Eski kod `myanimelist_id`
                     // alanı boşken buraya Shikimori ID'sini yazıyordu; sonuç: Shikimori
                     // kaydı MAL ID sanılıp alakasız yapımların puanı/bölümü/afişi çekiliyordu.
@@ -545,13 +565,11 @@ object KitsugiShikimoriClient {
                             }
                         }
                         val linksDef = async(Dispatchers.IO) {
-                            if (mediaType == MediaType.Manga) {
-                                emptyList<KitsugiExternalLink>()
-                            } else {
-                                runCatching {
-                                    withTimeoutOrNull(SHIKI_EXTRAS_TIMEOUT_MS) { fetchShikimoriExternalLinks(externalId) }
-                                }.getOrNull().orEmpty()
-                            }
+                            runCatching {
+                                withTimeoutOrNull(SHIKI_EXTRAS_TIMEOUT_MS) {
+                                    fetchShikimoriExternalLinks(externalId, mediaType)
+                                }
+                            }.getOrNull().orEmpty()
                         }
                         val themesDef = async(Dispatchers.IO) {
                             val malId = realMalId
@@ -571,8 +589,19 @@ object KitsugiShikimoriClient {
                     // Shikimori ekstra videolar (PV, Teaser, Karakter tanıtımları, OP, ED)
                     val shikiVideos = extras.first
 
-                    // Shikimori harici ve yayın linkleri
-                    val shikiLinks = extras.second
+                    // Shikimori harici ve yayın linkleri. Kaydın kendi sayfası ve doğrulanmış
+                    // MAL karşılığı da listede bulunur; API aynı URL'yi tekrar ederse tekilleştirilir.
+                    val shikimoriPage = ShikimoriPosterResolver.absoluteUrl(
+                        data.optNullableString("url") ?: "/$endpoint/$externalId"
+                    )?.let { KitsugiExternalLink(site = "Shikimori", url = it) }
+                    val malPage = realMalId?.let { malId ->
+                        val kind = if (mediaType == MediaType.Manga) "manga" else "anime"
+                        KitsugiExternalLink(site = "MyAnimeList", url = "https://myanimelist.net/$kind/$malId")
+                    }
+                    val shikiLinks = (listOfNotNull(shikimoriPage) + extras.second + listOfNotNull(malPage))
+                        .distinctBy { link ->
+                            link.url.trim().substringAfter("://").trimEnd('/').lowercase(java.util.Locale.ROOT)
+                        }
 
                     // AnimeThemes entegrasyonu (MyAnimeList ID üzerinden)
                     val (themeOps, themeEds) = extras.third
@@ -603,8 +632,8 @@ object KitsugiShikimoriClient {
                     val extraEdsAsThemes = shikiVideos.filter { it.first == "ed" }.map { it.second }
                     val finalEndings = (themeEds + extraEdsAsThemes).distinctBy { it.videoUrl ?: it.label }
 
-                    val streamingSites = setOf("Crunchyroll", "Netflix", "HIDIVE", "Disney+", "Amazon Prime")
-                    val streamingLinks = shikiLinks.filter { link -> streamingSites.any { link.site.contains(it, ignoreCase = true) } }
+                    val streamingLinks = shikiLinks.filter { ShikimoriDetailParser.isStreamingSite(it.site) }
+                    val externalLinks = shikiLinks.filterNot { ShikimoriDetailParser.isStreamingSite(it.site) }
 
                     val rawDesc = data.optNullableString("description")?.cleanApiText()
                     // Çeviri sayfa açılışını bloklamaz: kısa bütçeyle denenir, olmazsa
@@ -619,30 +648,57 @@ object KitsugiShikimoriClient {
                         type = if (mediaType == MediaType.Manga) MediaType.Manga
                                else kindToMediaType(data.optString("kind", "tv")),
                         genres = genresList.toTurkishGenres(),
+                        themes = shikiThemes.distinct().toTurkishGenres(),
+                        demographics = shikiDemographics.distinct().toTurkishGenres(),
                         status = statusStr,
+                        season = metadata.season?.toTurkishSeason(),
                         studios = studiosList,
                         rating = rating,
-                        episodeDuration = data.optInt("duration").takeIf { it > 0 }?.let { "$it dk" },
+                        episodeDuration = data.optInt("duration").takeIf { it > 0 }?.let {
+                            KitsugiStrings.get(R.string.detail_info_duration_minutes, it)
+                        },
                         startDate = data.optNullableString("aired_on"),
                         endDate = data.optNullableString("released_on"),
-                        titleEnglish = engTitle ?: romajiTitle,
+                        titleEnglish = engTitle,
                         titleJapanese = japTitle,
                         titleRomaji = romajiTitle,
                         titleNative = japTitle,
+                        titleRussian = russianTitle,
+                        synonyms = metadata.synonyms,
                         trailerUrl = trailerUrl,
                         title = mainTitle,
                         imageUrl = imageUrl,
                         score = score,
                         meanScore = meanScore,
+                        averageScore = meanScore,
                         year = year,
                         total = total,
                         isAdult = isAdult,
                         realMalId = realMalId,
                         tags = shikiTags,
+                        producers = shikiProdOrgs,
+                        serializations = shikiPublishers,
                         openings = finalOpenings,
                         endings = finalEndings,
-                        externalLinks = shikiLinks,
-                        streamingLinks = streamingLinks
+                        externalLinks = externalLinks,
+                        streamingLinks = streamingLinks,
+                        nextAiringEpisode = metadata.nextAiringEpisode,
+                        popularity = metadata.members,
+                        scoredBy = metadata.scoredBy,
+                        members = metadata.members,
+                        isFavourite = metadata.isFavourite,
+                        format = metadata.format,
+                        volumes = metadata.volumes,
+                        rawFormat = metadata.rawFormat,
+                        rawStatus = metadata.rawStatus,
+                        rawSeason = metadata.rawSeason,
+                        seasonYear = year,
+                        episodesAired = metadata.episodesAired,
+                        publishers = metadata.publishers ?: shikiPublishers.map { it.name }.takeIf { it.isNotEmpty() },
+                        licensors = metadata.licensors ?: shikiLicensors.map { it.name }.takeIf { it.isNotEmpty() },
+                        fansubbers = metadata.fansubbers,
+                        fandubbers = metadata.fandubbers,
+                        nativeStats = metadata.nativeStats
                     )
                 }
             }.getOrElse { err ->
@@ -651,60 +707,120 @@ object KitsugiShikimoriClient {
             }
         }
 
+    /**
+     * Shikimori'nin `licensors` / `publishers` dizisini kurum listesine çevirir.
+     *
+     * Dizi elemanları **düz string** (`"licensors": ["Crunchyroll"]`) veya **nesne**
+     * (`{"id":1,"name":"Kodansha"}`) olabilir; ikisi de desteklenir. Kiril adlar
+     * [toLatinStudioName] ile Latin harflerine çevrilir (ekranda Rusça görünmez).
+     */
+    internal fun parseShikimoriOrgArray(
+        arr: org.json.JSONArray?,
+        role: StudioRole,
+        source: String = "shikimori"
+    ): List<KitsugiStudio> {
+        if (arr == null || arr.length() == 0) return emptyList()
+        val out = ArrayList<KitsugiStudio>(arr.length())
+        for (i in 0 until arr.length()) {
+            val item = arr.optJSONObject(i)
+            val raw = if (item != null) item.optString("name", "") else arr.optString(i, "")
+            val name = raw.trim()
+            if (name.isEmpty() || name == "null") continue
+            val id = item?.let { obj -> obj.optInt("id", 0).takeIf { value -> value > 0 } } ?: 0
+            out.add(
+                KitsugiStudio(
+                    id = id,
+                    name = name.toLatinStudioName(),
+                    isMain = role == StudioRole.STUDIO,
+                    source = source,
+                    role = role
+                )
+            )
+        }
+        return out.distinctBy { it.name.lowercase(java.util.Locale.ROOT) }
+    }
+
+    private val shikiVideosCache = com.kitsugi.animelist.core.memory.BoundedCache<Int, List<Pair<String, KitsugiTheme>>>("shikimori.videos", 120)
+
     suspend fun fetchShikimoriVideos(animeId: Int): List<Pair<String, KitsugiTheme>> = withContext(Dispatchers.IO) {
         if (animeId <= 0) return@withContext emptyList()
+        shikiVideosCache[animeId]?.let { return@withContext it }
+
         val url = runCatching { URL("$BASE_URL/animes/$animeId/videos") }.getOrNull() ?: return@withContext emptyList()
-        runCatching {
+        val parsed = runCatching {
             val response = KitsugiApiBase.executeGetRequestResilient(url) ?: return@runCatching emptyList()
             val array = JSONArray(response)
             val list = mutableListOf<Pair<String, KitsugiTheme>>()
             for (i in 0 until array.length()) {
                 val item = array.optJSONObject(i) ?: continue
-                val vUrl = item.optString("url")
-                if (vUrl.isBlank() || (!vUrl.contains("youtube.com") && !vUrl.contains("youtu.be"))) continue
-                val rawName = item.optString("name", "").trim()
-                val kind = item.optString("kind", "pv").lowercase()
-                val kindTr = when (kind) {
-                    "pv" -> "PV / Tanıtım"
-                    "character_trailer" -> "Karakter Tanıtımı"
-                    "op" -> "Açılış (OP)"
-                    "ed" -> "Kapanış (ED)"
-                    "cm" -> "Ticari Reklam (CM)"
-                    "clip" -> "Klip"
-                    else -> "Video"
+                val directUrl = item.optString("url")
+                val playerUrl = item.optString("player_url")
+                val ytId = extractCanonicalYouTubeId(directUrl) ?: extractCanonicalYouTubeId(playerUrl)
+                val vUrl = when {
+                    ytId != null -> "https://www.youtube.com/watch?v=$ytId"
+                    directUrl.isNotBlank() && (directUrl.contains("youtube.com") || directUrl.contains("youtu.be")) -> directUrl
+                    else -> continue
                 }
-                val label = if (rawName.isNotBlank()) "$kindTr - $rawName" else kindTr
-                list.add(Pair(kind, KitsugiTheme(label = label, videoUrl = vUrl)))
+                val rawName = item.optString("name", "").trim()
+                val kind = item.optString("kind", "pv").lowercase(java.util.Locale.ROOT)
+                val kindLabel = when (kind) {
+                    "pv", "episode_preview" -> KitsugiStrings.get(R.string.source_video_pv)
+                    "character_trailer" -> KitsugiStrings.get(R.string.source_video_character_trailer)
+                    "op" -> KitsugiStrings.get(R.string.detail_openings)
+                    "ed" -> KitsugiStrings.get(R.string.detail_endings)
+                    "cm" -> KitsugiStrings.get(R.string.source_video_cm)
+                    "clip" -> KitsugiStrings.get(R.string.source_video_clip)
+                    else -> KitsugiStrings.get(R.string.source_video_trailer)
+                }
+                val label = if (rawName.isNotBlank()) "$kindLabel - $rawName" else kindLabel
+                list.add(Pair(kind, KitsugiTheme(label = label, videoUrl = vUrl, source = "shikimori")))
             }
             list
         }.getOrElse { emptyList() }
+
+        if (parsed.isNotEmpty()) {
+            shikiVideosCache[animeId] = parsed
+        }
+        parsed
     }
 
-    suspend fun fetchShikimoriExternalLinks(animeId: Int): List<KitsugiExternalLink> = withContext(Dispatchers.IO) {
-        if (animeId <= 0) return@withContext emptyList()
-        val url = runCatching { URL("$BASE_URL/animes/$animeId/external_links") }.getOrNull() ?: return@withContext emptyList()
+    suspend fun fetchShikimoriExternalLinks(
+        externalId: Int,
+        mediaType: MediaType = MediaType.Anime
+    ): List<KitsugiExternalLink> = withContext(Dispatchers.IO) {
+        if (externalId <= 0) return@withContext emptyList()
+        val endpoint = if (mediaType == MediaType.Manga) "mangas" else "animes"
+        val url = runCatching { URL("$BASE_URL/$endpoint/$externalId/external_links") }.getOrNull()
+            ?: return@withContext emptyList()
         runCatching {
             val response = KitsugiApiBase.executeGetRequestResilient(url) ?: return@runCatching emptyList()
             val array = JSONArray(response)
             val list = mutableListOf<KitsugiExternalLink>()
             for (i in 0 until array.length()) {
                 val item = array.optJSONObject(i) ?: continue
-                val lUrl = item.optString("url")
-                if (lUrl.isBlank()) continue
+                val lUrl = item.optNullableString("url") ?: continue
                 val kind = item.optString("kind", "official_site")
                 val siteName = when (kind.lowercase()) {
-                    "official_site" -> "Resmi Web Sitesi"
-                    "wikipedia" -> "Vikipedi"
+                    "official_site" -> KitsugiStrings.get(R.string.detail_link_official_site)
+                    "wikipedia" -> KitsugiStrings.get(R.string.detail_link_wikipedia)
                     "crunchyroll" -> "Crunchyroll"
                     "twitter" -> "X (Twitter)"
                     "youtube" -> "YouTube"
                     "netflix" -> "Netflix"
                     "hidive" -> "HIDIVE"
-                    "animenewsnetwork" -> "Anime News Network"
+                    "animenewsnetwork", "anime_news_network" -> "Anime News Network"
                     "myanimelist" -> "MyAnimeList"
+                    "amazon_prime" -> "Amazon Prime"
+                    "kinopoisk_hd" -> "Kinopoisk HD"
                     else -> kind.replace("_", " ").replaceFirstChar { it.uppercase() }
                 }
-                list.add(KitsugiExternalLink(site = siteName, url = lUrl))
+                list.add(
+                    KitsugiExternalLink(
+                        site = siteName,
+                        url = lUrl,
+                        language = ShikimoriDetailParser.externalLinkLanguage(kind, lUrl)
+                    )
+                )
             }
             list
         }.getOrElse { emptyList() }
@@ -1413,6 +1529,32 @@ object KitsugiShikimoriClient {
             if (current != null) return current
             if (kind == null || id <= 0) return null
             return resolved[kind]?.get(id)?.cardUrl
+        }
+    }
+
+    /**
+     * Shikimori REST araması yalnızca `name` (romaji) ve `russian` başlıklarını verir.
+     * İngilizce/Japonca varyantları GraphQL'den sayfa başına toplu çözüp eksik kapaklarla
+     * paralel tamamlarız; böylece arama ve keşfet kartları seçili başlık dilini kullanabilir.
+     */
+    private suspend fun withResolvedMediaMetadata(
+        kind: ShikimoriPosterResolver.Kind,
+        results: List<JikanSearchResult>
+    ): List<JikanSearchResult> {
+        if (results.isEmpty()) return results
+        return coroutineScope {
+            val posters = async { withResolvedPosters(kind, results) }
+            val names = async {
+                try {
+                    ShikimoriTitleResolver.resolve(kind, results.map { it.malId })
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (error: Exception) {
+                    Log.w(TAG, "Shikimori başlıkları çözülemedi (${kind.field}): ${error.message}")
+                    emptyMap<Int, ShikimoriTitleResolver.Names>()
+                }
+            }
+            ShikimoriTitleResolver.applyToSearchResults(posters.await(), names.await())
         }
     }
 

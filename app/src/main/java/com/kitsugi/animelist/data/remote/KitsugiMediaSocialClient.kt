@@ -373,8 +373,18 @@ class KitsugiMediaSocialClient {
                     }
                 }
                 "shikimori" -> {
-                    // Shikimori ID'si MAL ID'si değildir. Gerçek MAL ID'si çözülür; istatistik
-                    // AniList'ten (varsa) yoksa MAL/Jikan'dan çekilir.
+                    // Detay yanıtı Shikimori'nin KENDİ puan/durum dağılımını zaten taşır.
+                    // Ek servislere gerek kalmadan önce onu kullan; yalnızca gerçekten boşsa
+                    // doğrulanmış MAL/AniList karşılığına düş. Shikimori ID'si asla MAL ID
+                    // olarak yorumlanmaz.
+                    val native = cachedSocialDetail("shikimori", externalId, mediaType)?.nativeStats
+                    val nativeUseful = native != null && (
+                        native.scoreDistribution.any { it.amount > 0 } ||
+                            listOfNotNull(native.watching, native.completed, native.planned, native.dropped, native.paused)
+                                .any { it > 0 }
+                        )
+                    if (nativeUseful) return@withContext native
+
                     val malId = resolveMalIdForShikimori(externalId, realMalId, mediaType)
                     val jikanType = if (mediaType == MediaType.Manga) MediaType.Manga else MediaType.Anime
                     if (malId != null && malId > 0) {
@@ -385,8 +395,8 @@ class KitsugiMediaSocialClient {
                                 return@withContext aniStats
                             }
                         }
-                        fetchStatsFromJikan(malId, jikanType)
-                    } else null
+                        fetchStatsFromJikan(malId, jikanType) ?: native
+                    } else native
                 }
                 "anilist"      -> fetchStatsFromAniList(externalId, mediaType)
                 else           -> null
@@ -577,7 +587,7 @@ class KitsugiMediaSocialClient {
     }
 
     /**
-     * Farklı kaynaklardan (AniList, MAL/Jikan, Kitsu, Shikimori, TMDB, Bangumi) gelen
+     * Farklı kaynaklardan (AniList, MAL/Jikan, Kitsu, TMDB, Bangumi) gelen
      * inceleme listelerini round-robin (sırayla birer birer) harmanlar.
      * Böylece Yorumlar sekmesindeki ilk 5 kartta ve Tüm İncelemeler sayfasında tüm kaynaklar dengeli görünür.
      */
@@ -638,19 +648,15 @@ class KitsugiMediaSocialClient {
                 runCatching { fetchReviewsFromKitsu(kitsuId, mediaType, page) }.getOrNull().orEmpty()
             } else emptyList()
         }
-        val shikiDeferred = async {
-            val shikiId = if (canonical == "shikimori") externalId else malId
-            if (shikiId != null && shikiId > 0 && page == 1) {
-                runCatching { fetchReviewsFromShikimori(shikiId, mediaType) }.getOrNull().orEmpty()
-            } else emptyList()
-        }
 
+        // Shikimori /topics inceleme değil, forum konusu döndürür. Bu veri bilinçli
+        // olarak forum akışında gösterilir; MAL ID'si Shikimori ID'si varsayılarak
+        // alakasız konuların inceleme kartına düşmesine izin verilmez.
         interleaveReviewLists(
             listOf(
                 aniDeferred.await(),
                 jikanDeferred.await(),
-                kitsuDeferred.await(),
-                shikiDeferred.await()
+                kitsuDeferred.await()
             )
         ).distinctBy(::reviewFingerprint)
     }
@@ -795,40 +801,46 @@ class KitsugiMediaSocialClient {
         (reviewsDeferred.await() + reactionsDeferred.await()).distinctBy(::reviewFingerprint)
     }
 
-    /**
-     * Shikimori üzerinden inceleme / tartışma yorumlarını çeker.
-     */
-    private suspend fun fetchReviewsFromShikimori(shikiOrMalId: Int, mediaType: MediaType): List<KitsugiReview> {
-        if (shikiOrMalId <= 0) return emptyList()
+    /** Shikimori'nin yapıma bağlı konularını olduğu gibi FORUM verisi olarak okur. */
+    private suspend fun fetchForumTopicsFromShikimori(
+        shikimoriId: Int,
+        mediaType: MediaType
+    ): List<KitsugiForumTopic> {
+        if (shikimoriId <= 0) return emptyList()
         val endpoint = if (mediaType == MediaType.Manga) "mangas" else "animes"
         return runCatching {
-            val url = java.net.URL("https://shikimori.io/api/$endpoint/$shikiOrMalId/topics?limit=8")
+            val url = java.net.URL("https://shikimori.io/api/$endpoint/$shikimoriId/topics?limit=12")
             val response = KitsugiApiBase.executeGetRequestResilient(url) ?: return@runCatching emptyList()
             val arr = org.json.JSONArray(response)
-            val list = mutableListOf<KitsugiReview>()
+            val list = mutableListOf<KitsugiForumTopic>()
             for (i in 0 until arr.length()) {
                 val item = arr.optJSONObject(i) ?: continue
-                val rawBody = item.optString("body", "").cleanShikimoriBbCode().cleanApiText().trim()
-                if (rawBody.length < 25) continue
+                val topicId = item.optInt("id").takeIf { it > 0 } ?: continue
+                val title = (item.optNullableString("topic_title") ?: item.optNullableString("title"))
+                    ?.cleanApiText()?.trim().orEmpty()
+                if (title.isBlank()) continue
+                val rawBody = item.optNullableString("body")
+                    ?.cleanShikimoriBbCode()
+                    ?.cleanApiText()
+                    ?.trim()
+                    .orEmpty()
                 val userObj = item.optJSONObject("user")
-                val username = userObj?.optNullableString("nickname") ?: KitsugiStrings.get(R.string.shikimori_kullanicisi)
+                val username = userObj?.optNullableString("nickname")
+                    ?: KitsugiStrings.get(R.string.shikimori_kullanicisi)
                 val avatarUrl = userObj?.optJSONObject("image")?.optNullableString("x160")
                     ?: userObj?.optNullableString("avatar")
-                val dateText = item.optNullableString("created_at")?.take(10)
-                val commentsCount = item.optInt("comments_count", 0)
-                val summary = if (rawBody.length > 280) rawBody.take(280) + "..." else rawBody
                 list.add(
-                    KitsugiReview(
-                        id = item.optInt("id").takeIf { it > 0 },
-                        userId = userObj?.optInt("id")?.takeIf { it > 0 },
+                    KitsugiForumTopic(
+                        id = topicId,
+                        title = title,
+                        commentCount = item.optInt("comments_count", 0).coerceAtLeast(0),
+                        viewCount = item.optInt("views_count", 0).coerceAtLeast(0),
                         username = username,
-                        avatarUrl = avatarUrl,
-                        score = null,
-                        summary = summary,
-                        fullText = rawBody,
-                        dateText = dateText,
-                        helpfulCount = commentsCount.takeIf { it > 0 },
-                        source = "shikimori"
+                        avatarUrl = ShikimoriPosterResolver.absoluteUrl(avatarUrl),
+                        dateText = formatIsoDateShort(item.optNullableString("created_at")),
+                        userId = userObj?.optInt("id")?.takeIf { it > 0 },
+                        source = "shikimori",
+                        body = rawBody
                     )
                 )
             }
@@ -951,6 +963,7 @@ class KitsugiMediaSocialClient {
     ): List<KitsugiForumTopic> = withContext(Dispatchers.IO) {
         if (!supportsAnimeSocial(mediaType) || externalId <= 0) return@withContext emptyList()
 
+        val canonical = MalJikanMediaSupport.canonicalSource(source)
         val aniListId = resolveAniListMediaId(source, externalId, mediaType, tmdbId, realMalId)
         val malId = resolveRealMalIdForSocial(source, externalId, mediaType, tmdbId, realMalId)
 
@@ -965,9 +978,15 @@ class KitsugiMediaSocialClient {
                     runCatching { fetchForumTopicsFromJikan(malId, mediaType, page) }.getOrNull().orEmpty()
                 } else emptyList()
             }
+            val shikimoriDeferred = async {
+                if (canonical == "shikimori" && page == 1) {
+                    runCatching { fetchForumTopicsFromShikimori(externalId, mediaType) }.getOrNull().orEmpty()
+                } else emptyList()
+            }
             val aniTopics = aniDeferred.await()
             val jikanTopics = jikanDeferred.await()
-            interleaveReviewLists(listOf(aniTopics, jikanTopics))
+            val shikimoriTopics = shikimoriDeferred.await()
+            interleaveReviewLists(listOf(aniTopics, jikanTopics, shikimoriTopics))
                 .distinctBy { "${it.source}_${it.id}" }
                 .distinctBy { it.title.lowercase().trim() }
                 .take(40)
@@ -1322,6 +1341,9 @@ class KitsugiMediaSocialClient {
             if (source.equals("jikan", ignoreCase = true) || source.equals("mal", ignoreCase = true)) {
                 return@withContext fetchMalForumTopicReplies(topicId, page)
             }
+            if (source.equals("shikimori", ignoreCase = true)) {
+                return@withContext fetchShikimoriTopicReplies(topicId, page)
+            }
             val query = """
                 query (${'$'}threadId: Int, ${'$'}page: Int) {
                     Page(page: ${'$'}page, perPage: 30) {
@@ -1359,6 +1381,57 @@ class KitsugiMediaSocialClient {
                 list
             }.getOrElse { emptyList() }
         }
+    }
+
+    /** Shikimori topic yorumları: /api/comments?commentable_type=Topic. */
+    private suspend fun fetchShikimoriTopicReplies(
+        topicId: Int,
+        page: Int
+    ): List<KitsugiForumReply> = withContext(Dispatchers.IO) {
+        if (topicId <= 0) return@withContext emptyList()
+        runCatching {
+            val url = java.net.URL(
+                "https://shikimori.io/api/comments?commentable_id=$topicId" +
+                    "&commentable_type=Topic&page=${page.coerceAtLeast(1)}&limit=30&desc=0"
+            )
+            val response = KitsugiApiBase.executeGetRequestResilient(url)
+                ?: return@runCatching emptyList()
+            val array = org.json.JSONArray(response)
+            val replies = mutableListOf<KitsugiForumReply>()
+            for (index in 0 until array.length()) {
+                val item = array.optJSONObject(index) ?: continue
+                if (item.optInt("commentable_id") != topicId ||
+                    !item.optString("commentable_type").equals("Topic", ignoreCase = true)
+                ) continue
+                val body = item.optNullableString("body")
+                    ?.cleanShikimoriBbCode()
+                    ?.cleanApiText()
+                    ?.trim()
+                    .orEmpty()
+                if (body.isBlank()) continue
+                val user = item.optJSONObject("user")
+                val rawDate = item.optNullableString("created_at")
+                val createdAt = rawDate?.let {
+                    runCatching { java.time.OffsetDateTime.parse(it).toEpochSecond().toInt() }.getOrNull()
+                }
+                replies += KitsugiForumReply(
+                    id = item.optInt("id").takeIf { it > 0 } ?: continue,
+                    comment = body,
+                    dateText = formatIsoDateTime(rawDate),
+                    username = user?.optNullableString("nickname")
+                        ?: KitsugiStrings.get(R.string.shikimori_kullanicisi),
+                    avatarUrl = ShikimoriPosterResolver.absoluteUrl(
+                        user?.optJSONObject("image")?.optNullableString("x160")
+                            ?: user?.optNullableString("avatar")
+                    ),
+                    likeCount = 0,
+                    isLiked = false,
+                    userId = user?.optInt("id")?.takeIf { it > 0 },
+                    createdAt = createdAt
+                )
+            }
+            replies
+        }.getOrElse { emptyList() }
     }
 
     /**

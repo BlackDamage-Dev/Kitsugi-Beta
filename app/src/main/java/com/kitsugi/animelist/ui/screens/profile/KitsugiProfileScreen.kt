@@ -12,8 +12,7 @@ import android.content.res.Configuration
 import com.kitsugi.animelist.ui.theme.gradient.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.*
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import com.kitsugi.animelist.ui.components.KitsugiPullToRefreshIndicator
@@ -36,6 +35,8 @@ import com.kitsugi.animelist.ui.components.KitsugiImageGalleryDialog
 import com.kitsugi.animelist.ui.components.KitsugiKitsuLoginDialog
 import com.kitsugi.animelist.ui.components.KitsugiShikimoriLoginDialog
 import com.kitsugi.animelist.ui.components.KitsugiBangumiLoginDialog
+import com.kitsugi.animelist.ui.components.KitsugiTopAction
+import com.kitsugi.animelist.ui.components.KitsugiTopActionRow
 import com.kitsugi.animelist.ui.theme.KitsugiColors
 import com.kitsugi.animelist.ui.theme.LocalKitsugiAccent
 import kotlinx.coroutines.launch
@@ -52,6 +53,8 @@ fun KitsugiProfileScreen(
     isKitsuConnected: Boolean = false,
     isShikimoriConnected: Boolean = false,
     isBangumiConnected: Boolean = false,
+    isTmdbConnected: Boolean = false,
+    tmdbUsername: String = "",
     profileName: String,
     listTitle: String,
     profileImageUri: String,
@@ -66,6 +69,8 @@ fun KitsugiProfileScreen(
     onOpenStatsClick: (() -> Unit)? = null,
     isNotificationsVisible: Boolean = false,
     onOpenNotifications: (() -> Unit)? = null,
+    onOpenWatchHistory: (() -> Unit)? = null,
+    onOpenDownloads: (() -> Unit)? = null,
     onGenreClick: (String) -> Unit = {},
     onTagClick: (String) -> Unit = {},
     onLoginAniList: () -> Unit = {},
@@ -74,6 +79,7 @@ fun KitsugiProfileScreen(
     onLoginKitsu: () -> Unit = {},
     onLoginShikimori: () -> Unit = {},
     onLoginBangumi: () -> Unit = {},
+    onLoginTmdb: () -> Unit = {},
     onKitsuAuthSubmit: ((String, String, (Boolean, String?) -> Unit) -> Unit)? = null,
     onShikimoriAuthSubmit: ((String, String, String, (Boolean, String?) -> Unit) -> Unit)? = null,
     onBangumiAuthSubmit: ((String, String, String, (Boolean, String?) -> Unit) -> Unit)? = null,
@@ -95,6 +101,7 @@ fun KitsugiProfileScreen(
     val kitsuState by viewModel.kitsuState.collectAsState()
     val shikimoriState by viewModel.shikimoriState.collectAsState()
     val bangumiState by viewModel.bangumiState.collectAsState()
+    val tmdbState by viewModel.tmdbState.collectAsState()
 
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -116,7 +123,7 @@ fun KitsugiProfileScreen(
         onSheetItemClick = onClick
     }
 
-    LaunchedEffect(activeSubTab, isAniListConnected, isMalConnected, isSimklConnected, isKitsuConnected, isShikimoriConnected, isBangumiConnected) {
+    LaunchedEffect(activeSubTab, isAniListConnected, isMalConnected, isSimklConnected, isKitsuConnected, isShikimoriConnected, isBangumiConnected, isTmdbConnected) {
         when (activeSubTab) {
             0 -> if (isAniListConnected && aniListState.userId == null && !aniListState.isLoading) viewModel.fetchAniListProfile()
             1 -> if (isMalConnected && malState.name.isBlank() && !malState.isLoading) viewModel.fetchMalProfile()
@@ -124,6 +131,7 @@ fun KitsugiProfileScreen(
             3 -> if (isKitsuConnected && kitsuState.name.isBlank() && !kitsuState.isLoading) viewModel.fetchKitsuProfile()
             4 -> if (isShikimoriConnected && shikimoriState.name.isBlank() && !shikimoriState.isLoading) viewModel.fetchShikimoriProfile()
             5 -> if (isBangumiConnected && bangumiState.lastUpdatedMs == 0L && !bangumiState.isLoading) viewModel.fetchBangumiProfile()
+            6 -> if (isTmdbConnected && tmdbState.lastUpdatedMs == 0L && !tmdbState.isLoading) viewModel.fetchTmdbProfile()
         }
     }
 
@@ -142,6 +150,7 @@ fun KitsugiProfileScreen(
                 ProfilePlatform.KITSU -> isKitsuConnected
                 ProfilePlatform.SHIKIMORI -> isShikimoriConnected
                 ProfilePlatform.BANGUMI -> isBangumiConnected
+                ProfilePlatform.TMDB -> isTmdbConnected
             }
 
             Row(
@@ -151,43 +160,51 @@ fun KitsugiProfileScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // Selector Pill (Brave / Explore tarzı açılır pencere butonu)
-                ProfileSourceSelectorPill(
-                    selectedPlatform = currentPlatform,
-                    isConnected = isCurrentConnected,
-                    onClick = { showSourcePickerSheet = true }
+                // Kaynak seçici hap buton — solda kalır.
+                //
+                // ⚠️ Eski hatalı düzen:
+                //     ProfileSourceSelectorPill(Modifier.weight(1f, fill = false))
+                //     Spacer(Modifier.weight(1f))
+                //     KitsugiTopActionRow(...)
+                //   Ağırlıklı iki çocuk kalan alanı ikiye bölüyordu; pill kendi dilimini
+                //   DOLDURMADIĞI için (fill = false) artan boşluk yeniden dağıtılmıyor,
+                //   satırın SONUNA ekleniyordu. Sonuç: sağ üstteki aksiyon butonları sağ
+                //   köşeye yapışmıyor, ~290dp içeride "havada" kalıyordu (sağda kocaman
+                //   boş bir şerit oluşuyordu).
+                //   Yeni düzen: pill, ağırlığı TAM dolduran bir sarmalayıcı Row içinde;
+                //   aksiyon satırı ise sarmalayıcıdan sonra geldiği için daima en sağda
+                //   (sağ padding'in hemen yanında) biter. Pill dar ekranda taşmaz, metni
+                //   üç nokta ile kısalır.
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    ProfileSourceSelectorPill(
+                        selectedPlatform = currentPlatform,
+                        isConnected = isCurrentConnected,
+                        onClick = { showSourcePickerSheet = true }
+                    )
+                }
+
+                // 📊 İstatistik + 🔔 Bildirim → ortak üst çubuk aksiyon satırı.
+                // Kanonik sıra: istatistik solda, bildirim her zaman en sağda.
+                KitsugiTopActionRow(
+                    actions = buildList {
+                        if (onOpenWatchHistory != null) add(KitsugiTopAction.HISTORY)
+                        if (onOpenDownloads != null) add(KitsugiTopAction.DOWNLOADS)
+                        if (onOpenStatsClick != null) add(KitsugiTopAction.STATS)
+                        if (isNotificationsVisible && onOpenNotifications != null) add(KitsugiTopAction.NOTIFICATIONS)
+                    },
+                    onActionClick = { action ->
+                        when (action) {
+                            KitsugiTopAction.HISTORY -> onOpenWatchHistory?.invoke()
+                            KitsugiTopAction.DOWNLOADS -> onOpenDownloads?.invoke()
+                            KitsugiTopAction.STATS -> onOpenStatsClick?.invoke()
+                            KitsugiTopAction.NOTIFICATIONS -> onOpenNotifications?.invoke()
+                            else -> Unit
+                        }
+                    }
                 )
-
-                Spacer(modifier = Modifier.weight(1f))
-
-                if (isNotificationsVisible && onOpenNotifications != null) {
-                    // 🔔 Bildirim butonu (Keşfet ile aynı kaynak koşulu: bir hesap bağlıysa)
-                    IconButton(
-                        onClick = onOpenNotifications,
-                        colors = IconButtonDefaults.iconButtonColors(containerColor = KitsugiColors.Surface),
-                        modifier = Modifier.size(40.dp).clip(RoundedCornerShape(16.dp))
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Notifications,
-                            contentDescription = stringResource(R.string.notif_title),
-                            tint = accentColor
-                        )
-                    }
-                }
-
-                if (onOpenStatsClick != null) {
-                    IconButton(
-                        onClick = onOpenStatsClick,
-                        colors = IconButtonDefaults.iconButtonColors(containerColor = KitsugiColors.Surface),
-                        modifier = Modifier.size(40.dp).clip(RoundedCornerShape(16.dp))
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.BarChart,
-                            contentDescription = stringResource(R.string.kutuphane_istatistikleri),
-                            tint = accentColor
-                        )
-                    }
-                }
             }
 
             // ── Main content with pull-to-refresh ─────────────────────────
@@ -198,6 +215,7 @@ fun KitsugiProfileScreen(
                 3 -> kitsuState.isLoading
                 4 -> shikimoriState.isLoading
                 5 -> bangumiState.isLoading
+                6 -> tmdbState.isLoading
                 else -> false
             }
             val pullRefreshState = rememberPullToRefreshState()
@@ -364,6 +382,24 @@ fun KitsugiProfileScreen(
                                 }
                             )
                         }
+                        6 -> ExternalProfileWrapper(
+                            isConnected = isTmdbConnected,
+                            isLoading = tmdbState.isLoading,
+                            error = tmdbState.error,
+                            errorCode = tmdbState.errorCode,
+                            onConnectClick = onLoginTmdb,
+                            accentColor = accentColor,
+                            platformName = "TMDB",
+                            onRetry = { viewModel.fetchTmdbProfile(forceRefresh = true) }
+                        ) {
+                            TmdbProfileContent(
+                                state = tmdbState,
+                                accentColor = accentColor,
+                                onMediaClick = { mediaId, mediaType, title, imageUrl ->
+                                    onFavoriteMediaClick(mediaId, mediaType, "tmdb", title, imageUrl)
+                                }
+                            )
+                        }
                         4 -> ExternalProfileWrapper(
                             isConnected = isShikimoriConnected,
                             isLoading = shikimoriState.isLoading,
@@ -488,6 +524,8 @@ fun KitsugiProfileScreen(
             shikimoriUsername = shikimoriState.name.ifBlank { null },
             isBangumiConnected = isBangumiConnected,
             bangumiUsername = bangumiState.userName.ifBlank { null },
+            isTmdbConnected = isTmdbConnected,
+            tmdbUsername = tmdbState.userName.ifBlank { tmdbUsername }.ifBlank { null },
             onSelectPlatform = { index ->
                 viewModel.activeSubTab = index
                 showSourcePickerSheet = false

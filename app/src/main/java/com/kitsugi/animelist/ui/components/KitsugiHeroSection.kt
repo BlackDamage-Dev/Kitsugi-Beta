@@ -1,6 +1,7 @@
 package com.kitsugi.animelist.ui.components
 
 import android.os.Handler
+import com.kitsugi.animelist.ui.utils.uniqueLazyKeys
 import android.os.Looper
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
@@ -223,7 +224,7 @@ fun KitsugiHeroSection(
     alreadyInList: (JikanSearchResult) -> Boolean,
     onInfoClick: (JikanSearchResult) -> Unit,
     modifier: Modifier = Modifier,
-    titleLanguage: String = "ROMAJI",
+    titleLanguage: String = "ENGLISH",
     scoreFormat: String = "POINT_10",
     hideScores: Boolean = false,
     showAnimeLogos: Boolean = false,
@@ -400,9 +401,12 @@ fun KitsugiHeroSection(
                 else Modifier
             ).background(background)
     ) {
+        // Pager anahtarları da benzersiz olmak ZORUNDA: vitrin listesinde aynı yapım iki kez
+        // yer alırsa (farklı raflardan birleşen öğeler) "Key was already used" çökmesi olur.
+        val heroPageKeys = remember(heroItems) { heroItems.uniqueLazyKeys { homeHeroItemKey(it) } }
         HorizontalPager(
             state = pagerState,
-            key = { page -> homeHeroItemKey(heroItems[page]) },
+            key = { page -> heroPageKeys.getOrNull(page) ?: "hero_page_$page" },
             beyondViewportPageCount = 1,
             userScrollEnabled = !isTv,
             flingBehavior = PagerDefaults.flingBehavior(

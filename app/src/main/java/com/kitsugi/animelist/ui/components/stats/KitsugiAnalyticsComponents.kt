@@ -20,8 +20,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.BarChart
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -66,7 +65,7 @@ fun KitsugiStatsCard(
 @Composable
 fun KitsugiStatsCardHeader(
     title: String,
-    icon: ImageVector = Icons.Rounded.BarChart,
+    icon: ImageVector = Icons.BarChart,
     subtitle: String? = null,
     trailing: String? = null,
     accentColor: Color = LocalKitsugiAccent.current
@@ -126,7 +125,7 @@ fun KitsugiStatsCardHeader(
 fun KitsugiStatsMetricTile(
     label: String,
     value: String,
-    icon: ImageVector = Icons.Rounded.BarChart,
+    icon: ImageVector = Icons.BarChart,
     modifier: Modifier = Modifier,
     accentColor: Color = LocalKitsugiAccent.current
 ) {

@@ -334,7 +334,13 @@ fun LazyListScope.simklUserExploreSections(
                 getMediaEntry = getMediaEntry,
                 onItemClick = onItemClick,
                 onLongClickItem = onLongClickItem,
-                onSeeAllClick = onNavigateToWatchHistory,
+                onSeeAllClick = {
+                    onSeeAllSection(
+                        context.getString(R.string.explore_simkl_continue_watching_series),
+                        ExploreCategoryType.AIRING_ANIME,
+                        viewModel.simklContinueSeries
+                    )
+                },
                 titleLanguage = titleLanguage,
                 scoreFormat = scoreFormat,
                 hideScores = hideScores,
@@ -354,7 +360,13 @@ fun LazyListScope.simklUserExploreSections(
                 getMediaEntry = getMediaEntry,
                 onItemClick = onItemClick,
                 onLongClickItem = onLongClickItem,
-                onSeeAllClick = onNavigateToWatchHistory,
+                onSeeAllClick = {
+                    onSeeAllSection(
+                        context.getString(R.string.explore_simkl_continue_watching_movies),
+                        ExploreCategoryType.MOVIE_ANIME,
+                        viewModel.simklContinueMovies
+                    )
+                },
                 titleLanguage = titleLanguage,
                 scoreFormat = scoreFormat,
                 hideScores = hideScores,

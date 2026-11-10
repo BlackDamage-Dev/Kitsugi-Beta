@@ -13,6 +13,10 @@ interface TranslationCacheDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertTranslation(cache: TranslationCacheEntity)
 
+    /** Sayfa çevirisi paketlerinin tek işlemde yazılması (metin başına ayrı sorgu yok). */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertTranslations(caches: List<TranslationCacheEntity>)
+
     @Query("SELECT COUNT(*) FROM translation_cache")
     suspend fun count(): Int
 

@@ -47,6 +47,10 @@ class KitsugiProfileViewModel(application: Application) : AndroidViewModel(appli
 
     private val context = application.applicationContext
     private val client = com.kitsugi.animelist.core.network.KitsugiHttpClient.client
+    private val tmdbRepository by lazy {
+        val db = com.kitsugi.animelist.data.local.KitsugiDatabase.getDatabase(context)
+        MediaEntryRepository(db.mediaEntryDao(), db.pendingSyncDao(), context)
+    }
 
     // Local library stats state
     var localStats by mutableStateOf(LocalStats())
@@ -158,6 +162,9 @@ class KitsugiProfileViewModel(application: Application) : AndroidViewModel(appli
     private val _bangumiState = MutableStateFlow(BangumiProfileState())
     val bangumiState: StateFlow<BangumiProfileState> = _bangumiState.asStateFlow()
 
+    private val _tmdbState = MutableStateFlow(TmdbProfileState())
+    val tmdbState: StateFlow<TmdbProfileState> = _tmdbState.asStateFlow()
+
     fun initLocalStats(entries: List<MediaEntry>) {
         viewModelScope.launch {
             val anime = entries.filter { it.type == MediaType.Anime || it.type == MediaType.Movie || it.type == MediaType.TvShow }
@@ -197,6 +204,7 @@ class KitsugiProfileViewModel(application: Application) : AndroidViewModel(appli
             3 -> fetchKitsuProfile(forceRefresh = true)
             4 -> fetchShikimoriProfile(forceRefresh = true)
             5 -> fetchBangumiProfile(forceRefresh = true)
+            6 -> fetchTmdbProfile(forceRefresh = true)
         }
     }
 
@@ -1234,6 +1242,12 @@ class KitsugiProfileViewModel(application: Application) : AndroidViewModel(appli
     }
 
     private suspend fun postGraphQl(token: String, query: String, variables: JSONObject): String {
+        if (!com.kitsugi.animelist.data.remote.KitsugiApiBase.aniListGate(
+                com.kitsugi.animelist.data.remote.AniListQuotaGate.Priority.INTERACTIVE
+            )
+        ) {
+            throw IllegalStateException("AniList kotası dolu; profil isteği ertelendi.")
+        }
         return withContext(Dispatchers.IO) {
             val payload = JSONObject()
                 .put("query", query)
@@ -1248,19 +1262,43 @@ class KitsugiProfileViewModel(application: Application) : AndroidViewModel(appli
                 .header("Authorization", "Bearer $token")
                 .build()
 
-            com.kitsugi.animelist.core.network.KitsugiHttpClient.aniListClient.newCall(request).execute().use { response ->
-                val bodyText = runCatching { response.body?.string() ?: "" }.getOrDefault("")
-                com.kitsugi.animelist.data.remote.KitsugiApiBase
-                    .extractAniListServiceDownMessage(bodyText)
-                    ?.let { downMsg ->
-                        throw com.kitsugi.animelist.data.remote.KitsugiApiBase
-                            .recordAniListServiceDown(downMsg, response.code)
+            // Ortak AniList hız bütçesinden geç (profil sorguları da kotayı harcar).
+            com.kitsugi.animelist.data.auth.AniListGovernor.acquire()
+
+            // v2.4.341: AniList kota kapısı — bu yol daha önce hiçbir hız sınırına uymuyordu.
+            com.kitsugi.animelist.data.auth.AniListGate.withPermit(
+                com.kitsugi.animelist.data.auth.AniListGate.Priority.INTERACTIVE
+            ) {
+                com.kitsugi.animelist.core.network.KitsugiHttpClient.aniListClient.newCall(request).execute().use { response ->
+                    val bodyText = runCatching { response.body?.string() ?: "" }.getOrDefault("")
+                    com.kitsugi.animelist.data.auth.AniListGovernor.observeResponse(response, bodyText)
+                    com.kitsugi.animelist.data.auth.AniListGate.onResponse(response.code, response.headers, bodyText)
+                    com.kitsugi.animelist.data.remote.KitsugiApiBase
+                        .extractAniListServiceDownMessage(bodyText)
+                        ?.let { downMsg ->
+                            throw com.kitsugi.animelist.data.remote.KitsugiApiBase
+                                .recordAniListServiceDown(downMsg, response.code)
+                        }
+                    if (response.code == 429) {
+                        val waitMs = com.kitsugi.animelist.data.auth.AniListGate.cooldownRemainingMs()
+                        throw com.kitsugi.animelist.data.auth.AniListGate.QuotaExhaustedException(
+                            waitMs,
+                            // Kullanıcıya gösterilecek metin: dile ve "halk dili" kuralına uygun
+                            // (kapı içindeki ham mesaj yerine kaynak adıyla yazılır).
+                            context.getString(
+                                com.kitsugi.animelist.R.string.sync_snack_quota,
+                                "AniList",
+                                1,
+                                (waitMs / 1_000L).coerceAtLeast(1L)
+                            )
+                        )
                     }
-                if (!response.isSuccessful) {
-                    // Keep raw JSON payloads out of user-facing exceptions when it's a normal HTTP error.
-                    throw PlatformHttpException(response.code, "AniList profile request failed")
+                    if (!response.isSuccessful) {
+                        // Keep raw JSON payloads out of user-facing exceptions when it's a normal HTTP error.
+                        throw PlatformHttpException(response.code, "AniList profile request failed")
+                    }
+                    bodyText
                 }
-                bodyText
             }
         }
     }
@@ -2138,6 +2176,62 @@ class KitsugiProfileViewModel(application: Application) : AndroidViewModel(appli
         }
     }
 
+    // --- TMDB ACCOUNT PROFILE ---
+    fun fetchTmdbProfile(forceRefresh: Boolean = false) {
+        if (_tmdbState.value.isLoading) return
+        if (!forceRefresh && _tmdbState.value.lastUpdatedMs > 0L) return
+        if (!com.kitsugi.animelist.data.auth.TmdbAuthStore.isConnected(context)) {
+            _tmdbState.update {
+                TmdbProfileState(
+                    isConnected = false,
+                    isLoading = false,
+                    error = KitsugiStrings.get(R.string.profile_connection_not_found, "TMDB")
+                )
+            }
+            return
+        }
+        _tmdbState.update {
+            it.copy(
+                isConnected = true,
+                isLoading = true,
+                error = null,
+                errorCode = null,
+                userName = com.kitsugi.animelist.data.auth.TmdbAuthStore.username(context),
+                accountId = com.kitsugi.animelist.data.auth.TmdbAuthStore.accountId(context) ?: 0
+            )
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val snapshot = com.kitsugi.animelist.data.auth.TmdbAccountSyncCoordinator.refresh(
+                    context = context,
+                    repository = tmdbRepository
+                )
+                _tmdbState.update {
+                    it.copy(
+                        isConnected = true,
+                        isLoading = false,
+                        error = null,
+                        snapshot = snapshot,
+                        userName = com.kitsugi.animelist.data.auth.TmdbAuthStore.username(context),
+                        accountId = com.kitsugi.animelist.data.auth.TmdbAuthStore.accountId(context) ?: 0,
+                        lastUpdatedMs = System.currentTimeMillis()
+                    )
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                val failureCode = PlatformFailureRegistry.reportAndResolve("tmdb", e)
+                _tmdbState.update {
+                    it.copy(
+                        isLoading = false,
+                        error = e.message ?: KitsugiStrings.get(R.string.profile_load_failed),
+                        errorCode = failureCode
+                    )
+                }
+            }
+        }
+    }
+
     // --- SHIKIMORI API FETCHING ---
     fun fetchShikimoriProfile(forceRefresh: Boolean = false) {
         if (_shikimoriState.value.isLoading) return
@@ -2706,6 +2800,17 @@ data class BangumiProfileState(
     val characterFavorites: List<com.kitsugi.animelist.data.auth.BangumiApiClient.BangumiFavoriteItem> = emptyList(),
     val personFavorites: List<com.kitsugi.animelist.data.auth.BangumiApiClient.BangumiFavoriteItem> = emptyList(),
     /** 0 → henüz yüklenmedi; yükleme başarılı olunca zaman damgası yazılır. */
+    val lastUpdatedMs: Long = 0L
+)
+
+data class TmdbProfileState(
+    val isConnected: Boolean = false,
+    val isLoading: Boolean = false,
+    val error: String? = null,
+    val errorCode: PlatformErrorCode? = null,
+    val accountId: Int = 0,
+    val userName: String = "",
+    val snapshot: com.kitsugi.animelist.data.remote.TmdbAccountSnapshot? = null,
     val lastUpdatedMs: Long = 0L
 )
 

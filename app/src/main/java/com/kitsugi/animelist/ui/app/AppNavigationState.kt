@@ -13,6 +13,7 @@ import androidx.compose.runtime.setValue
 import com.kitsugi.animelist.DetailScreen
 import com.kitsugi.animelist.MangaDetailNavState
 import com.kitsugi.animelist.MangaReaderNavState
+import com.kitsugi.animelist.data.manga.MangaTitleSet
 
 /** Kept while a source-search page is underneath a pushed detail screen. */
 class SourceSearchOwner : ViewModelStoreOwner {
@@ -35,10 +36,36 @@ class AppNavigationState(
         private set
     var mangaBrowseMediaId by mutableStateOf<Int?>(null)
         private set
+    /** Eklenti Portalı'ndan tek kaynakla açılış: seçili kaynağın stableSourceKey'i. */
+    var mangaBrowseSourceKey by mutableStateOf<String?>(null)
+        private set
+    /** Aynı eserin diğer dillerdeki başlıkları (romaji / İngilizce / Japonca). */
+    var mangaBrowseAlternates by mutableStateOf<List<String>>(emptyList())
+        private set
+    /** "Oku" akışından gelen, dil sırasına göre aday başlıklar. */
+    var mangaBrowseTitleVariants by mutableStateOf<List<String>>(emptyList())
+        private set
+    /**
+     * "Oku" akışından gelen serinin **tüm** adları.
+     * Arama dili ekranda değiştirildiğinde sorgular bu kümeden yeniden üretilir.
+     */
+    var mangaBrowseTitleSet by mutableStateOf<MangaTitleSet?>(null)
+        private set
 
-    fun openMangaBrowse(query: String? = null, mediaId: Int? = null) {
+    fun openMangaBrowse(
+        query: String? = null,
+        mediaId: Int? = null,
+        sourceKey: String? = null,
+        alternates: List<String> = emptyList(),
+        titleVariants: List<String> = emptyList(),
+        titleSet: MangaTitleSet? = null
+    ) {
         mangaBrowseQuery = query
         mangaBrowseMediaId = mediaId
+        mangaBrowseSourceKey = sourceKey
+        mangaBrowseAlternates = alternates.filter { it.isNotBlank() }.distinct()
+        mangaBrowseTitleVariants = (titleVariants.ifEmpty { alternates }).filter { it.isNotBlank() }.distinct()
+        mangaBrowseTitleSet = titleSet
         mangaBrowseOpen = true
     }
 
@@ -46,6 +73,10 @@ class AppNavigationState(
         mangaBrowseOpen = false
         mangaBrowseQuery = null
         mangaBrowseMediaId = null
+        mangaBrowseSourceKey = null
+        mangaBrowseAlternates = emptyList()
+        mangaBrowseTitleVariants = emptyList()
+        mangaBrowseTitleSet = null
     }
 
     var mangaSourceHealthOpen by mutableStateOf(false)
@@ -59,7 +90,25 @@ class AppNavigationState(
         mangaSourceHealthOpen = false
     }
 
+    var mangaLibraryOpen by mutableStateOf(false)
+        private set
+
+    fun openMangaLibrary() {
+        mangaLibraryOpen = true
+    }
+
+    fun closeMangaLibrary() {
+        mangaLibraryOpen = false
+    }
+
     var mangaDetailNavState by mutableStateOf<MangaDetailNavState?>(null)
+
+    /**
+     * Okuyucudan dönüşte artırılır. Manga detay ekranı bu değeri izleyip **bölüm listesini
+     * yeniden çekmeden** yalnızca okuma ilerlemesini Room'dan tazeler; böylece okundu
+     * işaretleri ve "Devam Et" hedefi anında güncellenir.
+     */
+    var mangaDetailRefreshTick by mutableStateOf(0)
     var mangaReaderNavState by mutableStateOf<MangaReaderNavState?>(null)
     var fullScreenGridState by mutableStateOf<FullScreenMediaGridState?>(null)
     var addonFullScreenGridState by mutableStateOf<AddonFullScreenGridState?>(null)
@@ -88,7 +137,8 @@ class AppNavigationState(
                          (if (mangaBrowseOpen) 1 else 0) +
                          (if (mangaDetailNavState != null) 1 else 0) +
                          (if (mangaReaderNavState != null) 1 else 0) +
-                         (if (mangaSourceHealthOpen) 1 else 0)
+                         (if (mangaSourceHealthOpen) 1 else 0) +
+                         (if (mangaLibraryOpen) 1 else 0)
 
         poppedWithIndices.forEach { (idx, screen) ->
             val depth = baseOffset + (idx + 1)
@@ -104,11 +154,12 @@ class AppNavigationState(
                 DetailScreen.About -> "about_${depth}"
                 is DetailScreen.UserProfile -> "user_profile_${depth}_${screen.source}_${screen.userId}_${screen.username.orEmpty()}"
                 is DetailScreen.UserMediaList -> "user_media_list_${depth}_${screen.userId}_${screen.initialMediaType.name}"
-                DetailScreen.Notifications -> "notifications_${depth}"
+                is DetailScreen.Notifications -> "notifications_${depth}_${screen.preferredSource}"
                 DetailScreen.Downloads -> "downloads_${depth}"
                 DetailScreen.WatchHistory -> "watch_history_${depth}"
                 DetailScreen.PluginPicker -> "plugin_picker_${depth}"
                 is DetailScreen.AddonExplore -> "addon_explore_${depth}_${screen.apiName}"
+                is DetailScreen.MangaSourceExplore -> "manga_source_explore_${depth}_${screen.sourceKey}"
                 is DetailScreen.SourceSearchPage -> "source_search_${depth}_${screen.engine.id}"
             }
             stateHolder.removeState(key)
@@ -127,11 +178,12 @@ class AppNavigationState(
                     DetailScreen.About -> "about_${plainDepth}"
                     is DetailScreen.UserProfile -> "user_profile_${plainDepth}_${screen.source}_${screen.userId}_${screen.username.orEmpty()}"
                     is DetailScreen.UserMediaList -> "user_media_list_${plainDepth}_${screen.userId}_${screen.initialMediaType.name}"
-                    DetailScreen.Notifications -> "notifications_${plainDepth}"
+                    is DetailScreen.Notifications -> "notifications_${plainDepth}_${screen.preferredSource}"
                     DetailScreen.Downloads -> "downloads_${plainDepth}"
                     DetailScreen.WatchHistory -> "watch_history_${plainDepth}"
                     DetailScreen.PluginPicker -> "plugin_picker_${plainDepth}"
                     is DetailScreen.AddonExplore -> "addon_explore_${plainDepth}_${screen.apiName}"
+                    is DetailScreen.MangaSourceExplore -> "manga_source_explore_${plainDepth}_${screen.sourceKey}"
                     is DetailScreen.SourceSearchPage -> "source_search_${plainDepth}_${screen.engine.id}"
                 }
                 stateHolder.removeState(fallbackKey)

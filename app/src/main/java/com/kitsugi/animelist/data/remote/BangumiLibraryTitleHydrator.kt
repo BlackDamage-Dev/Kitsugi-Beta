@@ -78,7 +78,7 @@ internal object BangumiLibraryTitleHydrator {
     private const val BATCH_SIZE = 60
 
     /** Tek taramada işlenecek en fazla LATIN dilimi (60 × 16 = 960 satır). */
-    private const val MAX_BATCHES = 8
+    private const val MAX_BATCHES = 16
 
     /** İngilizce zenginleştirme fırsatçıdır: tur başına en fazla 2 dilim (120 satır). */
     private const val MAX_ENRICHMENT_BATCHES = 2
@@ -164,12 +164,7 @@ internal object BangumiLibraryTitleHydrator {
         batch: List<BangumiSubjectTitleResolver.Request>
     ): Int {
         val resolved = try {
-            // `tabMode`: AniList toplu araması + sınırlı infobox yedeği. Her dilim için 60
-            // ayrı `/v0/subjects/{id}` isteği üretilmiyor; ayrıca arka plan önceliğiyle
-            // çalıştığı için kullanıcının açtığı detay sekmelerini jeton kovasında beklemez.
-            com.kitsugi.animelist.data.auth.BangumiApiClient.runAsBackground {
-                BangumiSubjectTitleResolver.resolve(batch, background = true, tabMode = true)
-            }
+            BangumiSubjectTitleResolver.resolve(batch, background = true)
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (error: Exception) {

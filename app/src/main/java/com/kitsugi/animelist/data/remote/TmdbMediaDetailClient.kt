@@ -242,17 +242,6 @@ internal object TmdbMediaDetailClient {
 
             val score100 = (rating * 10).toInt().coerceIn(0, 100)
             val tmdbTags = if (features.useBasicInfo) extractKeywords(finalJson, isMovie) else emptyList()
-            val countryOfOriginVal = run {
-                val originArr = finalJson.optJSONArray("origin_country")
-                val fromOrigin = if (originArr != null && originArr.length() > 0) {
-                    originArr.optString(0, "").trim().takeIf { it.isNotEmpty() }
-                } else null
-                fromOrigin ?: finalJson.optJSONArray("production_countries")
-                    ?.optJSONObject(0)
-                    ?.optString("iso_3166_1", "")
-                    ?.trim()
-                    ?.takeIf { it.isNotEmpty() }
-            }
 
             KitsugiMediaDetail(
                 synopsis = finalOverview,
@@ -298,9 +287,7 @@ internal object TmdbMediaDetailClient {
                 meanScore = score100.takeIf { features.useBasicInfo },
                 averageScore = score100.takeIf { features.useBasicInfo },
                 popularity = tmdbPopularity,
-                scoredBy = voteCount,
-                countryOfOrigin = countryOfOriginVal,
-                originalLanguage = originalLang.takeIf { it.isNotBlank() }
+                scoredBy = voteCount
             )
         } catch (e: Exception) {
             Log.e(TAG, "Error fetching TMDB details: ${e.message}", e)
@@ -425,6 +412,95 @@ internal object TmdbMediaDetailClient {
         }
     }
 
+    suspend fun fetchStructuredVideos(
+        tmdbId: Int,
+        isMovie: Boolean,
+        apiKey: String,
+        language: String,
+        seasonNumber: Int? = null,
+        executeGet: suspend (String) -> String?
+    ): List<MediaVideoItem> = withContext(Dispatchers.IO) {
+        if (tmdbId <= 0 || apiKey.isBlank()) return@withContext emptyList()
+        val typePath = if (isMovie) "movie" else "tv"
+
+        val trUrl = "https://api.themoviedb.org/3/$typePath/$tmdbId/videos?api_key=$apiKey&language=$language"
+        val enUrl = "https://api.themoviedb.org/3/$typePath/$tmdbId/videos?api_key=$apiKey&language=en-US"
+
+        try {
+            fun parseItems(arr: org.json.JSONArray?, prefix: String): List<MediaVideoItem> {
+                if (arr == null) return emptyList()
+                val list = mutableListOf<MediaVideoItem>()
+                for (i in 0 until arr.length()) {
+                    val video = arr.optJSONObject(i) ?: continue
+                    val site = video.optString("site", "")
+                    val type = video.optString("type", "")
+                    val key = video.optString("key", "").trim()
+                    val name = video.optString("name", "").trim()
+                    if (!site.equals("YouTube", ignoreCase = true) || key.isEmpty()) continue
+                    val typeLower = type.lowercase(java.util.Locale.ROOT)
+                    val typeLabel = when (typeLower) {
+                        "trailer" -> appString(R.string.source_video_trailer, "Trailer")
+                        "teaser" -> appString(R.string.source_video_teaser, "Teaser")
+                        "opening credits" -> appString(R.string.source_video_opening_credits, "Opening Credits")
+                        "clip" -> appString(R.string.source_video_clip, "Clip")
+                        "featurette" -> appString(R.string.source_video_featurette, "Featurette")
+                        "behind the scenes" -> appString(R.string.source_video_behind_scenes, "Behind the scenes")
+                        "bloopers" -> appString(R.string.source_video_bloopers, "Bloopers")
+                        else -> type
+                    }
+                    val category = when (typeLower) {
+                        "trailer", "teaser" -> MediaVideoCategory.TRAILER
+                        "opening credits" -> MediaVideoCategory.OPENING
+                        else -> MediaVideoCategory.EXTRA
+                    }
+                    val fullTitle = when {
+                        name.isBlank() -> typeLabel
+                        name.startsWith(typeLabel, ignoreCase = true) -> name
+                        typeLabel.isNotBlank() -> "$typeLabel - $name"
+                        else -> name
+                    }
+                    list += MediaVideoItem(
+                        key = "tmdb_${prefix}_${tmdbId}_$key",
+                        title = fullTitle,
+                        videoUrl = "https://www.youtube.com/watch?v=$key",
+                        category = category,
+                        source = "tmdb"
+                    )
+                }
+                return list
+            }
+
+            val trBody = executeGet(trUrl)
+            val trItems = parseItems(trBody?.let { JSONObject(it).optJSONArray("results") }, "loc")
+
+            val enItems = if (language.startsWith("en", ignoreCase = true)) {
+                emptyList()
+            } else {
+                val enBody = executeGet(enUrl)
+                parseItems(enBody?.let { JSONObject(it).optJSONArray("results") }, "en")
+            }
+
+            val seasonItems = if (!isMovie && seasonNumber != null && seasonNumber > 0) {
+                val sUrl = "https://api.themoviedb.org/3/tv/$tmdbId/season/$seasonNumber/videos?api_key=$apiKey&language=en-US"
+                val sBody = executeGet(sUrl)
+                parseItems(sBody?.let { JSONObject(it).optJSONArray("results") }, "s$seasonNumber")
+            } else emptyList()
+
+            val merged = LinkedHashMap<String, MediaVideoItem>()
+            for (item in (trItems + seasonItems + enItems)) {
+                val ytKey = extractCanonicalYouTubeId(item.videoUrl) ?: item.videoUrl.orEmpty()
+                if (ytKey.isNotEmpty() && !merged.containsKey(ytKey)) {
+                    merged[ytKey] = item
+                }
+            }
+            val result = merged.values.toList()
+            result
+        } catch (e: Exception) {
+            Log.e(TAG, "Error fetching TMDB videos: ${e.message}", e)
+            emptyList()
+        }
+    }
+
     suspend fun fetchVideos(
         tmdbId: Int,
         isMovie: Boolean,
@@ -432,58 +508,10 @@ internal object TmdbMediaDetailClient {
         language: String,
         executeGet: suspend (String) -> String?
     ): Pair<String?, List<KitsugiTheme>> = withContext(Dispatchers.IO) {
-        val typePath = if (isMovie) "movie" else "tv"
-        val trUrl = "https://api.themoviedb.org/3/$typePath/$tmdbId/videos?api_key=$apiKey&language=$language"
-        val enUrl = "https://api.themoviedb.org/3/$typePath/$tmdbId/videos?api_key=$apiKey&language=en-US"
-
-        try {
-            var responseText = executeGet(trUrl)
-            var root = responseText?.let { JSONObject(it) }
-            var results = root?.optJSONArray("results")
-
-            fun parseList(arr: org.json.JSONArray?): List<Pair<String, KitsugiTheme>> {
-                if (arr == null) return emptyList()
-                val list = mutableListOf<Pair<String, KitsugiTheme>>()
-                for (i in 0 until arr.length()) {
-                    val video = arr.getJSONObject(i)
-                    val site = video.optString("site", "")
-                    val type = video.optString("type", "")
-                    val key = video.optString("key", "")
-                    val name = video.optString("name", "")
-                    if (site.equals("YouTube", ignoreCase = true) && key.isNotEmpty()) {
-                        val typeTr = when (type.lowercase()) {
-                            "trailer" -> appString(R.string.source_video_trailer, "Trailer")
-                            "teaser" -> appString(R.string.source_video_teaser, "Teaser")
-                            "clip" -> appString(R.string.source_video_clip, "Clip")
-                            "featurette" -> appString(R.string.source_video_featurette, "Featurette")
-                            "behind the scenes" -> appString(R.string.source_video_behind_scenes, "Behind the scenes")
-                            "bloopers" -> appString(R.string.source_video_bloopers, "Bloopers")
-                            else -> type
-                        }
-                        list.add(Pair(type, KitsugiTheme(label = "$typeTr - $name", videoUrl = "https://www.youtube.com/watch?v=$key")))
-                    }
-                }
-                return list
-            }
-
-            var allParsed = parseList(results)
-            if (allParsed.isEmpty()) {
-                responseText = executeGet(enUrl)
-                root = responseText?.let { JSONObject(it) }
-                results = root?.optJSONArray("results")
-                allParsed = parseList(results)
-            }
-
-            val primaryTrailer = allParsed.firstOrNull { it.first.equals("Trailer", ignoreCase = true) }?.second?.videoUrl
-                ?: allParsed.firstOrNull { it.first.equals("Teaser", ignoreCase = true) }?.second?.videoUrl
-                ?: allParsed.firstOrNull { it.first.equals("Clip", ignoreCase = true) }?.second?.videoUrl
-                ?: allParsed.firstOrNull()?.second?.videoUrl
-
-            val otherThemes = allParsed.map { it.second }
-            Pair(primaryTrailer, otherThemes)
-        } catch (e: Exception) {
-            Log.e(TAG, "Error fetching TMDB videos: ${e.message}", e)
-            Pair(null, emptyList())
-        }
+        val structured = fetchStructuredVideos(tmdbId, isMovie, apiKey, language, null, executeGet)
+        val primaryTrailer = structured.firstOrNull { it.category == MediaVideoCategory.TRAILER }?.videoUrl
+            ?: structured.firstOrNull()?.videoUrl
+        val themes = structured.map { KitsugiTheme(label = it.title, videoUrl = it.videoUrl, source = "tmdb") }
+        Pair(primaryTrailer, themes)
     }
 }

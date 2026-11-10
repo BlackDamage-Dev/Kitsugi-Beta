@@ -20,14 +20,6 @@ internal object WikiOriginalPagePolicy {
             }) Destination.WIKI else Destination.EXTERNAL
     }
 
-    // Desktop mode must also use a desktop viewport: a desktop UA alone still obeys
-    // width=device-width on many wikis. No article/theme styles or nodes are replaced.
-    const val DESKTOP_VIEWPORT_SCRIPT = """(function() {
-        var meta = document.querySelector('meta[name="viewport"]');
-        if (!meta) { meta = document.createElement('meta'); meta.name = 'viewport'; document.head.appendChild(meta); }
-        meta.content = 'width=1200';
-    })();"""
-
     /** Keep the installed engine's version; never impersonate an old, hard-coded Chrome. */
     fun desktopUserAgent(systemUserAgent: String): String = systemUserAgent
         .replace(Regex("\\([^)]*Android[^)]*\\)"), "(X11; Linux x86_64)")

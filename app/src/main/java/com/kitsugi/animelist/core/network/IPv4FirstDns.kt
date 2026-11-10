@@ -33,8 +33,30 @@ class IPv4FirstDns(private val delegate: Dns? = null) : Dns {
         if (hostname.equals("codeberg.org", ignoreCase = true)) {
             return runCatching { listOf(InetAddress.getByName("217.197.84.140")) }.getOrElse { throw originalError }
         }
-        return runCatching {
-            Dns.SYSTEM.lookup(hostname)
-        }.getOrElse { throw originalError }
+        runCatching { return Dns.SYSTEM.lookup(hostname) }
+
+        // T-IND-1 (2026-11-09): Sistem DNS'i de çözümediyse DoH zincirine düş.
+        // NEDEN: Türk kaynaklarının rotasyonlu CDN host'ları (srvN.cdnimagesNNNN.cyou,
+        // sNNN.rapidrame.com …) bazı sağlayıcı DNS'lerinde NXDOMAIN / boş cevap alıyor ve
+        // indirme "Unable to resolve host … No address associated with hostname" ile ölüyordu.
+        // DoH örnekleri bootstrap IP'leriyle kurulduğu için burada isim çözümüne gerek yoktur
+        // (sonsuz özyineleme riski yok). Örnekler tembel ve önbellekli kurulur: DNS hatası
+        // yolu sıcak döngüde değildir, ama yine de her istekte yeniden kurulmaz.
+        dohFallbacks().forEach { doh ->
+            runCatching {
+                val resolved = doh.lookup(hostname)
+                if (resolved.isNotEmpty()) return resolved
+            }
+        }
+        throw originalError
     }
+
+    private val dohFallbackChain: List<Dns> by lazy {
+        listOfNotNull(
+            runCatching { DohProviders.cloudflare() }.getOrNull(),
+            runCatching { DohProviders.google() }.getOrNull()
+        )
+    }
+
+    private fun dohFallbacks(): List<Dns> = dohFallbackChain
 }

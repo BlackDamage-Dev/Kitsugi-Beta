@@ -2,48 +2,123 @@
 
 ## 🇹🇷 Türkçe
 
-### 🎭 TMDB Karakter Görselleri, ARM v2 & Çoklu Kaynak Yedek Zinciri
-- **ARM v2 Uç Noktası & Önbellek Zehirlenmesi (`KitsugiIdResolver.kt`, `KitsugiEpisodeRatingsRepository.kt`):** `arm.haglund.dev` üzerinde `HTTP 400 Bad Request` dönen `/api/v2/ids?source=themoviedb` sorgusu yerine resmî sözleşmeye uygun `/api/v2/themoviedb?id=`, `/api/v2/thetvdb?id=`, `/api/v2/imdb?id=` ve Simkl `POST /api/v2/ids` uç noktalarına geçildi. `MOVIE` ile `TV` kayıtları ayrıştırılarak ID çakışması önlendi; Wikidata (`P4086/P8729/P11495/P12095`) köprüsü eklendi ve önbellek zehirlenmesi giderildi.
-- **Seslendirmen Kopya Görsellerinin Temizlenmesi (`TmdbCreditsClient.kt`, `KitsugiCharacterClient.kt`):** TV dizilerinde seslendirmen fotoğraflarının karakter portresi olarak atanması engellendi. Karakterler sekmesi, detay yüklemesinden önce açılsa bile seslendirme sinyalleriyle zenginleştirilerek gerçek kurgusal portrelerle doldurulur.
-- **Çoklu Kaynak Yedek Zinciri & Doraemon Seri Filmleri:** AniList kesintilerinde Jikan, hızlı Shikimori `/roles`, Kitsu, Bangumi, Simkl ve Fandom paralel yedek zinciri devreye alınır. Seri filmlerindeki ilk 8 popüler yapım elemesi ve tek kelimeli isimlerin düşürülmesi hatası düzeltildi; karakter detayında yüklenen görseller sekme önbelleğine geri yayılır.
+### 🔍 Kalan son kurum/tür/etiket boşlukları — kaynak kaynak denetim
 
-### 🗑️ Aktivite Silme: Açılır Panel Kaldırıldı
-- **Tek dokunuş silme (`ProfileActivityComponents.kt`):** Kendi AniList profilindeki aktivite kartlarında üç nokta (⋮) düğmesi ve tek satırlık "Sil" açılır menüsü kaldırıldı. Yerine doğrudan, kartın sağ üstünde duran kırmızı çöp kutusu düğmesi getirildi.
-- **Onay korundu:** Düğme, çağrı yerindeki mevcut `KitsugiConfirmDialog` penceresini açar; kazara silme koruması aynen korunur.
+v2.4.338'den sonra yedi kaynağın **API sözleşmeleri tek tek koda karşı** yeniden okundu.
+Dört gerçek eksik bulundu ve kapatıldı; hiçbiri tahmin değil, API yanıt alanı ↔ kod satırı eşleşmesi.
 
-### 🌐 Kullanıcı Biyografilerinde Otomatik Çeviri (Wiki Mantığı)
-- **Ortak altyapı (`KitsugiAutoTranslation.kt`, `KitsugiHtmlTranslation.kt`):** Wiki çeviri kuralları profillere taşındı: ayar açıksa çeviri uygulama içinde yapılır ve bellekte tutulur. Çeviri ikonu nabız animasyonu gösterir ve kompakt "Orijinal / Çeviri" çipi sunulur.
-- **HTML güvenli çeviri:** Biyografi HTML'i yalnızca metin düğümleri üzerinden çevrilir. Etiketler, resimler ve bağlantılar korunur; `<script>`, `<code>` bloklarına dokunulmaz.
-- **Kapsam:** AniList, Kitsu, Shikimori, Simkl ve MAL profilleri; WebView yeniden yaratılmadan güncellenir.
-- **Takip butonu metni (`profile_following_button`):** Yanlış anlam veren "Takip Ediliyorsun" yerine doğru "Takiptesin" yapıldı.
+#### 1) Shikimori — `licensors` ve `publishers` **hiç okunmuyordu**
 
-### 🏷️ Listem Rozetleri: Köşelere Yapışık ve Kompakt
-- **Poster köşe rozetleri (`KitsugiMediaEntryCard.kt`):** Durum ve puan rozetleri posterin köşelerine tam yapışık yerleştirildi (`TopEndCornerShape` / `BottomEndCornerShape`).
-- **Kompakt stil:** 9sp etiket boyutu, daraltılmış iç boşluk, taşmaları önleyen `widthIn(max = 108.dp)` sınırı.
+Shikimori anime yanıtı `licensors` (lisans veren), manga yanıtı `publishers` (yayınevi) alanı
+döndürür. Kod yalnızca `genres` + `studios` okuyordu → Shikimori kaynaklı sayfalarda lisans
+veren/yayınevi listesi **her zaman boştu**.
 
-### 📖 Kompakt Wiki Araç Çubuğu & Oynatıcı Fallback
-- **Kompakt Wiki Çubuğu (`WikiPageTools.kt`, `WikiChromeComponents.kt`):** Çeviri ve reklam engeli durumu tek satırlık modern araç çubuğunda gösterilir; sayfa görünümü rahatlatıldı.
-- **Satır İçi Video Oynatıcı Fallback (`InlinePlayerSupport.kt`):** Detay/Fragman bölümünde cihaz donanımının çözemediği kodeklerle karşılaşıldığında tam ekran yazılımsal oynatıcıya geçiş kartı sunulur.
+- Yeni `parseShikimoriOrgArray()`: dizi elemanları **düz string** (`"licensors": ["Crunchyroll"]`)
+  veya **nesne** (`{"id":1,"name":"Kodansha"}`) olabilir — ikisi de okunur.
+- Hem Shikimori'nin kendi detay sayfasında hem çapraz toplayıcıda devrede.
+- Rusça adlar `toLatinStudioName()` ile Latin harflerine çevrilir (ekranda Kiril yok).
+
+#### 2) Simkl — `network` (kanal) okunmuyordu, `studios` **sabit boş** yazılıydı
+
+`KitsugiSimklDetailClient` içinde `studios = emptyList(), producers = emptyList()` sabitti.
+Simkl stüdyo/yapımcı yayınlamaz **ama `network` alanını döndürür** (dizi/anime kanalı).
+
+- `network` (string) ve `networks` (dizi/nesne) → **Kanal** bölümü.
+- Simkl artık çapraz toplayıcıda **7. kaynak**: başlık araması → normalize tam başlık eşleşmesi
+  (+ yıl ±1) → `genres` + `network`.
+
+#### 3) MAL/Jikan manga — dergi ve yayınevi çapraz toplayıcıda yoktu
+
+`fetchJikan` yalnız `studios` / `producers` / `licensors` okuyordu. Manga tarafında
+`serializations` (dergi) ve `publishers` (yayınevi) eklendi; **Dergiler** bölümü artık
+MAL kaynaklı mangalarda da doluyor.
+
+#### 4) Kitsu manga — `mangaProductions` istenmiyordu
+
+Kitsu manga detayı `include=categories` ile açılıyordu; yayınevi/dergi bağlı olduğu
+`mangaProductions` ilişkisi hiç istenmiyordu. Artık `categories,mangaProductions.producer`
+istenir; uç reddederse (400) ilişkisiz isteğe düşülür.
+
+#### 5) Denetim artık 7 kaynağı ve 35 alanı kapsıyor
+
+```
+$ python3 scripts/audit_taxonomy_sources.py --strict
+Toplam 35 alan denetlendi · 7 kaynak
+Kaynak          Çapraz toplayıcıda
+Jikan ✔  AniList ✔  Shikimori ✔  Kitsu ✔  Bangumi ✔  TMDB ✔  Simkl ✔
+TÜM KAYNAKLAR BEKLENEN ALANLARI OKUYOR — eksik yok.
+```
+
+Denetim; Shikimori `licensors`/`publishers`, Simkl `network`, MAL manga `serializations`/
+`publishers` alanları **çapraz toplayıcıda** da okunmazsa CI'ı kırıyor.
+
+#### Kaynak başına kurum katkısı (v2.4.339 sonrası)
+
+| Kaynak | Stüdyo | Yapımcı | Lisans | Yayıncı | Kanal | Dergi |
+|---|---|---|---|---|---|---|
+| AniList | ✔ | — | — | — | — | — |
+| MAL/Jikan | ✔ | ✔ | ✔ | ✔ (manga) | — | ✔ (manga) |
+| Bangumi | ✔ | ✔ (komite/製作協力/レーベル/配給) | — | ✔ (manga) | ✔ | ✔ |
+| Shikimori | ✔ | — | ✔ | ✔ (manga) | — | — |
+| Kitsu | ✔ | ✔ | ✔ | ✔ | ✔ | ✔ |
+| TMDB | ✔ | ✔ | — | — | ✔ | — |
+| Simkl | — | — | — | — | ✔ | — |
+
+Hiçbir kaynakta "alan var, kod okumuyor" durumu kalmadı.
 
 ---
 
 ## 🇬🇧 English
 
-### 🎭 TMDB Character Portraits, ARM v2 & Multi-Source Fallback Chain
-- **ARM v2 Endpoint & Cache Poisoning (`KitsugiIdResolver.kt`, `KitsugiEpisodeRatingsRepository.kt`):** Replaced `/api/v2/ids?source=themoviedb` (which returned `HTTP 400 Bad Request`) with the official ARM endpoints `/api/v2/themoviedb?id=`, `/api/v2/thetvdb?id=`, `/api/v2/imdb?id=`, and Simkl `POST /api/v2/ids`. Differentiated `MOVIE` from `TV` records to prevent ID collision; integrated Wikidata (`P4086/P8729/P11495/P12095`) bridge and resolved cache poisoning.
-- **Voice Actor Duplicate Image Cleanup (`TmdbCreditsClient.kt`, `KitsugiCharacterClient.kt`):** Prevented actor portrait propagation into character slots for TV series. The characters tab populates genuine fictional character artwork even when opened prior to media detail resolution.
-- **Multi-Source Fallback & Franchise Fixes:** Activated parallel fallbacks via Jikan, fast Shikimori `/roles`, Kitsu, Bangumi, Simkl, and Fandom during AniList downtime. Fixed franchise filters dropping single-word character names (e.g. *Doraemon*) beyond the top 8 popular titles; cached character portraits backpropagate to the tab view.
+### 🔍 The last remaining organization/genre/tag gaps — source-by-source audit
 
-### 🗑️ Activity Delete: Direct Action Button
-- **One-tap delete (`ProfileActivityComponents.kt`):** Removed the redundant three-dot menu on personal AniList profile activities in favor of a direct red trash button, preserving the confirmation dialog.
+After v2.4.338 the API contracts of all seven sources were re-read **against the code**.
+Four real gaps were found and closed; each is an API field ↔ code line match, not a guess.
 
-### 🌐 User Bio Automatic Translation
-- **Shared infrastructure (`KitsugiAutoTranslation.kt`, `KitsugiHtmlTranslation.kt`):** Brings wiki-style in-memory translation, pulsing indicators, and compact original/translated chips to user biographies across AniList, Kitsu, Shikimori, Simkl, and MAL without destroying WebView instances.
-- **Follow button fix:** Corrected Turkish label from "Takip Ediliyorsun" to "Takiptesin" (Following).
+#### 1) Shikimori — `licensors` and `publishers` were never read
 
-### 🏷️ My List Badges: Corner-Glued & Compact
-- **Flush corner placement (`KitsugiMediaEntryCard.kt`):** Status and score badges clip tightly to poster corners with compact 9sp typography and single-line constraints.
+The anime response carries `licensors`, the manga response carries `publishers`. The code only
+read `genres` + `studios`, so licensor/publisher lists were **always empty** on Shikimori pages.
 
-### 📖 Compact Wiki Toolbar & Player Fallback
-- **Streamlined Wiki Bar (`WikiPageTools.kt`, `WikiChromeComponents.kt`):** Unified translation and ad blocking indicators into a clean single-row bar.
-- **Inline Video Player Fallback (`InlinePlayerSupport.kt`):** Provides a seamless one-tap card to open high-profile or unsupported video codecs directly in the fullscreen player.
+- New `parseShikimoriOrgArray()` accepts both plain strings (`"licensors": ["Crunchyroll"]`)
+  and objects (`{"id":1,"name":"Kodansha"}`).
+- Wired into both the Shikimori detail page and the cross-source collector.
+- Cyrillic names are transliterated (`toLatinStudioName()`), so no Russian leaks on screen.
+
+#### 2) Simkl — `network` ignored, `studios` hard-coded empty
+
+Simkl publishes no studios/producers **but does return `network`** (the broadcast channel).
+
+- `network` (string) and `networks` (array/objects) → **Networks** section.
+- Simkl is now the **7th source** in the collector: title search → normalized exact match
+  (+ year ±1) → `genres` + `network`.
+
+#### 3) MAL/Jikan manga — magazine and publisher missing from the collector
+
+`fetchJikan` read only `studios`/`producers`/`licensors`. Manga `serializations` (magazine) and
+`publishers` are now included, so the **Magazines** section fills for MAL-sourced manga too.
+
+#### 4) Kitsu manga — `mangaProductions` never requested
+
+Kitsu manga detail used `include=categories`, so the publisher/magazine relationship was never
+fetched. It now requests `categories,mangaProductions.producer` and falls back to the plain
+request on 400.
+
+#### 5) The audit now covers 7 sources and 35 fields
+
+Denetim; Shikimori `licensors`/`publishers`, Simkl `network`, MAL manga `serializations`/
+`publishers` alanları **çapraz toplayıcıda** da okunmazsa CI kırılır.
+
+#### Per-source organization coverage (after v2.4.339)
+
+| Source | Studio | Producer | Licensor | Publisher | Network | Magazine |
+|---|---|---|---|---|---|---|
+| AniList | ✔ | — | — | — | — | — |
+| MAL/Jikan | ✔ | ✔ | ✔ | ✔ (manga) | — | ✔ (manga) |
+| Bangumi | ✔ | ✔ | — | ✔ (manga) | ✔ | ✔ |
+| Shikimori | ✔ | — | ✔ | ✔ (manga) | — | — |
+| Kitsu | ✔ | ✔ | ✔ | ✔ | ✔ | ✔ |
+| TMDB | ✔ | ✔ | — | — | ✔ | — |
+| Simkl | — | — | — | — | ✔ | — |
+
+No source is left with "the API has the field, the code ignores it".

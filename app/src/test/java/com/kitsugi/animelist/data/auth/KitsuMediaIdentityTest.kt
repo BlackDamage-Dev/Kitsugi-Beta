@@ -83,4 +83,44 @@ class KitsuMediaIdentityTest {
         assertNull(KitsuApiClient.parseKitsuMediaIdentity(body, 99, isAnime = true))
         assertNull(KitsuApiClient.parseKitsuMediaIdentity(body, 42, isAnime = false))
     }
+
+    @Test
+    fun parserExtractsAniListAnimeMappingAndUsEnglishFallbackTitle() {
+        val body = """{
+            "data": {
+                "id": "49001",
+                "type": "anime",
+                "attributes": {
+                    "canonicalTitle": "Kaijuu 8-gou 2nd Season",
+                    "titles": {"en_us": "Kaiju No. 8 Season 2", "ja_jp": "怪獣8号 第2期"},
+                    "startDate": "2025-07-19"
+                },
+                "relationships": {
+                    "mappings": {"data": [{"type": "mappings", "id": "501"}, {"type": "mappings", "id": "502"}]}
+                }
+            },
+            "included": [
+                {
+                    "id": "501",
+                    "type": "mappings",
+                    "attributes": {"externalSite": "myanimelist/anime", "externalId": "59177"},
+                    "relationships": {"item": {"data": {"id": "49001", "type": "anime"}}}
+                },
+                {
+                    "id": "502",
+                    "type": "mappings",
+                    "attributes": {"externalSite": "anilist/anime", "externalId": "178754"},
+                    "relationships": {"item": {"data": {"id": "49001", "type": "anime"}}}
+                }
+            ]
+        }"""
+
+        val identity = KitsuApiClient.parseKitsuMediaIdentity(body, 49001, isAnime = true)
+
+        assertNotNull(identity)
+        assertEquals(setOf(59177), identity?.malIds)
+        assertEquals(setOf(178754), identity?.aniListIds)
+        assertEquals("Kaiju No. 8 Season 2", identity?.titleEnglish)
+        assertEquals("怪獣8号 第2期", identity?.titleJapanese)
+    }
 }

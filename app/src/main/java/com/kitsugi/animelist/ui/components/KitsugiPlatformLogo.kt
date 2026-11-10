@@ -5,8 +5,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Public
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -39,6 +38,7 @@ object KitsugiPlatformLogos {
         "bangumi", "bgm" -> R.drawable.ic_logo_bangumi
         "fanart.tv", "fanart" -> R.drawable.ic_logo_fanart
         "fandom" -> R.drawable.ic_logo_fandom
+        "animethemes", "animethemes.moe" -> R.drawable.ic_logo_animethemes
         else -> null
     }
 }
@@ -65,7 +65,7 @@ fun KitsugiPlatformLogo(
     } else {
         Box(modifier = modifier.size(size).clip(shape), contentAlignment = Alignment.Center) {
             Icon(
-                imageVector = Icons.Rounded.Public,
+                imageVector = Icons.Public,
                 contentDescription = platformId,
                 tint = fallbackTint,
                 modifier = Modifier.size(size * 0.9f)

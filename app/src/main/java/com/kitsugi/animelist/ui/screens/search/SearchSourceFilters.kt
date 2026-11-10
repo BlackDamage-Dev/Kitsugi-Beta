@@ -25,6 +25,11 @@ enum class SearchSourceEngine(val id: String, val label: String, val emoji: Stri
         SIMKL -> "📺 SMK"
         BANGUMI -> "🎌 BGM"
     }
+
+    companion object {
+        fun fromId(id: String): SearchSourceEngine? =
+            entries.firstOrNull { it.id.equals(id, ignoreCase = true) }
+    }
 }
 
 /**
@@ -45,6 +50,8 @@ enum class SearchScope(val id: String, val label: String, val emoji: String = ""
     STUDIO("studio", "Stüdyolar", "🏢");
 
     val displayLabel: String get() = if (emoji.isNotBlank()) "$emoji $label" else label
+
+    fun supportsEngine(engine: SearchSourceEngine): Boolean = this in engine.availableScopes()
 }
 
 /**
@@ -78,9 +85,11 @@ fun SearchSourceEngine.availableScopes(): List<SearchScope> = when (this) {
     SearchSourceEngine.SIMKL -> listOf(
         SearchScope.ALL_MIXED, SearchScope.ANIME, SearchScope.TV, SearchScope.MOVIE
     )
+    // Bangumi yalnız anime/manga değil 三次元 (type = 6) dizileri ve filmleri de indeksler;
+    // sekmelerde bu kapsamlar yoktu, kullanıcı "Bangumi'de dizi/film araması" yapamıyordu.
     SearchSourceEngine.BANGUMI -> listOf(
         SearchScope.ALL_MIXED, SearchScope.ANIME, SearchScope.MANGA, SearchScope.MANHWA, SearchScope.MANHUA,
-        SearchScope.LIGHT_NOVEL, SearchScope.CHARACTER, SearchScope.STAFF
+        SearchScope.LIGHT_NOVEL, SearchScope.TV, SearchScope.MOVIE, SearchScope.CHARACTER, SearchScope.STAFF
     )
 }
 
@@ -159,6 +168,53 @@ internal data class AllSourcePlan(
         simkl = simkl,
         bangumi = bangumi
     )
+
+    /** İki planın kesişimi (kapsam planı ∧ filtre/facet planı). */
+    fun intersect(other: AllSourcePlan): AllSourcePlan = copy(
+        aniList = aniList && other.aniList,
+        mal = mal && other.mal,
+        tmdb = tmdb && other.tmdb,
+        shikimori = shikimori && other.shikimori,
+        kitsu = kitsu && other.kitsu,
+        simkl = simkl && other.simkl,
+        bangumi = bangumi && other.bangumi
+    )
+
+    /**
+     * Bu aramada gerçekten sorgulanan kaynakların `ListPlatform.fromLabel` ile
+     * çözülebilen kimlikleri. Arama hata rozetleri yalnızca bu kümeyle sınırlanır;
+     * arkada çalışan senkronizasyon/keşfet isteklerinin hataları arama ekranına sızmaz.
+     */
+    fun activePlatformIds(): Set<String> = buildSet {
+        if (aniList) add(SearchSourceEngine.ANILIST.id)
+        if (mal) add(SearchSourceEngine.MAL.id)
+        if (tmdb) add(SearchSourceEngine.TMDB.id)
+        if (shikimori) add(SearchSourceEngine.SHIKIMORI.id)
+        if (kitsu) add(SearchSourceEngine.KITSU.id)
+        if (simkl) add(SearchSourceEngine.SIMKL.id)
+        if (bangumi) add(SearchSourceEngine.BANGUMI.id)
+    }
+
+    /** Hiçbir kaynak sorgulanmayacak mı? (Filtre hiçbir kaynakta temsil edilemiyor.) */
+    val isEmpty: Boolean
+        get() = !aniList && !mal && !tmdb && !shikimori && !kitsu && !simkl && !bangumi
+
+    val anyActive: Boolean
+        get() = !isEmpty
+
+    /** Kapsamın normalde desteklediği ama mevcut filtreler yüzünden atlanan kaynaklar. */
+    fun skippedEngines(scope: SearchScope): List<SearchSourceEngine> {
+        val base = planAllSources(scope)
+        return buildList {
+            if (base.aniList && !aniList) add(SearchSourceEngine.ANILIST)
+            if (base.mal && !mal) add(SearchSourceEngine.MAL)
+            if (base.tmdb && !tmdb) add(SearchSourceEngine.TMDB)
+            if (base.shikimori && !shikimori) add(SearchSourceEngine.SHIKIMORI)
+            if (base.kitsu && !kitsu) add(SearchSourceEngine.KITSU)
+            if (base.simkl && !simkl) add(SearchSourceEngine.SIMKL)
+            if (base.bangumi && !bangumi) add(SearchSourceEngine.BANGUMI)
+        }
+    }
 }
 
 internal fun planAllSources(scope: SearchScope): AllSourcePlan {
@@ -174,7 +230,11 @@ internal fun planAllSources(scope: SearchScope): AllSourcePlan {
         kitsu = mediaDb,
         // Simkl tür süzgeci (anime/tv/movie) desteklediği için anime kapsamında da aktif.
         simkl = scope.wantsLiveActionSources || scope == SearchScope.ANIME,
-        bangumi = mediaDb
+        // Bangumi yalnızca anime/manga değil, **三次元** (type = 6) dizileri ve filmleri de
+        // barındırır (cat 6001/6002). `mediaDb` yalnızca anime/manga kapsamlarında true
+        // olduğu için "Tümü" aramasında Diziler/Filmler rafında Bangumi hiç sorgulanmıyordu;
+        // kullanıcı bunu "Bangumi dizileri/filmleri gelmiyor" olarak görüyordu.
+        bangumi = mediaDb || scope.wantsLiveActionSources
     )
 }
 
@@ -197,6 +257,7 @@ data class AniListSpecificFilters(
     val genres: List<String> = emptyList(),
     val excludedGenres: List<String> = emptyList(),
     val tags: List<String> = emptyList(),
+    val excludedTags: List<String> = emptyList(),
     val minimumTagRank: Int? = null, // 0..100
     val minScore: Int? = null,
     val maxScore: Int? = null,
@@ -213,6 +274,13 @@ data class AniListSpecificFilters(
     val isBirthday: Boolean? = null, // Karakter/Staff için doğum günü
     val sort: String = "POPULARITY_DESC"
 ) {
+    val isLicensed: Boolean?
+        get() = when (isDoujin) {
+            true -> false
+            false -> true
+            null -> null
+        }
+
     val activeCount: Int get() {
         var count = 0
         if (formats.isNotEmpty()) count += formats.size
@@ -225,6 +293,7 @@ data class AniListSpecificFilters(
         if (genres.isNotEmpty()) count += genres.size
         if (excludedGenres.isNotEmpty()) count += excludedGenres.size
         if (tags.isNotEmpty()) count += tags.size
+        if (excludedTags.isNotEmpty()) count += excludedTags.size
         if (minimumTagRank != null) count++
         if (minScore != null || maxScore != null) count++
         if (minEpCh != null || maxEpCh != null) count++
@@ -245,7 +314,12 @@ data class AniListSpecificFilters(
 data class MalSpecificFilters(
     val orderBy: String = "popularity",
     val sortDirection: String = "desc",
+    /** Multiple MAL types come from the common format multi-select; the legacy [type]
+     * field remains the first value for callers that support only one type. */
+    val types: List<String> = emptyList(),
     val type: String? = null,
+    /** Jikan accepts one status per request; the effective bridge may fan out a multi-select. */
+    val statuses: List<String> = emptyList(),
     val status: String? = null,
     val season: String? = null,
     val seasonYear: Int? = null,
@@ -258,13 +332,12 @@ data class MalSpecificFilters(
     val endYear: Int? = null,
     val producerId: Int? = null,
     val magazineId: Int? = null,
-    val letter: String? = null,
-    val sfw: Boolean = true
+    val letter: String? = null
 ) {
     val activeCount: Int get() {
         var count = 0
-        if (type != null) count++
-        if (status != null) count++
+        if (types.isNotEmpty() || type != null) count += maxOf(types.size, 1)
+        if (statuses.isNotEmpty() || status != null) count += maxOf(statuses.size, 1)
         if (season != null) count++
         if (seasonYear != null) count++
         if (rating != null) count++
@@ -275,7 +348,6 @@ data class MalSpecificFilters(
         if (producerId != null) count++
         if (magazineId != null) count++
         if (letter != null) count++
-        if (!sfw) count++
         return count
     }
 }
@@ -300,6 +372,8 @@ data class TmdbSpecificFilters(
     val maxRuntime: Int? = null,
     val watchProviderId: Int? = null,
     val networkId: Int? = null,
+    /** Ortak filtre çatısındaki "Kurumlar" seçiminden gelen yapım şirketi kimliği. */
+    val companyId: Int? = null,
     val keyword: String? = null,
     val includeAdult: Boolean = false
 ) {
@@ -316,6 +390,7 @@ data class TmdbSpecificFilters(
         if (minRuntime != null || maxRuntime != null) count++
         if (watchProviderId != null) count++
         if (networkId != null) count++
+        if (companyId != null) count++
         if (keyword != null) count++
         if (includeAdult) count++
         return count
@@ -393,18 +468,22 @@ data class SimklSpecificFilters(
     val trendingPeriod: String = "today", // today, week, month, calendar
     val sort: String = "rank", // rank, popular-today, popular-this-week, votes, release-date, a-z
     val subtype: String? = null, // tv, movies, ovas, onas, specials
+    /** Simkl accepts one genre per discovery path; this list is used for multi-select
+     * requests and [genre] remains the backwards-compatible first value. */
+    val genres: List<String> = emptyList(),
     val genre: String? = null, // action, comedy, drama, fantasy...
     val country: String? = null, // jp, kr, cn, us
-    val year: String? = null, // 2026, 2025, 2020s, 1990s
-    val minScore: Int? = null
+    val year: String? = null // 2026, 2025, 2020s, 1990s
 ) {
+    // NOT: Simkl arama ucu puan filtresi (score/rating) kabul etmez. Daha önce
+    // pakette `minScore` alanı vardı ve hiçbir isteğe yazılmıyordu; "filtre var"
+    // görünüp hiçbir şey yapmıyordu. Alan kaldırıldı.
     val activeCount: Int get() {
         var count = 0
         if (subtype != null) count++
-        if (genre != null) count++
+        if (genres.isNotEmpty() || genre != null) count += maxOf(genres.size, 1)
         if (country != null) count++
         if (year != null) count++
-        if (minScore != null) count++
         return count
     }
 }
@@ -419,6 +498,13 @@ data class BangumiSpecificFilters(
     val tags: List<String> = emptyList(),
     val yearFrom: Int? = null,
     val yearTo: Int? = null,
+    /**
+     * Mevsim + yıl (`WINTER`, `SPRING`, `SUMMER`, `FALL`). Bangumi'de sezon alanı yok;
+     * `air_date` çeyrek aralığına çevrilir (canlı prob V1–V5). Detay sayfasındaki
+     * "Kış 2025" facetinden gelen bilgi burada taşınır, aksi hâlde sunucu tüm yılı süzer.
+     */
+    val season: String? = null,
+    val seasonYear: Int? = null,
     val minScore: Int? = null,
     val nsfw: Boolean = false,
     val comicsOnly: Boolean = true,
@@ -429,6 +515,7 @@ data class BangumiSpecificFilters(
         if (sort != "match") count++
         if (tags.isNotEmpty()) count += tags.size
         if (yearFrom != null || yearTo != null) count++
+        if (season != null && seasonYear != null) count++
         if (minScore != null) count++
         if (nsfw) count++
         if (!comicsOnly) count++

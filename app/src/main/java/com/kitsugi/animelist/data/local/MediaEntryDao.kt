@@ -8,6 +8,9 @@ import androidx.room.Transaction
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
+/** A metadata-only repair, conditional on the original value still being present. */
+data class SubtitleCorrection(val id: Int, val expected: String, val replacement: String)
+
 @Dao
 interface MediaEntryDao {
     @Query("SELECT * FROM media_entries ORDER BY id DESC")
@@ -18,6 +21,17 @@ interface MediaEntryDao {
 
     @Query("SELECT * FROM media_entries WHERE id = :id LIMIT 1")
     suspend fun getById(id: Int): MediaEntryEntity?
+
+    /**
+     * Yalnızca bir kaynağın satırları. `getAll()` + Kotlin tarafında süzme, her yenilemede
+     * tüm kütüphaneyi (1000+ satır) kopyalıyordu; liste içe aktarımı kaynak kapsamlıdır.
+     * Şema değişikliği yok — yalnızca yeni sorgu.
+     */
+    @Query("SELECT * FROM media_entries WHERE LOWER(source) = LOWER(:source) ORDER BY id DESC")
+    suspend fun getBySource(source: String): List<MediaEntryEntity>
+
+    @Query("SELECT COUNT(*) FROM media_entries WHERE LOWER(source) = LOWER(:source)")
+    suspend fun countBySource(source: String): Int
 
     @Query("SELECT * FROM media_entries WHERE malId = :malId LIMIT 1")
     suspend fun getByMalId(malId: Int): MediaEntryEntity?
@@ -30,6 +44,19 @@ interface MediaEntryDao {
 
     @Update
     suspend fun update(entry: MediaEntryEntity)
+
+    // Synopsis enrichment is metadata, not a user-field edit. Update only this column
+    // so a late detail response cannot overwrite progress, score or sibling records.
+    @Query("UPDATE media_entries SET synopsis = :synopsis WHERE id = :id AND synopsis IS :expectedSynopsis AND (synopsis IS NULL OR synopsis != :synopsis)")
+    suspend fun updateSynopsis(id: Int, expectedSynopsis: String?, synopsis: String)
+
+    @Query("UPDATE media_entries SET subtitle = :replacement WHERE id = :id AND source = 'simkl' AND subtitle = :expected")
+    suspend fun updateSimklSubtitle(id: Int, expected: String, replacement: String)
+
+    @Transaction
+    suspend fun repairSimklSubtitles(corrections: List<SubtitleCorrection>) {
+        corrections.forEach { updateSimklSubtitle(it.id, it.expected, it.replacement) }
+    }
 
     @Update
     suspend fun updateAll(entities: List<MediaEntryEntity>)
@@ -56,6 +83,13 @@ interface MediaEntryDao {
         if (entities.isNotEmpty()) insertAll(entities)
     }
 
+    /** Atomically replaces a single provider's rows so concurrent readers/workers never see half-states. */
+    @Transaction
+    suspend fun replaceSourceTransaction(source: String, entities: List<MediaEntryEntity>) {
+        deleteBySource(source)
+        if (entities.isNotEmpty()) insertAll(entities)
+    }
+
     /**
      * Tüm import işlemini tek atomik transaction olarak gerçekleştirir.
      * Bu sayede Room Flow yalnızca BİR KEZ tetiklenir ve tüm liste
@@ -70,5 +104,20 @@ interface MediaEntryDao {
         if (toInsert.isNotEmpty()) upsertAll(toInsert)
         if (toUpdate.isNotEmpty()) updateAll(toUpdate)
         if (toDeleteIds.isNotEmpty()) deleteByIds(toDeleteIds)
+    }
+
+    @Query("DELETE FROM pending_syncs WHERE id IN (:ids)")
+    suspend fun deletePendingSyncJobs(ids: List<Int>)
+
+    /** Legacy duplicate cleanup is atomic across the library and its stale queued jobs. */
+    @Transaction
+    suspend fun deduplicateTransaction(
+        toUpdate: List<MediaEntryEntity>,
+        toDeleteIds: List<Int>,
+        pendingJobIds: List<Int>
+    ) {
+        if (toUpdate.isNotEmpty()) updateAll(toUpdate)
+        if (toDeleteIds.isNotEmpty()) deleteByIds(toDeleteIds)
+        if (pendingJobIds.isNotEmpty()) deletePendingSyncJobs(pendingJobIds)
     }
 }

@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.ui.components.p2p
+﻿package com.kitsugi.animelist.ui.components.p2p
 import com.kitsugi.animelist.ui.components.KitsugiButton
 
 import com.kitsugi.animelist.ui.theme.gradient.background
@@ -6,12 +6,8 @@ import com.kitsugi.animelist.ui.theme.gradient.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Info
-import androidx.compose.material.icons.rounded.Security
-import androidx.compose.material.icons.rounded.Share
-import androidx.compose.material.icons.rounded.VpnKey
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -71,7 +67,7 @@ fun P2pConsentDialog(
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.Security,
+                            imageVector = Icons.Security,
                             contentDescription = stringResource(R.string.p2p_guvenlik),
                             tint = KitsugiColors.AccentOrange,
                             modifier = Modifier.size(24.dp)
@@ -99,29 +95,29 @@ fun P2pConsentDialog(
                     modifier = Modifier
                         .weight(1f, fill = false)
                         .heightIn(max = 380.dp)
-                        .verticalScroll(rememberScrollState()),
+                        .kitsugiVerticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
                     P2pDisclaimerItem(
-                        icon = Icons.Rounded.Share,
+                        icon = Icons.Share,
                         title = stringResource(R.string.esler_arasi_p2p_baglanti),
                         description = stringResource(R.string.bu_ozellik_harici_debrid_servislerine_gerek_kalmadan_video_akisi)
                     )
 
                     P2pDisclaimerItem(
-                        icon = Icons.Rounded.VpnKey,
+                        icon = Icons.VpnKey,
                         title = stringResource(R.string.ip_adresi_gorunurlugu),
                         description = stringResource(R.string.bittorrent_protokolunun_calisma_prensibi_geregi_ip_adresiniz_swa)
                     )
 
                     P2pDisclaimerItem(
-                        icon = Icons.Rounded.Security,
+                        icon = Icons.Security,
                         title = stringResource(R.string.p2p_legal_compliance_title),
                         description = stringResource(R.string.kitsugi_hicbir_torrent_veya_medya_icerigi_barindirmaz_ve_kontrol)
                     )
 
                     P2pDisclaimerItem(
-                        icon = Icons.Rounded.Info,
+                        icon = Icons.Info,
                         title = stringResource(R.string.yukleme_seed_ayarlar),
                         description = stringResource(R.string.torrent_aginda_veri_paylasimini_upload_ve_hiz_limitlerini_ayarla)
                     )

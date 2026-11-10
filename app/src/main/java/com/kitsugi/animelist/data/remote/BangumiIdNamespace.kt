@@ -90,6 +90,37 @@ object BangumiIdNamespace {
     }
 
     /**
+     * Aramada kabul edilebilecek Bangumi türleri.
+     *
+     * Film, Bangumi'de tek bir subject type değildir: Coraline gibi animasyon filmler
+     * `ANIME + 剧场版`, gerçek çekim filmler ise `REAL + 电影` olabilir. [subjectTypeFor]
+     * geriye uyumluluk için tek/varsayılan türü döndürür; kimlik araması bu listeyi kullanmalı.
+     */
+    fun subjectTypesFor(mediaType: MediaType?): List<Int> = when (mediaType) {
+        MediaType.Movie -> listOf(BangumiApiClient.SubjectType.ANIME, BangumiApiClient.SubjectType.REAL)
+        else -> listOf(subjectTypeFor(mediaType))
+    }
+
+    /** Adayın yalnız türüne değil, film/dizi ayrımında platformuna da bakar. */
+    internal fun isCompatibleWithMediaType(
+        mediaType: MediaType?,
+        subjectType: Int,
+        platform: String?
+    ): Boolean {
+        if (subjectType !in subjectTypesFor(mediaType)) return false
+        if (mediaType != MediaType.Movie) return true
+        return when (subjectType) {
+            // Anime ana türü film ve TV serilerini birlikte taşır; film yazımında yalnız
+            // açıkça film olarak işaretlenmiş条目 kabul edilir (ör. Coraline: 剧场版).
+            BangumiApiClient.SubjectType.ANIME -> isMoviePlatform(platform)
+            // Eski REAL aramalarında platform bulunmayan sonuçlar da kabul ediliyordu;
+            // platform varsa aynı adlı bir TV kaydını filme yazma.
+            BangumiApiClient.SubjectType.REAL -> platform.isNullOrBlank() || isMoviePlatform(platform)
+            else -> false
+        }
+    }
+
+    /**
      * Bir kayıttan güvenilir Bangumi `subject_id` çözer.
      *
      * Sıra (güven derecesine göre azalır):
@@ -107,36 +138,75 @@ object BangumiIdNamespace {
         expectedYear: Int? = null,
         isAnime: Boolean = true,
         allowNetwork: Boolean = true,
-        subjectType: Int? = null
+        subjectType: Int? = null,
+        mediaType: MediaType? = null
     ): Int? {
         rawIdFromStable(storedId)?.let { return it }
         if (context == null) return null
 
-        val expectedSubjectType = subjectType ?: if (isAnime) {
-            BangumiApiClient.SubjectType.ANIME
-        } else {
-            BangumiApiClient.SubjectType.BOOK
+        val expectedSubjectTypes = when {
+            mediaType != null -> subjectTypesFor(mediaType)
+            subjectType != null -> listOf(subjectType)
+            else -> listOf(
+                if (isAnime) BangumiApiClient.SubjectType.ANIME else BangumiApiClient.SubjectType.BOOK
+            )
         }
 
         // 2) Yerel eşleme önbelleği (anime, kitap ve REAL subject'leri ayrı tutulur).
+        // Animasyon filmlerde iki olası türü de okumak gerekir; yalnız REAL anahtarına
+        // bakmak daha önce öğrenilmiş ANIME + 剧场版 eşleşmesini görünmez kılıyordu.
         val malId = realMalIdOf(storedId)
         if (malId != null) {
-            val cached = runCatching { BangumiLocalMappingCache.get(context, malId, expectedSubjectType) }
-                .getOrElse { null }
-            cached?.let { return it }
+            for (expectedType in expectedSubjectTypes) {
+                val cached = runCatching { BangumiLocalMappingCache.get(context, malId, expectedType) }
+                    .getOrElse { null }
+                cached?.let { return it }
+            }
         }
 
         if (!allowNetwork) return null
 
-        // 3) Sıkı başlık araması — yalnızca tek ve net eşleşmede güvenli
-        val query = title?.trim().orEmpty()
+        // 3) Sıkı başlık araması — NFKC normalize anahtar + infobox takma adları + yıl ayrıştırması
+        val query = java.text.Normalizer.normalize(
+            title?.trim().orEmpty(),
+            java.text.Normalizer.Form.NFKC
+        ).trim()
         if (query.isBlank()) return null
         val token = runCatching { BangumiAuthStore.getValidToken(context) }.getOrNull()
+
+        // 3a) Paketlenmiş açık kaynak MAL↔Bangumi eşlemesi yalnız aday üretir.
+        // Aday, Bangumi'nin kendi subject kaydındaki alias/tür/yıl ile kanıtlanmadan
+        // kullanılmaz; bilinen çelişkili çiftler BangumiMalCrosswalk içinde elenmiştir.
+        if (malId != null && BangumiApiClient.SubjectType.ANIME in expectedSubjectTypes) {
+            val mappedIds = BangumiMalCrosswalk.bangumiSubjectsForMal(context, malId)
+            if (mappedIds.isNotEmpty()) {
+                val mappedSubjects = mappedIds.mapNotNull { subjectId ->
+                    runCatching { BangumiApiClient.getSubject(subjectId, token) }.getOrElse { error ->
+                        if (error is CancellationException) throw error
+                        null
+                    }
+                }
+                val mapped = selectUniqueSubjectMatch(
+                    subjects = mappedSubjects,
+                    query = query,
+                    expectedYear = expectedYear,
+                    expectedSubjectTypes = expectedSubjectTypes,
+                    mediaType = mediaType,
+                    allowYearOnlyFallback = false
+                )
+                if (mapped != null) {
+                    runCatching { BangumiLocalMappingCache.put(context, malId, mapped.type, mapped.id) }
+                    return mapped.id
+                }
+            }
+        }
+
+        // 3b) Önceki güvenli davranış: sıkı başlık araması.
         val page = runCatching {
             BangumiApiClient.searchSubjects(
                 keyword = query,
                 token = token,
-                types = listOf(expectedSubjectType),
+                types = expectedSubjectTypes,
                 limit = 10
             )
         }.getOrElse { error ->
@@ -144,26 +214,116 @@ object BangumiIdNamespace {
             Log.w(TAG, "Bangumi title lookup failed for '$query': ${error.message}")
             return null
         }
-        val candidates = page.data.filter { subject ->
-            subject.type == expectedSubjectType && (
-                expectedYear == null || subject.date?.take(4)?.toIntOrNull() == expectedYear ||
-                    matchesTitle(subject.name, query) || matchesTitle(subject.nameCn, query)
-                )
-        }
-        val exact = candidates.filter {
-            matchesTitle(it.name, query) || matchesTitle(it.nameCn, query)
-        }
-        val unique = when {
-            exact.size == 1 -> exact.first()
-            candidates.size == 1 -> candidates.first()
-            else -> null
-        } ?: return null
+        val unique = selectUniqueSubjectMatch(
+            subjects = page.data,
+            query = query,
+            expectedYear = expectedYear,
+            expectedSubjectTypes = expectedSubjectTypes,
+            mediaType = mediaType
+        ) ?: return null
 
         if (malId != null) {
-            runCatching { BangumiLocalMappingCache.put(context, malId, expectedSubjectType, unique.id) }
+            // Varsayılan türü değil, sunucunun döndürdüğü gerçek türü öğren. Animasyon
+            // filmi ANIME anahtarındayken REAL anahtarına yazmak sonraki aramaları bozar.
+            runCatching { BangumiLocalMappingCache.put(context, malId, unique.type, unique.id) }
         }
         return unique.id
     }
+
+    /**
+     * Picks the single unambiguous subject match for [query] (`E99`):
+     *  - checks `name`, `nameCn`, AND `infobox` alias values,
+     *  - when multiple subjects share the same base title in different years (e.g. a manga PV
+     *    vs the 2024 TV anime, or 1999 vs 2011 remake), disambiguates by [expectedYear] instead
+     *    of failing with `null`.
+     */
+    internal fun selectUniqueSubjectMatch(
+        subjects: List<BangumiApiClient.BangumiSubject>,
+        query: String,
+        expectedYear: Int?,
+        expectedSubjectTypes: List<Int>,
+        mediaType: MediaType? = null,
+        allowYearOnlyFallback: Boolean = true
+    ): BangumiApiClient.BangumiSubject? {
+        fun subjectYear(s: BangumiApiClient.BangumiSubject): Int? =
+            s.date?.take(4)?.toIntOrNull()?.takeIf { it > 0 }
+
+        fun matchesSubjectAnyName(s: BangumiApiClient.BangumiSubject): Boolean {
+            if (matchesTitle(s.name, query) || matchesTitle(s.nameCn, query)) return true
+            return s.infobox.values.asSequence().flatten().any { alias -> matchesTitle(alias, query) }
+        }
+
+        val typeFiltered = subjects.filter {
+            it.type in expectedSubjectTypes &&
+                (mediaType == null || isCompatibleWithMediaType(mediaType, it.type, it.platform))
+        }
+        val exact = typeFiltered.filter(::matchesSubjectAnyName)
+
+        if (exact.size == 1) {
+            val single = exact.first()
+            val y = subjectYear(single)
+            if (expectedYear == null || y == null || kotlin.math.abs(y - expectedYear) <= 1) {
+                return single
+            }
+            return null
+        }
+        if (exact.size > 1 && expectedYear != null) {
+            val exactYearHits = exact.filter { subjectYear(it) == expectedYear }
+            if (exactYearHits.size == 1) return exactYearHits.first()
+            val nearYearHits = exact.filter {
+                val y = subjectYear(it)
+                y != null && kotlin.math.abs(y - expectedYear) <= 1
+            }
+            if (nearYearHits.size == 1) return nearYearHits.first()
+            return null
+        }
+
+        if (!allowYearOnlyFallback) return null
+        val candidates = typeFiltered.filter { subject ->
+            expectedYear == null || subjectYear(subject) == expectedYear
+        }
+        return candidates.singleOrNull()
+    }
+
+    /**
+     * Arama sonuçları içinden kabul edilecek TEK adayı seçer (saf fonksiyon, birim testine açık).
+     *
+     * Kabul kuralı: YALNIZCA tek ve net eşleşme — başlık (name/nameCn) normalize edilmiş olarak
+     * birebir tutmalı VE bilinen yıl uyuşmalıdır (adayda yıl yoksa adın tek olması yeterli).
+     * Eski kod, başlık tutmasa bile yalnızca yıl uyuşan TEK adayı kabul ediyordu
+     * (`candidates.size == 1 -> candidates.first()`); bu, aynı yıl çıkan alakasız bir条目'yu
+     * yanlış eşleştiriyordu (kullanıcı raporu: "yanlış eşleşme").
+     */
+    internal fun selectUniqueSubject(
+        data: List<BangumiApiClient.BangumiSubject>,
+        expectedSubjectType: Int,
+        query: String,
+        expectedYear: Int?
+    ): BangumiApiClient.BangumiSubject? {
+        val exact = data.filter { subject ->
+            subject.type == expectedSubjectType &&
+                (matchesTitle(subject.name, query) || matchesTitle(subject.nameCn, query)) &&
+                (expectedYear == null || subject.date?.take(4)?.toIntOrNull() == null ||
+                    subject.date?.take(4)?.toIntOrNull() == expectedYear)
+        }
+        return exact.singleOrNull()
+    }
+
+    /** Geriye dönük uyumluluk: tek beklenen subject type alan aşırı yükleme. */
+    internal fun selectUniqueSubjectMatch(
+        subjects: List<BangumiApiClient.BangumiSubject>,
+        query: String,
+        expectedYear: Int?,
+        expectedSubjectType: Int,
+        allowYearOnlyFallback: Boolean = true
+    ): BangumiApiClient.BangumiSubject? = selectUniqueSubjectMatch(
+        subjects = subjects,
+        query = query,
+        expectedYear = expectedYear,
+        expectedSubjectTypes = listOf(expectedSubjectType),
+        mediaType = null,
+        allowYearOnlyFallback = allowYearOnlyFallback
+    )
 
     /** Boşluk/noktalama duyarsız başlık karşılaştırması (`MediaIdentity.normalizedTitle` ile aynı ruh). */
     private fun matchesTitle(candidate: String?, query: String): Boolean {
@@ -226,6 +386,7 @@ object BangumiLocalMappingCache {
     fun put(context: Context, malId: Int, subjectType: Int, subjectId: Int) {
         if (subjectId <= 0) return
         prefs(context).edit().putInt(key(malId, subjectType), subjectId).apply()
+        com.kitsugi.animelist.data.local.IdentityCacheRevision.changed()
     }
 
     /**

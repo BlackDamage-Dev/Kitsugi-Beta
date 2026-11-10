@@ -4,12 +4,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.OpenInNew
-import androidx.compose.material.icons.filled.Audiotrack
-import androidx.compose.material.icons.filled.HighQuality
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Subtitles
+import androidx.compose.ui.res.stringResource
+import com.kitsugi.animelist.R
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -26,6 +23,13 @@ fun TopRightPlayerControls(
     onAudioClick: () -> Unit,
     onAudioLongClick: () -> Unit,
     onQualityClick: () -> Unit,
+    /**
+     * Kalite butonuna UZUN basma → Kaynak (sunucu) listesi.
+     * v2.4.341: kalite ve kaynak ayrı sheet\'ler; kısa dokunma kaliteyi,
+     * uzun dokunma kaynak listesini açar.
+     */
+    onQualityLongClick: () -> Unit = {},
+    onSourcesClick: () -> Unit,
     isEpisodeOnline: Boolean?,
     onMoreClick: () -> Unit,
     onMoreLongClick: () -> Unit,
@@ -45,35 +49,45 @@ fun TopRightPlayerControls(
                 .size(width = 48.dp, height = 24.dp),
         )
         ControlsButton(
-            icon = Icons.Default.Subtitles,
+            icon = Icons.Subtitles,
             onClick = onSubtitlesClick,
             onLongClick = onSubtitlesLongClick,
             horizontalSpacing = 8.dp,
         )
         ControlsButton(
-            icon = Icons.Default.Audiotrack,
+            icon = Icons.Audiotrack,
             onClick = onAudioClick,
             onLongClick = onAudioLongClick,
             horizontalSpacing = 8.dp,
         )
         if (isEpisodeOnline == true) {
             ControlsButton(
-                icon = Icons.Default.HighQuality,
+                icon = Icons.HighQuality,
+                title = stringResource(R.string.player_video_quality),
                 onClick = onQualityClick,
-                onLongClick = onQualityClick,
+                onLongClick = onQualityLongClick,
+                horizontalSpacing = 8.dp,
+            )
+        }
+        if (isEpisodeOnline == true) {
+            ControlsButton(
+                icon = Icons.VideoLibrary,
+                title = stringResource(R.string.player_stream_sources),
+                onClick = onSourcesClick,
+                onLongClick = onSourcesClick,
                 horizontalSpacing = 8.dp,
             )
         }
         if (onOpenExternalClick != null) {
             ControlsButton(
-                icon = Icons.AutoMirrored.Filled.OpenInNew,
+                icon = Icons.OpenInNew,
                 onClick = onOpenExternalClick,
                 onLongClick = onOpenExternalClick,
                 horizontalSpacing = 8.dp,
             )
         }
         ControlsButton(
-            icon = Icons.Default.MoreVert,
+            icon = Icons.MoreVert,
             onClick = onMoreClick,
             onLongClick = onMoreLongClick,
             horizontalSpacing = 8.dp,

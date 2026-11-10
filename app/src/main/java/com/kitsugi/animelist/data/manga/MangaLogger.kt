@@ -46,6 +46,22 @@ object MangaLogger {
     private fun write(context: Context, level: String, tag: String, message: String) {
         val safeContext = context.applicationContext
         Log.d(TAG, "[$level] [$tag] $message")
+        // v2.4.342: manga kaynağı tanı satırları kalıcı uygulama günlüğünde "Kaynak"
+        // konusu altında toplanır; kullanıcı kaynak arızalarını tek yerden görür.
+        runCatching {
+            val kitsugiLevel = when (level.uppercase()) {
+                "ERROR" -> com.kitsugi.animelist.core.diagnostics.KitsugiLog.Level.ERROR
+                "WARN" -> com.kitsugi.animelist.core.diagnostics.KitsugiLog.Level.WARN
+                "INFO" -> com.kitsugi.animelist.core.diagnostics.KitsugiLog.Level.INFO
+                else -> com.kitsugi.animelist.core.diagnostics.KitsugiLog.Level.DEBUG
+            }
+            com.kitsugi.animelist.core.diagnostics.KitsugiLog.log(
+                level = kitsugiLevel,
+                channel = com.kitsugi.animelist.core.diagnostics.KitsugiLog.Channel.SOURCE,
+                tag = tag,
+                message = message
+            )
+        }
         val logTime = Date()
         logExecutor.execute {
             val line = "[${formatDate(logTime)}] [$level] [$tag] $message"
@@ -200,17 +216,16 @@ object MangaLogger {
         error: Throwable? = null,
         isTimeout: Boolean = false,
     ) {
-        val safeUrl = imageUrl?.take(100) ?: "null"
         if (success) {
             write(context, "INFO", "GÖRSEL",
-                "✅ Kaynak=$sourceName | Sayfa=${pageIndex + 1} | Süre=${elapsedMs}ms | URL=$safeUrl")
+                "✅ Kaynak=$sourceName | Sayfa=${pageIndex + 1} | Süre=${elapsedMs}ms")
         } else if (isTimeout) {
             write(context, "WARN", "GÖRSEL_TIMEOUT",
-                "⏱ Kaynak=$sourceName | Sayfa=${pageIndex + 1} | Zaman aşımı | URL=$safeUrl")
+                "⏱ Kaynak=$sourceName | Sayfa=${pageIndex + 1} | Zaman aşımı")
         } else {
-            val errStr = formatError(error)
+            val errStr = "Hata=${error?.javaClass?.simpleName ?: "Bilinmiyor"}"
             write(context, "ERROR", "GÖRSEL_HATA",
-                "❌ Kaynak=$sourceName | Sayfa=${pageIndex + 1} | URL=$safeUrl | $errStr")
+                "❌ Kaynak=$sourceName | Sayfa=${pageIndex + 1} | $errStr")
         }
     }
 

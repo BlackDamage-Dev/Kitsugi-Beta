@@ -20,7 +20,17 @@ class SourceMirrorResolver(
     private val tag = "SourceMirrorResolver"
 
     suspend fun tryResolveAndActivateMirror(source: MangaSource, cause: Throwable? = null): Boolean = kotlinx.coroutines.supervisorScope {
+        // Do not redirect Manga-TR traffic (including reader credentials/cookies) to
+        // merely reachable guessed domains. Keep any explicitly configured domain.
+        if (!allowsAutomaticMangaMirror(source.pkgName)) return@supervisorScope false
         if (!shouldAttemptRecovery(cause)) return@supervisorScope false
+
+        // Manga-TR: DDoS-Guard + tek kullanımlık okuyucu/gate token'ı. Bir hata
+        // sonrası domain değiştirip isteği TEKRAR çalıştırmak oturumu geçersiz
+        // kılar. Ayrıca isReachable() 403/503'ü "erişilebilir" saydığı için koruma
+        // sayfasını gerçek mirror sanabilir. Kullanıcı domain'i elle değiştirebilir;
+        // otomatik kurtarma bu kaynakta kapalıdır.
+        if (MangaTrCompat.isMangaTr(source)) return@supervisorScope false
 
         val currentBaseUrl = configStore.getPreferredBaseUrl(source, source.baseUrl) ?: source.baseUrl
         if (currentBaseUrl.isBlank()) return@supervisorScope false
@@ -54,8 +64,19 @@ class SourceMirrorResolver(
     }
 
     fun applyStoredDomainPreference(sourceId: Long, source: MangaSource) {
-        val domain = configStore.getActiveDomain(source) ?: return
         val prefs = sourcePreferences(sourceId) ?: return
+        val domain = configStore.getActiveDomain(source)
+        if (domain == null) {
+            // Manga-TR için eski otomatik mirror yazımı source_<id> içine mangatr.net vb.
+            // bırakmışsa kanonik manga-tr.com adresine dönmesi için temizle.
+            if (MangaTrCompat.isMangaTr(source)) {
+                val existing = prefs.getString(KEY_DOMAIN, null)?.trim()
+                if (!existing.isNullOrEmpty() && !isMangaTrHost(existing)) {
+                    prefs.edit().remove(KEY_DOMAIN).apply()
+                }
+            }
+            return
+        }
         val current = prefs.getString(KEY_DOMAIN, null)
         if (!current.equals(domain, ignoreCase = true)) {
             prefs.edit().putString(KEY_DOMAIN, domain).apply()
@@ -79,7 +100,9 @@ class SourceMirrorResolver(
         val scheme = currentUri.scheme?.takeIf { it.isNotBlank() } ?: "https"
         val url = "$scheme://$host"
         return probe(url)?.use { response ->
-            response.isSuccessful || response.isRedirect || response.code == 403 || response.code == 503
+            // 403/503 yanıtları çoğu zaman Cloudflare park sayfası veya ilgisiz squatter
+            // alan adlarına aittir; bunları geçerli mirror olarak kaydetmek kaynağı bozar.
+            response.isSuccessful || response.isRedirect
         } ?: false
     }
 
@@ -102,6 +125,16 @@ class SourceMirrorResolver(
 
     private fun deriveHostCandidates(host: String): List<String> {
         val asciiHost = runCatching { IDN.toASCII(host) }.getOrDefault(host)
+
+        // Manga-TR için rastgele TLD üretmek ZARARLI: DDoS-Guard korumalı siteye
+        // `manga-tr.xyz`, `manga-tr-com.com` gibi uydurma adreslere HEAD atmak hem
+        // yanlış mirror'u "erişilebilir" (403/503) sanıp etkinleştirir hem de tek
+        // kullanımlık okuyucu/geçit oturumunu bozar. Sadece bilinen alan adlarını dene.
+        if (MangaTrCompat.isMangaTrBaseUrl("https://$asciiHost")) {
+            return MangaTrCompat.KNOWN_DOMAINS
+                .filter { !it.equals(asciiHost, ignoreCase = true) }
+        }
+
         val out = linkedSetOf<String>()
 
         // 1. strip www. and find baseName and current TLD
@@ -129,7 +162,6 @@ class SourceMirrorResolver(
 
         if (asciiHost.contains("manga-tr")) {
             out += asciiHost.replace("manga-tr", "mangatr")
-            out += asciiHost.replace("manga-tr", "manga-tr-com")
         }
         if (asciiHost.contains("mangatr")) {
             out += asciiHost.replace("mangatr", "manga-tr")

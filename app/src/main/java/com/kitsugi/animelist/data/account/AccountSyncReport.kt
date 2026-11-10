@@ -3,7 +3,7 @@ package com.kitsugi.animelist.data.account
 import kotlinx.coroutines.CancellationException
 
 /** An unselected category is absent, not a successful sync. Failures stay visible. */
-enum class AccountSyncSection { SEARCH_HISTORY, NOTIFICATIONS, VAULT }
+enum class AccountSyncSection { SEARCH_HISTORY, NOTIFICATIONS, VAULT, ADDONS }
 
 data class AccountSyncReport(val results: Map<AccountSyncSection, Result<Unit>>) {
     val hasFailures: Boolean get() = results.values.any { it.isFailure }

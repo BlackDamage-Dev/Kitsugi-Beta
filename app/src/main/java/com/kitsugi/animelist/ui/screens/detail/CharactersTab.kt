@@ -23,14 +23,15 @@ import com.kitsugi.animelist.data.remote.KitsugiStaff
 import com.kitsugi.animelist.ui.theme.LocalKitsugiAccent
 import com.kitsugi.animelist.ui.theme.KitsugiColors
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.setValue
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import com.kitsugi.animelist.ui.theme.gradient.Icon
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.RecordVoiceOver
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.components.KitsugiSheetOrDialog
 import androidx.compose.runtime.LaunchedEffect
 import com.kitsugi.animelist.ui.theme.gradient.CircularProgressIndicator
@@ -51,7 +52,7 @@ fun CharactersTabContent(
     onCharacterClick: (KitsugiCharacter) -> Unit,
     onStaffClick: (Int, String, String?, String?) -> Unit,
     onMediaClick: (Int, String, String) -> Unit,
-    titleLanguage: String = "ROMAJI",
+    titleLanguage: String = "ENGLISH",
     staffNameLanguage: String = com.kitsugi.animelist.data.settings.KitsugiContentPrefs.staffNameLanguage
 ) {
     var selectedCharacterForVoiceActors by remember { mutableStateOf<KitsugiCharacter?>(null) }
@@ -152,8 +153,10 @@ fun CharactersTabContent(
             } else {
                 // Bangumi kadrosu topluluk katkılı bir kaynaktır; liste gizlenmez ama kaynağı
                 // belirtilir (canlı çekim kayıtlarda animasyon uyarlaması sanatı/rolü görülebiliyor).
-                val fromBangumi = list.any {
-                    it.source.equals("bangumi", ignoreCase = true) || it.source.equals("bgm", ignoreCase = true)
+                val fromBangumi = remember(list) {
+                    list.any {
+                        it.source.equals("bangumi", ignoreCase = true) || it.source.equals("bgm", ignoreCase = true)
+                    }
                 }
                 if (fromBangumi) {
                     Text(
@@ -163,53 +166,74 @@ fun CharactersTabContent(
                         modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp)
                     )
                 }
+                var visibleLimit by remember(list) { mutableIntStateOf(24) }
+                val displayedList = remember(list, visibleLimit) { list.take(visibleLimit) }
+                val remainingCount = (list.size - displayedList.size).coerceAtLeast(0)
+                val accentColor = LocalKitsugiAccent.current
                 val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
-                if (isLandscape) {
-                    // Yatay mod: 2 sütunlu grid
-                    val chunks = list.chunked(2)
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        chunks.forEach { rowItems ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                rowItems.forEach { char ->
-                                    Box(modifier = Modifier.weight(1f)) {
-                                        CharacterVoiceActorCard(
-                                            char = char,
-                                            onCharacterClick = onCharacterClick,
-                                            onVoiceActorClick = { va -> onStaffClick(va.id, va.source, va.name, va.imageUrl) },
-                                            onShowVoiceActors = { char ->
-                                                sheetVoiceActors = char.voiceActors
-                                                selectedCharacterForVoiceActors = char
-                                            }
-                                        )
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    if (isLandscape) {
+                        val chunks = remember(displayedList) { displayedList.chunked(2) }
+                        chunks.forEachIndexed { rowIdx, rowItems ->
+                            key("char_row_${rowIdx}_${rowItems.first().id}") {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    rowItems.forEach { char ->
+                                        Box(modifier = Modifier.weight(1f)) {
+                                            CharacterVoiceActorCard(
+                                                char = char,
+                                                onCharacterClick = onCharacterClick,
+                                                onVoiceActorClick = { va -> onStaffClick(va.id, va.source, va.name, va.imageUrl) },
+                                                onShowVoiceActors = { c ->
+                                                    sheetVoiceActors = c.voiceActors
+                                                    selectedCharacterForVoiceActors = c
+                                                }
+                                            )
+                                        }
                                     }
-                                }
-                                // Eğer tek öğe kaldıysa boş weight doldurucu
-                                if (rowItems.size == 1) {
-                                    Spacer(modifier = Modifier.weight(1f))
+                                    if (rowItems.size == 1) {
+                                        Spacer(modifier = Modifier.weight(1f))
+                                    }
                                 }
                             }
                         }
+                    } else {
+                        displayedList.forEachIndexed { idx, char ->
+                            key("char_${idx}_${char.source}_${char.id}") {
+                                CharacterVoiceActorCard(
+                                    char = char,
+                                    onCharacterClick = onCharacterClick,
+                                    onVoiceActorClick = { va -> onStaffClick(va.id, va.source, va.name, va.imageUrl) },
+                                    onShowVoiceActors = { c ->
+                                        sheetVoiceActors = c.voiceActors
+                                        selectedCharacterForVoiceActors = c
+                                    }
+                                )
+                            }
+                        }
                     }
-                } else {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        list.forEach { char ->
-                            CharacterVoiceActorCard(
-                                char = char,
-                                onCharacterClick = onCharacterClick,
-                                onVoiceActorClick = { va -> onStaffClick(va.id, va.source, va.name, va.imageUrl) },
-                                onShowVoiceActors = { char ->
-                                                sheetVoiceActors = char.voiceActors
-                                                selectedCharacterForVoiceActors = char
-                                            }
+                    if (remainingCount > 0) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(accentColor.copy(alpha = 0.12f))
+                                .tvClickable(shape = RoundedCornerShape(14.dp)) {
+                                    visibleLimit += 36
+                                }
+                                .padding(vertical = 11.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = stringResource(R.string.x_daha, remainingCount),
+                                color = accentColor,
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Bold
                             )
                         }
                     }
@@ -395,7 +419,7 @@ fun CharacterVoiceActorCard(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.RecordVoiceOver,
+                        imageVector = Icons.RecordVoiceOver,
                         contentDescription = stringResource(R.string.detail_voice_actors),
                         tint = KitsugiColors.TextPrimary,
                         modifier = Modifier.size(20.dp)
@@ -472,7 +496,7 @@ fun CharacterVoiceActorCard(
 fun StaffTabContent(
     state: DetailTabState<List<KitsugiStaff>>,
     onStaffClick: (Int, String, String?, String?) -> Unit,
-    titleLanguage: String = "ROMAJI",
+    titleLanguage: String = "ENGLISH",
     staffNameLanguage: String = com.kitsugi.animelist.data.settings.KitsugiContentPrefs.staffNameLanguage
 ) {
     when (state) {
@@ -499,7 +523,8 @@ fun StaffTabContent(
                     staff.copy(
                         name = displayPersonName(
                             staff.name, staff.romanizedName, staff.nativeName, staffNameLanguage, staff.englishName
-                        )
+                        ),
+                        role = staff.role.toLocalizedStaffRole()
                     )
                 }
             }
@@ -511,37 +536,59 @@ fun StaffTabContent(
                     modifier = Modifier.padding(vertical = 16.dp)
                 )
             } else {
+                var visibleLimit by remember(list) { mutableIntStateOf(24) }
+                val displayedList = remember(list, visibleLimit) { list.take(visibleLimit) }
+                val remainingCount = (list.size - displayedList.size).coerceAtLeast(0)
+                val accentColor = LocalKitsugiAccent.current
                 val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
-                if (isLandscape) {
-                    // Yatay mod: 2 sütunlu grid
-                    val chunks = list.chunked(2)
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        chunks.forEach { rowItems ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                rowItems.forEach { staff ->
-                                    Box(modifier = Modifier.weight(1f)) {
-                                        StaffRow(staff = staff, onStaffClick = onStaffClick)
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    if (isLandscape) {
+                        val chunks = remember(displayedList) { displayedList.chunked(2) }
+                        chunks.forEachIndexed { rowIdx, rowItems ->
+                            key("staff_row_${rowIdx}_${rowItems.first().id}") {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    rowItems.forEach { staff ->
+                                        Box(modifier = Modifier.weight(1f)) {
+                                            StaffRow(staff = staff, rolePreLocalized = true, onStaffClick = onStaffClick)
+                                        }
                                     }
-                                }
-                                if (rowItems.size == 1) {
-                                    Spacer(modifier = Modifier.weight(1f))
+                                    if (rowItems.size == 1) {
+                                        Spacer(modifier = Modifier.weight(1f))
+                                    }
                                 }
                             }
                         }
+                    } else {
+                        displayedList.forEachIndexed { idx, staff ->
+                            key("staff_${idx}_${staff.source}_${staff.id}") {
+                                StaffRow(staff = staff, rolePreLocalized = true, onStaffClick = onStaffClick)
+                            }
+                        }
                     }
-                } else {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        list.forEach { staff ->
-                            StaffRow(staff = staff, onStaffClick = onStaffClick)
+                    if (remainingCount > 0) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(accentColor.copy(alpha = 0.12f))
+                                .tvClickable(shape = RoundedCornerShape(14.dp)) {
+                                    visibleLimit += 36
+                                }
+                                .padding(vertical = 11.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = stringResource(R.string.x_daha, remainingCount),
+                                color = accentColor,
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                     }
                 }
@@ -553,7 +600,8 @@ fun StaffTabContent(
 @Composable
 fun StaffRow(
     staff: KitsugiStaff,
-    onStaffClick: (Int, String, String?, String?) -> Unit
+    onStaffClick: (Int, String, String?, String?) -> Unit,
+    rolePreLocalized: Boolean = false
 ) {
     Row(
         modifier = Modifier
@@ -592,7 +640,7 @@ fun StaffRow(
                 fontWeight = FontWeight.Bold
             )
             Text(
-                text = staff.role.toLocalizedStaffRole(),
+                text = if (rolePreLocalized) staff.role else staff.role.toLocalizedStaffRole(),
                 color = KitsugiColors.TextMuted,
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.Medium

@@ -75,6 +75,21 @@ object KitsugiCrashHandler : Thread.UncaughtExceptionHandler {
         Log.e(TAG, "FATAL ÇÖKME (${thread.name}, anaThread=$isForegroundThread): " +
                 "${throwable.javaClass.simpleName}: ${throwable.message}", throwable)
 
+        // v2.4.342: çökme, kalıcı uygulama günlüğüne de yazılır. Süreç birazdan öleceği için
+        // tampon kısa süreyle (en fazla 2 sn) boşaltılır; bu, kullanıcının günlükte
+        // "neden çöktü" sorusunun cevabını bulması için kritik.
+        runCatching {
+            KitsugiLog.log(
+                level = KitsugiLog.Level.FATAL,
+                channel = KitsugiLog.Channel.CRASH,
+                tag = thread.name.take(24),
+                message = "ÇÖKME: ${throwable.javaClass.simpleName}: ${throwable.message}",
+                detail = if (isForegroundThread) "ön plan (ana iş parçacığı)" else "arka plan",
+                throwable = throwable
+            )
+            KitsugiLog.flushBlocking(2_000L)
+        }
+
         if (ctx == null) {
             if (primaryCrashHandled.compareAndSet(false, true)) {
                 killSelf(delayMs = 200)

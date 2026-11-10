@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.ui.screens.search
+﻿package com.kitsugi.animelist.ui.screens.search
 import com.kitsugi.animelist.R
 import androidx.compose.ui.res.stringResource
 import com.kitsugi.animelist.ui.components.KitsugiButton
@@ -21,17 +21,17 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.Close
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.ExperimentalMaterial3Api
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
+import com.kitsugi.animelist.ui.theme.gradient.RangeSlider
 import com.kitsugi.animelist.ui.theme.gradient.Slider
 import androidx.compose.material3.SliderDefaults
+import kotlin.math.roundToInt
 import com.kitsugi.animelist.ui.theme.gradient.Switch
 import androidx.compose.material3.SwitchDefaults
 import com.kitsugi.animelist.ui.theme.gradient.Text
@@ -49,6 +49,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.kitsugi.animelist.ui.components.KitsugiEmojiLabel
 import com.kitsugi.animelist.ui.components.KitsugiPlatformLogo
 import com.kitsugi.animelist.ui.theme.KitsugiColors
 import com.kitsugi.animelist.utils.toLocalizedTagLabel
@@ -64,6 +65,7 @@ fun SourceEngineFilterSheet(
     uiState: SearchUiState,
     viewModel: SearchViewModel,
     onOpenGenresTags: () -> Unit,
+    onOpenInstitutions: () -> Unit,
     onDismiss: () -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -87,7 +89,7 @@ fun SourceEngineFilterSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
+                .kitsugiVerticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp)
                 .padding(bottom = 36.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp)
@@ -138,8 +140,10 @@ fun SourceEngineFilterSheet(
             // Arama sayfasındaki kategori çipleri buraya taşındı: sağ üstteki
             // buton bu sheet üzerinden tüm kapsam/sıralama/filtre öğelerini kapsar.
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(
-                    text = "🗂️ ${stringResource(R.string.search_filter_category)}",
+                KitsugiEmojiLabel(
+                    label = stringResource(R.string.search_filter_category),
+                    icon = Icons.FolderOpen,
+                    iconSize = 16.dp,
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontWeight = FontWeight.Bold,
                         color = KitsugiColors.TextPrimary
@@ -216,12 +220,11 @@ fun SourceEngineFilterSheet(
                                 .padding(horizontal = 12.dp, vertical = 8.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(
-                                text = localizedSourceSearchLabel(label),
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (isSelected) accentColor else KitsugiColors.TextSecondary
-                                )
+                            KitsugiEmojiLabel(
+                                label = localizedSourceSearchLabel(label),
+                                color = if (isSelected) accentColor else KitsugiColors.TextSecondary,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                             )
                         }
                     }
@@ -261,16 +264,81 @@ fun SourceEngineFilterSheet(
                 }
             }
 
+            // ── ORTAK FİLTRE ÇATISI (Türler & Etiketler / Kurumlar) ─────────
+            // Bu iki giriş HER motorda aynı sheet'i açar ve kanonik filtre setini
+            // düzenler. "Tümü" ekranında yapılan seçim, kaynağa özel "Tümünü Gör"
+            // sayfasına taşınır; kaynak sayfasında yapılan seçim de kanonik sete
+            // yazılır, böylece motor değişiminde kaybolmaz.
+            run {
+                val commonFilters = SearchCommonFiltersBridge.harvest(uiState)
+                val institutionCount =
+                    if (uiState.selectedEngine == SearchSourceEngine.ALL) {
+                        uiState.institutions.size
+                    } else {
+                        uiState.institutions.count { it.engine == uiState.selectedEngine }
+                    }
+                val commonShape = RoundedCornerShape(14.dp)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = onOpenGenresTags,
+                        modifier = Modifier.weight(1f),
+                        shape = commonShape,
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                            horizontal = 10.dp,
+                            vertical = 10.dp
+                        )
+                    ) {
+                        Text(
+                            text = stringResource(R.string.inline_genres_tags_4731985) +
+                                if (commonFilters.genreTagCount > 0) " (${commonFilters.genreTagCount})" else "",
+                            color = if (commonFilters.genreTagCount > 0) accentColor else KitsugiColors.TextSecondary,
+                            style = MaterialTheme.typography.labelMedium.copy(
+                                fontWeight = if (commonFilters.genreTagCount > 0) FontWeight.Bold else FontWeight.Medium
+                            ),
+                            maxLines = 1
+                        )
+                    }
+                    OutlinedButton(
+                        onClick = onOpenInstitutions,
+                        modifier = Modifier.weight(1f),
+                        shape = commonShape,
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                            horizontal = 10.dp,
+                            vertical = 10.dp
+                        )
+                    ) {
+                        Text(
+                            text = "🏢 ${stringResource(R.string.search_institutions)}" +
+                                if (institutionCount > 0) " ($institutionCount)" else "",
+                            color = if (institutionCount > 0) accentColor else KitsugiColors.TextSecondary,
+                            style = MaterialTheme.typography.labelMedium.copy(
+                                fontWeight = if (institutionCount > 0) FontWeight.Bold else FontWeight.Medium
+                            ),
+                            maxLines = 1
+                        )
+                    }
+                }
+            }
+
+            // ── ORTAK ARALIKLAR (puan & yıl) ────────────────────────────────
+            // Bu iki aralık tüm kaynaklarda aynı anlamı taşır; bu yüzden motor
+            // ayrımı olmadan burada durur. Motor gövdelerindeki yerel ölçekli
+            // "minimum puan" alanları ek olarak kullanılabilir.
+            CommonRangeSliders(uiState, viewModel)
+
             // Motor Gövdesi
             when (uiState.selectedEngine) {
-                SearchSourceEngine.ANILIST -> AniListFullFiltersContent(uiState, viewModel, onOpenGenresTags)
+                SearchSourceEngine.ANILIST -> AniListFullFiltersContent(uiState, viewModel)
                 SearchSourceEngine.MAL -> MalFullFiltersContent(uiState, viewModel)
                 SearchSourceEngine.TMDB -> TmdbFullFiltersContent(uiState, viewModel)
                 SearchSourceEngine.SHIKIMORI -> ShikimoriFullFiltersContent(uiState, viewModel)
                 SearchSourceEngine.KITSU -> KitsuFullFiltersContent(uiState, viewModel)
                 SearchSourceEngine.SIMKL -> SimklFullFiltersContent(uiState, viewModel)
                 SearchSourceEngine.BANGUMI -> BangumiFullFiltersContent(uiState, viewModel)
-                SearchSourceEngine.ALL -> AllFullFiltersContent()
+                SearchSourceEngine.ALL -> AllFullFiltersContent(uiState)
             }
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -278,7 +346,7 @@ fun SourceEngineFilterSheet(
             // Uygula Butonu
             KitsugiButton(
                 onClick = {
-                    viewModel.search()
+                    viewModel.applyFilterEdits()
                     onDismiss()
                 },
                 modifier = Modifier
@@ -305,39 +373,10 @@ fun SourceEngineFilterSheet(
 @Composable
 private fun AniListFullFiltersContent(
     uiState: SearchUiState,
-    viewModel: SearchViewModel,
-    onOpenGenresTags: () -> Unit
+    viewModel: SearchViewModel
 ) {
     val filters = uiState.aniListSpecificFilters
     val accentColor = LocalKitsugiAccent.current
-
-    // Türler ve Etiketler Seçici
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(KitsugiColors.SurfaceElevated)
-            .clickable(onClick = onOpenGenresTags)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column {
-            Text(
-                text = stringResource(R.string.inline_genres_tags_4731985),
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontWeight = FontWeight.SemiBold,
-                    color = KitsugiColors.TextPrimary
-                )
-            )
-            val selectedCount = filters.genres.size + filters.tags.size + filters.excludedGenres.size
-            Text(
-                text = if (selectedCount > 0) stringResource(R.string.ui2_filter_selected_count, selectedCount) else stringResource(R.string.ui2_all_filters_selected_hint),
-                style = MaterialTheme.typography.bodySmall.copy(color = if (selectedCount > 0) accentColor else KitsugiColors.TextMuted)
-            )
-        }
-        Text(stringResource(R.string.inline_edit_51d5ec9), color = accentColor, style = MaterialTheme.typography.labelMedium)
-    }
 
     // Min Tag Rank
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -431,7 +470,7 @@ private fun MalFullFiltersContent(uiState: SearchUiState, viewModel: SearchViewM
 
     // 1. Format / Tip (Type)
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text("🎬 Format:", style = MaterialTheme.typography.labelMedium.copy(color = KitsugiColors.TextPrimary))
+        KitsugiEmojiLabel(label = "Format:", icon = Icons.Clapperboard, iconSize = 13.dp, style = MaterialTheme.typography.labelMedium.copy(color = KitsugiColors.TextPrimary))
         val types = listOf(
             null to "Tümü",
             "tv" to "TV Dizisi",
@@ -456,7 +495,11 @@ private fun MalFullFiltersContent(uiState: SearchUiState, viewModel: SearchViewM
                         .clickable { viewModel.updateMalFilters(filters.copy(type = typeCode)) }
                         .padding(horizontal = 10.dp, vertical = 6.dp)
                 ) {
-                    Text(localizedSourceSearchLabel(label), style = MaterialTheme.typography.labelSmall.copy(color = if (isSelected) accentColor else KitsugiColors.TextSecondary))
+                    KitsugiEmojiLabel(
+                        label = localizedSourceSearchLabel(label),
+                        color = if (isSelected) accentColor else KitsugiColors.TextSecondary,
+                        style = MaterialTheme.typography.labelSmall
+                    )
                 }
             }
         }
@@ -464,7 +507,7 @@ private fun MalFullFiltersContent(uiState: SearchUiState, viewModel: SearchViewM
 
     // 2. Yayın Durumu (Status)
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text("📡 Durum:", style = MaterialTheme.typography.labelMedium.copy(color = KitsugiColors.TextPrimary))
+        KitsugiEmojiLabel(label = "Durum:", icon = Icons.Satellite, iconSize = 13.dp, style = MaterialTheme.typography.labelMedium.copy(color = KitsugiColors.TextPrimary))
         val statuses = listOf(
             null to "Tümü",
             "airing" to "Yayınlanıyor",
@@ -486,7 +529,11 @@ private fun MalFullFiltersContent(uiState: SearchUiState, viewModel: SearchViewM
                         .clickable { viewModel.updateMalFilters(filters.copy(status = statusCode)) }
                         .padding(horizontal = 10.dp, vertical = 6.dp)
                 ) {
-                    Text(localizedSourceSearchLabel(label), style = MaterialTheme.typography.labelSmall.copy(color = if (isSelected) accentColor else KitsugiColors.TextSecondary))
+                    KitsugiEmojiLabel(
+                        label = localizedSourceSearchLabel(label),
+                        color = if (isSelected) accentColor else KitsugiColors.TextSecondary,
+                        style = MaterialTheme.typography.labelSmall
+                    )
                 }
             }
         }
@@ -518,7 +565,11 @@ private fun MalFullFiltersContent(uiState: SearchUiState, viewModel: SearchViewM
                         .clickable { viewModel.updateMalFilters(filters.copy(orderBy = orderCode)) }
                         .padding(horizontal = 10.dp, vertical = 6.dp)
                 ) {
-                    Text(localizedSourceSearchLabel(label), style = MaterialTheme.typography.labelSmall.copy(color = if (isSelected) accentColor else KitsugiColors.TextSecondary))
+                    KitsugiEmojiLabel(
+                        label = localizedSourceSearchLabel(label),
+                        color = if (isSelected) accentColor else KitsugiColors.TextSecondary,
+                        style = MaterialTheme.typography.labelSmall
+                    )
                 }
             }
         }
@@ -539,7 +590,11 @@ private fun MalFullFiltersContent(uiState: SearchUiState, viewModel: SearchViewM
                         .clickable { viewModel.updateMalFilters(filters.copy(sortDirection = dir)) }
                         .padding(horizontal = 10.dp, vertical = 6.dp)
                 ) {
-                    Text(localizedSourceSearchLabel(label), style = MaterialTheme.typography.labelSmall.copy(color = if (isSelected) accentColor else KitsugiColors.TextSecondary))
+                    KitsugiEmojiLabel(
+                        label = localizedSourceSearchLabel(label),
+                        color = if (isSelected) accentColor else KitsugiColors.TextSecondary,
+                        style = MaterialTheme.typography.labelSmall
+                    )
                 }
             }
         }
@@ -572,7 +627,11 @@ private fun MalFullFiltersContent(uiState: SearchUiState, viewModel: SearchViewM
                         .clickable { viewModel.updateMalFilters(filters.copy(rating = code)) }
                         .padding(horizontal = 10.dp, vertical = 6.dp)
                 ) {
-                    Text(localizedSourceSearchLabel(label), style = MaterialTheme.typography.labelSmall.copy(color = if (isSelected) accentColor else KitsugiColors.TextSecondary))
+                    KitsugiEmojiLabel(
+                        label = localizedSourceSearchLabel(label),
+                        color = if (isSelected) accentColor else KitsugiColors.TextSecondary,
+                        style = MaterialTheme.typography.labelSmall
+                    )
                 }
             }
         }
@@ -622,22 +681,9 @@ private fun MalFullFiltersContent(uiState: SearchUiState, viewModel: SearchViewM
         }
     }
 
-    // 8. Güvenli İçerik / SFW
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column {
-            Text(stringResource(R.string.inline_safe_content_sfw_1486369), style = MaterialTheme.typography.bodyMedium.copy(color = KitsugiColors.TextPrimary))
-            Text(stringResource(R.string.inline_filter_18_adult_titles_54cae0e), style = MaterialTheme.typography.bodySmall.copy(color = KitsugiColors.TextMuted))
-        }
-        Switch(
-            checked = filters.sfw,
-            onCheckedChange = { viewModel.updateMalFilters(filters.copy(sfw = it)) },
-            colors = SwitchDefaults.colors(checkedThumbColor = accentColor, checkedTrackColor = accentColor.copy(alpha = 0.5f))
-        )
-    }
+    // NOT: Buradaki "Güvenli İçerik (SFW)" anahtarı hiçbir isteğe yazılmıyordu —
+    // yetişkin içerik davranışı uygulamanın genel ayarıyla (showAdultContent)
+    // yönetiliyor. Etkisiz bir anahtar göstermemek için kaldırıldı.
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -683,7 +729,11 @@ private fun TmdbFullFiltersContent(uiState: SearchUiState, viewModel: SearchView
                         .clickable { viewModel.updateTmdbFilters(filters.copy(minVoteCount = count)) }
                         .padding(horizontal = 10.dp, vertical = 6.dp)
                 ) {
-                    Text(localizedSourceSearchLabel(label), style = MaterialTheme.typography.labelSmall.copy(color = if (isSelected) accentColor else KitsugiColors.TextSecondary))
+                    KitsugiEmojiLabel(
+                        label = localizedSourceSearchLabel(label),
+                        color = if (isSelected) accentColor else KitsugiColors.TextSecondary,
+                        style = MaterialTheme.typography.labelSmall
+                    )
                 }
             }
         }
@@ -740,7 +790,11 @@ private fun ShikimoriFullFiltersContent(uiState: SearchUiState, viewModel: Searc
                         }
                         .padding(horizontal = 10.dp, vertical = 6.dp)
                 ) {
-                    Text(localizedSourceSearchLabel(label), style = MaterialTheme.typography.labelSmall.copy(color = if (isSelected) accentColor else KitsugiColors.TextSecondary))
+                    KitsugiEmojiLabel(
+                        label = localizedSourceSearchLabel(label),
+                        color = if (isSelected) accentColor else KitsugiColors.TextSecondary,
+                        style = MaterialTheme.typography.labelSmall
+                    )
                 }
             }
         }
@@ -773,7 +827,11 @@ private fun ShikimoriFullFiltersContent(uiState: SearchUiState, viewModel: Searc
                         }
                         .padding(horizontal = 10.dp, vertical = 6.dp)
                 ) {
-                    Text(localizedSourceSearchLabel(label), style = MaterialTheme.typography.labelSmall.copy(color = if (isSelected) accentColor else KitsugiColors.TextSecondary))
+                    KitsugiEmojiLabel(
+                        label = localizedSourceSearchLabel(label),
+                        color = if (isSelected) accentColor else KitsugiColors.TextSecondary,
+                        style = MaterialTheme.typography.labelSmall
+                    )
                 }
             }
         }
@@ -805,7 +863,11 @@ private fun ShikimoriFullFiltersContent(uiState: SearchUiState, viewModel: Searc
                         .clickable { viewModel.updateShikimoriFilters(filters.copy(order = code)) }
                         .padding(horizontal = 10.dp, vertical = 6.dp)
                 ) {
-                    Text(localizedSourceSearchLabel(label), style = MaterialTheme.typography.labelSmall.copy(color = if (isSelected) accentColor else KitsugiColors.TextSecondary))
+                    KitsugiEmojiLabel(
+                        label = localizedSourceSearchLabel(label),
+                        color = if (isSelected) accentColor else KitsugiColors.TextSecondary,
+                        style = MaterialTheme.typography.labelSmall
+                    )
                 }
             }
         }
@@ -838,7 +900,11 @@ private fun ShikimoriFullFiltersContent(uiState: SearchUiState, viewModel: Searc
                         .clickable { viewModel.updateShikimoriFilters(filters.copy(rating = code)) }
                         .padding(horizontal = 8.dp, vertical = 5.dp)
                 ) {
-                    Text(localizedSourceSearchLabel(label), style = MaterialTheme.typography.labelSmall.copy(color = if (isSelected) accentColor else KitsugiColors.TextSecondary))
+                    KitsugiEmojiLabel(
+                        label = localizedSourceSearchLabel(label),
+                        color = if (isSelected) accentColor else KitsugiColors.TextSecondary,
+                        style = MaterialTheme.typography.labelSmall
+                    )
                 }
             }
         }
@@ -868,7 +934,11 @@ private fun ShikimoriFullFiltersContent(uiState: SearchUiState, viewModel: Searc
                         .clickable { viewModel.updateShikimoriFilters(filters.copy(duration = code)) }
                         .padding(horizontal = 8.dp, vertical = 5.dp)
                 ) {
-                    Text(localizedSourceSearchLabel(label), style = MaterialTheme.typography.labelSmall.copy(color = if (isSelected) accentColor else KitsugiColors.TextSecondary))
+                    KitsugiEmojiLabel(
+                        label = localizedSourceSearchLabel(label),
+                        color = if (isSelected) accentColor else KitsugiColors.TextSecondary,
+                        style = MaterialTheme.typography.labelSmall
+                    )
                 }
             }
         }
@@ -943,7 +1013,11 @@ private fun KitsuFullFiltersContent(uiState: SearchUiState, viewModel: SearchVie
                         }
                         .padding(horizontal = 10.dp, vertical = 6.dp)
                 ) {
-                    Text(localizedSourceSearchLabel(label), style = MaterialTheme.typography.labelSmall.copy(color = if (isSelected) accentColor else KitsugiColors.TextSecondary))
+                    KitsugiEmojiLabel(
+                        label = localizedSourceSearchLabel(label),
+                        color = if (isSelected) accentColor else KitsugiColors.TextSecondary,
+                        style = MaterialTheme.typography.labelSmall
+                    )
                 }
             }
         }
@@ -977,7 +1051,11 @@ private fun KitsuFullFiltersContent(uiState: SearchUiState, viewModel: SearchVie
                         }
                         .padding(horizontal = 10.dp, vertical = 6.dp)
                 ) {
-                    Text(localizedSourceSearchLabel(label), style = MaterialTheme.typography.labelSmall.copy(color = if (isSelected) accentColor else KitsugiColors.TextSecondary))
+                    KitsugiEmojiLabel(
+                        label = localizedSourceSearchLabel(label),
+                        color = if (isSelected) accentColor else KitsugiColors.TextSecondary,
+                        style = MaterialTheme.typography.labelSmall
+                    )
                 }
             }
         }
@@ -1009,7 +1087,11 @@ private fun KitsuFullFiltersContent(uiState: SearchUiState, viewModel: SearchVie
                         .clickable { viewModel.updateKitsuFilters(filters.copy(sort = code)) }
                         .padding(horizontal = 10.dp, vertical = 6.dp)
                 ) {
-                    Text(localizedSourceSearchLabel(label), style = MaterialTheme.typography.labelSmall.copy(color = if (isSelected) accentColor else KitsugiColors.TextSecondary))
+                    KitsugiEmojiLabel(
+                        label = localizedSourceSearchLabel(label),
+                        color = if (isSelected) accentColor else KitsugiColors.TextSecondary,
+                        style = MaterialTheme.typography.labelSmall
+                    )
                 }
             }
         }
@@ -1040,7 +1122,11 @@ private fun KitsuFullFiltersContent(uiState: SearchUiState, viewModel: SearchVie
                         .clickable { viewModel.updateKitsuFilters(filters.copy(ageRating = code)) }
                         .padding(horizontal = 8.dp, vertical = 6.dp)
                 ) {
-                    Text(localizedSourceSearchLabel(label), style = MaterialTheme.typography.labelSmall.copy(color = if (isSelected) accentColor else KitsugiColors.TextSecondary))
+                    KitsugiEmojiLabel(
+                        label = localizedSourceSearchLabel(label),
+                        color = if (isSelected) accentColor else KitsugiColors.TextSecondary,
+                        style = MaterialTheme.typography.labelSmall
+                    )
                 }
             }
         }
@@ -1076,7 +1162,7 @@ private fun KitsuFullFiltersContent(uiState: SearchUiState, viewModel: SearchVie
 
     // 6. Minimum Ortalama Puan (minRating 0..100)
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text("⭐ Minimum Ortalama Puan:", style = MaterialTheme.typography.labelMedium.copy(color = KitsugiColors.TextPrimary))
+        KitsugiEmojiLabel(label = "Minimum Ortalama Puan:", icon = Icons.StarSolid, iconSize = 13.dp, style = MaterialTheme.typography.labelMedium.copy(color = KitsugiColors.TextPrimary))
         val scoreSteps = listOf(null to "Tümü", 50 to "%50+", 60 to "%60+", 70 to "%70+", 80 to "%80+", 90 to "%90+")
         FlowRow(
             modifier = Modifier.fillMaxWidth(),
@@ -1124,7 +1210,11 @@ private fun SimklFullFiltersContent(uiState: SearchUiState, viewModel: SearchVie
                         .clickable { viewModel.updateSimklFilters(filters.copy(trendingPeriod = p)) }
                         .padding(horizontal = 12.dp, vertical = 7.dp)
                 ) {
-                    Text(localizedSourceSearchLabel(label), style = MaterialTheme.typography.labelSmall.copy(color = if (isSelected) accentColor else KitsugiColors.TextSecondary))
+                    KitsugiEmojiLabel(
+                        label = localizedSourceSearchLabel(label),
+                        color = if (isSelected) accentColor else KitsugiColors.TextSecondary,
+                        style = MaterialTheme.typography.labelSmall
+                    )
                 }
             }
         }
@@ -1156,7 +1246,11 @@ private fun SimklFullFiltersContent(uiState: SearchUiState, viewModel: SearchVie
                         .clickable { viewModel.updateSimklFilters(filters.copy(subtype = st)) }
                         .padding(horizontal = 10.dp, vertical = 6.dp)
                 ) {
-                    Text(localizedSourceSearchLabel(label), style = MaterialTheme.typography.labelSmall.copy(color = if (isSelected) accentColor else KitsugiColors.TextSecondary))
+                    KitsugiEmojiLabel(
+                        label = localizedSourceSearchLabel(label),
+                        color = if (isSelected) accentColor else KitsugiColors.TextSecondary,
+                        style = MaterialTheme.typography.labelSmall
+                    )
                 }
             }
         }
@@ -1188,7 +1282,11 @@ private fun SimklFullFiltersContent(uiState: SearchUiState, viewModel: SearchVie
                         .clickable { viewModel.updateSimklFilters(filters.copy(sort = sortCode)) }
                         .padding(horizontal = 10.dp, vertical = 6.dp)
                 ) {
-                    Text(localizedSourceSearchLabel(label), style = MaterialTheme.typography.labelSmall.copy(color = if (isSelected) accentColor else KitsugiColors.TextSecondary))
+                    KitsugiEmojiLabel(
+                        label = localizedSourceSearchLabel(label),
+                        color = if (isSelected) accentColor else KitsugiColors.TextSecondary,
+                        style = MaterialTheme.typography.labelSmall
+                    )
                 }
             }
         }
@@ -1263,7 +1361,11 @@ private fun SimklFullFiltersContent(uiState: SearchUiState, viewModel: SearchVie
                         .clickable { viewModel.updateSimklFilters(filters.copy(year = yearCode)) }
                         .padding(horizontal = 10.dp, vertical = 6.dp)
                 ) {
-                    Text(localizedSourceSearchLabel(label), style = MaterialTheme.typography.labelSmall.copy(color = if (isSelected) accentColor else KitsugiColors.TextSecondary))
+                    KitsugiEmojiLabel(
+                        label = localizedSourceSearchLabel(label),
+                        color = if (isSelected) accentColor else KitsugiColors.TextSecondary,
+                        style = MaterialTheme.typography.labelSmall
+                    )
                 }
             }
         }
@@ -1294,20 +1396,137 @@ private fun SimklFullFiltersContent(uiState: SearchUiState, viewModel: SearchVie
                         .clickable { viewModel.updateSimklFilters(filters.copy(country = cCode)) }
                         .padding(horizontal = 10.dp, vertical = 6.dp)
                 ) {
-                    Text(localizedSourceSearchLabel(label), style = MaterialTheme.typography.labelSmall.copy(color = if (isSelected) accentColor else KitsugiColors.TextSecondary))
+                    KitsugiEmojiLabel(
+                        label = localizedSourceSearchLabel(label),
+                        color = if (isSelected) accentColor else KitsugiColors.TextSecondary,
+                        style = MaterialTheme.typography.labelSmall
+                    )
                 }
             }
         }
     }
 }
 
+/**
+ * Puan ve yayın yılı aralıkları — TÜM kaynaklar için ortak.
+ *
+ * Kanonik sete yazılır (bkz. [SearchCommonFiltersBridge.applyTo]); alanı
+ * desteklemeyen kaynaklar sonuçlarını filtrelemeden döndürür. Kaydırıcı
+ * sürüklenirken arama tetiklenmez, bırakıldığında tek bir arama yapılır.
+ */
 @Composable
-private fun AllFullFiltersContent() {
-    Text(
-        text = stringResource(R.string.inline_when_searching_in_all_mode_9dd3946),
-        style = MaterialTheme.typography.bodyMedium.copy(color = KitsugiColors.TextSecondary),
-        lineHeight = 20.sp
-    )
+private fun CommonRangeSliders(
+    uiState: SearchUiState,
+    viewModel: SearchViewModel
+) {
+    val common = SearchCommonFiltersBridge.harvest(uiState)
+    val accentColor = LocalKitsugiAccent.current
+    val maxYear = remember { java.time.Year.now().value }
+    val minYear = 1950
+
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(
+            text = "🎚️ ${stringResource(R.string.search_common_ranges_title)}",
+            style = MaterialTheme.typography.titleMedium.copy(
+                fontWeight = FontWeight.Bold,
+                color = KitsugiColors.TextPrimary
+            )
+        )
+
+        // Puan aralığı
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            val scoreText = if (common.minScore == null && common.maxScore == null) {
+                stringResource(R.string.filter_all)
+            } else {
+                "%${common.minScore ?: 0} - %${common.maxScore ?: 100}"
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = stringResource(R.string.search_common_score_range),
+                    style = MaterialTheme.typography.labelMedium.copy(color = KitsugiColors.TextPrimary)
+                )
+                Text(
+                    text = scoreText,
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        color = accentColor,
+                        fontWeight = FontWeight.Bold
+                    )
+                )
+            }
+            RangeSlider(
+                value = (common.minScore ?: 0).toFloat()..(common.maxScore ?: 100).toFloat(),
+                onValueChange = { range ->
+                    val min = range.start.roundToInt().let { if (it <= 0) null else it }
+                    val max = range.endInclusive.roundToInt().let { if (it >= 100) null else it }
+                    viewModel.setCommonScoreRange(min, max)
+                },
+                valueRange = 0f..100f,
+                steps = 9,
+                onValueChangeFinished = { viewModel.requestSearch(resetPage = true) },
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+
+        // Yayın yılı aralığı
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            val yearText = if (common.startYear == null && common.endYear == null) {
+                stringResource(R.string.filter_all)
+            } else {
+                "${common.startYear ?: minYear} - ${common.endYear ?: maxYear}"
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = stringResource(R.string.search_common_year_range),
+                    style = MaterialTheme.typography.labelMedium.copy(color = KitsugiColors.TextPrimary)
+                )
+                Text(
+                    text = yearText,
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        color = accentColor,
+                        fontWeight = FontWeight.Bold
+                    )
+                )
+            }
+            RangeSlider(
+                value = (common.startYear ?: minYear).toFloat()..(common.endYear ?: maxYear).toFloat(),
+                onValueChange = { range ->
+                    val from = range.start.roundToInt().let { if (it <= minYear) null else it }
+                    val to = range.endInclusive.roundToInt().let { if (it >= maxYear) null else it }
+                    viewModel.setCommonYearRange(from, to)
+                },
+                valueRange = minYear.toFloat()..maxYear.toFloat(),
+                onValueChangeFinished = { viewModel.requestSearch(resetPage = true) },
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+
+        Text(
+            text = stringResource(R.string.search_common_all_sources_hint),
+            style = MaterialTheme.typography.bodySmall.copy(color = KitsugiColors.TextMuted)
+        )
+    }
+}
+
+@Composable
+private fun AllFullFiltersContent(uiState: SearchUiState) {
+    if (uiState.skippedSourceIds.isNotEmpty()) {
+        val labels = uiState.skippedSourceIds
+            .mapNotNull { SearchSourceEngine.fromId(it) }
+            .map { it.localizedLabel() }
+            .joinToString(", ")
+        Text(
+            text = stringResource(R.string.search_skipped_sources_notice, labels),
+            style = MaterialTheme.typography.labelSmall.copy(color = KitsugiColors.TextMuted)
+        )
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1324,8 +1543,9 @@ private fun BangumiChipRow(
 ) {
     val accentColor = LocalKitsugiAccent.current
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(
-            title,
+        KitsugiEmojiLabel(
+            label = title,
+            iconSize = 13.dp,
             style = MaterialTheme.typography.labelMedium.copy(color = KitsugiColors.TextPrimary)
         )
         FlowRow(
@@ -1447,8 +1667,10 @@ private fun BangumiFullFiltersContent(uiState: SearchUiState, viewModel: SearchV
                             .padding(horizontal = 10.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            "${tag.toLocalizedTagLabel()}  ✕",
+                        KitsugiEmojiLabel(
+                            label = tag.toLocalizedTagLabel(),
+                            icon = Icons.X,
+                            iconSize = 10.dp,
                             style = MaterialTheme.typography.labelSmall.copy(color = accentColor)
                         )
                     }

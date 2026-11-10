@@ -71,4 +71,18 @@ class CrossSyncIdentityGuardTest {
             )
         )
     }
+
+    @Test
+    fun multiplicationSignAndTrailingTypeQualifierMatchOfficialAliases() {
+        assertTrue(CrossSyncIdentityGuard.titlesAreIdentityEquivalent("kiss×sis", "Kiss x Sis (TV)"))
+        assertTrue(CrossSyncIdentityGuard.titlesAreIdentityEquivalent("High School D×D", "High School DxD (OVA)"))
+        assertFalse(CrossSyncIdentityGuard.titlesAreIdentityEquivalent("Kiss x Sis 2", "kiss×sis (TV)"))
+    }
+
+    @Test
+    fun ampersandAndQKyuuVariantsDoNotRelaxSeasonChecks() {
+        assertTrue(CrossSyncIdentityGuard.titlesAreIdentityEquivalent("Love & Peace", "Love and Peace"))
+        assertTrue(CrossSyncIdentityGuard.titlesVariantRelated("Evangelion Shin Movie: Kyuu", "Evangelion Shin Gekijouban: Q"))
+        assertFalse(CrossSyncIdentityGuard.titlesVariantRelated("Evangelion 2: Kyuu", "Evangelion 3: Q"))
+    }
 }

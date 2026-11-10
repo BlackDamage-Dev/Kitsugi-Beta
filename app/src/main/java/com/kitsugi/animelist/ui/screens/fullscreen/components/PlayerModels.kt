@@ -16,7 +16,7 @@ data class SubtitleStyleSettings(
     val showOnlyPreferredLanguages: Boolean = false,
     // ── Aniyomi paritesi: Tipografi ──────────────────────────────────────────
     val font: String = "Sans Serif",
-    val fontSize: Int = 55,
+    val fontSize: Int = 45,
     val borderSize: Int = 3,
     val borderStyle: String = "outline-and-shadow",
     val shadowOffset: Int = 0,
@@ -113,6 +113,30 @@ data class TrackOption(
     val groupIndex: Int,
     val trackIndex: Int,
     val label: String,
-    val isSelected: Boolean
+    val isSelected: Boolean,
+    /** Gerçek parça dili (BCP-47/ISO kodu olabilir). */
+    val language: String? = null,
+    /** Motorun bildirdiği codec veya codec profili. */
+    val codec: String? = null,
+    /** Media3 sampleMimeType; MPV tarafında null kalabilir. */
+    val mimeType: String? = null,
+    /** Harici dosyanın yolu/URL'si; codec alt türünü ve uzantıyı ayırt etmeye yarar. */
+    val externalUri: String? = null,
+    /** Eklenti/domain katmanından gelen doğrulanmış format ipucu. */
+    val declaredFormat: String? = null,
+    val isExternal: Boolean = false,
+    val channelCount: Int? = null,
+    val sampleRate: Int? = null,
+    /** The UI index and mpv aid are NOT MediaExtractor stream indices. */
+    val audioLanguage: String? = null,
+    val audioName: String? = null,
+    val audioCodec: String? = null,
+    val audioBitrate: Int? = null,
+    val audioSource: String? = null,
+    val audioIsExternal: Boolean = false,
+    /** mpv identifies an embedded row explicitly; Media3 merging does not expose its origin. */
+    val audioOriginKnown: Boolean = false,
+    /** Media URL active when this row was emitted; prevents stale rows during source switches. */
+    val audioMediaUrl: String? = null
 )
 

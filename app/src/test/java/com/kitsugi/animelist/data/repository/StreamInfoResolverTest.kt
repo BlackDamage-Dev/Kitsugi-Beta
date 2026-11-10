@@ -145,6 +145,13 @@ class StreamInfoResolverTest {
     // ── Boyut ────────────────────────────────────────────────────────────────
 
     @Test
+    fun `kucuk dosya boyutu sifir megabayt olarak gosterilmez`() {
+        assertEquals("350 KB", StreamInfoResolver.formatBytes(350_000L))
+        assertEquals("999 B", StreamInfoResolver.formatBytes(999L))
+        assertEquals("2 MB", StreamInfoResolver.formatBytes(2_000_000L))
+    }
+
+    @Test
     fun `boyut yalnizca kanit varsa gosterilir`() {
         assertNull(StreamInfoResolver.resolveSizeLabel(source(title = "Bölüm 1")))
         assertEquals("1.4 GB", StreamInfoResolver.resolveSizeLabel(source(title = "Episode 1.4 GB")))

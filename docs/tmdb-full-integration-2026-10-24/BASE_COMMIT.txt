@@ -1,0 +1,6 @@
+Repository: f26901964-eng/Kitsugi-Beta
+Base commit: 3d3242ffb9a99359a7afc4db9bc126a0e511cc48
+Source branch: arena/0d16774b-kitsugi-beta
+Package date: 2026-10-24
+Apply: extract this ZIP at the repository root after checking out the base commit.
+This is a changed-file overlay, not a complete repository and not an APK.

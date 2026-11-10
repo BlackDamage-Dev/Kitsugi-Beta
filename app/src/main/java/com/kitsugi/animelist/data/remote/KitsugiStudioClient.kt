@@ -1,6 +1,7 @@
 package com.kitsugi.animelist.data.remote
 
 import com.kitsugi.animelist.model.MediaType
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -47,12 +48,16 @@ class KitsugiStudioClient {
                 }
                 "anilist" -> fetchAniListStudioDetail(studioId)
                 "bangumi" -> {
-                    var detail = if (studioId > 0) fetchBangumiStudioDetail(studioId) else null
+                    var detail = if (studioId > 0) fetchBangumiStudioDetail(studioId, name) else null
                     // Kimlik yoksa / yanlışsa kurumu ADIYLA çözümle (Bangumi şirket条目 type=2,
                     // eşleşmezse aynı adlı kişi kaydı — sayfa kişi şablonunu kullanır).
                     if (detail == null && !name.isNullOrBlank()) {
                         val personId = KitsugiBangumiDetailClient.resolveCompanyPersonId(name)
-                        if (personId != null) detail = fetchBangumiStudioDetail(personId)
+                        if (personId != null) detail = fetchBangumiStudioDetail(personId, name)
+                    }
+                    // Bangumi kaydı bulundu ama p1 uçları boş döndüyse V0 yedeği denenir.
+                    if (detail == null && studioId > 0) {
+                        detail = KitsugiBangumiDetailClient.fetchCompanyFallback(studioId)
                     }
                     detail
                 }
@@ -83,12 +88,17 @@ class KitsugiStudioClient {
             // kaynakta bulunamadığında (ör. Simkl'in TMDB şirket ID'siyle Jikan/MAL'a
             // gitmesi ya da birincil sağlayıcının boş dönmesi) tıklanan ad boşa
             // düşmez; sırayla Jikan → AniList → TMDB üzerinden adıyla aranır.
-            val expectedName = name?.trim()?.takeIf { it.isNotBlank() }
-            if (expectedName != null) {
+            // Ad, tüm bilinen yazımlarıyla karşılaştırılır: çip `SHUEISHA` diyorsa ve
+            // dönen kurum `集英社` adıyla geliyorsa bu bir uyuşmazlık değildir.
+            val expectedNames = StudioSourceSupport.orgNameVariants(name)
+                .ifEmpty { listOfNotNull(name?.trim()?.takeIf { it.isNotBlank() }) }
+            // Üretim komitelerinin gerçek bir kurum sayfası yoktur; başka bir şirkete
+            // "kurtarma" yapmak yanlış kurumu göstermek olur.
+            if (expectedNames.isNotEmpty() && !StudioSourceSupport.isCommitteeName(name)) {
                 val primaryMatches = primary != null &&
-                    StudioSourceSupport.namesMatch(expectedName, primary.name)
+                    expectedNames.any { StudioSourceSupport.namesMatch(it, primary.name) }
                 if (!primaryMatches) {
-                    val recovered = recoverStudioByName(expectedName, excludeSource = canonicalSource.orEmpty())
+                    val recovered = recoverStudioByName(expectedNames, excludeSource = canonicalSource.orEmpty())
                     if (recovered != null) return@withContext enrichStudioMetaFromJikan(recovered, canonicalSource)
                 }
             }
@@ -120,28 +130,34 @@ class KitsugiStudioClient {
      * Birincil sağlayıcı boş döndüğünde ya da dönen kurum adı çiple uyuşmadığında
      * adıyla doğrulanmış bir sağlayıcıdan (Jikan → AniList → TMDB) kurtarır.
      */
-    private suspend fun recoverStudioByName(name: String, excludeSource: String): KitsugiStudioDetail? {
-        val trimmed = name.trim()
-        if (trimmed.isBlank()) return null
+    private suspend fun recoverStudioByName(names: List<String>, excludeSource: String): KitsugiStudioDetail? {
+        val candidates = names
+            .map { it.trim() }
+            .filter { it.isNotBlank() && it.length <= 80 }
+            .distinct()
+            .take(RECOVERY_NAME_LIMIT)
+        if (candidates.isEmpty()) return null
 
         if (excludeSource != "jikan" && excludeSource != "mal") {
-            val jikanId = searchJikanProducerId(trimmed)
-            if (jikanId != null) {
+            for (candidate in candidates) {
+                val jikanId = searchJikanProducerId(candidate) ?: continue
                 fetchJikanStudioDetail(jikanId)
-                    ?.takeIf { StudioSourceSupport.namesMatch(trimmed, it.name) }
+                    ?.takeIf { detail -> candidates.any { StudioSourceSupport.namesMatch(it, detail.name) } }
                     ?.let { return it }
             }
         }
         if (excludeSource != "anilist") {
-            fetchAniListStudioByName(trimmed)
-                ?.takeIf { StudioSourceSupport.namesMatch(trimmed, it.name) }
-                ?.let { return it }
+            for (candidate in candidates) {
+                fetchAniListStudioByName(candidate)
+                    ?.takeIf { detail -> candidates.any { StudioSourceSupport.namesMatch(it, detail.name) } }
+                    ?.let { return it }
+            }
         }
         if (excludeSource != "tmdb") {
-            val tmdbId = searchTmdbCompanyId(trimmed)
-            if (tmdbId != null) {
+            for (candidate in candidates) {
+                val tmdbId = searchTmdbCompanyId(candidate) ?: continue
                 fetchTmdbStudioDetail(tmdbId)
-                    ?.takeIf { StudioSourceSupport.namesMatch(trimmed, it.name) }
+                    ?.takeIf { detail -> candidates.any { StudioSourceSupport.namesMatch(it, detail.name) } }
                     ?.let { return it }
             }
         }
@@ -182,12 +198,37 @@ class KitsugiStudioClient {
      * Kitsugi'nin stüdyo modeline çevrilir: açıklamalar infobox'dan, "Yapımlar" listesi
      * `/persons/{id}/works` ucundan gelir.
      */
-    private suspend fun fetchBangumiStudioDetail(personId: Int): KitsugiStudioDetail? {
-        val person = runCatching {
-            KitsugiBangumiDetailClient.fetchStaffDetail(personId)
-        }.getOrNull() ?: return null
+    private suspend fun fetchBangumiStudioDetail(
+        personId: Int,
+        expectedName: String? = null
+    ): KitsugiStudioDetail? {
+        // p1 deneyseldir ve devre kesiciye takılabilir. Kurum kökünü ve yapımları önce
+        // resmî v0 person uçlarından al; p1'i yalnızca eksik yapım bölümünü tamamlamak için kullan.
+        val v0Person = runCatching {
+            KitsugiBangumiCreditsClient.fetchPersonDetail(personId, expectedName)
+        }.getOrElse {
+            if (it is CancellationException) throw it
+            null
+        }
+        val p1Person = if (v0Person?.mediaWorks.isNullOrEmpty()) {
+            runCatching { KitsugiBangumiDetailClient.fetchStaffDetail(personId) }.getOrElse {
+                if (it is CancellationException) throw it
+                null
+            }
+        } else {
+            null
+        }
+        val person = mergeBangumiOrganizationDetails(v0Person, p1Person)
+        if (person == null) {
+            val fallback = runCatching { KitsugiBangumiDetailClient.fetchCompanyFallback(personId) }.getOrNull()
+            if (fallback != null && (expectedName.isNullOrBlank() || StudioSourceSupport.namesMatch(expectedName, fallback.name))) {
+                return fallback
+            }
+            return null
+        }
+        if (!matchesBangumiOrganization(expectedName, person)) return null
 
-        val about = buildString {
+        var about = buildString {
             if (!person.homeTown.isNullOrBlank()) appendLine(person.homeTown)
             if (!person.biography.isNullOrBlank()) {
                 append(person.biography)
@@ -195,14 +236,31 @@ class KitsugiStudioClient {
                 append(person.occupation)
             }
         }.trim().takeIf { it.isNotBlank() }
+        var works = person.mediaWorks
+        var imageUrl = person.imageUrl
+
+        // ŞİRKET KAYITLARI: p1 `/persons/{id}/works` ucu kişi "görev"lerini döndürür;
+        // şirket kayıtlarında bu liste sık sık BOŞ geliyor (kurumun katkısı `staff`
+        // pozisyonu olarak tutulmuyor). Sayfa açılıyor ama "Yapımlar" bölümü boş kalıyordu.
+        // V0 `/persons/{id}/subjects` ucu kurumun yer aldığı yapımları doğrudan verir.
+        if (works.isEmpty() || about == null) {
+            val fallback = runCatching {
+                KitsugiBangumiDetailClient.fetchCompanyFallback(personId)
+            }.getOrNull()
+            if (fallback != null) {
+                if (works.isEmpty()) works = fallback.mediaWorks
+                if (about == null) about = fallback.about
+                if (imageUrl.isNullOrBlank()) imageUrl = fallback.imageUrl
+            }
+        }
 
         return KitsugiStudioDetail(
             id = person.id,
             name = person.englishName ?: person.name,
             isMain = true,
-            imageUrl = person.imageUrl,
+            imageUrl = imageUrl,
             about = about,
-            mediaWorks = person.mediaWorks
+            mediaWorks = works
         )
     }
 
@@ -936,3 +994,9 @@ private const val STUDIO_WORKS_PAGE_SIZE = 50
  * belirgin biçimde geciktirmeden ortak yapımlarda da doğru satırı bulmaya yeter.
  */
 private const val SHIKIMORI_STUDIO_LOOKUP_LIMIT = 3
+
+/**
+ * Sağlayıcılar arası ad kurtarmasında denenecek en fazla yazım. Her yazım en fazla bir
+ * sağlayıcı araması demektir; 4, sayfa açılışını geciktirmeden yazım farklarını kapatır.
+ */
+private const val RECOVERY_NAME_LIMIT = 4

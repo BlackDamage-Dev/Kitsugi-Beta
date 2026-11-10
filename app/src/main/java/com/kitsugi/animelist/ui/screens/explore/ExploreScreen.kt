@@ -5,6 +5,8 @@
 
 package com.kitsugi.animelist.ui.screens.explore
 
+import com.kitsugi.animelist.ui.screens.explore.mobile.*
+import androidx.compose.ui.text.style.TextAlign
 import com.kitsugi.animelist.ui.theme.gradient.FloatingActionButton
 import com.kitsugi.animelist.ui.components.PlatformErrorExplanationBlock
 import com.kitsugi.animelist.ui.theme.gradient.Icon
@@ -24,11 +26,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowUpward
-import androidx.compose.material.icons.rounded.Notifications
-import androidx.compose.material.icons.rounded.Key
-import androidx.compose.material.icons.rounded.Login
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import com.kitsugi.animelist.ui.components.KitsugiPullToRefreshIndicator
@@ -56,13 +54,38 @@ import com.kitsugi.animelist.ui.components.KitsugiErrorState
 import com.kitsugi.animelist.ui.components.KitsugiEmptyState
 import com.kitsugi.animelist.ui.components.KitsugiShimmerProvider
 import com.kitsugi.animelist.ui.components.kitsugiCardFrame
+import com.kitsugi.animelist.ui.components.KitsugiTopAction
+import com.kitsugi.animelist.ui.components.KitsugiTopActionRow
 import com.kitsugi.animelist.ui.theme.KitsugiColors
 import com.kitsugi.animelist.ui.theme.LocalIsTvDevice
 import com.kitsugi.animelist.ui.theme.LocalKitsugiAccent
 import com.kitsugi.animelist.ui.utils.KitsugiScrollDefaults
 import com.kitsugi.animelist.ui.utils.tvClickable
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
+
+/**
+ * Keşfet türev verileri (forSource kopyaları + distinctBy kimlik dizeleri + başlık
+ * normalizasyonu) kaynak durumları her değiştiğinde doğrudan kompozisyon içinde
+ * hesaplanırsa — "Tümü" modunda her kaynak tamamlandığında — ana thread yükleme
+ * sırasında anlık bloke olur; bu da kullanıcının gördüğü kasma/donma/lag'dir.
+ * Hesaplama Dispatchers.Default'a taşınır; ana thread yalnızca hazır sonucu
+ * state'e yazar. İlk kompozisyon boş durumla bilindiğinden pahalı değildir.
+ */
+@Composable
+private fun <T> rememberExploreDerived(
+    key1: Any?,
+    key2: Any?,
+    compute: () -> T
+): T {
+    var value by remember { mutableStateOf(compute()) }
+    LaunchedEffect(key1, key2) {
+        value = withContext(Dispatchers.Default) { compute() }
+    }
+    return value
+}
 
 @Composable
 fun ExploreScreen(
@@ -71,6 +94,7 @@ fun ExploreScreen(
     onAddSelectionToList: (ApiSearchSelection) -> Unit,
     onSeeAllSection: (title: String, categoryType: ExploreCategoryType, results: List<JikanSearchResult>, platform: ExplorePlatform) -> Unit,
     onNavigateToWatchHistory: () -> Unit = {},
+    onNavigateToDownloads: (() -> Unit)? = null,
     onOpenApiDetail: (JikanSearchResult) -> Unit,
     onEditEntry: (MediaEntry) -> Unit,
     onOpenMangaReader: () -> Unit = {},
@@ -79,7 +103,7 @@ fun ExploreScreen(
     initialScrollOffset: Int = 0,
     onScrollPositionChange: (index: Int, offset: Int) -> Unit = { _, _ -> },
     viewModel: ExploreViewModel = viewModel(),
-    titleLanguage: String = "ROMAJI",
+    titleLanguage: String = "ENGLISH",
     scoreFormat: String = "POINT_10",
     hideScores: Boolean = false,
     showAnimeLogos: Boolean = false,
@@ -89,6 +113,7 @@ fun ExploreScreen(
     separateNovelsManga: Boolean = com.kitsugi.animelist.data.settings.KitsugiContentPrefs.separateNovelsManga,
     onOpenNotifications: () -> Unit = {},
     isNotificationsVisible: Boolean = false,
+    onOpenDownloads: () -> Unit = {},
     /** Alt navigasyon barı görünüyor mu? — "Yukarı Çık" FAB'ı alt barın üstünde hizalanır. */
     isBottomBarVisible: Boolean = true,
     bottomBarScrollState: com.kitsugi.animelist.utils.ScrollVisibilityState? = null,
@@ -97,7 +122,9 @@ fun ExploreScreen(
     /** TMDB hatası — Ayarlar/Entegrasyonlar sayfasına yönlendir */
     onRedirectToSettings: (() -> Unit)? = null,
     /** AniList/MAL hatası — Giriş yap sayfasına yönlendir */
-    onRedirectToAuth: (() -> Unit)? = null
+    onRedirectToAuth: (() -> Unit)? = null,
+    /** Mobil yeni Keşfet için Tümünü Gör raf açma callback'i */
+    onOpenMobileShelf: ((com.kitsugi.animelist.ui.screens.explore.mobile.MobileExploreShelfData, String) -> Unit)? = null
 ) {
     val accentColor = LocalKitsugiAccent.current
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -124,6 +151,10 @@ fun ExploreScreen(
     val filteredNewlyAddedManga = remember(viewModel.newlyAddedManga, showAdultContent) { viewModel.newlyAddedManga.filter { showAdultContent || !it.isAdult } }
     val filteredAiringSoonAnime = remember(viewModel.airingSoonAnime, showAdultContent) { viewModel.airingSoonAnime.filter { showAdultContent || !it.isAdult } }
     val filteredUpcomingMediaTmdb = remember(viewModel.upcomingMediaTmdb, showAdultContent) { viewModel.upcomingMediaTmdb.filter { showAdultContent || !it.isAdult } }
+    val filteredSimklContinueMovies = remember(viewModel.simklContinueMovies, showAdultContent) { viewModel.simklContinueMovies.filter { showAdultContent || !it.isAdult } }
+    val filteredSimklPlannedMovies = remember(viewModel.simklPlannedMovies, showAdultContent) { viewModel.simklPlannedMovies.filter { showAdultContent || !it.isAdult } }
+    val filteredSimklContinueSeries = remember(viewModel.simklContinueSeries, showAdultContent) { viewModel.simklContinueSeries.filter { showAdultContent || !it.isAdult } }
+    val filteredSimklPlannedSeries = remember(viewModel.simklPlannedSeries, showAdultContent) { viewModel.simklPlannedSeries.filter { showAdultContent || !it.isAdult } }
 
     // AniHyou paritesi: ayrım kapalıysa romanlar manga rafına karışır; açıksa ayrı "Noveller" rafı.
     val effectiveNovels = if (separateNovelsManga) filteredNovels else emptyList()
@@ -135,8 +166,8 @@ fun ExploreScreen(
         filteredTopAnime, filteredAiringAnime, filteredUpcomingAnime,
         effectiveTopManga, filteredPublishingManga, filteredTrendingAnime,
         filteredMovieAnime, filteredSeasonalAnime,
-        viewModel.simklContinueMovies, viewModel.simklPlannedMovies,
-        viewModel.simklContinueSeries, viewModel.simklPlannedSeries,
+        filteredSimklContinueMovies, filteredSimklPlannedMovies,
+        filteredSimklContinueSeries, filteredSimklPlannedSeries,
         filteredAiringSoonAnime, filteredTrendingManga,
         filteredNewlyAddedAnime, filteredNewlyAddedManga, filteredUpcomingMediaTmdb,
         filteredTopRatedAnime, filteredTopRatedManga,
@@ -152,10 +183,10 @@ fun ExploreScreen(
             trendingAnime = filteredTrendingAnime,
             movieAnime = filteredMovieAnime,
             seasonalAnime = filteredSeasonalAnime,
-            simklContinueMovies = viewModel.simklContinueMovies,
-            simklPlannedMovies = viewModel.simklPlannedMovies,
-            simklContinueSeries = viewModel.simklContinueSeries,
-            simklPlannedSeries = viewModel.simklPlannedSeries,
+            simklContinueMovies = filteredSimklContinueMovies,
+            simklPlannedMovies = filteredSimklPlannedMovies,
+            simklContinueSeries = filteredSimklContinueSeries,
+            simklPlannedSeries = filteredSimklPlannedSeries,
             airingSoonAnime = filteredAiringSoonAnime,
             trendingManga = filteredTrendingManga,
             newlyAddedAnime = filteredNewlyAddedAnime,
@@ -169,30 +200,45 @@ fun ExploreScreen(
             novels = effectiveNovels
         )
     }
-    val selectedSourceSections = remember(viewModel.selectedPlatform, filteredSourcePayload) {
+    // Türetilen bölüm listeleri ana thread'de hesaplanmaz — yükleme sırasında her
+    // kaynak durumu değişiminde kompozisyonu bloke edip kasmaya yol açıyordu.
+    val selectedSourceSections = rememberExploreDerived(viewModel.selectedPlatform, filteredSourcePayload) {
         if (viewModel.selectedPlatform == ExplorePlatform.ALL) emptyList()
         else sourceSections(viewModel.selectedPlatform, filteredSourcePayload)
+    }
+    val visibleSelectedSourceSections = remember(selectedSourceSections, separateNovelsManga) {
+        selectedSourceSections.filter { separateNovelsManga || it.category != ExploreCategoryType.NOVELS }
+    }
+    // Single-source shortcuts are derived from the same rows below. Providers with eager
+    // catalogs omit empty categories; AniList retains supported-but-not-yet-loaded shelves.
+    val selectedCategorySections = remember(visibleSelectedSourceSections, viewModel.selectedPlatform) {
+        if (viewModel.selectedPlatform == ExplorePlatform.AniList) visibleSelectedSourceSections
+        else visibleSelectedSourceSections.filter { it.results.isNotEmpty() }
     }
 
     // "Tümü" modu bölümleri: yalnızca kaynak durumları/ayar değişince hesaplanır.
     // allSourceSections() her çağrısında forSource kopyaları + distinctBy string
-    // hesapları yapar; LazyListScope içerik lambda'sı her state değişiminde yeniden
-    // çalıştığı için hesaplanmadan geçirmek ciddi kare düşüşü üretiyordu.
-    val allSectionsList = remember(viewModel.allSourceStates, showAdultContent) {
-        allSourceSections(viewModel.allSourceStates, showAdultContent)
+    // hesapları yapar; bu tek blok Dispatchers.Default üzerinde tek geçişte üretilir.
+    val allSectionsDerived = rememberExploreDerived(viewModel.allSourceStates, showAdultContent) {
+        val list = allSourceSections(viewModel.allSourceStates, showAdultContent)
+        val byPlatform = list.groupBy { it.platform }
+        Triple(
+            list,
+            byPlatform,
+            byPlatform.mapValues { (_, sections) ->
+                sections.flatMap { it.results }.distinctBy { it.exploreIdentity() }.size
+            }
+        )
     }
-    val allSectionsByPlatform = remember(allSectionsList) { allSectionsList.groupBy { it.platform } }
-    val allSectionsDistinctCounts = remember(allSectionsList) {
-        allSectionsByPlatform.mapValues { (_, sections) ->
-            sections.flatMap { it.results }.distinctBy { it.exploreIdentity() }.size
-        }
-    }
+    val allSectionsList = allSectionsDerived.first
+    val allSectionsByPlatform = allSectionsDerived.second
+    val allSectionsDistinctCounts = allSectionsDerived.third
 
     // Tümü modunda tek ORTAK "Yakında Yayında" şeridi: tüm kaynakların yayın
     // takvimi verisinin BİRLEŞİMİ — AniList/MAL bölüm takvimi + TMDB vizyon/bölüm
     // tarihleri birlikte gösterilir (kimlik + normalize başlıkla tekilleştirilir,
     // yayın zamanına göre sıralanır). Kaynak modunda şerit kaynağa özgü kalır.
-    val sharedAiringSoon = remember(viewModel.allSourceStates, showAdultContent) {
+    val sharedAiringSoon = rememberExploreDerived(viewModel.allSourceStates, showAdultContent) {
         fun List<JikanSearchResult>?.ready() =
             this.orEmpty().filter { showAdultContent || !it.isAdult }
         // Öncelik sırası: bölüm numarası taşıyan kaynaklar önce (duplikasyonda
@@ -218,7 +264,7 @@ fun ExploreScreen(
 
     // The video-only hero uses one item per source/shelf in ALL, two in a selected
     // source, plus the countdown rail. Artwork is verified before it can be displayed.
-    val heroSourceSections = if (viewModel.selectedPlatform == ExplorePlatform.ALL) allSectionsList else selectedSourceSections
+    val heroSourceSections = if (viewModel.selectedPlatform == ExplorePlatform.ALL) allSectionsList else visibleSelectedSourceSections
     val heroSections = remember(heroSourceSections) {
         heroSourceSections.map { section ->
             section.copy(results = section.results.filter(::isHomeHeroMedia))
@@ -264,8 +310,7 @@ fun ExploreScreen(
             allSectionsList.isNotEmpty() || sharedAiringSoon.isNotEmpty()
         } else {
             selectedSourceSections.any { it.results.isNotEmpty() } || filteredAiringSoonAnime.isNotEmpty()
-        }) || viewModel.simklContinueMovies.isNotEmpty() || viewModel.simklPlannedMovies.isNotEmpty() ||
-        viewModel.simklContinueSeries.isNotEmpty() || viewModel.simklPlannedSeries.isNotEmpty()
+        })
     val lazyListState = com.kitsugi.animelist.ui.utils.rememberRetainedLazyListState(
         contentReady = hasCatalogContent,
         initialIndex = initialScrollIndex,
@@ -293,6 +338,55 @@ fun ExploreScreen(
 
     val isTvDevice = LocalIsTvDevice.current
 
+    val mobileExploreInput = remember(
+        viewModel.selectedPlatform,
+        filteredSourcePayload,
+        viewModel.allSourceStates,
+        viewModel.isLoading,
+        viewModel.errorMessage,
+        viewModel.isShowingCachedData,
+        viewModel.platformErrorCode,
+        isSimklConnected
+    ) {
+        if (viewModel.selectedPlatform == ExplorePlatform.ALL) {
+            val personalPayload = if (isSimklConnected) {
+                val simklPayload = viewModel.allSourceStates[ExplorePlatform.SIMKL]?.payload
+                if (simklPayload != null && (simklPayload.simklContinueSeries.isNotEmpty() || simklPayload.simklContinueMovies.isNotEmpty() || simklPayload.simklPlannedSeries.isNotEmpty() || simklPayload.simklPlannedMovies.isNotEmpty())) {
+                    PersonalPayload(ExplorePlatform.SIMKL, simklPayload)
+                } else {
+                    val tmdbPayload = viewModel.allSourceStates[ExplorePlatform.TMDB]?.payload
+                    if (tmdbPayload != null && (tmdbPayload.simklContinueSeries.isNotEmpty() || tmdbPayload.simklContinueMovies.isNotEmpty() || tmdbPayload.simklPlannedSeries.isNotEmpty() || tmdbPayload.simklPlannedMovies.isNotEmpty())) {
+                        PersonalPayload(ExplorePlatform.TMDB, tmdbPayload)
+                    } else null
+                }
+            } else null
+            MobileExploreInput.All(
+                states = viewModel.allSourceStates,
+                personal = personalPayload
+            )
+        } else {
+            val selectedState = ExploreSourceState(
+                payload = filteredSourcePayload,
+                isLoading = viewModel.isLoading,
+                error = viewModel.errorMessage,
+                isCached = viewModel.isShowingCachedData,
+                errorCode = viewModel.platformErrorCode
+            )
+            MobileExploreInput.Selected(
+                platform = viewModel.selectedPlatform,
+                state = selectedState
+            )
+        }
+    }
+
+    val mobileContent = remember(mobileExploreInput, showAdultContent, separateNovelsManga) {
+        buildMobileExploreContent(
+            input = mobileExploreInput,
+            showAdultContent = showAdultContent,
+            separateNovelsManga = separateNovelsManga
+        )
+    }
+
     // ── "Yukarı Çık" FAB — arama/liste sayfalarıyla aynı davranış, alt barla uyumlu ──
     val scope = rememberCoroutineScope()
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
@@ -315,9 +409,7 @@ fun ExploreScreen(
 
     val isCatalogEmpty = viewModel.selectedPlatform != ExplorePlatform.ALL &&
         !viewModel.isLoading && viewModel.errorMessage == null &&
-        selectedSourceSections.none { it.results.isNotEmpty() } &&
-        viewModel.simklContinueSeries.isEmpty() && viewModel.simklContinueMovies.isEmpty() &&
-        viewModel.simklPlannedSeries.isEmpty() && viewModel.simklPlannedMovies.isEmpty() &&
+        visibleSelectedSourceSections.none { it.results.isNotEmpty() } &&
         filteredAiringSoonAnime.isEmpty()
 
     Row(
@@ -348,7 +440,8 @@ fun ExploreScreen(
                         )
                     }
                 ) {
-                    KitsugiShimmerProvider(active = viewModel.isLoading) {
+                    if (isTvDevice) {
+                        KitsugiShimmerProvider(active = viewModel.isLoading) {
                         LazyColumn(
                             state = lazyListState,
                             modifier = Modifier.fillMaxSize(),
@@ -425,65 +518,43 @@ fun ExploreScreen(
                                                     modifier = Modifier.weight(1f)
                                                 )
 
-                                                // 🎲 Rastgele keşfet butonu (bildirim açıkken de görünür)
-                                                Box(
-                                                    modifier = Modifier
-                                                        .size(38.dp)
-                                                        .clip(RoundedCornerShape(12.dp))
-                                                        .background(KitsugiColors.SurfaceElevated)
-                                                        .border(1.dp, KitsugiColors.SurfaceElevated.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
-                                                        .tvClickable(shape = RoundedCornerShape(12.dp)) {
-                                                            val randomPool = mutableListOf<JikanSearchResult>()
-                                                            randomPool.addAll(filteredTopAnime)
-                                                            randomPool.addAll(filteredAiringAnime)
-                                                            randomPool.addAll(filteredUpcomingAnime)
-                                                            randomPool.addAll(filteredTopManga)
-                                                            randomPool.addAll(filteredPublishingManga)
-                                                            randomPool.addAll(filteredTrendingAnime)
-                                                            randomPool.addAll(filteredMovieAnime)
-                                                            randomPool.addAll(filteredBangumiTvShows)
-                                                            randomPool.addAll(filteredBangumiMovies)
-                                                            randomPool.addAll(filteredSeasonalAnime)
-                                                            randomPool.addAll(viewModel.simklContinueMovies)
-                                                            randomPool.addAll(viewModel.simklPlannedMovies)
-                                                            randomPool.addAll(viewModel.simklContinueSeries)
-                                                            randomPool.addAll(viewModel.simklPlannedSeries)
-                                                            if (viewModel.selectedPlatform == ExplorePlatform.ALL) {
-                                                                randomPool.addAll(allSectionsList
-                                                                    .flatMap { it.results }.distinctBy { it.exploreIdentity() })
+                                                // 🎲 Rastgele + 🔔 Bildirim → ortak üst çubuk aksiyon satırı.
+                                                // Sıra ve görünüm uygulamanın her yerinde aynıdır; bildirim
+                                                // her zaman en sağdaki buton olarak kalır.
+                                                KitsugiTopActionRow(
+                                                    actions = buildList {
+                                                        add(KitsugiTopAction.HISTORY)
+                                                        if (onNavigateToDownloads != null) add(KitsugiTopAction.DOWNLOADS)
+                                                        add(KitsugiTopAction.RANDOM)
+                                                        if (isNotificationsVisible) add(KitsugiTopAction.NOTIFICATIONS)
+                                                    },
+                                                    onActionClick = { action ->
+                                                        when (action) {
+                                                            KitsugiTopAction.RANDOM -> {
+                                                                val randomPool = mutableListOf<JikanSearchResult>()
+                                                                if (viewModel.selectedPlatform == ExplorePlatform.ALL) {
+                                                                    randomPool.addAll(
+                                                                        allSectionsList
+                                                                            .flatMap { it.results }
+                                                                            .distinctBy { it.exploreIdentity() }
+                                                                    )
+                                                                } else {
+                                                                    randomPool.addAll(
+                                                                        visibleSelectedSourceSections
+                                                                            .flatMap { it.results }
+                                                                            .distinctBy { it.exploreIdentity() }
+                                                                    )
+                                                                }
+                                                                randomPool.filter { showAdultContent || !it.isAdult }
+                                                                    .randomOrNull()?.let(onOpenApiDetail)
                                                             }
-                                                            randomPool.filter { showAdultContent || !it.isAdult }
-                                                                .randomOrNull()?.let(onOpenApiDetail)
-                                                        },
-                                                    contentAlignment = Alignment.Center
-                                                ) {
-                                                    Text(
-                                                        text = "🎲",
-                                                        style = MaterialTheme.typography.bodyMedium
-                                                    )
-                                                }
-
-                                                if (isNotificationsVisible) {
-                                                    // 🔔 Bildirim butonu
-                                                    Box(
-                                                        modifier = Modifier
-                                                            .size(38.dp)
-                                                            .clip(RoundedCornerShape(12.dp))
-                                                            .background(KitsugiColors.SurfaceElevated)
-                                                            .border(1.dp, KitsugiColors.SurfaceElevated.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
-                                                            .tvClickable(shape = RoundedCornerShape(12.dp)) {
-                                                                onOpenNotifications()
-                                                            },
-                                                        contentAlignment = Alignment.Center
-                                                    ) {
-                                                        Icon(
-                                                            imageVector = Icons.Rounded.Notifications,
-                                                            contentDescription = stringResource(R.string.notif_title),
-                                                            tint = KitsugiColors.TextPrimary,
-                                                            modifier = Modifier.size(20.dp)
-                                                        )
+                                                            KitsugiTopAction.HISTORY -> onNavigateToWatchHistory()
+                                                            KitsugiTopAction.DOWNLOADS -> (onNavigateToDownloads ?: onOpenDownloads).invoke()
+                                                            KitsugiTopAction.NOTIFICATIONS -> onOpenNotifications()
+                                                            else -> Unit
+                                                        }
                                                     }
-                                                }
+                                                )
                                             }
                                         }
                                     }
@@ -506,9 +577,11 @@ fun ExploreScreen(
                                             verticalAlignment = Alignment.CenterVertically,
                                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                                         ) {
-                                            Text(
-                                                text = "📡",
-                                                style = MaterialTheme.typography.bodyLarge
+                                            com.kitsugi.animelist.ui.theme.gradient.Icon(
+                                                imageVector = Icons.Satellite,
+                                                contentDescription = null,
+                                                tint = accentColor,
+                                                modifier = Modifier.size(20.dp)
                                             )
                                             Column {
                                                 Text(
@@ -550,7 +623,7 @@ fun ExploreScreen(
                                                         border = ButtonDefaults.outlinedButtonBorder
                                                     ) {
                                                         Icon(
-                                                            imageVector = Icons.Rounded.Key,
+                                                            imageVector = Icons.Key,
                                                             contentDescription = null,
                                                             modifier = Modifier.size(16.dp)
                                                         )
@@ -570,7 +643,7 @@ fun ExploreScreen(
                                                         border = ButtonDefaults.outlinedButtonBorder
                                                     ) {
                                                         Icon(
-                                                            imageVector = Icons.Rounded.Login,
+                                                            imageVector = Icons.Login,
                                                             contentDescription = null,
                                                             modifier = Modifier.size(16.dp)
                                                         )
@@ -612,6 +685,11 @@ fun ExploreScreen(
                                         lazyListState.animateScrollToItem(index, stickyToggleHeight)
                                     } },
                                     onRetrySource = viewModel::retrySource,
+                                    loadedCategories = viewModel.aniListLoadedCategories,
+                                    loadingCategories = viewModel.aniListLoadingCategories,
+                                    failedCategories = viewModel.aniListFailedCategories,
+                                    onLoadCategory = viewModel::loadExploreSection,
+                                    onRetryCategory = viewModel::retryExploreSection,
                                     alreadyInList = isAlreadyInList,
                                     getMediaEntry = getMediaEntry,
                                     onItemClick = onOpenApiDetail,
@@ -635,49 +713,14 @@ fun ExploreScreen(
                             } else {
                                 val isTmdbFamilySource = viewModel.selectedPlatform == ExplorePlatform.TMDB ||
                                     viewModel.selectedPlatform == ExplorePlatform.SIMKL
-                                item {
-                                    if (isTmdbFamilySource) {
-                                        TmdbCategoriesSection(
-                                            isExpanded = isCategoriesExpanded,
-                                            onExpandedChange = { isCategoriesExpanded = it },
-                                            accentColor = accentColor,
-                                            filteredTopAnime = filteredTopAnime,
-                                            filteredAiringAnime = filteredAiringAnime,
-                                            filteredMovieAnime = filteredMovieAnime,
-                                            filteredTopManga = filteredTopManga,
-                                            filteredUpcomingAnime = filteredUpcomingAnime,
-                                            filteredSeasonalAnime = filteredSeasonalAnime,
-                                            filteredPublishingManga = filteredPublishingManga,
-                                            filteredTrendingAnime = filteredTrendingAnime,
-                                            filteredNewlyAddedAnime = filteredNewlyAddedAnime,
-                                            filteredTrendingManga = filteredTrendingManga,
-                                            filteredUpcomingMediaTmdb = filteredUpcomingMediaTmdb,
-                                            onSeeAllSection = onSeeAllForSelected,
-                                            onOpenAiringCalendar = onOpenAiringCalendar
-                                        )
-                                    } else {
-                                        DefaultCategoriesSection(
-                                            isExpanded = isCategoriesExpanded,
-                                            onExpandedChange = { isCategoriesExpanded = it },
-                                            accentColor = accentColor,
-                                            filteredSeasonalAnime = filteredSeasonalAnime,
-                                            filteredTopAnime = filteredTopAnime,
-                                            filteredTrendingAnime = filteredTrendingAnime,
-                                            filteredMovieAnime = filteredMovieAnime,
-                                            filteredNewlyAddedAnime = filteredNewlyAddedAnime,
-                                            filteredTopRatedAnime = filteredTopRatedAnime,
-                                            filteredTopManga = filteredTopManga,
-                                            filteredPublishingManga = filteredPublishingManga,
-                                            filteredTrendingManga = filteredTrendingManga,
-                                            filteredTopRatedManga = filteredTopRatedManga,
-                                            filteredNewlyAddedManga = filteredNewlyAddedManga,
-                                            filteredAiringAnime = filteredAiringAnime,
-                                            filteredUpcomingAnime = filteredUpcomingAnime,
-                                            onSeeAllSection = onSeeAllForSelected,
-                                            onOpenAiringCalendar = onOpenAiringCalendar,
-                                            onOpenMangaReader = onOpenMangaReader
-                                        )
-                                    }
+                                item(key = "selected_explore_categories") {
+                                    ExploreCategoriesSection(
+                                        isExpanded = isCategoriesExpanded,
+                                        onExpandedChange = { isCategoriesExpanded = it },
+                                        accentColor = accentColor,
+                                        sections = selectedCategorySections,
+                                        onSeeAllSection = onSeeAllForSelected
+                                    )
                                     Spacer(modifier = Modifier.height(26.dp))
                                 }
 
@@ -703,8 +746,14 @@ fun ExploreScreen(
 
                                 if (!isTmdbFamilySource || viewModel.tmdbModernHomeEnabled) {
                                     sourceExploreSections(
-                                        sections = selectedSourceSections,
+                                        sections = visibleSelectedSourceSections,
+                                        platform = viewModel.selectedPlatform,
                                         isLoading = viewModel.isLoading,
+                                        loadedCategories = viewModel.aniListLoadedCategories,
+                                        loadingCategories = viewModel.aniListLoadingCategories,
+                                        failedCategories = viewModel.aniListFailedCategories,
+                                        onLoadCategory = viewModel::loadExploreSection,
+                                        onRetryCategory = viewModel::retryExploreSection,
                                         isAlreadyInList = isAlreadyInList,
                                         getMediaEntry = getMediaEntry,
                                         onItemClick = onOpenApiDetail,
@@ -735,21 +784,261 @@ fun ExploreScreen(
                             }
                         }
                     }
+                } else {
+                    MobileExploreVisualHost(
+                        selectedSource = viewModel.selectedPlatform,
+                        content = mobileContent,
+                        onSourceClick = { showSourceSheet = true },
+                        actions = {
+                            KitsugiTopActionRow(
+                                actions = buildList {
+                                    add(KitsugiTopAction.HISTORY)
+                                    if (onNavigateToDownloads != null) add(KitsugiTopAction.DOWNLOADS)
+                                    add(KitsugiTopAction.RANDOM)
+                                    if (isNotificationsVisible) add(KitsugiTopAction.NOTIFICATIONS)
+                                },
+                                onActionClick = { action ->
+                                    when (action) {
+                                        KitsugiTopAction.RANDOM -> {
+                                            val randomPool = mutableListOf<JikanSearchResult>()
+                                            if (viewModel.selectedPlatform == ExplorePlatform.ALL) {
+                                                randomPool.addAll(
+                                                    allSectionsList
+                                                        .flatMap { it.results }
+                                                        .distinctBy { it.exploreIdentity() }
+                                                )
+                                            } else {
+                                                randomPool.addAll(
+                                                    visibleSelectedSourceSections
+                                                        .flatMap { it.results }
+                                                        .distinctBy { it.exploreIdentity() }
+                                                )
+                                            }
+                                            randomPool.filter { showAdultContent || !it.isAdult }
+                                                .randomOrNull()?.let(onOpenApiDetail)
+                                        }
+                                        KitsugiTopAction.HISTORY -> onNavigateToWatchHistory()
+                                        KitsugiTopAction.DOWNLOADS -> (onNavigateToDownloads ?: onOpenDownloads).invoke()
+                                        KitsugiTopAction.NOTIFICATIONS -> onOpenNotifications()
+                                        else -> Unit
+                                    }
+                                }
+                            )
+                        },
+                        alreadyInList = isAlreadyInList,
+                        getMediaEntry = getMediaEntry,
+                        onItemClick = onOpenApiDetail,
+                        onLongClickItem = onLongClickItem,
+                        onOpenShelf = { shelf, title ->
+                            when (mobileShelfAction(shelf)) {
+                                MobileShelfAction.NONE -> Unit
+                                MobileShelfAction.WATCH_HISTORY -> onNavigateToWatchHistory()
+                                MobileShelfAction.FINITE_GRID_REQUIRES_UI -> {
+                                    if (onOpenMobileShelf != null) {
+                                        onOpenMobileShelf(shelf, title)
+                                    } else {
+                                        onSeeAllSection(title, shelf.category, shelf.results, shelf.source)
+                                    }
+                                }
+                            }
+                        },
+                        sourceStatus = { tab, status ->
+                            val state = status.state
+                            if (state != null) {
+                                if (state.error != null) {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 13.dp, vertical = 6.dp)
+                                    ) {
+                                        val errorType = viewModel.exploreErrorType
+                                        KitsugiErrorState(
+                                            message = state.error,
+                                            onRetryClick = {
+                                                if (viewModel.selectedPlatform == ExplorePlatform.ALL) {
+                                                    viewModel.retrySource(status.source)
+                                                } else {
+                                                    viewModel.loadData(forceRefresh = true)
+                                                }
+                                            },
+                                            actionButton = when {
+                                                errorType == ExploreErrorType.TmdbError && onRedirectToSettings != null -> ({
+                                                    OutlinedButton(
+                                                        onClick = { onRedirectToSettings.invoke() },
+                                                        colors = ButtonDefaults.outlinedButtonColors(
+                                                            contentColor = LocalKitsugiAccent.current
+                                                        ),
+                                                        border = ButtonDefaults.outlinedButtonBorder
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = Icons.Key,
+                                                            contentDescription = null,
+                                                            modifier = Modifier.size(16.dp)
+                                                        )
+                                                        Spacer(Modifier.width(6.dp))
+                                                        Text(
+                                                            text = stringResource(R.string.inline_set_tmdb_api_key_d93a3ee),
+                                                            fontWeight = FontWeight.SemiBold
+                                                        )
+                                                    }
+                                                })
+                                                (errorType == ExploreErrorType.AniListError || errorType == ExploreErrorType.MalError) && onRedirectToAuth != null -> ({
+                                                    OutlinedButton(
+                                                        onClick = { onRedirectToAuth.invoke() },
+                                                        colors = ButtonDefaults.outlinedButtonColors(
+                                                            contentColor = LocalKitsugiAccent.current
+                                                        ),
+                                                        border = ButtonDefaults.outlinedButtonBorder
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = Icons.Login,
+                                                            contentDescription = null,
+                                                            modifier = Modifier.size(16.dp)
+                                                        )
+                                                        Spacer(Modifier.width(6.dp))
+                                                        Text(
+                                                            text = stringResource(R.string.giris_yap),
+                                                            fontWeight = FontWeight.SemiBold
+                                                        )
+                                                    }
+                                                })
+                                                else -> null
+                                            }
+                                        )
+                                        state.errorCode?.let { code ->
+                                            Spacer(modifier = Modifier.height(6.dp))
+                                            PlatformErrorExplanationBlock(code = code, tint = KitsugiColors.AccentRed)
+                                        }
+                                    }
+                                }
+                                if (state.isCached) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 13.dp, vertical = 6.dp)
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(KitsugiColors.Surface.copy(alpha = 0.5f))
+                                            .kitsugiCardFrame(RoundedCornerShape(12.dp), highlightColor = accentColor.copy(alpha = 0.3f))
+                                            .padding(horizontal = 16.dp, vertical = 12.dp)
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                        ) {
+                                            com.kitsugi.animelist.ui.theme.gradient.Icon(
+                                                imageVector = Icons.Satellite,
+                                                contentDescription = null,
+                                                tint = accentColor,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                            Column {
+                                                Text(
+                                                    text = stringResource(R.string.inline_offline_cache_mode_63b3c6b),
+                                                    style = MaterialTheme.typography.labelLarge,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = KitsugiColors.TextPrimary
+                                                )
+                                                Text(
+                                                    text = stringResource(R.string.inline_the_internet_connection_is_down_56227de),
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = KitsugiColors.TextSecondary
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        emptyPage = { page ->
+                            if (!page.supported) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 24.dp, vertical = 32.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.Center
+                                ) {
+                                    Text(
+                                        text = stringResource(
+                                            R.string.explore_tab_unsupported_title,
+                                            viewModel.selectedPlatform.shortName,
+                                            stringResource(
+                                                when (page.tab) {
+                                                    MobileExploreTab.SERIES -> R.string.mobile_explore_tab_series
+                                                    MobileExploreTab.MOVIES -> R.string.mobile_explore_tab_movies
+                                                    MobileExploreTab.ANIME -> R.string.mobile_explore_tab_anime
+                                                    MobileExploreTab.MANGA -> R.string.mobile_explore_tab_manga
+                                                }
+                                            )
+                                        ),
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = KitsugiColors.TextPrimary,
+                                        textAlign = TextAlign.Center
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text(
+                                        text = stringResource(R.string.explore_tab_unsupported_desc),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = KitsugiColors.TextSecondary,
+                                        textAlign = TextAlign.Center
+                                    )
+                                }
+                            } else if (page.showNoShelves) {
+                                KitsugiEmptyState(
+                                    title = stringResource(R.string.explore_source_empty_title),
+                                    subtitle = stringResource(R.string.explore_source_empty_subtitle)
+                                )
+                            }
+                        },
+                        extraItems = { page ->
+                            val airingSoonList = if (viewModel.selectedPlatform == ExplorePlatform.ALL) sharedAiringSoon else filteredAiringSoonAnime
+                            if (page.tab == MobileExploreTab.ANIME && (airingSoonList.isNotEmpty() || viewModel.isLoading)) {
+                                item(key = "mobile_airing_soon") {
+                                    ExploreAiringSoonSection(
+                                        title = airingSoonTitle,
+                                        airingSoonAnime = airingSoonList,
+                                        isLoading = viewModel.isLoading,
+                                        alreadyInList = isAlreadyInList,
+                                        onItemClick = onOpenApiDetail,
+                                        onLongClickItem = onLongClickItem,
+                                        onOpenAiringCalendar = onOpenAiringCalendar,
+                                        accentColor = accentColor,
+                                        titleLanguage = titleLanguage,
+                                        blurAdultMedia = blurAdultMedia
+                                    )
+                                    Spacer(modifier = Modifier.height(14.dp))
+                                }
+                            }
+                        },
+                        titleLanguage = titleLanguage,
+                        scoreFormat = scoreFormat,
+                        hideScores = hideScores,
+                        blurAdultMedia = blurAdultMedia,
+                        modifier = Modifier.fillMaxSize(),
+                        showScrollToTopFab = true,
+                        bottomBarScrollState = bottomBarScrollState,
+                        isBottomBarVisible = isBottomBarVisible,
+                        onScrollReset = { onScrollReset?.invoke() }
+                    )
                 }
             }
+        }
 
-            // ── "Yukarı Çık" FAB — aşağı kaydırınca belirir, alt bar üstünde hizalanır ──
-            com.kitsugi.animelist.ui.components.KitsugiScrollToTopFab(
-                visible = showFab,
-                isLandscape = isLandscape,
-                bottomBarScrollState = bottomBarScrollState,
-                fallbackBottomBarVisible = isBottomBarVisible,
-                onClick = {
-                    onScrollReset?.invoke()
-                    scope.launch { lazyListState.animateScrollToItem(0) }
-                },
-                modifier = Modifier.align(Alignment.BottomEnd)
-            )
+            // ── "Yukarı Çık" FAB (TV) — aşağı kaydırınca belirir ──
+            if (isTvDevice) {
+                com.kitsugi.animelist.ui.components.KitsugiScrollToTopFab(
+                    visible = showFab,
+                    isLandscape = isLandscape,
+                    bottomBarScrollState = bottomBarScrollState,
+                    fallbackBottomBarVisible = isBottomBarVisible,
+                    onClick = {
+                        onScrollReset?.invoke()
+                        scope.launch { lazyListState.animateScrollToItem(0) }
+                    },
+                    modifier = Modifier.align(Alignment.BottomEnd)
+                )
+            }
         }
     }
 

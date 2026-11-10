@@ -4,6 +4,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONArray
 import org.json.JSONObject
+import org.junit.Ignore
 import org.junit.Test
 import java.io.File
 import java.net.InetAddress
@@ -19,6 +20,7 @@ import java.util.concurrent.TimeUnit
  *
  * Sonuç: plugin_diagnostic_report.md
  */
+@Ignore("Live network probe suite - run manually")
 class CsLivePluginTest {
 
     // ── HTTP Client ────────────────────────────────────────────────────────────

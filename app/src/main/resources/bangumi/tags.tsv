@@ -31,7 +31,7 @@ web_novel	Web Romanı	Web Novel	网文	網文	网络小说	網路小說	WEB小�
 visual_novel	Görsel Roman	Visual Novel	视觉小说	視覺小說	視覚小说	ビジュアルノベル	VisualNovel
 galgame_adaptation	Galgame Uyarlaması	Galgame Adaptation	GAL改	gal改	美少女游戏改	エロゲ改
 galgame	Galgame	Galge	galgame	GALGAME	美少女游戏	美少女遊戲	エロゲ	GAL	【galgame】	【GAL】	Gal！	GalGame	ギャルゲー	galge
-4koma	Dört Kareli Manga	4-Koma Manga	四格漫画	四コマ	4-koma	四格
+4koma	4-Koma Manga	4-Koma Manga	四格漫画	四コマ	4-koma	四格
 doujin	Doujin Kaynak	Doujin	同人	同人作品	同人誌	Doujin	本子	.Doujin	doujin	同人志
 fan_work	Hayran Yapımı	Fan Work	二创	二次创作	二次創作
 adaptation	Uyarlama	Adaptation	改编	改編	改编作品
@@ -106,8 +106,8 @@ death_game	Ölüm Oyunu	Death Game	死亡游戏	死亡遊戲	デスゲーム	大
 post_apocalyptic	Kıyamet Sonrası	Post-Apocalyptic	末世	末日	后启示录	終末	废土	廢土
 apocalypse	Kıyamet	Apocalypse	天启	启示录	終末論
 dystopia	Distopya	Dystopia	反乌托邦	ディストピア	反烏托邦
-cyberpunk	Siberpunk	Cyberpunk	赛博朋克	サイバーパンク	cyberpunk	賽博朋克	CyberPunk
-steampunk	Buharpunk (Steampunk)	Steampunk	蒸汽朋克	スチームパンク	steampunk
+cyberpunk	Cyberpunk	Cyberpunk	赛博朋克	サイバーパンク	cyberpunk	賽博朋克	CyberPunk
+steampunk	Steampunk	Steampunk	蒸汽朋克	スチームパンク	steampunk
 space_opera	Uzay Operası	Space Opera	太空歌剧	スペースオペラ
 space_battle	Uzay Savaşı	Space Battle	宇宙战	宇宙戦争	宇宙战争
 first_love	İlk Aşk	First Love	初恋	初戀	ファースト・ラブ
@@ -120,8 +120,8 @@ date	Buluşma	Date	约会	約會	데이트	デート
 harem	Harem	Harem	后宫	後宮	ハーレム	harem	后宮
 reverse_harem	Ters Harem	Reverse Harem	逆后宫	逆後宮	逆ハーレム	男后宫	男后宮
 yuri	Yuri	Yuri	百合	ユリ	轻百合	ガチ百合	YURI	YURI-	|Yuri|	yuri_	[Yuri]
-bl	Erkek Aşkı (BL)	Boys Love	耽美	男男	BL	ボーイズラブ	BL漫画	BLコミック	基	BL小说	BL小説	【BL漫画】	耽美漫画	耽美系	腐向	耽美向	Boys' Love
-gl	Kız Aşkı (GL)	Girls Love	蕾丝	蕾丝边	GL	レズ	gl
+bl	Boys Love	Boys Love	耽美	男男	BL	ボーイズラブ	BL漫画	BLコミック	基	BL小说	BL小説	【BL漫画】	耽美漫画	耽美系	腐向	耽美向	Boys' Love
+gl	Girls Love	Girls Love	蕾丝	蕾丝边	GL	レズ	gl
 forbidden_love	Yasak Aşk	Forbidden Love	禁忌之恋	禁忌	义理の兄妹	兄妹恋
 ntr	NTR	NTR	NTR	牛头人	寝取られ	牛頭人	ntr!!!!
 crossdressing	Zıt Cins Kılığı	Crossdressing	女装	男裝	伪娘	男の娘	偽娘	男装	女裝	僞娘
@@ -233,7 +233,7 @@ sequel	Devam	Sequel	续作	續作	系列续作	系列續作	续集	續編	第二
 prequel	Öncül	Prequel	前传	前傳
 spin_off	Spin-Off	Spin-off	外传	外傳	衍生	スピンオフ	小说衍生
 side_story	Yan Hikâye	Side Story	番外	番外篇	小剧场	小劇場
-crossover	Ortak Evren (Crossover)	Crossover	联动	聯動	コラボ	crossover
+crossover	Crossover	Crossover	联动	聯動	コラボ	crossover
 compilation	Derleme	Compilation	总集篇	總集篇	精选	合集	合輯	精选集	compilation	合辑
 recap	Özet	Recap	回顾	回顧
 behind_the_scenes	Kamera Arkası	Behind The Scenes	幕后	幕後	花絮
@@ -293,7 +293,7 @@ part_time_job	Yarı Zamanlı İş	Part Time Job	打工	バイト	兼职	兼職
 office_worker	Ofis Çalışanı	Office Worker	白领	白領	OL
 hikikomori	Hikikomori	Hikikomori	家里蹲	隠居	引きこもり	家裏蹲
 otaku_culture	Otaku Kültürü	Otaku Culture	御宅	オタク	秋叶原	宅文化
-cosplay	Kostümlü Oyun	Cosplay	角色扮演	コスプレ	cosplay
+cosplay	Cosplay	Cosplay	角色扮演	コスプレ	cosplay
 martial_master	Usta	Martial Master	师傅	師父	高手
 genius	Dahi	Genius	天才	高智商
 idiot_character	Saf Karakter	Idiot Character	笨蛋	傻瓜	天然呆	天然
@@ -414,7 +414,7 @@ hong_kong_region	Hong Kong	Hong Kong	香港	中国香港	中國香港
 thailand	Tayland	Thailand	泰国	泰國
 asia	Asya	Asia	亚洲	亞洲
 europe	Avrupa	Europe	欧洲	歐洲	europe
-western	Vahşi Batı (Western)	Western	欧美	歐美	西方	欧米
+western	Western	Western	欧美	歐美	西方	欧米
 middle_east	Ortadoğu	Middle East	中东	中東
 africa	Afrika	Africa	非洲
 co_production	Ortak Yapım	Co-production	共同制作	共同製作	中日合作	合拍
@@ -456,12 +456,12 @@ singer	Şarkıcı	Singer	歌手	歌い手	Vocal	★歌い手
 band	Müzik Grubu	Band	乐队	樂隊	バンド	軽音	乐队番	轻音少女	BAND
 live_concert	Konser	Live Concert	演唱会	演唱會	ライブ
 vocaloid	Vocaloid	Vocaloid	V家	ボーカロイド	初音未来	VOCALOID	ボカロ	v家	★Vocaloid	Voc@loid	vocaloid	泛Vocaloid
-rock	Rock Müzik	Rock	摇滚	搖滾	ロック	ROCK	ROCK!
-pop_music	Pop Müzik	Pop	流行音乐	ポップス	pop
+rock	Rock	Rock	摇滚	搖滾	ロック	ROCK	ROCK!
+pop_music	Pop	Pop	流行音乐	ポップス	pop
 jazz	Caz	Jazz	爵士	ジャズ	jazz
 classical_music	Klasik Müzik	Classical	古典音乐	交響樂	交响乐
 electronic_music	Elektronik Müzik	Electronic Music	电子音乐	电音	Electronic	Electronic_music
-anisong	Anime Şarkısı (Anisong)	Anisong	动漫歌曲	アニソン	动画歌曲	动漫主题曲	anisong
+anisong	Anisong	Anisong	动漫歌曲	アニソン	动画歌曲	动漫主题曲	anisong
 manga	Manga	Manga	漫画	漫畫	マンガ	만화	★マンガ	『漫画』
 manhwa	Manhwa	Manhwa	韩漫	韓國漫畫	韩国漫画	韓漫
 manhua	Manhua	Manhua	国漫	華漫	中國漫畫	国产漫画	中国漫画	☆国漫
@@ -570,7 +570,7 @@ slow_pace	Ağır Tempo	Slow Pace	节奏慢	節奏慢	慢节奏
 fast_pace	Hızlı Tempo	Fast Pace	节奏快	節奏快	快节奏
 animation_quality	Animasyon Kalitesi	Animation Quality	作画	作畫	作画优秀	作畫優秀
 bad_animation	Bozuk Animasyon	Off-Model Animation	作画崩坏	作畫崩壞	崩坏
-storyboard_tag	Resimli Taslak (Storyboard)	Storyboard	分镜	分鏡	絵コンテ	分镜★	★分镜
+storyboard_tag	Storyboard	Storyboard	分镜	分鏡	絵コンテ	分镜★	★分镜
 staging	Sahneleme	Direction	演出	演出优秀
 director_tag	Yönetmen	Director	监督	監督	导演	導演
 script_tag	Senaryo	Script	脚本	腳本	剧本	劇本
@@ -823,9 +823,9 @@ magazine	Dergi	Magazine	杂志	雜誌	ムック	雑誌
 bunko	Cep Kitabı	Bunko	文库	文庫	文库本
 hip_hop	Hip-Hop	Hip-Hop	Hip-hop	HipHop	嘻哈	说唱	hiphop	hip-hop
 rnb	R&B	R&B	RnB	节奏布鲁斯
-metal_music	Metal Müzik	Metal	金属	金屬	重金属	metal
-folk_music	Halk Müziği	Folk	民谣	民謠	民族音乐
-ambient_music	Ambiyans Müziği	Ambient	氛围音乐	環境音樂
+metal_music	Metal	Metal	金属	金屬	重金属	metal
+folk_music	Folk	Folk	民谣	民謠	民族音乐
+ambient_music	Ambient	Ambient	氛围音乐	環境音樂
 instrumental	Enstrümantal	Instrumental	器乐	純音樂	纯音乐	instrumental
 area_chinese_speaking	Çince Konuşulan Bölge	Chinese-speaking	华语	華語
 area_canada	Kanada	Canada	加拿大
@@ -3590,23 +3590,23 @@ capcom	Capcom	Capcom	Capcom	capcom	卡婊	卡普空	卡腐空
 cbs	CBS	CBS	CBS
 childhood_series	Çocukluk Serisi	Childhood Series	童年系列	Çocukluk Serisi	Childhood Series
 childhood_theme	Çocukluk Teması	Childhood Theme	童年系	Çocukluk Teması	Childhood Theme
-cjk_2abd69	SoftHouseChara	SoftHouseChara	软房子
+cjk_2abd69	Ruanfangzi	Ruanfangzi	软房子
 cjk_34f66a	Gagaga Bunko	Gagaga Bunko	ガガガ文庫
-cjk_3a77aa	Raikaken	Raikaken	雷火剣	雷火劍
-cjk_49ca17	Narise Konohara	Narise Konohara	木原音瀬	木原音瀨
-cjk_49cc01	Konsept Tasarımı	Concept Art	设绘
-cjk_551e4e	Narise Konohara	Narise Konohara	木原音濑
-cjk_57f633	Oakla Publishing	Oakla Publishing	オークラ出版
-cjk_5a9018	竹子社	竹子社	竹子社
+cjk_3a77aa	Raika Ken	Raika Ken	雷火剣	雷火劍
+cjk_49ca17	Kihara Oto	Kihara Oto	木原音瀬	木原音瀨
+cjk_49cc01	Shehui	Shehui	设绘
+cjk_551e4e	Kihara Oto	Kihara Oto	木原音濑
+cjk_57f633	Okura Shuppan	Okura Shuppan	オークラ出版
+cjk_5a9018	Takeko Sha	Takeko Sha	竹子社
 cjk_6c0fda	Taiyo Tosho	Taiyo Tosho	大洋図書
-cjk_6c2f57	Gizli Mühür Kulübü	Secret Sealing Club	秘封组	秘封俱乐部
-cjk_842f9f	Manaka Sawa	Manaka Sawa	佐和真中
-cjk_b2688d	王老菊	王老菊	王老菊
-cjk_bce0a7	Hana Kiritani	Hana Kiritani	桐谷华
+cjk_6c2f57	Mifengzu	Mifengzu	秘封组	秘封俱乐部
+cjk_842f9f	Sawa Manaka	Sawa Manaka	佐和真中
+cjk_b2688d	Wang Laoju	Wang Laoju	王老菊
+cjk_bce0a7	Kiritani Hana	Kiritani Hana	桐谷华
 cjk_bf8bd4	Gentosha	Gentosha	幻冬舍
-cjk_d3a061	Raikaken	Raikaken	雷火剑
-cjk_ea1ba1	Ryo Mizutsuki	Ryo Mizutsuki	水月陵
-cjk_f38ffe	Mei Misonoo	Mei Misonoo	御苑生メイ
+cjk_d3a061	Raika Ken	Raika Ken	雷火剑
+cjk_ea1ba1	Suigetsu Ryo	Suigetsu Ryo	水月陵
+cjk_f38ffe	Gyoen Mei	Gyoen Mei	御苑生メイ
 coercion	Zorlama	Coercion	胁迫	Zorlama	Coercion
 collection	Koleksiyon	Collection	Collection	Koleksiyon
 comedy_manga	Komedi Mangası	Comedy Manga	搞笑漫画	Komedi Mangası	Comedy Manga
@@ -3745,7 +3745,7 @@ satoshi_hino	Satoshi Hino	Satoshi Hino	日野聡	Satoshi Hino	日野聪
 sci_fi_manga	Bilim Kurgu Mangası	Sci-Fi Manga	科幻漫画	Bilim Kurgu Mangası	Sci-Fi Manga
 season_one	1. Sezon	Season 1	第一季	1. Sezon	Season 1
 sega	SEGA	SEGA	SEGA	sega
-sengoku_period	Sengoku Dönemi	Sengoku Period	战国	Sengoku Period	戰國
+sengoku_period	Sengoku Period	Sengoku Period	战国	Sengoku Period	戰國
 shanghai_animation_film_studio	Shanghai Animation Film Studio	Shanghai Animation Film Studio	上海美术电影制片厂	Shanghai Animation Film Studio	上美
 shin_ei	Shin-Ei Animation	Shin-Ei Animation	シンエイ動画	Shin-Ei Animation	SHIN-EI	Shin-EiAnimation
 shinshokan	Shinshokan	Shinshokan	新書館	Shinshokan	新书馆
@@ -3774,7 +3774,7 @@ tatsunoko	Tatsunoko Production	Tatsunoko Production	龙之子	Tatsunoko Producti
 teacher_student_relationship	Öğretmen-Öğrenci İlişkisi	Teacher-Student Relationship	师生	Öğretmen-Öğrenci İlişkisi	Teacher-Student Relationship
 team_shanghai_alice	Team Shanghai Alice	Team Shanghai Alice	上海アリス幻樂団	Team Shanghai Alice	上海アリス幻楽団
 text_adventure	Metin Macerası	Text Adventure	文字冒險	Metin Macerası	Text Adventure
-three_kingdoms	Üç Krallık Dönemi	Three Kingdoms	三国	Three Kingdoms	三國
+three_kingdoms	Three Kingdoms	Three Kingdoms	三国	Three Kingdoms	三國
 tms	TMS Entertainment	TMS Entertainment	TMS	TMS Entertainment	TMSEntertainment	东京Movie新社	TMS_Entertainment
 tohru_okawa	Tohru Okawa	Tohru Okawa	大川透	Tohru Okawa
 tokuma_shoten	Tokuma Shoten	Tokuma Shoten	徳間書店	Tokuma Shoten	德间书店	德間書店
@@ -3963,7 +3963,7 @@ nineties	90'lar	1990s	90年代	90'lar	1990s
 nintendo	Nintendo	Nintendo	任天堂	Nintendo	ニンテンドー	nintendo
 novel_series	Roman Serisi	Novel Series	小说系列	Roman Serisi	Novel Series	小說系列	小説シリーズ
 nukige	Nukige	Nukige	拔作	Nukige	抜きゲー	拔系	纯拔
-oped	Açılış + Kapanış	OP + ED	OPED	OP+ED	OPED插入歌	OP_ED	op&ed	OPED剧中曲
+oped	OP+ED	OP+ED	OPED	OP+ED	OPED插入歌	OP_ED	op&ed	OPED剧中曲
 otome_drama_cd	Otome Drama CD	Otome Drama CD	乙女向けドラマCD	Otome Drama CD
 otome_heart	Kız Kalbi	Maiden's Heart	乙女心	Kız Kalbi	Maiden's Heart
 platform_nds	Nintendo DS	Nintendo DS	NDS	Nintendo DS	DS	Nintendo_DS	nds
@@ -3975,7 +3975,7 @@ short_anime	Kısa Anime	Short Anime	泡面	Kısa Anime	Short Anime	泡麵
 single_volume	Tek Ciltlik	Single Volume	全一卷	Tek Ciltlik	Single Volume	1本完	全一巻	單卷	一卷全	单卷	全1巻	单册	小说单卷	全一册	单行	☆单册	單冊
 siscon	Siscon	Siscon	妹控	Siscon
 solo_use	Özel Kullanım	Solo Use	实用	Özel Kullanım	Solo Use	実用
-tankobon	Manga Cildi	Tankōbon	漫画単行本	Tankōbon	單行本	単行本	单行本	漫画单行本	轻小说单行本	轻小说（单行本）	漫画單行本
+tankobon	Tankōbon	Tankōbon	漫画単行本	Tankōbon	單行本	単行本	单行本	漫画单行本	轻小说单行本	轻小说（单行本）	漫画單行本
 touhou_project	Touhou Project	Touhou Project	东方	Touhou Project	東方Project	Touhou	TOUHOU	東方	東方project	东方Project	车万	东方project	東方プロジェクト	touhou	，TouHou
 training	Terbiye	Training	调教	Terbiye	Training	調教
 uncensored	Sansürsüz	Uncensored	无码	Sansürsüz	Uncensored	uncensored	无修	無碼

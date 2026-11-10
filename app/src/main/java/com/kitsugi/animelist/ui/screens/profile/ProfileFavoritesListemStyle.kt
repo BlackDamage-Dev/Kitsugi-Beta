@@ -29,9 +29,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.FormatListBulleted
-import androidx.compose.material.icons.rounded.KeyboardArrowUp
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.MaterialTheme
 import com.kitsugi.animelist.ui.theme.gradient.Text
@@ -477,7 +475,7 @@ fun BoxScope.ProfileFavoritesFloatingControls(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
-                    imageVector = Icons.Rounded.FormatListBulleted,
+                    imageVector = Icons.FormatListBulleted,
                     contentDescription = stringResource(R.string.search_filter_category),
                     tint = KitsugiColors.Background,
                     modifier = Modifier.size(20.dp)
@@ -521,7 +519,7 @@ fun BoxScope.ProfileFavoritesFloatingControls(
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = Icons.Rounded.KeyboardArrowUp,
+                imageVector = Icons.KeyboardArrowUp,
                 contentDescription = stringResource(R.string.yukari_git),
                 tint = KitsugiColors.Background,
                 modifier = Modifier.size(24.dp)

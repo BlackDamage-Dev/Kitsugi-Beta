@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.ui.screens.detail
+﻿package com.kitsugi.animelist.ui.screens.detail
 
 import android.content.res.Configuration
 import androidx.compose.foundation.background
@@ -16,7 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -32,6 +32,14 @@ import com.kitsugi.animelist.ui.components.KitsugiShimmerProvider
 import com.kitsugi.animelist.ui.components.LocalShimmerBrush
 import com.kitsugi.animelist.ui.theme.KitsugiColors
 import com.kitsugi.animelist.ui.theme.KitsugiTvTokens
+
+// Shared with the loaded detail cards so orientation changes cannot desynchronise them.
+internal val DETAIL_RELATION_POSTER_WIDTH = 50.dp
+internal val DETAIL_RELATION_POSTER_HEIGHT = 70.dp
+internal val DETAIL_RECOMMENDATION_POSTER_WIDTH = 54.dp
+internal val DETAIL_RECOMMENDATION_POSTER_HEIGHT = 76.dp
+internal val DETAIL_EPISODE_THUMB_WIDTH = 100.dp
+internal val DETAIL_EPISODE_THUMB_HEIGHT = 60.dp
 
 /**
  * Detail-page placeholders share one shimmer clock per content group. The card
@@ -58,10 +66,9 @@ private fun DetailShimmerLine(
 @Composable
 internal fun DetailRelationsLoadingSkeleton(itemCount: Int = 3) {
     DetailShimmerFrame { brush ->
-        val compact = LocalConfiguration.current.screenWidthDp < 360
         Column(
             modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             repeat(itemCount.coerceAtLeast(1)) {
                 Row(
@@ -74,7 +81,7 @@ internal fun DetailRelationsLoadingSkeleton(itemCount: Int = 3) {
                 ) {
                     DetailShimmerLine(
                         brush,
-                        Modifier.size(width = if (compact) 44.dp else 50.dp, height = 70.dp),
+                        Modifier.size(width = DETAIL_RELATION_POSTER_WIDTH, height = DETAIL_RELATION_POSTER_HEIGHT),
                         8.dp
                     )
                     Spacer(Modifier.width(12.dp))
@@ -98,9 +105,8 @@ internal fun DetailRelationsLoadingSkeleton(itemCount: Int = 3) {
 @Composable
 internal fun DetailRecommendationsLoadingSkeleton(itemCount: Int = 4) {
     DetailShimmerFrame { brush ->
-        val compact = LocalConfiguration.current.screenWidthDp < 360
         Column(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             repeat(itemCount.coerceAtLeast(1)) {
@@ -114,7 +120,7 @@ internal fun DetailRecommendationsLoadingSkeleton(itemCount: Int = 4) {
                 ) {
                     DetailShimmerLine(
                         brush,
-                        Modifier.size(width = if (compact) 48.dp else 54.dp, height = 76.dp),
+                        Modifier.size(width = DETAIL_RECOMMENDATION_POSTER_WIDTH, height = DETAIL_RECOMMENDATION_POSTER_HEIGHT),
                         10.dp
                     )
                     Spacer(Modifier.width(14.dp))
@@ -271,8 +277,8 @@ private fun DetailStaffRowSkeleton(brush: Brush, modifier: Modifier) {
 internal fun DetailTvPeopleRailSkeleton(itemCount: Int = 6, showRole: Boolean = false) {
     DetailShimmerFrame { brush ->
         Row(
-            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(14.dp)
+            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(KitsugiTvTokens.Spacing.itemGap)
         ) {
             repeat(itemCount.coerceAtLeast(1)) {
                 Column(
@@ -296,8 +302,8 @@ internal fun DetailTvPeopleRailSkeleton(itemCount: Int = 6, showRole: Boolean = 
 internal fun DetailTvRelationsRailSkeleton(itemCount: Int = 4) {
     DetailShimmerFrame { brush ->
         Row(
-            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(14.dp)
+            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(KitsugiTvTokens.Spacing.itemGap)
         ) {
             repeat(itemCount.coerceAtLeast(1)) {
                 Column(
@@ -318,8 +324,8 @@ internal fun DetailTvRelationsRailSkeleton(itemCount: Int = 4) {
 internal fun DetailTvEpisodesRailSkeleton(itemCount: Int = 4) {
     DetailShimmerFrame { brush ->
         Row(
-            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(14.dp)
+            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(KitsugiTvTokens.Spacing.itemGap)
         ) {
             repeat(itemCount.coerceAtLeast(1)) {
                 Column(
@@ -336,6 +342,39 @@ internal fun DetailTvEpisodesRailSkeleton(itemCount: Int = 4) {
                         DetailShimmerLine(brush, Modifier.width(74.dp).height(10.dp))
                         DetailShimmerLine(brush, Modifier.fillMaxWidth(0.9f).height(12.dp))
                         DetailShimmerLine(brush, Modifier.fillMaxWidth(0.52f).height(9.dp))
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** TV stats use a chip row and horizontal distribution bars, not the mobile charts. */
+@Composable
+internal fun DetailTvStatsLoadingSkeleton() {
+    DetailShimmerFrame { brush ->
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(KitsugiTvTokens.Spacing.sm)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                repeat(4) {
+                    Column(Modifier.weight(1f).clip(RoundedCornerShape(12.dp))
+                        .background(KitsugiColors.Surface).padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        DetailShimmerLine(brush, Modifier.fillMaxWidth(0.65f).height(12.dp))
+                        DetailShimmerLine(brush, Modifier.fillMaxWidth(0.45f).height(20.dp))
+                        DetailShimmerLine(brush, Modifier.fillMaxWidth().height(4.dp))
+                    }
+                }
+            }
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+                .background(KitsugiColors.Surface).padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                DetailShimmerLine(brush, Modifier.width(130.dp).height(20.dp))
+                repeat(5) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        DetailShimmerLine(brush, Modifier.width(30.dp).height(12.dp))
+                        DetailShimmerLine(brush, Modifier.weight(1f).height(6.dp))
+                        DetailShimmerLine(brush, Modifier.width(40.dp).height(12.dp))
                     }
                 }
             }
@@ -493,15 +532,18 @@ internal fun DetailSocialCardsLoadingSkeleton(
     itemCount: Int = 2,
     cardWidth: Dp = 280.dp,
     isActivity: Boolean = false,
-    horizontalPadding: Dp = 0.dp
+    horizontalPadding: Dp = 0.dp,
+    cardSpacing: Dp = 10.dp,
+    verticalPadding: Dp = 0.dp,
 ) {
     DetailShimmerFrame { brush ->
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = horizontalPadding)
-                .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                .horizontalScroll(rememberScrollState())
+                .padding(vertical = verticalPadding),
+            horizontalArrangement = Arrangement.spacedBy(cardSpacing)
         ) {
             repeat(itemCount.coerceAtLeast(1)) {
                 Column(
@@ -568,7 +610,7 @@ internal fun DetailSocialCardsLoadingSkeleton(
 internal fun DetailTopicDialogLoadingSkeleton() {
     DetailShimmerFrame { brush ->
         Column(
-            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+            modifier = Modifier.fillMaxSize().kitsugiVerticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Column(
@@ -616,7 +658,7 @@ internal fun DetailTopicDialogLoadingSkeleton() {
 internal fun DetailActivityDialogLoadingSkeleton() {
     DetailShimmerFrame { brush ->
         Column(
-            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+            modifier = Modifier.fillMaxSize().kitsugiVerticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Row(
@@ -710,40 +752,48 @@ internal fun DetailRatingBadgesLoadingSkeleton() {
 @Composable
 internal fun DetailGalleryLoadingSkeleton() {
     DetailShimmerFrame { brush ->
-        val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
-        val imageWidth = if (isLandscape) 150.dp else 120.dp
+        // Gallery data decides which categories/sources exist. Preview one poster
+        // category using the same header, source row and 100dp thumbnail geometry.
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(18.dp))
-                .background(KitsugiColors.Surface)
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
+                .background(KitsugiColors.SurfaceSoft).padding(vertical = 14.dp),
         ) {
-            DetailShimmerLine(brush, Modifier.fillMaxWidth(0.4f).height(16.dp))
             Row(
-                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp).height(48.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                repeat(4) {
-                    DetailShimmerLine(brush, Modifier.size(width = imageWidth, height = 90.dp), 12.dp)
+                Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    DetailShimmerLine(brush, Modifier.width(100.dp).height(14.dp))
+                    DetailShimmerLine(brush, Modifier.width(75.dp).height(10.dp))
                 }
+                DetailShimmerLine(brush, Modifier.size(22.dp), 6.dp)
+            }
+            Spacer(Modifier.height(16.dp))
+            DetailShimmerLine(brush, Modifier.padding(horizontal = 16.dp, vertical = 6.dp).width(100.dp).height(20.dp))
+            Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                DetailShimmerLine(brush, Modifier.size(18.dp), 4.dp)
+                DetailShimmerLine(brush, Modifier.width(90.dp).height(16.dp))
+            }
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 14.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                repeat(4) { DetailShimmerLine(brush, Modifier.size(width = (100f * 2f / 3f).dp, height = 100.dp), 12.dp) }
             }
         }
     }
 }
 
 @Composable
-internal fun DetailEpisodesLoadingSkeleton(totalSeasons: Int? = null) {
+internal fun DetailEpisodesLoadingSkeleton(totalSeasons: Int? = null, targetSeason: Int? = null) {
     DetailShimmerFrame { brush ->
-        val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
         val hasSeasons = (totalSeasons ?: 1) > 1
         Column(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             if (hasSeasons) {
-                repeat((totalSeasons ?: 1).coerceIn(1, 4)) { seasonIndex ->
+                repeat((totalSeasons ?: 1).coerceIn(1, 30)) { seasonIndex ->
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -763,30 +813,25 @@ internal fun DetailEpisodesLoadingSkeleton(totalSeasons: Int? = null) {
                             Spacer(Modifier.weight(1f))
                             DetailShimmerLine(brush, Modifier.size(22.dp), 999.dp)
                         }
-                        if (seasonIndex == 0) {
+                        if (seasonIndex + 1 == (targetSeason ?: 1)) {
                             Column(
                                 modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 12.dp),
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                repeat(2) { DetailEpisodeRowSkeleton(brush, isLandscape) }
+                                repeat(2) { DetailEpisodeRowSkeleton(brush) }
                             }
                         }
                     }
                 }
             } else {
-                repeat(3) { DetailEpisodeRowSkeleton(brush, isLandscape) }
+                repeat(3) { DetailEpisodeRowSkeleton(brush) }
             }
         }
     }
 }
 
 @Composable
-private fun DetailEpisodeRowSkeleton(brush: Brush, isLandscape: Boolean) {
-    val screenWidth = LocalConfiguration.current.screenWidthDp
-    val thumbnailWidth = when {
-        isLandscape || screenWidth < 360 -> 82.dp
-        else -> 96.dp
-    }
+private fun DetailEpisodeRowSkeleton(brush: Brush) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -796,7 +841,7 @@ private fun DetailEpisodeRowSkeleton(brush: Brush, isLandscape: Boolean) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        DetailShimmerLine(brush, Modifier.size(width = thumbnailWidth, height = 60.dp), 10.dp)
+        DetailShimmerLine(brush, Modifier.size(width = DETAIL_EPISODE_THUMB_WIDTH, height = DETAIL_EPISODE_THUMB_HEIGHT), 10.dp)
         Column(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(7.dp)

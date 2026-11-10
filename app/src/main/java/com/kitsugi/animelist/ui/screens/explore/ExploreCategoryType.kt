@@ -20,8 +20,8 @@ enum class ExploreCategoryType {
     /**
      * Kaynağın yerel "ek tür" rafları (Bangumi REAL raflarıyla aynı fikir):
      * MANHWA_MANHUA = Kore/Çin çizgi romanları, NOVELS = light novel & romanlar.
-     * Yalnızca kaynağın API'si bu türleri destekliyorsa doldurulur (MAL, Shikimori,
-     * AniList); desteklemeyen kaynakta (Kitsu) bölüm kendiliğinden gizlenir.
+     * Raflar yalnızca karşılıkları olan kaynaklarda doldurulur: MAL/Shikimori/AniList/Kitsu
+     * manhwa & novel; Bangumi ise BOOK_NOVEL roman rafı sunar.
      */
     MANHWA_MANHUA,
     NOVELS,

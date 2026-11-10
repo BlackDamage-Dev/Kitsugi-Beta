@@ -1,5 +1,10 @@
 package com.kitsugi.animelist.ui.components.addons
 
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Row
+import com.kitsugi.animelist.ui.components.KitsugiChevronIcon
+import com.kitsugi.animelist.ui.components.KitsugiEmojiLabel
 import com.kitsugi.animelist.ui.theme.gradient.CircularProgressIndicator
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import com.kitsugi.animelist.ui.theme.gradient.LinearProgressIndicator
@@ -10,8 +15,7 @@ import com.kitsugi.animelist.ui.theme.gradient.border
 import com.kitsugi.animelist.ui.utils.tvClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.*
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -98,7 +102,7 @@ internal fun CsRepoCard(
                     .background(accentColor.copy(alpha = 0.2f)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Rounded.FolderOpen, contentDescription = null, tint = accentColor)
+                Icon(Icons.FolderOpen, contentDescription = null, tint = accentColor)
             }
             Spacer(Modifier.width(10.dp))
             Column(modifier = Modifier.weight(1f)) {
@@ -121,7 +125,7 @@ internal fun CsRepoCard(
                 modifier = Modifier.size(32.dp)
             ) {
                 Icon(
-                    Icons.Rounded.Refresh,
+                    Icons.Refresh,
                     contentDescription = "Depoyu Yenile",
                     tint = accentColor,
                     modifier = Modifier.size(18.dp)
@@ -131,10 +135,11 @@ internal fun CsRepoCard(
             if (isLoading) {
                 CircularProgressIndicator(modifier = Modifier.size(18.dp), color = accentColor, strokeWidth = 2.dp)
             } else {
-                Icon(
-                    if (isExpanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                KitsugiChevronIcon(
+                    expanded = isExpanded,
                     contentDescription = null,
-                    tint = KitsugiColors.TextSecondary
+                    tint = KitsugiColors.TextSecondary,
+                    modifier = Modifier
                 )
             }
         }
@@ -162,7 +167,7 @@ internal fun CsRepoCard(
                         .tvClickable(shape = RoundedCornerShape(8.dp)) { onDeleteRepo() },
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Rounded.Delete, contentDescription = stringResource(R.string.action_delete), tint = KitsugiColors.AccentRed, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Delete, contentDescription = stringResource(R.string.action_delete), tint = KitsugiColors.AccentRed, modifier = Modifier.size(16.dp))
                 }
             } else {
                 val allInstalled = totalCount > 0 && installedCount == totalCount
@@ -191,8 +196,10 @@ internal fun CsRepoCard(
                         )
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
-                    Text(
-                        text = if (allInstalled) "✓ $installedCount/$totalCount" else stringResource(R.string.x_x_yuklu, installedCount, totalCount),
+                    KitsugiEmojiLabel(
+                        label = if (allInstalled) "$installedCount/$totalCount" else stringResource(R.string.x_x_yuklu, installedCount, totalCount),
+                        icon = if (allInstalled) Icons.Check else null,
+                        iconSize = 11.dp,
                         color = when {
                             allInstalled -> KitsugiColors.AccentGreen
                             hasUpdates -> accentColor
@@ -221,7 +228,7 @@ internal fun CsRepoCard(
                                 },
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(Icons.Rounded.ArrowCircleUp, contentDescription = stringResource(R.string.tumunu_guncelle), tint = accentColor, modifier = Modifier.size(16.dp))
+                            Icon(Icons.ArrowCircleUp, contentDescription = stringResource(R.string.tumunu_guncelle), tint = accentColor, modifier = Modifier.size(16.dp))
                         }
                         Spacer(Modifier.width(6.dp))
                     }
@@ -240,7 +247,7 @@ internal fun CsRepoCard(
                                 },
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(Icons.Rounded.DownloadForOffline, contentDescription = stringResource(R.string.tumunu_indir), tint = accentColor, modifier = Modifier.size(16.dp))
+                            Icon(Icons.DownloadForOffline, contentDescription = stringResource(R.string.tumunu_indir), tint = accentColor, modifier = Modifier.size(16.dp))
                         }
                         Spacer(Modifier.width(6.dp))
                     }
@@ -253,7 +260,7 @@ internal fun CsRepoCard(
                             .tvClickable(shape = RoundedCornerShape(8.dp)) { onRefreshRepo() },
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Rounded.Refresh, contentDescription = stringResource(R.string.yenile), tint = accentColor, modifier = Modifier.size(16.dp))
+                        Icon(Icons.Refresh, contentDescription = stringResource(R.string.yenile), tint = accentColor, modifier = Modifier.size(16.dp))
                     }
                     Spacer(Modifier.width(6.dp))
 
@@ -265,7 +272,7 @@ internal fun CsRepoCard(
                             .tvClickable(shape = RoundedCornerShape(8.dp)) { onDeleteRepo() },
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Rounded.Delete, contentDescription = stringResource(R.string.action_delete), tint = KitsugiColors.AccentRed, modifier = Modifier.size(16.dp))
+                        Icon(Icons.Delete, contentDescription = stringResource(R.string.action_delete), tint = KitsugiColors.AccentRed, modifier = Modifier.size(16.dp))
                     }
                 }
             }
@@ -289,7 +296,15 @@ internal fun CsRepoCard(
                 }
                 if (bulkInstallCurrentName.isNotBlank()) {
                     Spacer(Modifier.height(3.dp))
-                    Text(text = "📦 $bulkInstallCurrentName", color = KitsugiColors.TextSecondary, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Icon(
+                            imageVector = Icons.Package,
+                            contentDescription = null,
+                            tint = KitsugiColors.TextSecondary,
+                            modifier = Modifier.size(12.dp)
+                        )
+                        Text(text = bulkInstallCurrentName, color = KitsugiColors.TextSecondary, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+                    }
                 }
                 Spacer(Modifier.height(6.dp))
                 LinearProgressIndicator(

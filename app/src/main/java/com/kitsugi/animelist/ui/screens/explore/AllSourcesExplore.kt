@@ -81,10 +81,17 @@ data class ExploreSourceSection(
     val platform: ExplorePlatform,
     val category: ExploreCategoryType,
     val title: String,
-    val results: List<JikanSearchResult>
+    val results: List<JikanSearchResult>,
+    val group: ExploreCategoryGroup = category.defaultExploreGroup()
 ) {
     val key: String get() = "${platform.name}_${category.name}"
 }
+
+internal const val SIMKL_PERSONAL_CONTINUE_SERIES_TITLE = "İzlemeye Devam Et (Dizi & Anime)"
+internal const val SIMKL_PERSONAL_CONTINUE_MOVIES_TITLE = "İzlemeye Devam Et (Film)"
+internal const val SIMKL_PERSONAL_PLANNED_SERIES_TITLE = "Planladıklarım (Dizi & Anime)"
+internal const val SIMKL_PERSONAL_PLANNED_MOVIES_TITLE = "Planladıklarım (Film)"
+internal const val SIMKL_PERSONAL_KEY_PREFIX = "simkl_personal_"
 
 /**
  * Payload fields are overloaded by legacy providers (topManga can be TV shows!).
@@ -92,38 +99,45 @@ data class ExploreSourceSection(
  */
 internal fun sourceSections(platform: ExplorePlatform, p: ExplorePayload): List<ExploreSourceSection> {
     require(platform != ExplorePlatform.ALL)
-    fun section(category: ExploreCategoryType, title: String, items: List<JikanSearchResult>) =
-        ExploreSourceSection(platform, category, title, items.distinctBy { it.exploreIdentity() })
+    fun section(
+        category: ExploreCategoryType,
+        title: String,
+        items: List<JikanSearchResult>,
+        group: ExploreCategoryGroup = category.defaultExploreGroup()
+    ) = ExploreSourceSection(
+        platform, category, title, items.distinctBy { it.exploreIdentity() }, group
+    )
 
     // Kaynak sayfası ve Tümü sayfası aynı sıralı bölüm listesini kullanır. Anime rafları
     // önce kendi içinde, manga rafları sonra; kaynak-özel raflar en sonda yer alır.
     if (platform == ExplorePlatform.TMDB) {
         return listOf(
-            // Trend → popüler → en yüksek puanlı; yaklaşan film/dizi kataloğu en sonda.
-            section(ExploreCategoryType.TOP_ANIME, "Trend Her Şey", p.topAnime),
-            section(ExploreCategoryType.TRENDING_ANIME, "Trend Animeler", p.trendingAnime),
-            section(ExploreCategoryType.AIRING_ANIME, "Trend Diziler", p.airingAnime),
-            section(ExploreCategoryType.MOVIE_ANIME, "Trend Filmler", p.movieAnime),
-            section(ExploreCategoryType.NEWLY_ADDED_ANIME, "Popüler Animeler", p.newlyAddedAnime),
-            section(ExploreCategoryType.TOP_MANGA, "Popüler Diziler", p.topManga),
-            section(ExploreCategoryType.UPCOMING_ANIME, "Popüler Filmler", p.upcomingAnime),
-            section(ExploreCategoryType.TRENDING_MANGA, "En Yüksek Puanlı Animeler", p.trendingManga),
-            section(ExploreCategoryType.SEASONAL_ANIME, "En Yüksek Puanlı Diziler", p.seasonalAnime),
-            section(ExploreCategoryType.PUBLISHING_MANGA, "En Yüksek Puanlı Filmler", p.publishingManga),
-            section(ExploreCategoryType.UPCOMING_MEDIA_TMDB, "Yaklaşan Film ve Diziler", p.upcomingMediaTmdb)
+            // Film/dizi kaynağını Anime/Manga adı altında yanlış gruplayıp filtrelememek için
+            // TMDB'nin kaynak-özel rafları kendi medya ailesini bildirir.
+            section(ExploreCategoryType.TOP_ANIME, "Trend Her Şey", p.topAnime, ExploreCategoryGroup.MIXED),
+            section(ExploreCategoryType.TRENDING_ANIME, "Trend Animeler", p.trendingAnime, ExploreCategoryGroup.ANIME),
+            section(ExploreCategoryType.AIRING_ANIME, "Trend Diziler", p.airingAnime, ExploreCategoryGroup.TV),
+            section(ExploreCategoryType.MOVIE_ANIME, "Trend Filmler", p.movieAnime, ExploreCategoryGroup.MOVIES),
+            section(ExploreCategoryType.NEWLY_ADDED_ANIME, "Popüler Animeler", p.newlyAddedAnime, ExploreCategoryGroup.ANIME),
+            section(ExploreCategoryType.TOP_MANGA, "Popüler Diziler", p.topManga, ExploreCategoryGroup.TV),
+            section(ExploreCategoryType.UPCOMING_ANIME, "Popüler Filmler", p.upcomingAnime, ExploreCategoryGroup.MOVIES),
+            section(ExploreCategoryType.TRENDING_MANGA, "En Yüksek Puanlı Animeler", p.trendingManga, ExploreCategoryGroup.ANIME),
+            section(ExploreCategoryType.SEASONAL_ANIME, "En Yüksek Puanlı Diziler", p.seasonalAnime, ExploreCategoryGroup.TV),
+            section(ExploreCategoryType.PUBLISHING_MANGA, "En Yüksek Puanlı Filmler", p.publishingManga, ExploreCategoryGroup.MOVIES),
+            section(ExploreCategoryType.UPCOMING_MEDIA_TMDB, "Yaklaşan Film ve Diziler", p.upcomingMediaTmdb, ExploreCategoryGroup.MIXED)
         )
     }
     if (platform == ExplorePlatform.SIMKL) {
         return listOf(
-            // Önce trend ve yayındaki yapımlar, ardından popüler/öne çıkan kataloglar.
-            section(ExploreCategoryType.TOP_ANIME, "Trend Diziler", p.topAnime),
-            section(ExploreCategoryType.TRENDING_ANIME, "Trend Animeler", p.trendingAnime),
-            section(ExploreCategoryType.MOVIE_ANIME, "Trend Filmler", p.movieAnime),
-            section(ExploreCategoryType.AIRING_ANIME, "Yayındaki Diziler", p.airingAnime),
-            section(ExploreCategoryType.TRENDING_MANGA, "Yayındaki Animeler", p.trendingManga),
-            section(ExploreCategoryType.NEWLY_ADDED_ANIME, "Popüler Animeler", p.newlyAddedAnime),
-            section(ExploreCategoryType.TOP_MANGA, "En İyi Diziler", p.topManga),
-            section(ExploreCategoryType.UPCOMING_ANIME, "Yeni Filmler", p.upcomingAnime)
+            // Simkl'in video kategorileri de aynı keşfet listesiyle çizilir; sadece medya grubu ayrıdır.
+            section(ExploreCategoryType.TOP_ANIME, "Trend Diziler", p.topAnime, ExploreCategoryGroup.TV),
+            section(ExploreCategoryType.TRENDING_ANIME, "Trend Animeler", p.trendingAnime, ExploreCategoryGroup.ANIME),
+            section(ExploreCategoryType.MOVIE_ANIME, "Trend Filmler", p.movieAnime, ExploreCategoryGroup.MOVIES),
+            section(ExploreCategoryType.AIRING_ANIME, "Yayındaki Diziler", p.airingAnime, ExploreCategoryGroup.TV),
+            section(ExploreCategoryType.TRENDING_MANGA, "Yayındaki Animeler", p.trendingManga, ExploreCategoryGroup.ANIME),
+            section(ExploreCategoryType.NEWLY_ADDED_ANIME, "Popüler Animeler", p.newlyAddedAnime, ExploreCategoryGroup.ANIME),
+            section(ExploreCategoryType.TOP_MANGA, "En İyi Diziler", p.topManga, ExploreCategoryGroup.TV),
+            section(ExploreCategoryType.UPCOMING_ANIME, "Yeni Filmler", p.upcomingAnime, ExploreCategoryGroup.MOVIES)
         )
     }
 
@@ -164,9 +178,16 @@ fun allSourceSections(
     states: Map<ExplorePlatform, ExploreSourceState>,
     showAdultContent: Boolean
 ): List<ExploreSourceSection> = ExplorePlatform.sources.flatMap { platform ->
-    states[platform]?.payload?.let { sourceSections(platform, it.forSource(platform)) }.orEmpty().map { section ->
-        section.copy(results = section.results.filter { showAdultContent || !it.isAdult })
-    }.filter { it.results.isNotEmpty() }
+    states[platform]?.payload?.let { payload ->
+        val filtered = sourceSections(platform, payload.forSource(platform)).map { section ->
+            section.copy(results = section.results.filter { showAdultContent || !it.isAdult })
+        }
+        val keepAniListPlaceholders = platform == ExplorePlatform.AniList && filtered.any { it.results.isNotEmpty() }
+        // AniList keeps its complete supported shelf model visible only when actual AniList
+        // catalog data exists. Empty shelves render lazily; legacy Kitsu fallback rows are not
+        // mislabeled as AniList categories. Other providers hide empty shelves after loading.
+        filtered.filter { it.results.isNotEmpty() || keepAniListPlaceholders }
+    }.orEmpty()
 }
 
 /** Mirrors the lazy DSL: intro (+ sticky navigation) + each header/rows/footer. */

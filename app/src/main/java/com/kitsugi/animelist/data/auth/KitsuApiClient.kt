@@ -30,7 +30,7 @@ object KitsuApiClient {
      */
     private fun executeWithHostFallback(request: Request): Response {
         return try {
-            KitsugiHttpClient.client.newCall(request).execute()
+            KitsugiHttpClient.syncClient.newCall(request).execute()
         } catch (e: java.io.IOException) {
             val alt = when (request.url.host) {
                 "kitsu.app" -> "kitsu.io"
@@ -48,7 +48,7 @@ object KitsuApiClient {
             val swapped = request.newBuilder()
                 .url(request.url.newBuilder().host(alt).build())
                 .build()
-            KitsugiHttpClient.client.newCall(swapped).execute()
+            KitsugiHttpClient.syncClient.newCall(swapped).execute()
         }
     }
     private const val TAG = "KitsuApiClient"
@@ -78,7 +78,10 @@ object KitsuApiClient {
         val type: String,
         val titles: List<String>,
         val year: Int?,
-        val malIds: Set<Int>
+        val malIds: Set<Int>,
+        val aniListIds: Set<Int> = emptySet(),
+        val titleEnglish: String? = null,
+        val titleJapanese: String? = null
     )
 
     data class KitsuFullProfile(
@@ -113,6 +116,8 @@ object KitsuApiClient {
         val total: Int? = null,
         /** Kitsu mappings'ten çözümlenen gerçek MAL ID (null olabilir) */
         val realMalId: Int? = null,
+        /** Kitsu mappings'ten çözümlenen gerçek AniList media ID (null olabilir) */
+        val realAniListId: Int? = null,
         /** Sonraki bölümün yayın zamanı (ISO-8601, Kitsu `nextRelease` alanı) */
         val nextRelease: String? = null,
         /** Kitsu `startDate` alanından yayın yılı (çapraz eşitlemede kimlik doğrulaması için). */
@@ -126,7 +131,17 @@ object KitsuApiClient {
         /** Başlangıç tarihi, yyyy-MM-dd (`startedAt`). */
         val startedAt: String? = null,
         /** Bitiş tarihi, yyyy-MM-dd (`finishedAt`). */
-        val finishedAt: String? = null
+        val finishedAt: String? = null,
+        /** Kayıt zamanı (`createdAt`, epoch sn; 0 = bilinmiyor) — "Son eklenen" anahtarı. */
+        val createdAt: Long = 0L,
+        /**
+         * Tekrar izleme/okuma sürüyor mu (`reconsuming`). Kitsu'da ayrı bir "rewatching"
+         * durumu yoktur: kayıt `current` kalır ve bu bayrak set edilir (MAL-Sync
+         * `_provider/Kitsu/single.ts` ile aynı model).
+         */
+        val reconsuming: Boolean = false,
+        /** Tamamlanmış tekrar sayısı (`reconsumeCount`). */
+        val reconsumeCount: Int = 0
     )
 
     /**
@@ -137,7 +152,14 @@ object KitsuApiClient {
         val startedAt: String? = null,
         val finishedAt: String? = null,
         val notes: String? = null,
-        val isPrivate: Boolean? = null
+        val isPrivate: Boolean? = null,
+        /**
+         * Kitsu'da "tekrar izleniyor" AYRI bir durum değildir: `status = current` +
+         * `reconsuming = true` + `reconsumeCount = n`. (MAL-Sync `_provider/Kitsu/single.ts`
+         * ile aynı sözleşme.) Eksik bırakılırsa tekrar bilgisi Kitsu'ya hiç yazılmıyordu.
+         */
+        val reconsuming: Boolean? = null,
+        val reconsumeCount: Int? = null
     )
 
     /** `yyyy-MM-dd` → Kitsu'nun beklediği ISO-8601 datetime (`yyyy-MM-ddT00:00:00.000Z`). */
@@ -153,6 +175,12 @@ object KitsuApiClient {
     }
 
     private val KITSU_DATE_REGEX = Regex("""\d{4}-\d{2}-\d{2}""")
+
+    class KitsuTokenException(
+        val status: Int,
+        val errorCode: String?,
+        message: String
+    ) : Exception(message)
 
     /**
      * Kullanıcı adı / e-posta ve şifre ile Kitsu OAuth Bearer token alır.
@@ -197,6 +225,50 @@ object KitsuApiClient {
             KitsuTokenResponse(
                 accessToken = json.getString("access_token"),
                 refreshToken = json.optString("refresh_token", ""),
+                expiresIn = json.optLong("expires_in", 2592000L)
+            )
+        }
+    }
+
+    /**
+     * Kitsu OAuth `refresh_token` ile yeni bir Bearer `access_token` alır (`E85`).
+     * Kitsu access token ömrü varsayılan olarak 30 gündür (2592000 sn); süre dolduğunda
+     * veya sunucu HTTP 401 döndürdüğünde oturumu düşürmek yerine sessizce yenilenir.
+     */
+    suspend fun refreshToken(
+        refreshToken: String,
+        clientId: String = DEFAULT_CLIENT_ID,
+        clientSecret: String = DEFAULT_CLIENT_SECRET
+    ): KitsuTokenResponse = withContext(Dispatchers.IO) {
+        val formBody = okhttp3.FormBody.Builder()
+            .add("grant_type", "refresh_token")
+            .add("refresh_token", refreshToken.trim())
+            .add("client_id", clientId)
+            .add("client_secret", clientSecret)
+            .build()
+
+        val request = Request.Builder()
+            .url(OAUTH_URL)
+            .addHeader("Accept", "application/json")
+            .addHeader("User-Agent", "KitsugiApp/2.4")
+            .post(formBody)
+            .build()
+
+        executeWithHostFallback(request).use { response ->
+            val body = response.body?.string().orEmpty()
+            if (!response.isSuccessful) {
+                val errorType = runCatching { JSONObject(body).optString("error", "") }.getOrDefault("")
+                val errorDesc = runCatching { JSONObject(body).optString("error_description", "") }.getOrDefault("")
+                throw KitsuTokenException(
+                    status = response.code,
+                    errorCode = errorType.ifBlank { null },
+                    message = "Kitsu token yenileme hatası (HTTP ${response.code}): ${errorDesc.ifBlank { errorType }}"
+                )
+            }
+            val json = JSONObject(body)
+            KitsuTokenResponse(
+                accessToken = json.getString("access_token"),
+                refreshToken = json.optString("refresh_token", "").ifBlank { refreshToken.trim() },
                 expiresIn = json.optLong("expires_in", 2592000L)
             )
         }
@@ -290,13 +362,40 @@ object KitsuApiClient {
     /**
      * Kitsu kullanıcısının tüm kütüphanesini sayfalayarak çeker.
      */
-    suspend fun fetchAllLibraryEntries(token: String, userId: String): List<KitsuLibraryEntry> = withContext(Dispatchers.IO) {
+    suspend fun fetchAllLibraryEntries(token: String, userId: String): List<KitsuLibraryEntry> =
+        fetchLibraryEntries(token = token, userId = userId, sinceIso = null)
+
+    /**
+     * **Delta çekimi**: Kitsu'nun `filter[since]` süzgeci ile yalnızca [sinceIso]
+     * (ISO-8601) tarihinden sonra **değişen** kütüphane kayıtlarını getirir.
+     *
+     * Neden: kütüphane her yenilemede 500'lük sayfalar hâlinde baştan çekiliyordu.
+     * Kitsu, `library-entries?filter[since]=…` parametresini desteklediği için
+     * değişen birkaç satırı almak yeterli. Delta silmeleri göremez; çağıran taraf
+     * `allowDelete = false` ile birleştirmeli ve tam uzlaştırma periyodik yapılmalı.
+     */
+    suspend fun fetchLibraryEntriesSince(
+        token: String,
+        userId: String,
+        sinceIso: String
+    ): List<KitsuLibraryEntry> =
+        fetchLibraryEntries(token = token, userId = userId, sinceIso = sinceIso)
+
+    private suspend fun fetchLibraryEntries(
+        token: String,
+        userId: String,
+        sinceIso: String?
+    ): List<KitsuLibraryEntry> = withContext(Dispatchers.IO) {
         val result = mutableListOf<KitsuLibraryEntry>()
         var offset = 0
         val limit = 500
+        val sinceFilter = sinceIso?.takeIf { it.isNotBlank() }
+            ?.let { "&filter[since]=${java.net.URLEncoder.encode(it, "UTF-8")}" }
+            .orEmpty()
 
         while (true) {
-            val url = "$BASE_URL/library-entries?filter[userId]=$userId&page[limit]=$limit&page[offset]=$offset&include=anime,manga,anime.mappings,manga.mappings"
+            val url = "$BASE_URL/library-entries?filter[userId]=$userId&page[limit]=$limit&page[offset]=$offset" +
+                "$sinceFilter&include=anime,manga,anime.mappings,manga.mappings"
             val request = Request.Builder()
                 .url(url)
                 .addHeader("Accept", "application/vnd.api+json")
@@ -326,8 +425,9 @@ object KitsuApiClient {
                 )
                 val mediaInfoMap = mutableMapOf<String, KitsuMediaInfo>()
                 val totalMap = mutableMapOf<String, Int?>()
-                // mapping id -> externalId ("myanimelist/anime" veya "myanimelist/manga" namespace için)
-                val mappingMalMap = mutableMapOf<String, Int>() // mappingId -> realMalId
+                // mapping id -> externalId ("myanimelist/{anime|manga}" ve "anilist/{anime|manga}")
+                val mappingMalMap = mutableMapOf<String, Int>()
+                val mappingAniListMap = mutableMapOf<String, Int>()
 
                 // İlk geçişte tüm mapping objelerini çöz
                 for (j in 0 until included.length()) {
@@ -342,6 +442,10 @@ object KitsuApiClient {
                             externalId.toIntOrNull()?.let { malId ->
                                 if (malId in 1..99_999_999) mappingMalMap[mappingId] = malId
                             }
+                        } else if ((externalSite == "anilist/anime" || externalSite == "anilist/manga") && externalId.isNotBlank()) {
+                            externalId.toIntOrNull()?.let { aniListId ->
+                                if (aniListId > 0) mappingAniListMap[mappingId] = aniListId
+                            }
                         }
                     }
                 }
@@ -355,12 +459,14 @@ object KitsuApiClient {
                     val incAttrs = inc.optJSONObject("attributes") ?: JSONObject()
                     val canonical = incAttrs.optString("canonicalTitle", "")
                     val titlesObj = incAttrs.optJSONObject("titles")
-                    val titleEn = titlesObj?.optString("en")?.takeIf { it.isNotBlank() }
-                    val titleRomaji = titlesObj?.optString("en_jp")?.takeIf { it.isNotBlank() }
-                    val titleJp = titlesObj?.optString("ja_jp")?.takeIf { it.isNotBlank() }
+                    val titleEn = titlesObj?.optString("en")?.takeIf { it.isNotBlank() && it != "null" }
+                        ?: titlesObj?.optString("en_us")?.takeIf { it.isNotBlank() && it != "null" }
+                        ?: titlesObj?.optString("en_cn")?.takeIf { it.isNotBlank() && it != "null" }
+                    val titleRomaji = titlesObj?.optString("en_jp")?.takeIf { it.isNotBlank() && it != "null" }
+                    val titleJp = titlesObj?.optString("ja_jp")?.takeIf { it.isNotBlank() && it != "null" }
 
                     val mainTitle = titleRomaji ?: canonical
-                    val effectiveEn = titleEn ?: if (canonical != mainTitle) canonical else null
+                    val effectiveEn = titleEn ?: canonical.takeIf { it.isNotBlank() && it != mainTitle }
 
                     val poster = incAttrs.optJSONObject("posterImage")
                     val img = poster?.optString("medium") ?: poster?.optString("original")
@@ -406,10 +512,16 @@ object KitsuApiClient {
                     val updatedAt = runCatching {
                         java.time.Instant.parse(updatedAtStr).epochSecond
                     }.getOrDefault(0L)
+                    val createdAtStr = attrs.optString("createdAt", "")
+                    val createdAt = runCatching {
+                        java.time.Instant.parse(createdAtStr).epochSecond
+                    }.getOrDefault(0L)
                     val notes = if (attrs.isNull("notes")) null else attrs.optString("notes").takeIf { it.isNotBlank() }
                     val isPrivate = attrs.optBoolean("private", false)
                     val startedAt = fromKitsuDateTime(if (attrs.isNull("startedAt")) null else attrs.optString("startedAt"))
                     val finishedAt = fromKitsuDateTime(if (attrs.isNull("finishedAt")) null else attrs.optString("finishedAt"))
+                    val reconsuming = attrs.optBoolean("reconsuming", false)
+                    val reconsumeCount = attrs.optInt("reconsumeCount", 0).coerceAtLeast(0)
 
                     val rels = item.optJSONObject("relationships")
                     val animeData = rels?.optJSONObject("anime")?.optJSONObject("data")
@@ -421,8 +533,9 @@ object KitsuApiClient {
                     val mediaKey = if (animeId != null) "anime_$animeId" else if (mangaId != null) "manga_$mangaId" else ""
                     val info = mediaInfoMap[mediaKey]
 
-                    // Bu media'nın mapping'lerinden MAL ID çöz
+                    // Bu media'nın mapping'lerinden MAL ve AniList ID çöz
                     val realMalId = info?.mappingIds?.firstNotNullOfOrNull { mappingMalMap[it] }
+                    val realAniListId = info?.mappingIds?.firstNotNullOfOrNull { mappingAniListMap[it] }
 
                     result.add(
                         KitsuLibraryEntry(
@@ -433,19 +546,23 @@ object KitsuApiClient {
                             animeId = animeId,
                             mangaId = mangaId,
                             updatedAt = updatedAt,
+                            createdAt = createdAt,
                             title = info?.title ?: if (animeId != null) "Kitsu Anime #$animeId" else "Kitsu Manga #$mangaId",
                             titleEnglish = info?.titleEn,
                             titleJapanese = info?.titleJp,
                             imageUrl = info?.imageUrl,
                             total = totalMap[mediaKey],
                             realMalId = realMalId,
+                            realAniListId = realAniListId,
                             nextRelease = info?.nextRelease,
                             startYear = info?.startYear,
                             isAdult = info?.isAdult == true,
                             notes = notes,
                             isPrivate = isPrivate,
                             startedAt = startedAt,
-                            finishedAt = finishedAt
+                            finishedAt = finishedAt,
+                            reconsuming = reconsuming,
+                            reconsumeCount = reconsumeCount
                         )
                     )
                 }
@@ -540,6 +657,8 @@ object KitsuApiClient {
         extras.finishedAt?.let { put("finishedAt", it) }
         extras.notes?.let { put("notes", it) }
         extras.isPrivate?.let { put("private", it) }
+        extras.reconsuming?.let { put("reconsuming", it) }
+        extras.reconsumeCount?.let { put("reconsumeCount", it) }
     }
 
     /**
@@ -645,15 +764,36 @@ object KitsuApiClient {
      * Kitsu medyasının uzunluğunu (anime: episodeCount, manga: chapterCount) döner.
      * Bilinmiyorsa (ör. devam eden yayın) veya istek başarısızsa null.
      */
-    suspend fun fetchMediaLength(kitsuMediaId: Int, isAnime: Boolean): Int? = withContext(Dispatchers.IO) {
+    internal fun buildMediaLengthRequest(
+        kitsuMediaId: Int,
+        isAnime: Boolean,
+        accessToken: String?
+    ): Request {
         val endpoint = if (isAnime) "anime" else "manga"
         val field = if (isAnime) "episodeCount" else "chapterCount"
-        PlatformRateLimiter.acquire("kitsu")
-        val request = Request.Builder()
+        return Request.Builder()
             .url("$BASE_URL/$endpoint/$kitsuMediaId?fields[$endpoint]=$field")
             .addHeader("Accept", "application/vnd.api+json")
             .addHeader("User-Agent", "KitsugiApp/2.4")
+            .apply {
+                accessToken?.takeIf { it.isNotBlank() }?.let {
+                    addHeader("Authorization", "Bearer $it")
+                }
+            }
             .build()
+    }
+
+    suspend fun fetchMediaLength(
+        kitsuMediaId: Int,
+        isAnime: Boolean,
+        accessToken: String? = null
+    ): Int? = withContext(Dispatchers.IO) {
+        val endpoint = if (isAnime) "anime" else "manga"
+        val field = if (isAnime) "episodeCount" else "chapterCount"
+        PlatformRateLimiter.acquire("kitsu")
+        // R18/NSFW medya anonim istekte 404 olabilir. Uzunluk koruması, yazmayla
+        // aynı hesabın Bearer token'ını taşımadığında cap öğrenilemiyordu.
+        val request = buildMediaLengthRequest(kitsuMediaId, isAnime, accessToken)
         try {
             executeWithHostFallback(request).use { response ->
                 if (response.code == 429) PlatformRateLimiter.notifyRateLimited("kitsu")
@@ -695,20 +835,45 @@ object KitsuApiClient {
         ratingTwenty: Int?,
         extras: KitsuEntryExtras? = null
     ): KitsuWriteResult = withContext(Dispatchers.IO) {
+        val attributes = JSONObject().apply {
+            put("status", status)
+            put("progress", progress)
+            if (ratingTwenty != null && ratingTwenty > 0) {
+                put("ratingTwenty", ratingTwenty)
+            } else {
+                put("ratingTwenty", JSONObject.NULL)
+            }
+            applyKitsuExtras(extras)
+        }
+        patchAttributes(token, entryId, attributes)
+    }
+
+    /**
+     * Kitsu kütüphane kaydına YALNIZCA verilen alanları yazar (`PATCH`).
+     *
+     * Alan bazlı eşitlemenin temeli: gönderilmeyen attribute Kitsu'da değişmez. Böylece
+     * yerel satırda puan yokken `ratingTwenty: null` gönderip **Kitsu'daki puanı silme**
+     * hatası ortadan kalkar (eskiden `updateLibraryEntryDetailed` her çağrıda null yazıyordu).
+     */
+    suspend fun patchLibraryEntry(
+        token: String,
+        entryId: String,
+        attributes: JSONObject
+    ): KitsuWriteResult = withContext(Dispatchers.IO) {
+        if (attributes.length() == 0) return@withContext KitsuWriteResult(success = true, entryId = entryId)
+        patchAttributes(token, entryId, attributes)
+    }
+
+    private suspend fun patchAttributes(
+        token: String,
+        entryId: String,
+        attributes: JSONObject
+    ): KitsuWriteResult = withContext(Dispatchers.IO) {
         val payload = JSONObject().apply {
             put("data", JSONObject().apply {
                 put("id", entryId)
                 put("type", "libraryEntries")
-                put("attributes", JSONObject().apply {
-                    put("status", status)
-                    put("progress", progress)
-                    if (ratingTwenty != null && ratingTwenty > 0) {
-                        put("ratingTwenty", ratingTwenty)
-                    } else {
-                        put("ratingTwenty", JSONObject.NULL)
-                    }
-                    applyKitsuExtras(extras)
-                })
+                put("attributes", attributes)
             })
         }
 
@@ -753,9 +918,13 @@ object KitsuApiClient {
     }
 
     /**
-     * Kitsu kütüphanesinden kaydı siler (DELETE).
+     * Kitsu kütüphanesinden kaydı siler (DELETE) ve ayrıntılı HTTP sonucu döndürür.
+     *
+     * Not: Kitsu Rails sunucusu zaten silinmiş bir `entryId` için 404 yanında
+     * `500 Couldn't find LibraryEntry` döndürebilir (Mihon/Aniyomi Kitsu davranışı);
+     * her iki durum da idempotent başarı kabul edilir.
      */
-    suspend fun deleteLibraryEntry(token: String, entryId: String): Boolean = withContext(Dispatchers.IO) {
+    suspend fun deleteLibraryEntryDetailed(token: String, entryId: String): KitsuWriteResult = withContext(Dispatchers.IO) {
         val request = Request.Builder()
             .url("$BASE_URL/library-entries/$entryId")
             .addHeader("Accept", "application/vnd.api+json")
@@ -765,9 +934,28 @@ object KitsuApiClient {
             .build()
 
         executeWithHostFallback(request).use { response ->
-            response.isSuccessful || response.code == 404
+            val body = response.body?.string().orEmpty()
+            val alreadyGone = response.code == 404 ||
+                (response.code == 500 && body.contains("Couldn't find LibraryEntry", ignoreCase = true))
+            if (response.isSuccessful || alreadyGone) {
+                KitsuWriteResult(success = true, entryId = entryId, httpCode = response.code)
+            } else {
+                val snippet = errorSnippet(body)
+                KitsuWriteResult(
+                    success = false,
+                    errorMessage = "HTTP ${response.code}${if (snippet.isNotBlank()) ": $snippet" else ""}",
+                    rateLimited = response.code == 429,
+                    httpCode = response.code
+                )
+            }
         }
     }
+
+    /**
+     * Kitsu kütüphanesinden kaydı siler (DELETE).
+     */
+    suspend fun deleteLibraryEntry(token: String, entryId: String): Boolean =
+        deleteLibraryEntryDetailed(token, entryId).success
 
     /**
      * Kitsu'nun resmi `mappings` tablosu üzerinden harici bir kimliği (MAL/AniList) Kitsu medya ID'sine çevirir.
@@ -1088,9 +1276,13 @@ object KitsuApiClient {
         val type = data.optString("type").lowercase(java.util.Locale.ROOT)
         if (id != expectedId || type != endpoint) return null
         val attrs = data.optJSONObject("attributes") ?: return null
+        val titleObject = attrs.optJSONObject("titles")
+        val titleEnglish = titleObject?.optString("en_us")?.takeIf { it.isNotBlank() }
+            ?: titleObject?.optString("en")?.takeIf { it.isNotBlank() }
+        val titleJapanese = titleObject?.optString("ja_jp")?.takeIf { it.isNotBlank() }
+            ?: titleObject?.optString("en_cn")?.takeIf { it.isNotBlank() }
         val titles = buildList {
             attrs.optString("canonicalTitle").takeIf { it.isNotBlank() }?.let(::add)
-            val titleObject = attrs.optJSONObject("titles")
             if (titleObject != null) {
                 val keys = titleObject.keys()
                 while (keys.hasNext()) titleObject.optString(keys.next()).takeIf { it.isNotBlank() }?.let(::add)
@@ -1114,25 +1306,29 @@ object KitsuApiClient {
         }
         val included = root.optJSONArray("included") ?: JSONArray()
         val malSite = "myanimelist/$endpoint"
-        val malIds = buildSet {
-            for (index in 0 until included.length()) {
-                val mapping = included.optJSONObject(index) ?: continue
-                if (mapping.optString("type") != "mappings") continue
-                val mappingId = mapping.optString("id")
-                val item = mapping.optJSONObject("relationships")?.optJSONObject("item")?.optJSONObject("data")
-                val itemId = item?.optString("id")
-                val itemType = item?.optString("type")?.lowercase(java.util.Locale.ROOT)
-                val mappingIsLinked = mappingId in linkedMappingIds
-                val itemPointsToMedia = itemId == id.toString() && itemType == endpoint
-                val itemRelationIsConsistent = item == null || (itemId.isNullOrBlank() && itemType.isNullOrBlank()) || itemPointsToMedia
-                val belongsToMedia = itemRelationIsConsistent &&
-                    (mappingIsLinked || (linkedMappingIds.isEmpty() && itemPointsToMedia))
-                if (!belongsToMedia) continue
-                val mappingAttrs = mapping.optJSONObject("attributes") ?: continue
-                if (mappingAttrs.optString("externalSite").trim().lowercase(java.util.Locale.ROOT) != malSite) continue
-                val externalId = mappingAttrs.optString("externalId").toIntOrNull()
-                    ?.takeIf { it in 1..99_999_999 } ?: continue
-                add(externalId)
+        val aniListSite = "anilist/$endpoint"
+        val malIds = mutableSetOf<Int>()
+        val aniListIds = mutableSetOf<Int>()
+        for (index in 0 until included.length()) {
+            val mapping = included.optJSONObject(index) ?: continue
+            if (mapping.optString("type") != "mappings") continue
+            val mappingId = mapping.optString("id")
+            val item = mapping.optJSONObject("relationships")?.optJSONObject("item")?.optJSONObject("data")
+            val itemId = item?.optString("id")
+            val itemType = item?.optString("type")?.lowercase(java.util.Locale.ROOT)
+            val mappingIsLinked = mappingId in linkedMappingIds
+            val itemPointsToMedia = itemId == id.toString() && itemType == endpoint
+            val itemRelationIsConsistent = item == null || (itemId.isNullOrBlank() && itemType.isNullOrBlank()) || itemPointsToMedia
+            val belongsToMedia = itemRelationIsConsistent &&
+                (mappingIsLinked || (linkedMappingIds.isEmpty() && itemPointsToMedia))
+            if (!belongsToMedia) continue
+            val mappingAttrs = mapping.optJSONObject("attributes") ?: continue
+            val site = mappingAttrs.optString("externalSite").trim().lowercase(java.util.Locale.ROOT)
+            val externalId = mappingAttrs.optString("externalId").toIntOrNull()
+                ?.takeIf { it in 1..99_999_999 } ?: continue
+            when (site) {
+                malSite -> malIds.add(externalId)
+                aniListSite -> aniListIds.add(externalId)
             }
         }
         return KitsuMediaIdentity(
@@ -1140,7 +1336,10 @@ object KitsuApiClient {
             type = type,
             titles = titles,
             year = attrs.optString("startDate").take(4).toIntOrNull()?.takeIf { it > 0 },
-            malIds = malIds
+            malIds = malIds,
+            aniListIds = aniListIds,
+            titleEnglish = titleEnglish,
+            titleJapanese = titleJapanese
         )
     }
 }

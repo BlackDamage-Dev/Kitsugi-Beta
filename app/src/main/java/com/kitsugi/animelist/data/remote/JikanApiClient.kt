@@ -103,8 +103,16 @@ class JikanApiClient(
         sources: List<String>? = null,
         isAdult: Boolean? = null,
         isLicensed: Boolean? = null,
+        // Aşağıdaki üç filtre daha önce facade'da yoktu: AniList sheet'inde
+        // "Minimum etiket güveni" ve "Lisansörler" seçimleri hiçbir isteğe
+        // yazılmıyordu (seçim yapılıyor, sonuç değişmiyordu).
+        minimumTagRank: Int? = null,
+        minVolumes: Int? = null,
+        maxVolumes: Int? = null,
+        licensedBy: List<String>? = null,
         page: Int = 1,
-        perPage: Int = 24
+        perPage: Int = 24,
+        excludedTags: List<String>? = null
     ) = aniListSearchClient.searchAniListPaged(
         query = query,
         mediaType = mediaType,
@@ -131,8 +139,13 @@ class JikanApiClient(
         sources = sources,
         isAdult = isAdult,
         isLicensed = isLicensed,
+        minimumTagRank = minimumTagRank,
+        volumesGreater = minVolumes,
+        volumesLesser = maxVolumes,
+        licensedBy = licensedBy,
         page = page,
-        perPage = perPage
+        perPage = perPage,
+        excludedTags = excludedTags
     )
 
     suspend fun searchCharacters(
@@ -269,23 +282,7 @@ class JikanApiClient(
     suspend fun enrichDetail(source: String, externalId: Int?, mediaType: MediaType, detail: KitsugiMediaDetail, tmdbId: Int? = null, realMalId: Int? = null, title: String? = null): KitsugiMediaDetail? = detailClient.enrichDetail(source, externalId, mediaType, detail, tmdbId, realMalId, title)
 
     // Characters & Staff
-    suspend fun fetchCharacters(
-        source: String,
-        externalId: Int?,
-        mediaType: MediaType,
-        realMalId: Int? = null,
-        tmdbId: Int? = null,
-        title: String? = null,
-        enrichNames: Boolean = true
-    ) = characterClient.fetchCharacters(source, externalId, mediaType, realMalId, tmdbId, title, enrichNames)
-
-    /** Detay sekmesinin arka plan geçişi: ham Bangumi karakter listesine Latin adları ekler. */
-    suspend fun enrichBangumiCharacters(
-        characters: List<KitsugiCharacter>,
-        mediaType: MediaType,
-        realMalId: Int? = null,
-        externalId: Int? = null
-    ) = characterClient.enrichBangumiCharacters(characters, mediaType, realMalId, externalId)
+    suspend fun fetchCharacters(source: String, externalId: Int?, mediaType: MediaType, realMalId: Int? = null, tmdbId: Int? = null, title: String? = null) = characterClient.fetchCharacters(source, externalId, mediaType, realMalId, tmdbId, title)
     suspend fun fetchCharacterDetail(
         source: String,
         characterId: Int,
@@ -293,46 +290,14 @@ class JikanApiClient(
         fallbackImageUrl: String? = null,
         isRealMediaRole: Boolean = false
     ) = characterClient.fetchCharacterDetail(source, characterId, name, fallbackImageUrl, isRealMediaRole)
-    suspend fun fetchStaff(
-        source: String,
-        externalId: Int?,
-        mediaType: MediaType,
-        tmdbId: Int? = null,
-        realMalId: Int? = null,
-        enrichNames: Boolean = true
-    ) = staffClient.fetchStaff(source, externalId, mediaType, tmdbId, realMalId, enrichNames)
-
-    /** Detay sekmesinin arka plan geçişi: ham Bangumi ekip listesine Latin adları ekler. */
-    suspend fun enrichBangumiStaff(
-        staff: List<KitsugiStaff>,
-        mediaType: MediaType,
-        realMalId: Int? = null,
-        externalId: Int? = null
-    ) = staffClient.enrichBangumiStaff(staff, mediaType, realMalId, externalId)
+    suspend fun fetchStaff(source: String, externalId: Int?, mediaType: MediaType, tmdbId: Int? = null, realMalId: Int? = null) = staffClient.fetchStaff(source, externalId, mediaType, tmdbId, realMalId)
     suspend fun fetchStaffDetail(source: String, staffId: Int, name: String? = null) = staffClient.fetchStaffDetail(source, staffId, name)
     suspend fun fetchStudioDetail(source: String, studioId: Int, name: String? = null) = studioClient.fetchStudioDetail(source, studioId, name)
     suspend fun fetchStudioWorksPage(source: String, studioId: Int, page: Int) = studioClient.fetchStudioWorksPage(source, studioId, page)
 
     // Relations, Stats, Reviews, Episodes
-    suspend fun fetchRelations(
-        source: String,
-        externalId: Int?,
-        mediaType: MediaType,
-        tmdbId: Int? = null,
-        realMalId: Int? = null,
-        title: String? = null,
-        enrichTitles: Boolean = true
-    ) = mediaRelationsClient.fetchRelations(source, externalId, mediaType, tmdbId, realMalId, title, enrichTitles)
-
-    suspend fun fetchRecommendations(
-        source: String,
-        externalId: Int?,
-        mediaType: MediaType,
-        tmdbId: Int? = null,
-        realMalId: Int? = null,
-        title: String? = null,
-        enrichTitles: Boolean = true
-    ) = mediaRelationsClient.fetchRecommendations(source, externalId, mediaType, tmdbId, realMalId, title, enrichTitles)
+    suspend fun fetchRelations(source: String, externalId: Int?, mediaType: MediaType, tmdbId: Int? = null, realMalId: Int? = null, title: String? = null) = mediaRelationsClient.fetchRelations(source, externalId, mediaType, tmdbId, realMalId, title)
+    suspend fun fetchRecommendations(source: String, externalId: Int?, mediaType: MediaType, tmdbId: Int? = null, realMalId: Int? = null, title: String? = null) = mediaRelationsClient.fetchRecommendations(source, externalId, mediaType, tmdbId, realMalId, title)
     suspend fun fetchStats(source: String, externalId: Int?, mediaType: MediaType, realMalId: Int? = null, tmdbId: Int? = null) = mediaSocialClient.fetchStats(source, externalId, mediaType, realMalId, tmdbId)
     suspend fun fetchReviews(source: String, externalId: Int?, mediaType: MediaType, page: Int = 1, tmdbId: Int? = null, realMalId: Int? = null) = mediaSocialClient.fetchReviews(source, externalId, mediaType, page, tmdbId, realMalId)
     suspend fun fetchEpisodes(

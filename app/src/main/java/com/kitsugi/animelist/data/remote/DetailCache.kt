@@ -69,34 +69,91 @@ object DetailCache {
             .replace("ou", "o").replace("oo", "o").replace("oh", "o").replace("uu", "u")
             .replace(Regex("[^\\p{L}\\p{N}]"), "")
 
-    fun getCachedCharacterPortrait(name: String): String? {
-        val key = normalizePortraitKey(name)
-        return if (key.length >= 2) resolvedCharacterPortraits[key] else null
+    /**
+     * TMDB görsel URL'lerindeki boyut segmentini (`w185`, `w300`, `w500`, `original`)
+     * normalize ederek aynı kişi fotoğrafının farklı çözünürlüklerdeki kopyalarını eşleştirir.
+     */
+    fun normalizeImageIdentity(url: String?): String {
+        val clean = url?.trim()?.substringBefore('?')?.trimEnd('/').orEmpty()
+        if (clean.isEmpty()) return ""
+        return clean.replace(Regex("^https?://image\\.tmdb\\.org/t/p/[^/]+/"), "https://image.tmdb.org/t/p/")
+    }
+
+    fun isSameImageResource(a: String?, b: String?): Boolean {
+        val na = normalizeImageIdentity(a)
+        val nb = normalizeImageIdentity(b)
+        return na.isNotEmpty() && na == nb
+    }
+
+    fun getCachedCharacterPortrait(name: String?): String? {
+        if (name.isNullOrBlank()) return null
+        val fullKey = normalizePortraitKey(name)
+        if (fullKey.length >= 2) {
+            resolvedCharacterPortraits[fullKey]?.let { return it }
+        }
+        val primaryKey = normalizePortraitKey(name.substringBefore("/"))
+        if (primaryKey.length >= 2 && primaryKey != fullKey) {
+            resolvedCharacterPortraits[primaryKey]?.let { return it }
+        }
+        return null
     }
 
     /**
      * Karakter detay sayfasında veya çapraz kaynakta doğrulanan portreyi kaydeder ve
      * önbellekteki TMDB/Simkl karakter listelerinde görseli boş kalan kartlara anında işler.
      */
-    fun propagateCharacterPortrait(name: String, imageUrl: String?) {
+    fun propagateCharacterPortrait(name: String?, imageUrl: String?) {
+        val rawName = name?.trim()?.takeIf { it.isNotEmpty() } ?: return
         val url = imageUrl?.trim()?.takeIf { it.isNotEmpty() } ?: return
-        val targetKey = normalizePortraitKey(name)
-        if (targetKey.length < 2) return
-        resolvedCharacterPortraits[targetKey] = url
+        val primaryName = rawName.substringBefore("/").substringBefore(" (").trim()
+        val keys = listOf(rawName, primaryName)
+            .map(::normalizePortraitKey)
+            .filter { it.length >= 2 }
+            .distinct()
+        if (keys.isEmpty()) return
+
+        for (cacheKey in mediaCharacters.keys.toList()) {
+            if (!cacheKey.startsWith("tmdb") && !cacheKey.startsWith("simkl")) continue
+            val existing = mediaCharacters[cacheKey] ?: continue
+            val matchesVoiceActorPhoto = existing.any { char ->
+                val charFullKey = normalizePortraitKey(char.name)
+                val charPrimaryKey = normalizePortraitKey(char.name.substringBefore("/"))
+                (charFullKey in keys || charPrimaryKey in keys) &&
+                    char.voiceActors.any { va -> isSameImageResource(url, va.imageUrl) }
+            }
+            if (matchesVoiceActorPhoto) {
+                keys.forEach { k ->
+                    if (isSameImageResource(resolvedCharacterPortraits[k], url)) {
+                        resolvedCharacterPortraits.remove(k)
+                    }
+                }
+                return
+            }
+        }
 
         var updatedAny = false
+        for (targetKey in keys) {
+            if (resolvedCharacterPortraits[targetKey] != url) {
+                resolvedCharacterPortraits[targetKey] = url
+                updatedAny = true
+            }
+        }
         for (cacheKey in mediaCharacters.keys.toList()) {
             if (!cacheKey.startsWith("tmdb") && !cacheKey.startsWith("simkl")) continue
             val existing = mediaCharacters[cacheKey] ?: continue
             var changed = false
             val patched = existing.map { char ->
+                val charFullKey = normalizePortraitKey(char.name)
+                val charPrimaryKey = normalizePortraitKey(char.name.substringBefore("/"))
                 val isActorDup = !char.imageUrl.isNullOrBlank() &&
-                    char.imageUrl == char.voiceActors.firstOrNull()?.imageUrl
-                if ((char.imageUrl.isNullOrBlank() || (!char.isRealMediaRole && isActorDup)) &&
-                    normalizePortraitKey(char.name) == targetKey
+                    char.voiceActors.any { va -> isSameImageResource(char.imageUrl, va.imageUrl) }
+                val urlIsActorPhoto = char.voiceActors.any { va -> isSameImageResource(url, va.imageUrl) }
+                if (!urlIsActorPhoto &&
+                    (charFullKey in keys || charPrimaryKey in keys) &&
+                    (char.imageUrl.isNullOrBlank() || (!char.isRealMediaRole && isActorDup))
                 ) {
                     changed = true
-                    char.copy(imageUrl = url)
+                    char.copy(imageUrl = url, isRealMediaRole = false)
                 } else {
                     char
                 }
@@ -297,20 +354,64 @@ object DetailCache {
         return "${targetLang}_${type.lowercase()}_${makeIdentityKey(source, id, identity)}"
     }
 
+    /**
+     * Çevirinin ait olduğu **kaynak metnin** kimliği.
+     *
+     * Neden gerekli: anahtar yalnızca (dil, tür, kaynak, id) içeriyordu. Bir kaydın özeti /
+     * biyografisi sonradan değiştiğinde (ör. TMDB zenginleştirmesi farklı bir özet getirdiğinde)
+     * eski metnin çevirisi yeni metne "yapışıyor" ve sayfada alakasız bir açıklama görünüyordu.
+     * Karşılaştırma normalize edilmiş metinle yapılır: boşluk/noktalama farkı çeviriyi
+     * geçersiz kılmaz, anlamlı metin değişimi kılar.
+     */
+    private val translationSourceTexts = BoundedCache<String, String>("detail.translationTexts", 300)
+
+    private fun translationTextKey(type: String, source: String, id: Int, identity: String?): String =
+        "src_${type.lowercase()}_${makeIdentityKey(source, id, identity)}"
+
     // Translations (Synopsis / Biography)
-    fun getTranslation(type: String, source: String, id: Int, identity: String? = null): String? {
+    fun getTranslation(
+        type: String,
+        source: String,
+        id: Int,
+        identity: String? = null,
+        sourceText: String? = null
+    ): String? {
         val key = translationKey(type, source, id, identity)
-        return translations[key]
+        val translation = translations[key] ?: return null
+        // Çağıran kaynak metni veriyorsa çeviri o metne ait olmalı; değilse eski/yapışmış kayıttır.
+        if (sourceText != null) {
+            val stored = translationSourceTexts[translationTextKey(type, source, id, identity)]
+            if (stored != null &&
+                stored != com.kitsugi.animelist.utils.normalizeTranslationText(sourceText)
+            ) {
+                return null
+            }
+        }
+        return translation
     }
 
-    fun putTranslation(type: String, source: String, id: Int, translation: String, identity: String? = null) {
+    fun putTranslation(
+        type: String,
+        source: String,
+        id: Int,
+        translation: String,
+        identity: String? = null,
+        sourceText: String? = null
+    ) {
         val key = translationKey(type, source, id, identity)
         translations[key] = translation
+        if (sourceText != null) {
+            translationSourceTexts[translationTextKey(type, source, id, identity)] =
+                com.kitsugi.animelist.utils.normalizeTranslationText(sourceText)
+        } else {
+            translationSourceTexts.remove(translationTextKey(type, source, id, identity))
+        }
     }
 
     fun removeTranslation(type: String, source: String, id: Int, identity: String? = null) {
         val key = translationKey(type, source, id, identity)
         translations.remove(key)
+        translationSourceTexts.remove(translationTextKey(type, source, id, identity))
     }
 
     // Fanart.tv Gallery Cache
@@ -377,6 +478,26 @@ object DetailCache {
     fun removeShikimoriGallery(id: Int) { shikimoriGalleryCache.remove(id) }
     fun clearShikimoriGalleryCache() { shikimoriGalleryCache.clear() }
 
+    // Unified Multi-Source Videos Cache
+    private val mediaVideos = BoundedCache<String, List<MediaVideoItem>>("detail.mediaVideos", 60)
+
+    private fun mediaVideosKey(source: String, id: Int, seasonNumber: Int? = null): String =
+        "${makeKey(source, id)}_s${seasonNumber?.takeIf { it > 0 } ?: 0}"
+
+    fun getMediaVideos(source: String, id: Int, seasonNumber: Int? = null): List<MediaVideoItem>? =
+        mediaVideos[mediaVideosKey(source, id, seasonNumber)]
+
+    fun putMediaVideos(source: String, id: Int, list: List<MediaVideoItem>, seasonNumber: Int? = null) {
+        if (list.isNotEmpty()) {
+            mediaVideos[mediaVideosKey(source, id, seasonNumber)] = list
+        }
+    }
+
+    fun removeMediaVideos(source: String, id: Int) {
+        val prefix = "${makeKey(source, id)}_"
+        mediaVideos.keys.filter { it.startsWith(prefix) }.forEach { mediaVideos.remove(it) }
+    }
+
     // Clear all (called on app-level reset / force refresh from settings)
     fun clear() {
         mediaDetails.clear()
@@ -387,10 +508,12 @@ object DetailCache {
         mediaReviews.clear()
         mediaEpisodes.clear()
         mediaRecommendations.clear()
+        mediaVideos.clear()
         characterDetails.clear()
         staffDetails.clear()
         studioDetails.clear()
         translations.clear()
+        translationSourceTexts.clear()
         fanartGalleryCache.clear()
         tmdbGalleryCache.clear()
         shikimoriGalleryCache.clear()

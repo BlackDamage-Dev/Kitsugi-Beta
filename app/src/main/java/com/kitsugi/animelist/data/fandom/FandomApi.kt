@@ -121,11 +121,16 @@ internal object FandomApi {
         if (!minimal) {
             add("piprop" to "thumbnail")
             add("pithumbsize" to "480")
+            add("pilimit" to MAX_TITLES_PER_REQUEST.toString())
+            if (FandomUrls.isWikipedia(wikiId)) {
+                add("pilicense" to "any")
+            }
         }
         if (!minimal && FandomUrls.isWikipedia(wikiId)) {
             add("exintro" to "1")
             add("explaintext" to "1")
             add("exchars" to "1200")
+            add("exlimit" to "20")
         }
         if (withTurkishLink) {
             add("lllang" to "tr")
@@ -168,6 +173,9 @@ internal object FandomApi {
                 "format" to "json",
                 "formatversion" to "2"
             )
+            if (FandomUrls.isWikipedia(wikiId)) {
+                params += "pilicense" to "any"
+            }
             imageContinue?.let { params += "imcontinue" to it }
             generalContinue?.let { params += "continue" to it }
             val url = FandomUrls.apiQuery(wikiId, params) ?: break
@@ -401,6 +409,7 @@ internal object FandomApi {
                 )
                 params += excerptParams(wikiId, RELATED_EXCERPT_CHARS)
                 if (FandomUrls.isWikipedia(wikiId)) {
+                    params += "pilicense" to "any"
                     // `prop=extracts` tek istekte en çok 20 sayfa verir; sınırı açıkça
                     // belirtmezsek API varsayılanı (1) yanıtı tek sayfaya indirebilir.
                     params += "exlimit" to chunk.size.coerceAtMost(20).toString()
@@ -465,15 +474,21 @@ internal object FandomApi {
         if (clean.isEmpty() || clean.length > 200 || clean.contains('|')) return null
         val preview = verifiedPreview?.takeIf { it.title.equals(clean, ignoreCase = true) }
         val hit = preview ?: run {
-            val params = listOf(
-                "action" to "query",
-                "titles" to clean,
-                "redirects" to "1",
-                "prop" to previewProps(wikiId),
-                "ppprop" to "infoboxes|fandomdescription|disambiguation",
-                "piprop" to "thumbnail",
-                "pithumbsize" to thumbWidth.toString()
-            ) + excerptParams(wikiId) + listOf("format" to "json", "formatversion" to "2")
+            val params = buildList {
+                add("action" to "query")
+                add("titles" to clean)
+                add("redirects" to "1")
+                add("prop" to previewProps(wikiId))
+                add("ppprop" to "infoboxes|fandomdescription|disambiguation")
+                add("piprop" to "thumbnail")
+                add("pithumbsize" to thumbWidth.toString())
+                if (FandomUrls.isWikipedia(wikiId)) {
+                    add("pilicense" to "any")
+                }
+                addAll(excerptParams(wikiId))
+                add("format" to "json")
+                add("formatversion" to "2")
+            }
             val url = FandomUrls.apiQuery(wikiId, params) ?: return null
             val body = FandomHttp.get(url)
             FandomApiParsers.parseRelatedPages(body, wikiId).firstOrNull()

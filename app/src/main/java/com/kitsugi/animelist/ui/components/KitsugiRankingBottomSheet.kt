@@ -3,6 +3,7 @@
 package com.kitsugi.animelist.ui.components
 
 import com.kitsugi.animelist.ui.theme.gradient.background
+import com.kitsugi.animelist.ui.utils.uniqueItemsIndexed
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -20,9 +21,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.SearchOff
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import com.kitsugi.animelist.ui.theme.gradient.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import com.kitsugi.animelist.ui.theme.gradient.Icon
@@ -63,7 +62,7 @@ fun KitsugiRankingBottomSheet(
     alreadyInList: (JikanSearchResult) -> Boolean,
     onItemClick: (JikanSearchResult) -> Unit,
     onDismissRequest: () -> Unit,
-    titleLanguage: String = "ROMAJI",
+    titleLanguage: String = "ENGLISH",
     hideScores: Boolean = false,
     showAdultContent: Boolean = false,
     blurAdultMedia: Boolean = false,
@@ -126,11 +125,33 @@ fun KitsugiRankingBottomSheet(
                     }
                     ExplorePlatform.BANGUMI -> {
                         val bangumi = com.kitsugi.animelist.data.remote.KitsugiBangumiClient
+                        // Bangumi 三次元 (type = 6) kataloğu dizi ve film olarak ayrı raflara
+                        // sahiptir; sıralama sayfası bu iki medya türünde anime listeliyordu.
                         when (tab) {
-                            "SCORE" -> if (isManga) bangumi.topRatedManga(24) else bangumi.topRatedAnime(24)
-                            "POPULARITY" -> if (isManga) bangumi.trendingManga(24) else bangumi.trendingAnime(24)
-                            "FAVORITE" -> if (isManga) bangumi.topManga(24) else bangumi.topAnime(24)
-                            "UPCOMING" -> bangumi.upcomingAnime(24)
+                            "SCORE" -> when (mediaType) {
+                                MediaType.Manga -> bangumi.topRatedManga(24)
+                                MediaType.TvShow -> bangumi.realTvShows(24)
+                                MediaType.Movie -> bangumi.realMovies(24)
+                                else -> bangumi.topRatedAnime(24)
+                            }
+                            "POPULARITY" -> when (mediaType) {
+                                MediaType.Manga -> bangumi.trendingManga(24)
+                                MediaType.TvShow -> bangumi.realTvShows(24)
+                                MediaType.Movie -> bangumi.realMovies(24)
+                                else -> bangumi.trendingAnime(24)
+                            }
+                            "FAVORITE" -> when (mediaType) {
+                                MediaType.Manga -> bangumi.topManga(24)
+                                MediaType.TvShow -> bangumi.realTvShows(24)
+                                MediaType.Movie -> bangumi.realMovies(24)
+                                else -> bangumi.topAnime(24)
+                            }
+                            "UPCOMING" -> when (mediaType) {
+                                MediaType.Manga -> bangumi.newlyAddedManga(24)
+                                MediaType.TvShow -> bangumi.realTvShows(24)
+                                MediaType.Movie -> bangumi.realMovies(24)
+                                else -> bangumi.upcomingAnime(24)
+                            }
                             else -> initialResults
                         }
                     }
@@ -172,7 +193,7 @@ fun KitsugiRankingBottomSheet(
 
                 IconButton(onClick = onDismissRequest) {
                     Icon(
-                        imageVector = Icons.Rounded.Close,
+                        imageVector = Icons.Close,
                         contentDescription = stringResource(R.string.kapat),
                         tint = KitsugiColors.TextSecondary
                     )
@@ -210,7 +231,7 @@ fun KitsugiRankingBottomSheet(
                     KitsugiEmptyState(
                         title = KitsugiStrings.get(R.string.sonuc_bulunamadi_b51f9f8),
                         subtitle = KitsugiStrings.get(R.string.secilen_kategori_icin_siralama_verisi_mevcut_degil),
-                        icon = Icons.Rounded.SearchOff
+                        icon = Icons.SearchOff
                     )
                 }
             } else {
@@ -220,7 +241,7 @@ fun KitsugiRankingBottomSheet(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     contentPadding = PaddingValues(bottom = 32.dp)
                 ) {
-                    itemsIndexed(
+                    uniqueItemsIndexed(
                         items = resultsList,
                         key = { _, item -> "${item.source}_${item.type}_${item.malId}_${item.tmdbId ?: 0}" }
                     ) { index, item ->

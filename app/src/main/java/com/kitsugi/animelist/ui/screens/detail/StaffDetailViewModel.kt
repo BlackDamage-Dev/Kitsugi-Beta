@@ -127,9 +127,12 @@ class StaffDetailViewModel(application: Application) : AndroidViewModel(applicat
         if (bio.isNullOrBlank()) return
         val identity = staffCacheIdentity(name)
         if (!forceRetranslate) {
-            val cachedTranslation = DetailCache.getTranslation("bio_staff", source, staffId, identity)
-                ?: DetailCache.getTranslation("bio_staff", source, staffId)
-            if (!cachedTranslation.isNullOrBlank()) {
+            val cachedTranslation = DetailCache.getTranslation(
+                "bio_staff", source, staffId, identity, sourceText = bio
+            ) ?: DetailCache.getTranslation("bio_staff", source, staffId, sourceText = bio)
+            if (!cachedTranslation.isNullOrBlank() &&
+                !com.kitsugi.animelist.utils.translationMatchesSource(bio, cachedTranslation)
+            ) {
                 _translatedBio.value = cachedTranslation
                 return
             }
@@ -146,16 +149,23 @@ class StaffDetailViewModel(application: Application) : AndroidViewModel(applicat
                 _translationLoading.value = true
                 val tr = withContext(Dispatchers.IO) {
                     translationManager.translateToTarget(bio) { partial ->
-                        if (currentFetchKey == expectedFetchKey && partial.isNotBlank()) {
+                        if (currentFetchKey == expectedFetchKey &&
+                            partial.isNotBlank() &&
+                            !com.kitsugi.animelist.utils.translationMatchesSource(bio, partial)
+                        ) {
                             _translatedBio.value = partial
                         }
                     }
                 }
                 if (currentFetchKey == expectedFetchKey && tr.isNotBlank()) {
-                    if (tr != bio) {
-                        DetailCache.putTranslation("bio_staff", source, staffId, tr, identity)
-                        DetailCache.putTranslation("bio_staff", source, staffId, tr)
+                    if (com.kitsugi.animelist.utils.translationMatchesSource(bio, tr)) {
+                        DetailCache.removeTranslation("bio_staff", source, staffId, identity)
+                        DetailCache.removeTranslation("bio_staff", source, staffId)
+                        _translatedBio.value = null
+                        return@launch
                     }
+                    DetailCache.putTranslation("bio_staff", source, staffId, tr, identity, sourceText = bio)
+                    DetailCache.putTranslation("bio_staff", source, staffId, tr, sourceText = bio)
                     _translatedBio.value = tr
                 }
             } finally {
@@ -211,11 +221,16 @@ class StaffDetailViewModel(application: Application) : AndroidViewModel(applicat
 
         val identity = staffCacheIdentity(name)
         val cachedStaffDetail = DetailCache.getStaffDetail(source, staffId)
-        val cachedBioTranslation = DetailCache.getTranslation("bio_staff", source, staffId, identity)
-            ?: DetailCache.getTranslation("bio_staff", source, staffId)
+        val cachedBio = cachedStaffDetail?.biography
+        val cachedBioTranslation = DetailCache.getTranslation(
+            "bio_staff", source, staffId, identity, sourceText = cachedBio
+        ) ?: DetailCache.getTranslation("bio_staff", source, staffId, sourceText = cachedBio)
 
         _state.value = if (cachedStaffDetail != null) StaffDetailState.Success(cachedStaffDetail) else StaffDetailState.Loading
-        _translatedBio.value = cachedBioTranslation
+        _translatedBio.value = cachedBioTranslation?.takeIf { tr ->
+            cachedBio == null || cachedBio.isBlank() ||
+                !com.kitsugi.animelist.utils.translationMatchesSource(cachedBio, tr)
+        }
 
         galleryTracker.reset()
         viewModelScope.launch {
@@ -473,9 +488,7 @@ class StaffDetailViewModel(application: Application) : AndroidViewModel(applicat
     private fun warmBangumiStaffTitles(detail: KitsugiStaffDetail) {
         viewModelScope.launch {
             val updated = withContext(Dispatchers.IO) {
-                runCatching {
-                    KitsugiBangumiDetailClient.enrichStaffDetailNames(detail, tabMode = true)
-                }
+                runCatching { KitsugiBangumiDetailClient.enrichStaffDetailNames(detail, background = true) }
                     .getOrNull()
             } ?: return@launch
             if (updated == detail) return@launch

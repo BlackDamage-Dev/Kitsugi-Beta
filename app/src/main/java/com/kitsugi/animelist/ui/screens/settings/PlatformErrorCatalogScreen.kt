@@ -1,6 +1,7 @@
 package com.kitsugi.animelist.ui.screens.settings
 
 import android.content.Context
+import com.kitsugi.animelist.ui.utils.uniqueItems
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -17,11 +18,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Apps
-import androidx.compose.material.icons.rounded.Extension
-import androidx.compose.material.icons.rounded.MenuBook
-import androidx.compose.material.icons.rounded.Public
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -78,23 +75,23 @@ fun PlatformErrorCatalogScreen() {
         ErrorCatalogTab(
             key = "ALL",
             label = stringResource(R.string.platform_error_filter_all),
-            icon = Icons.Rounded.Apps,
+            icon = Icons.Apps,
         ),
         ErrorCatalogTab(
             key = "MANGA",
             label = stringResource(R.string.platform_error_filter_manga),
-            icon = Icons.Rounded.MenuBook,
+            icon = Icons.MenuBook,
         ),
         ErrorCatalogTab(
             key = "CLOUDSTREAM",
             label = stringResource(R.string.platform_error_filter_cloudstream),
-            icon = Icons.Rounded.Extension,
+            icon = Icons.Extension,
         ),
     ) + ListPlatform.entries.map { platform ->
         ErrorCatalogTab(
             key = platform.name,
             label = stringResource(platform.labelRes),
-            icon = Icons.Rounded.Public,
+            icon = Icons.Public,
             platformId = platformLogoId(platform),
         )
     }
@@ -265,10 +262,12 @@ private fun ErrorCatalogPage(
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        items(listEntries, key = { it.code }) { code ->
+        // İki ayrı katalog aynı LazyColumn'da: ön ek olmadan bir liste kodu ile bir teşhis
+        // kimliği aynı metne sahipse "Key was already used" çökmesi oluşurdu.
+        uniqueItems(listEntries, key = { "list:${it.code}" }) { code ->
             ListSourceErrorBlock(code = code, modifier = Modifier.fillMaxWidth())
         }
-        items(diagEntries, key = { it.id }) { definition ->
+        uniqueItems(diagEntries, key = { "diag:${it.id}" }) { definition ->
             PlatformErrorExplanationBlock(
                 code = definition.id,
                 modifier = Modifier.fillMaxWidth(),

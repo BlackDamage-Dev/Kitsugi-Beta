@@ -4,43 +4,43 @@
 # durum: new = yeni anahtar | existing:<mevcut anahtar> = etiketler mevcut gruba eklenir | pending = ⚠ kaynakta doğrulanmadan dil dosyasına ALINMAZ
 bangumi_studio_a1_pictures	studio	A-1 Pictures	A-1 Pictures	existing:a1_pictures	A-1 Pictures;A-1;A1社;エー・ワン・ピクチャーズ
 bangumi_studio_acg	studio	ACG	ACG	new	ACG动漫制作;ACG動漫製作
-bangumi_studio_aic	studio	AIC	Anime International Company	new	AIC;アニメインターナショナルカンパニー;アニメインターナショナル
+bangumi_studio_aic	studio	AIC	AIC	new	AIC;アニメインターナショナルカンパニー;アニメインターナショナル
 bangumi_studio_arms	studio	ARMS	ARMS	new	ARMS;アームズ
 bangumi_studio_asahi_production	studio	Asahi Production	Asahi Production	new	Asahi Production
 bangumi_studio_asread	studio	Asread	Asread	new	アスリード
 bangumi_studio_axsiz	studio	AXsiZ	AXsiZ	new	アクシーズ
-bangumi_studio_bee_train	studio	Bee Train	Bee Train	new	BEE TRAIN;ビィートレイン
-bangumi_studio_bibury	studio	Bibury Animation Studios	Bibury Animation Studios	new	ビバリーアニメーションスタジオ;Bibury
-bangumi_studio_bones	studio	BONES	BONES	existing:bones_studio	ボンズ;骨头社;Bones
+bangumi_studio_bee_train	studio	BEE TRAIN	BEE TRAIN	new	BEE TRAIN;ビィートレイン
+bangumi_studio_bibury	studio	Bibury	Bibury	new	ビバリーアニメーションスタジオ;Bibury
+bangumi_studio_bones	studio	Bones	Bones	existing:bones_studio	ボンズ;骨头社;Bones
 bangumi_studio_brain_s_base	studio	Brain's Base	Brain's Base	new	ブレインズ・ベース;ブレインズベース
 bangumi_studio_bridge	studio	Bridge	Bridge	new	ブリッジ
 bangumi_studio_c2c	studio	C2C	C2C	new	C2C
 bangumi_studio_c_station	studio	C-Station	C-Station	new	シーステイション
-bangumi_studio_cloverworks	studio	CloverWorks	CloverWorks	existing:cloverworks	Clover Works;クローバーワークス;CLOVERWORKS
+bangumi_studio_cloverworks	studio	Clover Works	Clover Works	existing:cloverworks	Clover Works;クローバーワークス;CLOVERWORKS
 bangumi_studio_colorido	studio	Studio Colorido	Studio Colorido	new	スタジオコロリド
-bangumi_studio_comet	studio	Studio Comet	Studio Comet	new	スタジオコメット;studio COMET
+bangumi_studio_comet	studio	studio COMET	studio COMET	new	スタジオコメット;studio COMET
 bangumi_studio_connect	studio	Connect	Connect	new	コネクト
 bangumi_studio_creators_in_pack	studio	Creators in Pack	Creators in Pack	new	クリエイターズインパック
-bangumi_studio_cygamespictures	studio	CygamesPictures	CygamesPictures	new	サイゲームズピクチャーズ;Cygames Pictures
+bangumi_studio_cygamespictures	studio	Cygames Pictures	Cygames Pictures	new	サイゲームズピクチャーズ;Cygames Pictures
 bangumi_studio_david_production	studio	David Production	David Production	existing:david_production	ダビプロ;デイヴィッドプロダクション;David Production
-bangumi_studio_deen	studio	Studio Deen	Studio Deen	existing:studio_deen	スタジオディーン;スタジオDEEN;ディーン;DEEN
-bangumi_studio_diomedea	studio	Diomedéa	Diomedéa	existing:diomedea	ディオメディア;Diomedea
+bangumi_studio_deen	studio	DEEN	DEEN	existing:studio_deen	スタジオディーン;スタジオDEEN;ディーン;DEEN
+bangumi_studio_diomedea	studio	Diomedea	Diomedea	existing:diomedea	ディオメディア;Diomedea
 bangumi_studio_dle	studio	DLE	DLE	new	ディー・エル・イー
 bangumi_studio_doga_kobo	studio	Doga Kobo	Doga Kobo	existing:doga_kobo	動画工房;Doga Kobo
 bangumi_studio_dream_force	studio	Dream Force	Dream Force	new	ドリームフォース;ドリーム・フォース
-bangumi_studio_egg_firm	studio	egg firm	egg firm	new	エッグファーム;Egg Firm
+bangumi_studio_egg_firm	studio	Egg Firm	Egg Firm	new	エッグファーム;Egg Firm
 bangumi_studio_elle	studio	Studio Elle	Studio Elle	new	スタジオエル
-bangumi_studio_emt2	studio	EMT²	EMT²	new	EMTスクエアード;EMT2
+bangumi_studio_emt2	studio	EMT2	EMT2	new	EMTスクエアード;EMT2
 bangumi_studio_engi	studio	ENGI	ENGI	new	エンギー
 bangumi_studio_fanworks	studio	Fanworks	Fanworks	new	ファンワークス
 bangumi_studio_fantasia	studio	Studio Fantasia	Studio Fantasia	new	スタジオファンタジア
 bangumi_studio_feel	studio	feel.	feel.	new	feel.;フィール;FEEL
 bangumi_studio_felix_film	studio	Felix Film	Felix Film	new	フェリックスフィルム
 bangumi_studio_flad	studio	Studio Flad	Studio Flad	new	スタジオフラッド
-bangumi_studio_flat	studio	Flat Studio	Flat Studio	new	フラットスタジオ;FlatStudio
+bangumi_studio_flat	studio	FlatStudio	FlatStudio	new	フラットスタジオ;FlatStudio
 bangumi_studio_frontline	studio	Frontline	Frontline	new	フロントライン
-bangumi_studio_gaina	studio	Gaina	Gaina	new	ガイナ;GAINA
-bangumi_studio_gainax	studio	GAINAX	GAINAX	existing:gainax	ガイナックス;ガンックス;Gainax
+bangumi_studio_gaina	studio	GAINA	GAINA	new	ガイナ;GAINA
+bangumi_studio_gainax	studio	Gainax	Gainax	existing:gainax	ガイナックス;ガンックス;Gainax
 bangumi_studio_gallop	studio	Gallop	Gallop	new	ぎゃろっぷ
 bangumi_studio_geek_toys	studio	GEEK TOYS	GEEK TOYS	new	ジークトゥイズ
 bangumi_studio_gemba	studio	GEMBA	GEMBA	new	ゲンバ
@@ -50,24 +50,24 @@ bangumi_studio_gonzo	studio	GONZO	GONZO	new	ゴンゾ
 bangumi_studio_gohands	studio	GoHands	GoHands	new	ゴーハンズ
 bangumi_studio_graphinica	studio	Graphinica	Graphinica	new	グラフィニカ
 bangumi_studio_hal_film_maker	studio	Hal Film Maker	Hal Film Maker	new	ハルフィルムメーカー
-bangumi_studio_haoliners	studio	Haoliners Animation	Haoliners Animation	new	绘梦动画;繪夢動畫;绘梦;Haoliners
+bangumi_studio_haoliners	studio	Haoliners	Haoliners	new	绘梦动画;繪夢動畫;绘梦;Haoliners
 bangumi_studio_hoods	studio	Hoods Entertainment	Hoods Entertainment	new	フーズエンタテインメント
 bangumi_studio_huanshi	studio	YHKT Entertainment	YHKT Entertainment	new	幻维数码;幻維數碼
-bangumi_studio_ig	studio	Production I.G	Production I.G	existing:production_ig	プロダクション・アイジー;プロダクションIG;Production.IG;ProductionI.G;IG社;I.G;Production IG
+bangumi_studio_ig	studio	Production.IG	Production.IG	existing:production_ig	プロダクションIG;Production.IG;ProductionI.G;IG社;I.G;Production IG
 bangumi_studio_ims	studio	Production IMS	Production IMS	new	プロダクションアイムス
-bangumi_studio_jc_staff	studio	J.C.Staff	J.C.Staff	existing:jc_staff	J.C.STAFF;ジェーシースタッフ;JC社
+bangumi_studio_jc_staff	studio	J.C.STAFF	J.C.STAFF	existing:jc_staff	J.C.STAFF;ジェーシースタッフ;JC社
 bangumi_studio_kai	studio	Studio Kai	Studio Kai	new	スタジオカイ
-bangumi_studio_khara	studio	khara	khara	new	カラー;スタジオカラー;Khara;studio khara
-bangumi_studio_kinema_citrus	studio	KINEMA CITRUS	KINEMA CITRUS	existing:kinema_citrus	キネマシトラス;Kinema Citrus
-bangumi_studio_kyoto_animation	studio	Kyoto Animation	Kyoto Animation	existing:kyoto_animation	京都アニメーション;京都动画;京都動画;京都動畫;京阿尼;京アニ;KyoAni;Kyoto Animation;京都
+bangumi_studio_khara	studio	Khara	Khara	new	カラー;スタジオカラー;Khara;studio khara
+bangumi_studio_kinema_citrus	studio	Kinema Citrus	Kinema Citrus	existing:kinema_citrus	キネマシトラス;Kinema Citrus
+bangumi_studio_kyoto_animation	studio	KyoAni	KyoAni	existing:kyoto_animation	京都アニメーション;京都动画;京都動画;京都動畫;京阿尼;京アニ;KyoAni;Kyoto Animation;京都
 bangumi_studio_lan	studio	LAN Studio	LAN Studio	new	岚山动画;嵐山動畫
 bangumi_studio_landq	studio	LandQ Studios	LandQ Studios	new	ランドクォースタジオ
 bangumi_studio_layduce	studio	Lay-duce	Lay-duce	new	レイデュース
 bangumi_studio_lerche	studio	Lerche	Lerche	new	ラルケ;Lerche
-bangumi_studio_lidenfilms	studio	LIDENFILMS	LIDENFILMS	new	ライデンフィルム;Liden Films;ライデン
+bangumi_studio_lidenfilms	studio	Liden Films	Liden Films	new	ライデンフィルム;Liden Films;ライデン
 bangumi_studio_live	studio	Studio Live	Studio Live	new	スタジオ・ライブ
-bangumi_studio_m2	studio	Studio M2	Studio M2	new	スタジオM2;StudioM2
-bangumi_studio_madhouse	studio	Madhouse	Madhouse	existing:madhouse	マッドハウス;疯房子;Mad House
+bangumi_studio_m2	studio	StudioM2	StudioM2	new	スタジオM2;StudioM2
+bangumi_studio_madhouse	studio	Mad House	Mad House	existing:madhouse	マッドハウス;疯房子;Mad House
 bangumi_studio_magic_bus	studio	Magic Bus	Magic Bus	new	マジックバス
 bangumi_studio_maho_film	studio	Maho Film	Maho Film	new	マーホーフィルム
 bangumi_studio_mappa	studio	MAPPA	MAPPA	existing:mappa	MAPPA;マッパ
@@ -81,17 +81,17 @@ bangumi_studio_nippon_animation	studio	Nippon Animation	Nippon Animation	existin
 bangumi_studio_nomad	studio	Nomad	Nomad	new	ノマド
 bangumi_studio_nut	studio	Nut	Nut	new	ナット
 bangumi_studio_olm	studio	OLM	OLM	new	オー・エル・エム;OLM
-bangumi_studio_orange	studio	Orange	Orange	new	オレンジ;Orange (CG)
-bangumi_studio_p9	studio	Project No.9	Project No.9	new	プロジェクトナンバーナイン;Project No9;project No.9;プロジェクトNo.9
-bangumi_studio_pa_works	studio	P.A.Works	P.A.Works	existing:pa_works	P.A.WORKS;PA社;PAワークス;ピーエーワークス
+bangumi_studio_orange	studio	Orange (CG)	Orange (CG)	new	オレンジ;Orange (CG)
+bangumi_studio_p9	studio	Project No9	Project No9	new	プロジェクトナンバーナイン;Project No9;project No.9;プロジェクトNo.9
+bangumi_studio_pa_works	studio	P.A.WORKS	P.A.WORKS	existing:pa_works	P.A.WORKS;PA社;PAワークス;ピーエーワークス
 bangumi_studio_passione	studio	Passione	Passione	new	パッショーネ
-bangumi_studio_pierrot	studio	Studio Pierrot	Studio Pierrot	existing:pierrot	ぴえろ;小丑社;Pierrot
+bangumi_studio_pierrot	studio	Pierrot	Pierrot	existing:pierrot	ぴえろ;小丑社;Pierrot
 bangumi_studio_pierrot_plus	studio	Studio Pierrot PLUS	Studio Pierrot PLUS	new	ぴえろプラス;ぴえろplus
 bangumi_studio_pine_jam	studio	Pine Jam	Pine Jam	new	パインジャム
 bangumi_studio_platinum_vision	studio	Platinum Vision	Platinum Vision	new	プラチナビジョン
 bangumi_studio_ponoc	studio	Studio Ponoc	Studio Ponoc	new	スタジオポノック
-bangumi_studio_pra	studio	PRA	PRA	new	プラネット;Planet
-bangumi_studio_production_ig	studio	Production I.G	Production I.G	existing:production_ig	プロダクション・アイジー;IG
+bangumi_studio_pra	studio	Planet	Planet	new	プラネット;Planet
+bangumi_studio_production_ig	studio	IG	IG	existing:production_ig	IG
 bangumi_studio_production_plus_h	studio	Production +h.	Production +h.	new	プロダクション+h.;プロダクション・プラス・エイチ
 bangumi_studio_production_reed	studio	Production Reed	Production Reed	new	プロダクションリード
 bangumi_studio_revootoot	studio	Revootoot	Revootoot	pending	レヴォトゥート
@@ -105,17 +105,17 @@ bangumi_studio_shaft	studio	SHAFT	SHAFT	existing:shaft_studio	シャフト
 bangumi_studio_shin_ei	studio	Shin-Ei Animation	Shin-Ei Animation	new	シンエイ動画
 bangumi_studio_shuka	studio	Shuka	Shuka	new	シュカ
 bangumi_studio_signpost	studio	Signpost	Signpost	pending	Signpost
-bangumi_studio_silver_link	studio	Silver Link	Silver Link	existing:silver_link	シルバーリンク;SILVER LINK.
+bangumi_studio_silver_link	studio	SILVER LINK.	SILVER LINK.	existing:silver_link	シルバーリンク;SILVER LINK.
 bangumi_studio_staple	studio	Staple Entertainment	Staple Entertainment	pending	スタープルエンタテインメント
 bangumi_studio_sunrise	studio	Sunrise	Sunrise	existing:sunrise_studio	サンライズ;日升;日昇;日升动画;日昇動画
-bangumi_studio_synergy_sp	studio	SynergySP	SynergySP	new	シナジーエスピー;Synergy SP
+bangumi_studio_synergy_sp	studio	Synergy SP	Synergy SP	new	シナジーエスピー;Synergy SP
 bangumi_studio_tatsunoko	studio	Tatsunoko Production	Tatsunoko Production	new	タツノコプロ;タツノコ
 bangumi_studio_tear	studio	Tear Studio	Tear Studio	new	ティアスタジオ
 bangumi_studio_telecom	studio	Telecom Animation Film	Telecom Animation Film	new	テレコム・アニメーションフィルム;テレコムアニメーション
 bangumi_studio_toei_animation	studio	Toei Animation	Toei Animation	existing:toei_animation	東映アニメーション;东映动画;東映動畫;東映
-bangumi_studio_tms	studio	TMS Entertainment	TMS Entertainment	new	トムス・エンタテインメント;東京ムービー;TMS;東京ムービー新社
+bangumi_studio_tms	studio	TMS	TMS	new	トムス・エンタテインメント;東京ムービー;TMS;東京ムービー新社
 bangumi_studio_tnk	studio	TNK	TNK	new	ティー・エヌ・ケー
-bangumi_studio_trigger	studio	TRIGGER	TRIGGER	existing:trigger_studio	トリガー;扳机社;トリガー社;Trigger
+bangumi_studio_trigger	studio	Trigger	Trigger	existing:trigger_studio	トリガー;扳机社;トリガー社;Trigger
 bangumi_studio_triangle_staff	studio	Triangle Staff	Triangle Staff	new	トライアングルスタッフ
 bangumi_studio_troyca	studio	TROYCA	TROYCA	new	トロイカ
 bangumi_studio_tyo_animations	studio	TYO Animations	TYO Animations	new	TYOアニメーションズ
@@ -124,28 +124,28 @@ bangumi_studio_vega	studio	Vega Entertainment	Vega Entertainment	new	ベガエ�
 bangumi_studio_voln	studio	Studio VOLN	Studio VOLN	new	スタジオヴォルン
 bangumi_studio_wao_world	studio	WAO World	WAO World	new	ワオワールド
 bangumi_studio_white_fox	studio	WHITE FOX	WHITE FOX	existing:white_fox	WHITE FOX;白狐社;WHITEFOX
-bangumi_studio_wit	studio	WIT STUDIO	WIT STUDIO	existing:wit_studio	ウィットスタジオ;霸权社;Wit Studio
+bangumi_studio_wit	studio	Wit Studio	Wit Studio	existing:wit_studio	ウィットスタジオ;霸权社;Wit Studio
 bangumi_studio_xebec	studio	XEBEC	XEBEC	new	ゼクシズ;XEBEC
 bangumi_studio_yokohama_animation_lab	studio	Yokohama Animation Lab	Yokohama Animation Lab	new	横浜アニメーションラボ
 bangumi_studio_zero_g	studio	Zero-G	Zero-G	new	ゼロジー
 bangumi_studio_zexcs	studio	ZEXCS	ZEXCS	new	ゼクシス
-bangumi_studio_dr_movie	studio	DR Movie	DR Movie	new	DR MOVIE;DR무비
-bangumi_studio_mir	studio	Studio Mir	Studio Mir	new	스튜디오 미르;Studio MIR
+bangumi_studio_dr_movie	studio	DR MOVIE	DR MOVIE	new	DR MOVIE;DR무비
+bangumi_studio_mir	studio	Studio MIR	Studio MIR	new	스튜디오 미르;Studio MIR
 bangumi_studio_roosterteeth	studio	Rooster Teeth	Rooster Teeth	new	Rooster Teeth
-bangumi_studio_pixar	studio	Pixar	Pixar	existing:pixar	ピクサー;皮克斯;皮克斯动画工作室;Pixar Animation Studios
-bangumi_studio_dreamworks	studio	DreamWorks Animation	DreamWorks Animation	new	梦工厂;梦工厂动画;夢工廠;DreamWorks
-bangumi_studio_disney	studio	Walt Disney Animation	Walt Disney Animation	existing:disney	迪士尼;迪斯尼;ウォルト・ディズニー;Disney
-bangumi_studio_warner_bros	studio	Warner Bros.	Warner Bros.	new	ワーナー・ブラザース;华纳兄弟;華納兄弟;Warner Bros
+bangumi_studio_pixar	studio	Pixar Animation Studios	Pixar Animation Studios	existing:pixar	ピクサー;皮克斯;皮克斯动画工作室;Pixar Animation Studios
+bangumi_studio_dreamworks	studio	DreamWorks	DreamWorks	new	梦工厂;梦工厂动画;夢工廠;DreamWorks
+bangumi_studio_disney	studio	Disney	Disney	existing:disney	迪士尼;迪斯尼;ウォルト・ディズニー;Disney
+bangumi_studio_warner_bros	studio	Warner Bros	Warner Bros	new	ワーナー・ブラザース;华纳兄弟;華納兄弟;Warner Bros
 bangumi_producer_aniplex	producer	Aniplex	Aniplex	existing:aniplex	アニプレックス;Aniplex
-bangumi_producer_adk	producer	ADK	ADK	new	ADKエムズ;ADK Emotions;ADK
+bangumi_producer_adk	producer	ADK Emotions	ADK Emotions	new	ADKエムズ;ADK Emotions;ADK
 bangumi_producer_asmik_ace	producer	Asmik Ace	Asmik Ace	new	アスミック・エース;アスミック
 bangumi_producer_ascii_media_works	producer	ASCII Media Works	ASCII Media Works	new	アスキー・メディアワークス;ASCII・MediaWorks
-bangumi_producer_avex_pictures	producer	Avex Pictures	Avex Pictures	new	エイベックス・ピクチャーズ;avex pictures;エイベックス
-bangumi_producer_bandai_namco_pictures	producer	Bandai Namco Pictures	Bandai Namco Pictures	new	バンダイナムコピクチャーズ;BN Pictures;BNP
-bangumi_producer_bandai_namco_filmworks	producer	Bandai Namco Filmworks	Bandai Namco Filmworks	new	バンダイナムコフィルムワークス;Bandai Namco Arts;バンダイナムコアーツ
-bangumi_producer_bandai_visual	producer	Bandai Visual	Bandai Visual	existing:bandai	バンダイビジュアル;Bandai
-bangumi_producer_bilibili	producer	bilibili	bilibili	existing:bilibili	哔哩哔哩;嗶哩嗶哩;B站;Bilibili
-bangumi_producer_bushiroad	producer	Bushiroad	Bushiroad	new	ブシロード;Bushi Road
+bangumi_producer_avex_pictures	producer	avex pictures	avex pictures	new	エイベックス・ピクチャーズ;avex pictures;エイベックス
+bangumi_producer_bandai_namco_pictures	producer	BN Pictures	BN Pictures	new	バンダイナムコピクチャーズ;BN Pictures;BNP
+bangumi_producer_bandai_namco_filmworks	producer	Bandai Namco Arts	Bandai Namco Arts	new	バンダイナムコフィルムワークス;Bandai Namco Arts;バンダイナムコアーツ
+bangumi_producer_bandai_visual	producer	Bandai	Bandai	existing:bandai	バンダイビジュアル;Bandai
+bangumi_producer_bilibili	producer	Kofun Yuugen Koushi	Kofun Yuugen Koushi	existing:bilibili	
+bangumi_producer_bushiroad	producer	Bushi Road	Bushi Road	new	ブシロード;Bushi Road
 bangumi_producer_cbc	producer	CBC	CBC	new	中部日本放送;CBCテレビ
 bangumi_producer_cmc_media	producer	CMC Media	CMC Media	new	中影年年
 bangumi_producer_cygames	producer	Cygames	Cygames	new	サイゲームズ
@@ -157,81 +157,81 @@ bangumi_producer_gaga	producer	GAGA	GAGA	new	ギャガ;GAGA
 bangumi_producer_genco	producer	Genco	Genco	new	ジェンコ
 bangumi_producer_gentosha	producer	Gentosha	Gentosha	new	幻冬舎
 bangumi_producer_glovision	producer	Glovision	Glovision	new	グロービジョン
-bangumi_producer_good_smile_company	producer	Good Smile Company	Good Smile Company	new	グッドスマイルカンパニー;GSC
+bangumi_producer_good_smile_company	producer	GSC	GSC	new	グッドスマイルカンパニー;GSC
 bangumi_producer_hakusensha	producer	Hakusensha	Hakusensha	new	白泉社
 bangumi_producer_happinet	producer	Happinet	Happinet	new	ハピネット
 bangumi_producer_houbunsha	producer	Houbunsha	Houbunsha	new	芳文社
 bangumi_producer_ichijinsha	producer	Ichijinsha	Ichijinsha	new	一迅社
-bangumi_producer_iqiyi	producer	iQIYI	iQIYI	existing:iqiyi	爱奇艺;愛奇藝;iqiyi
-bangumi_producer_kadokawa	producer	KADOKAWA	KADOKAWA	existing:kadokawa	角川;角川書店;Kadokawa;カドカワ;KADOKAWA CORPORATION
-bangumi_producer_king_amusement_creative	producer	King Amusement Creative	King Amusement Creative	new	キングアミューズメントクリエイティブ;KAC
+bangumi_producer_iqiyi	producer	iqiyi	iqiyi	existing:iqiyi	爱奇艺;愛奇藝;iqiyi
+bangumi_producer_kadokawa	producer	Kadokawa	Kadokawa	existing:kadokawa	角川;角川書店;Kadokawa;カドカワ;KADOKAWA CORPORATION
+bangumi_producer_king_amusement_creative	producer	KAC	KAC	new	キングアミューズメントクリエイティブ;KAC
 bangumi_producer_king_records	producer	King Records	King Records	new	キングレコード
 bangumi_producer_klockworx	producer	Klockworx	Klockworx	existing:klockworx	クロックワークス
-bangumi_producer_kodansha	producer	Kodansha	Kodansha	existing:kodansha	講談社;KODANSHA
-bangumi_producer_konami	producer	Konami	Konami	new	コナミ;KONAMI
-bangumi_producer_level5	producer	Level-5	Level-5	new	レベルファイブ;Level5
+bangumi_producer_kodansha	producer	KODANSHA	KODANSHA	existing:kodansha	講談社;KODANSHA
+bangumi_producer_konami	producer	KONAMI	KONAMI	new	コナミ;KONAMI
+bangumi_producer_level5	producer	Level5	Level5	new	レベルファイブ;Level5
 bangumi_producer_libre	producer	Libre	Libre	new	リブレ
-bangumi_producer_mages	producer	MAGES.	MAGES.	new	MAGES;5pb.;5pb
+bangumi_producer_mages	producer	MAGES	MAGES	new	MAGES;5pb.;5pb
 bangumi_producer_mag_garden	producer	Mag Garden	Mag Garden	new	マッグガーデン
 bangumi_producer_marvelous	producer	Marvelous	Marvelous	new	マーベラス
-bangumi_producer_mbs	producer	MBS	MBS	new	毎日放送;Mainichi Broadcasting;MBS毎日放送
-bangumi_producer_media_factory	producer	Media Factory	Media Factory	new	メディアファクトリー;MF
+bangumi_producer_mbs	producer	MBS(	MBS(	new	
+bangumi_producer_media_factory	producer	MF	MF	new	メディアファクトリー;MF
 bangumi_producer_movic	producer	Movic	Movic	new	ムービック
-bangumi_producer_nbcuniversal	producer	NBCUniversal Entertainment Japan	NBCUniversal Entertainment Japan	new	NBCユニバーサル・エンターテイメント;ジェネオン・ユニバーサル・エンタテイメント;ジェネオン;Geneon;Geneon Entertainment
+bangumi_producer_nbcuniversal	producer	Geneon	Geneon	new	NBCユニバーサル・エンターテイメント;ジェネオン・ユニバーサル・エンタテイメント;ジェネオン;Geneon;Geneon Entertainment
 bangumi_producer_netflix	producer	Netflix	Netflix	existing:netflix	Netflix;网飞;網飛;奈飞
-bangumi_producer_nhk	producer	NHK	NHK	existing:nhk	NHK;日本广播协会;日本放送協会
-bangumi_producer_nhk_enterprises	producer	NEP	NHK Enterprises	new	NHKエンタープライズ;NEP
+bangumi_producer_nhk	producer	Nippon Gen Ban	Nippon Gen Ban	existing:nhk	日本广播协会;日本放送協会
+bangumi_producer_nhk_enterprises	producer	NEP	NEP	new	NHKエンタープライズ;NEP
 bangumi_producer_nichion	producer	Nippon Columbia	Nippon Columbia	new	日本コロムビア;コロムビア
-bangumi_producer_nippon_tv	producer	Nippon TV	Nippon TV	existing:ntv	日本テレビ;日本テレビ放送網;NTV;日テレ
+bangumi_producer_nippon_tv	producer	Nihonterebi Housou Ami	Nihonterebi Housou Ami	existing:ntv	日本テレビ放送網
 bangumi_producer_nintendo	producer	Nintendo	Nintendo	new	任天堂;Nintendo
 bangumi_producer_nippon_eiga_sha	producer	Nippon Eiga-sha	Nippon Eiga-sha	pending	日本映画社
-bangumi_producer_pony_canyon	producer	Pony Canyon	Pony Canyon	new	ポニーキャニオン;PONY CANYON;PonyCanyon
+bangumi_producer_pony_canyon	producer	PONY CANYON	PONY CANYON	new	ポニーキャニオン;PONY CANYON;PonyCanyon
 bangumi_producer_production_ig	producer	Production I.G	Production I.G	existing:production_ig	プロダクション・アイジー;Production I.G
-bangumi_producer_pokemon	producer	The Pokémon Company	The Pokémon Company	existing:pokemon	ポケモン;ポケットモンスター;The Pokemon Company
+bangumi_producer_pokemon	producer	The Pokemon Company	The Pokemon Company	existing:pokemon	ポケモン;ポケットモンスター;The Pokemon Company
 bangumi_producer_sega	producer	SEGA	SEGA	new	セガ;SEGA
-bangumi_producer_shochiku	producer	Shochiku	Shochiku	existing:shochiku	松竹;SHOCHIKU
-bangumi_producer_shogakukan	producer	Shogakukan	Shogakukan	existing:shogakukan	小学館;SHOGAKUKAN
-bangumi_producer_shogakukan_shueisha_productions	producer	ShoPro	Shogakukan-Shueisha Productions	new	小学館集英社プロダクション;ShoPro
-bangumi_producer_shueisha	producer	Shueisha	Shueisha	existing:shueisha	集英社;SHUEISHA
+bangumi_producer_shochiku	producer	SHOCHIKU	SHOCHIKU	existing:shochiku	松竹;SHOCHIKU
+bangumi_producer_shogakukan	producer	SHOGAKUKAN	SHOGAKUKAN	existing:shogakukan	小学館;SHOGAKUKAN
+bangumi_producer_shogakukan_shueisha_productions	producer	ShoPro	ShoPro	new	小学館集英社プロダクション;ShoPro
+bangumi_producer_shueisha	producer	SHUEISHA	SHUEISHA	existing:shueisha	集英社;SHUEISHA
 bangumi_producer_shinchosha	producer	Shinchosha	Shinchosha	new	新潮社
 bangumi_producer_showgate	producer	Showgate	Showgate	new	ショウゲート
-bangumi_producer_sony_music	producer	Sony Music Entertainment	Sony Music Entertainment	new	ソニー・ミュージックエンタテインメント;Sony Music;SME
-bangumi_producer_sotsu	producer	Sotsu	Sotsu	new	創通;Sotsu Agency
-bangumi_producer_square_enix	producer	Square Enix	Square Enix	new	スクウェア・エニックス;スクエニ;SQUARE ENIX
+bangumi_producer_sony_music	producer	Sony Music	Sony Music	new	ソニー・ミュージックエンタテインメント;Sony Music;SME
+bangumi_producer_sotsu	producer	Sotsu Agency	Sotsu Agency	new	創通;Sotsu Agency
+bangumi_producer_square_enix	producer	SQUARE ENIX	SQUARE ENIX	new	スクウェア・エニックス;スクエニ;SQUARE ENIX
 bangumi_producer_starchild	producer	Starchild Records	Starchild Records	new	スターチャイルドレコード;スターチャイルド
 bangumi_producer_tencent	producer	Tencent	Tencent	new	腾讯;騰訊;Tencent
-bangumi_producer_tencent_video	producer	Tencent Video	Tencent Video	existing:tencent_video	腾讯视频;騰訊視頻;TencentVideo
-bangumi_producer_toho	producer	TOHO	TOHO	existing:toho	東宝;Toho;東宝映像事業部
+bangumi_producer_tencent_video	producer	TencentVideo	TencentVideo	existing:tencent_video	TencentVideo
+bangumi_producer_toho	producer	Toho	Toho	existing:toho	東宝;Toho;東宝映像事業部
 bangumi_producer_toho_animation	producer	TOHO animation	TOHO animation	new	東宝アニメーション;TOHO animation
 bangumi_producer_tohokushinsha	producer	Tohokushinsha	Tohokushinsha	new	東北新社
 bangumi_producer_tokuma_shoten	producer	Tokuma Shoten	Tokuma Shoten	new	徳間書店
-bangumi_producer_tv_tokyo	producer	TV TOKYO	TV TOKYO	existing:tv_tokyo	テレビ東京;TV Tokyo
+bangumi_producer_tv_tokyo	producer	( Terebi Toukyou )	( Terebi Toukyou )	existing:tv_tokyo	
 bangumi_producer_tv_tokyo_media	producer	TV Tokyo Media Net	TV Tokyo Media Net	new	テレビ東京メディアネット
 bangumi_producer_wowow	producer	WOWOW	WOWOW	new	WOWOW;ワウワウ
-bangumi_producer_youku	producer	Youku	Youku	existing:youku	优酷;優酷;YOUKU
+bangumi_producer_youku	producer	YOUKU	YOUKU	existing:youku	优酷;優酷;YOUKU
 bangumi_producer_akita_shoten	producer	Akita Shoten	Akita Shoten	new	秋田書店
 bangumi_producer_futabasha	producer	Futabasha	Futabasha	new	双葉社
-bangumi_producer_flyingdog	producer	FlyingDog	FlyingDog	new	フライングドッグ;Flying Dog
+bangumi_producer_flyingdog	producer	Flying Dog	Flying Dog	new	フライングドッグ;Flying Dog
 bangumi_producer_lantis	producer	Lantis	Lantis	existing:lantis	ランティス
 bangumi_producer_aniplex_of_america	producer	Aniplex of America	Aniplex of America	new	Aniplex of America
-bangumi_producer_asahi_broad	producer	Asahi Broadcasting	Asahi Broadcasting	new	朝日放送グループホールディングス
-bangumi_producer_nagoya_tv	producer	Nagoya TV	Nagoya TV	new	名古屋テレビ;メ～テレ;Nagoya Broadcasting Network
-bangumi_producer_yomiuri_tv	producer	Yomiuri TV	Yomiuri TV	new	読売テレビ;ytv;読売テレビ放送
-bangumi_producer_kansai_tv	producer	Kansai TV	Kansai TV	new	関西テレビ;KTV;関西テレビ放送
+bangumi_producer_asahi_broad	producer	Asahihousou Guruupuhoorudingusu	Asahihousou Guruupuhoorudingusu	new	朝日放送グループホールディングス
+bangumi_producer_nagoya_tv	producer	Nagoya Broadcasting Network	Nagoya Broadcasting Network	new	名古屋テレビ;メ～テレ;Nagoya Broadcasting Network
+bangumi_producer_yomiuri_tv	producer	Yomiuri Terebi Housou	Yomiuri Terebi Housou	new	
+bangumi_producer_kansai_tv	producer	Kantere	Kantere	new	
 bangumi_producer_wowow_abc	producer	ABC Animation	ABC Animation	new	ABCアニメーション
-bangumi_producer_bambino	producer	Studio Bambino	Studio Bambino	new	スタジオバンビーノ;Bambino
+bangumi_producer_bambino	producer	Bambino	Bambino	new	スタジオバンビーノ;Bambino
 bangumi_producer_typhoon_graphics	producer	Typhoon Graphics	Typhoon Graphics	new	タイフーン・グラフィックス
 bangumi_producer_dmm_pictures	producer	DMM pictures	DMM pictures	new	DMM pictures;DMMピクチャーズ
 bangumi_producer_dmm_music	producer	DMM music	DMM music	new	DMMミュージック
 bangumi_producer_ponoc	producer	Studio Ponoc	Studio Ponoc	new	スタジオポノック
-bangumi_producer_bilibili_co	producer	bilibili	bilibili	existing:bilibili	哔哩哔哩影业;bilibili影业
+bangumi_producer_bilibili_co	producer	Bi Li Bi Li Ying Ye	Bi Li Bi Li Ying Ye	existing:bilibili	哔哩哔哩影业;bilibili影业
 bangumi_producer_young_animation	producer	Young Animation	Young Animation	new	ヤング・アニメーション
-bangumi_network_nhk	network	NHK	NHK	existing:nhk	NHK総合;NHK教育;NHK-G;NHK-E
+bangumi_network_nhk	network	NHK-G	NHK-G	existing:nhk	NHK総合;NHK教育;NHK-G;NHK-E
 bangumi_network_tbs	network	TBS	TBS	existing:tbs	TBS;TBSテレビ;东京放送;東京放送;TBS TV
-bangumi_network_tvasahi	network	TV Asahi	TV Asahi	existing:tv_asahi	テレビ朝日;朝日电视台;朝日電視台;ANB;tv asahi
-bangumi_network_fuji_tv	network	Fuji TV	Fuji Television	existing:fuji_tv	フジテレビ;フジテレビジョン;富士电视台;富士電視台;Fuji Television
-bangumi_network_ntv	network	NTV	Nippon TV	existing:ntv	日本テレビ;日本电视台;日本電視台;日テレ;Nippon TV
-bangumi_network_tv_tokyo	network	TV Tokyo	TV Tokyo	existing:tv_tokyo	テレビ東京;东京电视台;東京電視台;TX;TV TOKYO
+bangumi_network_tvasahi	network	ANB	ANB	existing:tv_asahi	テレビ朝日;朝日电视台;朝日電視台;ANB;tv asahi
+bangumi_network_fuji_tv	network	Fuji Television	Fuji Television	existing:fuji_tv	フジテレビ;フジテレビジョン;富士电视台;富士電視台;Fuji Television
+bangumi_network_ntv	network	Nippon TV	Nippon TV	existing:ntv	日本テレビ;日本电视台;日本電視台;日テレ;Nippon TV
+bangumi_network_tv_tokyo	network	TX	TX	existing:tv_tokyo	テレビ東京;东京电视台;東京電視台;TX;TV TOKYO
 bangumi_network_tokyo_mx	network	TOKYO MX	TOKYO MX	new	TOKYO MX;东京都会电视台;東京都會電視台;MX;東京MX
 bangumi_network_bs11	network	BS11	BS11	new	BS11;日本BS放送
 bangumi_network_at_x	network	AT-X	AT-X	new	AT-X;ATX
@@ -243,10 +243,10 @@ bangumi_network_bs_ntv	network	BS Nittele	BS Nittele	new	BS日テレ;BS日本テ
 bangumi_network_bs_tv_tokyo	network	BS TV Tokyo	BS TV Tokyo	new	BSテレ東;BSジャパン
 bangumi_network_animax	network	Animax	Animax	new	アニマックス;Animax
 bangumi_network_kids_station	network	Kids Station	Kids Station	new	キッズステーション
-bangumi_network_mbs	network	MBS	MBS	new	毎日放送;MBS毎日放送;Mainichi Broadcasting
-bangumi_network_abc	network	ABC	ABC	new	朝日放送;ABCテレビ;朝日放送テレビ;Asahi Broadcasting
+bangumi_network_mbs	network	Mainichi Broadcasting	Mainichi Broadcasting	new	毎日放送;MBS毎日放送;Mainichi Broadcasting
+bangumi_network_abc	network	Asahi Broadcasting	Asahi Broadcasting	new	朝日放送;ABCテレビ;朝日放送テレビ;Asahi Broadcasting
 bangumi_network_cbc	network	CBC	CBC	new	中部日本放送;CBCテレビ
-bangumi_network_rkb	network	RKB	RKB	new	RKB毎日放送;RKB Mainichi Broadcasting
+bangumi_network_rkb	network	RKB Mainichi Broadcasting	RKB Mainichi Broadcasting	new	RKB毎日放送;RKB Mainichi Broadcasting
 bangumi_network_sbs_jp	network	SBS	SBS	new	静岡放送;SBS静岡放送
 bangumi_network_mro	network	MRO	MRO	new	北陸放送
 bangumi_network_rkk	network	RKK	RKK	new	熊本放送
@@ -257,9 +257,9 @@ bangumi_network_rsk	network	RSK	RSK	new	RSK山陽放送;山陽放送
 bangumi_network_rcc	network	RCC	RCC	new	中国放送
 bangumi_network_rnc	network	RNC	RNC	new	西日本放送
 bangumi_network_fbs	network	FBS	FBS	new	福岡放送
-bangumi_network_ytv	network	ytv	Yomiuri TV	new	読売テレビ;ytv;読売テレビ放送
+bangumi_network_ytv	network	ytv	ytv	new	読売テレビ;ytv;読売テレビ放送
 bangumi_network_ctv	network	CTV	CTV	new	中京テレビ;中京テレビ放送
-bangumi_network_ktv	network	KTV	Kansai TV	new	関西テレビ;関西テレビ放送
+bangumi_network_ktv	network	Kansai TV	Kansai TV	new	関西テレビ;関西テレビ放送
 bangumi_network_thk	network	THK	THK	new	東海テレビ;東海テレビ放送
 bangumi_network_sdt	network	SDT	SDT	new	静岡第一テレビ
 bangumi_network_tvk	network	tvk	tvk	new	テレビ神奈川;tvk
@@ -271,17 +271,17 @@ bangumi_network_mie_tv	network	Mie TV	Mie TV	new	三重テレビ
 bangumi_network_tvq	network	TVQ	TVQ	new	TVQ九州放送
 bangumi_network_tva	network	TV Aichi	TV Aichi	new	テレビ愛知
 bangumi_network_tvo	network	TV Osaka	TV Osaka	new	テレビ大阪
-bangumi_network_d_anime_store	network	dアニメストア	d Anime Store	new	dアニメストア;dアニメストア for Prime Video
+bangumi_network_d_anime_store	network	d Anime Store	d Anime Store	new	dアニメストア;dアニメストア for Prime Video
 bangumi_network_abema	network	ABEMA	ABEMA	new	ABEMA;アベマ;AbemaTV
 bangumi_network_u_next	network	U-NEXT	U-NEXT	new	U-NEXT;ユーネクスト
-bangumi_network_hulu_jp	network	Hulu	Hulu	new	Hulu;フール
-bangumi_network_niconico	network	Niconico	Niconico	new	ニコニコ動画;niconico;ニコニコ;niconico动画
-bangumi_network_bandai_channel	network	Bandai Channel	Bandai Channel	new	バンダイチャンネル;Bandai Ch.
+bangumi_network_hulu_jp	network	Fuuru	Fuuru	new	フール
+bangumi_network_niconico	network	niconico	niconico	new	ニコニコ動画;niconico;ニコニコ;niconico动画
+bangumi_network_bandai_channel	network	Bandai Ch.	Bandai Ch.	new	バンダイチャンネル;Bandai Ch.
 bangumi_network_gyao	network	GYAO!	GYAO!	new	GYAO!;GYAO;ギャオ
 bangumi_network_fod	network	FOD	FOD	new	FOD;フジテレビオンデマンド
 bangumi_network_tver	network	TVer	TVer	new	TVer;ティーバー
-bangumi_network_prime_video	network	Prime Video	Prime Video	existing:amazon_prime	Amazon Prime Video;亚马逊 Prime;亞馬遜 Prime;Amazonプライム・ビデオ;Amazon Video
-bangumi_network_bilibili	network	bilibili	bilibili	existing:bilibili	哔哩哔哩;嗶哩嗶哩;B站;Bilibili
+bangumi_network_prime_video	network	Amazon Prime Video	Amazon Prime Video	existing:amazon_prime	Amazon Prime Video;亚马逊 Prime;亞馬遜 Prime;Amazonプライム・ビデオ;Amazon Video
+bangumi_network_bilibili	network	Bilibili	Bilibili	existing:bilibili	哔哩哔哩;嗶哩嗶哩;B站;Bilibili
 bangumi_network_iqiyi	network	iQIYI	iQIYI	existing:iqiyi	爱奇艺;愛奇藝
 bangumi_network_tencent_video	network	Tencent Video	Tencent Video	existing:tencent_video	腾讯视频;騰訊視頻
 bangumi_network_youku	network	Youku	Youku	existing:youku	优酷;優酷
@@ -293,22 +293,22 @@ bangumi_network_dragon_tv	network	Dragon TV	Dragon TV	new	东方卫视;東方衛
 bangumi_network_jiangsu_tv	network	Jiangsu TV	Jiangsu TV	new	江苏卫视;江蘇衛視
 bangumi_network_beijing_tv	network	Beijing TV	Beijing TV	new	北京卫视;北京衛視
 bangumi_network_guangdong_tv	network	Guangdong TV	Guangdong TV	new	广东卫视;廣東衛視
-bangumi_network_muse	network	Muse Communication	Muse Communication	new	木棉花;Muse木棉花;MUSE
+bangumi_network_muse	network	MUSE	MUSE	new	木棉花;Muse木棉花;MUSE
 bangumi_network_ttv	network	TTV	TTV	new	台视;台視;台湾电视;台灣電視
-bangumi_network_ctv_tw	network	CTV	CTV	new	中视;中視;中国电视;中國電視
+bangumi_network_ctv_tw	network	Zhong Shi	Zhong Shi	new	中视;中視;中国电视;中國電視
 bangumi_network_ftv	network	FTV	FTV	new	民视;民視;民间全民电视;民間全民電視
 bangumi_network_gtv	network	GTV	GTV	new	八大电视;八大電視;GTV
-bangumi_network_tvb	network	TVB	TVB	new	无线电视;無線電視;翡翠台;Jade
+bangumi_network_tvb	network	Jade	Jade	new	无线电视;無線電視;翡翠台;Jade
 bangumi_network_viutv	network	ViuTV	ViuTV	new	ViuTV
 bangumi_network_kbs	network	KBS	KBS	new	KBS;韩国广播公司;韓國廣播公司;Korean Broadcasting System
 bangumi_network_mbc_kr	network	MBC	MBC	new	MBC;文化广播;文化廣播;Munhwa Broadcasting
-bangumi_network_sbs_kr	network	SBS	SBS	new	SBS;SBS首尔放送;SBS首爾放送;Seoul Broadcasting System
+bangumi_network_sbs_kr	network	Seoul Broadcasting System	Seoul Broadcasting System	new	SBS首尔放送;SBS首爾放送;Seoul Broadcasting System
 bangumi_network_tooniverse	network	Tooniverse	Tooniverse	new	Tooniverse;투니버스
-bangumi_network_aniplus	network	Aniplus	Aniplus	new	ANIPLUS;애니플러스
+bangumi_network_aniplus	network	ANIPLUS	ANIPLUS	new	ANIPLUS;애니플러스
 bangumi_network_netflix	network	Netflix	Netflix	existing:netflix	Netflix;网飞;網飛;奈飞
 bangumi_network_crunchyroll	network	Crunchyroll	Crunchyroll	existing:crunchyroll	Crunchyroll;CR
 bangumi_network_disney_plus	network	Disney+	Disney+	new	Disney+;ディズニープラス;Disney Plus
-bangumi_network_hbo_max	network	Max	Max	new	HBO Max;HBO;Max
+bangumi_network_hbo_max	network	HBO Max	HBO Max	new	HBO Max;HBO;Max
 bangumi_network_hulu	network	Hulu	Hulu	new	Hulu;HULU
 bangumi_network_apple_tv	network	Apple TV+	Apple TV+	new	Apple TV+;Apple TV Plus
 bangumi_network_cartoon_network	network	Cartoon Network	Cartoon Network	new	Cartoon Network;卡通频道;カートゥーンネットワーク
@@ -320,22 +320,22 @@ bangumi_network_itv	network	ITV	ITV	new	ITV
 bangumi_network_channel4	network	Channel 4	Channel 4	new	Channel 4;第4频道
 bangumi_network_youtube	network	YouTube	YouTube	new	YouTube;ユーチューブ;油管
 bangumi_network_tubi	network	Tubi	Tubi	new	Tubi
-bangumi_network_roku	network	The Roku Channel	The Roku Channel	new	Roku Channel;The Roku Channel
+bangumi_network_roku	network	Roku Channel	Roku Channel	new	Roku Channel;The Roku Channel
 bangumi_network_peacock	network	Peacock	Peacock	new	Peacock;Peacock TV
-bangumi_publisher_kadokawa	publisher	KADOKAWA	KADOKAWA	existing:kadokawa	角川書店;角川;Kadokawa Shoten
+bangumi_publisher_kadokawa	publisher	Kadokawa Shoten	Kadokawa Shoten	existing:kadokawa	Kadokawa Shoten
 bangumi_publisher_shueisha	publisher	Shueisha	Shueisha	existing:shueisha	集英社
-bangumi_publisher_kodansha	publisher	Kodansha	Kodansha	existing:kodansha	講談社
-bangumi_publisher_shogakukan	publisher	Shogakukan	Shogakukan	existing:shogakukan	小学館
+bangumi_publisher_kodansha	publisher	Jiang Tan She	Jiang Tan She	existing:kodansha	
+bangumi_publisher_shogakukan	publisher	Shougaku	Shougaku	existing:shogakukan	
 bangumi_publisher_hakusensha	publisher	Hakusensha	Hakusensha	new	白泉社
-bangumi_publisher_akita_shoten	publisher	Akita Shoten	Akita Shoten	new	秋田書店
-bangumi_publisher_futabasha	publisher	Futabasha	Futabasha	new	双葉社
-bangumi_publisher_houbunsha	publisher	Houbunsha	Houbunsha	new	芳文社
+bangumi_publisher_akita_shoten	publisher	Akita	Akita	new	
+bangumi_publisher_futabasha	publisher	Sou Kanou Sha	Sou Kanou Sha	new	
+bangumi_publisher_houbunsha	publisher	Houbunsha ; B6 Han	Houbunsha ; B6 Han	new	
 bangumi_publisher_shinchosha	publisher	Shinchosha	Shinchosha	new	新潮社
-bangumi_publisher_square_enix	publisher	Square Enix	Square Enix	new	スクウェア・エニックス
+bangumi_publisher_square_enix	publisher	SquareEnix	SquareEnix	new	
 bangumi_publisher_ichijinsha	publisher	Ichijinsha	Ichijinsha	new	一迅社
 bangumi_publisher_gentosha	publisher	Gentosha	Gentosha	new	幻冬舎
-bangumi_publisher_tokuma_shoten	publisher	Tokuma Shoten	Tokuma Shoten	new	徳間書店
-bangumi_publisher_libre	publisher	Libre	Libre	new	リブレ;リブレ出版
+bangumi_publisher_tokuma_shoten	publisher	De Jian Shu Dian	De Jian Shu Dian	new	
+bangumi_publisher_libre	publisher	Ribure Shuppan	Ribure Shuppan	new	リブレ出版
 bangumi_publisher_mag_garden	publisher	Mag Garden	Mag Garden	new	マッグガーデン
 bangumi_publisher_coamix	publisher	Coamix	Coamix	new	コアミックス
 bangumi_publisher_takeshobo	publisher	Takeshobo	Takeshobo	new	竹書房
@@ -343,9 +343,9 @@ bangumi_publisher_nihonbungeisha	publisher	Nihonbungeisha	Nihonbungeisha	new	日
 bangumi_publisher_shonen_gahosha	publisher	Shonen Gahosha	Shonen Gahosha	new	少年画報社
 bangumi_publisher_kobunsha	publisher	Kobunsha	Kobunsha	new	光文社
 bangumi_publisher_home_sha	publisher	Home Sha	Home Sha	new	ホーム社
-bangumi_publisher_ascii_media_works	publisher	ASCII Media Works	ASCII Media Works	new	アスキー・メディアワークス
-bangumi_publisher_enterbrain	publisher	Enterbrain	Enterbrain	new	エンターブレイン
-bangumi_publisher_media_factory	publisher	Media Factory	Media Factory	new	メディアファクトリー
+bangumi_publisher_ascii_media_works	publisher	ASCII Baitai Kousakushitsu	ASCII Baitai Kousakushitsu	new	
+bangumi_publisher_enterbrain	publisher	enterbrain	enterbrain	new	エンターブレイン
+bangumi_publisher_media_factory	publisher	MEDIA FACTORY	MEDIA FACTORY	new	
 bangumi_magazine_weekly_shonen_jump	magazine	Weekly Shonen Jump	Weekly Shonen Jump	new	週刊少年ジャンプ;周刊少年JUMP;ジャンプ
 bangumi_magazine_weekly_shonen_magazine	magazine	Weekly Shonen Magazine	Weekly Shonen Magazine	new	週刊少年マガジン;周刊少年Magazine
 bangumi_magazine_weekly_shonen_sunday	magazine	Weekly Shonen Sunday	Weekly Shonen Sunday	new	週刊少年サンデー;周刊少年Sunday
@@ -354,7 +354,7 @@ bangumi_magazine_hana_to_yume	magazine	Hana to Yume	Hana to Yume	new	花とゆ�
 bangumi_magazine_lala	magazine	LaLa	LaLa	new	LaLa;ララ
 bangumi_magazine_margaret	magazine	Margaret	Margaret	new	マーガレット
 bangumi_magazine_bessatsu_shonen_magazine	magazine	Bessatsu Shonen Magazine	Bessatsu Shonen Magazine	new	別冊少年マガジン
-bangumi_magazine_jump_sq	magazine	Jump SQ	Jump SQ	new	ジャンプSQ;Jump SQ.
+bangumi_magazine_jump_sq	magazine	Jump SQ.	Jump SQ.	new	ジャンプSQ;Jump SQ.
 bangumi_magazine_ultra_jump	magazine	Ultra Jump	Ultra Jump	new	ウルトラジャンプ
 bangumi_magazine_young_jump	magazine	Young Jump	Young Jump	new	ヤングジャンプ;週刊ヤングジャンプ
 bangumi_magazine_young_animal	magazine	Young Animal	Young Animal	new	ヤングアニマル

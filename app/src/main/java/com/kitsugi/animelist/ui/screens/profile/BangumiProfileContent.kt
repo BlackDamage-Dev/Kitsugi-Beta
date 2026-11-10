@@ -1,6 +1,7 @@
 package com.kitsugi.animelist.ui.screens.profile
 
 import com.kitsugi.animelist.ui.theme.gradient.background
+import com.kitsugi.animelist.ui.utils.uniqueItems
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,10 +20,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Notifications
-import androidx.compose.material.icons.rounded.OpenInNew
-import androidx.compose.material.icons.rounded.Star
+import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.FilledTonalButton
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import androidx.compose.material3.MaterialTheme
@@ -142,7 +140,7 @@ private fun progressLabel(item: BangumiUserCollection): String? {
 fun BangumiProfileContent(
     state: BangumiProfileState,
     accentColor: Color,
-    titleLanguage: String = "ROMAJI",
+    titleLanguage: String = "ENGLISH",
     onOpenAnimeOrManga: (subjectId: Int, mediaType: MediaType, title: String, imageUrl: String?) -> Unit,
     onCharacterClick: (charId: Int, name: String?, imageUrl: String?) -> Unit,
     onPersonClick: (personId: Int, name: String?, imageUrl: String?) -> Unit,
@@ -200,11 +198,7 @@ fun BangumiProfileContent(
             )
         }
         if (pending.isEmpty()) return@LaunchedEffect
-        runCatching {
-            com.kitsugi.animelist.data.auth.BangumiApiClient.runAsBackground {
-                BangumiSubjectTitleResolver.resolve(pending, background = true, tabMode = true)
-            }
-        }
+        runCatching { BangumiSubjectTitleResolver.resolve(pending, background = true) }
         // Çözülen adları yayınla → satırlar yeniden çizilir (önbellek zaten kalıcı).
         for (collection in state.collections) {
             val subject = collection.subject ?: continue
@@ -279,7 +273,7 @@ fun BangumiProfileContent(
                 )
             }
         } else {
-            items(
+            uniqueItems(
                 visibleItems,
                 key = { "${it.subjectType}-${it.subjectId}" }
             ) { collection ->
@@ -420,7 +414,7 @@ private fun BangumiHeaderCard(
         ) {
             FilledTonalButton(onClick = onOpenProfile) {
                 Icon(
-                    imageVector = Icons.Rounded.OpenInNew,
+                    imageVector = Icons.OpenInNew,
                     contentDescription = null,
                     modifier = Modifier.size(16.dp)
                 )
@@ -429,7 +423,7 @@ private fun BangumiHeaderCard(
             }
             FilledTonalButton(onClick = onOpenNotifications) {
                 Icon(
-                    imageVector = Icons.Rounded.Notifications,
+                    imageVector = Icons.Notifications,
                     contentDescription = null,
                     modifier = Modifier.size(16.dp)
                 )
@@ -617,7 +611,7 @@ private fun BangumiCollectionRow(
                 )
                 if (collection.rate > 0) {
                     Icon(
-                        imageVector = Icons.Rounded.Star,
+                        imageVector = Icons.Star,
                         contentDescription = null,
                         tint = accentColor,
                         modifier = Modifier.size(12.dp)
@@ -656,7 +650,7 @@ private fun BangumiFavoriteRow(
         state = snapRowState,
         flingBehavior = com.kitsugi.animelist.ui.utils.KitsugiScrollDefaults.rememberRowSnapFling(snapRowState),
         horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        items(favorites, key = { it.id }) { favorite ->
+        uniqueItems(favorites, key = { it.id }) { favorite ->
             val displayName = BangumiNameLocalizer.entity(favorite.name).displayFor(titleLanguage)
             Column(
                 modifier = Modifier

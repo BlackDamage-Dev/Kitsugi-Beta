@@ -32,6 +32,14 @@ data class MeasuredStreamInfo(
     val isAdaptive: Boolean = false,
     /** Master playlist içindeki tüm varyant yükseklikleri. */
     val variantHeights: List<Int> = emptyList(),
+    /**
+     * Master playlist'ten çözülen **oynatılabilir** video varyantları (kalite seçimi için).
+     *
+     * rapidrame / closeload gibi kaynaklar tek bir `master.m3u8` verip kaliteyi
+     * bildirmediğinde oynatıcının "Kalite" sayfası bu listeyi gösterir ve seçilen
+     * varyantın URL'si ile oynatmayı sürdürür.
+     */
+    val variants: List<com.kitsugi.animelist.core.player.HlsVariant> = emptyList(),
     /** `#EXT-X-MEDIA:TYPE=AUDIO` ile bildirilen ses dilleri (BCP-47 / ISO kodları). */
     val audioLanguages: List<String> = emptyList(),
     /** `#EXT-X-MEDIA:TYPE=SUBTITLES` ile bildirilen altyazı dilleri. */
@@ -39,7 +47,11 @@ data class MeasuredStreamInfo(
     /** `Content-Length` (yalnızca progressive dosyalarda anlamlı). */
     val sizeBytes: Long? = null,
     /** Ölçüm denendi ama başarısız oldu (ağ hatası / desteklenmeyen tip). */
-    val failed: Boolean = false
+    val failed: Boolean = false,
+    /** HLS master playlist'teki en yüksek `BANDWIDTH` (bps). Dosya boyutu DEĞİLDİR. */
+    val maxBandwidthBps: Long? = null,
+    /** Playlist `CODECS` alanından okunan video codec'i (HEVC / H.264 / AV1 / VP9). */
+    val codec: String? = null
 ) {
     val hasAnyInfo: Boolean
         get() = height != null || variantHeights.isNotEmpty() ||
@@ -59,11 +71,23 @@ data class StreamQualityInfo(
 enum class StreamAudioKind { DUB, SUB, DUAL, UNKNOWN }
 
 /** Dil bilgisi + kaynağı. Hiçbir şey bilinmiyorsa [kind] = UNKNOWN ve listeler boştur. */
+/**
+ * Ses/altyazı **rozetleri** için kanıta dayalı bilgi.
+ *
+ * [kind] = ses türü (dublaj / altyazılı / çift dil), [hasInternalAudio]/[hasInternalSubtitles]
+ * ise videonun KENDİ içinde gömülü parça var mı sorusunu yanıtlar. İkincisi yalnızca gerçek
+ * ölçümden (HLS `#EXT-X-MEDIA`) veya eklentinin bildirdiği ayrı ses parçalarından gelir;
+ * uydurulmaz.
+ */
 data class StreamLangInfo(
     val kind: StreamAudioKind,
     val origin: StreamInfoOrigin,
     val audioLanguages: List<String> = emptyList(),
-    val subtitleLanguages: List<String> = emptyList()
+    val subtitleLanguages: List<String> = emptyList(),
+    /** Videoda gömülü/ayrı gerçek ses parçası var mı? (kanıt varsa true) */
+    val hasAudioTracks: Boolean = false,
+    /** Videoda gömülü altyazı parçası var mı? (kanıt varsa true) */
+    val hasInternalSubtitles: Boolean = false
 ) {
     val isKnown: Boolean
         get() = kind != StreamAudioKind.UNKNOWN ||
@@ -179,12 +203,13 @@ object StreamInfoResolver {
                 label = heightToLabel(providerHeight),
                 height = providerHeight,
                 origin = StreamInfoOrigin.PROVIDER,
-                isAdaptive = false
+                isAdaptive = isAdaptiveStream(stream)
             )
         }
 
         // 3) Dosya/yayın adında açıkça yazan değer
-        val fromText = parseHeightFromText(stream.title)
+        val fromText = parseHeightFromText(stream.fileName)
+            ?: parseHeightFromText(stream.title)
             ?: parseHeightFromText(stream.name)
             ?: parseHeightFromText(stream.quality)
             ?: parseHeightFromText(stream.url)
@@ -193,7 +218,7 @@ object StreamInfoResolver {
                 label = heightToLabel(fromText),
                 height = fromText,
                 origin = StreamInfoOrigin.FILENAME,
-                isAdaptive = false
+                isAdaptive = isAdaptiveStream(stream)
             )
         }
 
@@ -202,9 +227,17 @@ object StreamInfoResolver {
             label = null,
             height = null,
             origin = StreamInfoOrigin.NONE,
-            isAdaptive = measured?.isAdaptive == true || isAdaptiveUrl(stream.url)
+            isAdaptive = measured?.isAdaptive == true || isAdaptiveStream(stream)
         )
     }
+
+    fun isAdaptiveStream(stream: StreamSource): Boolean =
+        isAdaptiveUrl(stream.url) ||
+            stream.mediaType == com.kitsugi.animelist.core.player.StreamMediaType.HLS ||
+            stream.mediaType == com.kitsugi.animelist.core.player.StreamMediaType.DASH ||
+            stream.streamTypeHint.equals("M3U8", ignoreCase = true) ||
+            stream.streamTypeHint.equals("HLS", ignoreCase = true) ||
+            stream.streamTypeHint.equals("DASH", ignoreCase = true)
 
     fun isAdaptiveUrl(url: String?): Boolean {
         val lower = url?.lowercase(Locale.ROOT) ?: return false
@@ -238,7 +271,7 @@ object StreamInfoResolver {
         } else {
             stream.name
         }
-        return "${stream.title} $cleanedName"
+        return "${stream.fileName.orEmpty()} ${stream.title} $cleanedName"
     }
 
     /** Metinden kanıta dayalı dil türü; kanıt yoksa null. */
@@ -282,6 +315,8 @@ object StreamInfoResolver {
         val measuredSubs = measured?.subtitleLanguages?.mapNotNull { normalizeLangCode(it) }?.distinct().orEmpty()
         val measuredAudio = measured?.audioLanguages?.mapNotNull { normalizeLangCode(it) }?.distinct().orEmpty()
         val subtitleLanguages = (providerSubs + measuredSubs).distinct()
+        val hasInternalSubtitles = measuredSubs.isNotEmpty()
+        val hasAudioTracks = measuredAudio.isNotEmpty() || stream.externalAudioTrackCount > 0
 
         // 1) Ölçülmüş ses parçaları → en güvenilir
         if (measuredAudio.isNotEmpty()) {
@@ -294,7 +329,9 @@ object StreamInfoResolver {
                 kind = kind,
                 origin = StreamInfoOrigin.MEASURED,
                 audioLanguages = measuredAudio,
-                subtitleLanguages = subtitleLanguages
+                subtitleLanguages = subtitleLanguages,
+                hasAudioTracks = true,
+                hasInternalSubtitles = hasInternalSubtitles
             )
         }
 
@@ -310,7 +347,23 @@ object StreamInfoResolver {
                 kind = providerKind,
                 origin = StreamInfoOrigin.PROVIDER,
                 audioLanguages = stream.providerLanguages.mapNotNull { normalizeLangCode(it) }.distinct(),
-                subtitleLanguages = subtitleLanguages
+                subtitleLanguages = subtitleLanguages,
+                hasAudioTracks = hasAudioTracks,
+                hasInternalSubtitles = hasInternalSubtitles
+            )
+        }
+
+        // 2b) Eklenti AYRI ses parçası bildirdi (ExtractorLink.audioTracks / audioUrl).
+        //     Oynatıcı bunu videonun üzerine ayrı ses olarak ekliyor → en az iki ses akışı
+        //     (video ile gelen ses + harici parça) = çift dil. Kanıt doğrudan eklentiden.
+        if (stream.externalAudioTrackCount >= 1 || !stream.externalAudioUrl.isNullOrBlank()) {
+            return StreamLangInfo(
+                kind = StreamAudioKind.DUAL,
+                origin = StreamInfoOrigin.PROVIDER,
+                audioLanguages = emptyList(),
+                subtitleLanguages = subtitleLanguages,
+                hasAudioTracks = true,
+                hasInternalSubtitles = hasInternalSubtitles
             )
         }
 
@@ -320,7 +373,9 @@ object StreamInfoResolver {
                 kind = kind,
                 origin = StreamInfoOrigin.FILENAME,
                 audioLanguages = emptyList(),
-                subtitleLanguages = subtitleLanguages
+                subtitleLanguages = subtitleLanguages,
+                hasAudioTracks = hasAudioTracks,
+                hasInternalSubtitles = hasInternalSubtitles
             )
         }
 
@@ -330,12 +385,79 @@ object StreamInfoResolver {
                 kind = StreamAudioKind.SUB,
                 origin = StreamInfoOrigin.PROVIDER,
                 audioLanguages = emptyList(),
-                subtitleLanguages = subtitleLanguages
+                subtitleLanguages = subtitleLanguages,
+                hasAudioTracks = hasAudioTracks,
+                hasInternalSubtitles = hasInternalSubtitles
             )
         }
 
         // 5) Gerçekten bilinmiyor
-        return StreamLangInfo(StreamAudioKind.UNKNOWN, StreamInfoOrigin.NONE)
+        return StreamLangInfo(
+            kind = StreamAudioKind.UNKNOWN,
+            origin = StreamInfoOrigin.NONE,
+            hasAudioTracks = hasAudioTracks,
+            hasInternalSubtitles = hasInternalSubtitles
+        )
+    }
+
+    // ── Teknik etiketler (codec / HDR / kaynak türü) ─────────────────────────
+
+    /**
+     * Dosya adından okunabilen teknik etiketler. **Yalnızca açıkça yazan** tokenlar döner;
+     * hiçbir etiket uydurulmaz (bilinmeyen alan null).
+     *
+     * Kullanıcı indirme/oynatma kararını verirken "HEVC mi, DV mi, REMUX mu" görebilsin diye
+     * kullanılır (Torrentio/Stremio dosya adları bu bilgiyi genelde taşır).
+     */
+    data class StreamTechInfo(
+        val codec: String? = null,
+        val hdr: String? = null,
+        val source: String? = null
+    ) {
+        val isEmpty: Boolean get() = codec == null && hdr == null && source == null
+    }
+
+    private val CODEC_TOKENS: List<Pair<Regex, String>> = listOf(
+        Regex("""(?<![a-z0-9])(h\.?265|x\.?265|hevc)(?![a-z0-9])""", RegexOption.IGNORE_CASE) to "HEVC",
+        Regex("""(?<![a-z0-9])(h\.?264|x\.?264|avc)(?![a-z0-9])""", RegexOption.IGNORE_CASE) to "H.264",
+        Regex("""(?<![a-z0-9])av1(?![a-z0-9])""", RegexOption.IGNORE_CASE) to "AV1",
+        Regex("""(?<![a-z0-9])vp9(?![a-z0-9])""", RegexOption.IGNORE_CASE) to "VP9",
+        Regex("""(?<![a-z0-9])mpe?g-?2(?![a-z0-9])""", RegexOption.IGNORE_CASE) to "MPEG-2"
+    )
+
+    private val HDR_TOKENS: List<Pair<Regex, String>> = listOf(
+        Regex("""(dolby[\s._-]?vision|do[\s._-]?vi|(?<![a-z0-9])dv(?![a-z0-9]))""", RegexOption.IGNORE_CASE) to "DV",
+        Regex("""hdr10\+|hdr10plus""", RegexOption.IGNORE_CASE) to "HDR10+",
+        Regex("""hdr10""", RegexOption.IGNORE_CASE) to "HDR10",
+        Regex("""(?<![a-z0-9])hlg(?![a-z0-9])""", RegexOption.IGNORE_CASE) to "HLG",
+        Regex("""(?<![a-z0-9])hdr(?![a-z0-9+])""", RegexOption.IGNORE_CASE) to "HDR"
+    )
+
+    private val SOURCE_TOKENS: List<Pair<Regex, String>> = listOf(
+        Regex("""remux""", RegexOption.IGNORE_CASE) to "REMUX",
+        Regex("""(blu[\s._-]?ray|bdrip|brrip|bdremux)""", RegexOption.IGNORE_CASE) to "BluRay",
+        Regex("""(web[\s._-]?dl|webdl)""", RegexOption.IGNORE_CASE) to "WEB-DL",
+        Regex("""(web[\s._-]?rip|webrip|web)""", RegexOption.IGNORE_CASE) to "WEB",
+        Regex("""hdtv""", RegexOption.IGNORE_CASE) to "HDTV",
+        Regex("""(dvdrip|dvd)""", RegexOption.IGNORE_CASE) to "DVD"
+    )
+
+    private fun firstTag(text: String, tokens: List<Pair<Regex, String>>): String? =
+        tokens.firstOrNull { it.first.containsMatchIn(text) }?.second
+
+    /**
+     * Akışın codec / HDR / kaynak türü. Codec için sıra: ölçüm (HLS `CODECS`) → dosya adı.
+     * HDR yalnızca dosya adında açıkça yazıyorsa raporlanır (ölçümle HDR tespiti yapılmıyor).
+     */
+    fun resolveTechInfo(stream: StreamSource, measured: MeasuredStreamInfo? = null): StreamTechInfo {
+        val text = stream.metadataText
+        val measuredCodec = measured?.codec
+        if (text.isBlank()) return StreamTechInfo(codec = measuredCodec)
+        return StreamTechInfo(
+            codec = measuredCodec ?: firstTag(text, CODEC_TOKENS),
+            hdr = firstTag(text, HDR_TOKENS),
+            source = firstTag(text, SOURCE_TOKENS)
+        )
     }
 
     // ── Dosya boyutu ─────────────────────────────────────────────────────────
@@ -345,18 +467,46 @@ object StreamInfoResolver {
         RegexOption.IGNORE_CASE
     )
 
-    /** Ölçülen veya kaynağın bildirdiği boyut etiketi; bilinmiyorsa null. */
+    /**
+     * Dosya boyutu etiketi. Kanıt sırası:
+     *   1. Gerçek ölçüm (`Content-Length`, Stremio `behaviorHints.videoSize`) → en güvenilir
+     *   2. Kaynağın bildirdiği boyut metni (dosya adı / başlık / isim)
+     * Hiçbiri yoksa **null** döner; arayüz "boyut bilinmiyor" rozeti basar.
+     */
     fun resolveSizeLabel(stream: StreamSource, measured: MeasuredStreamInfo? = null): String? {
-        val bytes = measured?.sizeBytes
-        if (bytes != null && bytes > 0) return formatBytes(bytes)
-        val match = SIZE_REGEX.find("${stream.title} ${stream.name}") ?: return null
-        return match.value.trim().uppercase(Locale.ROOT)
+        val realBytes = measured?.sizeBytes?.takeIf { it > 0 } ?: stream.videoSizeBytes?.takeIf { it > 0 }
+        if (realBytes != null) return formatBytes(realBytes)
+        val match = SIZE_REGEX.find(stream.metadataText) ?: return null
+        // Birim ile sayı arasına HER ZAMAN tek boşluk: kaynak "1.72GB" yazsa da arayüzde
+        // "1.72 GB" görünür (rozetler arasında görsel tutarlılık).
+        val value = match.groupValues[1].replace(',', '.')
+        val unit = match.groupValues[2].uppercase(Locale.ROOT)
+        return "$value $unit"
+    }
+
+    /**
+     * Boyut sıralaması için bayt değeri. Önce gerçek ölçüm (`Content-Length`), yoksa
+     * kaynağın bildirdiği `videoSizeBytes`, yoksa dosya/ad başlığındaki AÇIK boyut
+     * etiketi (ör. "1.4 GB", "700MB") okunur. Kanıt yoksa 0 döner — uydurma yapılmaz,
+     * bilinmeyenler sıralamanın sonuna düşer.
+     */
+    fun resolveSizeBytes(stream: StreamSource, measured: MeasuredStreamInfo? = null): Long {
+        val realBytes = measured?.sizeBytes?.takeIf { it > 0 } ?: stream.videoSizeBytes?.takeIf { it > 0 }
+        if (realBytes != null) return realBytes
+        val match = SIZE_REGEX.find(stream.metadataText) ?: return 0L
+        val value = match.groupValues[1].replace(',', '.').toDoubleOrNull() ?: return 0L
+        return when (match.groupValues[2].lowercase(Locale.ROOT)) {
+            "gb", "gib" -> (value * 1_000_000_000).toLong()
+            "mb", "mib" -> (value * 1_000_000).toLong()
+            else -> 0L
+        }
     }
 
     fun formatBytes(bytes: Long): String {
         val gb = bytes / 1_000_000_000.0
         if (gb >= 1.0) return String.format(Locale.ROOT, "%.2f GB", gb)
-        val mb = bytes / 1_000_000.0
-        return String.format(Locale.ROOT, "%.0f MB", mb)
+        if (bytes < 1_000L) return "$bytes B"
+        if (bytes < 1_000_000L) return String.format(Locale.ROOT, "%.0f KB", bytes / 1_000.0)
+        return String.format(Locale.ROOT, "%.0f MB", bytes / 1_000_000.0)
     }
 }

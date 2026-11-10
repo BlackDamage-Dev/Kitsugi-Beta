@@ -14,6 +14,17 @@ object SourceFailureClassifier {
 
         // Protection pages often return HTTP 403; identify the explicit platform signature first.
         return when {
+            // KeiSource checks host interceptors by class name, and R8/ABI mismatches throw LinkageError.
+            // These are host runtime/ABI issues, not website CAPTCHAs, even when class names mention Cloudflare.
+            message.contains("must be present") ||
+                classes.any {
+                    it.contains("LinkageError") ||
+                        it.contains("AbstractMethodError") ||
+                        it.contains("NoSuchMethodError") ||
+                        it.contains("NoClassDefFoundError") ||
+                        it.contains("ClassNotFoundException")
+                } -> SourceErrorCategory.Unknown
+
             containsAny(
                 message,
                 "cloudflare", "captcha", "turnstile", "cf-ray", "just a moment", "ddos-guard", "ddos guard",
@@ -42,9 +53,17 @@ object SourceFailureClassifier {
 
             containsAny(
                 message,
-                "401", "403", "unauthorized", "forbidden", "authentication required", "login required",
+                "401", "403", "unauthorized", "forbidden", "authentication required", "authorization required",
+                "login required",
                 "giriş gerekli", "giris gerekli", "oturum aç", "oturum ac", "kimlik doğrulama gerekli",
-            ) ->
+                // Manga-TR 1.6.24 üye/bot kapısı: eklenti bu metinlerle IOException atar.
+                // Genel "Broken/Unknown" yerine Auth olarak sınıflansın ki kullanıcıya
+                // WebView doğrulaması önerilebilsin.
+                "üye girişi", "uye girisi", "üye ol", "uye ol", "bot korumasını", "bot korumasini",
+                "bot koruması", "bot korumasi", "verify.php", "oturum açmanız", "oturum acmaniz",
+            ) || classes.any {
+                it == "org.koitharu.kotatsu.parsers.exception.AuthRequiredException"
+            } ->
                 SourceErrorCategory.Auth
 
             containsAny(
