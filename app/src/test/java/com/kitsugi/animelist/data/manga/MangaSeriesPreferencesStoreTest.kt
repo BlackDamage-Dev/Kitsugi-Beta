@@ -36,7 +36,7 @@ class MangaSeriesPreferencesStoreTest {
             colorFilter = ColorFilterType.Grayscale,
             fitMode = MangaFitMode.FitWidth,
             options = MangaReaderOptions(
-                cropBorders = true,
+                cropProfile = MangaCropProfile.White,
                 cropWebtoonBorders = true,
                 novelFontSizeSp = 22,
                 bionicReading = true,

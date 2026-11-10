@@ -119,7 +119,7 @@ fun MangaNovelPageItem(
                         Text(
                             text = annotatedText,
                             fontSize = options.novelFontSizeSp.sp,
-                            lineHeight = (options.novelFontSizeSp * options.novelLineHeight).sp,
+                            lineHeight = (options.novelFontSizeSp * options.novelLineHeight).toFloat().sp,
                             fontFamily = when (options.novelFontFamily) {
                                 MangaNovelFont.Sans -> FontFamily.Default
                                 MangaNovelFont.Serif -> FontFamily.Serif
@@ -132,7 +132,7 @@ fun MangaNovelPageItem(
                             },
                             modifier = Modifier.fillMaxWidth(),
                         )
-                        Spacer(Modifier.height((options.novelFontSizeSp * 0.75f).dp))
+                        Spacer(Modifier.height((options.novelFontSizeSp * 0.75f).toFloat().dp))
                     }
                 }
             }

@@ -50,6 +50,7 @@ import com.kitsugi.animelist.data.manga.ColorFilterType
 import com.kitsugi.animelist.data.manga.MangaFitMode
 import com.kitsugi.animelist.data.manga.MangaPage
 import com.kitsugi.animelist.data.manga.MangaPageStatus
+import com.kitsugi.animelist.data.manga.MangaReaderOptions
 import com.kitsugi.animelist.data.manga.ReadingMode
 import com.kitsugi.animelist.data.manga.loader.MangaPageLoaderV2
 import com.kitsugi.animelist.ui.components.KitsugiPlasmaLoader
@@ -113,8 +114,24 @@ fun MangaPageItem(
     onSourceLogin: (() -> Unit)? = null,
     /** Webtoon'da yer tutucu boyutu için paylaşılan oran hafızası. */
     sizeMemory: MangaPageSizeMemory? = null,
+    highlightState: com.kitsugi.animelist.data.manga.MangaNovelSpeechController.SpeechHighlightState? = null,
+    readerOptions: MangaReaderOptions = MangaReaderOptions(),
+    totalPages: Int = 1,
     modifier: Modifier = Modifier,
 ) {
+    if (page.textParagraphs != null) {
+        MangaNovelPageItem(
+            paragraphs = page.textParagraphs ?: emptyList(),
+            pageIndex = page.index,
+            totalPages = totalPages,
+            options = readerOptions,
+            highlightState = highlightState,
+            onCenterTap = onCenterTap,
+            modifier = modifier,
+        )
+        return
+    }
+
     val isScrollMode = readingMode == ReadingMode.Webtoon
     val haptics = LocalHapticFeedback.current
     val currentCenterTap by rememberUpdatedState(onCenterTap)

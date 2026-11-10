@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.LayoutDirection
 import com.kitsugi.animelist.data.manga.ColorFilterType
 import com.kitsugi.animelist.data.manga.MangaFitMode
 import com.kitsugi.animelist.data.manga.MangaPage
+import com.kitsugi.animelist.data.manga.MangaReaderOptions
 import com.kitsugi.animelist.data.manga.ReadingMode
 import com.kitsugi.animelist.data.manga.loader.MangaPageLoaderV2
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -70,6 +71,8 @@ fun MangaPagerReader(
     onPrevPage: () -> Unit = {},
     onSourceLogin: (() -> Unit)? = null,
     onPageChanged: (Int) -> Unit = {},
+    highlightState: com.kitsugi.animelist.data.manga.MangaNovelSpeechController.SpeechHighlightState? = null,
+    readerOptions: MangaReaderOptions = MangaReaderOptions(),
     modifier: Modifier = Modifier,
 ) {
     val isRtl = readingMode == ReadingMode.RightToLeft
@@ -220,6 +223,9 @@ fun MangaPagerReader(
                                     onNextPage = onNextPage,
                                     onPrevPage = onPrevPage,
                                     onSourceLogin = onSourceLogin,
+                                    highlightState = highlightState,
+                                    readerOptions = readerOptions,
+                                    totalPages = pages.size,
                                     modifier = Modifier
                                         .weight(1f)
                                         .fillMaxHeight(),

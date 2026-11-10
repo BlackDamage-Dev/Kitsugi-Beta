@@ -45,7 +45,7 @@ class MangaReaderPreferencesTest {
     }
 
     @Test fun doublePageOnlyAppliesToHorizontalPagedModes() {
-        val enabled = MangaReaderOptions(doublePage = true)
+        val enabled = MangaReaderOptions(dualPage = true)
         assertTrue(shouldUseDoublePage(ReadingMode.RightToLeft, false, enabled))
         assertTrue(shouldUseDoublePage(ReadingMode.LeftToRight, false, enabled))
         assertFalse(shouldUseDoublePage(ReadingMode.Vertical, false, enabled))
@@ -53,7 +53,7 @@ class MangaReaderPreferencesTest {
     }
 
     @Test fun landscapeAutomaticModeIsIndependentOfManualMode() {
-        val automatic = MangaReaderOptions(landscapeDoublePage = true)
+        val automatic = MangaReaderOptions(dualPageOnLandscape = true)
         assertFalse(shouldUseDoublePage(ReadingMode.RightToLeft, false, automatic))
         assertTrue(shouldUseDoublePage(ReadingMode.RightToLeft, true, automatic))
         assertFalse(shouldUseDoublePage(ReadingMode.Webtoon, true, automatic))
@@ -69,10 +69,10 @@ class MangaReaderPreferencesTest {
     }
 
     @Test fun invalidPersistedRangesAreSanitized() {
-        val preferences = MangaReaderPreferences(
+        val preferences = MangaReaderPreferencesModel(
             brightness = -2f,
             options = MangaReaderOptions(
-                sidePaddingDp = 100, pageGapDp = -5, pageOpacity = 4f,
+                sidePadding = 100, pageGap = -5, pageOpacity = 4f,
                 preloadAhead = 99, autoScrollSpeed = -1,
                 novelFontSizeSp = 500, novelLineHeight = Float.NaN, novelMarginDp = -20,
                 novelSpeechRate = Float.POSITIVE_INFINITY,
@@ -91,7 +91,7 @@ class MangaReaderPreferencesTest {
     }
 
     @Test fun nonFiniteSliderValuesCannotCrashTheReader() {
-        val preferences = MangaReaderPreferences(
+        val preferences = MangaReaderPreferencesModel(
             brightness = Float.NaN,
             options = MangaReaderOptions(pageOpacity = Float.POSITIVE_INFINITY),
         ).sanitized()

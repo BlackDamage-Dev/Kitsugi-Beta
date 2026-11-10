@@ -145,8 +145,8 @@ fun MangaReaderSettingsSheet(
                         ReaderSwitch("Ekranı Açık Tut", "Okuyucu açıkken cihazın uyumasını engeller", options.keepScreenOn) {
                             onOptionsChange(options.copy(keepScreenOn = it))
                         }
-                        ReaderSwitch("Tam Ekran", "Sistem çubuklarını gizler; kaydırarak geçici gösterebilirsin", options.fullscreen) {
-                            onOptionsChange(options.copy(fullscreen = it))
+                        ReaderSwitch("Tam Ekran", "Sistem çubuklarını gizler; kaydırarak geçici gösterebilirsin", options.immersive) {
+                            onOptionsChange(options.copy(immersive = it))
                         }
                         ReaderSwitch("Sayfa Geçiş Animasyonu", "Kapatıldığında sayfalar anında değişir", options.pageTransitions) {
                             onOptionsChange(options.copy(pageTransitions = it))
@@ -181,30 +181,30 @@ fun MangaReaderSettingsSheet(
                     }
                     if (!hasText) ReaderSection("Sayfa Düzeni") {
                         ReaderSwitch("Kenarları Kırp", "Taramalardaki boş beyaz kenarları otomatik temizler", options.cropBorders) {
-                            onOptionsChange(options.copy(cropBorders = it))
+                            onOptionsChange(options.copy(cropProfile = if (it) com.kitsugi.animelist.data.manga.MangaCropProfile.White else com.kitsugi.animelist.data.manga.MangaCropProfile.Off))
                         }
                         ReaderSwitch(stringResource(R.string.reader_crop_webtoon_title), stringResource(R.string.reader_crop_webtoon_desc), options.cropWebtoonBorders) {
                             onOptionsChange(options.copy(cropWebtoonBorders = it))
                         }
-                        ReaderSwitch("Çift Sayfa", "İki sayfayı yan yana gösterir; yatay LTR/RTL modlarında geçerlidir", options.doublePage) {
-                            onOptionsChange(options.copy(doublePage = it))
+                        ReaderSwitch("Çift Sayfa", "İki sayfayı yan yana gösterir; yatay LTR/RTL modlarında geçerlidir", options.dualPage) {
+                            onOptionsChange(options.copy(dualPage = it))
                         }
-                        ReaderSwitch("Yatayda Çift Sayfa", "Yalnızca ekran yatayken çift sayfayı otomatik etkinleştirir", options.landscapeDoublePage) {
-                            onOptionsChange(options.copy(landscapeDoublePage = it))
+                        ReaderSwitch("Yatayda Çift Sayfa", "Yalnızca ekran yatayken çift sayfayı otomatik etkinleştirir", options.dualPageOnLandscape) {
+                            onOptionsChange(options.copy(dualPageOnLandscape = it))
                         }
                         ReaderSwitch("Geniş Sayfaları Çevir", "Yatay yayılımları 90° döndürür; sayfa sayısı değişmez", options.rotateWidePages) {
                             onOptionsChange(options.copy(rotateWidePages = it))
                         }
-                        ReaderStepper("Yan Boşluk", options.sidePaddingDp) { onOptionsChange(options.copy(sidePaddingDp = it)) }
-                        ReaderStepper("Sayfa Aralığı", options.pageGapDp) { onOptionsChange(options.copy(pageGapDp = it)) }
+                        ReaderStepper("Yan Boşluk", options.sidePadding) { onOptionsChange(options.copy(sidePadding = it)) }
+                        ReaderStepper("Sayfa Aralığı", options.pageGap) { onOptionsChange(options.copy(pageGap = it)) }
                         ReaderSlider("Sayfa Opaklığı", options.pageOpacity, 0.1f..1f, { onOptionsChange(options.copy(pageOpacity = it)) }) {
                             onOptionsChange(options.copy(pageOpacity = 1f))
                         }
                         ReaderSwitch("Kitap Efekti", "Kâğıt hissi için sıcak ton ve koyu zemin uygular", options.bookEffect) {
                             onOptionsChange(options.copy(bookEffect = it))
                         }
-                        ReaderSwitch("Yüksek Renk Modu", "ARGB_8888 ile daha doğru renkler; biraz daha fazla bellek kullanır", options.highColorMode) {
-                            onOptionsChange(options.copy(highColorMode = it))
+                        ReaderSwitch("Yüksek Renk Modu", "ARGB_8888 ile daha doğru renkler; biraz daha fazla bellek kullanır", options.highResColors) {
+                            onOptionsChange(options.copy(highResColors = it))
                         }
                     }
                     ReaderSection("Okuyucu Teması") {
@@ -215,8 +215,8 @@ fun MangaReaderSettingsSheet(
                         )
                     }
                     ReaderSection("Sayfa ve Parlaklık") {
-                        ReaderSwitch("Sayfa Numarası", null, options.showPageNumbers) {
-                            onOptionsChange(options.copy(showPageNumbers = it))
+                        ReaderSwitch("Sayfa Numarası", null, options.showPageNumber) {
+                            onOptionsChange(options.copy(showPageNumber = it))
                         }
                         ReaderSlider("Parlaklık", brightness, 0.1f..1f, onBrightnessChange, showBrightnessIcons = true) {
                             onBrightnessChange(1f)
@@ -227,11 +227,13 @@ fun MangaReaderSettingsSheet(
                     ReaderSection("Gezinme ve Dokunma") {
                         ReaderChoices(
                             items = listOf(
-                                MangaTapNavigation.Standard to "Standart",
-                                MangaTapNavigation.Inverted to "Ters",
-                                MangaTapNavigation.Disabled to "Kapalı",
-                            ), selected = options.tapNavigation,
-                            onSelected = { onOptionsChange(options.copy(tapNavigation = it)) },
+                                com.kitsugi.animelist.data.manga.MangaTapZone.Default to "Standart",
+                                com.kitsugi.animelist.data.manga.MangaTapZone.Inverted to "Ters",
+                                com.kitsugi.animelist.data.manga.MangaTapZone.Disabled to "Kapalı",
+                            ), selected = options.tapZone,
+                            onSelected = {
+                                onOptionsChange(options.copy(tapZone = it))
+                            },
                         )
                         ReaderSwitch("Ses Tuşlarıyla Sayfa Çevir", "Ses kısma: sonraki; ses açma: önceki sayfa", options.volumeKeys) {
                             onOptionsChange(options.copy(volumeKeys = it))

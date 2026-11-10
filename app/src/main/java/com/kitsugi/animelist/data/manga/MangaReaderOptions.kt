@@ -518,6 +518,35 @@ operator fun FloatArray.times(other: FloatArray): FloatArray {
     return out
 }
 
+enum class MangaTapNavigation { Standard, Inverted, Disabled }
+
+enum class MangaReaderTheme(val backgroundArgb: Long, val textArgb: Long) {
+    Black(0xFF000000, 0xFFFFFFFF),
+    Dark(0xFF17171D, 0xFFF5F5F7),
+    White(0xFFFFFFFF, 0xFF202124),
+    Sepia(0xFFF4ECD8, 0xFF4A3B2A);
+
+    companion object {
+        fun fromKey(key: String?): MangaReaderTheme = entries.firstOrNull { it.name.equals(key, true) } ?: Black
+    }
+}
+
+enum class MangaNovelFont {
+    Sans, Serif, Monospace;
+
+    companion object {
+        fun fromKey(key: String?): MangaNovelFont = entries.firstOrNull { it.name.equals(key, true) } ?: Sans
+    }
+}
+
+enum class MangaNovelTextAlign {
+    Start, Justify, Center;
+
+    companion object {
+        fun fromKey(key: String?): MangaNovelTextAlign = entries.firstOrNull { it.name.equals(key, true) } ?: Start
+    }
+}
+
 // ─── Okuyucu seçenekleri ─────────────────────────────────────────────────────
 
 /**
@@ -660,8 +689,41 @@ data class MangaReaderOptions(
     /** Kitap efekti arka plan tonu (Kotatsu "book background"). */
     val bookEffect: Boolean = false,
     /** Alt/üst bar yerleşimi (varsayılan: mevcut iki satırlı düzen). */
-    val barStyle: MangaBarStyle = MangaBarStyle.Full
+    val barStyle: MangaBarStyle = MangaBarStyle.Full,
+    val readerTheme: MangaReaderTheme = MangaReaderTheme.Black,
+    val novelShowBatteryAndClock: Boolean = true,
+    val novelMarginDp: Int = 20,
+    val bionicReading: Boolean = false,
+    val novelFontSizeSp: Int = 18,
+    val novelLineHeight: Float = 1.5f,
+    val novelFontFamily: MangaNovelFont = MangaNovelFont.Sans,
+    val novelTextAlign: MangaNovelTextAlign = MangaNovelTextAlign.Start,
+    val novelSpeechRate: Float = 1f,
+    val novelSpeechHighlight: Boolean = true,
+    val cropWebtoonBorders: Boolean = false,
+    val showProgressPercent: Boolean = true,
+    val reverseVolumeKeys: Boolean = false,
+    val pageTransitions: Boolean = true,
+    val longTapNavigation: Boolean = false,
+    val preloadAhead: Int = 3,
+    val incognito: Boolean = false,
+    val autoScroll: Boolean = false,
 ) {
+
+    val doublePage: Boolean get() = dualPage
+    val landscapeDoublePage: Boolean get() = dualPageOnLandscape
+
+    fun sanitized(): MangaReaderOptions = copy(
+        sidePadding = sidePadding.coerceIn(0, 32),
+        pageGap = pageGap.coerceIn(0, 32),
+        pageOpacity = if (pageOpacity.isFinite()) pageOpacity.coerceIn(0.1f, 1f) else 1f,
+        preloadAhead = preloadAhead.coerceIn(0, 8),
+        autoScrollSpeed = autoScrollSpeed.coerceIn(8, 600),
+        novelFontSizeSp = novelFontSizeSp.coerceIn(12, 36),
+        novelLineHeight = if (novelLineHeight.isFinite()) novelLineHeight.coerceIn(1f, 2.5f) else 1.5f,
+        novelMarginDp = novelMarginDp.coerceIn(0, 48),
+        novelSpeechRate = if (novelSpeechRate.isFinite()) novelSpeechRate.coerceIn(0.5f, 2f) else 1f,
+    )
 
     /** Bölüm sonu otomatik geçiş açık mı? (tek kaynak: süre > 0) */
     val autoNextEnabled: Boolean get() = autoNextChapterSeconds > 0
@@ -764,6 +826,18 @@ data class MangaReaderOptions(
         put("dualPageOnLandscape", dualPageOnLandscape)
         put("perMangaMode", perMangaMode)
         put("bookEffect", bookEffect)
+        put("readerTheme", readerTheme.name)
+        put("novelShowBatteryAndClock", novelShowBatteryAndClock)
+        put("novelMarginDp", novelMarginDp)
+        put("bionicReading", bionicReading)
+        put("novelFontSizeSp", novelFontSizeSp)
+        put("novelLineHeight", novelLineHeight.toDouble())
+        put("novelFontFamily", novelFontFamily.name)
+        put("novelTextAlign", novelTextAlign.name)
+        put("novelSpeechRate", novelSpeechRate.toDouble())
+        put("novelSpeechHighlight", novelSpeechHighlight)
+        put("cropWebtoonBorders", cropWebtoonBorders)
+        put("showProgressPercent", showProgressPercent)
     }.toString()
 
     companion object {
@@ -850,8 +924,81 @@ data class MangaReaderOptions(
                 widePageThreshold = float("widePageThreshold", fallback.widePageThreshold).coerceIn(1f, 2f),
                 dualPageOnLandscape = bool("dualPageOnLandscape", fallback.dualPageOnLandscape),
                 perMangaMode = bool("perMangaMode", fallback.perMangaMode),
-                bookEffect = bool("bookEffect", fallback.bookEffect)
+                bookEffect = bool("bookEffect", fallback.bookEffect),
+                readerTheme = str("readerTheme")?.let { MangaReaderTheme.fromKey(it) } ?: fallback.readerTheme,
+                novelShowBatteryAndClock = bool("novelShowBatteryAndClock", fallback.novelShowBatteryAndClock),
+                novelMarginDp = int("novelMarginDp", fallback.novelMarginDp).coerceIn(0, 48),
+                bionicReading = bool("bionicReading", fallback.bionicReading),
+                novelFontSizeSp = int("novelFontSizeSp", fallback.novelFontSizeSp).coerceIn(12, 36),
+                novelLineHeight = float("novelLineHeight", fallback.novelLineHeight).coerceIn(1f, 2.5f),
+                novelFontFamily = str("novelFontFamily")?.let { MangaNovelFont.fromKey(it) } ?: fallback.novelFontFamily,
+                novelTextAlign = str("novelTextAlign")?.let { MangaNovelTextAlign.fromKey(it) } ?: fallback.novelTextAlign,
+                novelSpeechRate = float("novelSpeechRate", fallback.novelSpeechRate).coerceIn(0.5f, 2f),
+                novelSpeechHighlight = bool("novelSpeechHighlight", fallback.novelSpeechHighlight),
+                cropWebtoonBorders = bool("cropWebtoonBorders", fallback.cropWebtoonBorders),
+                showProgressPercent = bool("showProgressPercent", fallback.showProgressPercent),
             )
         }
     }
+}
+
+data class MangaDisplayPage(
+    val pages: List<MangaPage>,
+) {
+    val firstPageIndex: Int get() = pages.first().index
+    val key: String get() = pages.joinToString(separator = ":") { "${it.index}@${it.url}" }
+}
+
+fun shouldUseDoublePage(
+    readingMode: ReadingMode,
+    isLandscape: Boolean,
+    options: MangaReaderOptions,
+): Boolean = (readingMode == ReadingMode.LeftToRight || readingMode == ReadingMode.RightToLeft) &&
+    (options.doublePage || (isLandscape && options.landscapeDoublePage))
+
+fun buildMangaDisplayPages(
+    pages: List<MangaPage>,
+    doublePage: Boolean,
+): List<MangaDisplayPage> = if (doublePage) {
+    pages.chunked(2) { group -> MangaDisplayPage(group.toList()) }
+} else {
+    pages.map { MangaDisplayPage(listOf(it)) }
+}
+
+fun orderMangaSpreadPages(pages: List<MangaPage>, readingMode: ReadingMode): List<MangaPage> =
+    if (readingMode == ReadingMode.RightToLeft) pages.asReversed() else pages.toList()
+
+fun mangaDisplayPageIndexFor(displayPages: List<MangaDisplayPage>, realPageIndex: Int): Int {
+    if (displayPages.isEmpty()) return 0
+    return displayPages.indexOfFirst { group ->
+        group.pages.any { it.index == realPageIndex }
+    }.takeIf { it >= 0 } ?: realPageIndex.coerceIn(0, displayPages.lastIndex)
+}
+
+fun nextMangaColorFilter(current: ColorFilterType): ColorFilterType = when (current) {
+    ColorFilterType.Normal -> ColorFilterType.Grayscale
+    ColorFilterType.Grayscale -> ColorFilterType.Sepia
+    ColorFilterType.Sepia -> ColorFilterType.Invert
+    ColorFilterType.Invert -> ColorFilterType.Normal
+    else -> ColorFilterType.Normal
+}
+
+fun nextMangaReadingMode(current: ReadingMode): ReadingMode = when (current) {
+    ReadingMode.RightToLeft -> ReadingMode.LeftToRight
+    ReadingMode.LeftToRight -> ReadingMode.Vertical
+    ReadingMode.Vertical -> ReadingMode.Webtoon
+    ReadingMode.Webtoon -> ReadingMode.RightToLeft
+}
+
+data class MangaReaderPreferencesModel(
+    val readingMode: ReadingMode = ReadingMode.RightToLeft,
+    val colorFilter: ColorFilterType = ColorFilterType.Normal,
+    val fitMode: MangaFitMode = MangaFitMode.FitScreen,
+    val brightness: Float = 1f,
+    val options: MangaReaderOptions = MangaReaderOptions(),
+) {
+    fun sanitized(): MangaReaderPreferencesModel = copy(
+        brightness = if (brightness.isFinite()) brightness.coerceIn(0.1f, 1f) else 1f,
+        options = options.sanitized(),
+    )
 }
