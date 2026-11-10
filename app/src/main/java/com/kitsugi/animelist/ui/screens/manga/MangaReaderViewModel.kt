@@ -27,6 +27,9 @@ import com.kitsugi.animelist.data.manga.SourceFailureClassifier
 import com.kitsugi.animelist.data.settings.SettingsDataStore
 import com.kitsugi.animelist.data.manga.ColorFilterType
 import com.kitsugi.animelist.data.manga.MangaFitMode
+import com.kitsugi.animelist.data.manga.MangaReaderOptions
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * MangaReaderScreen için ViewModel.
@@ -54,6 +57,9 @@ class MangaReaderViewModel(
 
     // F5: Debounce için Job referansı — hızlı swipe'ta Room IO flood önler
     private var progressSaveJob: kotlinx.coroutines.Job? = null
+    private val preferenceWriteMutex = Mutex()
+    private var pendingPreferenceWrites = 0
+    private var hasAppliedAutomaticMode = false
 
     // ─── UI Durumu ────────────────────────────────────────────────────────────
 
@@ -65,6 +71,7 @@ class MangaReaderViewModel(
         val colorFilterType: ColorFilterType = ColorFilterType.Normal,
         val fitMode: MangaFitMode = MangaFitMode.FitScreen,
         val customBrightness: Float = 1.0f,
+        val readerOptions: MangaReaderOptions = MangaReaderOptions(),
         val isLoadingChapters: Boolean = false,
         val error: String? = null,
         val isLoadingPages: Boolean = false,
@@ -84,39 +91,33 @@ class MangaReaderViewModel(
 
     private fun observeSettings() {
         viewModelScope.launch {
-            settingsDataStore.settingsFlow.collect { settings ->
-                val mode = when (settings.mangaReadingMode) {
-                    "LeftToRight" -> ReadingMode.LeftToRight
-                    "RightToLeft" -> ReadingMode.RightToLeft
-                    "Vertical" -> ReadingMode.Vertical
-                    "Webtoon" -> ReadingMode.Webtoon
-                    else -> ReadingMode.RightToLeft
-                }
-                val filter = when (settings.mangaColorFilter) {
-                    "Normal" -> ColorFilterType.Normal
-                    "Grayscale" -> ColorFilterType.Grayscale
-                    "Sepia" -> ColorFilterType.Sepia
-                    "Invert" -> ColorFilterType.Invert
-                    else -> ColorFilterType.Normal
-                }
-                val fit = when (settings.mangaFitMode) {
-                    "FitScreen" -> MangaFitMode.FitScreen
-                    "FitWidth" -> MangaFitMode.FitWidth
-                    "FitHeight" -> MangaFitMode.FitHeight
-                    else -> MangaFitMode.FitScreen
-                }
-                // R2: Webtoon modunda 3+1 keep, pager modunda 2+1 keep preload
+            settingsDataStore.mangaReaderPreferencesFlow.collect { persisted ->
+                if (pendingPreferenceWrites > 0) return@collect
+                val preferences = persisted.sanitized()
+                val shouldAutoSelectWebtoon = !hasAppliedAutomaticMode &&
+                    preferences.options.autoWebtoon && isWebtoonContent()
+                hasAppliedAutomaticMode = true
+                val mode = if (shouldAutoSelectWebtoon) ReadingMode.Webtoon else preferences.readingMode
                 loader.preloadAhead = if (mode == ReadingMode.Webtoon) 3 else 2
-                loader.keepBehind   = 1
+                loader.keepBehind = 1
                 _uiState.update {
                     it.copy(
                         readingMode = mode,
-                        colorFilterType = filter,
-                        fitMode = fit,
-                        customBrightness = settings.mangaBrightness
+                        colorFilterType = preferences.colorFilter,
+                        fitMode = preferences.fitMode,
+                        customBrightness = preferences.brightness,
+                        readerOptions = preferences.options,
                     )
                 }
             }
+        }
+    }
+
+    private fun isWebtoonContent(): Boolean {
+        val tokens = listOf("webtoon", "manhwa", "manhua", "long strip")
+        return (mangaDetails.genre + mangaDetails.source).any { value ->
+            val normalized = value.lowercase()
+            tokens.any(normalized::contains)
         }
     }
 
@@ -158,17 +159,19 @@ class MangaReaderViewModel(
      */
     // F5: Progress debounce — 500ms bekle, hızlı swipe'ta tekrar tetiklenirse iptal et
     fun onPageChanged(chapterUrl: String, pageIndex: Int, totalPages: Int) {
-        _uiState.update { it.copy(currentPageIndex = pageIndex) }
+        if (chapterUrl != _uiState.value.currentChapter.url || totalPages <= 0) return
+        val safePageIndex = pageIndex.coerceIn(0, totalPages - 1)
+        _uiState.update { it.copy(currentPageIndex = safePageIndex) }
         progressSaveJob?.cancel()
         progressSaveJob = viewModelScope.launch {
             kotlinx.coroutines.delay(500L)
-            val isCompleted = totalPages > 0 && pageIndex >= totalPages - 1
+            val isCompleted = safePageIndex >= totalPages - 1
             dao.upsert(
                 MangaChapterProgressEntity(
                     chapterUrl    = chapterUrl,
                     mangaUrl      = mangaDetails.url,
                     chapterName   = _uiState.value.currentChapter.name,
-                    lastPageIndex = pageIndex,
+                    lastPageIndex = safePageIndex,
                     totalPages    = totalPages,
                     isCompleted   = isCompleted,
                     updatedAt     = System.currentTimeMillis()
@@ -180,43 +183,81 @@ class MangaReaderViewModel(
     // ─── Okuma modu değiştirme ────────────────────────────────────────────────
 
     fun setReadingMode(mode: ReadingMode) {
-        viewModelScope.launch {
-            settingsDataStore.setMangaReadingMode(mode.name)
-        }
+        // Update immediately; waiting for a DataStore round-trip caused visible mode reversions.
+        hasAppliedAutomaticMode = true
+        _uiState.update { it.copy(readingMode = mode) }
+        loader.preloadAhead = if (mode == ReadingMode.Webtoon) 3 else 2
+        persistPreference { settingsDataStore.setMangaReadingMode(mode.name) }
     }
 
     fun setColorFilter(filter: ColorFilterType) {
-        viewModelScope.launch {
-            settingsDataStore.setMangaColorFilter(filter.name)
-        }
+        _uiState.update { it.copy(colorFilterType = filter) }
+        persistPreference { settingsDataStore.setMangaColorFilter(filter.name) }
     }
 
     fun setFitMode(fitMode: MangaFitMode) {
-        viewModelScope.launch {
-            settingsDataStore.setMangaFitMode(fitMode.name)
-        }
+        _uiState.update { it.copy(fitMode = fitMode) }
+        persistPreference { settingsDataStore.setMangaFitMode(fitMode.name) }
     }
 
     fun setCustomBrightness(brightness: Float) {
+        val value = if (brightness.isFinite()) brightness.coerceIn(0.1f, 1f) else 1f
+        _uiState.update { it.copy(customBrightness = value) }
+        persistPreference { settingsDataStore.setMangaBrightness(value) }
+    }
+
+    fun setReaderOptions(options: MangaReaderOptions) {
+        val value = options.sanitized()
+        _uiState.update { it.copy(readerOptions = value) }
+        persistPreference { settingsDataStore.setMangaReaderOptions(value) }
+    }
+
+    private fun persistPreference(write: suspend () -> Unit) {
+        pendingPreferenceWrites++
         viewModelScope.launch {
-            settingsDataStore.setMangaBrightness(brightness)
+            try {
+                preferenceWriteMutex.withLock { write() }
+            } finally {
+                pendingPreferenceWrites--
+            }
         }
+    }
+
+    fun updateReaderOptions(update: (MangaReaderOptions) -> MangaReaderOptions) {
+        setReaderOptions(update(_uiState.value.readerOptions))
     }
 
     // ─── Bölüm gezinme ───────────────────────────────────────────────────────
 
     // F6: Bölüm değişiminde eski queue'yu temizle — yanlış sayfa yükleme önler
     fun goToChapter(chapter: MangaChapter) {
+        progressSaveJob?.cancel()
         loader.resetQueue()
         _uiState.update { it.copy(currentChapter = chapter, currentPageIndex = 0) }
         restoreProgress(chapter)
     }
 
     fun goToNextChapter() {
-        val list    = _uiState.value.chapterList
+        val list = _uiState.value.chapterList
         val current = _uiState.value.currentChapter
-        val idx     = list.indexOfFirst { it.url == current.url }
-        if (idx > 0) goToChapter(list[idx - 1])   // Listede yeniden eskiye doğru
+        val idx = list.indexOfFirst { it.url == current.url }
+        if (idx <= 0) return
+        if (!_uiState.value.readerOptions.skipReadChapters) {
+            goToChapter(list[idx - 1])
+            return
+        }
+        val originUrl = current.url
+        viewModelScope.launch {
+            for (candidateIndex in idx - 1 downTo 0) {
+                val candidate = list[candidateIndex]
+                val progress = dao.getProgress(candidate.url)
+                if (progress?.isCompleted != true) {
+                    // A second tap must not let an older async search change the new chapter.
+                    if (_uiState.value.currentChapter.url == originUrl) goToChapter(candidate)
+                    return@launch
+                }
+            }
+        }
     }
 
     fun goToPreviousChapter() {

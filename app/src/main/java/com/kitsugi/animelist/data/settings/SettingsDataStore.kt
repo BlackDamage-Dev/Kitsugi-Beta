@@ -16,6 +16,13 @@ import com.kitsugi.animelist.ui.screens.search.SearchHistoryItem
 import com.kitsugi.animelist.ui.screens.search.SearchPlatform
 import com.kitsugi.animelist.model.MediaType
 import com.kitsugi.animelist.ui.screens.fullscreen.AudioChannels
+import com.kitsugi.animelist.data.manga.ColorFilterType
+import com.kitsugi.animelist.data.manga.MangaFitMode
+import com.kitsugi.animelist.data.manga.MangaReaderOptions
+import com.kitsugi.animelist.data.manga.MangaReaderPreferences
+import com.kitsugi.animelist.data.manga.MangaTapNavigation
+import com.kitsugi.animelist.data.manga.MangaZoomStart
+import com.kitsugi.animelist.data.manga.ReadingMode
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -131,6 +138,7 @@ class SettingsDataStore(
         val MangaColorFilter = stringPreferencesKey("manga_color_filter")
         val MangaFitMode = stringPreferencesKey("manga_fit_mode")
         val MangaBrightness = floatPreferencesKey("manga_brightness")
+        val MangaReaderOptionsJson = stringPreferencesKey("manga_reader_options_json")
         val DnsChoice = intPreferencesKey("dns_choice")
         // ─── GitHub Vekil Sunucu ───────────────────────────────────────────────
         val UseGithubProxy = booleanPreferencesKey("use_github_proxy")
@@ -370,6 +378,73 @@ class SettingsDataStore(
         // AppViewModel.loadFilters/updateMyListTabIndex tarafından zaten kalıcı tutuluyor;
         // manga kaynak durumu ise Room (MangaSourceStateDao) üzerinden saklanıyor.
     }
+
+    /** Single reader state source. Invalid persisted values fall back to safe defaults. */
+    val mangaReaderPreferencesFlow: Flow<MangaReaderPreferences> = context.settingsDataStore.data.map { preferences ->
+        val defaults = MangaReaderOptions()
+        val options = preferences[Keys.MangaReaderOptionsJson]
+            ?.takeIf { it.isNotBlank() }
+            ?.let { json ->
+                runCatching {
+                    val value = JSONObject(json)
+                    MangaReaderOptions(
+                        cropBorders = value.optBoolean("cropBorders", defaults.cropBorders),
+                        showPageNumbers = value.optBoolean("showPageNumbers", defaults.showPageNumbers),
+                        doublePage = value.optBoolean("doublePage", defaults.doublePage),
+                        landscapeDoublePage = value.optBoolean("landscapeDoublePage", defaults.landscapeDoublePage),
+                        sidePaddingDp = value.optInt("sidePaddingDp", defaults.sidePaddingDp),
+                        pageGapDp = value.optInt("pageGapDp", defaults.pageGapDp),
+                        rotateWidePages = value.optBoolean("rotateWidePages", defaults.rotateWidePages),
+                        pageOpacity = value.optDouble("pageOpacity", defaults.pageOpacity.toDouble()).toFloat(),
+                        bookEffect = value.optBoolean("bookEffect", defaults.bookEffect),
+                        highColorMode = value.optBoolean("highColorMode", defaults.highColorMode),
+                        tapNavigation = value.optString("tapNavigation").asEnum(defaults.tapNavigation),
+                        volumeKeys = value.optBoolean("volumeKeys", defaults.volumeKeys),
+                        reverseVolumeKeys = value.optBoolean("reverseVolumeKeys", defaults.reverseVolumeKeys),
+                        zoomStart = value.optString("zoomStart").asEnum(defaults.zoomStart),
+                        webtoonZoom = value.optBoolean("webtoonZoom", defaults.webtoonZoom),
+                        autoWebtoon = value.optBoolean("autoWebtoon", defaults.autoWebtoon),
+                        skipReadChapters = value.optBoolean("skipReadChapters", defaults.skipReadChapters),
+                    )
+                }.getOrDefault(defaults)
+            } ?: defaults
+        MangaReaderPreferences(
+            readingMode = (preferences[Keys.MangaReadingMode] ?: "").asEnum(ReadingMode.RightToLeft),
+            colorFilter = (preferences[Keys.MangaColorFilter] ?: "").asEnum(ColorFilterType.Normal),
+            fitMode = (preferences[Keys.MangaFitMode] ?: "").asEnum(MangaFitMode.FitScreen),
+            brightness = preferences[Keys.MangaBrightness] ?: 1f,
+            options = options,
+        ).sanitized()
+    }
+
+    suspend fun setMangaReaderOptions(options: MangaReaderOptions) {
+        val value = options.sanitized()
+        val json = JSONObject().apply {
+            put("cropBorders", value.cropBorders)
+            put("showPageNumbers", value.showPageNumbers)
+            put("doublePage", value.doublePage)
+            put("landscapeDoublePage", value.landscapeDoublePage)
+            put("sidePaddingDp", value.sidePaddingDp)
+            put("pageGapDp", value.pageGapDp)
+            put("rotateWidePages", value.rotateWidePages)
+            put("pageOpacity", value.pageOpacity.toDouble())
+            put("bookEffect", value.bookEffect)
+            put("highColorMode", value.highColorMode)
+            put("tapNavigation", value.tapNavigation.name)
+            put("volumeKeys", value.volumeKeys)
+            put("reverseVolumeKeys", value.reverseVolumeKeys)
+            put("zoomStart", value.zoomStart.name)
+            put("webtoonZoom", value.webtoonZoom)
+            put("autoWebtoon", value.autoWebtoon)
+            put("skipReadChapters", value.skipReadChapters)
+        }.toString()
+        context.settingsDataStore.edit { preferences ->
+            preferences[Keys.MangaReaderOptionsJson] = json
+        }
+    }
+
+    private inline fun <reified T : Enum<T>> String.asEnum(default: T): T =
+        enumValues<T>().firstOrNull { it.name == this } ?: default
 
     // ─── Kaynak seçimi kalıcılığı ───────────────────────────────────────────────
     // Bu değerler akış (settingsFlow) İÇİNDE değildir: ekran her yeniden kurulduğunda

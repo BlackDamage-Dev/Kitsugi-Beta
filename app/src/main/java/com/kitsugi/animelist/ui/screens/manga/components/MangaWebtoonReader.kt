@@ -1,9 +1,10 @@
-﻿package com.kitsugi.animelist.ui.screens.manga.components
+package com.kitsugi.animelist.ui.screens.manga.components
 import com.kitsugi.animelist.ui.components.KitsugiButton
 
 import com.kitsugi.animelist.ui.theme.gradient.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -29,6 +30,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 
 import com.kitsugi.animelist.data.manga.ColorFilterType
 import com.kitsugi.animelist.data.manga.MangaFitMode
+import com.kitsugi.animelist.data.manga.MangaReaderOptions
 import androidx.compose.ui.res.stringResource
 import com.kitsugi.animelist.R
 
@@ -51,6 +53,7 @@ fun MangaWebtoonReader(
     loader: MangaPageLoaderV2,
     colorFilterType: ColorFilterType = ColorFilterType.Normal,
     fitMode: MangaFitMode = MangaFitMode.FitScreen,
+    readerOptions: MangaReaderOptions = MangaReaderOptions(),
     onCenterTap: () -> Unit = {},
     onPageChanged: (Int) -> Unit = {},
     onNextPage: () -> Unit = {},
@@ -68,10 +71,11 @@ fun MangaWebtoonReader(
     }
 
     LazyColumn(
-        state    = listState,
+        state = listState,
+        contentPadding = PaddingValues(horizontal = readerOptions.sidePaddingDp.dp),
         modifier = modifier
             .fillMaxSize()
-            .background(Color.Black)
+            .background(if (readerOptions.bookEffect) Color(0xFF17130E) else Color.Black)
     ) {
         itemsIndexed(
             items = pages,
@@ -89,6 +93,8 @@ fun MangaWebtoonReader(
                 readingMode = ReadingMode.Webtoon,
                 colorFilterType = colorFilterType,
                 fitMode     = fitMode,
+                readerOptions = readerOptions,
+                allowWideRotation = false,
                 onCenterTap = onCenterTap,
                 onNextPage   = onNextPage,
                 onPrevPage   = onPrevPage,
@@ -99,8 +105,8 @@ fun MangaWebtoonReader(
             Spacer(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(4.dp)
-                    .background(Color(0xFF1A1A1A))
+                    .height(readerOptions.pageGapDp.dp)
+                    .background(if (readerOptions.bookEffect) Color(0xFF17130E) else Color(0xFF1A1A1A))
             )
         }
 
