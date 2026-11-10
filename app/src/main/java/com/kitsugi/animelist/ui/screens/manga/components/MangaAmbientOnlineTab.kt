@@ -309,6 +309,29 @@ internal fun AmbientOnlineTab(
                     labelColor = KitsugiColors.TextSecondary
                 )
             )
+            FilterChip(
+                selected = controller.sleepTimerMinutes > 0,
+                onClick = { controller.cycleSleepTimer() },
+                label = {
+                    Text(
+                        if (controller.sleepTimerMinutes > 0) "Uyku ${controller.sleepTimerMinutes} dk" else "Uyku kapalı",
+                        fontSize = 11.sp
+                    )
+                },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Rounded.Timer,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp)
+                    )
+                },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = accent.copy(alpha = 0.22f),
+                    selectedLabelColor = accent,
+                    containerColor = KitsugiColors.SurfaceSoft,
+                    labelColor = KitsugiColors.TextSecondary
+                )
+            )
             if (controller.canResumeAutoQueue) {
                 FilterChip(
                     selected = false,
@@ -743,6 +766,19 @@ private fun AmbientTrackRow(
                     contentDescription = "Bu parçayı bir daha önerme",
                     tint = KitsugiColors.TextMuted,
                     modifier = Modifier.size(15.dp)
+                )
+            }
+
+            IconButton(
+                onClick = { controller.playNext(track) },
+                enabled = isPlayable && !isSelected,
+                modifier = Modifier.size(40.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.QueuePlayNext,
+                    contentDescription = "Sıradaki olarak çal",
+                    tint = if (isPlayable && !isSelected) accent else KitsugiColors.TextMuted,
+                    modifier = Modifier.size(19.dp)
                 )
             }
 

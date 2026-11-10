@@ -22,6 +22,15 @@ internal object AmbientQueueRules {
     /** Kuyruğa tek seferde eklenecek en fazla yeni aday. */
     const val REFILL_BATCH = 5
 
+    /** Uyku zamanlayıcısı seçenekleri (dakika). 0 = kapalı. */
+    val SLEEP_TIMER_OPTIONS: List<Int> = listOf(0, 15, 30, 60)
+
+    /** Uyku zamanlayıcısı döngüsü: kapalı → 15 → 30 → 60 → kapalı. */
+    fun nextSleepTimerMinutes(current: Int): Int {
+        val index = SLEEP_TIMER_OPTIONS.indexOf(current)
+        return SLEEP_TIMER_OPTIONS[(index + 1).mod(SLEEP_TIMER_OPTIONS.size)]
+    }
+
     /** Tekrar modu döngüsü: kapalı → tek parça → liste → kapalı. */
     fun nextRepeatMode(current: Int): Int = when (current) {
         REPEAT_OFF -> REPEAT_ONE

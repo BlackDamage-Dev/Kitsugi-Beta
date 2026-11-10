@@ -297,6 +297,44 @@ class MangaAmbientAudioPlayback internal constructor(context: Context) {
         }
     }
 
+    /**
+     * "Sıradaki olarak çal": parçayı şu an çalanın hemen arkasına yerleştirir.
+     * Kuyruk boşsa normal şekilde başlatır.
+     */
+    fun playNext(
+        track: AmbientAudioTrack,
+        localFileUri: String? = null,
+        localFileType: String? = null,
+        allowOnline: Boolean = true,
+    ): Boolean {
+        if (queue.isEmpty() || player.mediaItemCount == 0) {
+            return addToQueue(track, localFileUri, localFileType, allowOnline)
+        }
+        if (track.id in queuedTrackIds) return false
+        val item = createMediaItem(track, localFileUri, localFileType, allowOnline)
+        if (item == null) {
+            error = if (allowOnline) "Güvenli bir ses akışı bulunamadı." else "Çevrimdışı sıraya eklemek için önce parçayı indir."
+            return false
+        }
+        val insertAt = (player.currentMediaItemIndex + 1).coerceIn(0, queue.size)
+        val previousQueue = queue
+        queue = previousQueue.toMutableList().apply { add(insertAt, track) }
+        queuedTrackIds = queue.map { it.id }.toSet()
+        return runCatching {
+            player.addMediaItem(insertAt, item)
+            queueLength = queue.size
+            updateNavigationState()
+            error = null
+            true
+        }.getOrElse {
+            queue = previousQueue
+            queuedTrackIds = previousQueue.map { it.id }.toSet()
+            queueLength = previousQueue.size
+            error = "Parça sıraya eklenemedi. Tekrar deneyebilirsin."
+            false
+        }
+    }
+
     private fun createMediaItem(
         track: AmbientAudioTrack,
         localFileUri: String?,

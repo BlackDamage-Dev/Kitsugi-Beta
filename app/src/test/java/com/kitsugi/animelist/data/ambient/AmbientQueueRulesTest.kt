@@ -34,6 +34,16 @@ class AmbientQueueRulesTest {
     }
 
     @Test
+    fun `sleep timer cycles through off, 15, 30, 60 and back to off`() {
+        assertEquals(15, AmbientQueueRules.nextSleepTimerMinutes(0))
+        assertEquals(30, AmbientQueueRules.nextSleepTimerMinutes(15))
+        assertEquals(60, AmbientQueueRules.nextSleepTimerMinutes(30))
+        assertEquals(0, AmbientQueueRules.nextSleepTimerMinutes(60))
+        // Bilinmeyen bir değer de güvenli şekilde kapalıya/başa döner.
+        assertEquals(15, AmbientQueueRules.nextSleepTimerMinutes(7))
+    }
+
+    @Test
     fun `continuation queue starts at the picked track and wraps to the earlier ones`() {
         val visible = listOf(track("a"), track("b"), track("c"), track("d"))
 

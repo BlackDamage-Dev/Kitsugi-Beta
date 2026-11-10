@@ -25,6 +25,8 @@ import com.kitsugi.animelist.data.manga.MangaChapter
 import com.kitsugi.animelist.data.manga.MangaDetails
 import com.kitsugi.animelist.ui.screens.manga.MangaAmbientAudioPlayback
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
@@ -404,6 +406,40 @@ class MangaAmbientOnlineController internal constructor(
             allowOnline = onlinePlaybackEnabled,
             repeatMode = repeatMode,
         )
+    }
+
+    /** Parçayı şu an çalanın hemen ardına koyar. */
+    fun playNext(track: AmbientAudioTrack) {
+        val state = AmbientAudioDownloadManager.downloads.value[track.id]
+        val localUri = state
+            ?.takeIf { it.status == AmbientAudioDownloadStatus.COMPLETED }
+            ?.contentUri
+            ?.takeIf { it.isNotBlank() }
+        playback.playNext(
+            track = track,
+            localFileUri = localUri,
+            localFileType = localUri?.let { if (state?.converted == true) "m4a" else track.fileType },
+            allowOnline = onlinePlaybackEnabled,
+        )
+    }
+
+    /** Uyku zamanlayıcısı: süre dolunca çalma durur. 0 kapatır. */
+    var sleepTimerMinutes by mutableIntStateOf(0)
+        private set
+    private var sleepJob: Job? = null
+
+    fun cycleSleepTimer() = setSleepTimer(AmbientQueueRules.nextSleepTimerMinutes(sleepTimerMinutes))
+
+    fun setSleepTimer(minutes: Int) {
+        sleepJob?.cancel()
+        sleepJob = null
+        sleepTimerMinutes = minutes
+        if (minutes <= 0) return
+        sleepJob = scope.launch {
+            delay(minutes * 60_000L)
+            playback.stop()
+            sleepTimerMinutes = 0
+        }
     }
 
     fun addToQueue(track: AmbientAudioTrack) {
