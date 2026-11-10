@@ -32,6 +32,7 @@ class MangaPageLoaderV2(
     var keepBehind: Int = 1,
     /** Yerel ZIP/CBZ arşiv dosyası — null ise normal HTTP scraping akışı devam eder. */
     val archiveFile: java.io.File? = null,
+    val localDocumentFile: java.io.File? = null,
     /** HTML/XHTML kaynaklarını resim yerine seçilebilir metin olarak yükler. */
     val preferText: Boolean = false,
 ) {
@@ -60,15 +61,22 @@ class MangaPageLoaderV2(
                 resetQueue()
                 _pages.value = emptyList()
 
-                if (archiveFile != null) {
+                if (localDocumentFile != null) {
+                    _pages.value = when (localDocumentFile.extension.lowercase()) {
+                        "epub" -> EpubPageLoader(localDocumentFile).loadPages(chapter.url)
+                        "pdf" -> PdfPageLoader(context, localDocumentFile).let { pdf -> pdf.pages(chapter.url, pdf.pageCount()) }
+                        else -> throw java.io.IOException("Desteklenmeyen yerel belge")
+                    }
+                    if (_pages.value.isEmpty()) throw java.io.IOException("Belgede okunabilir sayfa bulunamadı")
+                } else if (archiveFile != null) {
                     val archiveLoader = ArchivePageLoader(context, archiveFile)
                     _pages.value = archiveLoader.loadPages(chapter.url)
                     if (_pages.value.isEmpty()) throw java.io.IOException("Arşivde sayfa bulunamadı")
                     val elapsed = System.currentTimeMillis() - t0
                     sourceStateStore.recordOperationSuccess(source, "pages", elapsed)
                     MangaLogger.logPageList(context, source.name, chapter.name,
-                        success = true, pageCount = entryNames.size, elapsedMs = elapsed)
-                    Log.d(TAG, "${chapter.name}: ${entryNames.size} sayfa alındı (${elapsed}ms) [archive]")
+                        success = true, pageCount = _pages.value.size, elapsedMs = elapsed)
+                    Log.d(TAG, "${chapter.name}: ${_pages.value.size} sayfa alındı (${elapsed}ms) [archive]")
                     return@withContext
                 }
 
@@ -156,6 +164,19 @@ class MangaPageLoaderV2(
 
     private suspend fun loadPageInternal(page: MangaPage) {
         if (page.status == MangaPageStatus.Ready) return
+
+        if (page.textParagraphs != null) {
+            page.status = MangaPageStatus.Ready
+            return
+        }
+
+        if (localDocumentFile?.extension?.equals("pdf", true) == true && page.archivePath?.startsWith("pdf:") == true) {
+            val index = page.archivePath!!.removePrefix("pdf:").toIntOrNull()
+                ?: throw java.io.IOException("Geçersiz PDF sayfa kimliği")
+            page.imageUrl = PdfPageLoader(context, localDocumentFile).renderPage(index).toURI().toString()
+            page.status = MangaPageStatus.Ready
+            return
+        }
 
         if (page.archivePath != null && archiveFile != null) {
             val archiveLoader = ArchivePageLoader(context, archiveFile)

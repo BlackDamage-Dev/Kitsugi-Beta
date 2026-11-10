@@ -13,6 +13,11 @@ import com.kitsugi.animelist.ui.theme.gradient.Icon
 import com.kitsugi.animelist.ui.theme.gradient.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
+import com.kitsugi.animelist.data.manga.MangaDetails
+import com.kitsugi.animelist.data.manga.MangaChapter
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -45,14 +50,23 @@ fun MangaScreen(
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     var localArchive by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<java.io.File?>(null) }
+    var showOpds by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    if (showOpds) OpdsCatalogDialog(
+        filesDirectory = java.io.File(context.filesDir, "local-archives"),
+        onDismiss = { showOpds = false },
+        onOpen = { localArchive = it; showOpds = false },
+    )
     val archivePicker = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.OpenDocument(),
     ) { uri ->
         if (uri != null) scope.launch(kotlinx.coroutines.Dispatchers.IO) {
             runCatching {
-                val name = uri.lastPathSegment?.substringAfterLast('/')?.substringAfterLast(':').orEmpty()
+                val displayName = context.contentResolver.query(
+                    uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null,
+                )?.use { cursor -> if (cursor.moveToFirst()) cursor.getString(0) else null }
+                val name = displayName ?: uri.lastPathSegment?.substringAfterLast('/')?.substringAfterLast(':').orEmpty()
                 val extension = name.substringAfterLast('.', "cbz").lowercase()
-                require(extension in setOf("zip", "cbz", "rar", "cbr")) { "Desteklenen biçimler: ZIP, CBZ, CBR, RAR" }
+                require(extension in setOf("zip", "cbz", "rar", "cbr", "epub", "pdf")) { "Desteklenen biçimler: ZIP, CBZ, CBR, RAR, EPUB, PDF" }
                 val directory = java.io.File(context.filesDir, "local-archives").apply { mkdirs() }
                 val file = java.io.File(directory, "${System.currentTimeMillis()}.$extension")
                 context.contentResolver.openInputStream(uri)?.use { input ->
@@ -68,10 +82,15 @@ fun MangaScreen(
     }
     localArchive?.let { file ->
         val source = androidx.compose.runtime.remember(file) { com.kitsugi.animelist.data.manga.LocalMangaArchiveSource(file) }
-        val details = androidx.compose.runtime.remember(file) { MangaDetails(file.toURI().toString(), file.nameWithoutExtension, source = source.name) }
+        val details = androidx.compose.runtime.remember(file) {
+            MangaDetails(
+                file.toURI().toString(), file.nameWithoutExtension, source = source.name,
+                genre = if (file.extension.equals("epub", true)) listOf("Novel", "Light Novel") else emptyList(),
+            )
+        }
         val chapter = androidx.compose.runtime.remember(file) { MangaChapter(details.url, file.nameWithoutExtension, 1f, mangaUrl = details.url) }
         MangaReaderScreen(chapter, details, source, onBack = { localArchive = null })
-        return
+        return@MangaScreen
     }
 
     val filteredTopManga = viewModel.topManga.filter { showAdultContent || !it.isAdult }
@@ -112,9 +131,14 @@ fun MangaScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
         KitsugiButton(
-            onClick = { archivePicker.launch(arrayOf("application/zip", "application/x-cbz", "application/vnd.rar", "application/x-rar-compressed", "application/x-cbr", "application/octet-stream")) },
+            onClick = { archivePicker.launch(arrayOf("application/zip", "application/x-cbz", "application/vnd.rar", "application/x-rar-compressed", "application/x-cbr", "application/epub+zip", "application/pdf", "application/octet-stream")) },
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-        ) { Text("Yerel arşiv aç (ZIP • CBZ • CBR • RAR)") }
+        ) { Text("Yerel dosya aç (CBZ • CBR • EPUB • PDF)") }
+
+        Spacer(modifier = Modifier.height(8.dp))
+        TextButton(onClick = { showOpds = true }, modifier = Modifier.padding(horizontal = 16.dp)) {
+            Text("OPDS kataloğundan EPUB / PDF / çizgi roman indir")
+        }
 
         Spacer(modifier = Modifier.height(8.dp))
 

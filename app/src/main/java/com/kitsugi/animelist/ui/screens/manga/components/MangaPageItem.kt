@@ -106,8 +106,16 @@ fun MangaPageItem(
     val background = if (readerOptions.bookEffect) Color(0xFF17130E) else Color.Black
     var viewportSize by remember { mutableStateOf(IntSize.Zero) }
 
+    val longTapModifier = if (readerOptions.longTapNavigation) {
+        Modifier.pointerInput(page.url, readerOptions.longTapNavigation) {
+            detectTapGestures(onLongPress = {
+                if (zoomableState.zoomState.zoomFraction == null || zoomableState.zoomState.zoomFraction == 0f) onNextPage()
+            })
+        }
+    } else Modifier
+
     Box(
-        modifier = modifier.fillMaxSize().background(background).onSizeChanged { viewportSize = it }.then(tapModifier),
+        modifier = modifier.fillMaxSize().background(background).onSizeChanged { viewportSize = it }.then(longTapModifier).then(tapModifier),
         contentAlignment = Alignment.Center,
     ) {
         when (page.status) {
@@ -153,9 +161,6 @@ fun MangaPageItem(
                             contentDescription = stringResource(R.string.manga_sayfasi_x, page.index + 1),
                             contentScale = contentScale,
                             colorFilter = colorFilter,
-                            onLongClick = if (readerOptions.longTapNavigation) {
-                                { if (zoomState.zoomFraction == null || zoomState.zoomFraction == 0f) onNextPage() }
-                            } else null,
                             modifier = sizedModifier,
                         )
                     } else {

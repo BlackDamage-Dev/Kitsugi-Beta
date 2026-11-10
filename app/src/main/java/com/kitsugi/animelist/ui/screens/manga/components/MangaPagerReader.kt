@@ -47,6 +47,15 @@ fun MangaPagerReader(
     val isRtl = readingMode == ReadingMode.RightToLeft
     val direction = if (isRtl) LayoutDirection.Rtl else LayoutDirection.Ltr
     val displayPages = remember(pages, doublePage) { buildMangaDisplayPages(pages, doublePage) }
+    LaunchedEffect(readerOptions.autoScroll, readerOptions.autoScrollSpeed) {
+        if (!readerOptions.autoScroll) return@LaunchedEffect
+        while (isActive) {
+            delay(24L)
+            pagerState.dispatchRawDelta(readerOptions.autoScrollSpeed * 24f / 1000f)
+        }
+    }
+
+
     val pageContent: @Composable PagerScope.(Int) -> Unit = { displayIndex ->
         val displayPage = displayPages.getOrNull(displayIndex)
         if (displayPage != null) CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
@@ -120,14 +129,6 @@ private fun DoublePageSpread(
     onPrevPage: () -> Unit,
 ) {
     val visualPages = remember(displayPages, readingMode) { orderMangaSpreadPages(displayPages, readingMode) }
-    LaunchedEffect(readerOptions.autoScroll, readerOptions.autoScrollSpeed) {
-        if (!readerOptions.autoScroll) return@LaunchedEffect
-        while (isActive) {
-            delay(24L)
-            pagerState.dispatchRawDelta(readerOptions.autoScrollSpeed * 24f / 1000f)
-        }
-    }
-
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
         Row(
             modifier = Modifier.fillMaxSize(),
@@ -144,7 +145,7 @@ private fun DoublePageSpread(
                             colorFilterType = colorFilterType,
                             fitMode = fitMode,
                             readerOptions = readerOptions,
-                            totalPages = pages.size,
+                            totalPages = displayPages.size,
                             tapNavigationEnabled = true,
                             allowWideRotation = false,
                             tapHorizontalOrigin = if (visuallyFirst) 0f else 0.5f,

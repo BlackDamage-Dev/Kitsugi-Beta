@@ -59,7 +59,10 @@ class MangaReaderViewModel(
     val speechState = speechController.state
     val loader = MangaPageLoaderV2(
         context = context, source = source, cache = cache,
-        archiveFile = (source as? com.kitsugi.animelist.data.manga.LocalMangaArchiveSource)?.archiveFile,
+        archiveFile = (source as? com.kitsugi.animelist.data.manga.LocalMangaArchiveSource)?.archiveFile?.takeIf { source.isArchive },
+        localDocumentFile = (source as? com.kitsugi.animelist.data.manga.LocalMangaArchiveSource)?.archiveFile?.takeIf {
+            (source as com.kitsugi.animelist.data.manga.LocalMangaArchiveSource).isDocument
+        },
         preferText = mangaDetails.isNovelContent,
     )
     val pages: StateFlow<List<MangaPage>> = loader.pages

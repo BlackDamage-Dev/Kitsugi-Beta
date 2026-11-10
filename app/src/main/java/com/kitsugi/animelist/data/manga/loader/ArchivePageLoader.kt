@@ -22,7 +22,7 @@ class ArchivePageLoader(private val context: Context, private val archiveFile: F
     suspend fun loadPages(chapterUrl: String): List<MangaPage> = withContext(Dispatchers.IO) {
         if (!isSupported()) return@withContext emptyList()
         entries().mapIndexed { index, name ->
-            MangaPage(index = index, imageUrl = "", chapterUrl = chapterUrl).apply {
+            MangaPage(index = index, url = "$chapterUrl#archive-$index", imageUrl = "").apply {
                 archivePath = name
                 status = MangaPageStatus.Queue
             }
