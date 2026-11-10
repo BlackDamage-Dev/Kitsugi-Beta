@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerScope
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.VerticalPager
 import androidx.compose.runtime.Composable
@@ -43,7 +44,7 @@ fun MangaPagerReader(
     val isRtl = readingMode == ReadingMode.RightToLeft
     val direction = if (isRtl) LayoutDirection.Rtl else LayoutDirection.Ltr
     val displayPages = remember(pages, doublePage) { buildMangaDisplayPages(pages, doublePage) }
-    val pageContent: @Composable (Int) -> Unit = { displayIndex ->
+    val pageContent: @Composable PagerScope.(Int) -> Unit = { displayIndex ->
         val displayPage = displayPages.getOrNull(displayIndex)
         if (displayPage != null) CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
             if (displayPage.pages.size == 1) {

@@ -44,6 +44,7 @@ import coil3.request.CachePolicy
 import coil3.request.ImageRequest
 import coil3.request.bitmapConfig
 import coil3.request.crossfade
+import coil3.request.transformations
 import com.kitsugi.animelist.R
 import com.kitsugi.animelist.data.manga.ColorFilterType
 import com.kitsugi.animelist.data.manga.MangaFitMode
