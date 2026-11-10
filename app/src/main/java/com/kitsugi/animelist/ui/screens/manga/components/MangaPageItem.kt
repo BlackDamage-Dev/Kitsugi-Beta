@@ -110,7 +110,7 @@ fun MangaPageItem(
     val longTapModifier = if (readerOptions.longTapNavigation) {
         Modifier.pointerInput(page.url, readerOptions.longTapNavigation) {
             detectTapGestures(onLongPress = {
-                if (zoomableState.zoomState.zoomFraction == null || zoomableState.zoomState.zoomFraction == 0f) onNextPage()
+                if (zoomableState.zoomFraction == null || zoomableState.zoomFraction == 0f) onNextPage()
             })
         }
     } else Modifier

@@ -60,7 +60,7 @@ Durumlar: **Uygulandı** = bu çalışmada kod yolu bağlandı; **Var** = öncek
 | Okunmuş bölüm atlama | Mihon | **Var.** Sonraki/önceki araması mevcut tamamlanma kaydını kullanır. |
 | Gizli okuma | Mihon/çoğu kütüphane uygulaması | **Uygulandı.** Bekleyen yazma iptal edilir; sayfa ve tamamlanma kaydı yapılmaz. |
 | Seri başına ayar override | Kotatsu | **Sonraki.** Mevcut ayarlar globaldir. |
-| Sayfa kaydet/paylaş ve duvar kâğıdı | Mihon/Kotatsu | **Sonraki.** Mevcut görsel paylaşımı bu reader paketine eklenmedi. |
+| Sayfa kaydet/paylaş ve duvar kâğıdı | Mihon/Kotatsu | **Uygulandı/Sınırlı.** Hazır görsel veya metin FileProvider ile sistem paylaşımına verilir; duvar kâğıdı ve galeriye özel kaydetme sonraki iş. |
 | Sözlük/çeviri/OCR | KOReader/Librera/Readest | **Sonraki.** Görsel OCR ve offline sözlük yok. |
 | Kesintisiz bölüm sonu kartı | Mihon | **Sınırlı.** Bölüm navigasyonu var; her mod için özelleştirilebilir geçiş kartı yok. |
 | Donanım sayfa tuşu/gamepad/TV | KOReader/YACReader | **Sınırlı.** Android TV ayrı reader mevcut; bu paket mobil reader içindir. |
@@ -95,7 +95,7 @@ Durumlar: **Uygulandı** = bu çalışmada kod yolu bağlandı; **Var** = öncek
 | TTS bildirimi/MediaSession, hız/ses seçimi, cümle vurgusu | QuickNovel/Legado | **Sonraki.** Bu paket ekran içi kontrol sağlar; arka plan medya oturumu ve görsel vurgu yok. |
 | Bionic reading | LNReader/QuickNovel | **Sonraki.** Metin vurgulama modeli eklenmedi. |
 | Pil/saat, dikey seekbar, kaydırma offset | LNReader | **Sonraki.** Yüzde ve otomatik hız var; pil/saat ve ince offset yok. |
-| Not, highlight, sözlük, arama | Readest/KOReader | **Sonraki.** Sayfa yer imi metin notu/highlight değildir. |
+| Not, highlight, sözlük, arama | Readest/KOReader | **Uygulandı/Sınırlı.** Bölüm metninde case-insensitive arama ve sayfaya atlama var; not, highlight ve sözlük yok. |
 | EPUB export ve kaynak replace kuralları | LNReader/QuickNovel/Legado | **Sonraki.** Mevcut parser kaynak metnini dışa EPUB üretmez. |
 
 ## Teknik doğruluk notları
@@ -109,4 +109,4 @@ Durumlar: **Uygulandı** = bu çalışmada kod yolu bağlandı; **Var** = öncek
 
 ## Bilinçli kapsam dışı bırakılanlar
 
-Tam PDF reflow/edit, DJVU/MOBI/AZW3/FB2, OPDS kimlik doğrulama/arama/navigation-feed gezgini, Bulut/Calibre/Komga/Kavita eşitleme, AniList/MAL bölüm tracking, seri bazlı ayar profilleri, sayfa OCR/çeviri, görsel sayfa paylaşımı, TTS medya bildirimi ve gelişmiş EPUB CSS bu paketin tamamlandığı anlamına gelmez. Bunlar ayrı veri modeli, UI ve gerçek servis/cihaz testleri gerektirir.
+Tam PDF reflow/edit, DJVU/MOBI/AZW3/FB2, OPDS kimlik doğrulama/arama/navigation-feed gezgini, Bulut/Calibre/Komga/Kavita eşitleme, AniList/MAL bölüm tracking, seri bazlı ayar profilleri, sayfa OCR/çeviri, TTS medya bildirimi ve gelişmiş EPUB CSS bu paketin tamamlandığı anlamına gelmez. Bunlar ayrı veri modeli, UI ve gerçek servis/cihaz testleri gerektirir.

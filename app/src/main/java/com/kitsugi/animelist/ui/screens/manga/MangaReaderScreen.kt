@@ -32,6 +32,8 @@ import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.filled.ColorLens
 import androidx.compose.material.icons.filled.CropFree
@@ -117,6 +119,7 @@ fun MangaReaderScreen(
     var menuVisible by remember { mutableStateOf(true) }
     var showSettings by remember { mutableStateOf(false) }
     var showBookmarks by remember { mutableStateOf(false) }
+    var showTextSearch by remember { mutableStateOf(false) }
 
     val activity = remember(context) { context.findActivity() }
     DisposableEffect(readerOptions.keepScreenOn, readerOptions.fullscreen, activity) {
@@ -319,6 +322,20 @@ fun MangaReaderScreen(
                         Text(mangaDetails.title, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(currentChapter.name, color = Color.White.copy(0.65f), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
+                    if (pages.getOrNull(currentPage)?.status == com.kitsugi.animelist.data.manga.MangaPageStatus.Ready) {
+                        IconButton(onClick = {
+                            val page = pages.getOrNull(currentPage) ?: return@IconButton
+                            scope.launch {
+                                runCatching { com.kitsugi.animelist.data.manga.MangaPageShareHelper.share(context, page, loader) }
+                                    .onFailure { android.widget.Toast.makeText(context, it.message, android.widget.Toast.LENGTH_LONG).show() }
+                            }
+                        }) { Icon(Icons.Filled.Share, stringResource(R.string.okuyucu_share_page), tint = Color.White) }
+                    }
+                    if (pages.any { it.textParagraphs != null }) {
+                        IconButton(onClick = { showTextSearch = true }) {
+                            Icon(Icons.Filled.Search, stringResource(R.string.okuyucu_search_text), tint = Color.White)
+                        }
+                    }
                     if (mangaDetails.isNovelContent && pages.any { it.textParagraphs != null }) {
                         IconButton(onClick = viewModel::toggleSpeechPlayback) {
                             Icon(
@@ -439,6 +456,20 @@ fun MangaReaderScreen(
                 }
             }
         }
+    }
+
+    if (showTextSearch) {
+        MangaTextSearchDialog(
+            pages = pages,
+            onDismiss = { showTextSearch = false },
+            onOpen = { target ->
+                showTextSearch = false
+                scope.launch {
+                    if (readingMode == ReadingMode.Webtoon) listState.scrollToItem(target.coerceIn(0, pages.lastIndex))
+                    else pagerState.scrollToPage(mangaDisplayPageIndexFor(displayPages, target.coerceIn(0, pages.lastIndex)))
+                }
+            },
+        )
     }
 
     if (showBookmarks) {
