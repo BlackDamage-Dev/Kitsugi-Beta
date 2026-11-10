@@ -55,6 +55,8 @@ class MangaReaderViewModel(
     private val settingsDataStore = SettingsDataStore(context)
     private val sourceStateStore = MangaSourceStateStore(context)
     private val bookmarkStore = MangaBookmarkStore(context)
+    private val speechController = com.kitsugi.animelist.data.manga.MangaNovelSpeechController(context)
+    val speechState = speechController.state
     val loader = MangaPageLoaderV2(
         context = context, source = source, cache = cache,
         archiveFile = (source as? com.kitsugi.animelist.data.manga.LocalMangaArchiveSource)?.archiveFile,
@@ -239,6 +241,21 @@ class MangaReaderViewModel(
         setReaderOptions(update(_uiState.value.readerOptions))
     }
 
+    fun speakCurrentChapter() {
+        val paragraphs = pages.value.flatMap { it.textParagraphs.orEmpty() }
+        speechController.speak(paragraphs)
+    }
+
+    fun toggleSpeechPlayback() {
+        when (speechState.value) {
+            com.kitsugi.animelist.data.manga.MangaNovelSpeechController.State.Paused -> speechController.resume()
+            com.kitsugi.animelist.data.manga.MangaNovelSpeechController.State.Speaking -> speechController.pause()
+            else -> speakCurrentChapter()
+        }
+    }
+
+    fun stopSpeech() = speechController.stop()
+
     fun toggleCurrentPageBookmark() {
         val state = _uiState.value
         bookmarkStore.toggle(MangaBookmark(
@@ -262,11 +279,12 @@ class MangaReaderViewModel(
     // ─── Bölüm gezinme ───────────────────────────────────────────────────────
 
     // F6: Bölüm değişiminde eski queue'yu temizle — yanlış sayfa yükleme önler
-    fun goToChapter(chapter: MangaChapter) {
+    fun goToChapter(chapter: MangaChapter, targetPage: Int? = null) {
         progressSaveJob?.cancel()
+        speechController.stop()
         loader.resetQueue()
-        _uiState.update { it.copy(currentChapter = chapter, currentPageIndex = 0) }
-        restoreProgress(chapter)
+        _uiState.update { it.copy(currentChapter = chapter, currentPageIndex = targetPage?.coerceAtLeast(0) ?: 0) }
+        restoreProgress(chapter, targetPage)
     }
 
     fun goToNextChapter() {
@@ -323,12 +341,13 @@ class MangaReaderViewModel(
 
     private var pageListJob: kotlinx.coroutines.Job? = null
 
-    private fun restoreProgress(chapter: MangaChapter) {
+    private fun restoreProgress(chapter: MangaChapter, targetPage: Int? = null) {
         pageListJob?.cancel()
         pageListJob = viewModelScope.launch {
             _uiState.update { it.copy(isLoadingPages = true, pagesError = null, pagesErrorCode = null) }
             val saved = dao.getProgress(chapter.url)
-            val pageIndex = if (saved != null && !saved.isCompleted) saved.lastPageIndex else 0
+            val pageIndex = targetPage?.coerceAtLeast(0)
+                ?: if (saved != null && !saved.isCompleted) saved.lastPageIndex else 0
             _uiState.update { it.copy(currentPageIndex = pageIndex) }
             try {
                 loader.loadPageList(chapter)
@@ -366,6 +385,7 @@ class MangaReaderViewModel(
 
     override fun onCleared() {
         super.onCleared()
+        speechController.release()
         loader.recycle()
     }
 

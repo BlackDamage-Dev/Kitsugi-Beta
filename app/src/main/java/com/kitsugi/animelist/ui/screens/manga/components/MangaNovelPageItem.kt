@@ -65,7 +65,7 @@ fun MangaNovelPageItem(
         }
         if (options.showProgressPercent) {
             Text(
-                text = "${((pageIndex + 1) * 100 / totalPages.coerceAtLeast(1)}%",
+                text = "${((pageIndex + 1) * 100 / totalPages.coerceAtLeast(1))}%",
                 color = Color(theme.textArgb).copy(alpha = 0.55f),
                 fontSize = 11.sp,
                 modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp),

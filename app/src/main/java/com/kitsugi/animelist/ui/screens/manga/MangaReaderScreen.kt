@@ -29,6 +29,9 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.BrightnessHigh
 import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.filled.ColorLens
 import androidx.compose.material.icons.filled.CropFree
@@ -108,6 +111,7 @@ fun MangaReaderScreen(
     val currentPage = uiState.currentPageIndex
     val readerOptions = uiState.readerOptions
     val loader = viewModel.loader
+    val speechState by viewModel.speechState.collectAsState()
     val scope = rememberCoroutineScope()
     var menuVisible by remember { mutableStateOf(true) }
     var showSettings by remember { mutableStateOf(false) }
@@ -314,6 +318,19 @@ fun MangaReaderScreen(
                         Text(mangaDetails.title, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(currentChapter.name, color = Color.White.copy(0.65f), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
+                    if (mangaDetails.isNovelContent && pages.any { it.textParagraphs != null }) {
+                        IconButton(onClick = viewModel::toggleSpeechPlayback) {
+                            Icon(
+                                if (speechState == com.kitsugi.animelist.data.manga.MangaNovelSpeechController.State.Speaking) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                                stringResource(R.string.okuyucu_speech), tint = Color.White,
+                            )
+                        }
+                        if (speechState != com.kitsugi.animelist.data.manga.MangaNovelSpeechController.State.Idle) {
+                            IconButton(onClick = viewModel::stopSpeech) {
+                                Icon(Icons.Filled.Stop, stringResource(R.string.okuyucu_stop_speech), tint = Color.White)
+                            }
+                        }
+                    }
                     IconButton(onClick = { viewModel.toggleCurrentPageBookmark() }) {
                         Icon(
                             if (uiState.bookmarks.any { it.chapterUrl == currentChapter.url && it.pageIndex == currentPage }) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
@@ -430,7 +447,10 @@ fun MangaReaderScreen(
             onDelete = viewModel::removeBookmark,
             onOpen = { bookmark ->
                 showBookmarks = false
-                if (bookmark.chapterUrl != currentChapter.url) viewModel.goToChapter(bookmark.chapterUrl)
+                if (bookmark.chapterUrl != currentChapter.url) {
+                    val targetChapter = uiState.chapterList.firstOrNull { it.url == bookmark.chapterUrl }
+                    if (targetChapter != null) viewModel.goToChapter(targetChapter, bookmark.pageIndex)
+                }
                 scope.launch {
                     if (readingMode == ReadingMode.Webtoon) listState.scrollToItem(bookmark.pageIndex.coerceIn(0, pages.lastIndex))
                     else pagerState.scrollToPage(mangaDisplayPageIndexFor(displayPages, bookmark.pageIndex.coerceIn(0, pages.lastIndex)))
