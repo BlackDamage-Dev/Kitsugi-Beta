@@ -27,14 +27,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.MenuBook
-import androidx.compose.material.icons.filled.BrightnessHigh
-import androidx.compose.material.icons.filled.Bookmark
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.outlined.BookmarkBorder
+import androidx.compose.material.icons.filled.DashboardCustomize
 import androidx.compose.material.icons.filled.ColorLens
 import androidx.compose.material.icons.filled.CropFree
 import androidx.compose.material.icons.filled.ScreenRotation
@@ -120,6 +113,7 @@ fun MangaReaderScreen(
     var showSettings by remember { mutableStateOf(false) }
     var showBookmarks by remember { mutableStateOf(false) }
     var showTextSearch by remember { mutableStateOf(false) }
+    var showQuickPanel by remember { mutableStateOf(false) }
 
     val activity = remember(context) { context.findActivity() }
     DisposableEffect(readerOptions.keepScreenOn, readerOptions.fullscreen, activity) {
@@ -322,41 +316,8 @@ fun MangaReaderScreen(
                         Text(mangaDetails.title, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(currentChapter.name, color = Color.White.copy(0.65f), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
-                    if (pages.getOrNull(currentPage)?.status == com.kitsugi.animelist.data.manga.MangaPageStatus.Ready) {
-                        IconButton(onClick = {
-                            val page = pages.getOrNull(currentPage) ?: return@IconButton
-                            scope.launch {
-                                runCatching { com.kitsugi.animelist.data.manga.MangaPageShareHelper.share(context, page, loader) }
-                                    .onFailure { android.widget.Toast.makeText(context, it.message, android.widget.Toast.LENGTH_LONG).show() }
-                            }
-                        }) { Icon(Icons.Filled.Share, stringResource(R.string.okuyucu_share_page), tint = Color.White) }
-                    }
-                    if (pages.any { it.textParagraphs != null }) {
-                        IconButton(onClick = { showTextSearch = true }) {
-                            Icon(Icons.Filled.Search, stringResource(R.string.okuyucu_search_text), tint = Color.White)
-                        }
-                    }
-                    if (mangaDetails.isNovelContent && pages.any { it.textParagraphs != null }) {
-                        IconButton(onClick = viewModel::toggleSpeechPlayback) {
-                            Icon(
-                                if (speechState == com.kitsugi.animelist.data.manga.MangaNovelSpeechController.State.Speaking) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                                stringResource(R.string.okuyucu_speech), tint = Color.White,
-                            )
-                        }
-                        if (speechState != com.kitsugi.animelist.data.manga.MangaNovelSpeechController.State.Idle) {
-                            IconButton(onClick = viewModel::stopSpeech) {
-                                Icon(Icons.Filled.Stop, stringResource(R.string.okuyucu_stop_speech), tint = Color.White)
-                            }
-                        }
-                    }
-                    IconButton(onClick = { viewModel.toggleCurrentPageBookmark() }) {
-                        Icon(
-                            if (uiState.bookmarks.any { it.chapterUrl == currentChapter.url && it.pageIndex == currentPage }) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
-                            stringResource(R.string.okuyucu_add_bookmark), tint = Color.White,
-                        )
-                    }
-                    IconButton(onClick = { showBookmarks = true }) {
-                        Icon(Icons.AutoMirrored.Filled.MenuBook, stringResource(R.string.okuyucu_bookmarks), tint = Color.White)
+                    IconButton(onClick = { showQuickPanel = true }) {
+                        Icon(Icons.Filled.DashboardCustomize, "Hızlı araçlar", tint = Color.White)
                     }
                     IconButton(onClick = { showSettings = true }) {
                         Icon(Icons.Filled.Settings, stringResource(R.string.okuyucu_ayarlari), tint = Color.White)
@@ -447,8 +408,8 @@ fun MangaReaderScreen(
                             tint = if (uiState.colorFilterType == ColorFilterType.Normal) Color.White else Color(0xFF80CBC4),
                         )
                     }
-                    IconButton(onClick = { showSettings = true }) {
-                        Icon(Icons.Default.BrightnessHigh, stringResource(R.string.manga_brightness), tint = Color.White)
+                    IconButton(onClick = { showQuickPanel = true }) {
+                        Icon(Icons.Default.DashboardCustomize, "Hızlı araçlar", tint = Color.White)
                     }
                     IconButton(onClick = { showSettings = true }) {
                         Icon(Icons.Default.Settings, stringResource(R.string.ayarlar), tint = Color.White)
@@ -456,6 +417,30 @@ fun MangaReaderScreen(
                 }
             }
         }
+    }
+
+    if (showQuickPanel) {
+        MangaReaderQuickPanel(
+            options = readerOptions,
+            hasText = pages.any { it.textParagraphs != null },
+            canShare = pages.getOrNull(currentPage)?.status == com.kitsugi.animelist.data.manga.MangaPageStatus.Ready,
+            isBookmarked = uiState.bookmarks.any { it.chapterUrl == currentChapter.url && it.pageIndex == currentPage },
+            speechState = speechState,
+            onDismiss = { showQuickPanel = false },
+            onToggleBookmark = viewModel::toggleCurrentPageBookmark,
+            onBookmarks = { showQuickPanel = false; showBookmarks = true },
+            onShare = {
+                val page = pages.getOrNull(currentPage)
+                if (page != null) scope.launch {
+                    runCatching { com.kitsugi.animelist.data.manga.MangaPageShareHelper.share(context, page, loader) }
+                        .onFailure { android.widget.Toast.makeText(context, it.message, android.widget.Toast.LENGTH_LONG).show() }
+                }
+            },
+            onSearch = { showQuickPanel = false; showTextSearch = true },
+            onToggleSpeech = viewModel::toggleSpeechPlayback,
+            onStopSpeech = viewModel::stopSpeech,
+            onOptionsChange = viewModel::setReaderOptions,
+        )
     }
 
     if (showTextSearch) {
@@ -497,6 +482,7 @@ fun MangaReaderScreen(
             fitMode = uiState.fitMode,
             brightness = uiState.customBrightness,
             options = readerOptions,
+            hasText = pages.any { it.textParagraphs != null },
             onReadingModeChange = viewModel::setReadingMode,
             onColorFilterChange = viewModel::setColorFilter,
             onFitModeChange = viewModel::setFitMode,
