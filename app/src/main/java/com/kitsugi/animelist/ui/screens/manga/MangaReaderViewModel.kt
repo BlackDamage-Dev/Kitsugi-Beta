@@ -246,7 +246,7 @@ class MangaReaderViewModel(
 
     fun speakCurrentChapter() {
         val paragraphs = pages.value.flatMap { it.textParagraphs.orEmpty() }
-        speechController.speak(paragraphs)
+        speechController.speak(paragraphs, rate = _uiState.value.readerOptions.novelSpeechRate)
     }
 
     fun toggleSpeechPlayback() {

@@ -34,6 +34,7 @@ data class MangaReaderOptions(
     val novelMarginDp: Int = 20,
     val novelFontFamily: MangaNovelFont = MangaNovelFont.Sans,
     val novelTextAlign: MangaNovelTextAlign = MangaNovelTextAlign.Start,
+    val novelSpeechRate: Float = 1f,
 ) {
     fun sanitized(): MangaReaderOptions = copy(
         sidePaddingDp = sidePaddingDp.coerceIn(0, 32),
@@ -44,6 +45,7 @@ data class MangaReaderOptions(
         novelFontSizeSp = novelFontSizeSp.coerceIn(12, 36),
         novelLineHeight = if (novelLineHeight.isFinite()) novelLineHeight.coerceIn(1f, 2.5f) else 1.5f,
         novelMarginDp = novelMarginDp.coerceIn(0, 48),
+        novelSpeechRate = if (novelSpeechRate.isFinite()) novelSpeechRate.coerceIn(0.5f, 2f) else 1f,
     )
 }
 

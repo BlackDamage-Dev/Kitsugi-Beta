@@ -423,6 +423,7 @@ class SettingsDataStore(
                         novelMarginDp = value.optInt("novelMarginDp", defaults.novelMarginDp),
                         novelFontFamily = value.optString("novelFontFamily").asEnum(defaults.novelFontFamily),
                         novelTextAlign = value.optString("novelTextAlign").asEnum(defaults.novelTextAlign),
+                        novelSpeechRate = value.optDouble("novelSpeechRate", defaults.novelSpeechRate.toDouble()).toFloat(),
                     )
                 }.getOrDefault(defaults)
             } ?: defaults
@@ -470,6 +471,7 @@ class SettingsDataStore(
             put("novelMarginDp", value.novelMarginDp)
             put("novelFontFamily", value.novelFontFamily.name)
             put("novelTextAlign", value.novelTextAlign.name)
+            put("novelSpeechRate", value.novelSpeechRate.toDouble())
         }.toString()
         context.settingsDataStore.edit { preferences ->
             preferences[Keys.MangaReaderOptionsJson] = json

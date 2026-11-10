@@ -242,6 +242,9 @@ fun MangaReaderSettingsSheet(
                         ReaderSlider("Satır Aralığı", options.novelLineHeight / 2.5f, 0.4f..1f, {
                             onOptionsChange(options.copy(novelLineHeight = it * 2.5f))
                         }) { onOptionsChange(options.copy(novelLineHeight = 1.5f)) }
+                        ReaderSlider("Sesli Okuma Hızı", options.novelSpeechRate / 2f, 0.25f..1f, {
+                            onOptionsChange(options.copy(novelSpeechRate = it * 2f))
+                        }) { onOptionsChange(options.copy(novelSpeechRate = 1f)) }
                         ReaderChoices(
                             items = MangaNovelFont.entries.map { it to it.name }, selected = options.novelFontFamily,
                             onSelected = { onOptionsChange(options.copy(novelFontFamily = it)) },

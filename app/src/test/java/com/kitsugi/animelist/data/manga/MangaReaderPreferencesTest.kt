@@ -75,6 +75,7 @@ class MangaReaderPreferencesTest {
                 sidePaddingDp = 100, pageGapDp = -5, pageOpacity = 4f,
                 preloadAhead = 99, autoScrollSpeed = -1,
                 novelFontSizeSp = 500, novelLineHeight = Float.NaN, novelMarginDp = -20,
+                novelSpeechRate = Float.POSITIVE_INFINITY,
             ),
         ).sanitized()
         assertEquals(0.1f, preferences.brightness, 0.0001f)
@@ -86,6 +87,7 @@ class MangaReaderPreferencesTest {
         assertEquals(36, preferences.options.novelFontSizeSp)
         assertEquals(1.5f, preferences.options.novelLineHeight, 0.0001f)
         assertEquals(0, preferences.options.novelMarginDp)
+        assertEquals(1f, preferences.options.novelSpeechRate, 0.0001f)
     }
 
     @Test fun nonFiniteSliderValuesCannotCrashTheReader() {
