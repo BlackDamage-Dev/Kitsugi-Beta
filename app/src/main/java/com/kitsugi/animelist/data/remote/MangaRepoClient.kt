@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.data.remote
+﻿package com.kitsugi.animelist.data.remote
 
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
@@ -52,18 +52,18 @@ class MangaRepoClient(context: android.content.Context) {
             "https://raw.githubusercontent.com/keiyoushi/extensions/repo/repo.json"
 
         /** Kitsugi resmi Manga eklenti havuzu (varsayılan manga deposu). */
-        const val KITSUGI_MANGA_PLUGINS_SLUG = "f26901964-eng/Kitsugi-Manga-Plugins"
-        const val KITSUGI_MANGA_GITHUB_URL = "https://github.com/f26901964-eng/Kitsugi-Manga-Plugins"
+        const val KITSUGI_MANGA_PLUGINS_SLUG = "BlackDamage-Plugin/Kitsugi-Manga-Plugins"
+        const val KITSUGI_MANGA_GITHUB_URL = "https://github.com/BlackDamage-Plugin/Kitsugi-Manga-Plugins"
         // Follow the video-plugin repo convention: the source repo publishes its install
         // catalog and APKs from the generated `builds` branch.
         const val KITSUGI_MANGA_REPO_URL =
-            "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Manga-Plugins/builds/index.json"
+            "https://raw.githubusercontent.com/BlackDamage-Plugin/Kitsugi-Manga-Plugins/builds/index.json"
 
         val KITSUGI_MANGA_CANDIDATE_URLS = listOf(
             KITSUGI_MANGA_REPO_URL,
-            "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Manga-Plugins/builds/plugins.json",
-            "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Manga-Plugins/main/index.json",
-            "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Manga-Plugins/main/plugins.json",
+            "https://raw.githubusercontent.com/BlackDamage-Plugin/Kitsugi-Manga-Plugins/builds/plugins.json",
+            "https://raw.githubusercontent.com/BlackDamage-Plugin/Kitsugi-Manga-Plugins/main/index.json",
+            "https://raw.githubusercontent.com/BlackDamage-Plugin/Kitsugi-Manga-Plugins/main/plugins.json",
         )
 
         fun isKitsugiMangaRepoUrl(url: String?): Boolean {

@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.data.auth
+﻿package com.kitsugi.animelist.data.auth
 
 import android.util.Log
 import com.kitsugi.animelist.BuildConfig
@@ -148,8 +148,8 @@ object BangumiApiClient {
      * Bkz. https://github.com/bangumi/api/blob/master/docs-raw/user%20agent.md
      */
     val USER_AGENT: String =
-        "f26901964-eng/Kitsugi-Beta/${BuildConfig.VERSION_NAME} (Android) " +
-            "(https://github.com/f26901964-eng/Kitsugi-Beta)"
+        "BlackDamage-Dev/Kitsugi-Beta/${BuildConfig.VERSION_NAME} (Android) " +
+            "(https://github.com/BlackDamage-Dev/Kitsugi-Beta)"
 
     /**
      * `lain.bgm.tv` görsel sunucusu bazı durumlarda hotlink koruması uygular.

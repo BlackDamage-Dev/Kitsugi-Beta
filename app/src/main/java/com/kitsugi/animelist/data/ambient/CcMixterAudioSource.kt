@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.data.ambient
+﻿package com.kitsugi.animelist.data.ambient
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -147,7 +147,7 @@ internal class CcMixterAudioSource(
         const val MAX_TITLE_LENGTH = 220
         const val MAX_CREATOR_LENGTH = 180
         const val MAX_TAGS = 24
-        const val USER_AGENT = "KitsugiBeta/2.x (Android ambient audio; https://github.com/f26901964-eng/Kitsugi-Beta)"
+        const val USER_AGENT = "KitsugiBeta/2.x (Android ambient audio; https://github.com/BlackDamage-Dev/Kitsugi-Beta)"
         val SUPPORTED_TYPES = AmbientAudioFormats.supportedPlaybackTypes - setOf("m3u8", "hls")
     }
 }

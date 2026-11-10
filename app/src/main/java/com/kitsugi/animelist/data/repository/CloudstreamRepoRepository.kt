@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.data.repository
+﻿package com.kitsugi.animelist.data.repository
 
 import android.content.Context
 import android.util.Log
@@ -102,7 +102,7 @@ class CloudstreamRepoRepository(private val context: Context) {
 
     suspend fun seedDefaultRepoIfEmpty() = withContext(Dispatchers.IO) {
         try {
-            val defaultUrl = "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/repo.json"
+            val defaultUrl = "https://raw.githubusercontent.com/BlackDamage-Plugin/Kitsugi-Video-Plugins/builds/repo.json"
             com.kitsugi.animelist.core.security.RepoVerifier.trustRepo(context, defaultUrl)
             com.kitsugi.animelist.core.security.RepoVerifier.trustRepo(context, "https://raw.githubusercontent.com")
             com.kitsugi.animelist.core.security.RepoVerifier.trustRepo(context, "https://codeberg.org/BlackDamage/KitsugiPlugins/raw/branch/builds/repo.json")

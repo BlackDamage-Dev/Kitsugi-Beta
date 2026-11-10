@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.data.manga
+﻿package com.kitsugi.animelist.data.manga
 
 import com.kitsugi.animelist.data.remote.MangaRepoClient
 import org.junit.Assert.assertEquals
@@ -11,11 +11,11 @@ class MangaRepoIdentityTest {
     fun kitsugiGithubRepoRootNormalizesToGeneratedPluginIndex() {
         assertEquals(
             MangaRepoClient.KITSUGI_MANGA_REPO_URL,
-            MangaRepoClient.normalizeMangaRepoUrl("https://github.com/f26901964-eng/Kitsugi-Manga-Plugins"),
+            MangaRepoClient.normalizeMangaRepoUrl("https://github.com/BlackDamage-Plugin/Kitsugi-Manga-Plugins"),
         )
         assertEquals(
             MangaRepoClient.KITSUGI_MANGA_REPO_URL,
-            MangaRepoClient.normalizeMangaRepoUrl("f26901964-eng/Kitsugi-Manga-Plugins"),
+            MangaRepoClient.normalizeMangaRepoUrl("BlackDamage-Plugin/Kitsugi-Manga-Plugins"),
         )
     }
 

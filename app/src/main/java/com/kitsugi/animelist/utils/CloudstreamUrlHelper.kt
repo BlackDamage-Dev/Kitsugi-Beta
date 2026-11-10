@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.utils
+﻿package com.kitsugi.animelist.utils
 
 import android.util.Log
 import java.net.HttpURLConnection
@@ -49,7 +49,7 @@ object CloudstreamUrlHelper {
         // Check for our KitsugiPlugins repo or legacy repositories that migrated to KitsugiPlugins
         val isOurRepoOrLegacy = cleanUrl.contains("KitsugiPlugins", ignoreCase = true) ||
             cleanUrl.contains("Kitsugi-Plugins", ignoreCase = true) ||
-            cleanUrl.contains("f26901964-eng/Kitsugi-Plugins", ignoreCase = true) ||
+            cleanUrl.contains("BlackDamage-Plugin/Kitsugi-Video-Plugins", ignoreCase = true) ||
             cleanUrl.contains("KitsugiBeta-dev", ignoreCase = true) ||
             cleanUrl.contains("gameras1010-afk/Kitsugi-Plugins", ignoreCase = true)
 
@@ -63,14 +63,14 @@ object CloudstreamUrlHelper {
                     // (ör. `CizgiveDizi`, `Dizikorea`) yeni depoda farklı adla derleniyor.
                     val alias = CS3_NAME_ALIASES[pluginIdentityKey(baseName)]
                     val resolvedName = if (alias != null) "$alias.cs3" else fileName
-                    "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/$resolvedName"
+                    "https://raw.githubusercontent.com/BlackDamage-Plugin/Kitsugi-Video-Plugins/builds/$resolvedName"
                 }
                 cleanPath.endsWith("plugins.json", ignoreCase = true) -> {
-                    "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/plugins.json"
+                    "https://raw.githubusercontent.com/BlackDamage-Plugin/Kitsugi-Video-Plugins/builds/plugins.json"
                 }
                 else -> {
                     // Canonical repo manifest (verified 200 OK)
-                    "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/repo.json"
+                    "https://raw.githubusercontent.com/BlackDamage-Plugin/Kitsugi-Video-Plugins/builds/repo.json"
                 }
             }
         }
@@ -166,7 +166,7 @@ object CloudstreamUrlHelper {
             }
             // Depo `prebuilt/` alt klasörü kullanıyorsa orayı da dene
             if (!baseDirs.endsWith("/prebuilt")) {
-                candidates.add("https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/$name.cs3")
+                candidates.add("https://raw.githubusercontent.com/BlackDamage-Plugin/Kitsugi-Video-Plugins/builds/prebuilt/$name.cs3")
             }
         }
 
@@ -178,22 +178,24 @@ object CloudstreamUrlHelper {
 
         // 2. Kitsugi havuzu aynaları
         if (normalized.contains("Kitsugi-Plugins", ignoreCase = true) ||
+            normalized.contains("Kitsugi-Video-Plugins", ignoreCase = true) ||
             normalized.contains("KitsugiPlugins", ignoreCase = true) ||
+            normalized.contains("BlackDamage-Plugin", ignoreCase = true) ||
             normalized.contains("gameras1010-afk", ignoreCase = true) ||
-            normalized.contains("f26901964-eng", ignoreCase = true)) {
+            normalized.contains("BlackDamage-Dev", ignoreCase = true)) {
             // When raw GitHub is blocked, try the official current build via the API
             // before a possibly much older prebuilt/mirror (e.g. Anizm v1 vs v20).
-            candidates.add("https://api.github.com/repos/f26901964-eng/Kitsugi-Plugins/contents/$scraperId.cs3?ref=builds")
+            candidates.add("https://api.github.com/repos/BlackDamage-Plugin/Kitsugi-Video-Plugins/contents/$scraperId.cs3?ref=builds")
             candidates.add("https://raw.githubusercontent.com/gameras1010-afk/Kitsugi-Plugins/builds/$scraperId.cs3")
             candidates.add("https://cdn.jsdelivr.net/gh/gameras1010-afk/Kitsugi-Plugins@builds/$scraperId.cs3")
-            candidates.add("https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/$scraperId.cs3")
-            candidates.add("https://cdn.jsdelivr.net/gh/f26901964-eng/Kitsugi-Plugins@builds/prebuilt/$scraperId.cs3")
+            candidates.add("https://raw.githubusercontent.com/BlackDamage-Plugin/Kitsugi-Video-Plugins/builds/prebuilt/$scraperId.cs3")
+            candidates.add("https://cdn.jsdelivr.net/gh/BlackDamage-Plugin/Kitsugi-Video-Plugins@builds/prebuilt/$scraperId.cs3")
 
             // api.github.com aynası: raw.githubusercontent.com ISS/BTK tarafından
             // engellendiğinde (Türkiye'de sık) ikili içeriği yine de indirir.
             // İndirme katmanı bu adresler için `Accept: application/vnd.github.raw` gönderir
             // (aksi halde GitHub base64 JSON döner ve ZIP doğrulaması başarısız olur).
-            candidates.add("https://api.github.com/repos/f26901964-eng/Kitsugi-Plugins/contents/prebuilt/$scraperId.cs3?ref=builds")
+            candidates.add("https://api.github.com/repos/BlackDamage-Plugin/Kitsugi-Video-Plugins/contents/prebuilt/$scraperId.cs3?ref=builds")
 
             // 2b. Codeberg (eski birincil havuz) SON ÇARE yedeği.
             // Kitsugi-Plugins deposu Codeberg havuzunun yerini aldı; ancak bazı eklentiler

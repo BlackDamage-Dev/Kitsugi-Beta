@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.data.manga
+﻿package com.kitsugi.animelist.data.manga
 
 import org.junit.Assert.*
 import org.junit.Test
@@ -62,23 +62,23 @@ class MangaTrPolicyTest {
 
     @Test fun apkDownloadCandidatesIncludeSameRepoMainAndBuildsPathsOnly() {
         val rawBuilds =
-            "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Manga-Plugins/builds/apk/tachiyomi-tr.mangatr-v1.6.28.apk"
+            "https://raw.githubusercontent.com/BlackDamage-Plugin/Kitsugi-Manga-Plugins/builds/apk/tachiyomi-tr.mangatr-v1.6.28.apk"
         val candidates = buildMangaApkDownloadCandidates(rawBuilds) { url ->
             url.replace("https://raw.githubusercontent.com/", "https://cdn.jsdelivr.net/gh/")
         }
         assertTrue(candidates.contains(rawBuilds))
         assertTrue(
             candidates.contains(
-                "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Manga-Plugins/main/apk/tachiyomi-tr.mangatr-v1.6.28.apk"
+                "https://raw.githubusercontent.com/BlackDamage-Plugin/Kitsugi-Manga-Plugins/main/apk/tachiyomi-tr.mangatr-v1.6.28.apk"
             )
         )
         assertTrue(
             candidates.contains(
-                "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Manga-Plugins/main/builds/apk/tachiyomi-tr.mangatr-v1.6.28.apk"
+                "https://raw.githubusercontent.com/BlackDamage-Plugin/Kitsugi-Manga-Plugins/main/builds/apk/tachiyomi-tr.mangatr-v1.6.28.apk"
             )
         )
         // Must never cross owner/repo boundaries.
-        assertTrue(candidates.all { it.contains("f26901964-eng/Kitsugi-Manga-Plugins") })
+        assertTrue(candidates.all { it.contains("BlackDamage-Plugin/Kitsugi-Manga-Plugins") })
     }
 
     @Test fun mangaTrKnownDomainsExcludeSquatterTlds() {

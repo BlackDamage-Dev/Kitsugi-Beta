@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.data.cloudstream
+﻿package com.kitsugi.animelist.data.cloudstream
 
 
 
@@ -1348,7 +1348,7 @@ object CsStreamRunner {
 
             val endpoints = listOf(
 
-                "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Beta/main/domain_fixes.json",
+                "https://raw.githubusercontent.com/BlackDamage-Dev/Kitsugi-Beta/main/domain_fixes.json",
 
                 "https://codeberg.org/BlackDamage/Kitsugi-Beta/raw/branch/main/domain_fixes.json"
 

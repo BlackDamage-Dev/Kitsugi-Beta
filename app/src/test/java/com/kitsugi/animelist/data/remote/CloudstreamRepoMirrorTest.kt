@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.data.remote
+﻿package com.kitsugi.animelist.data.remote
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -10,7 +10,7 @@ import org.junit.Test
  * Depo manifesti / eklenti listesi çekimindeki ayna (mirror) zinciri davranışı.
  *
  * Sorun (2026-10, kullanıcı bildirimi "uygulama eklenti güncellemelerini görmüyor"):
- * resmi depo URL'si `f26901964-eng/Kitsugi-Plugins/builds/...` biçiminde TİRE içeriyor,
+ * resmi depo URL'si `BlackDamage-Plugin/Kitsugi-Video-Plugins/builds/...` biçiminde TİRE içeriyor,
  * ancak yedek kaynak kontrolleri yalnızca `KitsugiPlugins`/`codeberg.org` arıyordu.
  * Bu yüzden `raw.githubusercontent.com` engellendiğinde (Türkiye'de sık görülür)
  * sıradaki yedekler atlanıyor ve uygulama doğrudan APK içindeki BAYAT listeye düşüyordu;
@@ -22,16 +22,16 @@ class CloudstreamRepoMirrorTest {
 
     @Test
     fun `tireli Kitsugi deposu da resmi depo sayilir`() {
-        assertTrue(client.isKitsugiRepoUrl("https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/repo.json"))
+        assertTrue(client.isKitsugiRepoUrl("https://raw.githubusercontent.com/BlackDamage-Plugin/Kitsugi-Video-Plugins/builds/repo.json"))
         assertTrue(client.isKitsugiRepoUrl("https://codeberg.org/BlackDamage/KitsugiPlugins/raw/branch/builds/plugins.json"))
         assertFalse(client.isKitsugiRepoUrl("https://raw.githubusercontent.com/Kraptor123/cs-kraptor/builds/plugins.json"))
     }
 
     @Test
     fun `github ham icerik adresi api muadiline cevrilir`() {
-        val api = client.githubApiContentUrl("https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/repo.json")
+        val api = client.githubApiContentUrl("https://raw.githubusercontent.com/BlackDamage-Plugin/Kitsugi-Video-Plugins/builds/repo.json")
         assertEquals(
-            "https://api.github.com/repos/f26901964-eng/Kitsugi-Plugins/contents/repo.json?ref=builds",
+            "https://api.github.com/repos/BlackDamage-Plugin/Kitsugi-Video-Plugins/contents/repo.json?ref=builds",
             api
         )
     }
@@ -39,12 +39,12 @@ class CloudstreamRepoMirrorTest {
     @Test
     fun `api adresi github disi kaynaklarda uretilmez`() {
         assertNull(client.githubApiContentUrl("https://codeberg.org/BlackDamage/KitsugiPlugins/raw/branch/builds/repo.json"))
-        assertNull(client.githubApiContentUrl("https://cdn.jsdelivr.net/gh/f26901964-eng/Kitsugi-Plugins@builds/repo.json"))
+        assertNull(client.githubApiContentUrl("https://cdn.jsdelivr.net/gh/BlackDamage-Plugin/Kitsugi-Video-Plugins@builds/repo.json"))
     }
 
     @Test
     fun `ayna zinciri birincil api jsdelivr ve codeberg sirasini korur`() {
-        val chain = client.mirrorChainFor("https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/plugins.json")
+        val chain = client.mirrorChainFor("https://raw.githubusercontent.com/BlackDamage-Plugin/Kitsugi-Video-Plugins/builds/plugins.json")
 
         assertEquals("Birincil URL ilk sırada olmalı", 0, chain.indexOfFirst { it.endsWith("builds/plugins.json") && it.startsWith("https://raw.githubusercontent.com/") })
         assertTrue("api.github.com muadili zincirde olmalı", chain.any { it.startsWith("https://api.github.com/repos/") })

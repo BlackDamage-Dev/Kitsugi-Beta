@@ -66,9 +66,9 @@ fun AboutScreen(
 
     val version = BuildConfig.VERSION_NAME
     val developer = "Kitsugi Team"
-    val projectRepo = "https://github.com/f26901964-eng/Kitsugi-Beta"
-    val pluginsRepo = "https://github.com/f26901964-eng/Kitsugi-Plugins"
-    val mangaPluginsRepo = "https://github.com/f26901964-eng/Kitsugi-Manga-Plugins"
+    val projectRepo = "https://github.com/BlackDamage-Dev/Kitsugi-Beta"
+    val pluginsRepo = "https://github.com/BlackDamage-Plugin/Kitsugi-Video-Plugins"
+    val mangaPluginsRepo = "https://github.com/BlackDamage-Plugin/Kitsugi-Manga-Plugins"
 
     var showDeveloperLogs by remember { mutableStateOf(false) }
 
@@ -262,7 +262,7 @@ fun AboutScreen(
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
-                                    text = "github.com/f26901964-eng/Kitsugi-Beta",
+                                    text = "github.com/BlackDamage-Dev/Kitsugi-Beta",
                                     color = KitsugiColors.textMuted,
                                     style = MaterialTheme.typography.labelSmall
                                 )
@@ -294,7 +294,7 @@ fun AboutScreen(
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
-                                    text = "github.com/f26901964-eng/Kitsugi-Plugins",
+                                    text = "github.com/BlackDamage-Plugin/Kitsugi-Video-Plugins",
                                     color = KitsugiColors.textMuted,
                                     style = MaterialTheme.typography.labelSmall
                                 )
@@ -326,7 +326,7 @@ fun AboutScreen(
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
-                                    text = "github.com/f26901964-eng/Kitsugi-Manga-Plugins",
+                                    text = "github.com/BlackDamage-Plugin/Kitsugi-Manga-Plugins",
                                     color = KitsugiColors.textMuted,
                                     style = MaterialTheme.typography.labelSmall
                                 )

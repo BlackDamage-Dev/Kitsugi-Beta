@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.utils
+﻿package com.kitsugi.animelist.utils
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -25,7 +25,7 @@ class CloudstreamUrlHelperTest {
         val codeberg = "https://codeberg.org/BlackDamage/KitsugiPlugins/raw/branch/builds/RecTV.cs3"
         val normalized = CloudstreamUrlHelper.normalizeUrl(codeberg)
         assertEquals(
-            "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/RecTV.cs3",
+            "https://raw.githubusercontent.com/BlackDamage-Plugin/Kitsugi-Video-Plugins/builds/RecTV.cs3",
             normalized
         )
     }
@@ -102,10 +102,10 @@ class CloudstreamUrlHelperTest {
 
     @Test
     fun `official current Anizm build is tried before stale prebuilt fallback`() {
-        val url = "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/Anizm.cs3"
+        val url = "https://raw.githubusercontent.com/BlackDamage-Plugin/Kitsugi-Video-Plugins/builds/Anizm.cs3"
         val candidates = CloudstreamUrlHelper.getCandidateDownloadUrls("Anizm", url)
-        val currentApi = candidates.indexOf("https://api.github.com/repos/f26901964-eng/Kitsugi-Plugins/contents/Anizm.cs3?ref=builds")
-        val oldPrebuilt = candidates.indexOf("https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/Anizm.cs3")
+        val currentApi = candidates.indexOf("https://api.github.com/repos/BlackDamage-Plugin/Kitsugi-Video-Plugins/contents/Anizm.cs3?ref=builds")
+        val oldPrebuilt = candidates.indexOf("https://raw.githubusercontent.com/BlackDamage-Plugin/Kitsugi-Video-Plugins/builds/prebuilt/Anizm.cs3")
         assertTrue(currentApi >= 0 && oldPrebuilt > currentApi)
     }
 
@@ -116,7 +116,7 @@ class CloudstreamUrlHelperTest {
 
         assertTrue(
             "Orijinal Kitsugi-Plugins adresi adaylarda olmali: $candidates",
-            candidates.any { it.contains("f26901964-eng/Kitsugi-Plugins") && it.endsWith("WFilmizle.cs3") || it.endsWith("WFilm\u0130zle.cs3") }
+            candidates.any { it.contains("BlackDamage-Plugin/Kitsugi-Video-Plugins") && it.endsWith("WFilmizle.cs3") || it.endsWith("WFilm\u0130zle.cs3") }
         )
         assertTrue(
             "Codeberg kurtarma yedegi adaylarda olmali: $candidates",

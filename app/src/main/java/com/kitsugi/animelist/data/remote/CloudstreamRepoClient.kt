@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.data.remote
+﻿package com.kitsugi.animelist.data.remote
 
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
@@ -99,7 +99,7 @@ class CloudstreamRepoClient(private val context: android.content.Context? = null
         private const val CODEBERG_API_PLUGINS_FALLBACK = "https://codeberg.org/api/v1/repos/BlackDamage/KitsugiPlugins/raw/builds/plugins.json"
 
         /** Kitsugi resmi eklenti havuzu (uygulamanın varsayılan deposu). */
-        const val KITSUGI_PLUGINS_SLUG = "f26901964-eng/Kitsugi-Plugins"
+        const val KITSUGI_PLUGINS_SLUG = "BlackDamage-Plugin/Kitsugi-Video-Plugins"
 
         private const val GITHUB_RAW_PREFIX = "https://raw.githubusercontent.com/"
         private const val GITHUB_API_CONTENTS = "https://api.github.com/repos/"
@@ -112,7 +112,7 @@ class CloudstreamRepoClient(private val context: android.content.Context? = null
      * URL Kitsugi eklenti havuzunu (yeni GitHub deposu veya eski Codeberg aynası) mu işaret ediyor?
      *
      * NOT: Daha önce bu kontrol bazı yerlerde yalnızca `KitsugiPlugins` (tire yok) ve
-     * `codeberg.org` arıyordu; resmi depo URL'si `f26901964-eng/Kitsugi-Plugins/builds/...`
+     * `codeberg.org` arıyordu; resmi depo URL'si `BlackDamage-Plugin/Kitsugi-Video-Plugins/builds/...`
      * biçiminde tire içerdiği için o yollar hiç tetiklenmiyor, istek başarısız olduğunda
      * doğrudan APK içindeki BAYAT listeye düşülüyordu. Tek bir yardımcı ile birleştirildi.
      */
@@ -121,7 +121,9 @@ class CloudstreamRepoClient(private val context: android.content.Context? = null
         return value.contains("Kitsugi", ignoreCase = true) ||
             value.contains("KitsugiPlugins", ignoreCase = true) ||
             value.contains("Kitsugi-Plugins", ignoreCase = true) ||
-            value.contains("f26901964-eng", ignoreCase = true) ||
+            value.contains("Kitsugi-Video-Plugins", ignoreCase = true) ||
+            value.contains("BlackDamage-Plugin", ignoreCase = true) ||
+            value.contains("BlackDamage-Dev", ignoreCase = true) ||
             value.contains("BlackDamage/KitsugiPlugins", ignoreCase = true)
     }
 

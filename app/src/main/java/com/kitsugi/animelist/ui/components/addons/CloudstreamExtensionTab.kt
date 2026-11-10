@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.ui.components.addons
+﻿package com.kitsugi.animelist.ui.components.addons
 
 import com.kitsugi.animelist.ui.theme.gradient.CircularProgressIndicator
 import com.kitsugi.animelist.ui.utils.uniqueItems
@@ -294,7 +294,7 @@ internal fun CloudstreamExtensionsTab(
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         val predefinedRepos = listOf(
-                            Triple(stringResource(R.string.kitsugi_eklentileri_onerilen), stringResource(R.string.dizipal_rectv_ddizi_dizilla_vb_160_derlenmis_ve_guncel_turkce_ek), "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/repo.json"),
+                            Triple(stringResource(R.string.kitsugi_eklentileri_onerilen), stringResource(R.string.dizipal_rectv_ddizi_dizilla_vb_160_derlenmis_ve_guncel_turkce_ek), "https://raw.githubusercontent.com/BlackDamage-Plugin/Kitsugi-Video-Plugins/builds/repo.json"),
                             Triple("Kraptor (Kraptor123)", stringResource(R.string.animecix_animeler_animeelysium_eklentilerini_iceren_dizi_film_ve), "https://raw.githubusercontent.com/Kraptor123/cs-kraptor/builds/plugins.json"),
                             Triple("Kekik (feroxx)", stringResource(R.string.aktif_kekik_eklenti_deposu_derlemeleri_builds_ve_turkce_topluluk), "https://raw.githubusercontent.com/feroxx/Kekik-cloudstream/refs/heads/builds/repo.json"),
                             Triple("CS-Karma (Kraptor123)", stringResource(R.string.kraptor_un_alternatif_karma_turkce_eklenti_deposu), "https://raw.githubusercontent.com/Kraptor123/Cs-Karma/builds/plugins.json"),

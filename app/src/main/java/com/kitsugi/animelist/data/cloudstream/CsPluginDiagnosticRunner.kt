@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.data.cloudstream
+﻿package com.kitsugi.animelist.data.cloudstream
 
 import com.kitsugi.animelist.data.diagnostics.PlatformErrorCode
 
@@ -56,7 +56,7 @@ object CsPluginDiagnosticRunner {
      *    Ölü adresler her tanı turunda gereksiz gecikme + hata satırı üretiyordu.
      */
     val REPOS = listOf(
-        "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/repo.json",
+        "https://raw.githubusercontent.com/BlackDamage-Plugin/Kitsugi-Video-Plugins/builds/repo.json",
         "https://codeberg.org/BlackDamage/KitsugiPlugins/raw/branch/builds/repo.json",
         "https://raw.githubusercontent.com/feroxx/Kekik-cloudstream/refs/heads/builds/repo.json",
         "https://raw.githubusercontent.com/Kraptor123/Cs-Karma/refs/heads/master/repo.json",

@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.data.remote
+﻿package com.kitsugi.animelist.data.remote
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -37,18 +37,18 @@ class CloudstreamRepoClientTest {
     @Test
     fun `ayni eklentinin iki kaydindan yuksek surum kazanir`() {
         val stale = plugin("RecTV", 1, "https://codeberg.org/BlackDamage/KitsugiPlugins/raw/branch/builds/RecTV.cs3")
-        val fresh = plugin("RecTV", 98, "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/RecTV.cs3")
+        val fresh = plugin("RecTV", 98, "https://raw.githubusercontent.com/BlackDamage-Plugin/Kitsugi-Video-Plugins/builds/RecTV.cs3")
 
         val result = client.dedupePlugins(listOf(stale, fresh))
 
         assertEquals("Tek kayit kalmali", 1, result.size)
         assertEquals("Guncel surum kazanmali", 98, result[0].version)
-        assertTrue("Guncel URL korunmali", result[0].url.contains("f26901964-eng"))
+        assertTrue("Guncel URL korunmali", result[0].url.contains("BlackDamage-Plugin"))
     }
 
     @Test
     fun `esit surumde ilk gelen kayit korunur`() {
-        val primary = plugin("AnimeciX", 21, "https://f26901964-eng/Kitsugi-Plugins/builds/AnimeciX.cs3")
+        val primary = plugin("AnimeciX", 21, "https://BlackDamage-Plugin/Kitsugi-Video-Plugins/builds/AnimeciX.cs3")
         val secondary = plugin("AnimeciX", 21, "https://codeberg.org/BlackDamage/KitsugiPlugins/raw/branch/builds/AnimeciX.cs3")
 
         val result = client.dedupePlugins(listOf(primary, secondary))

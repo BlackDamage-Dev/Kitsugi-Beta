@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.data.fandom
+﻿package com.kitsugi.animelist.data.fandom
 
 import android.util.Log
 import com.kitsugi.animelist.BuildConfig
@@ -39,7 +39,7 @@ internal object FandomHttp {
     private val failures = AtomicInteger(0)
 
     val userAgent: String by lazy {
-        "Kitsugi/${BuildConfig.VERSION_NAME} (Android; +https://github.com/f26901964-eng/Kitsugi-Beta)"
+        "Kitsugi/${BuildConfig.VERSION_NAME} (Android; +https://github.com/BlackDamage-Dev/Kitsugi-Beta)"
     }
 
     fun failureCount(): Int = failures.get()

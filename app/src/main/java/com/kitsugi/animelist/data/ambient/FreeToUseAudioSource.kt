@@ -1,4 +1,4 @@
-package com.kitsugi.animelist.data.ambient
+﻿package com.kitsugi.animelist.data.ambient
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -117,6 +117,6 @@ internal class FreeToUseAudioSource(
         const val MAX_TITLE_LENGTH = 220
         const val MAX_CREATOR_LENGTH = 180
         const val MAX_TAGS = 32
-        const val USER_AGENT = "KitsugiBeta/2.x (Android ambient audio; https://github.com/f26901964-eng/Kitsugi-Beta)"
+        const val USER_AGENT = "KitsugiBeta/2.x (Android ambient audio; https://github.com/BlackDamage-Dev/Kitsugi-Beta)"
     }
 }
