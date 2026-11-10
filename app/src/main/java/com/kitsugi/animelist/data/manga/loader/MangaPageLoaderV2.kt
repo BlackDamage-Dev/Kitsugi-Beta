@@ -65,6 +65,7 @@ class MangaPageLoaderV2(
                     _pages.value = when (localDocumentFile.extension.lowercase()) {
                         "epub" -> EpubPageLoader(localDocumentFile).loadPages(chapter.url)
                         "pdf" -> PdfPageLoader(context, localDocumentFile).let { pdf -> pdf.pages(chapter.url, pdf.pageCount()) }
+                        "txt", "md", "markdown", "fb2" -> TextDocumentPageLoader(localDocumentFile).loadPages(chapter.url)
                         else -> throw java.io.IOException("Desteklenmeyen yerel belge")
                     }
                     if (_pages.value.isEmpty()) throw java.io.IOException("Belgede okunabilir sayfa bulunamadı")

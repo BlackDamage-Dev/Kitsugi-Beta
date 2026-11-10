@@ -75,7 +75,8 @@ Durumlar: **Uygulandı** = bu çalışmada kod yolu bağlandı; **Var** = öncek
 | PDF | **Uygulandı.** Android `PdfRenderer`, sayfa bazlı render ve private WebP cache; tüm belge RAM'e alınmaz. |
 | EPUB metin | **Uygulandı.** `META-INF/container.xml`, OPF manifest/idref ve spine; göreli yol/`..` normalizasyonu; XHTML paragraf ayrıştırma. |
 | EPUB görsel/math/SVG/font/CSS/inline image | **Sınırlı.** Metin yolu vardır; tam CSS/reflow, MathML, SVG ve zengin inline-image layout yoktur. Image-only EPUB ayrıca geliştirilmelidir. |
-| DJVU, MOBI, AZW3, FB2, DOCX, TXT, Markdown | **Sonraki.** Destekleniyor gibi dosya seçiciye eklenmedi. |
+| TXT, Markdown, FB2 | **Uygulandı.** 16 MB parser sınırı; UTF-8 ve Türkçe windows-1254 fallback; FB2 not/binary temizliği; 6.000 karakterlik sayfalar. Markdown metin olarak okunur, tam zengin Markdown layout'u değildir. |
+| DJVU, MOBI, AZW3, DOCX | **Sonraki.** Ayrı belge motoru gerekir; destekleniyor gibi dosya seçiciye eklenmedi. |
 | SAF kalıcı URI | **Sınırlı.** Seçilen dosya private storage'a kopyalanır; kaynak dosya sonradan değişse açılan kopya değişmez. Görünen dosya adı `OpenableColumns.DISPLAY_NAME` ile okunur. |
 | OPDS 1 Atom / OPDS 2 JSON | **Uygulandı.** Yayın/yazar ve desteklenen acquisition linkleri; EPUB/PDF/CBZ/CBR indirip yerel okuyucuda açma. Kimlik doğrulama, arama şablonu ve navigation-feed gezgini sonraki iş. |
 | Arşiv klasörü/seri kütüphanesi | **Sonraki.** Şu an tek dosya açma vardır. |
@@ -92,7 +93,7 @@ Durumlar: **Uygulandı** = bu çalışmada kod yolu bağlandı; **Var** = öncek
 | Okuma teması | LNReader/Kavita/QuickNovel | **Uygulandı.** Görsel reader ile ortak dört tema. |
 | Otomatik kaydırma | LNReader | **Uygulandı.** Görsel ve metin için ortak kontrol. |
 | TTS | QuickNovel/Legado | **Uygulandı.** On-device Android TTS; uzun metin segmentleri, queue, play/pause/resume/stop, ViewModel release. |
-| TTS bildirimi/MediaSession, hız/ses seçimi, cümle vurgusu | QuickNovel/Legado | **Sonraki.** Bu paket ekran içi kontrol sağlar; arka plan medya oturumu ve görsel vurgu yok. |
+| TTS bildirimi/MediaSession, hız/ses seçimi, cümle vurgusu | QuickNovel/Legado | **Uygulandı/Sınırlı.** 0,5×–2× kalıcı hız, init kuyruğu, cümleyi koruyan pause/resume ve testli segmenter var; medya bildirimi, ses seçimi ve görsel vurgu sonraki iş. |
 | Bionic reading | LNReader/QuickNovel | **Sonraki.** Metin vurgulama modeli eklenmedi. |
 | Pil/saat, dikey seekbar, kaydırma offset | LNReader | **Sonraki.** Yüzde ve otomatik hız var; pil/saat ve ince offset yok. |
 | Not, highlight, sözlük, arama | Readest/KOReader | **Uygulandı/Sınırlı.** Bölüm metninde case-insensitive arama ve sayfaya atlama var; not, highlight ve sözlük yok. |
@@ -105,8 +106,10 @@ Durumlar: **Uygulandı** = bu çalışmada kod yolu bağlandı; **Var** = öncek
 - EPUB path normalization arşiv dışına `..` ile çıkmayı reddeder; OPF `spine` sırası korunur.
 - Yeni DataStore alanları eski JSON ile varsayılanlara döner; mevcut 17 seçenek kaybolmaz.
 - Gizli mod ilerleme yazımını erken keser; TTS bölüm değişiminde ve ViewModel kapanışında durdurulur.
-- Yerel testler arşiv sıralaması ve HTML parser için eklendi; gerçek Android API/Compose/EPUB/PDF derlemesi GitHub Actions üzerinden yapılır.
+- Yerel testler arşiv sıralaması, HTML/FB2/TXT parser, EPUB spine, TTS segmenter ve cache LRU için eklendi; gerçek Android API/Compose/EPUB/PDF derlemesi GitHub Actions üzerinden yapılır.
+- SAF/OPDS içe aktarmaları içerik SHA-256 ile tekilleştirilir, yarım dosyalar temizlenir ve 512 MB ile sınırlanır. Metin parser sınırı ayrıca 16 MB'dır. Türetilen PDF/arşiv görselleri 384 MB LRU ile temizlenir; kullanıcı kitapları silinmez.
+- Arayüzde sık kullanılan sayfa/metin/oturum araçları tek **Hızlı Araçlar** panelindedir. Ayarlar **Okuma / Görünüm / Gezinme / Metin** sekmelerine ayrılır; metne özel kontroller yalnız metin içeriğinde görünür.
 
 ## Bilinçli kapsam dışı bırakılanlar
 
-Tam PDF reflow/edit, DJVU/MOBI/AZW3/FB2, OPDS kimlik doğrulama/arama/navigation-feed gezgini, Bulut/Calibre/Komga/Kavita eşitleme, AniList/MAL bölüm tracking, seri bazlı ayar profilleri, sayfa OCR/çeviri, TTS medya bildirimi ve gelişmiş EPUB CSS bu paketin tamamlandığı anlamına gelmez. Bunlar ayrı veri modeli, UI ve gerçek servis/cihaz testleri gerektirir.
+Tam PDF reflow/edit, DJVU/MOBI/AZW3/DOCX, OPDS kimlik doğrulama/arama/navigation-feed gezgini, Bulut/Calibre/Komga/Kavita eşitleme, AniList/MAL bölüm tracking, seri bazlı ayar profilleri, sayfa OCR/çeviri, TTS medya bildirimi ve gelişmiş EPUB CSS bu paketin tamamlandığı anlamına gelmez. Bunlar ayrı veri modeli, UI ve gerçek servis/cihaz testleri gerektirir.

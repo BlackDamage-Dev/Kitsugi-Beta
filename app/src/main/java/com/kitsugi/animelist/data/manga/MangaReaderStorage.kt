@@ -11,7 +11,7 @@ import java.security.MessageDigest
 object MangaReaderStorage {
     const val MAX_IMPORT_BYTES = 512L * 1024L * 1024L
     const val MAX_RENDER_CACHE_BYTES = 384L * 1024L * 1024L
-    val supportedExtensions = setOf("zip", "cbz", "rar", "cbr", "epub", "pdf")
+    val supportedExtensions = setOf("zip", "cbz", "rar", "cbr", "epub", "pdf", "txt", "md", "markdown", "fb2")
 
     suspend fun importDocument(context: Context, uri: Uri): File = withContext(Dispatchers.IO) {
         val resolver = context.contentResolver
@@ -24,7 +24,7 @@ object MangaReaderStorage {
         }
         val name = metadata?.first ?: uri.lastPathSegment?.substringAfterLast('/')?.substringAfterLast(':').orEmpty()
         val extension = name.substringAfterLast('.', "").lowercase()
-        require(extension in supportedExtensions) { "Desteklenen biçimler: ZIP, CBZ, CBR, RAR, EPUB, PDF" }
+        require(extension in supportedExtensions) { "Desteklenen biçimler: ZIP, CBZ, CBR, RAR, EPUB, PDF, TXT, MD, FB2" }
         metadata?.second?.let { require(it in 0..MAX_IMPORT_BYTES) { "Dosya 512 MB sınırını aşıyor" } }
         val directory = File(context.filesDir, "local-archives").apply { mkdirs() }
         val temporary = File(directory, "import-${System.nanoTime()}.tmp")

@@ -76,7 +76,7 @@ fun MangaScreen(
         val details = androidx.compose.runtime.remember(file) {
             MangaDetails(
                 file.toURI().toString(), file.nameWithoutExtension, source = source.name,
-                genre = if (file.extension.equals("epub", true)) listOf("Novel", "Light Novel") else emptyList(),
+                genre = if (file.extension.lowercase() in setOf("epub", "txt", "md", "markdown", "fb2")) listOf("Novel", "Light Novel") else emptyList(),
             )
         }
         val chapter = androidx.compose.runtime.remember(file) { MangaChapter(details.url, file.nameWithoutExtension, 1f, mangaUrl = details.url) }
@@ -122,9 +122,9 @@ fun MangaScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
         KitsugiButton(
-            onClick = { archivePicker.launch(arrayOf("application/zip", "application/x-cbz", "application/vnd.rar", "application/x-rar-compressed", "application/x-cbr", "application/epub+zip", "application/pdf", "application/octet-stream")) },
+            onClick = { archivePicker.launch(arrayOf("application/zip", "application/x-cbz", "application/vnd.rar", "application/x-rar-compressed", "application/x-cbr", "application/epub+zip", "application/pdf", "text/plain", "text/markdown", "application/x-fictionbook+xml", "application/octet-stream")) },
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-        ) { Text("Yerel dosya aç (CBZ • CBR • EPUB • PDF)") }
+        ) { Text("Yerel dosya aç (Çizgi roman • Kitap • Metin)") }
 
         Spacer(modifier = Modifier.height(8.dp))
         TextButton(onClick = { showOpds = true }, modifier = Modifier.padding(horizontal = 16.dp)) {
