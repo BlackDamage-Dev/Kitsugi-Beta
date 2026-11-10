@@ -27,7 +27,7 @@ internal object AmbientQueueRules {
 
     /** Uyku zamanlayıcısı döngüsü: kapalı → 15 → 30 → 60 → kapalı. */
     fun nextSleepTimerMinutes(current: Int): Int {
-        val index = SLEEP_TIMER_OPTIONS.indexOf(current)
+        val index = SLEEP_TIMER_OPTIONS.indexOf(current).let { if (it < 0) 0 else it }
         return SLEEP_TIMER_OPTIONS[(index + 1).mod(SLEEP_TIMER_OPTIONS.size)]
     }
 
@@ -35,7 +35,7 @@ internal object AmbientQueueRules {
     val PLAYBACK_SPEEDS: List<Float> = listOf(1f, 1.25f, 1.5f, 2f, 0.75f)
 
     fun nextPlaybackSpeed(current: Float): Float {
-        val index = PLAYBACK_SPEEDS.indexOfFirst { kotlin.math.abs(it - current) < 0.001f }
+        val index = PLAYBACK_SPEEDS.indexOfFirst { kotlin.math.abs(it - current) < 0.001f }.let { if (it < 0) 0 else it }
         return PLAYBACK_SPEEDS[(index + 1).mod(PLAYBACK_SPEEDS.size)]
     }
 

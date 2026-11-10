@@ -152,11 +152,11 @@ class MangaAmbientAudioPlayback internal constructor(context: Context) {
     }
 
     /** Oynatma hızı; parçalar arasında korunur. */
-    var playbackSpeed by mutableFloatStateOf(1f)
-        private set
+    private var internalPlaybackSpeed by mutableFloatStateOf(1f)
+    val playbackSpeed: Float get() = internalPlaybackSpeed
 
     fun setPlaybackSpeed(speed: Float) {
-        playbackSpeed = speed
+        internalPlaybackSpeed = speed
         runCatching { player.playbackParameters = PlaybackParameters(speed) }
     }
 
