@@ -44,6 +44,17 @@ class AmbientQueueRulesTest {
     }
 
     @Test
+    fun `playback speed cycles through the configured speeds`() {
+        assertEquals(1.25f, AmbientQueueRules.nextPlaybackSpeed(1f), 0.001f)
+        assertEquals(1.5f, AmbientQueueRules.nextPlaybackSpeed(1.25f), 0.001f)
+        assertEquals(2f, AmbientQueueRules.nextPlaybackSpeed(1.5f), 0.001f)
+        assertEquals(0.75f, AmbientQueueRules.nextPlaybackSpeed(2f), 0.001f)
+        assertEquals(1f, AmbientQueueRules.nextPlaybackSpeed(0.75f), 0.001f)
+        // Bilinmeyen bir hız 1x'ten başlar.
+        assertEquals(1.25f, AmbientQueueRules.nextPlaybackSpeed(3f), 0.001f)
+    }
+
+    @Test
     fun `continuation queue starts at the picked track and wraps to the earlier ones`() {
         val visible = listOf(track("a"), track("b"), track("c"), track("d"))
 

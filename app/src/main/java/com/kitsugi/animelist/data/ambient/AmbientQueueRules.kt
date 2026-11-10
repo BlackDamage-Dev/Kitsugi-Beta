@@ -31,6 +31,14 @@ internal object AmbientQueueRules {
         return SLEEP_TIMER_OPTIONS[(index + 1).mod(SLEEP_TIMER_OPTIONS.size)]
     }
 
+    /** Oynatma hızı seçenekleri. Döngü sırası kullanıcı dostu tutuldu (1x başta). */
+    val PLAYBACK_SPEEDS: List<Float> = listOf(1f, 1.25f, 1.5f, 2f, 0.75f)
+
+    fun nextPlaybackSpeed(current: Float): Float {
+        val index = PLAYBACK_SPEEDS.indexOfFirst { kotlin.math.abs(it - current) < 0.001f }
+        return PLAYBACK_SPEEDS[(index + 1).mod(PLAYBACK_SPEEDS.size)]
+    }
+
     /** Tekrar modu döngüsü: kapalı → tek parça → liste → kapalı. */
     fun nextRepeatMode(current: Int): Int = when (current) {
         REPEAT_OFF -> REPEAT_ONE

@@ -423,6 +423,16 @@ class MangaAmbientOnlineController internal constructor(
         )
     }
 
+    /** Geçerli oynatma hızı. */
+    val playbackSpeed: Float get() = playback.playbackSpeed
+
+    /** Oynatma hızı döngüsü (1x → 1.25x → 1.5x → 2x → 0.75x). */
+    fun cycleSpeed() = playback.setPlaybackSpeed(AmbientQueueRules.nextPlaybackSpeed(playback.playbackSpeed))
+
+    fun removeFromQueue(index: Int) = playback.removeFromQueue(index)
+
+    fun jumpToQueueIndex(index: Int) = playback.jumpToQueueIndex(index)
+
     /** Uyku zamanlayıcısı: süre dolunca çalma durur. 0 kapatır. */
     var sleepTimerMinutes by mutableIntStateOf(0)
         private set
@@ -436,8 +446,17 @@ class MangaAmbientOnlineController internal constructor(
         sleepTimerMinutes = minutes
         if (minutes <= 0) return
         sleepJob = scope.launch {
-            delay(minutes * 60_000L)
+            // Son birkaç saniyede sesi kademeli kısar; aniden kesilmez.
+            val fadeMs = SLEEP_FADE_MS.coerceAtMost(minutes * 60_000L)
+            delay(minutes * 60_000L - fadeMs)
+            val startVolume = playback.volume
+            val steps = 20
+            repeat(steps) { step ->
+                playback.setVolume(startVolume * (1f - (step + 1) / steps.toFloat()))
+                delay(fadeMs / steps)
+            }
             playback.stop()
+            playback.setVolume(startVolume)
             sleepTimerMinutes = 0
         }
     }
@@ -479,6 +498,8 @@ class MangaAmbientOnlineController internal constructor(
         const val MAX_QUERY_LENGTH = 120
         /** Boş yeni arama sonrası tekrar denemeden önce bekleme (ağ/kota koruması). */
         const val REFILL_COOLDOWN_MS = 60_000L
+        /** Uyku zamanlayıcısında son kısma süresi. */
+        const val SLEEP_FADE_MS = 10_000L
     }
 }
 

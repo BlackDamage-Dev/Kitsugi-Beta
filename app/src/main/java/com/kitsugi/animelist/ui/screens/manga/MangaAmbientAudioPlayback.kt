@@ -15,6 +15,7 @@ import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
+import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultDataSource
@@ -138,6 +139,53 @@ class MangaAmbientAudioPlayback internal constructor(context: Context) {
 
     /** Mevcut kuyruğun anlık görüntüsü (sıraya dönmek için). */
     fun queueSnapshot(): List<AmbientAudioTrack> = queue
+
+    /** Çalan parçanın konumu (ms). Oynatıcı hazır değilse 0. */
+    val positionMs: Long get() = runCatching { player.currentPosition }.getOrDefault(0L).coerceAtLeast(0L)
+
+    /** Çalan parçanın süresi (ms). Bilinmiyorsa 0 (canlı veya akış). */
+    val durationMs: Long
+        get() = runCatching { player.duration }.getOrDefault(C.TIME_UNSET).takeIf { it > 0L } ?: 0L
+
+    fun seekTo(positionMs: Long) {
+        runCatching { player.seekTo(positionMs.coerceAtLeast(0L)) }
+    }
+
+    /** Oynatma hızı; parçalar arasında korunur. */
+    var playbackSpeed by mutableFloatStateOf(1f)
+        private set
+
+    fun setPlaybackSpeed(speed: Float) {
+        playbackSpeed = speed
+        runCatching { player.playbackParameters = PlaybackParameters(speed) }
+    }
+
+    /** Kuyruktaki [index]. parçaya atlar ve çalar. */
+    fun jumpToQueueIndex(index: Int) {
+        if (index !in queue.indices) return
+        runCatching {
+            player.seekTo(index, 0L)
+            player.playWhenReady = true
+        }
+    }
+
+    /**
+     * Kuyruktan parça çıkarır. Şu an çalan parça çıkarılmaz (onun için atla kullanılır).
+     * @return çıkarıldıysa true
+     */
+    fun removeFromQueue(index: Int): Boolean {
+        if (index !in queue.indices || index == player.currentMediaItemIndex) return false
+        val previous = queue
+        val updated = previous.toMutableList().apply { removeAt(index) }
+        return runCatching {
+            player.removeMediaItem(index)
+            queue = updated
+            queuedTrackIds = updated.map { it.id }.toSet()
+            queueLength = updated.size
+            updateNavigationState()
+            true
+        }.getOrElse { false }
+    }
 
     /** Kuyrukta çalan parçanın 0-tabanlı dizini. */
     val queueIndex: Int get() = player.currentMediaItemIndex.coerceAtLeast(0)
