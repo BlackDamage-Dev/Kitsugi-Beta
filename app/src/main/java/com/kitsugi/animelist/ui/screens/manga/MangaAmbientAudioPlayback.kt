@@ -15,6 +15,7 @@ import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
+import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultDataSource
@@ -130,6 +131,70 @@ class MangaAmbientAudioPlayback internal constructor(context: Context) {
 
     private var queue: List<AmbientAudioTrack> = emptyList()
 
+    /**
+     * Kuyruk bitmeye yaklaştığında (veya bittiğinde) çağrılır. Denetleyici
+     * "sıralı devam" açıksa kuyruğa yeni aday ekler. Oynatıcı yalnızca tetikler.
+     */
+    var onNearQueueEnd: (() -> Unit)? = null
+
+    /** Mevcut kuyruğun anlık görüntüsü (sıraya dönmek için). */
+    fun queueSnapshot(): List<AmbientAudioTrack> = queue
+
+    /** Çalan parçanın konumu (ms). Oynatıcı hazır değilse 0. */
+    val positionMs: Long get() = runCatching { player.currentPosition }.getOrDefault(0L).coerceAtLeast(0L)
+
+    /** Çalan parçanın süresi (ms). Bilinmiyorsa 0 (canlı veya akış). */
+    val durationMs: Long
+        get() = runCatching { player.duration }.getOrDefault(C.TIME_UNSET).takeIf { it > 0L } ?: 0L
+
+    fun seekTo(positionMs: Long) {
+        runCatching { player.seekTo(positionMs.coerceAtLeast(0L)) }
+    }
+
+    /** Oynatma hızı; parçalar arasında korunur. */
+    private var internalPlaybackSpeed by mutableFloatStateOf(1f)
+    val playbackSpeed: Float get() = internalPlaybackSpeed
+
+    fun setPlaybackSpeed(speed: Float) {
+        internalPlaybackSpeed = speed
+        runCatching { player.playbackParameters = PlaybackParameters(speed) }
+    }
+
+    /** Kuyruktaki [index]. parçaya atlar ve çalar. */
+    fun jumpToQueueIndex(index: Int) {
+        if (index !in queue.indices) return
+        runCatching {
+            player.seekTo(index, 0L)
+            player.playWhenReady = true
+        }
+    }
+
+    /**
+     * Kuyruktan parça çıkarır. Şu an çalan parça çıkarılmaz (onun için atla kullanılır).
+     * @return çıkarıldıysa true
+     */
+    fun removeFromQueue(index: Int): Boolean {
+        if (index !in queue.indices || index == player.currentMediaItemIndex) return false
+        val previous = queue
+        val updated = previous.toMutableList().apply { removeAt(index) }
+        return runCatching {
+            player.removeMediaItem(index)
+            queue = updated
+            queuedTrackIds = updated.map { it.id }.toSet()
+            queueLength = updated.size
+            updateNavigationState()
+            true
+        }.getOrElse { false }
+    }
+
+    /** Kuyrukta çalan parçanın 0-tabanlı dizini. */
+    val queueIndex: Int get() = player.currentMediaItemIndex.coerceAtLeast(0)
+
+    /** Tekrar modu: 0 kapalı · 1 tek parça · 2 liste (Media3 sabitleri). */
+    fun setRepeatMode(mode: Int) {
+        runCatching { player.repeatMode = mode }
+    }
+
     private val listener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlayingNow: Boolean) {
             isPlaying = isPlayingNow
@@ -139,6 +204,7 @@ class MangaAmbientAudioPlayback internal constructor(context: Context) {
             currentTrack = queue.firstOrNull { it.id == mediaItem?.mediaId }
             queueFinished = false
             updateNavigationState()
+            onNearQueueEnd?.invoke()
             prefetchNextYouTubeTrack()
             // Yumuşak geçiş: yeni parça sıfır sesle başlayıp kısa sürede
             // kullanıcı seviyesine çıkar (aniden patlama olmaz).
@@ -150,6 +216,7 @@ class MangaAmbientAudioPlayback internal constructor(context: Context) {
             if (playbackState == Player.STATE_ENDED) {
                 isPlaying = false
                 queueFinished = true
+                onNearQueueEnd?.invoke()
             }
             updateNavigationState()
         }
@@ -182,10 +249,11 @@ class MangaAmbientAudioPlayback internal constructor(context: Context) {
         localFileTypes: Map<String, String> = emptyMap(),
         allowOnline: Boolean = true,
         /**
-         * `true` ise liste bitince başa döner (okuma boyunca kesintisiz ortam
-         * sesi). Tek parça çalarken daima `false`.
+         * Tekrar modu: [Player.REPEAT_MODE_ALL] liste bitince başa döner (okuma
+         * boyunca kesintisiz ortam sesi), [Player.REPEAT_MODE_ONE] seçili parçayı
+         * sürekli çalar, [Player.REPEAT_MODE_OFF] liste bitince durur.
          */
-        repeatQueue: Boolean = false,
+        repeatMode: Int = Player.REPEAT_MODE_OFF,
     ) {
         val selectedTrackId = tracks.getOrNull(startIndex)?.id
         val playable = tracks.mapNotNull { track ->
@@ -215,11 +283,7 @@ class MangaAmbientAudioPlayback internal constructor(context: Context) {
         queueLength = safeTracks.size
         currentTrack = safeTracks[selectedIndex]
         queuePosition = selectedIndex + 1
-        player.repeatMode = if (repeatQueue && safeTracks.size > 1) {
-            Player.REPEAT_MODE_ALL
-        } else {
-            Player.REPEAT_MODE_OFF
-        }
+        player.repeatMode = repeatMode
         runCatching {
             player.setMediaItems(items, selectedIndex, 0L)
             player.prepare()
@@ -271,6 +335,44 @@ class MangaAmbientAudioPlayback internal constructor(context: Context) {
                 player.prepare()
                 player.playWhenReady = true
             }
+            true
+        }.getOrElse {
+            queue = previousQueue
+            queuedTrackIds = previousQueue.map { it.id }.toSet()
+            queueLength = previousQueue.size
+            error = "Parça sıraya eklenemedi. Tekrar deneyebilirsin."
+            false
+        }
+    }
+
+    /**
+     * "Sıradaki olarak çal": parçayı şu an çalanın hemen arkasına yerleştirir.
+     * Kuyruk boşsa normal şekilde başlatır.
+     */
+    fun playNext(
+        track: AmbientAudioTrack,
+        localFileUri: String? = null,
+        localFileType: String? = null,
+        allowOnline: Boolean = true,
+    ): Boolean {
+        if (queue.isEmpty() || player.mediaItemCount == 0) {
+            return addToQueue(track, localFileUri, localFileType, allowOnline)
+        }
+        if (track.id in queuedTrackIds) return false
+        val item = createMediaItem(track, localFileUri, localFileType, allowOnline)
+        if (item == null) {
+            error = if (allowOnline) "Güvenli bir ses akışı bulunamadı." else "Çevrimdışı sıraya eklemek için önce parçayı indir."
+            return false
+        }
+        val insertAt = (player.currentMediaItemIndex + 1).coerceIn(0, queue.size)
+        val previousQueue = queue
+        queue = previousQueue.toMutableList().apply { add(insertAt, track) }
+        queuedTrackIds = queue.map { it.id }.toSet()
+        return runCatching {
+            player.addMediaItem(insertAt, item)
+            queueLength = queue.size
+            updateNavigationState()
+            error = null
             true
         }.getOrElse {
             queue = previousQueue

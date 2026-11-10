@@ -1,6 +1,7 @@
 package com.kitsugi.animelist.ui.screens.manga.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,6 +17,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -25,6 +27,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -32,7 +36,13 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import kotlinx.coroutines.delay
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -41,6 +51,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import android.widget.Toast
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -53,7 +64,10 @@ import com.kitsugi.animelist.data.ambient.AmbientAudioDownloadStatus
 import com.kitsugi.animelist.data.ambient.AmbientAudioMode
 import com.kitsugi.animelist.data.ambient.AmbientAudioSource
 import com.kitsugi.animelist.data.ambient.AmbientAudioTrack
+import com.kitsugi.animelist.data.ambient.AmbientQueueRules
 import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
+import com.kitsugi.animelist.ui.screens.manga.MangaAmbientAudioPlayback
+import androidx.compose.foundation.clickable
 import com.kitsugi.animelist.ui.theme.KitsugiColors
 import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
 
@@ -75,6 +89,7 @@ internal fun AmbientOnlineTab(
 ) {
     val context = LocalContext.current.applicationContext
     val downloadStates by AmbientAudioDownloadManager.downloads.collectAsState()
+    var showQueueDialog by remember { mutableStateOf(false) }
     val uriHandler = LocalUriHandler.current
     val downloadedCount = remember(downloadStates) {
         downloadStates.count { it.value.status == AmbientAudioDownloadStatus.COMPLETED }
@@ -104,6 +119,7 @@ internal fun AmbientOnlineTab(
     ) {
         // ── Çalan / sıradaki parça ───────────────────────────────────────
         ActiveAmbientTrackBar(controller = controller, accent = accent)
+        AmbientSeekBar(playback = controller.playback, accent = accent)
 
         // ── İndirilenler ────────────────────────────────────────────────
         if (downloadedCount > 0) {
@@ -253,6 +269,143 @@ internal fun AmbientOnlineTab(
 
         Spacer(Modifier.height(8.dp))
 
+        // ── Oynatma seçenekleri: tekrar · sıralı devam · sıraya dön ─────
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            val repeatLabel = when (controller.repeatMode) {
+                AmbientQueueRules.REPEAT_ONE -> "Parça tekrarı"
+                AmbientQueueRules.REPEAT_ALL -> "Liste tekrarı"
+                else -> "Tekrar kapalı"
+            }
+            FilterChip(
+                selected = controller.repeatMode != AmbientQueueRules.REPEAT_OFF,
+                onClick = { controller.cycleRepeatMode() },
+                label = { Text(repeatLabel, fontSize = 11.sp) },
+                leadingIcon = {
+                    Icon(
+                        imageVector = if (controller.repeatMode == AmbientQueueRules.REPEAT_ONE) {
+                            Icons.Rounded.RepeatOne
+                        } else {
+                            Icons.Rounded.Repeat
+                        },
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp)
+                    )
+                },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = accent.copy(alpha = 0.22f),
+                    selectedLabelColor = accent,
+                    containerColor = KitsugiColors.SurfaceSoft,
+                    labelColor = KitsugiColors.TextSecondary
+                )
+            )
+            FilterChip(
+                selected = controller.continuousPlay,
+                onClick = { controller.setContinuousPlay(!controller.continuousPlay) },
+                label = { Text("Sıralı devam", fontSize = 11.sp) },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Rounded.PlaylistPlay,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp)
+                    )
+                },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = accent.copy(alpha = 0.22f),
+                    selectedLabelColor = accent,
+                    containerColor = KitsugiColors.SurfaceSoft,
+                    labelColor = KitsugiColors.TextSecondary
+                )
+            )
+            FilterChip(
+                selected = controller.playbackSpeed != 1f,
+                onClick = { controller.cycleSpeed() },
+                label = { Text(speedLabel(controller.playbackSpeed), fontSize = 11.sp) },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = accent.copy(alpha = 0.22f),
+                    selectedLabelColor = accent,
+                    containerColor = KitsugiColors.SurfaceSoft,
+                    labelColor = KitsugiColors.TextSecondary
+                )
+            )
+            if (controller.playback.queueLength > 0) {
+                FilterChip(
+                    selected = false,
+                    onClick = { showQueueDialog = true },
+                    label = { Text("Sıra (${controller.playback.queueLength})", fontSize = 11.sp) },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Rounded.PlaylistPlay,
+                            contentDescription = null,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    },
+                    colors = FilterChipDefaults.filterChipColors(
+                        containerColor = KitsugiColors.SurfaceSoft,
+                        labelColor = KitsugiColors.TextSecondary
+                    )
+                )
+            }
+            FilterChip(
+                selected = controller.sleepTimerMinutes > 0,
+                onClick = { controller.cycleSleepTimer() },
+                label = {
+                    Text(
+                        if (controller.sleepTimerMinutes > 0) "Uyku ${controller.sleepTimerMinutes} dk" else "Uyku kapalı",
+                        fontSize = 11.sp
+                    )
+                },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Rounded.Timer,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp)
+                    )
+                },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = accent.copy(alpha = 0.22f),
+                    selectedLabelColor = accent,
+                    containerColor = KitsugiColors.SurfaceSoft,
+                    labelColor = KitsugiColors.TextSecondary
+                )
+            )
+            if (controller.canResumeAutoQueue) {
+                FilterChip(
+                    selected = false,
+                    onClick = { controller.resumeAutoQueue() },
+                    label = { Text("Sıraya dön", fontSize = 11.sp) },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Rounded.Replay,
+                            contentDescription = null,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    },
+                    colors = FilterChipDefaults.filterChipColors(
+                        containerColor = KitsugiColors.SurfaceSoft,
+                        labelColor = accent
+                    )
+                )
+            }
+        }
+        Text(
+            text = if (controller.continuousPlay) {
+                "Sıralı devam açık: seçtiğin parçadan sonra da benzer parçalar kendiliğinden sıraya girer."
+            } else {
+                "Sıralı devam kapalı: seçtiğin parça bitince durur."
+            },
+            color = KitsugiColors.TextMuted,
+            fontSize = 9.sp,
+            lineHeight = 12.sp,
+            modifier = Modifier.padding(top = 4.dp)
+        )
+        Spacer(Modifier.height(8.dp))
+
         // ── Başlıkla ara + en iyi eşleşmeyi sırayla çal ─────────────────
         Button(
             onClick = { controller.playBestForManga() },
@@ -347,47 +500,13 @@ internal fun AmbientOnlineTab(
 
         Spacer(Modifier.height(10.dp))
 
-        // ── Kaynaklar ───────────────────────────────────────────────────
-        Text(
-            text = "KAYNAKLAR",
-            color = KitsugiColors.TextMuted,
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Bold
-        )
-        Spacer(Modifier.height(6.dp))
-
-        AmbientAudioSource.entries.forEach { source ->
-            AmbientSourceToggleRow(
-                source = source,
-                checked = source in controller.enabledSources,
+        if (showQueueDialog) {
+            AmbientQueueDialog(
+                controller = controller,
                 accent = accent,
-                onToggle = { controller.toggleSource(source) }
-            )
-            Spacer(Modifier.height(4.dp))
-        }
-
-        if (!controller.jamendoConfigured) {
-            Text(
-                text = "Jamendo atlandı: kişisel Client ID girilmedi " +
-                    "(Harici Entegrasyonlar → Müzik).",
-                color = Color(0xFFFBBF24),
-                fontSize = 9.sp,
-                lineHeight = 12.sp,
-                modifier = Modifier.padding(top = 2.dp)
+                onDismiss = { showQueueDialog = false }
             )
         }
-
-        Spacer(Modifier.height(6.dp))
-        Text(
-            text = "Manga adı seçili ses kaynaklarına gönderilir; bölüm adı, özet metni, " +
-                "sayfa içeriği ve hesap bilgisi gönderilmez. Sonuçlar cihazda 12 saat " +
-                "önbelleğe alınır, Radio Browser canlı istasyon sunar.",
-            color = KitsugiColors.TextMuted,
-            fontSize = 9.sp,
-            lineHeight = 12.sp
-        )
-
-        Spacer(Modifier.height(12.dp))
 
         // ── Sonuçlar ────────────────────────────────────────────────────
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -450,6 +569,7 @@ internal fun AmbientOnlineTab(
                 downloadStatus = downloadStates[track.id]?.status,
                 downloadProgress = downloadStates[track.id]?.progress,
                 downloadConverted = downloadStates[track.id]?.converted == true,
+                downloadMessage = downloadStates[track.id]?.message,
                 onOpenSource = { url -> runCatching { uriHandler.openUri(url) } }
             )
             Spacer(Modifier.height(6.dp))
@@ -542,6 +662,154 @@ private fun ActiveAmbientTrackBar(
     }
 }
 
+/** m:ss biçiminde süre metni. */
+private fun formatAmbientTime(ms: Long): String {
+    val totalSeconds = (ms / 1000L).coerceAtLeast(0L)
+    return "%d:%02d".format(totalSeconds / 60, totalSeconds % 60)
+}
+
+internal fun speedLabel(speed: Float): String = when (speed) {
+    1f -> "1x"
+    0.75f -> "0,75x"
+    1.25f -> "1,25x"
+    1.5f -> "1,5x"
+    2f -> "2x"
+    else -> "${speed}x"
+}
+
+/** Çalan parçanın ilerleme çubuğu. Süresi bilinmeyen (canlı/akış) parçada gizlenir. */
+@Composable
+private fun AmbientSeekBar(
+    playback: MangaAmbientAudioPlayback,
+    accent: Color,
+) {
+    var position by remember { mutableLongStateOf(0L) }
+    var duration by remember { mutableLongStateOf(0L) }
+    var dragging by remember { mutableStateOf(false) }
+    var dragValue by remember { mutableFloatStateOf(0f) }
+    val trackId = playback.currentTrack?.id
+
+    // Parça değişince ve oynatılırken konumu yaklaşık yarım saniyede bir yeniler.
+    LaunchedEffect(trackId) {
+        while (true) {
+            if (!dragging) {
+                position = playback.positionMs
+                duration = playback.durationMs
+            }
+            delay(500L)
+        }
+    }
+
+    if (playback.currentTrack == null || duration <= 0L) return
+
+    val max = duration.toFloat()
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp)) {
+        Slider(
+            value = (if (dragging) dragValue else position.toFloat()).coerceIn(0f, max),
+            onValueChange = {
+                dragging = true
+                dragValue = it
+            },
+            onValueChangeFinished = {
+                playback.seekTo(dragValue.toLong())
+                position = dragValue.toLong()
+                dragging = false
+            },
+            valueRange = 0f..max,
+            colors = SliderDefaults.colors(
+                thumbColor = accent,
+                activeTrackColor = accent
+            ),
+            modifier = Modifier.fillMaxWidth()
+        )
+        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp)) {
+            Text(
+                text = formatAmbientTime(if (dragging) dragValue.toLong() else position),
+                color = KitsugiColors.TextMuted,
+                fontSize = 9.sp
+            )
+            Spacer(Modifier.weight(1f))
+            Text(
+                text = formatAmbientTime(duration),
+                color = KitsugiColors.TextMuted,
+                fontSize = 9.sp
+            )
+        }
+    }
+}
+
+/** Kuyruk listesi: tıklayınca o parçaya atlar, çöp kutusuyla çıkarır (çalan hariç). */
+@Composable
+internal fun AmbientQueueDialog(
+    controller: MangaAmbientOnlineController,
+    accent: Color,
+    onDismiss: () -> Unit,
+) {
+    val playback = controller.playback
+    // Kuyruk değiştikçe (ekleme/çıkarma/atlama) yeniden okunur.
+    val snapshot = remember(playback.queueLength, playback.queuePosition, playback.currentTrack?.id) {
+        playback.queueSnapshot()
+    }
+    val currentIndex = playback.queueIndex
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Kapat") }
+        },
+        title = { Text("Sıra", color = KitsugiColors.TextPrimary) },
+        text = {
+            if (snapshot.isEmpty()) {
+                Text("Sırada parça yok.", color = KitsugiColors.TextMuted, fontSize = 12.sp)
+            } else {
+                LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 380.dp)) {
+                    itemsIndexed(snapshot) { index, track ->
+                        val isCurrent = index == currentIndex
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(if (isCurrent) accent.copy(alpha = 0.16f) else Color.Transparent)
+                                .clickable { controller.jumpToQueueIndex(index) }
+                                .padding(horizontal = 8.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = track.title,
+                                    color = if (isCurrent) accent else KitsugiColors.TextPrimary,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = if (isCurrent) "Şimdi çalıyor · ${track.sourceLabel}" else track.sourceLabel,
+                                    color = KitsugiColors.TextMuted,
+                                    fontSize = 9.sp,
+                                    maxLines = 1
+                                )
+                            }
+                            IconButton(
+                                onClick = { controller.removeFromQueue(index) },
+                                enabled = !isCurrent,
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Close,
+                                    contentDescription = "Sıradan çıkar",
+                                    tint = if (isCurrent) KitsugiColors.TextMuted else KitsugiColors.TextSecondary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    )
+}
+
 @Composable
 private fun AmbientTrackRow(
     track: AmbientAudioTrack,
@@ -550,8 +818,10 @@ private fun AmbientTrackRow(
     downloadStatus: AmbientAudioDownloadStatus?,
     downloadProgress: Float?,
     downloadConverted: Boolean,
+    downloadMessage: String? = null,
     onOpenSource: (String) -> Unit,
 ) {
+    val context = LocalContext.current
     val isSelected = controller.playback.currentTrack?.id == track.id
     val isQueued = track.id in controller.playback.queuedTrackIds
     val isDownloaded = downloadStatus == AmbientAudioDownloadStatus.COMPLETED
@@ -589,6 +859,15 @@ private fun AmbientTrackRow(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = 1.dp)
         )
+        if (downloadStatus == AmbientAudioDownloadStatus.FAILED && !downloadMessage.isNullOrBlank()) {
+            Text(
+                text = downloadMessage,
+                color = Color(0xFFFFB4AB),
+                fontSize = 9.sp,
+                lineHeight = 12.sp,
+                modifier = Modifier.padding(top = 2.dp)
+            )
+        }
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (track.landingUrl.startsWith("https://")) {
                 TextButton(
@@ -611,6 +890,21 @@ private fun AmbientTrackRow(
             // dosya cihaza kalıcı yazılır (imzalı adresin süresi dolması etkilemez).
             val canDownload = track.isDownloadable &&
                 !track.provider.equals("radio_browser", ignoreCase = true)
+            // İndirilemeyen parçada düğme gizlenmez: soluk simge, nedeni bildirimle söyler.
+            if (!canDownload && !track.provider.equals("radio_browser", ignoreCase = true)) {
+                val reason = AmbientQueueRules.downloadRefusalReason(track).orEmpty()
+                IconButton(
+                    onClick = { Toast.makeText(context, reason, Toast.LENGTH_SHORT).show() },
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.CloudOff,
+                        contentDescription = reason,
+                        tint = KitsugiColors.TextMuted.copy(alpha = 0.6f),
+                        modifier = Modifier.size(17.dp)
+                    )
+                }
+            }
             if (canDownload) {
                 val downloading = downloadStatus != null && downloadStatus in setOf(
                     AmbientAudioDownloadStatus.QUEUED,
@@ -670,6 +964,19 @@ private fun AmbientTrackRow(
                     contentDescription = "Bu parçayı bir daha önerme",
                     tint = KitsugiColors.TextMuted,
                     modifier = Modifier.size(15.dp)
+                )
+            }
+
+            IconButton(
+                onClick = { controller.playNext(track) },
+                enabled = isPlayable && !isSelected,
+                modifier = Modifier.size(40.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.QueuePlayNext,
+                    contentDescription = "Sıradaki olarak çal",
+                    tint = if (isPlayable && !isSelected) accent else KitsugiColors.TextMuted,
+                    modifier = Modifier.size(19.dp)
                 )
             }
 
@@ -858,6 +1165,26 @@ internal fun AmbientOnlineSettingsCard(
             }
             Spacer(Modifier.height(4.dp))
         }
+
+        // Kaynak gizliliği ve Jamendo notu (Çevrimiçi sekmesinden buraya taşındı).
+        if (!controller.jamendoConfigured) {
+            Text(
+                text = "Jamendo atlandı: kişisel Client ID girilmedi (Harici Entegrasyonlar → Müzik).",
+                color = Color(0xFFFBBF24),
+                fontSize = 9.sp,
+                lineHeight = 12.sp,
+                modifier = Modifier.padding(top = 2.dp)
+            )
+        }
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = "Manga adı seçili ses kaynaklarına gönderilir; bölüm adı, özet metni, " +
+                "sayfa içeriği ve hesap bilgisi gönderilmez. Sonuçlar cihazda 12 saat " +
+                "önbelleğe alınır, Radio Browser canlı istasyon sunar.",
+            color = KitsugiColors.TextMuted,
+            fontSize = 9.sp,
+            lineHeight = 12.sp
+        )
 
         // "Bir daha önerme" listesi: varsa temizleme kısayolu gösterilir.
         if (controller.blockedIds.isNotEmpty()) {

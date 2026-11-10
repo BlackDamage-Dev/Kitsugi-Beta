@@ -10,6 +10,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
+import android.util.Log
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.util.UnstableApi
@@ -67,6 +68,8 @@ internal object AmbientAudioDownloadManager {
     private const val AAC_CHANNEL_COUNT = 2
     private val MUSIC_RELATIVE_PATH = "${Environment.DIRECTORY_MUSIC}/Kitsugi/Ambient"
 
+    private const val TAG = "AmbientDownload"
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val activeDownloads = ConcurrentHashMap.newKeySet<String>()
     private val mutableDownloads = MutableStateFlow<Map<String, AmbientAudioDownloadState>>(emptyMap())
@@ -81,16 +84,35 @@ internal object AmbientAudioDownloadManager {
         .followSslRedirects(false)
         .build()
 
-    fun start(context: Context, track: AmbientAudioTrack): Boolean {
+    /**
+     * İndirmeyi başlatır.
+     *
+     * Önceden reddedilen parçalar sessizce `false` dönüyordu; kullanıcı
+     * "indiremiyoruz" diye şikâyet etti. Artık her ret bir neden metni döndürür ve
+     * durum olarak `FAILED` + mesaj yazılır (panel bu nedeni gösterir).
+     *
+     * @return `null` ise indirme başladı; değilse kullanıcıya gösterilecek neden.
+     */
+    fun start(context: Context, track: AmbientAudioTrack): String? {
+        if (mutableDownloads.value[track.id]?.status == AmbientAudioDownloadStatus.COMPLETED) {
+            return "Bu parça zaten çevrimdışı kayıtlı."
+        }
+        if (track.id in activeDownloads) return "Bu parça zaten indiriliyor."
+        AmbientQueueRules.downloadRefusalReason(track)?.let { return refuse(track.id, it) }
+
         // v2.4.484 — YouTube kaynaklı parçalar da indirilebilir: akış adresi indirme
         // anında çözülür ve dosya cihaza kalıcı olarak yazılır. İndirilen içerik
         // süresi dolan imzalı adresten bağımsızdır.
         val directUrl = track.downloadUrl?.takeIf { it.startsWith("https://", ignoreCase = true) }
         val youTubeId = youTubeVideoId(track)
-        if (directUrl == null && youTubeId == null) return false
-        if (track.provider.equals("radio_browser", ignoreCase = true)) return false
-        if (directUrl != null && !AmbientAudioFormats.isDirectAudioFile(track.fileType)) return false
-        if (!activeDownloads.add(track.id)) return false
+        if (directUrl == null && youTubeId == null) {
+            return refuse(track.id, "Bu parça için indirilebilir ses adresi yok.")
+        }
+        if (directUrl != null && !AmbientAudioFormats.isDirectAudioFile(track.fileType)) {
+            val type = track.fileType.ifBlank { "bilinmiyor" }
+            return refuse(track.id, "Bu akış biçimi ($type) dosya olarak indirilemez.")
+        }
+        if (!activeDownloads.add(track.id)) return "Bu parça zaten indiriliyor."
 
         mutableDownloads.update { it + (track.id to AmbientAudioDownloadState(AmbientAudioDownloadStatus.QUEUED)) }
         val appContext = context.applicationContext
@@ -123,7 +145,15 @@ internal object AmbientAudioDownloadManager {
                 activeDownloads.remove(track.id)
             }
         }
-        return true
+        return null
+    }
+
+    /** Reddi durum olarak kaydeder ve nedeni geri döndürür. */
+    private fun refuse(soundId: String, reason: String): String {
+        mutableDownloads.update {
+            it + (soundId to AmbientAudioDownloadState(AmbientAudioDownloadStatus.FAILED, message = reason))
+        }
+        return reason
     }
 
     fun restoreSaved(context: Context, track: AmbientAudioTrack) {
@@ -226,7 +256,11 @@ internal object AmbientAudioDownloadManager {
             var outputType = extension
             var converted = false
             var conversionNote: String? = null
-            if (needsPortableCopy(original, extension)) {
+            // Cihaz bu dosyayı çözebiliyor mu? Çözemiyorsa ve dönüştürülemezse
+            // "başarılı" görünüp çalmayan bir dosya kaydetmiyoruz.
+            val decoderAvailable = probeDecoder(original)
+            val playableAsIs = decoderAvailable ?: (extension in AmbientAudioFormats.widelySupportedTypes)
+            if (AmbientAudioFormats.shouldAttemptAacConversion(extension, decoderAvailable)) {
                 if (canEncodeAac()) {
                     mutableDownloads.update {
                         it + (track.id to AmbientAudioDownloadState(AmbientAudioDownloadStatus.CONVERTING))
@@ -238,11 +272,12 @@ internal object AmbientAudioDownloadManager {
                     } catch (cancelled: kotlinx.coroutines.CancellationException) {
                         throw cancelled
                     } catch (_: Exception) {
-                        // Keep the provider's original file if this device cannot decode/encode this input.
-                        conversionNote = "AAC conversion was unavailable; the original audio file was saved."
+                        if (!playableAsIs) throw IOException(unplayableMessage(extension))
+                        conversionNote = "AAC dönüşümü yapılamadı; özgün ses dosyası kaydedildi."
                     }
                 } else {
-                    conversionNote = "This device has no AAC encoder; the original audio file was saved."
+                    if (!playableAsIs) throw IOException(unplayableMessage(extension))
+                    conversionNote = "Bu cihazda AAC kodlayıcı yok; özgün ses dosyası kaydedildi."
                 }
             }
 
@@ -313,15 +348,16 @@ internal object AmbientAudioDownloadManager {
         }
     }
 
-    private fun needsPortableCopy(file: File, extension: String): Boolean {
-        val format = readAudioFormat(file)
-        val decoderAvailable = format?.let {
-            runCatching {
-                MediaCodecList(MediaCodecList.REGULAR_CODECS).findDecoderForFormat(it) != null
-            }.getOrDefault(false)
-        }
-        return AmbientAudioFormats.shouldAttemptAacConversion(extension, decoderAvailable)
+    /** Dosyanın ses kodeği bu cihazda var mı? Dosya okunamazsa `null`. */
+    private fun probeDecoder(file: File): Boolean? {
+        val format = readAudioFormat(file) ?: return null
+        return runCatching {
+            MediaCodecList(MediaCodecList.REGULAR_CODECS).findDecoderForFormat(format) != null
+        }.getOrDefault(false)
     }
+
+    private fun unplayableMessage(extension: String): String =
+        "Bu ses biçimi ($extension) bu cihazda çözülemiyor ve AAC'ye dönüştürülemedi."
 
     private fun readAudioFormat(file: File): MediaFormat? = runCatching {
         val extractor = MediaExtractor()
@@ -395,7 +431,14 @@ internal object AmbientAudioDownloadManager {
         val fileName = "${safeFileStem(track.title)}_${digest(track.id).take(8)}.$extension"
         val mimeType = AmbientAudioFormats.mimeType(fileType)
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            publishToMediaStore(context, sourceFile, fileName, mimeType)
+            try {
+                publishToMediaStore(context, sourceFile, fileName, mimeType)
+            } catch (error: Exception) {
+                // Bazı sıra dışı MIME türleri MediaStore'da reddedilir; dosyayı yine de
+                // uygulama müzik klasörüne kaydedip çevrimdışı çalmayı sürdürürüz.
+                Log.w(TAG, "MediaStore kaydı reddedildi, uygulama klasörüne yazılıyor", error)
+                publishToAppMusicFolder(context, sourceFile, fileName)
+            }
         } else {
             publishToAppMusicFolder(context, sourceFile, fileName)
         }

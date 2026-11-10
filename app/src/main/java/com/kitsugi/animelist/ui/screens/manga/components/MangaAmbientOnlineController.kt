@@ -1,6 +1,7 @@
 package com.kitsugi.animelist.ui.screens.manga.components
 
 import android.content.Context
+import android.widget.Toast
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -18,10 +19,14 @@ import com.kitsugi.animelist.data.ambient.AmbientAudioPreferences
 import com.kitsugi.animelist.data.ambient.AmbientAudioRepository
 import com.kitsugi.animelist.data.ambient.AmbientAudioSource
 import com.kitsugi.animelist.data.ambient.AmbientAudioTrack
+import com.kitsugi.animelist.data.ambient.AmbientQueueRules
+import com.kitsugi.animelist.data.ambient.deduplicationKey
 import com.kitsugi.animelist.data.manga.MangaChapter
 import com.kitsugi.animelist.data.manga.MangaDetails
 import com.kitsugi.animelist.ui.screens.manga.MangaAmbientAudioPlayback
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
@@ -93,8 +98,116 @@ class MangaAmbientOnlineController internal constructor(
     var shuffleEnabled by mutableStateOf(preferences.shuffleEnabled)
         private set
 
+    /**
+     * Tekrar modu: 0 kapalı · 1 tek parça · 2 liste.
+     * Oynatıcı ile aynı değerler kullanılır (bkz. [AmbientQueueRules]).
+     */
+    private var _repeatMode by mutableIntStateOf(preferences.repeatMode)
+    val repeatMode: Int get() = _repeatMode
+
+    /**
+     * Sıralı devam: açıkken seçilen parçadan sonra da kuyruk, arama mantığıyla
+     * sıradaki benzer parçalarla kendiliğinden sürer.
+     */
+    private var _continuousPlay by mutableStateOf(preferences.continuousPlay)
+    val continuousPlay: Boolean get() = _continuousPlay
+
+    /**
+     * Kullanıcı başka bir parça seçince yerini aldığı otomatik kuyruk ve o
+     * anda çalan dizin. "Sıraya dön" bu kaydı kullanır.
+     */
+    private var resumeSnapshot by mutableStateOf<Pair<List<AmbientAudioTrack>, Int>?>(null)
+    val canResumeAutoQueue: Boolean get() = resumeSnapshot != null
+
+    /** Aynı anda tek yenileme isteği; boş sonuçtan sonra kısa bekleme. */
+    private var refilling = false
+    private var lastEmptyRefillAt = 0L
+
     init {
         playback.setShuffle(shuffleEnabled)
+        playback.setRepeatMode(_repeatMode)
+        // Kuyruk bitmeden yeni aday ekleme (sıralı devam) oynatıcıdan tetiklenir.
+        playback.onNearQueueEnd = { requestMoreIfNeeded() }
+    }
+
+    // ── Tekrar ve sıralı devam ────────────────────────────────────────────
+    /** Tekrar düğmesi: kapalı → tek parça → liste → kapalı. */
+    fun cycleRepeatMode() = setRepeatMode(AmbientQueueRules.nextRepeatMode(_repeatMode))
+
+    fun setRepeatMode(mode: Int) {
+        _repeatMode = mode.coerceIn(AmbientQueueRules.REPEAT_OFF, AmbientQueueRules.REPEAT_ALL)
+        preferences.repeatMode = _repeatMode
+        playback.setRepeatMode(_repeatMode)
+    }
+
+    fun setContinuousPlay(enabled: Boolean) {
+        _continuousPlay = enabled
+        preferences.continuousPlay = enabled
+    }
+
+    /**
+     * Kullanıcı bir parça seçer.
+     *
+     * "Sıralı devam" açıksa: seçilen parçadan başlayıp listedeki benzer parçalarla
+     * devam eden bir kuyruk kurulur ve kuyruk bitmeden yenisi eklenir. Kapalıysa
+     * yalnızca o parça çalar. Yerine geçilen otomatik kuyruk "Sıraya dön" ile
+     * geri alınabilir.
+     */
+    fun playTrack(track: AmbientAudioTrack) {
+        val queue = if (_continuousPlay && onlinePlaybackEnabled) {
+            AmbientQueueRules.buildQueueFrom(tracks, track.id, blockedIds)
+        } else {
+            emptyList()
+        }
+        if (queue.size > 1) playQueue(queue, startIndex = 0) else playQueue(listOf(track))
+    }
+
+    /** Yerine geçilen otomatik kuyruğa kaldığı parçadan geri döner. */
+    fun resumeAutoQueue() {
+        val (queue, index) = resumeSnapshot ?: return
+        if (queue.isEmpty()) return
+        playQueue(queue, startIndex = index.coerceIn(0, queue.lastIndex))
+    }
+
+    /** Sıralı devam: kuyruk bitmeden yeni aday ekler; önce yerel, sonra yeni arama. */
+    private fun requestMoreIfNeeded() {
+        val remaining = playback.queueLength - playback.queuePosition
+        if (!AmbientQueueRules.shouldRequestMore(remaining, _repeatMode, _continuousPlay, onlinePlaybackEnabled)) return
+        if (refilling) return
+        scope.launch {
+            val local = AmbientQueueRules.continuationCandidates(
+                pool = tracks,
+                queuedIds = playback.queuedTrackIds,
+                blockedIds = blockedIds,
+            )
+            if (local.isNotEmpty()) {
+                local.forEach { addToQueue(it) }
+                return@launch
+            }
+            if (enabledSources.isEmpty() || query.isBlank()) return@launch
+            if (System.currentTimeMillis() - lastEmptyRefillAt < REFILL_COOLDOWN_MS) return@launch
+            refilling = true
+            try {
+                val result = repository.search(query, enabledSources, plan, jamendoClientId)
+                val fresh = AmbientQueueRules.continuationCandidates(
+                    pool = result.tracks,
+                    queuedIds = playback.queuedTrackIds,
+                    blockedIds = blockedIds,
+                )
+                if (fresh.isEmpty()) {
+                    lastEmptyRefillAt = System.currentTimeMillis()
+                    return@launch
+                }
+                tracks = (tracks + fresh).distinctBy { it.deduplicationKey() }
+                fresh.forEach { addToQueue(it) }
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                lastEmptyRefillAt = System.currentTimeMillis()
+            } finally {
+                refilling = false
+            }
+        }
     }
 
     fun setShuffle(enabled: Boolean) {
@@ -222,7 +335,7 @@ class MangaAmbientOnlineController internal constructor(
                     // YouTube işaretçisi (kitsugi-yt://) de çalınabilir bir ses akışıdır;
                     // çalma anında gerçek adrese çözülür ve yalnızca ses olarak oynatılır.
                     val playable = tracks.filter { it.isStreamable }
-                    if (playable.isNotEmpty()) playQueue(playable, startIndex = 0, repeatQueue = true)
+                    if (playable.isNotEmpty()) playQueue(playable, startIndex = 0)
                 }
             } catch (cancelled: kotlinx.coroutines.CancellationException) {
                 throw cancelled
@@ -260,8 +373,6 @@ class MangaAmbientOnlineController internal constructor(
     }
 
     // ── Oynatma ───────────────────────────────────────────────────────────
-    fun playTrack(track: AmbientAudioTrack) = playQueue(listOf(track))
-
     /** Çevrimiçi kuyruğu (ve çalan parçayı) durdurur. */
     fun stopPlayback() {
         playback.stop()
@@ -270,8 +381,13 @@ class MangaAmbientOnlineController internal constructor(
     fun playQueue(
         tracks: List<AmbientAudioTrack>,
         startIndex: Int = 0,
-        repeatQueue: Boolean = false,
+        repeatMode: Int = _repeatMode,
     ) {
+        // Yerine geçilen kuyruğu sakla: "Sıraya dön" ile geri dönülebilsin.
+        val previous = playback.queueSnapshot()
+        if (previous.size > 1 && previous.map { it.id } != tracks.map { it.id }) {
+            resumeSnapshot = previous to playback.queueIndex
+        }
         val localUris = HashMap<String, String>()
         val localTypes = HashMap<String, String>()
         val states = AmbientAudioDownloadManager.downloads.value
@@ -288,8 +404,61 @@ class MangaAmbientOnlineController internal constructor(
             localFileUris = localUris,
             localFileTypes = localTypes,
             allowOnline = onlinePlaybackEnabled,
-            repeatQueue = repeatQueue,
+            repeatMode = repeatMode,
         )
+    }
+
+    /** Parçayı şu an çalanın hemen ardına koyar. */
+    fun playNext(track: AmbientAudioTrack) {
+        val state = AmbientAudioDownloadManager.downloads.value[track.id]
+        val localUri = state
+            ?.takeIf { it.status == AmbientAudioDownloadStatus.COMPLETED }
+            ?.contentUri
+            ?.takeIf { it.isNotBlank() }
+        playback.playNext(
+            track = track,
+            localFileUri = localUri,
+            localFileType = localUri?.let { if (state?.converted == true) "m4a" else track.fileType },
+            allowOnline = onlinePlaybackEnabled,
+        )
+    }
+
+    /** Geçerli oynatma hızı. */
+    val playbackSpeed: Float get() = playback.playbackSpeed
+
+    /** Oynatma hızı döngüsü (1x → 1.25x → 1.5x → 2x → 0.75x). */
+    fun cycleSpeed() = playback.setPlaybackSpeed(AmbientQueueRules.nextPlaybackSpeed(playback.playbackSpeed))
+
+    fun removeFromQueue(index: Int) = playback.removeFromQueue(index)
+
+    fun jumpToQueueIndex(index: Int) = playback.jumpToQueueIndex(index)
+
+    /** Uyku zamanlayıcısı: süre dolunca çalma durur. 0 kapatır. */
+    var sleepTimerMinutes by mutableIntStateOf(0)
+        private set
+    private var sleepJob: Job? = null
+
+    fun cycleSleepTimer() = setSleepTimer(AmbientQueueRules.nextSleepTimerMinutes(sleepTimerMinutes))
+
+    fun setSleepTimer(minutes: Int) {
+        sleepJob?.cancel()
+        sleepJob = null
+        sleepTimerMinutes = minutes
+        if (minutes <= 0) return
+        sleepJob = scope.launch {
+            // Son birkaç saniyede sesi kademeli kısar; aniden kesilmez.
+            val fadeMs = SLEEP_FADE_MS.coerceAtMost(minutes * 60_000L)
+            delay(minutes * 60_000L - fadeMs)
+            val startVolume = playback.volume
+            val steps = 20
+            repeat(steps) { step ->
+                playback.setVolume(startVolume * (1f - (step + 1) / steps.toFloat()))
+                delay(fadeMs / steps)
+            }
+            playback.stop()
+            playback.setVolume(startVolume)
+            sleepTimerMinutes = 0
+        }
     }
 
     fun addToQueue(track: AmbientAudioTrack) {
@@ -306,8 +475,11 @@ class MangaAmbientOnlineController internal constructor(
         )
     }
 
+    /** İndirmeyi başlatır; reddedilirse nedeni kısa bir bildirimle gösterir. */
     fun download(track: AmbientAudioTrack) {
-        AmbientAudioDownloadManager.start(context, track)
+        AmbientAudioDownloadManager.start(context, track)?.let { reason ->
+            Toast.makeText(context, reason, Toast.LENGTH_SHORT).show()
+        }
     }
 
     fun recordPlayed(track: AmbientAudioTrack) {
@@ -324,6 +496,10 @@ class MangaAmbientOnlineController internal constructor(
 
     private companion object {
         const val MAX_QUERY_LENGTH = 120
+        /** Boş yeni arama sonrası tekrar denemeden önce bekleme (ağ/kota koruması). */
+        const val REFILL_COOLDOWN_MS = 60_000L
+        /** Uyku zamanlayıcısında son kısma süresi. */
+        const val SLEEP_FADE_MS = 10_000L
     }
 }
 
