@@ -17,7 +17,7 @@ import java.util.TimeZone
 class KitsugiUpdateRepository(
     private val codebergOwner: String = "BlackDamage",
     private val codebergRepo: String = "Kitsugi-Beta",
-    private val githubOwner: String = "f26901964-eng",
+    private val githubOwner: String = "BlackDamage-Dev",
     private val githubRepo: String = "Kitsugi-Beta"
 ) {
 
