@@ -32,6 +32,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import com.kitsugi.animelist.ui.utils.uniqueLazyKeys
+import com.kitsugi.animelist.ui.utils.uniqueItems
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
@@ -183,7 +186,8 @@ private fun AnimeDownload.statusRank(): Int = when (status) {
 }
 
 /** Bir indirme kaydının benzersiz anahtarı (seçim, liste anahtarı). */
-internal fun videoKey(download: AnimeDownload): String = "${download.animeId}_${download.episode}"
+internal fun videoKey(download: AnimeDownload): String =
+    "${download.animeId}_${download.episode}_${download.quality}_${download.url.hashCode()}"
 
 /** Videolar sekmesindeki grup anahtarı: aynı içeriğin bölümleri tek başlıkta toplanır. */
 private fun videoGroupKey(download: AnimeDownload): String =
@@ -234,8 +238,11 @@ internal sealed interface VideoListEntry {
         val items: List<AnimeDownload>
     ) : VideoListEntry
 
-    data class Item(val download: AnimeDownload) : VideoListEntry {
-        override val key: String get() = videoKey(download)
+    data class Item(
+        val download: AnimeDownload,
+        val customKey: String? = null,
+    ) : VideoListEntry {
+        override val key: String get() = customKey ?: videoKey(download)
     }
 }
 
@@ -249,7 +256,10 @@ private fun buildVideoEntries(
     grouped: Boolean,
     collapsed: Set<String>
 ): List<VideoListEntry> {
-    if (!grouped) return sortedList.map { VideoListEntry.Item(it) }
+    if (!grouped) {
+        val keys = uniqueLazyKeys(sortedList.map { videoKey(it) })
+        return sortedList.mapIndexed { index, dl -> VideoListEntry.Item(dl, keys.getOrElse(index) { "dl_$index" }) }
+    }
 
     val groups = LinkedHashMap<String, MutableList<AnimeDownload>>()
     sortedList.forEach { download ->
@@ -266,7 +276,10 @@ private fun buildVideoEntries(
             )
         )
         if (key !in collapsed) {
-            items.forEach { entries.add(VideoListEntry.Item(it)) }
+            val itemKeys = uniqueLazyKeys(items.map { videoKey(it) })
+            items.forEachIndexed { index, it ->
+                entries.add(VideoListEntry.Item(it, itemKeys.getOrElse(index) { "dl_${key}_$index" }))
+            }
         }
     }
     return entries
@@ -810,6 +823,9 @@ fun DownloadsScreen(
     val videoEntries = remember(sortedDownloads, videoGrouped, collapsedVideoGroups) {
         buildVideoEntries(sortedDownloads, videoGrouped, collapsedVideoGroups)
     }
+    val videoEntryKeys = remember(videoEntries) {
+        uniqueLazyKeys(videoEntries.map { it.key })
+    }
 
     val filteredSubtitles = remember(allSubtitles, subtitleSort, queryText) {
         allSubtitles
@@ -1174,7 +1190,7 @@ fun DownloadsScreen(
                                 ) {
                                     items(
                                         count = videoEntries.size,
-                                        key = { index -> videoEntries[index].key },
+                                        key = { index -> videoEntryKeys.getOrElse(index) { "row_$index" } },
                                         contentType = { index ->
                                             if (videoEntries[index] is VideoListEntry.Header) "header" else "row"
                                         }
@@ -1410,7 +1426,7 @@ fun DownloadsScreen(
                                     ),
                                     verticalArrangement = Arrangement.spacedBy(10.dp)
                                 ) {
-                                    items(filteredSubtitles, key = { it.file.absolutePath }) { subItem ->
+                                    uniqueItems(filteredSubtitles, key = { it.file.absolutePath }) { subItem ->
                                         val path = subItem.file.absolutePath
                                         SubtitleCardItem(
                                             item = subItem,

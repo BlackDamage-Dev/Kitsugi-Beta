@@ -5,6 +5,7 @@ import android.util.Log
 import java.io.File
 import java.io.FileWriter
 import java.io.PrintWriter
+import java.io.RandomAccessFile
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -15,12 +16,31 @@ object FileLoggingTree {
     private const val LOG_DIR = "diagnostics"
     private const val LOG_FILE = "kitsugi_debug.log"
     private const val MAX_LOG_BYTES = 5 * 1024 * 1024L // 5 MB
+    private const val REPEAT_WINDOW_MS = 3_000L
 
     private val dateFmt = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.getDefault())
     private val logExecutor = Executors.newSingleThreadExecutor()
 
     @Volatile
     private var appContext: Context? = null
+
+    // ── Yankı (echo) koruması ────────────────────────────────────────────────────
+    /** Aynı anda iç içe günlük çağrısı olursa (logcat okuyucu kendini tekrar logluyor). */
+    private val reentrancy = ThreadLocal.withInitial { false }
+
+    /** Son yazılan satır + tekrar sayacı (gürültüyü azaltır). */
+    private var lastSignature: String? = null
+    private var lastSignatureAt = 0L
+    private var lastSignatureRepeat = 0
+
+    /**
+     * Tekrar tespiti için imza üretirken **zaman damgalarını nötrler**.
+     */
+    private val TIMESTAMP_REGEX = Regex("""\d{1,2}:\d{2}:\d{2}\.\d{1,3}""")
+
+    private fun signatureOf(message: String): Int =
+        if (message.length <= 600) TIMESTAMP_REGEX.replace(message, "~TS~").hashCode()
+        else message.hashCode()
 
     fun init(context: Context) {
         appContext = context.applicationContext
@@ -32,58 +52,90 @@ object FileLoggingTree {
     }
 
     fun log(priority: Int, tag: String?, message: String, throwable: Throwable? = null) {
-        // Log to console logcat first
         val safeTag = tag ?: "Global"
-        val exceptionStr = throwable?.let { "\n${Log.getStackTraceString(it)}" } ?: ""
-        
-        when (priority) {
-            Log.VERBOSE -> Log.v(safeTag, message, throwable)
-            Log.DEBUG -> Log.d(safeTag, message, throwable)
-            Log.INFO -> Log.i(safeTag, message, throwable)
-            Log.WARN -> Log.w(safeTag, message, throwable)
-            Log.ERROR -> Log.e(safeTag, message, throwable)
-            else -> Log.d(safeTag, message, throwable)
-        }
 
-        // v2.4.342: oynatıcı, akış ve manga tanı satırları da **kalıcı** uygulama günlüğüne
-        // düşsün. Böylece "Günlükler" ekranı ve paylaşılan günlük tek dosyadan okunur.
-        runCatching {
-            KitsugiLog.log(
-                level = runCatching { kitsugiLevelOf(priority) }.getOrDefault(KitsugiLog.Level.DEBUG),
-                channel = channelForTag(safeTag),
-                tag = safeTag,
-                message = message,
-                throwable = throwable
-            )
-        }
+        // 1) Kendi ürettiğimiz satırların günlüğe geri yazılması = sonsuz büyüme.
+        if (reentrancy.get() || LogEchoGuard.isEcho(safeTag, message)) return
 
-        val context = appContext ?: return
-        val level = when (priority) {
-            Log.VERBOSE -> "VERBOSE"
-            Log.DEBUG -> "DEBUG"
-            Log.INFO -> "INFO"
-            Log.WARN -> "WARN"
-            Log.ERROR -> "ERROR"
-            Log.ASSERT -> "ASSERT"
-            else -> "UNKNOWN"
-        }
+        reentrancy.set(true)
+        try {
+            val exceptionStr = throwable?.let { "\n${Log.getStackTraceString(it)}" } ?: ""
+            
+            when (priority) {
+                Log.VERBOSE -> Log.v(safeTag, message, throwable)
+                Log.DEBUG -> Log.d(safeTag, message, throwable)
+                Log.INFO -> Log.i(safeTag, message, throwable)
+                Log.WARN -> Log.w(safeTag, message, throwable)
+                Log.ERROR -> Log.e(safeTag, message, throwable)
+                else -> Log.d(safeTag, message, throwable)
+            }
 
-        val logTime = Date()
-        logExecutor.execute {
-            val line = "[${formatDate(logTime)}] [$level] [$safeTag] $message$exceptionStr"
-            synchronized(this) {
-                try {
-                    val file = getOrCreateLogFile(context)
-                    rotateIfNeeded(file)
-                    FileWriter(file, true).use { fw ->
-                        PrintWriter(fw).use { pw ->
-                            pw.println(line)
+            // v2.4.342: oynatıcı, akış ve manga tanı satırları da **kalıcı** uygulama günlüğüne
+            // düşsün. Böylece "Günlükler" ekranı ve paylaşılan günlük tek dosyadan okunur.
+            runCatching {
+                KitsugiLog.log(
+                    level = runCatching { kitsugiLevelOf(priority) }.getOrDefault(KitsugiLog.Level.DEBUG),
+                    channel = channelForTag(safeTag),
+                    tag = safeTag,
+                    message = message,
+                    throwable = throwable
+                )
+            }
+
+            val context = appContext ?: return
+            val level = when (priority) {
+                Log.VERBOSE -> "VERBOSE"
+                Log.DEBUG -> "DEBUG"
+                Log.INFO -> "INFO"
+                Log.WARN -> "WARN"
+                Log.ERROR -> "ERROR"
+                Log.ASSERT -> "ASSERT"
+                else -> "UNKNOWN"
+            }
+
+            val now = System.currentTimeMillis()
+            val signature = "$level|$safeTag|${signatureOf(message)}"
+
+            // 2) Aynı mesajın saniyede onlarca kez yazılması: tekilleştir.
+            if (signature == lastSignature && now - lastSignatureAt < REPEAT_WINDOW_MS) {
+                lastSignatureRepeat++
+                lastSignatureAt = now
+                return
+            }
+            val repeatSuffix = if (signature == lastSignature && lastSignatureRepeat > 0) {
+                " (önceki mesaj ${lastSignatureRepeat + 1} kez tekrarlandı)"
+            } else {
+                ""
+            }
+            if (signature != lastSignature) {
+                lastSignatureRepeat = 0
+            }
+            lastSignature = signature
+            lastSignatureAt = now
+
+            val logTime = Date(now)
+            // 3) Dev satırlar belleği ve dosyayı şişirmesin.
+            val safeMessage = LogEchoGuard.sanitize(message)
+            val safeException = LogEchoGuard.sanitize(exceptionStr)
+
+            logExecutor.execute {
+                val line = "[${formatDate(logTime)}] [$level] [$safeTag] $safeMessage$safeException$repeatSuffix"
+                synchronized(this) {
+                    try {
+                        val file = getOrCreateLogFile(context)
+                        rotateIfNeeded(file)
+                        FileWriter(file, true).use { fw ->
+                            PrintWriter(fw).use { pw ->
+                                pw.println(line)
+                            }
                         }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to write log to file: ${e.message}")
                     }
-                } catch (e: Exception) {
-                    Log.e(TAG, "Failed to write log to file: ${e.message}")
                 }
             }
+        } finally {
+            reentrancy.set(false)
         }
     }
 
@@ -124,18 +176,43 @@ object FileLoggingTree {
         return File(dir, LOG_FILE).also { if (!it.exists()) it.createNewFile() }
     }
 
+    /**
+     * Dosya sınırı aşılınca son yarısını tutar. Belleğe tüm dosya okunmaz; son
+     * [MAX_LOG_BYTES]/2 baytlık bölüm bir tamponla aktarılır (büyük günlüklerde OOM yok).
+     */
     private fun rotateIfNeeded(file: File) {
         if (file.length() < MAX_LOG_BYTES) return
+        val keepBytes = MAX_LOG_BYTES / 2
+        val startAt = (file.length() - keepBytes).coerceAtLeast(0L)
+        val tempFile = File(file.parentFile, "${file.name}.tmp")
         try {
-            val lines = file.readLines()
-            val keepFrom = lines.size / 2
-            val kept = lines.drop(keepFrom)
-            file.writeText(
-                "=== Eski loglar temizlendi (boyut limiti 5MB): ${formatDate(Date())} ===\n" +
-                kept.joinToString("\n") + "\n"
-            )
+            RandomAccessFile(file, "r").use { input ->
+                input.seek(startAt)
+                // Yarım kalan satırı atla.
+                if (startAt > 0L) input.readLine()
+                tempFile.outputStream().buffered().use { output ->
+                    output.write(
+                        "=== Eski loglar temizlendi (boyut limiti 5MB): ${formatDate(Date())} ===\n"
+                            .toByteArray()
+                    )
+                    val buffer = ByteArray(64 * 1024)
+                    while (true) {
+                        val read = input.read(buffer)
+                        if (read <= 0) break
+                        output.write(buffer, 0, read)
+                    }
+                }
+            }
+            if (tempFile.length() > 0L) {
+                if (!tempFile.renameTo(file)) {
+                    file.writeBytes(tempFile.readBytes())
+                    tempFile.delete()
+                }
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Log rotasyonu başarısız: ${e.message}")
+            runCatching { tempFile.delete() }
+            runCatching { file.writeText("=== Log dosyası sıfırlandı: ${formatDate(Date())} ===\n") }
         }
     }
 }

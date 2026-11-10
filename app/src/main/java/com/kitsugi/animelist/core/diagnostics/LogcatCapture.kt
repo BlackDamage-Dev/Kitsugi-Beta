@@ -79,9 +79,12 @@ object LogcatCapture {
                 while (true) {
                     val line = reader.readLine() ?: break
                     if (line.isBlank()) continue
-                    // Kendi yazdığımız satırlar zaten dosyada; yeniden yazma.
-                    if (line.contains(" ${KitsugiLog.LOGCAT_TAG}")) continue
+                    // Kendi yazdığımız satırlar zaten dosyada; yeniden yazma (yankı önleme).
+                    if (line.contains(KitsugiLog.LOGCAT_TAG)) continue
                     if (line.contains("KitsugiLogcatCapture")) continue
+                    if (line.contains("system|logcat|")) continue
+                    if (line.contains("D/SYSTEM [logcat]")) continue
+                    if (LogEchoGuard.isEcho(TAG, line)) continue
 
                     val now = System.currentTimeMillis()
                     if (now - windowStart > WINDOW_MS) {

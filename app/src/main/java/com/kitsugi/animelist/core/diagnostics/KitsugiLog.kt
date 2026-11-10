@@ -195,7 +195,8 @@ object KitsugiLog {
      * Aşırı akışa karşı [LogcatCapture] tarafından zaten sınırlanır.
      */
     fun rawSystem(message: String) {
-        log(Level.DEBUG, Channel.SYSTEM, "logcat", message, null, null)
+        if (LogEchoGuard.isEcho("logcat", message)) return
+        log(Level.DEBUG, Channel.SYSTEM, "logcat", LogEchoGuard.sanitize(message), null, null)
     }
 
     /** Ana giriş noktası. **Asla bloklamaz, asla istisna fırlatmaz.** */
@@ -231,7 +232,9 @@ object KitsugiLog {
             }
 
             pushToRing(line)
-            mirrorToLogcat(level, channel, safeTag, line)
+            if (channel != Channel.SYSTEM || safeTag != "logcat") {
+                mirrorToLogcat(level, channel, safeTag, line)
+            }
 
             if (!initialized.get()) return
             val accepted = try {

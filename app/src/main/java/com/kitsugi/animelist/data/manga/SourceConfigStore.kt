@@ -56,8 +56,24 @@ class SourceConfigStore(context: Context) {
         return true
     }
 
+    /**
+     * ⚠️ ÖZYİNYELEME KORUMASI (2026-11-10 çökmesi — Issue B)
+     *
+     * Eski hâli `source.baseUrl` okuyordu. `baseUrl` bazı kaynaklarda (MihonSourceWrapper)
+     * dinamik bir getter'dır ve **bu depoya** geri döner:
+     *
+     *     getPreferredBaseUrl() → source.baseUrl → wrapper.baseUrl
+     *         → getPreferredBaseUrl(this, raw) → getActiveDomain() → key() → …
+     *
+     * Yeni hâlde yalnızca değişmez `originalBaseUrl` okunur; zincir burada kapanır.
+     * `originalBaseUrl`'i de dinamik olan bir kaynak olsa bile derinlik sayacı devrededir.
+     */
     fun getPreferredBaseUrl(source: MangaSource): String? {
-        return getPreferredBaseUrl(source, source.baseUrl)
+        val raw = runCatching { source.originalBaseUrl }.getOrNull()
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+            ?: return null
+        return getPreferredBaseUrl(source, raw)
     }
 
     fun getPreferredBaseUrl(source: MangaSource, rawBaseUrl: String): String? {
@@ -137,11 +153,36 @@ class SourceConfigStore(context: Context) {
             .lowercase(Locale.ROOT)
     }
 
+    /**
+     * ⚠️ ÖZYİNYELEME (RECURSION) KALKANI
+     * ───────────────────────────────────
+     * `stableSourceKey()` kaynağın adresini okur; kaynağın adresi de (MihonSourceWrapper)
+     * bu depodan aktif alan adını ister. Tek bir hatalı/dinamik getter bu zinciri
+     * `StackOverflowError` ile süreç ölümüne çevirir (2026-11-10 raporu).
+     *
+     * Derinlik sayacı sayesinde döngü tespit edilirse kimlik, ağ erişimi olmayan
+     * güvenli bir ada düşer; uygulama çökmez, en fazla o kaynağın ayarı okunamaz.
+     */
     private fun key(source: MangaSource, suffix: String): String {
-        return "${source.stableSourceKey()}::$suffix"
+        val depth = keyDepth.get()
+        if (depth >= MAX_KEY_DEPTH) {
+            val fallback = "${source.lang.lowercase(Locale.ROOT)}|${source.name.trim().lowercase(Locale.ROOT)}"
+            return "$fallback::$suffix"
+        }
+        keyDepth.set(depth + 1)
+        return try {
+            "${source.stableSourceKey()}::$suffix"
+        } finally {
+            keyDepth.set(depth)
+        }
     }
 
+    private val keyDepth = ThreadLocal.withInitial { 0 }
+
     private companion object {
+        /** Aynı thread'de izin verilen en fazla iç içe anahtar üretimi. */
+        const val MAX_KEY_DEPTH = 4
+
         const val KEY_ACTIVE_DOMAIN = "active_domain"
         const val KEY_USER_DOMAIN_EXPLICIT = "user_domain_explicit"
         const val KEY_SLOWDOWN_ENABLED = "slowdown_enabled"

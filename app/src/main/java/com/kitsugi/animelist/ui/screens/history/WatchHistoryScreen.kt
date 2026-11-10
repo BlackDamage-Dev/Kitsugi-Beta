@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import com.kitsugi.animelist.ui.utils.uniqueItems
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
@@ -201,7 +202,7 @@ fun WatchHistoryScreen(
                             )
                         }
                     }
-                    items(
+                    uniqueItems(
                         items = watchedItems,
                         key = { "watch_${it.animeId}_${it.episode}_${it.watchedAtMs}" }
                     ) { entry ->
@@ -281,7 +282,7 @@ fun WatchHistoryScreen(
                             )
                         }
                     }
-                    items(
+                    uniqueItems(
                         items = readVisible,
                         key = { "read_${it.entity.id}_${it.entity.updatedAt}" }
                     ) { item ->

@@ -71,9 +71,19 @@ class MihonSourceWrapper(
 
     override val originalBaseUrl: String get() = rawBaseUrl()
 
-    /** Read the public contract; subclasses need not declare a baseUrl field. */
+    /**
+     * Yürürlükteki adres: kullanıcının seçtiği alan adı (varsa) yoksa eklentinin kendi adresi.
+     *
+     * ⚠️ Bu getter `SourceConfigStore`'a, orası da `stableSourceKey()` üzerinden kaynağın
+     * kimliğine gider. Kimlik artık `originalBaseUrl` kullandığı için döngü oluşmaz; yine de
+     * eklenti/SharedPreferences tarafındaki beklenmedik bir hata tüm manga akışını
+     * düşürmesin diye sonuç güvenli biçimde ham adrese düşürülür (StackOverflowError raporu).
+     */
     override val baseUrl: String
-        get() = sourceConfigStore.getPreferredBaseUrl(this, rawBaseUrl()) ?: rawBaseUrl()
+        get() = runCatching { sourceConfigStore.getPreferredBaseUrl(this, rawBaseUrl()) }
+            .getOrNull()
+            ?.takeIf { it.isNotBlank() }
+            ?: rawBaseUrl()
 
     private fun rawBaseUrl(): String = httpSource?.baseUrl.orEmpty()
 

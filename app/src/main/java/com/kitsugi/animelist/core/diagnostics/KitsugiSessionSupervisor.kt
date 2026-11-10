@@ -59,6 +59,7 @@ object KitsugiSessionSupervisor {
     private const val HEARTBEAT_MS        = 5_000L
     private const val FLUSH_EVERY_N_TICKS = 3          // ~15 sn'de bir diske yaz
     private const val MAX_BREADCRUMBS     = 40
+    private const val ACTION_DEDUPE_WINDOW_MS = 1_500L
     /** Kırıntı dosyası en fazla bu aralıkla yazılır (donma önleme, v2.4.342). */
     private const val BREADCRUMB_WRITE_INTERVAL_MS = 1_500L
     private const val MAX_LOGCAT_LINES    = 9_000
@@ -81,6 +82,9 @@ object KitsugiSessionSupervisor {
 
     private val breadcrumbs = ArrayDeque<String>()
     private val breadcrumbLock = Any()
+    /** Son eklenen eylem — birebir tekrarları ayıklamak için. */
+    @Volatile private var lastActionRaw: String? = null
+    @Volatile private var lastActionAt: Long = 0L
     /** Son kırıntı dosyası yazımı (ms) — yazma sıklığını sınırlar (v2.4.342). */
     @Volatile private var lastBreadcrumbWriteAt: Long = 0L
 
@@ -198,6 +202,10 @@ object KitsugiSessionSupervisor {
     /** Kullanıcı eylemlerini (galeri aç, resim indir, oynat...) halka tampona ekler. */
     fun noteAction(action: String) {
         if (!active) return
+        val nowMs = System.currentTimeMillis()
+        if (action == lastActionRaw && nowMs - lastActionAt < ACTION_DEDUPE_WINDOW_MS) return
+        lastActionRaw = action
+        lastActionAt = nowMs
         val line = "${nowText()}  $action"
         synchronized(breadcrumbLock) {
             breadcrumbs.addLast(line)

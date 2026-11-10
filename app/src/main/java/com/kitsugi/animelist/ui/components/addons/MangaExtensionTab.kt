@@ -21,6 +21,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import com.kitsugi.animelist.ui.utils.uniqueItems
+import com.kitsugi.animelist.ui.utils.uniqueItemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
@@ -1219,7 +1221,7 @@ internal fun MangaExtensionsTab(
                     )
                 }
             }
-            itemsIndexed(sources, key = { _, src -> "${src.name}_${src.lang}" }) { _, source ->
+            uniqueItemsIndexed(sources, key = { _, src -> "${src.name}_${src.lang}" }) { _, source ->
                 val health = onGetSourceHealthStatus(source)
                 val isBusy = onIsSourceBusy(source)
                 val domain = onGetConfiguredDomain(source)
@@ -1476,7 +1478,7 @@ internal fun MangaExtensionsTab(
                             verticalArrangement = Arrangement.spacedBy(10.dp),
                             modifier = Modifier.heightIn(max = 420.dp)
                         ) {
-                            items(filteredReport, key = { it.sourceKey }) { item ->
+                            uniqueItems(filteredReport, key = { it.sourceKey }) { item ->
                                 Column(
                                     modifier = Modifier
                                         .fillMaxWidth()

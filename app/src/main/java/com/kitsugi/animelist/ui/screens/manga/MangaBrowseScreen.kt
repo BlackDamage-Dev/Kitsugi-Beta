@@ -42,6 +42,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
+import com.kitsugi.animelist.ui.utils.uniqueItems
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -624,7 +625,7 @@ fun MangaBrowseScreen(
                                 }
                                 else -> {
                                     // 1) ÖNCE başarıyla veri gelen kaynakların mangaları (en üstte).
-                                    items(visibleMangas, key = { "${it.first.stableSourceKey()}|${it.second.url}" }) { (source, manga) ->
+                                    uniqueItems(visibleMangas, key = { "${it.first.stableSourceKey()}|${it.second.url}" }) { (source, manga) ->
                                         MangaCard(
                                             manga = manga,
                                             sourceName = source.name,
@@ -637,7 +638,7 @@ fun MangaBrowseScreen(
                                         val loadingStates = states.filter {
                                             it.isLoading && (selFilter == null || selFilter.stableSourceKey() == it.source.stableSourceKey())
                                         }
-                                        items(loadingStates, key = { "sk_${it.source.stableSourceKey()}" }) {
+                                        uniqueItems(loadingStates, key = { "sk_${it.source.stableSourceKey()}" }) {
                                             SkeletonCard(
                                                 sourceName = it.source.name,
                                                 sourceTint = mangaSourceTint(it.source.stableSourceKey()),
@@ -919,7 +920,7 @@ private fun MangaStickySourceBar(
                                 onClick = { onSelect(null) }
                             )
                         }
-                        items(states, key = { it.source.stableSourceKey() }) { st ->
+                        uniqueItems(states, key = { it.source.stableSourceKey() }) { st ->
                             MangaChip(
                                 label = st.source.name,
                                 count = st.mangas.size,
@@ -951,7 +952,7 @@ private fun MangaStickySourceBar(
                                 onClick = { onSelect(null) }
                             )
                         }
-                        items(sources, key = { it.stableSourceKey() }) { src ->
+                        uniqueItems(sources, key = { it.stableSourceKey() }) { src ->
                             val sourcePopularCount = popular.count { it.source.equals(src.name, ignoreCase = true) }
                             MangaChip(
                                 label = "${src.name}  [${src.lang.uppercase()}]",
@@ -1102,7 +1103,7 @@ private fun MangaSourcePickerSheet(
                         onClick = { onSelect(null) }
                     )
                 }
-                items(visible, key = { it.source.stableSourceKey() }) { entry ->
+                uniqueItems(visible, key = { it.source.stableSourceKey() }) { entry ->
                     val status = when {
                         entry.isLoading -> stringResource(R.string.araniyor)
                         entry.error != null -> stringResource(R.string.manga_browse_source_error) +

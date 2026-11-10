@@ -56,7 +56,7 @@ object MangaTrCompat {
 
     fun isMangaTr(source: MangaSource): Boolean =
         source.pkgName.equals(PACKAGE_NAME, ignoreCase = true) ||
-            MangaTrCompat.isMangaTrBaseUrl(source.baseUrl)
+            isMangaTrBaseUrl(runCatching { source.originalBaseUrl }.getOrDefault(""))
 
     fun isMangaTrBaseUrl(baseUrl: String): Boolean {
         val host = runCatching { Uri.parse(baseUrl).host.orEmpty() }.getOrDefault("")
