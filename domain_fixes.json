@@ -1,14 +1,14 @@
 {
   "_comment": "Kitsugi Eklenti Domain Listesi — GitHub Actions + AI tarafından otomatik güncellenir.",
   "_format": "eklentiAdi (küçük harf) → güncel ana URL",
-  "_updated": "2026-11-10 10:37 UTC",
+  "_updated": "2026-11-12 03:39 UTC",
   "_stats": {
-    "total": 78,
+    "total": 77,
     "added": 0,
-    "removed": 0,
+    "removed": 1,
     "changed": 0,
     "ai_assisted": 0,
-    "blocked": 155
+    "blocked": 156
   },
   "domains": {
     "animecix": "https://animecix.tv",
@@ -82,7 +82,6 @@
     "turkanime": "https://www.turkanime.tv",
     "turkish": "https://www.turkish123.com",
     "tvdiziler": "https://tvdiziler.tv",
-    "watch2movies": "https://movies2watch.watch",
     "watchwrestling": "https://watchwrestling.ae",
     "webdramaturkey": "https://webdramaturkey2.com",
     "webteizle": "https://webteizle.info",
@@ -224,6 +223,7 @@
     "unusualpornx",
     "videocelebs",
     "vsex",
+    "watch2movies",
     "watchhentai",
     "watchporn",
     "wcoflix",
