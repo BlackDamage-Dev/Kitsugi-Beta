@@ -98,30 +98,62 @@ function LinkMbps($Adaptor) {
 function KartKapasite($Adaptor) {
     if (-not $Adaptor) { return 0 }
     if ($Adaptor.MediaType -eq '802.11') { return 0 }
+
     $kap = 0
+    # 1) Surucunun hiz seceneklerini oku ("1,0 Gbps Tam Cift Yonlu" gibi Turkce metinler dahil)
     try {
         $yet = Get-NetAdapterAdvancedProperty -Name $Adaptor.Name -ErrorAction Stop |
                Where-Object { $_.RegistryKeyword -eq '*SpeedDuplex' }
         if ($yet) {
-            $d = ($yet.ValidDisplayValues -join '|')
-            if     ($d -match '100 Gbps|100G') { $kap = 100000 }
-            elseif ($d -match '40 Gbps|40G')   { $kap = 40000 }
-            elseif ($d -match '25 Gbps|25G')   { $kap = 25000 }
-            elseif ($d -match '10 Gbps|10G')   { $kap = 10000 }
-            elseif ($d -match '5 Gbps|5G')     { $kap = 5000 }
-            elseif ($d -match '2\.5 Gbps|2\.5G|2500') { $kap = 2500 }
-            elseif ($d -match '1 Gbps|1G|1000') { $kap = 1000 }
-            elseif ($d -match '100 Mbps')      { $kap = 100 }
-            else                               { $kap = 10 }
+            foreach ($m in @($yet.ValidDisplayValues) + @($yet.ValidDisplayValue)) {
+                if (-not $m) { continue }
+                $t = ([string]$m).Replace(',', '.')
+                if ($t -match '(\d+(?:\.\d+)?)\s*([GMK])bps') {
+                    $n = [double]$matches[1]
+                    switch ($matches[2]) {
+                        'G' { $n = $n * 1000 }
+                        'K' { $n = $n / 1000 }
+                    }
+                    if ($n -gt $kap) { $kap = [math]::Round($n) }
+                }
+                elseif ($t -match '^\s*(\d+)\s*$') {
+                    $n = [double]$matches[1]
+                    if ($n -ge 10 -and $n -le 100000 -and $n -gt $kap) { $kap = [math]::Round($n) }
+                }
+            }
+            # 2) Metin okunamadiysa surucunun secenek indekslerini kullan
+            if ($kap -eq 0 -and $yet.ValidValue) {
+                $harita = @{ 1 = 10; 2 = 100; 3 = 1000; 4 = 2500; 5 = 5000; 6 = 10000; 7 = 25000; 8 = 40000; 9 = 100000 }
+                foreach ($v in @($yet.ValidValue)) {
+                    $i = 0
+                    if ([int]::TryParse([string]$v, [ref]$i) -and $harita.ContainsKey($i)) {
+                        if ($harita[$i] -gt $kap) { $kap = $harita[$i] }
+                    }
+                }
+            }
         }
     } catch {}
-    if (-not $kap) {
-        $ad = $Adaptor.InterfaceDescription.ToUpperInvariant()
+    # 3) Surucu hicbir sey vermezse yonga adindan tahmin
+    if ($kap -eq 0) {
+        $ad = ([string]$Adaptor.InterfaceDescription).ToUpperInvariant()
         if     ($ad -match 'I225|I226|RTL8125|RTL8156|AQC|2\.5G') { $kap = 2500 }
-        elseif ($ad -match 'I210|I211|I219|I218|RTL8168|RTL8111|RTL8169|GBE|GIGABIT') { $kap = 1000 }
+        elseif ($ad -match 'I210|I211|I219|I218|RTL8168|RTL8111|RTL8169|GBE|GIGABIT|GIGA') { $kap = 1000 }
         elseif ($ad -match 'FAST|10/100|RTL810') { $kap = 100 }
     }
+    # 4) Gercek link zaten daha yuksekse kapasite en az o kadardir
+    $link = LinkMbps $Adaptor
+    if ($link -gt $kap) { $kap = $link }
     return $kap
+}
+
+# Sessiz TCP port testi (Test-NetConnection'in ekrana bastigi ilerleme cubugunu engeller)
+function PortAcik([string]$Hedef, [int]$Port, [int]$Ms = 1200) {
+    $c = New-Object System.Net.Sockets.TcpClient
+    try {
+        $t = $c.BeginConnect($Hedef, $Port, $null, $null)
+        if ($t.AsyncWaitHandle.WaitOne($Ms)) { $c.EndConnect($t); return $true }
+        return $false
+    } catch { return $false } finally { $c.Close() }
 }
 
 # ---------------------------------------------------- MODEM VERITABANI
@@ -216,6 +248,60 @@ $ModemDb = @{
         WifiStd = 'Wi-Fi 4 (802.11 b/g/n) - 2.4 GHz'
         Diger = '1 x USB 2.0'
         Not = 'LAN portlari 100 Mbps! 100 Mbps ustu paketlerde ciddi dar bogaz.'
+    }
+    'VMG3312B10B' = @{
+        Marka = 'Zyxel'; Model = 'VMG3312-B10B (VDSL/ADSL Router)'
+        PonTipi = 'Yok - bakir (DSL) hat cihazi'; PonDown = 0; PonUp = 0
+        LanPortlar = '4 x LAN (RJ45) - SADECE 10/100 Mbps (Fast Ethernet)'; LanMax = 100; WanMax = 100
+        Wifi2Max = 300; Wifi5Max = 0
+        WifiStd = 'Wi-Fi 4 (802.11 b/g/n) - sadece 2.4 GHz'
+        Diger = '1 x USB 2.0'
+        Not = 'LAN portlari 100 Mbps! Bu cihazla 100 Mbps ustu paket KULLANILAMAZ.'
+    }
+    'VMG1312B10D' = @{
+        Marka = 'Zyxel'; Model = 'VMG1312-B10D (VDSL/ADSL Router)'
+        PonTipi = 'Yok - bakir (DSL) hat cihazi'; PonDown = 0; PonUp = 0
+        LanPortlar = '4 x LAN (RJ45) - 10/100 Mbps'; LanMax = 100; WanMax = 100
+        Wifi2Max = 300; Wifi5Max = 0
+        WifiStd = 'Wi-Fi 4 (802.11 b/g/n) - 2.4 GHz'
+        Diger = '1 x USB 2.0'
+        Not = 'LAN portlari 100 Mbps: 100 Mbps ustu paketlerde dar bogaz.'
+    }
+    'VMG3625T50B' = @{
+        Marka = 'Zyxel'; Model = 'VMG3625-T50B (VDSL/ADSL + Wi-Fi 5 Router)'
+        PonTipi = 'Yok - bakir (DSL) hat cihazi'; PonDown = 0; PonUp = 0
+        LanPortlar = '4 x GE LAN (Gigabit)'; LanMax = 1000; WanMax = 1000
+        Wifi2Max = 300; Wifi5Max = 867
+        WifiStd = 'Wi-Fi 5 (802.11ac): 2.4 GHz 300 + 5 GHz 867 Mbps'
+        Diger = '1 x USB 2.0, VoIP secenegi'
+        Not = 'Gigabit LAN var; kablosuzda 5 GHz 867 Mbps siniri.'
+    }
+    'VMG8623T50B' = @{
+        Marka = 'Zyxel'; Model = 'VMG8623-T50B (VDSL/ADSL + Wi-Fi 5 Router)'
+        PonTipi = 'Yok - bakir (DSL) hat cihazi'; PonDown = 0; PonUp = 0
+        LanPortlar = '4 x GE LAN (Gigabit)'; LanMax = 1000; WanMax = 1000
+        Wifi2Max = 300; Wifi5Max = 1733
+        WifiStd = 'Wi-Fi 5 (802.11ac): 2.4 GHz 300 + 5 GHz 1733 Mbps'
+        Diger = '1 x USB 2.0'
+        Not = 'Gigabit LAN; 1000 Mbps paket icin kablo uygun.'
+    }
+    'DX3301T0' = @{
+        Marka = 'Zyxel'; Model = 'DX3301-T0 (VDSL + Wi-Fi 6 Router)'
+        PonTipi = 'Yok - bakir (DSL) hat cihazi'; PonDown = 0; PonUp = 0
+        LanPortlar = '4 x GE LAN (Gigabit)'; LanMax = 1000; WanMax = 1000
+        Wifi2Max = 574; Wifi5Max = 1201
+        WifiStd = 'Wi-Fi 6 (802.11ax): 2.4 GHz 574 + 5 GHz 1201 Mbps'
+        Diger = '1 x USB 2.0'
+        Not = 'Gigabit LAN + Wi-Fi 6; 1000 Mbps icin kablo uygundur.'
+    }
+    'DX5401B0' = @{
+        Marka = 'Zyxel'; Model = 'DX5401-B0 (VDSL + Wi-Fi 6 Router)'
+        PonTipi = 'Yok - bakir (DSL) hat cihazi'; PonDown = 0; PonUp = 0
+        LanPortlar = '4 x GE LAN (Gigabit) + 1 x 2.5G WAN'; LanMax = 1000; WanMax = 2500
+        Wifi2Max = 574; Wifi5Max = 2402
+        WifiStd = 'Wi-Fi 6 (802.11ax) cift bant'
+        Diger = '1 x USB 3.0'
+        Not = 'Gigabit LAN + 2.5G WAN; yuksek paketler icin uygun.'
     }
     'VR600V3' = @{
         Marka = 'TP-Link'; Model = 'Archer VR600 v3 (VDSL/ADSL Router)'
@@ -351,25 +437,35 @@ if ($fiziksel.Count -eq 0) {
 
         $ist = Get-NetAdapterStatistics -Name $a.Name
         if ($ist) {
-            Alan 'Gonderilen / Alinan Paket' (('{0:N0} / {1:N0}' -f $ist.SentUnicastPackets, $ist.ReceivedUnicastPackets))
+            $gonderilen = [double]$ist.SentUnicastPackets
+            $alinan     = [double]$ist.ReceivedUnicastPackets
+            Alan 'Gonderilen / Alinan Paket' (('{0:N0} / {1:N0}' -f $gonderilen, $alinan))
             $hatali = 0
             foreach ($p in @('OutboundPacketsWithErrors', 'ReceivedPacketErrors', 'ReceivedDiscardedPackets')) {
-                if ($ist.$p) { $hatali += $ist.$p }
+                $v = $ist.$p
+                if ($v) { $hatali += [double]$v }
             }
-            if ($hatali -gt 0) {
-                Uyari ('Hatali/atilan paket sayisi: ' + $hatali + ' -> kablo veya portta temassizlik olabilir.')
+            $toplam = $gonderilen + $alinan
+            $oran = 0
+            if ($toplam -gt 0 -and $hatali -gt 0) { $oran = ($hatali / $toplam) * 100 }
+            $oranMetni = $oran.ToString('0.0000', [Globalization.CultureInfo]::InvariantCulture)
+            Alan 'Hatali / Atilan Paket' (('{0:N0}   (toplamin %{1})' -f $hatali, $oranMetni))
+            if ($hatali -eq 0) {
+                Alan 'Kablo Kalitesi' 'Kusursuz - hic hatali paket yok' 'Green'
+            } elseif ($oran -lt 0.01) {
+                Alan 'Kablo Kalitesi' 'Normal - sayaclar acilistan beri birikimli, bu oran zararsiz' 'Green'
+            } elseif ($oran -lt 0.1) {
+                Alan 'Kablo Kalitesi' 'Hafif hata var - kablo/port zamanla izlenmeli' 'Yellow'
             } else {
-                Alan 'Paket Hatasi' '0 (temiz - kablo saglikli gorunuyor)' 'Green'
+                Uyari ('Hata orani yuksek (%' + $oranMetni + '): kablo veya port degistir.')
             }
         }
         if ($pcIp -and $pcIp -match '^169\.254\.') {
             Uyari 'PC kendine otomatik IP vermis (169.254.x.x): modem DHCP vermiyor ya da kablo/port bozuk.'
         }
         if ($gw) {
-            $ok80  = Test-NetConnection -ComputerName $gw -Port 80  -InformationLevel Quiet -WarningAction SilentlyContinue
-            $ok443 = $false
-            if (-not $ok80) { $ok443 = Test-NetConnection -ComputerName $gw -Port 443 -InformationLevel Quiet -WarningAction SilentlyContinue }
-            if ($ok80 -or $ok443) { Alan 'Modem Arayuzu (80/443)' 'Erisildi - kablo ve port calisiyor' 'Green' }
+            $ok = (PortAcik $gw 80) -or (PortAcik $gw 443)
+            if ($ok) { Alan 'Modem Arayuzu (80/443)' 'Erisildi - kablo ve port calisiyor' 'Green' }
             else { Alan 'Modem Arayuzu (80/443)' 'Yanit yok (modem kapali / farkli port / filtre)' 'Yellow' }
         }
     }
@@ -421,6 +517,7 @@ if ($gw) {
         if ($hex.Length -ge 6) {
             $oui = $hex.Substring(0, 6)
             $markaTahmin = switch -Regex ($oui) {
+                '^(FC9F2A|001349|5CF4AB|B0B2DC)' { 'Zyxel'; break }
                 '^(00259E|002598|00E0FC|5C7D5E|48435A|20F3A3|04BD70|0022A1|F4C714|884CEE|9C28F7)' { 'Huawei'; break }
                 '^(F8D111|50C7BF|001D0F|1C61B4|34E894|001349|AC84C6)' { 'TP-Link'; break }
                 '^(001CF0|0026F2|E0B9A5|001E58|F0615C|F07D68)' { 'D-Link'; break }
@@ -459,7 +556,20 @@ if (-not $bulunan -and $gw) {
 if (-not $bulunan) {
     Yaz ''
     Yaz '   Modem modelini otomatik tespit edemedim.' 'Yellow'
-    Write-Host '   Etiketteki modeli yaz (ornek: HG8245X6-10) veya bos gec: ' -NoNewline -ForegroundColor Yellow
+    if ($markaTahmin -and $markaTahmin -notmatch 'yok') {
+        Yaz ('   MAC adresine gore bagli cihaz: ' + $markaTahmin) 'Cyan'
+        if ($markaTahmin -eq 'Zyxel') {
+            Yaz '   Zyxel modellerinde LAN hizi cok degisir:' 'DarkGray'
+            Yaz '     VMG3312-B10B / VMG1312-B10D  -> 4 x 100 Mbps (1000 Mbps paket OLMAZ)' 'DarkGray'
+            Yaz '     VMG3625-T50B / VMG8623-T50B  -> 4 x Gigabit (1000 Mbps paket OLUR)' 'DarkGray'
+            Yaz '     DX3301-T0 / DX5401-B0        -> 4 x Gigabit + Wi-Fi 6' 'DarkGray'
+        }
+        if ($markaTahmin -eq 'Huawei') {
+            Yaz '     HG8245X6-10 / HG8245H       -> 4 x Gigabit' 'DarkGray'
+            Yaz '     HG658 V2                    -> 4 x 100 Mbps' 'DarkGray'
+        }
+    }
+    Write-Host '   Etiketteki modeli yaz (ornek: HG8245X6-10 / VMG8623-T50B) veya bos gec: ' -NoNewline -ForegroundColor Yellow
     $cevap = Read-Host
     if ($cevap) { $bulunan = ModemBul $cevap }
 }
@@ -544,32 +654,71 @@ if ($bulunan) {
 }
 
 AltBaslik 'ZINCIR TABLOSU (en zayif halka = alacagin gercek hiz)'
-Yaz ('   {0,-32} {1,18}   {2}' -f 'Halka', 'Son Hiz', 'Durum') 'Cyan'
+Yaz ('   {0,-32} {1,18}   {2}' -f 'Halka', 'Son Hiz', 'Darbogaz?') 'Cyan'
 Yaz ('   ' + ('-' * 70)) 'DarkGray'
 $satirlar = @()
-if ($paket -gt 0)       { $satirlar += @{ Ad = '1. ISP paketi (fiber hat)';   Mbps = $paket } }
-if ($modemLanMax -gt 0) { $satirlar += @{ Ad = '2. Modem LAN portu';          Mbps = $modemLanMax } }
-if ($kartMax -gt 0)     { $satirlar += @{ Ad = '3. Anakart ethernet karti';   Mbps = $kartMax } }
-if ($kabloLink -gt 0)   { $satirlar += @{ Ad = '4. Kablo / gercek link';      Mbps = $kabloLink } }
+if ($paket -gt 0)       { $satirlar += @{ Ad = '1. ISP paketi (fiber hat)';   Mbps = $paket;       Kaynak = $true } }
+if ($modemLanMax -gt 0) { $satirlar += @{ Ad = '2. Modem LAN portu';          Mbps = $modemLanMax; Kaynak = $false } }
+if ($kartMax -gt 0)     { $satirlar += @{ Ad = '3. Anakart ethernet karti';   Mbps = $kartMax;     Kaynak = $false } }
+if ($kabloLink -gt 0)   { $satirlar += @{ Ad = '4. Kablo / gercek link';      Mbps = $kabloLink;   Kaynak = $false } }
 
+# Donanim zinciri = ISP haric tum halkalar. Darbogaz sadece burada aranir.
+$donanim = @($satirlar | Where-Object { -not $_.Kaynak })
 $enZayif = $null
+foreach ($h in $donanim) {
+    if (-not $enZayif -or $h.Mbps -lt $enZayif.Mbps) { $enZayif = $h }
+}
 foreach ($s in $satirlar) {
-    $durum = 'OK'; $renk = 'Green'
-    if ($paket -gt 0 -and $s.Mbps -lt $paket) { $durum = 'DAR BOGAZ'; $renk = 'Red' }
-    elseif ($paket -gt 0 -and $s.Mbps -le ($paket * 1.05)) { $durum = 'sinirda'; $renk = 'Yellow' }
-    if (-not $enZayif -or $s.Mbps -lt $enZayif.Mbps) { $enZayif = $s }
+    $durum = 'HAYIR'; $renk = 'Green'
+    if ($s.Kaynak) {
+        # ISP paketi: kendi icinde darbogaz olmaz, sadece bilgi satiri
+        $durum = 'paket'
+        $renk = 'Cyan'
+    } elseif ($paket -gt 0 -and $s.Mbps -lt $paket) {
+        $durum = 'EVET'; $renk = 'Red'
+    } elseif ($paket -gt 0 -and $s.Mbps -lt ($paket * 1.1)) {
+        $durum = 'sinirda'; $renk = 'Yellow'
+    }
     Yaz ('   {0,-32} {1,18}   {2}' -f $s.Ad, (HizMetni $s.Mbps), $durum) $renk
 }
 
-if ($enZayif) {
+if ($paket -gt 0 -and $enZayif) {
     Yaz ''
-    if ($paket -gt 0 -and $enZayif.Mbps -lt $paket) {
-        Uyari ('Zincirin en zayif halkasi: ' + $enZayif.Ad + ' -> ' + (HizMetni $enZayif.Mbps))
-        Yaz ('   ' + (HizMetni $paket) + ' paketten pratikte ' + (HizMetni $enZayif.Mbps) + ' alabilirsin.') 'Yellow'
-    } elseif ($paket -gt 0) {
-        Yaz ('   Zincir ' + (HizMetni $paket) + ' paketi tasiyor. Kablo ile ' + (GercekHizNotu $paket) + '.') 'Green'
+    if ($enZayif.Mbps -lt $paket) {
+        Uyari ('Dar bogaz VAR: ' + $enZayif.Ad + ' -> ' + (HizMetni $enZayif.Mbps) + ' (paket ' + (HizMetni $paket) + ')')
+        Yaz ('   Bu halka ' + (HizMetni $paket) + ' paketi tasimaz; pratikte ' + (HizMetni $enZayif.Mbps) + ' alirsin.') 'Yellow'
+        $script:Ozet.Add(('Dar bogaz     : EVET -> ' + $enZayif.Ad + ' (' + (HizMetni $enZayif.Mbps) + ')'))
+    } else {
+        Yaz ('   Dar bogaz YOK: donanimin tamami ' + (HizMetni $paket) + ' paketi tasiyor.') 'Green'
+        if ($enZayif.Mbps -lt ($paket * 1.1)) {
+            Yaz ('   (En yakin sinir: ' + $enZayif.Ad + ' = ' + (HizMetni $enZayif.Mbps) + ' - tam kapasitede calisiyor, normal.)') 'DarkGray'
+        }
+        Yaz ('   Kablo ile beklenen gercek hiz: ' + (GercekHizNotu $paket)) 'Cyan'
+        $script:Ozet.Add('Dar bogaz     : YOK (donanim paketi tasiyor)')
     }
     $script:Ozet.Add(('Zincir siniri : ' + (HizMetni $enZayif.Mbps) + '  (' + $enZayif.Ad + ')'))
+}
+
+# --- Paket varsa: "bu paketle 1 Gbps alinir mi" karari
+if ($paket -gt 0) {
+    AltBaslik ('PAKET KARSILASTIRMASI (' + (HizMetni $paket) + ' paket)')
+    $kontrol = @()
+    if ($modemLanMax -gt 0) { $kontrol += @{ Ad = 'Modem LAN portu'; Mbps = $modemLanMax } }
+    if ($kartMax -gt 0)     { $kontrol += @{ Ad = 'Ethernet karti';  Mbps = $kartMax } }
+    if ($kabloLink -gt 0)   { $kontrol += @{ Ad = 'Kablo linki';     Mbps = $kabloLink } }
+    foreach ($h in @(1000, 2500, 5000, 10000)) {
+        if ($h -lt $paket) { continue }
+        $uygun = $true
+        foreach ($k in $kontrol) { if ($k.Mbps -lt $h) { $uygun = $false } }
+        if (-not $kontrol -or $kontrol.Count -eq 0) { continue }
+        if ($uygun) {
+            Yaz ('   ' + (HizMetni $h) + ' paket : EVET - donanim yetiyor') 'Green'
+        } else {
+            $eksik = ($kontrol | Where-Object { $_.Mbps -lt $h } | ForEach-Object { $_.Ad + ' ' + (HizMetni $_.Mbps) }) -join ', '
+            Yaz ('   ' + (HizMetni $h) + ' paket : HAYIR - yetmeyen: ' + $eksik) 'DarkGray'
+        }
+        if ($h -ge 1000) { break }
+    }
 }
 
 if ($modemWifiMax -gt 0) {

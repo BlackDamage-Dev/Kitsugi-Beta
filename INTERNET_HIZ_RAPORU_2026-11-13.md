@@ -127,3 +127,60 @@ Gömülü modem veritabanı: HG8245X6-10, HG8245X6, HG8245H, HG8245, EG8145X6, H
 - Netia (operatör) HG8245X6-10 bağlantı kılavuzu: 2.4 GHz 574 Mbps / 5 GHz 2402 Mbps Wi-Fi 6
 - Technopat / ShiftDelete kullanıcı ölçümleri: 4 LAN portunun tamamı gigabit, gigabit link ile ~940 Mbps
 - GPON standart hızları: ITU-T G.984 → 2.488 Gbps ↓ / 1.244 Gbps ↑
+
+---
+
+## 7. Senin çıktının yorumu (2026-11-13 15:20 testi)
+
+Gönderdiğin ekran çıktısı şunu söylüyor:
+
+| Bulgu | Değer | Yorum |
+|---|---|---|
+| PC IP | 192.168.1.101 | DHCP çalışıyor, modemle iletişim sağlıklı |
+| Kablo linki | **1 Gbps (1000 Mbps)** | ✅ **Kablo + port + PC kartı gigabit** |
+| Ping (modem) | 0 ms | ✅ LAN tarafı kusursuz |
+| Modem arayüzü | Erişildi (80/443) | ✅ Port ve kablo sağlam |
+| Modem MAC | FC-9F-2A-90-CB-08 | Üretici: **Zyxel** (Huawei değil — ikinci cihaz) |
+| ISP paketi | 100 Mbps | Paket küçük; 1 Gbps hattın boşa gidiyor |
+
+**Sonuç: donanımda hiçbir sorun yok.** Kablo 1 Gbps anlaşmış, yani ev içi ağın
+1000 Mbps'e hazır. 100 Mbps paket alıyorsan normalde **85–94 Mbps** görmen gerekir.
+Bu rakamın altında kalıyorsan sebep donanım değil, paket/hat tarafıdır.
+
+### Çıktıdaki 2 yazılım hatası (v2.1'de düzeltildi)
+
+1. **"Kart max 100 Mbps" yanlış okundu.** Türkçe Windows'ta sürücü seçenekleri
+   `"1,0 Gbps Tam Çift Yönlü"` biçiminde geliyor; eski kod `1 Gbps/1G` kalıbını
+   aradığı için bulamayıp yedek tahmine (100 Mbps) düşüyordu. Aynı çıktıda kablo
+   1 Gbps göründüğü hâlde kart 100 Mbps yazması bu çelişkinin kanıtı.
+   **v2.1:** virgüllü ondalık + Gbps/Mbps metinleri + sürücü indeksleri + gerçek
+   link hızı birlikte değerlendiriliyor.
+2. **"Hatalı paket 160" uyarısı abartılıydı.** Sayaçlar bilgisayar açıldığından beri
+   birikimlidir; 41 milyon pakette 160 hata = **%0,0004**, yani önemsiz. v2.1 artık
+   yüzdeyi hesaplayıp %0,01 altını "normal" sayıyor, sadece gerçek bozulmayı uyarıyor.
+3. **Zincir tablosu düzeltildi:** ISP paketi artık tabloda "darboğaz" olarak
+   işaretlenmiyor; sadece modem portu / anakart kartı / kablo arasında darboğaz
+   aranıyor. Ayrıca "bu paketle 1 Gbps alınır mı" karşılaştırma satırı eklendi.
+
+### MAC FC:9F:2A → Zyxel
+Etiketteki cihaz Huawei HG8245X6-10 (fiber ONT). Ağ geçidi MAC'i Zyxel'e ait
+olduğuna göre hatta **ikinci bir Zyxel cihaz** var (router/access point).
+Hangisinin LAN portu gigabit, aşağıdaki tabloya göre belirlenir:
+
+| Zyxel model | LAN | 100 Mbps | 1000 Mbps |
+|---|---|---|---|
+| VMG3312-B10B | 4 × 100 Mbps | ✅ | ❌ |
+| VMG1312-B10D | 4 × 100 Mbps | ✅ | ❌ |
+| VMG3625-T50B | 4 × Gigabit | ✅ | ✅ |
+| VMG8623-T50B | 4 × Gigabit | ✅ | ✅ |
+| DX3301-T0 / DX5401-B0 | 4 × Gigabit + Wi-Fi 6 | ✅ | ✅ |
+
+Modeli etiketten okuyup araca yazarsan (örn. `VMG8623-T50B`) LAN/Wi-Fi son hızlarını
+ve darboğaz kararını kendisi verir.
+
+### Senin durumunda yapılacak
+- Kablo 1 Gbps anlaşıyor → **kablo/port değiştirmeye gerek yok**.
+- 100 Mbps paket ile 85–94 Mbps beklenir; bunun altındaysan ISS'ye başvur.
+- 1000 Mbps pakete geçersen: modem tarafında **Huawei HG8245X6-10 zaten uygun**,
+  arada Zyxel varsa **gigabit LAN'lı model** olması yeterli (yukarıdaki tablo).
+- Wi-Fi 6 5 GHz'de 600–950 Mbps görülür; 2.4 GHz'de 300 Mbps civarı normaldir.
