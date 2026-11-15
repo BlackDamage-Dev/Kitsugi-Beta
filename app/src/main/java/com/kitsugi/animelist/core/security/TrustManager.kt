@@ -14,7 +14,7 @@ object TrustManager {
         "55c304f5d95f606028f8bc9d79c8ca7356e9bc6a41b9e5d129994c379a2cf505", // Legacy Tachiyomi Extensions
         "c65538561d2d0b671a5a041f021703cf9203a7a9cc5f6d7be761c566fb5eb4d7", // Keiyoushi Extensions (pre-2026)
         "9add655a78e96c4ec7a53ef89dccb557cb5d767489fac5e785d671a5a75d4da2", // Keiyoushi Extensions (2026, extensionLib 1.6+)
-        // Kitsugi-Manga-Plugins resmî derleme sertifikaları (Manga-TR v1.6.24..v1.6.28+ ve 65 TR eklenti).
+        // Kitsugi-Manga-Plugins resmî derleme sertifikaları (Manga-TR v1.6.24..v1.6.35+ ve 34+ TR eklenti).
         // Bu repo kullanıcı tarafından açıkça eklenir; resmî Keiyoushi anahtarıyla
         // imzalanmadığı için önceden "Signature untrusted" ile kurulum düşüyordu.
         // Anahtar rotasyonunda genel "repo imzasına güven" akışı devreye girer.
@@ -22,6 +22,8 @@ object TrustManager {
         "76f057ae03bdbd2d29cfd547491d381d35733bd65ca5b5e4756703c51c2c05a4",
         "7ca8efbd767b83f39a102d30bd50c489282b508ab5e497fb5f2f6bc2c72e8ba6",
         "d2e1e47becf901cb0c404eac81e0d23e492221dd4177e3212a4b87e78dd66435",
+        "a12ba4b532bd7fa9c6f2e7eb05c841bca6560ffa871252e915ba72c429fe9dba", // Kitsugi Manga Plugins release cert
+        "64233df3db5d39a231f82d98ecbb76f94feb2e356144c6804705ac9e36621b64", // Manga-TR APK signing cert
     )
 
     fun getApkSignatureHash(context: Context, file: File): String? {

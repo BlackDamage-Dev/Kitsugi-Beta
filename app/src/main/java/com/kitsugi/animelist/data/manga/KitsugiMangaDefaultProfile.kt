@@ -13,13 +13,13 @@ object KitsugiMangaDefaultProfile {
     private const val TAG = "KitsugiMangaProfile"
     private const val PROFILE_PREFS = "kitsugi_manga_default_profile"
     private const val KEY_REPO_PROFILE_APPLIED_V2 = "repo_first_manga_profile_v2"
-    private const val KEY_DEFAULT_REPO_SEEDED_V2 = "default_kitsugi_manga_repo_seeded_v2"
+    private const val KEY_DEFAULT_REPO_SEEDED_V3 = "default_kitsugi_manga_repo_seeded_v3"
 
     private const val MANGA_REPOS_PREFS = "manga_repos"
     private const val KEY_REPO_URLS = "repo_urls"
 
-    /** The repo's Gölge Bahçesi extension is preferred when the user installs it from the repo. */
-    const val DEFAULT_ACTIVE_SOURCE_PKG = "eu.kanade.tachiyomi.extension.tr.golgebahcesi"
+    /** The repo's Manga-TR extension is preferred when the user installs it from the repo. */
+    const val DEFAULT_ACTIVE_SOURCE_PKG = "eu.kanade.tachiyomi.extension.tr.mangatr"
 
     fun isDefaultActiveSource(source: MangaSource): Boolean =
         source.pkgName.equals(DEFAULT_ACTIVE_SOURCE_PKG, ignoreCase = true)
@@ -103,19 +103,23 @@ object KitsugiMangaDefaultProfile {
         }
 
         val repoPrefs = appContext.getSharedPreferences(MANGA_REPOS_PREFS, Context.MODE_PRIVATE)
-        val existing = readRepoUrls(repoPrefs)
-            .map { MangaRepoClient.normalizeMangaRepoUrl(it) }
+        val rawSaved = readRepoUrls(repoPrefs)
+        val normalizedList = rawSaved
+            .map { url ->
+                if (MangaRepoClient.isKitsugiMangaRepoUrl(url)) officialUrl
+                else MangaRepoClient.normalizeMangaRepoUrl(url)
+            }
             .distinct()
 
-        if (!profilePrefs.getBoolean(KEY_DEFAULT_REPO_SEEDED_V2, false)) {
+        if (!profilePrefs.getBoolean(KEY_DEFAULT_REPO_SEEDED_V3, false)) {
             val merged = buildList {
                 add(officialUrl)
-                existing.filterNot { MangaRepoClient.isKitsugiMangaRepoUrl(it) }.forEach(::add)
+                normalizedList.filterNot { MangaRepoClient.isKitsugiMangaRepoUrl(it) }.forEach(::add)
             }
             writeRepoUrls(repoPrefs, merged)
-            profilePrefs.edit().putBoolean(KEY_DEFAULT_REPO_SEEDED_V2, true).apply()
-        } else if (existing != readRepoUrls(repoPrefs)) {
-            writeRepoUrls(repoPrefs, existing)
+            profilePrefs.edit().putBoolean(KEY_DEFAULT_REPO_SEEDED_V3, true).apply()
+        } else if (normalizedList != rawSaved) {
+            writeRepoUrls(repoPrefs, normalizedList)
         }
     }
 

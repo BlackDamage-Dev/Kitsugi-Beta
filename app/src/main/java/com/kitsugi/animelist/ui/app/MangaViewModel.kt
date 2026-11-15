@@ -213,8 +213,10 @@ class MangaViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         val extensions = mangaRepoExtensionsState[defaultRepo]
-        // Nirvana Manga (MangaThemesia/KeiSource tabanlı, stabil, TR) veya ilk sıradaki TR non-nsfw
-        val target = extensions?.firstOrNull { it.pkg.contains("nirvanamanga", ignoreCase = true) && !it.isNsfw }
+        // Manga-TR (Kitsugi resmi TR eklentisi), Gölge Bahçesi, Nirvana Manga veya ilk sıradaki TR non-nsfw
+        val target = extensions?.firstOrNull { it.pkg.contains("mangatr", ignoreCase = true) && !it.isNsfw }
+            ?: extensions?.firstOrNull { it.pkg.contains("golgebahcesi", ignoreCase = true) && !it.isNsfw }
+            ?: extensions?.firstOrNull { it.pkg.contains("nirvanamanga", ignoreCase = true) && !it.isNsfw }
             ?: extensions?.firstOrNull { it.lang.equals("tr", ignoreCase = true) && !it.isNsfw }
             ?: run {
                 Log.w("MangaViewModel", "Varsayılan TR kaynak bulunamadı, bootstrap atlandı")

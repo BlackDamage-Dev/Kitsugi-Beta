@@ -54,15 +54,15 @@ class MangaRepoClient(context: android.content.Context) {
         /** Kitsugi resmi Manga eklenti havuzu (varsayılan manga deposu). */
         const val KITSUGI_MANGA_PLUGINS_SLUG = "BlackDamage-Plugin/Kitsugi-Manga-Plugins"
         const val KITSUGI_MANGA_GITHUB_URL = "https://github.com/BlackDamage-Plugin/Kitsugi-Manga-Plugins"
-        // Follow the video-plugin repo convention: the source repo publishes its install
-        // catalog and APKs from the generated `builds` branch.
         const val KITSUGI_MANGA_REPO_URL =
-            "https://raw.githubusercontent.com/BlackDamage-Plugin/Kitsugi-Manga-Plugins/builds/index.json"
+            "https://raw.githubusercontent.com/BlackDamage-Plugin/Kitsugi-Manga-Plugins/main/index.min.json"
 
         val KITSUGI_MANGA_CANDIDATE_URLS = listOf(
             KITSUGI_MANGA_REPO_URL,
-            "https://raw.githubusercontent.com/BlackDamage-Plugin/Kitsugi-Manga-Plugins/builds/plugins.json",
+            "https://raw.githubusercontent.com/BlackDamage-Plugin/Kitsugi-Manga-Plugins/main/index.min.json",
             "https://raw.githubusercontent.com/BlackDamage-Plugin/Kitsugi-Manga-Plugins/main/index.json",
+            "https://raw.githubusercontent.com/BlackDamage-Plugin/Kitsugi-Manga-Plugins/builds/index.json",
+            "https://raw.githubusercontent.com/BlackDamage-Plugin/Kitsugi-Manga-Plugins/builds/plugins.json",
             "https://raw.githubusercontent.com/BlackDamage-Plugin/Kitsugi-Manga-Plugins/main/plugins.json",
         )
 
@@ -77,9 +77,12 @@ class MangaRepoClient(context: android.content.Context) {
             val trimmed = url.trim().trimEnd('/')
             if (trimmed.isEmpty()) return trimmed
             val githubRepoUrl = trimmed.removeSuffix(".git")
-            val isRepoRoot = githubRepoUrl.equals(KITSUGI_MANGA_PLUGINS_SLUG, ignoreCase = true) ||
-                githubRepoUrl.equals(KITSUGI_MANGA_GITHUB_URL, ignoreCase = true)
-            return if (isRepoRoot) KITSUGI_MANGA_REPO_URL else trimmed
+            val isRepoRootOrLegacy = githubRepoUrl.equals(KITSUGI_MANGA_PLUGINS_SLUG, ignoreCase = true) ||
+                githubRepoUrl.equals(KITSUGI_MANGA_GITHUB_URL, ignoreCase = true) ||
+                githubRepoUrl.contains("f26901964-eng/Kitsugi-Manga-Plugins", ignoreCase = true) ||
+                (isKitsugiMangaRepoUrl(trimmed) && trimmed.contains("/builds/", ignoreCase = true)) ||
+                (isKitsugiMangaRepoUrl(trimmed) && trimmed.endsWith("/index.json", ignoreCase = true))
+            return if (isRepoRootOrLegacy) KITSUGI_MANGA_REPO_URL else trimmed
         }
 
         fun displayNameForRepo(repoUrl: String): String {
@@ -311,11 +314,8 @@ class MangaRepoClient(context: android.content.Context) {
      * Üçüncü parti repolar küçük olabilir — boyut onlar için güvenilirlik ölçütü değil.
      */
     private fun shouldUseKeiyoushiFallback(repoUrl: String, body: String): Boolean {
-        val isKeiyoushiRepo = repoUrl.contains("keiyoushi", ignoreCase = true) ||
-            repoUrl.contains("index.min.json", ignoreCase = true)
-        if (!isKeiyoushiRepo) return false
-        if (body.length < DECOY_THRESHOLD_BYTES) return true
-        return DECOY_MARKERS.any { marker -> body.contains(marker, ignoreCase = true) }
+        if (isKitsugiMangaRepoUrl(repoUrl)) return false
+        return isMangaRepoDecoy(body, repoUrl)
     }
 
     /**
