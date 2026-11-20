@@ -30,7 +30,6 @@ object WebViewResolver {
 
     private const val TAG = "WebViewResolver"
     private const val DEFAULT_TIMEOUT_MS = 15_000L
-    private const val CF_SUCCESS_INDICATOR = "cf-mitigated"
     private const val CF_CHALLENGE_INDICATOR = "cf_clearance"
 
     /**
@@ -46,29 +45,53 @@ object WebViewResolver {
         url: String,
         timeoutMs: Long = DEFAULT_TIMEOUT_MS
     ): Map<String, String> = withContext(Dispatchers.Main) {
-        val result = withTimeoutOrNull(timeoutMs) {
-            suspendCancellableCoroutine { continuation ->
+        // v2.4.492 — BELLEK VE ÇÖKME DÜZELTMESİ
+        //
+        // Eski kodda:
+        //  * zaman aşımında WebView **hiç yok edilmiyordu** (`withTimeoutOrNull` yalnızca
+        //    coroutine'i iptal ediyordu; `invokeOnCancellation` iptal edilmiş bir
+        //    continuation'da her zaman çalışmayabiliyordu) → her CF denemesi bir WebView,
+        //    renderer süreci ve onlarca MB native bellek sızdırıyordu,
+        //  * "challenge çözüldü" kararı `!url.contains("challenge")` idi; yani Cloudflare
+        //    `/arama/...` gibi normal bir adrese yönlendirdiğinde meydan okuma HÂLÂ ekranda
+        //    olsa bile boş çerezle "çözüldü" deniyordu,
+        //  * `webView.destroy()` ana iş parçacığında, sayfa yüklenirken çağrılabiliyordu.
+        //
+        // 2026-11-20 günlüğünde bunun kanıtı: `WebViewResolver` 120 sn bekleyen istekler,
+        // art arda LOS çöp toplamaları (33-57 MB) ve `MPEG4Writer` çökmesinden önceki GC
+        // fırtınası. Artık WebView her durumda (başarı, iptal, zaman aşımı) tek sefer
+        // yok edilir ve karar gerçek `cf_clearance`/DDoS-Guard çerezine dayanır.
+        val cookies = withTimeoutOrNull(timeoutMs) {
+            suspendCancellableCoroutine<Map<String, String>> { continuation ->
                 val webView = createWebView(context)
-                var resumed = false
+                var settled = false
+
+                fun finish(cookieString: String) {
+                    if (settled) return
+                    settled = true
+                    CookieManager.getInstance().flush()
+                    runCatching { webView.stopLoading() }
+                    runCatching { webView.webViewClient = WebViewClient() }
+                    runCatching { webView.destroy() }
+                    if (continuation.isActive) {
+                        continuation.resume(parseCookieString(cookieString))
+                    }
+                }
 
                 webView.webViewClient = object : WebViewClient() {
-                    override fun onPageFinished(view: WebView?, url: String?) {
-                        super.onPageFinished(view, url)
-                        if (url == null) return
+                    override fun onPageFinished(view: WebView?, pageUrl: String?) {
+                        super.onPageFinished(view, pageUrl)
+                        if (settled) return
+                        val target = pageUrl ?: url
+                        val cookieString = runCatching {
+                            CookieManager.getInstance().getCookie(target)
+                        }.getOrNull().orEmpty()
 
-                        // Challenge çözüldü mü kontrol et
-                        val cookieString = CookieManager.getInstance().getCookie(url) ?: ""
-                        if (cookieString.contains(CF_CHALLENGE_INDICATOR) ||
-                            !url.contains("challenge", ignoreCase = true)) {
-                            if (!resumed) {
-                                resumed = true
-                                val cookies = parseCookieString(cookieString)
-                                Log.d(TAG, "Challenge resolved for $url → ${cookies.size} cookies")
-                                webView.destroy()
-                                continuation.resume(cookies)
-                            }
+                        if (hasClearanceCookie(cookieString)) {
+                            Log.d(TAG, "Challenge resolved for $url → ${parseCookieString(cookieString).size} cookies")
+                            finish(cookieString)
                         } else {
-                            Log.d(TAG, "Challenge page still showing: $url")
+                            Log.d(TAG, "Challenge page still showing: $target")
                         }
                     }
 
@@ -82,8 +105,9 @@ object WebViewResolver {
                 }
 
                 continuation.invokeOnCancellation {
-                    webView.stopLoading()
-                    webView.destroy()
+                    // İptalde de WebView MUTLAKA yok edilir (sızıntı yok).
+                    runCatching { webView.stopLoading() }
+                    runCatching { webView.destroy() }
                     Log.d(TAG, "WebView cancelled for $url")
                 }
 
@@ -91,11 +115,25 @@ object WebViewResolver {
             }
         }
 
-        result ?: run {
-            Log.w(TAG, "WebView resolver timed out for $url")
-            // Timeout oldu: mevcut cookie'leri dön (kısmi başarı)
-            val cookieString = CookieManager.getInstance().getCookie(url) ?: ""
-            parseCookieString(cookieString)
+        if (cookies != null) return@withContext cookies
+
+        Log.w(TAG, "WebView resolver timed out for $url")
+        // Zaman aşımı: mevcut çerezleri dön (kısmi başarı). WebView burada zaten yok edildi;
+        // yalnızca CookieManager okunur.
+        parseCookieString(runCatching { CookieManager.getInstance().getCookie(url) }.getOrNull().orEmpty())
+    }
+
+    /** Gerçek bir Cloudflare/DDoS-Guard geçiş çerezi var mı? (boş `cf_clearance` sayılmaz) */
+    private fun hasClearanceCookie(cookieString: String): Boolean {
+        if (cookieString.isBlank()) return false
+        return cookieString.split(";").any { part ->
+            val name = part.substringBefore('=').trim()
+            val value = part.substringAfter('=', "").trim()
+            value.isNotEmpty() && (
+                name.equals(CF_CHALLENGE_INDICATOR, ignoreCase = true) ||
+                    name.startsWith("__ddg", ignoreCase = true) ||
+                    name.startsWith("ddg", ignoreCase = true)
+                )
         }
     }
 

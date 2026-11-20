@@ -1206,6 +1206,12 @@ object CsStreamRunner {
 
 
 
+    /** CF sabır bütçesini tüketen eklenti bu süre boyunca hızlı bütçeyle çağrılır. */
+
+    private const val CF_PATIENCE_COOLDOWN_MS = 5L * 60_000L
+
+
+
     /**
 
      * v2.4.240 (KN-A): safeSearch / safeLoad için TABAN aşama süresi.
@@ -2514,7 +2520,53 @@ object CsStreamRunner {
 
     private fun stageTimeoutMs(api: MainAPI, baseMs: Long): Long {
 
-        return if (needsCfPatience(api)) CF_STAGE_TIMEOUT_MS else baseMs
+        // v2.4.492 — 120 sn'lik tekrar eden zaman aşımı düzeltmesi.
+        //
+        // 2026-11-20 günlüğünde aynı eklenti (TrAnimeIzle) için ARDI ARDINA üç ayrı sorgu
+        // 120 sn zaman aşımına uğradı: `Merlin`, `梅林`, `魔術師MERLIN(マーリン)`. Üçü de
+        // CF sabır bütçesini sonuna kadar tükettiği için toplam ~6 dakika boyunca arama
+        // hattı kilitli kaldı, kuyruktaki diğer eklentiler bekledi ve süreç bu sırada
+        // bellek baskısı + GC fırtınası altında çökme noktasına geldi.
+        //
+        // Artık bir eklenti CF sabır bütçesini zaman aşımıyla tükettiyse
+        // [CF_PATIENCE_COOLDOWN_MS] boyunca HIZLI bütçeyle çağrılır: ilk deneme 120 sn
+        // sürer, sonrakiler beklemez. Eklenti sonradan başarılı olursa soğuma silinir.
+
+        if (!needsCfPatience(api)) return baseMs
+
+        val until = cfPatienceCooldownUntil[api.name] ?: 0L
+
+        return if (System.currentTimeMillis() < until) baseMs else CF_STAGE_TIMEOUT_MS
+
+    }
+
+
+
+    /** CF sabır bütçesini zaman aşımıyla tüketen eklentiler için soğuma bitiş zamanı. */
+
+    private val cfPatienceCooldownUntil = java.util.concurrent.ConcurrentHashMap<String, Long>()
+
+
+
+    /** CF sabır bütçesi bir kez tükendi → bu eklenti bir süre hızlı bütçeyle denenir. */
+
+    private fun markCfPatienceExhausted(apiName: String) {
+
+        cfPatienceCooldownUntil[apiName] = System.currentTimeMillis() + CF_PATIENCE_COOLDOWN_MS
+
+        Log.w(TAG, "[$apiName] CF sabır bütçesi tükendi — ${CF_PATIENCE_COOLDOWN_MS / 60_000} dk hızlı bütçe")
+
+    }
+
+
+
+    private fun clearCfPatienceCooldown(apiName: String) {
+
+        if (cfPatienceCooldownUntil.remove(apiName) != null) {
+
+            Log.i(TAG, "[$apiName] Başarılı arama — CF sabır bütçesi geri açıldı")
+
+        }
 
     }
 
@@ -9395,6 +9447,10 @@ object CsStreamRunner {
 
                     CsTrace.info(providerName, "search", "'$query' → ${finalResults.size} sonuç")
 
+                    // Başarılı arama → varsa CF sabır soğumasını kaldır (v2.4.492).
+
+                    clearCfPatienceCooldown(providerName)
+
                 }
 
                 finalResults
@@ -9442,6 +9498,8 @@ object CsStreamRunner {
                 )
 
                 Log.e(SERR, "⏱️ SEARCH TIMEOUT [${api.name}] query='$query' — ${searchStageMs}ms aşıldı. Bu 'içerik yok' DEĞİLDİR; arama iptal edildi.")
+
+                if (searchStageMs >= CF_STAGE_TIMEOUT_MS) markCfPatienceExhausted(api.name)
 
                 CsTrace.warn(
 

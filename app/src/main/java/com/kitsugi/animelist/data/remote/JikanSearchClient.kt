@@ -659,37 +659,58 @@ class JikanSearchClient {
         }
     }
 
+    /**
+     * **Devam eden mangalar** rafı.
+     *
+     * DÜZELTME (v2.4.492): eskiden resmî MAL sıralaması `ranking_type=manga` ile
+     * isteniyordu. MAL'de `ranking_type=manga` **yayın durumunu filtrelemez** (tüm
+     * mangalar sıralamasıdır) — bu yüzden "Devam Edenler" ve "Tamamlananlar" rafları
+     * kullanıcıya **birebir aynı listeyi** gösteriyordu ve her raf için fazladan bir
+     * MAL isteği harcanıyordu (429/kota baskısı). Artık yayın durumu Jikan
+     * `status=publishing` filtresiyle sorgulanıyor; resmî MAL sıralaması yalnızca
+     * Jikan cevap vermezse yedek olarak kullanılıyor.
+     */
     suspend fun publishingManga(page: Int = 1, showAdultContent: Boolean = false): List<JikanSearchResult> {
         return withContext(Dispatchers.IO) {
+            val jikanPrimary = jikanListOrEmpty(
+                "manga?status=publishing&order_by=members&sort=desc&sfw=${jikanSfw(showAdultContent)}&page=$page",
+                MediaType.Manga
+            )
+            if (jikanPrimary.isNotEmpty()) return@withContext jikanPrimary
+
             val offset = (page - 1) * 20
             val fields = "id,title,main_picture,alternative_titles,start_date,mean,num_chapters,media_type,genres,nsfw"
-            val url = "https://api.myanimelist.net/v2/manga/ranking?ranking_type=manga&limit=20&offset=$offset&fields=$fields"
-
+            val url = "https://api.myanimelist.net/v2/manga/ranking?ranking_type=bypopularity&limit=20&offset=$offset&fields=$fields"
             val results = getOfficialMalRankingOrSeason(url, MediaType.Manga)
             if (results.isNotEmpty()) {
-                results
+                results.filter { !it.isAdult || showAdultContent }
             } else {
-                val jikanFallback = jikanListOrEmpty("top/manga?filter=publishing&page=$page", MediaType.Manga)
-                if (jikanFallback.isNotEmpty()) return@withContext jikanFallback
                 runCatching { aniListSearchClient.aniListPublishingManga(page, showAdultContent) }.getOrDefault(emptyList())
             }
         }
     }
 
+    /**
+     * **Tamamlanmış mangalar** rafı.
+     *
+     * DÜZELTME (v2.4.492): birincil yol artık Jikan `status=complete` filtresi.
+     * Eskiden önce resmî MAL `ranking_type=manga` (yayın durumu filtresi olmayan genel
+     * sıralama) deneniyordu; bu yüzden "Tamamlananlar" rafı "Devam Edenler" ile aynı
+     * listeyi gösteriyordu ve Jikan yedeğine hiç düşülmüyordu.
+     */
     suspend fun completedManga(page: Int = 1, showAdultContent: Boolean = false): List<JikanSearchResult> {
         return withContext(Dispatchers.IO) {
+            val jikanPrimary = jikanListOrEmpty(
+                "manga?status=complete&order_by=members&sort=desc&sfw=${jikanSfw(showAdultContent)}&page=$page",
+                MediaType.Manga
+            )
+            if (jikanPrimary.isNotEmpty()) return@withContext jikanPrimary
+
             val offset = (page - 1) * 20
             val fields = "id,title,main_picture,alternative_titles,start_date,mean,num_chapters,media_type,genres,nsfw"
-            val url = "https://api.myanimelist.net/v2/manga/ranking?ranking_type=manga&limit=20&offset=$offset&fields=$fields"
-
-            val results = getOfficialMalRankingOrSeason(url, MediaType.Manga)
-            if (results.isNotEmpty()) {
-                results
-            } else {
-                val jikanFallback = jikanListOrEmpty("manga?status=complete&order_by=members&sort=desc&sfw=${jikanSfw(showAdultContent)}&page=$page", MediaType.Manga)
-                if (jikanFallback.isNotEmpty()) return@withContext jikanFallback
-                emptyList()
-            }
+            val url = "https://api.myanimelist.net/v2/manga/ranking?ranking_type=bypopularity&limit=20&offset=$offset&fields=$fields"
+            getOfficialMalRankingOrSeason(url, MediaType.Manga)
+                .filter { !it.isAdult || showAdultContent }
         }
     }
 
@@ -744,17 +765,26 @@ class JikanSearchClient {
         }
     }
 
+    /**
+     * **Yeni eklenen animeler** rafı.
+     *
+     * DÜZELTME (v2.4.492): eskiden birincil istek `ranking_type=all` idi — bu, `topAnime`
+     * rafıyla **aynı** listeyi döndürüyordu (kullanıcı iki rafta aynı içeriği görüyordu ve
+     * her raf için fazladan MAL isteği gidiyordu). Artık birincil kaynak bu sezonun
+     * animeleri (`seasons/now`), yedek olarak AniList'in yeni eklenenler rafı kullanılıyor.
+     */
     suspend fun newlyAddedAnime(page: Int = 1, showAdultContent: Boolean = false): List<JikanSearchResult> {
         return withContext(Dispatchers.IO) {
+            val jikanPrimary = jikanListOrEmpty("seasons/now?page=$page", MediaType.Anime)
+            if (jikanPrimary.isNotEmpty()) return@withContext jikanPrimary
+
             val offset = (page - 1).coerceAtLeast(0) * 20
             val fields = "id,title,main_picture,alternative_titles,start_date,mean,num_episodes,media_type,genres,nsfw"
-            val url = "https://api.myanimelist.net/v2/anime/ranking?ranking_type=all&limit=20&offset=$offset&fields=$fields"
+            val url = "https://api.myanimelist.net/v2/anime/ranking?ranking_type=upcoming&limit=20&offset=$offset&fields=$fields"
             val results = getOfficialMalRankingOrSeason(url, MediaType.Anime)
             if (results.isNotEmpty()) {
-                results
+                results.filter { !it.isAdult || showAdultContent }
             } else {
-                val jikanFallback = jikanListOrEmpty("seasons/now?page=$page", MediaType.Anime)
-                if (jikanFallback.isNotEmpty()) return@withContext jikanFallback
                 runCatching {
                     aniListSearchClient.aniListNewlyAddedAnime(page, showAdultContent)
                 }.getOrDefault(emptyList())
@@ -764,19 +794,17 @@ class JikanSearchClient {
 
     suspend fun newlyAddedManga(page: Int = 1, showAdultContent: Boolean = false): List<JikanSearchResult> {
         return withContext(Dispatchers.IO) {
-            val offset = (page - 1).coerceAtLeast(0) * 20
-            val fields = "id,title,main_picture,alternative_titles,start_date,mean,num_chapters,media_type,genres,nsfw"
-            val url = "https://api.myanimelist.net/v2/manga/ranking?ranking_type=all&limit=20&offset=$offset&fields=$fields"
-            val results = getOfficialMalRankingOrSeason(url, MediaType.Manga)
-            if (results.isNotEmpty()) {
-                results
-            } else {
-                val jikanFallback = jikanListOrEmpty("manga?status=publishing&order_by=start_date&sort=desc&sfw=${jikanSfw(showAdultContent)}&page=$page", MediaType.Manga)
-                if (jikanFallback.isNotEmpty()) return@withContext jikanFallback
-                runCatching {
-                    aniListSearchClient.aniListNewlyAddedManga(page, showAdultContent)
-                }.getOrDefault(emptyList())
-            }
+            // Yeni eklenen = en son başlayanlar. `ranking_type=all` topManga ile aynı
+            // listeyi veriyordu (v2.4.492'de düzeltildi).
+            val jikanPrimary = jikanListOrEmpty(
+                "manga?status=publishing&order_by=start_date&sort=desc&sfw=${jikanSfw(showAdultContent)}&page=$page",
+                MediaType.Manga
+            )
+            if (jikanPrimary.isNotEmpty()) return@withContext jikanPrimary
+
+            runCatching {
+                aniListSearchClient.aniListNewlyAddedManga(page, showAdultContent)
+            }.getOrDefault(emptyList())
         }
     }
 

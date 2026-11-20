@@ -6,6 +6,7 @@ import android.media.MediaFormat
 import android.media.MediaMuxer
 import android.os.Build
 import android.util.Log
+import com.kitsugi.animelist.core.download.MuxSampleGuard
 import java.io.File
 import java.nio.ByteBuffer
 
@@ -44,6 +45,7 @@ object YouTubeDownloadEncoder {
         var videoExtractor: MediaExtractor? = null
         var audioExtractor: MediaExtractor? = null
         var muxer: MediaMuxer? = null
+        var muxerStarted = false
         return try {
             videoExtractor = MediaExtractor().apply { setDataSource(videoFile.absolutePath) }
             audioExtractor = MediaExtractor().apply { setDataSource(audioFile.absolutePath) }
@@ -72,13 +74,42 @@ object YouTubeDownloadEncoder {
             val outVideoTrack = muxer.addTrack(videoFormat)
             val outAudioTrack = muxer.addTrack(audioFormat)
             muxer.start()
+            muxerStarted = true
 
-            copyTrack(videoExtractor, muxer, outVideoTrack)
-            copyTrack(audioExtractor, muxer, outAudioTrack)
+            val videoSamples = copyTrack(
+                extractor = videoExtractor,
+                muxer = muxer,
+                outTrack = outVideoTrack,
+                stepUs = MuxSampleGuard.DEFAULT_VIDEO_STEP_US,
+                isAudio = false
+            )
+            val audioSamples = copyTrack(
+                extractor = audioExtractor,
+                muxer = muxer,
+                outTrack = outAudioTrack,
+                stepUs = MuxSampleGuard.DEFAULT_AUDIO_STEP_US,
+                isAudio = true
+            )
 
-            muxer.stop()
-            muxer.release()
+            if (videoSamples <= 0L || audioSamples <= 0L) {
+                Log.w(TAG, "Birleştirmede yazılabilir örnek yok (video=$videoSamples ses=$audioSamples)")
+                runCatching { muxer.release() }
+                muxer = null
+                runCatching { target.delete() }
+                return false
+            }
+
+            // stop() TEK kez ve tüm yazmalar bittikten sonra çağrılır; başarısızsa moov
+            // yarım kalır ve dosya oynatılamaz → birleştirme başarısız sayılır.
+            val stopped = runCatching { muxer.stop() }.isSuccess
+            muxerStarted = false
+            runCatching { muxer.release() }
             muxer = null
+            if (!stopped) {
+                Log.w(TAG, "muxer.stop() başarısız — birleştirme geçersiz, dosya siliniyor")
+                runCatching { target.delete() }
+                return false
+            }
 
             if (target.exists() && target.length() > 0L) {
                 if (target != output) {
@@ -91,12 +122,20 @@ object YouTubeDownloadEncoder {
             }
         } catch (e: Exception) {
             Log.w(TAG, "Birleştirme başarısız: ${e.message}", e)
+            // Yarım kalan muxer `stop()` edilmeden bırakılır: yarım moov zaten geçersizdir ve
+            // ikinci bir stop() muxer'ı tanımsız durumda bırakabilir. Çıktı geçersiz sayılır
+            // (çağıran taraf progressive akışa düşer).
             runCatching { muxer?.release() }
+            muxer = null
             false
         } finally {
             runCatching { videoExtractor?.release() }
             runCatching { audioExtractor?.release() }
-            runCatching { muxer?.release() }
+            if (muxer != null) {
+                // Yalnızca hiç stop() denenmemişse bir kez dene (çift stop muxer'ı bozar).
+                if (muxerStarted) runCatching { muxer?.stop() }
+                runCatching { muxer?.release() }
+            }
         }
     }
 
@@ -133,18 +172,66 @@ object YouTubeDownloadEncoder {
         return null
     }
 
-    private fun copyTrack(extractor: MediaExtractor, muxer: MediaMuxer, outTrack: Int) {
-        val buffer = ByteBuffer.allocateDirect(1 shl 20) // 1 MB
+    /**
+     * Bir izi olduğu gibi (yeniden kodlamadan) muxer'a kopyalar.
+     *
+     * Eski sürüm `readSampleData()` sonucunu doğrulamadan `BufferInfo.size`'a yazıyordu;
+     * `0`/negatif boyut ve negatif PTS `MPEG4Writer`'da `size_t(-1)` yazımına ve
+     * `FORTIFY: write: count 18446744073709551615` → `SIGABRT` çökmesine yol açabiliyor
+     * (2026-11-20). Ayrıca ses izine `sampleFlags` (anahtar kare) olduğu gibi aktarılıyordu.
+     *
+     * @return yazılan örnek sayısı
+     */
+    private fun copyTrack(
+        extractor: MediaExtractor,
+        muxer: MediaMuxer,
+        outTrack: Int,
+        stepUs: Long,
+        isAudio: Boolean
+    ): Long {
+        val capacity = runCatching {
+            extractor.getTrackFormat(extractor.sampleTrackIndex.takeIf { it >= 0 } ?: 0)
+                .getInteger(MediaFormat.KEY_MAX_INPUT_SIZE)
+        }.getOrDefault(0).coerceIn(1 shl 20, 8 shl 20)
+        val buffer = ByteBuffer.allocateDirect(capacity)
         val info = MediaCodec.BufferInfo()
+        var written = 0L
+        var lastPtsUs = -1L
+        var skipped = 0L
         while (true) {
+            buffer.clear()
             val size = extractor.readSampleData(buffer, 0)
             if (size < 0) break
+            if (!MuxSampleGuard.isWritableSampleSize(size) || size > buffer.capacity()) {
+                skipped++
+                if (!extractor.advance()) break
+                continue
+            }
+            val pts = MuxSampleGuard.nextMonotonicPtsUs(
+                rawPtsUs = extractor.sampleTime,
+                lastWrittenUs = lastPtsUs,
+                stepUs = stepUs
+            )
+            lastPtsUs = pts
             info.offset = 0
             info.size = size
-            info.presentationTimeUs = extractor.sampleTime
-            info.flags = extractor.sampleFlags
+            info.presentationTimeUs = pts
+            info.flags = if (isAudio) {
+                MuxSampleGuard.audioSampleFlags()
+            } else {
+                MuxSampleGuard.videoSampleFlags(
+                    sourceFlags = extractor.sampleFlags,
+                    keyFrameBit = MediaExtractor.SAMPLE_FLAG_SYNC,
+                    codecKeyFrame = MediaCodec.BUFFER_FLAG_KEY_FRAME
+                )
+            }
             muxer.writeSampleData(outTrack, buffer, info)
-            extractor.advance()
+            written++
+            if (!extractor.advance()) break
         }
+        if (skipped > 0L) {
+            Log.w(TAG, "Geçersiz örnek atlandı: $skipped (iz=${if (isAudio) "ses" else "video"})")
+        }
+        return written
     }
 }

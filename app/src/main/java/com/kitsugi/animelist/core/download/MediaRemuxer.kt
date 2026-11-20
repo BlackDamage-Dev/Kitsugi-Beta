@@ -178,6 +178,18 @@ object MediaRemuxer {
                         videoEnded = true
                         continue
                     }
+                    // 0 baytlık örnek de yazılmaz: MPEG4Writer sıfır uzunlukta yazmada
+                    // chunk ofsetini ilerletmez ve sonraki örnekte negatif boyut üretebilir.
+                    if (!MuxSampleGuard.isWritableSampleSize(sampleSize)) {
+                        videoExtractor.advance()
+                        continue
+                    }
+                    if (sampleSize > buffer.capacity()) {
+                        // readSampleData buffer'dan büyük değer döndüremez; yine de savunma.
+                        Log.w(TAG, "Video örnek boyutu buffer'dan büyük ($sampleSize > ${buffer.capacity()}) — atlandı")
+                        videoExtractor.advance()
+                        continue
+                    }
 
                     var pts = rawVPts + videoBaseShift + videoDiscDelta
                     if (maxVideoPtsWritten >= 0L) {
@@ -189,7 +201,9 @@ object MediaRemuxer {
                             pts = target
                         }
                     }
-                    if (pts < 0L) pts = 0L
+                    // Negatif PTS `MPEG4Writer`'ın chunk süre hesabını taşırıp negatif
+                    // uzunluk üretmesine yol açar (FORTIFY SIGABRT, 2026-11-20).
+                    pts = MuxSampleGuard.clampPtsUs(pts)
                     if (pts > maxVideoPtsWritten) maxVideoPtsWritten = pts
 
                     bufferInfo.set(
@@ -208,6 +222,10 @@ object MediaRemuxer {
                         audioEnded = true
                         continue
                     }
+                    if (!MuxSampleGuard.isWritableSampleSize(sampleSize) || sampleSize > buffer.capacity()) {
+                        audioExtractor.advance()
+                        continue
+                    }
 
                     var pts = rawAPts + audioBaseShift + audioDiscDelta
                     if (lastAudioPtsWritten >= 0L) {
@@ -221,16 +239,15 @@ object MediaRemuxer {
                         if (pts <= lastAudioPtsWritten) {
                             pts = lastAudioPtsWritten + 1L
                         }
-                    } else if (pts < 0L) {
-                        pts = 0L
                     }
+                    pts = MuxSampleGuard.clampPtsUs(pts)
                     lastAudioPtsWritten = pts
 
                     bufferInfo.set(
                         0,
                         sampleSize,
                         pts,
-                        toCodecBufferFlags(audioExtractor.sampleFlags)
+                        MuxSampleGuard.audioSampleFlags()
                     )
                     muxer.writeSampleData(muxAudioTrack, buffer, bufferInfo)
                     audioSamples++
@@ -238,10 +255,16 @@ object MediaRemuxer {
                 }
             }
 
-            muxer.stop()
+            // stop() başarısız olursa moov yarım kalır: dosya geçersizdir, yan ses yoluna düşülür.
+            val stopped = runCatching { muxer.stop() }.isSuccess
             muxerStarted = false
-            muxer.release()
+            runCatching { muxer.release() }
             muxer = null
+
+            if (!stopped) {
+                tempOutFile.delete()
+                return MuxOutcome.CompanionAudioRequired("MediaMuxer.stop() failed (incomplete container)")
+            }
 
             if (videoSamples == 0L || audioSamples == 0L) {
                 tempOutFile.delete()
@@ -370,6 +393,10 @@ object MediaRemuxer {
                     sampleSize = extractor.readSampleData(buffer, 0)
                 }
                 if (sampleSize < 0) break
+                if (!MuxSampleGuard.isWritableSampleSize(sampleSize) || sampleSize > buffer.capacity()) {
+                    extractor.advance()
+                    continue
+                }
 
                 val rawPts = extractor.sampleTime.coerceAtLeast(0L)
                 if (baseShift == null) {
@@ -387,7 +414,7 @@ object MediaRemuxer {
                         discDelta += (target - pts)
                         pts = target
                     }
-                    if (pts < 0L) pts = 0L
+                    pts = MuxSampleGuard.clampPtsUs(pts)
                     if (pts > maxVideoPts) maxVideoPts = pts
 
                     bufferInfo.set(0, sampleSize, pts, toCodecBufferFlags(extractor.sampleFlags))
@@ -404,12 +431,11 @@ object MediaRemuxer {
                             pts = target
                         }
                         if (pts <= lastAudioPts) pts = lastAudioPts + 1L
-                    } else if (pts < 0L) {
-                        pts = 0L
                     }
+                    pts = MuxSampleGuard.clampPtsUs(pts)
                     lastAudioPts = pts
 
-                    bufferInfo.set(0, sampleSize, pts, toCodecBufferFlags(extractor.sampleFlags))
+                    bufferInfo.set(0, sampleSize, pts, MuxSampleGuard.audioSampleFlags())
                     muxer.writeSampleData(muxAudioTrack, buffer, bufferInfo)
                     audioSamples++
                 }
@@ -417,10 +443,15 @@ object MediaRemuxer {
                 extractor.advance()
             }
 
-            muxer.stop()
+            val stopped = runCatching { muxer.stop() }.isSuccess
             muxerStarted = false
-            muxer.release()
+            runCatching { muxer.release() }
             muxer = null
+
+            if (!stopped) {
+                tempMp4.delete()
+                return SingleTsOutcome.KeepOriginalTs("MediaMuxer.stop() failed (incomplete container)")
+            }
 
             val expectAudio = tsInfo.hasAudio || audioIdx != null
             if (videoSamples == 0L || (expectAudio && audioSamples == 0L)) {
@@ -500,11 +531,13 @@ object MediaRemuxer {
         }.getOrDefault(0)
     }
 
-    private fun toCodecBufferFlags(extractorFlags: Int): Int {
-        var flags = 0
-        if ((extractorFlags and MediaExtractor.SAMPLE_FLAG_SYNC) != 0) {
-            flags = flags or MediaCodec.BUFFER_FLAG_KEY_FRAME
-        }
-        return flags
-    }
+    /**
+     * Video izi bayrakları: yalnızca gerçekten senkron bir örnek `BUFFER_FLAG_KEY_FRAME` alır.
+     * (Ses izlerinde bu bayrak kullanılmaz — bkz. [MuxSampleGuard.audioSampleFlags].)
+     */
+    private fun toCodecBufferFlags(extractorFlags: Int): Int = MuxSampleGuard.videoSampleFlags(
+        sourceFlags = extractorFlags,
+        keyFrameBit = MediaExtractor.SAMPLE_FLAG_SYNC,
+        codecKeyFrame = MediaCodec.BUFFER_FLAG_KEY_FRAME
+    )
 }

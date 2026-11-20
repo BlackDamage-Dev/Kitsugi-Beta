@@ -85,14 +85,34 @@ object KitsugiMemoryGuard {
     fun watchdogTick() {
         val rt = Runtime.getRuntime()
         val max = rt.maxMemory()
-        if (max <= 0L) return
-        val used = rt.totalMemory() - rt.freeMemory()
-        val ratio = used.toDouble() / max
+        val committed = rt.totalMemory()
+        if (max <= 0L || committed <= 0L) return
+        val used = committed - rt.freeMemory()
+        val ratioOfMax = used.toDouble() / max
+
+        // v2.4.492 — GC FIRTINASI DÜZELTMESİ
+        //
+        // Eski ölçüt yalnızca `used / maxMemory()` idi. Kullanıcı cihazında heap tavanı
+        // 512 MB olduğu için 83 MB kullanım "sadece %16" görünüyor ve koruma HİÇ
+        // tetiklenmiyordu. Oysa ART, ayrılan toplam alan (committed ≈107 MB) içinde sürekli
+        // LOS (Large Object Space) tahsisi yapıyordu: 2026-11-20 günlüğünde her ~300 ms'de
+        // bir `freed … LOS objects 33-57MB` çöp toplaması, 200 ms duraklamalarla.
+        // Bu fırtına sürerken `MPEG4Writer` native yazıcısı çökme noktasına geldi.
+        //
+        // Artık committed alan da ölçülür: kullanım, ayrılmış alanın %85'ini aşarsa ya da
+        // tavanın %70'ine ulaşırsa temizlik devreye girer. Böylece cihaz 512 MB heap'e sahip
+        // olsa bile ani LOS baskısı fark edilir.
+        val ratioOfCommitted = used.toDouble() / committed
+        val pressured = ratioOfMax >= 0.70 || ratioOfCommitted >= 0.85
         val now = System.currentTimeMillis()
-        if (ratio < 0.80 || now - lastAutoTrimMs < 5_000L) return
+        if (!pressured || now - lastAutoTrimMs < 5_000L) return
         lastAutoTrimMs = now
-        val fraction = if (ratio >= 0.90) 0f else 0.5f
-        trimAll(fraction, "heap ${"%.0f".format(ratio * 100)}% (${used shr 20}MB/${max shr 20}MB)")
+        val fraction = if (ratioOfMax >= 0.90 || ratioOfCommitted >= 0.96) 0f else 0.5f
+        trimAll(
+            fraction,
+            "heap ${"%.0f".format(ratioOfMax * 100)}%/${"%.0f".format(ratioOfCommitted * 100)}% " +
+                "(${used shr 20}MB/${committed shr 20}MB, tavan ${max shr 20}MB)"
+        )
     }
 
     fun trimAll(fraction: Float, reason: String) {

@@ -129,8 +129,9 @@ internal object AudioDemuxer {
                     require(time >= 0 && (lastTime < 0 || time >= lastTime)) { "Ses zaman damgası kesintili" }
                     if (firstTime < 0) firstTime = time
                     lastTime = time
-                    sample.set(0, size, time - firstTime,
-                        if (extractor.sampleFlags and MediaExtractor.SAMPLE_FLAG_SYNC != 0) MediaCodec.BUFFER_FLAG_KEY_FRAME else 0)
+                    // Ses izlerinde anahtar kare bayrağı KULLANILMAZ (moov/stss tutarsızlığı
+                    // MPEG4Writer'da negatif uzunluğa yol açabiliyor — 2026-11-20).
+                    sample.set(0, size, time - firstTime, 0)
                     buffer.position(0)
                     buffer.limit(size)
                     muxer.writeSampleData(outputTrack, buffer, sample)
@@ -138,6 +139,7 @@ internal object AudioDemuxer {
                     extractor.advance()
                 }
                 require(count > 0) { "Ses örneği okunamadı" }
+                // stop() başarısızsa moov yarım kalır → dosya geçersiz, istisna fırlatılır.
                 muxer.stop()
                 started = false
                 require(output.length() > 0) { "Ses kapsayıcısı boş" }

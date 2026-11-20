@@ -25,6 +25,23 @@ class RetryInterceptor(
         // Retry çağrısındaki ilk beklemeyi 5 sn ile sınırla; Simkl'ın ortak kapısı, Simkl
         // Retry-After daha uzunsa sonraki denemeyi yine de cooldown bitene kadar bekletir.
         private const val MAX_RETRY_AFTER_MS = 5_000L
+
+        /**
+         * Bağlantı kesildiği / ağ değiştiği için oluşan hatalar — bunlar **yeniden denenmez**.
+         *
+         * v2.4.492: 2026-11-20 günlüğünde indirme ve metadata hattı `IOException: Canceled`
+         * ve `InterruptedIOException: timeout` yığınlarıyla doluydu. `Canceled` zaten
+         * yeniden denenmiyordu; ancak `InterruptedIOException` (iş parçacığı kesildi) 3 kez
+         * daha deneniyor ve her deneme yeni bir bağlantı + yeni bir bekleme demekti.
+         * `SocketTimeoutException` (yavaş CDN) BİLİNÇLİ olarak hâlâ yeniden denenir;
+         * yalnızca gerçek iptal/kesinti (callTimeout "timeout", iş parçacığı kesintisi)
+         * yeniden denenmez.
+         */
+        private fun isNonRetryable(exception: java.io.IOException): Boolean =
+            exception.message == "Canceled" ||
+                (exception is java.io.InterruptedIOException &&
+                    exception !is java.net.SocketTimeoutException)
+
     }
 
     override fun intercept(chain: Interceptor.Chain): Response {
@@ -84,6 +101,10 @@ class RetryInterceptor(
             } catch (e: java.io.IOException) {
                 if (e.message == "Canceled" || chain.call().isCanceled()) {
                     throw java.io.IOException("Canceled", e)
+                }
+                if (isNonRetryable(e)) {
+                    // Kesilen isteği tekrar göndermek kotayı ve pili boşa harcar.
+                    throw e
                 }
                 lastException = e
                 if (attempt < maxRetries) {
