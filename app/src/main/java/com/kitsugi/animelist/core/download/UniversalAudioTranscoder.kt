@@ -615,6 +615,7 @@ object UniversalAudioTranscoder {
         private var totalSubmittedFrames = 0L
         private var lastWrittenPtsUs = -1L
         private var closed = false
+        private var aborted = false
 
         init {
             val bitrate = if (channelCount <= 1) 128_000 else 192_000
@@ -669,7 +670,13 @@ object UniversalAudioTranscoder {
             closeInternal()
         }
 
+        /**
+         * Yarıda bırakma: EOS gönderilmez, `stop()` çağrılmaz (yarım moov zaten geçersizdir).
+         * `release()` doğrudan çağrılarak native yazıcı iş parçacığının süreçle birlikte
+         * ölmesi engellenir.
+         */
         fun abort() {
+            aborted = true
             closeInternal()
         }
 
@@ -693,12 +700,21 @@ object UniversalAudioTranscoder {
                         idle = 0
                         val outBuf = encoder.getOutputBuffer(outIdx)
                         val isConfig = (bufferInfo.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0
-                        if (!isConfig && outBuf != null && bufferInfo.size > 0 && muxerStarted) {
+                        // Boyut doğrulaması: geçersiz `BufferInfo.size` MPEG4Writer'da
+                        // `size_t(-1)` yazımına ve FORTIFY SIGABRT çökmesine yol açar.
+                        if (!isConfig && outBuf != null && muxerStarted &&
+                            MuxSampleGuard.isWritableSampleSize(bufferInfo.size)
+                        ) {
                             outBuf.position(bufferInfo.offset)
                             outBuf.limit(bufferInfo.offset + bufferInfo.size)
-                            if (bufferInfo.presentationTimeUs <= lastWrittenPtsUs) {
-                                bufferInfo.presentationTimeUs = lastWrittenPtsUs + 1L
-                            }
+                            bufferInfo.presentationTimeUs = MuxSampleGuard.nextMonotonicPtsUs(
+                                rawPtsUs = bufferInfo.presentationTimeUs,
+                                lastWrittenUs = lastWrittenPtsUs,
+                                stepUs = 1_024_000_000L / sampleRate.toLong().coerceAtLeast(1L)
+                            )
+                            // Ses izi: `writeSampleData`'ya bayrak verilmez (EOS yalnızca
+                            // encoder seviyesinde anlamlıdır; muxer'a yazılmamalı).
+                            bufferInfo.flags = 0
                             lastWrittenPtsUs = bufferInfo.presentationTimeUs
                             muxer.writeSampleData(muxerTrackIndex, outBuf, bufferInfo)
                         }
@@ -717,7 +733,7 @@ object UniversalAudioTranscoder {
             if (closed) return
             closed = true
             runCatching {
-                if (muxerStarted) muxer.stop()
+                if (muxerStarted && !aborted) muxer.stop()
             }
             runCatching { muxer.release() }
             runCatching { encoder.stop() }

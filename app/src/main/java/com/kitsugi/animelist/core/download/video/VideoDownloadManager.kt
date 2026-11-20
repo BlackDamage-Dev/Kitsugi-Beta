@@ -13,6 +13,7 @@ import com.kitsugi.animelist.data.trailer.YouTubeRequestPolicy
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.DisposableHandle
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.currentCoroutineContext
@@ -414,6 +415,19 @@ object VideoDownloadManager {
      * Yanıtı dosyaya yazar; toplam boyut bilinmiyorsa `total = -1` ile bildirir.
      * Dönen değer `Content-Type` (uzantı tahmini için).
      */
+    /**
+     * İptal edildiğinde bloklayan OkHttp çağrısını da iptal eder.
+     *
+     * v2.4.492: Eskiden coroutine iptal edildiğinde `call.cancel()` çağrılmıyordu. Okuma
+     * `readTimeout` (30 sn) boyunca bloklandığı için indirme iptalden sonra da çalışmaya
+     * devam ediyor, günlükte art arda `IOException: Canceled` / `NiceHttp timeout`
+     * satırları üretiyor ve boşuna pil/trafik harcıyordu.
+     */
+    private suspend fun cancelOnCancellation(call: okhttp3.Call): DisposableHandle? =
+        currentCoroutineContext()[Job]?.invokeOnCompletion { cause ->
+            if (cause is CancellationException) runCatching { call.cancel() }
+        }
+
     private suspend fun streamToFile(
         url: String,
         headers: Map<String, String>,
@@ -421,37 +435,42 @@ object VideoDownloadManager {
         onProgress: (downloaded: Long, total: Long) -> Unit
     ): String {
         val call = httpClient.newCall(requestBuilder(url, headers).build())
-        call.execute().use { response ->
-            if (!response.isSuccessful) throw IOException("HTTP ${response.code}")
-            val body = response.body ?: throw IOException("boş yanıt")
-            val contentType = response.header("Content-Type").orEmpty()
-            val total = body.contentLength()
-            target.parentFile?.mkdirs()
+        val cancelHandle = cancelOnCancellation(call)
+        try {
+            call.execute().use { response ->
+                if (!response.isSuccessful) throw IOException("HTTP ${response.code}")
+                val body = response.body ?: throw IOException("boş yanıt")
+                val contentType = response.header("Content-Type").orEmpty()
+                val total = body.contentLength()
+                target.parentFile?.mkdirs()
 
-            FileOutputStream(target, false).use { output ->
-                body.byteStream().use { input ->
-                    val buffer = ByteArray(COPY_BUFFER)
-                    var downloaded = 0L
-                    var lastReported = 0L
-                    while (true) {
-                        currentCoroutineContext().ensureActive()
-                        val read = input.read(buffer)
-                        if (read <= 0) break
-                        output.write(buffer, 0, read)
-                        downloaded += read
-                        if (downloaded - lastReported >= PROGRESS_STEP_BYTES ||
-                            (total > 0 && downloaded >= total)
-                        ) {
-                            lastReported = downloaded
-                            onProgress(downloaded, total)
+                FileOutputStream(target, false).use { output ->
+                    body.byteStream().use { input ->
+                        val buffer = ByteArray(COPY_BUFFER)
+                        var downloaded = 0L
+                        var lastReported = 0L
+                        while (true) {
+                            currentCoroutineContext().ensureActive()
+                            val read = input.read(buffer)
+                            if (read <= 0) break
+                            output.write(buffer, 0, read)
+                            downloaded += read
+                            if (downloaded - lastReported >= PROGRESS_STEP_BYTES ||
+                                (total > 0 && downloaded >= total)
+                            ) {
+                                lastReported = downloaded
+                                onProgress(downloaded, total)
+                            }
                         }
+                        output.flush()
+                        if (downloaded <= 0L) throw IOException("boş dosya")
+                        onProgress(downloaded, total)
                     }
-                    output.flush()
-                    if (downloaded <= 0L) throw IOException("boş dosya")
-                    onProgress(downloaded, total)
                 }
+                return contentType
             }
-            return contentType
+        } finally {
+            cancelHandle?.dispose()
         }
     }
 

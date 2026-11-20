@@ -674,13 +674,19 @@ object MediaTrackRemuxer {
             var muxer: MediaMuxer? = null
             var muxerTrackIdx = -1
             var started = false
+            var stopped = false
             var sampleCount = 0L
             var lastTimeUs = -1L
             val defaultFrameDurUs = if (target.sampleRate > 0) (1_024_000_000L / target.sampleRate) else 21_333L
 
             try {
                 streamSingleTrackSamples(sourceFile, target.extractorTrackId) { fmt, sampleBytes, timeUs, flags ->
-                    if (sampleBytes.isEmpty()) return@streamSingleTrackSamples
+                    // Bozuk/eksik örnek YAZILMAZ: `sampleBytes.size` doğrulanmadan
+                    // `BufferInfo.size`'a yazılırsa MPEG4Writer negatif uzunluk hesaplayıp
+                    // FORTIFY ile SIGABRT üretir (2026-11-20 çökmesi).
+                    if (!MuxSampleGuard.isWritableSampleSize(sampleBytes.size)) {
+                        return@streamSingleTrackSamples
+                    }
                     if (!started) {
                         val activeFmt = fmt ?: return@streamSingleTrackSamples
                         val mediaFormat = toAndroidAudioMediaFormat(activeFmt, target)
@@ -690,28 +696,30 @@ object MediaTrackRemuxer {
                         muxer = m
                         started = true
                     }
-                    val safeTimeUs = when {
-                        timeUs < 0L -> if (lastTimeUs < 0L) 0L else lastTimeUs + defaultFrameDurUs
-                        lastTimeUs >= 0L && timeUs <= lastTimeUs -> lastTimeUs + 1L
-                        else -> timeUs
-                    }
+                    val safeTimeUs = MuxSampleGuard.nextMonotonicPtsUs(
+                        rawPtsUs = timeUs,
+                        lastWrittenUs = lastTimeUs,
+                        stepUs = defaultFrameDurUs
+                    )
                     lastTimeUs = safeTimeUs
                     val info = MediaCodec.BufferInfo().apply {
-                        set(
-                            0,
-                            sampleBytes.size,
-                            safeTimeUs,
-                            if ((flags and C.BUFFER_FLAG_KEY_FRAME) != 0) MediaCodec.BUFFER_FLAG_KEY_FRAME else 0
-                        )
+                        // Ses izinde anahtar kare bayrağı KULLANILMAZ (stss tablosu bozulur).
+                        set(0, sampleBytes.size, safeTimeUs, MuxSampleGuard.audioSampleFlags())
                     }
                     muxer!!.writeSampleData(muxerTrackIdx, ByteBuffer.wrap(sampleBytes), info)
                     sampleCount++
                 }
                 if (started && sampleCount > 0L) {
-                    muxer?.stop()
+                    // stop() başarısızsa moov yarım: dosya geçersiz, silinecek.
+                    stopped = runCatching { muxer?.stop() }.isSuccess
                 }
             } finally {
                 runCatching { muxer?.release() }
+            }
+
+            if (started && sampleCount > 0L && !stopped) {
+                outFile.delete()
+                return@runCatching null
             }
 
             if (sampleCount > 0L && outFile.exists() && outFile.length() > 0L) {
@@ -978,6 +986,7 @@ object MediaTrackRemuxer {
         return runCatching {
             if (outFile.exists()) outFile.delete()
             val muxer = MediaMuxer(outFile.absolutePath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
+            var released = false
             var videoMuxIdx = -1
             var audioMuxIdx = -1
             var videoSamples = 0L
@@ -998,33 +1007,40 @@ object MediaTrackRemuxer {
                 }
 
                 streamMultipleTracksSamples(sourceFile, targetIds) { trackId, _, bytes, timeUs, flags ->
-                    if (bytes.isEmpty()) return@streamMultipleTracksSamples
+                    // Boyut doğrulanmadan yazılırsa MPEG4Writer negatif uzunluk hesaplar.
+                    if (!MuxSampleGuard.isWritableSampleSize(bytes.size)) {
+                        return@streamMultipleTracksSamples
+                    }
                     if (trackId == videoTrack.extractorTrackId) {
-                        val safeUs = when {
-                            timeUs < 0L -> if (lastVideoUs < 0L) 0L else lastVideoUs + 33_333L
-                            lastVideoUs >= 0L && timeUs <= lastVideoUs -> lastVideoUs + 1L
-                            else -> timeUs
-                        }
+                        val safeUs = MuxSampleGuard.nextMonotonicPtsUs(
+                            rawPtsUs = timeUs,
+                            lastWrittenUs = lastVideoUs,
+                            stepUs = MuxSampleGuard.DEFAULT_VIDEO_STEP_US
+                        )
                         lastVideoUs = safeUs
                         val info = MediaCodec.BufferInfo().apply {
                             set(
                                 0,
                                 bytes.size,
                                 safeUs,
-                                if ((flags and C.BUFFER_FLAG_KEY_FRAME) != 0) MediaCodec.BUFFER_FLAG_KEY_FRAME else 0
+                                MuxSampleGuard.videoSampleFlags(
+                                    sourceFlags = flags,
+                                    keyFrameBit = C.BUFFER_FLAG_KEY_FRAME,
+                                    codecKeyFrame = MediaCodec.BUFFER_FLAG_KEY_FRAME
+                                )
                             )
                         }
                         muxer.writeSampleData(videoMuxIdx, ByteBuffer.wrap(bytes), info)
                         videoSamples++
                     } else if (audioTrack != null && trackId == audioTrack.extractorTrackId && audioMuxIdx >= 0) {
-                        val safeUs = when {
-                            timeUs < 0L -> if (lastAudioUs < 0L) 0L else lastAudioUs + 21_333L
-                            lastAudioUs >= 0L && timeUs <= lastAudioUs -> lastAudioUs + 1L
-                            else -> timeUs
-                        }
+                        val safeUs = MuxSampleGuard.nextMonotonicPtsUs(
+                            rawPtsUs = timeUs,
+                            lastWrittenUs = lastAudioUs,
+                            stepUs = MuxSampleGuard.DEFAULT_AUDIO_STEP_US
+                        )
                         lastAudioUs = safeUs
                         val info = MediaCodec.BufferInfo().apply {
-                            set(0, bytes.size, safeUs, MediaCodec.BUFFER_FLAG_KEY_FRAME)
+                            set(0, bytes.size, safeUs, MuxSampleGuard.audioSampleFlags())
                         }
                         muxer.writeSampleData(audioMuxIdx, ByteBuffer.wrap(bytes), info)
                         audioSamples++
@@ -1032,12 +1048,17 @@ object MediaTrackRemuxer {
                 }
 
                 val valid = videoSamples > 0L && (audioTrack == null || audioSamples > 0L)
-                if (valid) {
-                    muxer.stop()
+                if (valid && runCatching { muxer.stop() }.isSuccess) {
+                    true
+                } else {
+                    // stop() başarısız ya da örnek yok: yarım moov'lu dosya geçersiz.
+                    runCatching { muxer.release() }
+                    released = true
+                    outFile.delete()
+                    false
                 }
-                valid
             } finally {
-                runCatching { muxer.release() }
+                if (!released) runCatching { muxer.release() }
             }
         }.onFailure { e ->
             Log.w(TAG, "tryRemuxMuxedFileToMp4 başarısız: ${e.message}")
@@ -1056,6 +1077,7 @@ object MediaTrackRemuxer {
         return runCatching {
             if (outFile.exists()) outFile.delete()
             val muxer = MediaMuxer(outFile.absolutePath, outputFormat)
+            var released = false
             var videoSamples = 0L
             var audioSamples = 0L
             try {
@@ -1066,18 +1088,28 @@ object MediaTrackRemuxer {
                 var firstVideoPtsUs: Long? = null
                 var lastVideoUs = -1L
                 streamSingleTrackSamples(videoFile, videoTrack.extractorTrackId) { _, bytes, timeUs, flags ->
-                    if (bytes.isEmpty()) return@streamSingleTrackSamples
-                    val rawPts = if (timeUs < 0L) 0L else timeUs
+                    if (!MuxSampleGuard.isWritableSampleSize(bytes.size)) {
+                        return@streamSingleTrackSamples
+                    }
+                    val rawPts = MuxSampleGuard.clampPtsUs(timeUs)
                     if (firstVideoPtsUs == null) firstVideoPtsUs = rawPts
                     val normalizedPts = (rawPts - (firstVideoPtsUs ?: 0L)).coerceAtLeast(0L)
-                    val safeUs = if (lastVideoUs >= 0L && normalizedPts <= lastVideoUs) lastVideoUs + 1L else normalizedPts
+                    val safeUs = MuxSampleGuard.nextMonotonicPtsUs(
+                        rawPtsUs = normalizedPts,
+                        lastWrittenUs = lastVideoUs,
+                        stepUs = MuxSampleGuard.DEFAULT_VIDEO_STEP_US
+                    )
                     lastVideoUs = safeUs
                     val info = MediaCodec.BufferInfo().apply {
                         set(
                             0,
                             bytes.size,
                             safeUs,
-                            if ((flags and C.BUFFER_FLAG_KEY_FRAME) != 0) MediaCodec.BUFFER_FLAG_KEY_FRAME else 0
+                            MuxSampleGuard.videoSampleFlags(
+                                sourceFlags = flags,
+                                keyFrameBit = C.BUFFER_FLAG_KEY_FRAME,
+                                codecKeyFrame = MediaCodec.BUFFER_FLAG_KEY_FRAME
+                            )
                         )
                     }
                     muxer.writeSampleData(vIdx, ByteBuffer.wrap(bytes), info)
@@ -1087,26 +1119,37 @@ object MediaTrackRemuxer {
                 var firstAudioPtsUs: Long? = null
                 var lastAudioUs = -1L
                 streamSingleTrackSamples(audioFile, audioTrack.extractorTrackId) { _, bytes, timeUs, _ ->
-                    if (bytes.isEmpty()) return@streamSingleTrackSamples
-                    val rawPts = if (timeUs < 0L) 0L else timeUs
+                    if (!MuxSampleGuard.isWritableSampleSize(bytes.size)) {
+                        return@streamSingleTrackSamples
+                    }
+                    val rawPts = MuxSampleGuard.clampPtsUs(timeUs)
                     if (firstAudioPtsUs == null) firstAudioPtsUs = rawPts
                     val normalizedPts = (rawPts - (firstAudioPtsUs ?: 0L)).coerceAtLeast(0L)
-                    val safeUs = if (lastAudioUs >= 0L && normalizedPts <= lastAudioUs) lastAudioUs + 1L else normalizedPts
+                    val safeUs = MuxSampleGuard.nextMonotonicPtsUs(
+                        rawPtsUs = normalizedPts,
+                        lastWrittenUs = lastAudioUs,
+                        stepUs = MuxSampleGuard.DEFAULT_AUDIO_STEP_US
+                    )
                     lastAudioUs = safeUs
                     val info = MediaCodec.BufferInfo().apply {
-                        set(0, bytes.size, safeUs, MediaCodec.BUFFER_FLAG_KEY_FRAME)
+                        // Ses izi: anahtar kare bayrağı YOK.
+                        set(0, bytes.size, safeUs, MuxSampleGuard.audioSampleFlags())
                     }
                     muxer.writeSampleData(aIdx, ByteBuffer.wrap(bytes), info)
                     audioSamples++
                 }
 
                 val ok = videoSamples > 0L && audioSamples > 0L
-                if (ok) {
-                    muxer.stop()
+                if (ok && runCatching { muxer.stop() }.isSuccess) {
+                    true
+                } else {
+                    runCatching { muxer.release() }
+                    released = true
+                    outFile.delete()
+                    false
                 }
-                ok
             } finally {
-                runCatching { muxer.release() }
+                if (!released) runCatching { muxer.release() }
             }
         }.onFailure { e ->
             Log.w(TAG, "tryMuxSeparateVideoAndAudio başarısız: ${e.message}")

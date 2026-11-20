@@ -282,11 +282,31 @@ object KitsugiCrashLogger {
             val tag = if (isForeground) "[FOREGROUND CRASH]" else "[BACKGROUND CRASH]"
             val entry = "\n$tag ${nowText()}\n$report\n"
 
-            // Boyut kontrolü — çok büyürse yarıya indir
+            // Boyut kontrolü — çok büyürse yarıya indir.
+            //
+            // v2.4.492: eski kod dosyanın TAMAMINI belleğe okuyup (`readText`) yeniden
+            // yazıyordu. Kullanıcı raporlarındaki `crash_history` dosyası 600 KB'ı aşmış
+            // durumda; bellek baskısı altında (çökme anında!) bu iki kat bellek demek.
+            // Artık yalnızca son MAX_HISTORY_BYTES/2'lik dilim okunur ve geçiciye yazılıp
+            // atomik olarak yer değiştirilir — yarım kalan yazma geçmişi bozmaz.
             if (historyFile.exists() && historyFile.length() > MAX_HISTORY_BYTES) {
-                val content = historyFile.readText()
-                val trimmed = content.drop(content.length / 2)
-                historyFile.writeText("=== Eski geçmiş kısaltıldı ===\n$trimmed")
+                val keepBytes = (MAX_HISTORY_BYTES / 2).toInt()
+                val kept = runCatching {
+                    java.io.RandomAccessFile(historyFile, "r").use { raf ->
+                        val length = raf.length()
+                        val start = (length - keepBytes).coerceAtLeast(0L)
+                        raf.seek(start)
+                        val buffer = ByteArray((length - start).toInt())
+                        raf.readFully(buffer)
+                        String(buffer, Charsets.UTF_8)
+                    }
+                }.getOrDefault("")
+                val tmp = File(historyFile.parentFile, "$CRASH_HISTORY_FILE.tmp")
+                tmp.writeText("=== Eski geçmiş kısaltıldı ===\n" + kept.substringAfter("\n"))
+                if (!tmp.renameTo(historyFile)) {
+                    historyFile.writeText(tmp.readText())
+                    tmp.delete()
+                }
             }
 
             historyFile.appendText(entry)

@@ -6,6 +6,7 @@ import android.media.MediaFormat
 import android.media.MediaMuxer
 import android.os.Build
 import android.util.Log
+import com.kitsugi.animelist.core.download.MuxSampleGuard
 import java.io.File
 import java.nio.ByteBuffer
 
@@ -17,6 +18,31 @@ import java.nio.ByteBuffer
  * indirmeyi reddediyordu. MediaMuxer, yeniden kodlama yapmadan (transcode yok, hızlı ve
  * kayıpsız) iki bit akışını tek bir MP4/WebM kabına yazabiliyor.
  *
+ * ## 2026-11-20 çökmesi ve bu dosyadaki düzeltmeler
+ * `crash_history` günlüğünde süreç, `MPEG4Writer` iş parçacığında
+ * `FORTIFY: write: count 18446744073709551615 > SSIZE_MAX` → `SIGABRT` ile öldü.
+ * Bu, `writeSampleData` çağrısına **-1 bayt** boyut verilmesinin doğrudan sonucudur.
+ * Eski kod `readSampleData()` sonucunu doğrulamadan yazıyordu:
+ *
+ * ```kotlin
+ * val size = videoExtractor.readSampleData(videoBuffer, 0)
+ * if (size <= 0 || videoTimeUs < 0L) { videoDone = true; continue }   // eski koruma
+ * info.set(0, size, videoTimeUs, videoExtractor.sampleFlags)
+ * activeMuxer.writeSampleData(outVideoTrack, videoBuffer, info)
+ * ```
+ *
+ * …ancak `writeSampleData` `size`'ı `buffer.limit()`'ten değil `BufferInfo.size`'tan alır ve
+ * negatif/aşırı değerler `catch (t: Throwable)` ile **yakalanamaz** — çökme native yazıcı
+ * iş parçacığında olur. Şimdi her örnek [MuxSampleGuard] üzerinden geçiyor:
+ *  - boyut `1..MAX_SAMPLE_BYTES` dışındaysa örnek yazılmaz,
+ *  - PTS negatif/absürt ise kırpılır ve iz başına kesin artan olacak şekilde zorlanır,
+ *  - ses izlerine `BUFFER_FLAG_KEY_FRAME` verilmez.
+ *
+ * ## Muxer yaşam döngüsü
+ * Eski kod `stop()` başarısız olduğunda bile `release()` çağırıyor ve yarım moov'lu bir
+ * dosyayı geçerli sanabiliyordu. Artık `stop()` **tek** kez, yalnızca tüm örnekler
+ * yazıldıktan sonra çağrılır; başarısızsa çıktı silinir ve `false` döner.
+ *
  * Notlar:
  *  - MP4 çıktısı H.264 + AAC için her cihazda güvenli; VP9/Opus için WebM çıktısı deniyoruz.
  *  - Birleştirme başarısız olursa çağıran taraf iki dosyayı ayrı ayrı saklar; kullanıcı
@@ -25,6 +51,9 @@ import java.nio.ByteBuffer
 internal object MediaStreamMuxer {
 
     private const val TAG = "MediaStreamMuxer"
+
+    /** Kaba bir üst sınır: bu sayıdan fazla örnek yazıldıysa akış zaten bozuktur. */
+    private const val MAX_SAMPLES_PER_TRACK = 40_000_000L
 
     fun mux(
         videoFile: File,
@@ -58,6 +87,10 @@ internal object MediaStreamMuxer {
         val videoExtractor = MediaExtractor()
         val audioExtractor = MediaExtractor()
         var muxer: MediaMuxer? = null
+        var muxerStarted = false
+        var muxerStopped = false
+        var skippedVideo = 0L
+        var skippedAudio = 0L
         return try {
             videoExtractor.setDataSource(videoFile.absolutePath)
             audioExtractor.setDataSource(audioFile.absolutePath)
@@ -88,6 +121,7 @@ internal object MediaStreamMuxer {
             )
 
             activeMuxer.start()
+            muxerStarted = true
 
             videoExtractor.selectTrack(videoTrack)
             audioExtractor.selectTrack(audioTrack)
@@ -103,7 +137,15 @@ internal object MediaStreamMuxer {
             var videoDone = videoTimeUs < 0L
             var audioDone = audioTimeUs < 0L
 
-            while (!videoDone || !audioDone) {
+            var lastVideoPtsWritten = -1L
+            var lastAudioPtsWritten = -1L
+            var videoSamples = 0L
+            var audioSamples = 0L
+
+            while ((!videoDone || !audioDone) &&
+                videoSamples < MAX_SAMPLES_PER_TRACK &&
+                audioSamples < MAX_SAMPLES_PER_TRACK
+            ) {
                 val useVideo = when {
                     videoDone -> false
                     audioDone -> true
@@ -112,37 +154,93 @@ internal object MediaStreamMuxer {
                 if (useVideo) {
                     videoBuffer.clear()
                     val size = videoExtractor.readSampleData(videoBuffer, 0)
-                    if (size <= 0 || videoTimeUs < 0L) {
-                        videoDone = true
+                    if (!MuxSampleGuard.isWritableSampleSize(size)) {
+                        // Akış bitti (size < 0) ya da örnek okunamadı (size == 0):
+                        // YAZMA — negatif boyut MPEG4Writer'da SIGABRT üretir.
+                        if (size < 1) {
+                            videoDone = true
+                        } else {
+                            skippedVideo++
+                            videoExtractor.advance()
+                        }
                         continue
                     }
-                    info.set(0, size, videoTimeUs, videoExtractor.sampleFlags)
+                    val pts = MuxSampleGuard.nextMonotonicPtsUs(
+                        rawPtsUs = videoTimeUs,
+                        lastWrittenUs = lastVideoPtsWritten,
+                        stepUs = MuxSampleGuard.DEFAULT_VIDEO_STEP_US
+                    )
+                    lastVideoPtsWritten = pts
+                    info.set(
+                        0,
+                        size,
+                        pts,
+                        MuxSampleGuard.videoSampleFlags(
+                            sourceFlags = videoExtractor.sampleFlags,
+                            keyFrameBit = MediaExtractor.SAMPLE_FLAG_SYNC,
+                            codecKeyFrame = MediaCodec.BUFFER_FLAG_KEY_FRAME
+                        )
+                    )
                     activeMuxer.writeSampleData(outVideoTrack, videoBuffer, info)
+                    videoSamples++
                     val advanced = videoExtractor.advance()
                     videoTimeUs = if (advanced) videoExtractor.sampleTime else -1L
                     if (videoTimeUs < 0L) videoDone = true
                 } else {
                     audioBuffer.clear()
                     val size = audioExtractor.readSampleData(audioBuffer, 0)
-                    if (size <= 0 || audioTimeUs < 0L) {
-                        audioDone = true
+                    if (!MuxSampleGuard.isWritableSampleSize(size)) {
+                        if (size < 1) {
+                            audioDone = true
+                        } else {
+                            skippedAudio++
+                            audioExtractor.advance()
+                        }
                         continue
                     }
-                    info.set(0, size, audioTimeUs, audioExtractor.sampleFlags)
+                    val pts = MuxSampleGuard.nextMonotonicPtsUs(
+                        rawPtsUs = audioTimeUs,
+                        lastWrittenUs = lastAudioPtsWritten,
+                        stepUs = MuxSampleGuard.DEFAULT_AUDIO_STEP_US
+                    )
+                    lastAudioPtsWritten = pts
+                    // Ses örneklerinde anahtar kare kavramı YOK — bayrak her zaman 0.
+                    info.set(0, size, pts, MuxSampleGuard.audioSampleFlags())
                     activeMuxer.writeSampleData(outAudioTrack, audioBuffer, info)
+                    audioSamples++
                     val advanced = audioExtractor.advance()
                     audioTimeUs = if (advanced) audioExtractor.sampleTime else -1L
                     if (audioTimeUs < 0L) audioDone = true
                 }
             }
 
-            activeMuxer.stop()
+            if (skippedVideo > 0L || skippedAudio > 0L) {
+                Log.w(TAG, "Bozuk örnekler atlandı (video=$skippedVideo ses=$skippedAudio) — çökme önlendi")
+            }
+
+            if (videoSamples <= 0L || audioSamples <= 0L) {
+                Log.w(TAG, "Yazılabilir örnek yok (video=$videoSamples ses=$audioSamples)")
+                return false
+            }
+
+            // stop() TEK kez, tüm yazmalar bittikten sonra. Başarısızsa moov yarım kalır.
+            muxerStopped = runCatching { activeMuxer.stop() }.isSuccess
+            // stop() denendikten sonra tekrar denenmez: ikinci stop() çağrısı muxer'ı
+            // tanımsız durumda bırakır. Bu yüzden bayrak başarıdan bağımsız kapatılır.
+            muxerStarted = false
+            if (!muxerStopped) {
+                Log.w(TAG, "muxer.stop() başarısız — çıktı geçersiz sayılıyor (webm=$webm)")
+                return false
+            }
             outputFile.length() > 0L
         } catch (t: Throwable) {
             Log.w(TAG, "Mux attempt failed (webm=$webm): ${t.message}")
             false
         } finally {
-            runCatching { muxer?.release() }
+            if (muxer != null) {
+                if (muxerStarted) runCatching { muxer?.stop() }
+                runCatching { muxer?.release() }
+            }
             runCatching { videoExtractor.release() }
             runCatching { audioExtractor.release() }
         }

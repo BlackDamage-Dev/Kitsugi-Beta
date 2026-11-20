@@ -62,6 +62,9 @@ object JikanGateway {
     private const val BREAKER_MSG = "Jikan uyumlu kaynaklar geçici olarak devre dışı (art arda hata)"
     private const val CANCELLED = "cancelled"
 
+    /** Aynı URL için iptal edilmiş sahip sonrası azami yeniden sahiplenme sayısı. */
+    private const val MAX_OWNER_ATTEMPTS = 2
+
     private val ID_DETAIL_REGEX = Regex("^(anime|manga|characters|people|producers)/\\d+(/.*)?$")
     private val VOLATILE_SUFFIXES = listOf("/reviews", "/forum", "/news", "/statistics")
 
@@ -115,10 +118,26 @@ object JikanGateway {
         if (!canonical.startsWith(CANONICAL_PREFIX)) return listOf(Host("direct", canonical))
         val rest = canonical.removePrefix(CANONICAL_PREFIX)
         val hosts = ArrayList<Host>(2)
-        if (miribyouBase.isNotEmpty()) hosts += Host("miribyou", "$miribyouBase/v4/$rest")
+        if (miribyouBase.isNotEmpty() && shouldTryMiribyou(rest)) {
+            hosts += Host("miribyou", "$miribyouBase/v4/$rest")
+        }
         hosts += Host("tenrai", "$TENRAI_BASE/${tenraiRest(rest)}")
         return hosts
     }
+
+    /**
+     * miribyou host'u `top/*` uçlarını **404** ile reddediyor (v2.4.491 günlüğünde her ana sayfa
+     * açılışında `GET /v4/top/manga → HTTP 404`, 1080 ms). Bu uçlar için önce miribyou'yu denemek
+     * her istekte boşa bir tur + kota harcaması demekti. Aynı host bir kez `top/*` için 404
+     * döndürdüyse, o uçlar doğrudan Tenrai'ye gider; host sonradan başarılı olursa bayrak
+     * temizlenir (host güncellenmiş olabilir).
+     */
+    private fun shouldTryMiribyou(rest: String): Boolean {
+        if (!rest.startsWith("top/")) return true
+        return synchronized(lock) { !miribyouTopUnsupported }
+    }
+
+    @Volatile private var miribyouTopUnsupported = false
 
     /**
      * Jikan sorgu parametrelerini Tenrai biçimine çevirir: `sfw=true` → `sfw`, `sfw=false` kaldırılır.
@@ -213,9 +232,18 @@ object JikanGateway {
     /** Host'un nihai sonucunu kaydeder; sunucu/ağ hatası eşiği aşınca o host'u [BREAKER_OPEN_MS] kapatır. */
     private fun recordHostOutcome(hostId: String, result: JikanResult) {
         val healthy = result is JikanResult.Ok || result is JikanResult.NotFound
+        // v2.4.492: `Job was cancelled` / `Canceled` mesajları da iptaldir. Eskiden bunlar
+        // "sunucu hatası" sayılıyordu; kullanıcı ekranı hızlıca değiştirdiğinde 3 iptal
+        // host'un devre kesicisini 5 DAKİKA açıyor ve tüm Jikan rafları boş dönüyordu
+        // (2026-11-20 günlüğündeki toplu `IOException: Canceled` + boş raf zinciri).
         val serverFailure = result is JikanResult.Failed &&
-            result.message != CANCELLED &&
+            !isCancellationMessage(result.message) &&
             (result.code == 0 || result.code in 500..599)
+        // miribyou `top/*` uçlarını kalıcı 404 ile reddediyor: bu uçlarda ikinci tur atılmasın.
+        if (hostId == "miribyou") {
+            if (result is JikanResult.NotFound) miribyouTopUnsupported = true
+            else if (healthy) miribyouTopUnsupported = false
+        }
         if (!healthy && !serverFailure) return
         synchronized(lock) {
             val st = stateFor(hostId)
@@ -230,6 +258,12 @@ object JikanGateway {
                 }
             }
         }
+    }
+
+    /** `Canceled`, `Job was cancelled`, `cancelled` … hepsi iptaldir, hata değildir. */
+    private fun isCancellationMessage(message: String?): Boolean {
+        val m = message?.lowercase() ?: return false
+        return m == CANCELLED || m.contains("cancel")
     }
 
     private fun cacheGet(key: String): String? = synchronized(lock) {
@@ -268,6 +302,9 @@ object JikanGateway {
                     else -> JikanResult.Failed(response.code, response.message)
                 }
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            // İptal bir HATA DEĞİLDİR: devre kesiciyi açmamalı, host sağlığını düşürmemeli.
+            throw e
         } catch (e: Exception) {
             JikanResult.Failed(0, e.message ?: "network")
         }
@@ -359,31 +396,39 @@ object JikanGateway {
     suspend fun fetch(url: String, priority: Priority = Priority.UI, maxRetries: Int = 2): JikanResult {
         cacheGet(url)?.let { return JikanResult.Ok(it) }
 
-        val owned = CompletableDeferred<JikanResult>()
-        val existing = synchronized(lock) {
-            inFlight[url] ?: run {
-                inFlight[url] = owned
-                null
+        // v2.4.492: eskiden "sahip iptal edildi" durumunda `fetch(...)` kendini SINIRSIZ
+        // özyinelemeli çağırıyordu. Kullanıcı hızlıca ekran değiştirdiğinde bu, günlükte
+        // görülen ardı ardına `IOException: Canceled` yığınlarını üretiyordu. Şimdi en fazla
+        // [MAX_OWNER_ATTEMPTS] kez denenir ve sonuç `Failed` olarak döner (çağıran taraf
+        // AniList yedeğine düşer).
+        var attempt = 0
+        while (true) {
+            attempt++
+            val owned = CompletableDeferred<JikanResult>()
+            val existing = synchronized(lock) {
+                inFlight[url] ?: run {
+                    inFlight[url] = owned
+                    null
+                }
             }
-        }
-        if (existing != null) {
-            val shared = existing.await()
-            // Sahip iptal edildiyse (paylaşılan sonuç "cancelled") kendimiz yeniden deneriz.
-            return if (shared is JikanResult.Failed && shared.code == 0 && shared.message == CANCELLED) {
-                fetch(url, priority, maxRetries)
-            } else {
-                shared
+            if (existing != null) {
+                val shared = existing.await()
+                val ownerCancelled = shared is JikanResult.Failed &&
+                    shared.code == 0 &&
+                    isCancellationMessage(shared.message)
+                if (!ownerCancelled || attempt >= MAX_OWNER_ATTEMPTS) return shared
+                continue
             }
-        }
 
-        var result: JikanResult = JikanResult.Failed(0, CANCELLED)
-        try {
-            result = fetchChain(url, priority, maxRetries)
-        } finally {
-            synchronized(lock) { inFlight.remove(url) }
-            owned.complete(result)
+            var result: JikanResult = JikanResult.Failed(0, CANCELLED)
+            try {
+                result = fetchChain(url, priority, maxRetries)
+            } finally {
+                synchronized(lock) { inFlight.remove(url) }
+                owned.complete(result)
+            }
+            return result
         }
-        return result
     }
 
     /** Bloklayan sürüm (eski çağıranlar için). IO thread'lerinde kullanın. */
