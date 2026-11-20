@@ -1,14 +1,14 @@
 {
   "_comment": "Kitsugi Eklenti Domain Listesi — GitHub Actions + AI tarafından otomatik güncellenir.",
   "_format": "eklentiAdi (küçük harf) → güncel ana URL",
-  "_updated": "2026-11-19 03:44 UTC",
+  "_updated": "2026-11-20 03:41 UTC",
   "_stats": {
-    "total": 75,
+    "total": 73,
     "added": 0,
-    "removed": 0,
+    "removed": 2,
     "changed": 0,
     "ai_assisted": 0,
-    "blocked": 159
+    "blocked": 160
   },
   "domains": {
     "animecix": "https://animecix.tv",
@@ -36,7 +36,6 @@
     "diziyou": "https://www.diziyou.one",
     "dramaizle": "https://dramaflix.net/tr",
     "exxen": "https://www.exxen.com",
-    "filmekseni": "https://filmekseni.vip",
     "filmizleilk": "https://www.filmizleilk.com",
     "filmkovasi": "https://filmkovasi.com",
     "filmmakinesi": "https://filmmakinesi.to",
@@ -75,7 +74,6 @@
     "tranimaci": "https://tranimaci.com",
     "tranimeci": "https://tranimaci.com",
     "tranimeizle": "https://www.tranimeizle.live",
-    "trasyalog": "https://asyalog.co",
     "trdiziizle": "https://www.trdiziizle.tv",
     "turkanime": "https://www.turkanime.tv",
     "turkish": "https://www.turkish123.com",
@@ -214,6 +212,7 @@
     "supercartoons",
     "sxyprn",
     "thaiporn",
+    "trasyalog",
     "tubepornclassic",
     "turkhub",
     "turkifsablog",
