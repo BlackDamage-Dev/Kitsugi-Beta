@@ -74,7 +74,7 @@ Kitsugi'nin medya akış özelliklerini (dizi, anime ve film izleme) kullanabilm
 2. **Repo Ekle** butonuna basın.
 3. Aşağıdaki depo adresini yapıştırın ve ekleyin:
    ```text
-   https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/repo.json
+   https://raw.githubusercontent.com/BlackDamage-Plugin/Kitsugi-Video-Plugins/builds/repo.json
    ```
 4. Depo eklendikten sonra listeden dilediğiniz sağlayıcıları (örn. TurkAnime, FilmMakinesi, DiziBox vb.) yükleyebilirsiniz.
 
@@ -158,7 +158,7 @@ To utilize Kitsugi's media streaming features (watching TV series, anime, and mo
 2. Click the **Add Repository** button.
 3. Paste and add the following repository URL:
    ```text
-   https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/repo.json
+   https://raw.githubusercontent.com/BlackDamage-Plugin/Kitsugi-Video-Plugins/builds/repo.json
    ```
 4. Once the repository is added, you can install any media providers of your choice (e.g. TurkAnime, FilmMakinesi, DiziBox, etc.) from the list.
 

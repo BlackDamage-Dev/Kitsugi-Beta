@@ -6296,6 +6296,7 @@ Eklentiler ekranından eklenti etkinleştirin.</string>
     <string name="indirme_hata_http">Sunucu hatası: %1$s</string>
     <string name="indirme_hata_genel">İndirme başarısız: %1$s</string>
     <string name="indirme_hata_genel_bilinmiyor">İndirme başarısız oldu (bilinmeyen hata).</string>
+    <string name="indirme_hata_ses_izi_yok">İndirilen videoda ses izi bulunamadı; dosya sessiz kalacağı için kaydedilmedi. Lütfen başka bir kaynak veya kalite deneyin.</string>
     <string name="indirme_hata_desteklenmeyen_format">İndirilen dosya bu cihazda oynatılamıyor (desteklenmeyen video/ses formatı). Farklı bir kaynak veya kalite deneyin.</string>
     <string name="indirme_format_uyarisi">Cihaz uyumu: %1$s</string>
 

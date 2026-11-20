@@ -15,15 +15,15 @@ import java.util.Locale
  * ## Neden ayrı bir çözümleyici?
  * Detay sayfasındaki video bağlantıları çoğunlukla YouTube `watch` sayfalarıdır; doğrudan
  * indirilemezler. [InAppYouTubeExtractor] oynatma için muxed HLS ya da ayrı video/ses
- * akışları döndürür. Ayrı ses/video akışları **tek dosyaya birleştirilemediği** için
- * (uygulamada muxer yok) indirme sessiz bir video üretirdi. Bu yüzden:
+ * akışları döndürür:
  *
  *  - muxed HLS manifest (`hlsManifestUrl`) → indirilebilir (segmentler birleştirilir),
  *  - progressive (ses+görüntü birlikte mp4) → indirilebilir,
- *  - yalnızca ayrı adaptive video + ses → **indirilemez**, kullanıcıya net mesaj gösterilir.
+ *  - ayrı adaptive video + ses → **ikisi de indirilip tek dosyada birleştirilir**
+ *    (`Resolved.audioUrl`), böylece kullanıcıya ayrı ses dosyası verilmez.
  *
- * Bu karar kaynak çözümleme anında verilir; indirme başladıktan sonra "ses yok" sürprizi
- * yaşanmaz ve yarım dosya diskte kalmaz.
+ * Sesin ayrı akışta olması artık indirmeyi engellemez; uygulama içindeki
+ * [MediaTrackRemuxer] muxer'ı görüntü + sesi (gerekirse sesi AAC-LC'ye çevirerek) gömer.
  */
 object ClipDownloadSource {
 
@@ -41,7 +41,15 @@ object ClipDownloadSource {
         /** URL bir HLS manifesti mi? (segment segment indirilir) */
         val isHls: Boolean,
         /** YouTube video kimliği (varsa) — tekil anahtar ve günlükler için. */
-        val youtubeVideoId: String? = null
+        val youtubeVideoId: String? = null,
+        /**
+         * Video akışı ses içermiyorsa ayrıca indirilecek ses akışı.
+         * İndirme motoru ikisini **tek dosyada** birleştirir; kullanıcıya ayrı ses
+         * dosyası bırakılmaz.
+         */
+        val audioUrl: String? = null,
+        /** Ayrı ses akışının uzantısı (genelde `m4a`). */
+        val audioExtension: String = "m4a"
     )
 
     /** Çözümleme başarısızlık nedenleri — UI'da yerelleştirilmiş mesaja çevrilir. */
@@ -149,10 +157,22 @@ object ClipDownloadSource {
             )
         }
 
-        // 2) Ayrı ses akışı varsa video tek başına sessiz olur → indirmeyi reddet.
+        // 2) Ses ayrı akışta: reddetme yok — video ile birlikte indirilip tek dosyaya
+        //    birleştirilir (kullanıcı sözleşmesi: indirilen videoda ses gömülü olmalı).
         if (!playback.audioUrl.isNullOrBlank()) {
-            Log.i(TAG, "Ayrı ses akışı var, muxed akış yok: ${identityKey(trimmed)}")
-            return@withContext Result.Error(Failure.SEPARATE_AUDIO)
+            Log.i(
+                TAG,
+                "Ayrı ses akışı tespit edildi, video ile birlikte birleştirilecek: ${identityKey(trimmed)}"
+            )
+            return@withContext Result.Success(
+                Resolved(
+                    url = videoUrl,
+                    extension = guessExtension(videoUrl),
+                    isHls = false,
+                    youtubeVideoId = videoId,
+                    audioUrl = playback.audioUrl
+                )
+            )
         }
 
         // 3) Progressive (ses+görüntü birlikte) akış.

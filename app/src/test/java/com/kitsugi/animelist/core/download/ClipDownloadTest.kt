@@ -109,4 +109,52 @@ class ClipDownloadTest {
         assertTrue(clip.rehydrated().isClip)
         assertEquals("Kamera Arkası", clip.rehydrated().clipTitle)
     }
+
+    // ── Ayrı ses akışının video ile birleştirilmesi (A/V senkronu) ────────────
+
+    @Test
+    fun `ayri ses ve video ayni zaman ekseninde ise ortak sifira hizalanir`() {
+        // Video 0 µs'de, ses ID3 damgası 2.000.000 µs (2 sn) → ses 2 sn'de başlamalı.
+        val pts = MediaTrackRemuxer.alignAudioPtsUs(
+            rawPtsUs = 0L,
+            firstAudioPtsUs = 0L,
+            audioAbsStartUs = 2_000_000L,
+            videoAbsStartUs = 0L
+        )
+        assertEquals(2_000_000L, pts)
+
+        // Sesin 5. örneği (ilk örnekten 0.1 sn sonra) da 2.1 sn'ye oturmalı.
+        val next = MediaTrackRemuxer.alignAudioPtsUs(
+            rawPtsUs = 100_000L,
+            firstAudioPtsUs = 0L,
+            audioAbsStartUs = 2_000_000L,
+            videoAbsStartUs = 0L
+        )
+        assertEquals(2_100_000L, next)
+    }
+
+    @Test
+    fun `id3 damgasi yoksa ses sifirdan baslar ve negatife dusmez`() {
+        val pts = MediaTrackRemuxer.alignAudioPtsUs(
+            rawPtsUs = 0L,
+            firstAudioPtsUs = 0L,
+            audioAbsStartUs = null,
+            videoAbsStartUs = 900_000L
+        )
+        assertEquals(0L, pts)
+        assertTrue(pts >= 0L)
+    }
+
+    @Test
+    fun `farkli zaman eksenleri arasindaki buyuk fark yok sayilir`() {
+        // Ses damgası duvar saati (ör. 10 dk), video 0'dan başlıyor → 5 sn eşiği aşılır,
+        // dosya başında dakikalarca sessizlik oluşmaması için ses 0'dan başlatılır.
+        val pts = MediaTrackRemuxer.alignAudioPtsUs(
+            rawPtsUs = 0L,
+            firstAudioPtsUs = 0L,
+            audioAbsStartUs = 600_000_000L,
+            videoAbsStartUs = 0L
+        )
+        assertEquals(0L, pts)
+    }
 }
