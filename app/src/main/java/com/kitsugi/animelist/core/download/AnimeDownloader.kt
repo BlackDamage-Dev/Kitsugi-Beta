@@ -363,8 +363,32 @@ class AnimeDownloader(private val context: Context) {
                 videoDir = videoDir,
                 baseName = baseName,
                 sourceUrl = download.url,
-                audioId3StartPtsUs = audioFirstId3PtsUs
+                audioId3StartPtsUs = audioFirstId3PtsUs,
+                preferredAudioLanguages = buildPreferredAudioLanguages(
+                    download = download,
+                    settingsPreferred = settings.preferredAudioLanguages
+                )
             )
+
+            // 2.1) Sessiz dosya "indirildi" sayılmasın: görüntü + ses izi doğrulaması.
+            //      Yan ses dosyası yoksa ses izi gömülü olmak ZORUNDA; aksi hâlde kullanıcı
+            //      sessiz bir video ile baş başa kalır (şikâyet edilen durumun ta kendisi).
+            run {
+                val verification = DownloadVerifier.verify(finalVideoFile)
+                val tracks = runCatching { MediaTrackRemuxer.probeTracks(finalVideoFile) }.getOrDefault(emptyList())
+                val hasAudioTrack = tracks.any { it.isAudio }
+                if (!verification.playable) {
+                    Log.w(TAG, "İndirilen video doğrulanamadı: ${verification.warning} (${verification.details})")
+                } else if (!hasAudioTrack && finalCompanionAudioFile == null) {
+                    Log.w(TAG, "Birleştirilen videoda ses izi yok: ${finalVideoFile.name}")
+                    // Sessiz dosyayı diskte bırakma: kullanıcı "indirildi" sanıp açınca
+                    // ses duymamak yerine net bir hata görsün.
+                    runCatching { finalVideoFile.delete() }
+                    throw UnsupportedMediaException(
+                        KitsugiStrings.get(R.string.indirme_hata_ses_izi_yok)
+                    )
+                }
+            }
 
             val finalBytes = finalVideoFile.length() + (finalCompanionAudioFile?.length() ?: 0L)
             onProgress(98, finalBytes, finalBytes, download.downloadedSegments)
@@ -838,18 +862,75 @@ class AnimeDownloader(private val context: Context) {
 
     // ── Kapsayıcı Sonlandırma (Tekil MP4/WebM Birleştirme veya Güvenli Yan Ses) ──
 
+    /**
+     * İndirilen video (+ varsa ayrık ses) akışlarını **tek oynatılabilir dosyaya** dönüştürür.
+     *
+     * Kullanıcı sözleşmesi: *video indirirken ses videoya gömülü olmalı; ses ayrı dosya olarak
+     * yalnızca kullanıcı "sesi ayrı indir" derse (`DownloadKind.AUDIO`) iner.*
+     *
+     * Bu yüzden birleştirme sırası:
+     *  1. [MediaTrackRemuxer] — Media3 extractor tabanlı, kayıpsız MP4/WebM mux; ses kodeki
+     *     MP4'e giremiyorsa (E-AC-3 / AC-3 / DTS / Opus / FLAC / 5.1) otomatik olarak
+     *     AAC-LC'ye çevirip **yine tek dosyaya gömmer**.
+     *  2. [MediaRemuxer] — ikinci güvenlik ağı (platform MediaExtractor).
+     *  3. Her ikisi de başaramazsa (gerçekten olağan dışı bir kodek) video + yan ses yazılır ve
+     *     oynatıcı `MergingMediaSource` ile yine tek parça gibi oynatır.
+     */
     private suspend fun finalizeDownloadedMedia(
         stagingVideoFile: File,
         stagingAudioFile: File?,
         videoDir: File,
         baseName: String,
         sourceUrl: String,
-        audioId3StartPtsUs: Long?
+        audioId3StartPtsUs: Long?,
+        preferredAudioLanguages: List<String> = listOf("tr", "ja", "en")
     ): Pair<File, File?> {
         // Önce aynı taban adlı eski video ve yan ses kalıntılarını temizle
         deleteExistingMediaOfBase(videoDir, baseName)
 
         if (stagingAudioFile != null && stagingAudioFile.isFile && stagingAudioFile.length() > 0L) {
+            // Geçici çalışma klasörü: mux ara dosyaları kullanıcının Video klasörüne sızmasın.
+            val muxWorkDir = File(
+                context.cacheDir,
+                "kitsugi_mux_${Math.abs(baseName.hashCode())}"
+            ).also {
+                runCatching { it.deleteRecursively() }
+                it.mkdirs()
+            }
+            try {
+                // 1) Evrensel motor: mux + gerekirse AAC-LC dönüştürüp gömer (kayıpsız tercih).
+                val universal = runCatching {
+                    MediaTrackRemuxer.remuxVideoWithAudios(
+                        rawVideoFile = stagingVideoFile,
+                        externalAudioInputs = listOf(
+                            ExternalAudioTrack(url = sourceUrl, isDefault = true) to stagingAudioFile
+                        ),
+                        workDir = muxWorkDir,
+                        preferredLanguages = preferredAudioLanguages,
+                        audioStartPtsUs = audioId3StartPtsUs
+                    )
+                }.onFailure { e ->
+                    if (e is CancellationException) throw e
+                    Log.w(TAG, "Evrensel remux başarısız (${e.message}); MediaRemuxer'a düşülüyor")
+                }.getOrNull()
+
+                if (universal != null && universal.audioMergedIntoContainer) {
+                    val merged = universal.outputFile
+                    if (merged.isFile && merged.length() > 0L && MediaTrackRemuxer.hasBothTracks(merged)) {
+                        val target = File(videoDir, "$baseName.${universal.extension}")
+                        moveOrCopyFile(merged, target)
+                        Log.i(
+                            TAG,
+                            "Video + ayrık ses tek dosyada birleştirildi: ${target.name} (${universal.extension})"
+                        )
+                        return target to null
+                    }
+                }
+            } finally {
+                runCatching { muxWorkDir.deleteRecursively() }
+            }
+
+            // 2) Platform muxer güvenlik ağı (MediaExtractor tabanlı).
             when (val muxResult = MediaRemuxer.muxVideoAndAudio(
                 videoFile = stagingVideoFile,
                 audioFile = stagingAudioFile,
@@ -886,6 +967,17 @@ class AnimeDownloader(private val context: Context) {
             fallbackExtension = guessVideoExtensionFromUrl(sourceUrl)
         )
 
+        // Gömülü ses: TS akışlarında ve MP4 kapsayıcısının reddettiği codec'lerde
+        // (E-AC-3 / AC-3 / DTS / MP3 / 5.1) ses AAC-LC'ye çevrilerek **aynı dosyaya** gömülür.
+        // Böylece "ses var ama çalmıyor / ayrı dosya" durumu oluşmaz.
+        remuxEmbeddedAudioIfNeeded(
+            stagingVideoFile = stagingVideoFile,
+            videoDir = videoDir,
+            baseName = baseName,
+            containerExt = detectedExt,
+            preferredAudioLanguages = preferredAudioLanguages
+        )?.let { return it to null }
+
         if (detectedExt == "ts") {
             when (val tsOutcome = MediaRemuxer.remuxSingleTsToMp4IfLossless(
                 tsFile = stagingVideoFile,
@@ -907,6 +999,84 @@ class AnimeDownloader(private val context: Context) {
         val targetFile = File(videoDir, "$baseName.$finalExt")
         moveOrCopyFile(stagingVideoFile, targetFile)
         return targetFile to null
+    }
+
+    /**
+     * Gömülü sesi olan tekil akışı, ses izi kaybolmadan tek oynatılabilir dosyaya çevirir.
+     *
+     * Tetiklenme koşulları:
+     *  - Kapsayıcı MPEG-TS (`.ts`) → `Media3` tabanlı remux ile `.mp4`'e taşınır,
+     *  - Ses kodeki MP4'ün kabul etmediği bir codec (E-AC-3 / AC-3 / DTS / MP3 / FLAC / Opus)
+     *    veya çok kanallı (5.1 / 7.1) → stereo AAC-LC'ye çevrilip gömülür.
+     *
+     * @return taşınmış/üretilmiş dosya; gerek yoksa `null` (çağıran normal akışa devam eder).
+     */
+    private suspend fun remuxEmbeddedAudioIfNeeded(
+        stagingVideoFile: File,
+        videoDir: File,
+        baseName: String,
+        containerExt: String,
+        preferredAudioLanguages: List<String>
+    ): File? {
+        val tracks = runCatching { MediaTrackRemuxer.probeTracks(stagingVideoFile) }.getOrDefault(emptyList())
+        val audioTracks = tracks.filter { it.isAudio }
+        val needsContainerChange = containerExt == "ts"
+        // Ses izi hiç yoksa (ör. kaynak gerçekten sessiz) burada dönüştürme yapmayız;
+        // sessiz dosya kontrolü finalizeDownloadedMedia sonrasındaki doğrulamada yakalanır.
+        if (audioTracks.isEmpty()) return null
+        // MP4 yalnızca AAC-LC / Opus (2.0) sesi kabul eder; E-AC-3 / AC-3 / DTS / MP3 / FLAC /
+        // surround sesler cihaza göre çalınmayabilir → AAC-LC'ye çevirip gömeriz.
+        val needsAudioConversion = audioTracks.any { track ->
+            !isMp4MuxFriendlyAudio(track.sampleMimeType, track.channelCount)
+        }
+        if (!needsContainerChange && !needsAudioConversion) return null
+
+        val workDir = File(context.cacheDir, "kitsugi_remux_${Math.abs(baseName.hashCode())}").also {
+            runCatching { it.deleteRecursively() }
+            it.mkdirs()
+        }
+        try {
+            val remux = runCatching {
+                MediaTrackRemuxer.remuxVideoWithAudios(
+                    rawVideoFile = stagingVideoFile,
+                    externalAudioInputs = emptyList(),
+                    workDir = workDir,
+                    preferredLanguages = preferredAudioLanguages
+                )
+            }.onFailure { e ->
+                if (e is CancellationException) throw e
+                Log.w(TAG, "Gömülü ses remux başarısız (${e.message})")
+            }.getOrNull() ?: return null
+
+            // Motor iş yapamadıysa girdi dosyasını aynı uzantıyla geri verir; o durumda
+            // çağıranın kendi güvenlik ağı (MediaRemuxer) çalışsın.
+            if (remux.outputFile.absolutePath == stagingVideoFile.absolutePath) return null
+
+            val out = remux.outputFile
+            if (!out.isFile || out.length() <= 0L) return null
+            val target = File(videoDir, "$baseName.${remux.extension}")
+            moveOrCopyFile(out, target)
+            Log.i(
+                TAG,
+                "Gömülü ses korunarak yeniden paketlendi: ${target.name} (sesGömülü=${remux.audioMergedIntoContainer})"
+            )
+            return target
+        } finally {
+            runCatching { workDir.deleteRecursively() }
+        }
+    }
+
+    /**
+     * Ses izi MP4 konteynerine (ve cihaz oynatıcısına) doğrudan uygun mu?
+     * Yalnızca 1–2 kanallı `AAC` ve `Opus` (API 29+) kabul edilir.
+     */
+    private fun isMp4MuxFriendlyAudio(mime: String?, channelCount: Int): Boolean {
+        val m = mime?.lowercase(Locale.ROOT).orEmpty()
+        val channels = channelCount.takeIf { it > 0 } ?: 2
+        if (m.isBlank() || channels > 2) return false
+        return m == "audio/mp4a-latm" ||
+            m == "audio/aac" ||
+            (m == "audio/opus" && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q)
     }
 
     // ── Doğrudan (Progressive) İndirici (HTTP Range 206 Destekli) ─────────────
@@ -1609,7 +1779,12 @@ class AnimeDownloader(private val context: Context) {
                 "Kaynak hız sınırı (429) uyguladı. Birkaç dakika sonra yeniden deneyin. ${raw ?: ""}"
             DownloadResilience.ErrorKind.STALE_URL ->
                 "Video adresi bayat (404/410). Bölümü silip yeniden kuyruğa eklemek genellikle çözer. ${raw ?: ""}"
-            else -> raw ?: e.javaClass.simpleName
+            else -> if (e is UnsupportedMediaException && !raw.isNullOrBlank()) {
+                // Kalıcı, kullanıcıya doğrudan anlamlı mesaj (ör. "videoda ses izi yok").
+                raw
+            } else {
+                raw ?: e.javaClass.simpleName
+            }
         }.trim()
     }
 
@@ -2124,15 +2299,78 @@ class AnimeDownloader(private val context: Context) {
             is ClipDownloadSource.Result.Success -> result.resolved
         }
 
-        val fileName = DownloadExportNaming.clipFileName(baseName, resolved.extension)
-        val target = File(clipDir, fileName)
-        val partFile = File(clipDir, "$fileName.part")
+        var effectiveExtension = resolved.extension
+        var fileName = DownloadExportNaming.clipFileName(baseName, effectiveExtension)
+        var target = File(clipDir, fileName)
+        var partFile = File(clipDir, "$fileName.part")
 
         try {
             if (resolved.isHls) {
                 downloadHlsClip(resolved.url, partFile, download.requestHeaders, onProgress)
             } else {
                 downloadClipFile(resolved.url, partFile, download.requestHeaders, onProgress)
+            }
+
+            // Ses ayrı akıştaysa klip de tek dosya olarak teslim edilir: ses indirilir,
+            // görüntüyle birlikte mux edilir. Kullanıcı ayrı ses dosyası görmez.
+            val audioUrl = resolved.audioUrl?.takeIf { it.isNotBlank() }
+            if (audioUrl != null && partFile.isFile && partFile.length() > 0L) {
+                val workDir = File(context.cacheDir, "kitsugi_clip_mux").also {
+                    runCatching { it.deleteRecursively() }
+                    it.mkdirs()
+                }
+                try {
+                    val audioPart = File(workDir, "clip_audio.part")
+                    downloadClipFile(
+                        audioUrl,
+                        audioPart,
+                        download.requestHeaders,
+                        { _, a, b, c -> onProgress(99, a, b, c) }
+                    )
+                    if (audioPart.isFile && audioPart.length() > 0L) {
+                        val remux = runCatching {
+                            MediaTrackRemuxer.remuxVideoWithAudios(
+                                rawVideoFile = partFile,
+                                externalAudioInputs = listOf(
+                                    ExternalAudioTrack(url = audioUrl, isDefault = true) to audioPart
+                                ),
+                                workDir = workDir,
+                                preferredLanguages = listOf("tr", "ja", "en")
+                            )
+                        }.onFailure { e ->
+                            if (e is CancellationException) throw e
+                            Log.w(TAG, "Klip ses birleştirme hatası: ${e.message}")
+                        }.getOrNull()
+
+                        val muxed = remux?.takeIf {
+                            it.audioMergedIntoContainer && MediaTrackRemuxer.hasBothTracks(it.outputFile)
+                        }
+                        if (muxed != null) {
+                            val videoPart = partFile
+                            effectiveExtension = muxed.extension
+                            fileName = DownloadExportNaming.clipFileName(baseName, effectiveExtension)
+                            target = File(clipDir, fileName)
+                            partFile = File(clipDir, "$fileName.part")
+                            if (muxed.outputFile.absolutePath != partFile.absolutePath) {
+                                runCatching { partFile.delete() }
+                                runCatching { muxed.outputFile.copyTo(partFile, overwrite = true) }
+                            }
+                            if (videoPart.absolutePath != partFile.absolutePath) {
+                                runCatching { videoPart.delete() }
+                            }
+                            // Eski `.ts` uzantılı artığı bırakma
+                            runCatching {
+                                if (resolved.extension != effectiveExtension) {
+                                    File(clipDir, DownloadExportNaming.clipFileName(baseName, resolved.extension)).delete()
+                                }
+                            }
+                        } else {
+                            Log.w(TAG, "Klip ses birleştirme başarısız; yalnızca görüntü kaydediliyor")
+                        }
+                    }
+                } finally {
+                    runCatching { workDir.deleteRecursively() }
+                }
             }
 
             if (!partFile.isFile || partFile.length() <= 0L) {

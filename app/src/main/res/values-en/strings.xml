@@ -6294,6 +6294,7 @@
     <string name="indirme_hata_http">Server error: %1$s</string>
     <string name="indirme_hata_genel">Download failed: %1$s</string>
     <string name="indirme_hata_genel_bilinmiyor">Download failed (unknown error).</string>
+    <string name="indirme_hata_ses_izi_yok">The downloaded video has no audio track, so it was not saved to avoid a silent file. Try another source or quality.</string>
     <string name="indirme_hata_desteklenmeyen_format">The downloaded file cannot be played on this device (unsupported video/audio format). Try another source or quality.</string>
     <string name="indirme_format_uyarisi">Device compatibility: %1$s</string>
 

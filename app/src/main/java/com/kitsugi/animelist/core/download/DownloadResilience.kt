@@ -73,9 +73,13 @@ object DownloadResilience {
             depth++
         }
         val top = error
+        if (error is UnsupportedMediaException) return ErrorKind.OTHER
         return when {
-            top is IOException -> ErrorKind.NETWORK
+            // Kalıcı medya sorunları (sessiz/bozuk dosya, desteklenmeyen codec) ağ hatası
+            // değildir: yarım dosyayı silip tekrar denemek sonucu değiştirmez.
+            top is UnsupportedMediaException -> ErrorKind.OTHER
             top is java.net.SocketTimeoutException -> ErrorKind.NETWORK
+            top is IOException -> ErrorKind.NETWORK
             else -> ErrorKind.OTHER
         }
     }

@@ -737,7 +737,14 @@ object MediaTrackRemuxer {
         rawVideoFile: File,
         externalAudioInputs: List<Pair<ExternalAudioTrack, File>>,
         workDir: File,
-        preferredLanguages: List<String> = listOf("tr", "ja", "en")
+        preferredLanguages: List<String> = listOf("tr", "ja", "en"),
+        /**
+         * Packed-Audio/ayrık ses akışlarının ilk segmentindeki `ID3`
+         * (`com.apple.streaming.transportStreamTimestamp`) zaman damgası.
+         * Verilirse ses izi sıfırdan başlatılmaz, bu mutlak zamana göre hizalanır →
+         * birleştirilmiş dosyada A/V senkron kayması oluşmaz.
+         */
+        audioStartPtsUs: Long? = null
     ): VideoRemuxResult {
         val videoTracks = probeTracks(rawVideoFile)
         val embeddedVideos = videoTracks.filter { it.isVideo }
@@ -779,9 +786,10 @@ object MediaTrackRemuxer {
                     audioFile = primaryPair.second,
                     audioTrack = pAudio,
                     outFile = mergedOut,
-                    outputFormat = outFormat
+                    outputFormat = outFormat,
+                    audioStartPtsUs = audioStartPtsUs
                 )
-                if (muxSuccess && mergedOut.exists() && mergedOut.length() > 1024L) {
+                if (muxSuccess && mergedOut.exists() && mergedOut.length() > 1024L && hasBothTracks(mergedOut)) {
                     val companions = exportSecondaryCompanions(secondaryPairs, workDir)
                     return VideoRemuxResult(
                         outputFile = mergedOut,
@@ -789,6 +797,9 @@ object MediaTrackRemuxer {
                         audioMergedIntoContainer = true,
                         companionAudioFiles = companions
                     )
+                }
+                if (mergedOut.exists() && !hasBothTracks(mergedOut)) {
+                    Log.w(TAG, "Birleştirme çıktısında ses izi doğrulanamadı; transcode yoluna geçiliyor")
                 }
                 mergedOut.delete()
             }
@@ -814,10 +825,11 @@ object MediaTrackRemuxer {
                             audioFile = transcodedAudio,
                             audioTrack = aacProbed,
                             outFile = mergedOut,
-                            outputFormat = MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4
+                            outputFormat = MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4,
+                            audioStartPtsUs = null
                         )
                         transcodedAudio.delete()
-                        if (muxSuccess && mergedOut.exists() && mergedOut.length() > 1024L) {
+                        if (muxSuccess && mergedOut.exists() && mergedOut.length() > 1024L && hasBothTracks(mergedOut)) {
                             val companions = exportSecondaryCompanions(secondaryPairs, workDir)
                             return VideoRemuxResult(
                                 outputFile = mergedOut,
@@ -1051,7 +1063,13 @@ object MediaTrackRemuxer {
         audioFile: File,
         audioTrack: ProbedMediaTrack,
         outFile: File,
-        outputFormat: Int
+        outputFormat: Int,
+        /**
+         * Ayrık ses akışının GERÇEK başlangıç zamanı (µs). HLS ayrık ses listeleri
+         * kendi içinde 0'dan başlar; sesin videoya göre kaymasını engellemek için
+         * offset = sesİlkMediaZamanı - videoİlkMediaZamanı eklenir.
+         */
+        audioStartPtsUs: Long? = null
     ): Boolean {
         return runCatching {
             if (outFile.exists()) outFile.delete()
@@ -1086,11 +1104,19 @@ object MediaTrackRemuxer {
 
                 var firstAudioPtsUs: Long? = null
                 var lastAudioUs = -1L
+                // Ses örneklerinin mutlak zaman ekseni: HLS ayrık ses listesi kendi içinde
+                // 0'dan başlar; Packed-Audio ID3 damgası (varsa) gerçek yayın zamanını verir.
+                val videoAbsStartUs = firstVideoPtsUs ?: 0L
                 streamSingleTrackSamples(audioFile, audioTrack.extractorTrackId) { _, bytes, timeUs, _ ->
                     if (bytes.isEmpty()) return@streamSingleTrackSamples
                     val rawPts = if (timeUs < 0L) 0L else timeUs
                     if (firstAudioPtsUs == null) firstAudioPtsUs = rawPts
-                    val normalizedPts = (rawPts - (firstAudioPtsUs ?: 0L)).coerceAtLeast(0L)
+                    val normalizedPts = alignAudioPtsUs(
+                        rawPtsUs = rawPts,
+                        firstAudioPtsUs = firstAudioPtsUs ?: rawPts,
+                        audioAbsStartUs = audioStartPtsUs,
+                        videoAbsStartUs = videoAbsStartUs
+                    )
                     val safeUs = if (lastAudioUs >= 0L && normalizedPts <= lastAudioUs) lastAudioUs + 1L else normalizedPts
                     lastAudioUs = safeUs
                     val info = MediaCodec.BufferInfo().apply {
@@ -1181,6 +1207,43 @@ object MediaTrackRemuxer {
         val a = audioMime.lowercase(Locale.ROOT)
         return a == MimeTypes.AUDIO_AAC ||
             (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && a == MimeTypes.AUDIO_OPUS)
+    }
+
+    /**
+     * Ayrık ses örneklerinin mux çıktısındaki PTS'ini hesaplar (saf fonksiyon, test edilebilir).
+     *
+     * - [audioAbsStartUs] (Packed-Audio `ID3` mutlak zaman damgası) varsa sesin videoya göre
+     *   gerçek kayması korunur → birleştirilmiş dosyada dudak senkronu kaymaz.
+     * - İki zaman ekseni arasındaki fark 5 saniyeden büyükse bu bir ölçüm hatasıdır
+     *   (ör. biri gerçek duvar saati damgası, diğeri 0'dan başlayan dizi); o durumda ses
+     *   videoyla birlikte 0'dan başlatılır, aksi hâlde dosya başında dakikalarca sessizlik olur.
+     */
+    internal fun alignAudioPtsUs(
+        rawPtsUs: Long,
+        firstAudioPtsUs: Long,
+        audioAbsStartUs: Long?,
+        videoAbsStartUs: Long
+    ): Long {
+        val relative = (rawPtsUs - firstAudioPtsUs)
+        val absStart = audioAbsStartUs ?: firstAudioPtsUs
+        val driftUs = absStart - videoAbsStartUs
+        if (kotlin.math.abs(driftUs) > 5_000_000L) {
+            return relative.coerceAtLeast(0L)
+        }
+        return (absStart + relative - videoAbsStartUs).coerceAtLeast(0L)
+    }
+
+    /**
+     * Birleştirme sonrası güvenlik doğrulaması: dosyada **hem görüntü hem ses** izi var mı?
+     * Sessiz bir `.mp4` üretip "ses gömüldü" demek, kullanıcının şikâyet ettiği durumun
+     * ta kendisi olduğu için bu kontrol zorunludur.
+     */
+    internal fun hasBothTracks(file: File): Boolean {
+        if (!file.isFile || file.length() <= 0L) return false
+        return runCatching {
+            val tracks = probeTracks(file)
+            tracks.any { it.isVideo } && tracks.any { it.isAudio }
+        }.getOrDefault(false)
     }
 
     private fun hasMoofFragment(head: ByteArray): Boolean {
