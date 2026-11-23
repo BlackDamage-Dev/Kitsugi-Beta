@@ -44,7 +44,6 @@ import com.kitsugi.animelist.ui.theme.KitsugiColors
 import com.kitsugi.animelist.ui.theme.KitsugiTvTokens
 
 import com.kitsugi.animelist.utils.PreferenceHelpers.getDisplayTitle
-import com.kitsugi.animelist.utils.PreferenceHelpers.getDisplayScore
 import com.kitsugi.animelist.utils.toFriendlySourceLabel
 
 import androidx.compose.ui.unit.Dp
@@ -211,42 +210,18 @@ fun KitsugiExploreMediaCard(
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     if (mediaEntry != null) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text(
-                                text = entryProgressText(mediaEntry),
-                                color = statusColor(mediaEntry.status),
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 9.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            val displayScore = mediaEntry.getDisplayScore(scoreFormat, hideScores)
-                            val isUnrated = displayScore == "unrated" || displayScore == "Unrated" || displayScore == "Puanlanmamış" || displayScore == "Puan yok"
-                            val scoreLabel = if (isUnrated) "—" else displayScore
-                            Spacer(modifier = Modifier.width(4.dp))
-                            KitsugiEmojiLabel(
-                                label = scoreLabel,
-                                icon = if (isUnrated) null else Icons.StarSolid,
-                                iconSize = 9.dp,
-                                color = KitsugiColors.TextMuted,
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(4.dp))
-                        EpisodeProgressBar(
-                            progress = mediaEntry.progress,
-                            total = mediaEntry.total,
-                            color = statusColor(mediaEntry.status),
-                            modifier = Modifier.fillMaxWidth()
+                        // TV kartı: bölüm + puan tek satırda, mobil görünümlerle aynı rozet.
+                        KitsugiMediaCardStatBlock(
+                            result = result,
+                            mediaEntry = mediaEntry,
+                            scoreFormat = scoreFormat,
+                            hideScores = hideScores,
+                            compact = true,
+                            showTypeLine = false
                         )
                     } else {
                         Text(
-                            text = buildMetaText(result, scoreFormat, hideScores),
+                            text = buildMetaText(result),
                             color = if (alreadyInList) KitsugiColors.AccentGreen else accentColor,
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
@@ -360,48 +335,15 @@ fun KitsugiExploreMediaCard(
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    if (mediaEntry != null) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = entryProgressText(mediaEntry),
-                                color = statusColor(mediaEntry.status),
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold
-                            )
-                            val displayScore = mediaEntry.getDisplayScore(scoreFormat, hideScores)
-                            val isUnrated = displayScore == "unrated" || displayScore == "Unrated" || displayScore == "Puanlanmamış" || displayScore == "Puan yok"
-                            val scoreLabel = if (isUnrated) "—" else displayScore
-                            Spacer(modifier = Modifier.width(6.dp))
-                            KitsugiEmojiLabel(
-                                label = scoreLabel,
-                                icon = if (isUnrated) null else Icons.StarSolid,
-                                iconSize = 9.dp,
-                                color = KitsugiColors.TextMuted,
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(6.dp))
-                        EpisodeProgressBar(
-                            progress = mediaEntry.progress,
-                            total = mediaEntry.total,
-                            color = statusColor(mediaEntry.status),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    } else {
-                        Text(
-                            text = buildMetaText(result, scoreFormat, hideScores, includeTypeAndYear = false),
-                            color = if (alreadyInList) {
-                                KitsugiColors.AccentGreen
-                            } else {
-                                accentColor
-                            },
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
+                    // İstatistik rozetleri — liste ve kare görünümle ortak bileşen.
+                    KitsugiMediaCardStatBlock(
+                        result = result,
+                        mediaEntry = mediaEntry,
+                        scoreFormat = scoreFormat,
+                        hideScores = hideScores,
+                        compact = true,
+                        showTypeLine = false
+                    )
 
                     // Yayın geri sayımı — tüm kaynaklar (nextAiringEpisode dolu ise): tarih + geri sayım
                     if (!result.nextAiringEpisode.isNullOrBlank()) {
@@ -511,44 +453,20 @@ fun KitsugiExploreMediaCard(
 
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    if (mediaEntry != null) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = entryProgressText(mediaEntry),
-                                color = statusColor(mediaEntry.status),
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold
-                            )
-                            val displayScore = mediaEntry.getDisplayScore(scoreFormat, hideScores)
-                            val isUnrated = displayScore == "unrated" || displayScore == "Unrated" || displayScore == "Puanlanmamış" || displayScore == "Puan yok"
-                            val scoreLabel = if (isUnrated) "—" else displayScore
-                            Spacer(modifier = Modifier.width(6.dp))
-                            KitsugiEmojiLabel(
-                                label = scoreLabel,
-                                icon = if (isUnrated) null else Icons.StarSolid,
-                                iconSize = 9.dp,
-                                color = KitsugiColors.TextMuted,
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(6.dp))
-                        EpisodeProgressBar(
-                            progress = mediaEntry.progress,
-                            total = mediaEntry.total,
-                            color = statusColor(mediaEntry.status),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    } else {
-                        Text(
-                            text = buildMetaText(result, scoreFormat, hideScores, includeTypeAndYear = false),
-                            color = accentColor,
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
+                    // İstatistik rozetleri (bölüm + puan + üye) liste görünümüyle
+                    // BİREBİR aynı ortak bileşenden çizilir.
+                    KitsugiMediaCardStatBlock(
+                        result = result,
+                        mediaEntry = mediaEntry,
+                        scoreFormat = scoreFormat,
+                        hideScores = hideScores,
+                        // Kare görünümün metin alanı sabit yükseklikte: bölüm + puan tek
+                        // satırda, liste görünümüyle AYNI rozet bileşeniyle çizilir.
+                        compact = true,
+                        // Alt başlık ("Anime (25 bölüm)") kartta zaten yazılı;
+                        // tür satırını ikinci kez çizmeyiz.
+                        showTypeLine = false
+                    )
 
                     // Yayın geri sayımı — tüm kaynaklar (nextAiringEpisode dolu ise): tarih + geri sayım
                     if (!result.nextAiringEpisode.isNullOrBlank()) {
@@ -610,35 +528,6 @@ private fun StatusBadge(
     }
 }
 
-@Composable
-private fun EpisodeProgressBar(
-    progress: Int,
-    total: Int?,
-    color: Color = LocalKitsugiAccent.current,
-    modifier: Modifier = Modifier
-) {
-    val fraction = remember(progress, total) {
-        val maxVal = if (total != null && total > 0) total else if (progress > 0) progress else 1
-        (progress.toFloat() / maxVal.toFloat()).coerceIn(0f, 1f)
-    }
-
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(4.dp)
-            .clip(RoundedCornerShape(999.dp))
-            .background(KitsugiColors.SurfaceSoft)
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth(fraction)
-                .height(4.dp)
-                .clip(RoundedCornerShape(999.dp))
-                .background(color)
-        )
-    }
-}
-
 private fun statusColor(status: com.kitsugi.animelist.model.WatchStatus): Color {
     return when (status) {
         com.kitsugi.animelist.model.WatchStatus.Watching   -> KitsugiColors.AccentBlue
@@ -661,10 +550,12 @@ private fun entryProgressText(entry: com.kitsugi.animelist.model.MediaEntry): St
     return "${entry.progress}/$totalText $unit"
 }
 
+/**
+ * TV kartı için tür/yıl + kaynak metni. Puan artık posterdeki şeritte gösterildiği için
+ * burada yer almaz; böylece üç görünüm de aynı puan sunumunu kullanır.
+ */
 private fun buildMetaText(
     result: JikanSearchResult,
-    scoreFormat: String,
-    hideScores: Boolean,
     includeTypeAndYear: Boolean = true
 ): String {
     val parts = buildList {
@@ -678,18 +569,8 @@ private fun buildMetaText(
             add(typeLabel)
             if (result.year != null) add(result.year.toString())
         }
-        if (!hideScores) {
-            val scoreStr = result.getDisplayScore(scoreFormat, hideScores)
-            val isUnrated = scoreStr.isEmpty() || scoreStr == "N/A" || scoreStr == "0" || scoreStr == "unrated" || scoreStr == "Unrated" || scoreStr == "Puanlanmamış" || scoreStr == "Puan yok"
-            val formattedScore = if (isUnrated) {
-                "—"
-            } else if (!scoreStr.contains("★") && !scoreStr.contains("☆") && !scoreStr.contains("😊") && !scoreStr.contains("😐") && !scoreStr.contains("🙁")) {
-                "★ $scoreStr"
-            } else {
-                scoreStr
-            }
-            add(formattedScore)
-        }
+        // Puan posterin sağ alt köşesindeki şeritte gösterilir (tüm görünümlerde ortak);
+        // burada tekrar edilmez.
 
         val sourceLabel = result.source.toFriendlySourceLabel()
         // Eklenti (CS3) sonuçlarında sahte ID gösterme — yalnızca eklenti adı yeterlidir.

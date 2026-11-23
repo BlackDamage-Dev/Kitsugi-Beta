@@ -1433,23 +1433,9 @@ private fun AppNavigationContent(
                             } else {
                                 onAddApiSelectionToList(ApiSearchSelection(result = result, synopsis = null))
                             }
-                        },
-                        // Başlıktaki toplu ekleme: görünen tüm sonuçlar tek seferde eklenir;
-                        // AppViewModel tek bir özet bildirim gösterir.
-                        onAddAllToList = { results ->
-                            appViewModel.addApiSelectionsToList(
-                                selections = results.map { ApiSearchSelection(result = it, synopsis = null) },
-                                currentEntries = mediaEntries,
-                                repository = mediaRepository,
-                                isAniListConnected = authViewModel.isAniListConnected,
-                                isMalConnected = authViewModel.isMalConnected,
-                                isSimklConnected = authViewModel.isSimklConnected,
-                                isBangumiConnected = authViewModel.isBangumiConnected,
-                                isTmdbConnected = authViewModel.isTmdbConnected,
-                                isKitsuConnected = authViewModel.isKitsuConnected,
-                                isShikimoriConnected = authViewModel.isShikimoriConnected
-                            )
                         }
+                        // NOT: "Tümünü listeye ekle" düğmesi bu sayfadan kaldırıldı —
+                        // tek tek hızlı ekleme rozeti (poster köşesi) yeterlidir.
                     )
                 }
             }

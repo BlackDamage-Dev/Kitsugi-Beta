@@ -30,6 +30,23 @@ internal object TmdbDiscoverClient {
     private val cache = BoundedCache<String, CacheEntry>("tmdb.discover", 60)
 
     /**
+     * Başarısız (boş dönen) sayfalar kısa süre "başarı" gibi önbellekleniyordu: TMDB hız
+     * sınırına takılan bir sayfa 1 saat boyunca boş servis ediliyor, "Tümünü Gör" sayfası
+     * kaydırdıkça yeni veri getiremiyordu. Artık boş sonuçlar yalnız [EMPTY_TTL_MS] kadar
+     * tutulur; sonraki deneme kaynağa yeniden gider.
+     */
+    private const val EMPTY_TTL_MS = 60 * 1_000L
+
+    /** TMDB'nin sayfa boyutu; her uç 20 öğe döner. */
+    private const val TMDB_PAGE_SIZE = 20
+
+    /** Boş sonuç kısa TTL ile, dolu sonuç normal TTL ile taze sayılır. */
+    private fun CacheEntry.isFresh(): Boolean {
+        val ttl = if (data.isEmpty()) EMPTY_TTL_MS else TTL_MS
+        return System.currentTimeMillis() - fetchedAt < ttl
+    }
+
+    /**
      * Önbellek anahtarı; dil ve başlık çözümleme sürümünü içerir.
      * Böylece hem dil değişiminde hem de başlık mantığı güncellendiğinde eski
      * (ör. Japonca kalmış) kayıtlar servis edilmez.
@@ -39,7 +56,7 @@ internal object TmdbDiscoverClient {
 
     fun get(key: String): List<JikanSearchResult>? {
         val entry = cache[key] ?: return null
-        return if (System.currentTimeMillis() - entry.fetchedAt < TTL_MS) entry.data else null
+        return if (entry.isFresh()) entry.data else null
     }
 
     fun put(key: String, data: List<JikanSearchResult>) {
@@ -123,7 +140,8 @@ internal object TmdbDiscoverClient {
                 if (i < movies.size) merged.add(movies[i])
                 if (i < shows.size) merged.add(shows[i])
             }
-            result = merged.take(20)
+            // Birleşik sayfa: en az bir tam API sayfası döndür (sayfalama kayıpsız olsun).
+            result = merged.take(TMDB_PAGE_SIZE)
         }
 
         if (result.isNotEmpty()) put(key, result)
@@ -239,7 +257,8 @@ internal object TmdbDiscoverClient {
             if (i < tvResult.size) merged.add(tvResult[i])
             if (i < movieResult.size) merged.add(movieResult[i])
         }
-        val result = merged.take(20)
+        // Birleşik sayfa: en az bir tam API sayfası döndür (sayfalama kayıpsız olsun).
+        val result = merged.take(TMDB_PAGE_SIZE)
 
         if (result.isNotEmpty()) put(key, result)
         result
@@ -266,7 +285,8 @@ internal object TmdbDiscoverClient {
             if (i < tvResult.size) merged.add(tvResult[i])
             if (i < movieResult.size) merged.add(movieResult[i])
         }
-        val result = merged.take(20)
+        // Birleşik sayfa: en az bir tam API sayfası döndür (sayfalama kayıpsız olsun).
+        val result = merged.take(TMDB_PAGE_SIZE)
 
         if (result.isNotEmpty()) put(key, result)
         result
@@ -293,7 +313,8 @@ internal object TmdbDiscoverClient {
             if (i < tvResult.size) merged.add(tvResult[i])
             if (i < movieResult.size) merged.add(movieResult[i])
         }
-        val result = merged.take(20)
+        // Birleşik sayfa: en az bir tam API sayfası döndür (sayfalama kayıpsız olsun).
+        val result = merged.take(TMDB_PAGE_SIZE)
 
         if (result.isNotEmpty()) put(key, result)
         result
@@ -325,7 +346,7 @@ internal object TmdbDiscoverClient {
             .filter { it.imageUrl != null }
             .sortedBy { item ->
                 item.nextAiringEpisode?.split("|")?.getOrNull(1)?.toLongOrNull() ?: Long.MAX_VALUE
-            }.take(20)
+            }.take(TMDB_PAGE_SIZE)
 
         if (result.isNotEmpty()) put(key, result)
         result
@@ -546,7 +567,7 @@ internal object TmdbDiscoverClient {
             } else null
 
             val list = mutableListOf<JikanSearchResult>()
-            for (i in 0 until minOf(results.length(), 20)) {
+            for (i in 0 until minOf(results.length(), TMDB_PAGE_SIZE)) {
                 val item = results.optJSONObject(i) ?: continue
                 val tmdbId = item.optInt("id", 0).takeIf { it > 0 } ?: continue
                 val isMovie = isMovieUrl || mediaType == MediaType.Movie
@@ -625,7 +646,7 @@ internal object TmdbDiscoverClient {
             } else null
 
             val list = mutableListOf<JikanSearchResult>()
-            for (i in 0 until minOf(results.length(), 20)) {
+            for (i in 0 until minOf(results.length(), TMDB_PAGE_SIZE)) {
                 val item = results.optJSONObject(i) ?: continue
                 val tmdbId = item.optInt("id", 0).takeIf { it > 0 } ?: continue
                 val mediaTypeStr = item.optString("media_type", "movie")

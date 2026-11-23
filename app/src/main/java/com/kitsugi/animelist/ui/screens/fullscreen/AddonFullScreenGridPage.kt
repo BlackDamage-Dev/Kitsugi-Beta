@@ -203,10 +203,17 @@ fun AddonFullScreenGridPage(
                         loadedItems = (loadedItems + newItems).distinctBy { it.url }
                         currentPage = nextPage
                     }
-                    // Respect the plugin's own hasNext flag (CS3 standard)
+                    // Eklentinin kendi hasNext bayrağına uyulur (CS3 standardı). Ancak
+                    // "hasNext=true + boş sayfa" durumu (geçici hata/429) sayfayı kalıcı
+                    // olarak bitirmemeli: hata gösterilir, kullanıcı "Tekrar dene" ile
+                    // aynı sayfayı yeniden çeker, sonsuz döngüye girilmez.
                     hasMorePages = response.hasNext
+                    if (newItems.isEmpty() && response.hasNext) {
+                        loadError = context.getString(R.string.addon_page_load_error)
+                    }
                 } else {
-                    hasMorePages = false
+                    // Yanıt alınamadı: liste sonu DEĞİL, geçici hata. Kullanıcı tekrar deneyebilir.
+                    loadError = context.getString(R.string.addon_page_load_error)
                 }
             } catch (e: Exception) {
                 Log.e("AddonFullScreenGridPage", "Pagination failed: ${e.message}")
