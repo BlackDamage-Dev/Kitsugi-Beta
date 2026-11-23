@@ -77,11 +77,13 @@ import com.kitsugi.animelist.utils.PreferenceHelpers.getDisplayTitle
 import com.kitsugi.animelist.data.remote.ApiSearchSelection
 import com.kitsugi.animelist.ui.components.KitsugiApiSearchDialog
 import com.kitsugi.animelist.ui.components.KitsugiConfirmDialog
+import com.kitsugi.animelist.ui.components.KitsugiFloatingFilterPill
 import com.kitsugi.animelist.ui.components.KitsugiInfoDialog
 import com.kitsugi.animelist.ui.components.KitsugiImagePreviewDialog
 import com.kitsugi.animelist.ui.components.KitsugiMediaEntryEditorDialog
 import com.kitsugi.animelist.ui.components.KitsugiKitsuLoginDialog
 import com.kitsugi.animelist.ui.components.KitsugiBangumiLoginDialog
+import com.kitsugi.animelist.ui.components.KitsugiScrollToTopFab
 import com.kitsugi.animelist.ui.components.KitsugiShikimoriLoginDialog
 import com.kitsugi.animelist.ui.theme.LocalKitsugiAccent
 import com.kitsugi.animelist.ui.theme.KitsugiColors
@@ -434,7 +436,77 @@ fun MyListScreen(
                 selectedGroupId != MyListGroupingIds.ADDED ||
                 isExplicitMyListSort(selectedSortId)
 
-        // ── Sabit üst bar (başlık + arama + filtreleme) ──
+        val currentVisibleEntries by rememberUpdatedState(visibleEntries)
+        val onPickRandom = remember {
+            {
+                val list = currentVisibleEntries
+                if (list.isNotEmpty()) {
+                    onEntryClick(list.random())
+                } else {
+                    onExternalSyncMessage("Gösterilecek bir öğe yok")
+                }
+            }
+        }
+        val compactLandscapeHeader = isLandscape && !isTvDevice
+
+        // ── Kanonik Üst Satır: Kaynak Seçici (Sol) + Ortak Aksiyonlar (Sağ) ──
+        // Keşfet, Arama, Profil ve Ayarlar ile birebir aynı sağ üst hizada durur;
+        // yatay (landscape) modda başlık ve araç ikonları da bu tek satıra birleşir.
+        androidx.compose.material3.Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = KitsugiColors.background,
+            shadowElevation = 0.dp
+        ) {
+            MyListTabBar(
+                selectedTabIndex = safeSelectedTabIndex,
+                onTabIndexChange = onTabIndexChange,
+                onPickRandomClick = onPickRandom,
+                allEntries = combinedLibrary?.entries.orEmpty(),
+                allLibraryEntryCount = combinedLibrary?.items?.size ?: 0,
+                tabCounts = displayedIndex?.entriesByTab?.map { it.size },
+                isAniListConnected = isAniListConnected,
+                isMalConnected = isMalConnected,
+                isSimklConnected = isSimklConnected,
+                isKitsuConnected = isKitsuConnected,
+                isShikimoriConnected = isShikimoriConnected,
+                isBangumiConnected = isBangumiConnected,
+                isTmdbConnected = isTmdbConnected,
+                tmdbUsername = tmdbUsername,
+                anilistUsername = appSettings.anilistUsername,
+                malUsername = appSettings.malUsername,
+                simklUsername = appSettings.simklUsername,
+                kitsuUsername = appSettings.kitsuUsername,
+                shikimoriUsername = appSettings.shikimoriUsername,
+                bangumiUsername = appSettings.bangumiUsername,
+                onEntryClick = onEntryClick,
+                onExternalSyncMessage = onExternalSyncMessage,
+                accentColor = accentColor,
+                horizontalPadding = horizontalPadding,
+                isNotificationsVisible = isNotificationsVisible,
+                onOpenNotifications = onOpenNotifications,
+                onOpenWatchHistory = onOpenWatchHistory,
+                onOpenDownloads = onOpenDownloads,
+                inlineTitle = if (compactLandscapeHeader) stringResource(R.string.tab_mylist) else null,
+                inlineTools = if (compactLandscapeHeader) {
+                    {
+                        MyListInlineToolButtons(
+                            selectedListLayoutId = selectedListLayoutId,
+                            onListLayoutChange = onListLayoutChange,
+                            showSearchField = showSearchField,
+                            searchQuery = searchQuery,
+                            onSearchFieldToggle = { showSearchField = !showSearchField },
+                            showFilterPanel = showFilterPanel,
+                            hasActiveFilters = hasActiveFilters,
+                            onFilterPanelToggle = { showFilterPanel = !showFilterPanel },
+                            accentColor = accentColor,
+                            compact = true
+                        )
+                    }
+                } else null
+            )
+        }
+
+        // ── İkinci Satır (Dikey mod başlık + katlanabilir arama / filtre sheet) ──
         androidx.compose.material3.Surface(
             modifier = Modifier.fillMaxWidth(),
             color = KitsugiColors.background,
@@ -470,58 +542,9 @@ fun MyListScreen(
                 accentColor = accentColor,
                 horizontalPadding = horizontalPadding,
                 hasActiveFilters = hasActiveFilters,
-                headerCollapsed = headerState.isCollapsed
-            )
-        }
-
-        val currentVisibleEntries by rememberUpdatedState(visibleEntries)
-        val onPickRandom = remember {
-            {
-                val list = currentVisibleEntries
-                if (list.isNotEmpty()) {
-                    onEntryClick(list.random())
-                } else {
-                    onExternalSyncMessage("Gösterilecek bir öğe yok")
-                }
-            }
-        }
-
-        // ── Sabit platform tab bar (AniList / MAL / Simkl) ──────────────────────
-        androidx.compose.material3.Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = horizontalPadding, vertical = 0.dp),
-            color = KitsugiColors.background
-        ) {
-            MyListTabBar(
-                selectedTabIndex = safeSelectedTabIndex,
-                onTabIndexChange = onTabIndexChange,
-                onPickRandomClick = onPickRandom,
-                allEntries = combinedLibrary?.entries.orEmpty(),
-                allLibraryEntryCount = combinedLibrary?.items?.size ?: 0,
-                tabCounts = displayedIndex?.entriesByTab?.map { it.size },
-                isAniListConnected = isAniListConnected,
-                isMalConnected = isMalConnected,
-                isSimklConnected = isSimklConnected,
-                isKitsuConnected = isKitsuConnected,
-                isShikimoriConnected = isShikimoriConnected,
-                isBangumiConnected = isBangumiConnected,
-                isTmdbConnected = isTmdbConnected,
-                tmdbUsername = tmdbUsername,
-                anilistUsername = appSettings.anilistUsername,
-                malUsername = appSettings.malUsername,
-                simklUsername = appSettings.simklUsername,
-                kitsuUsername = appSettings.kitsuUsername,
-                shikimoriUsername = appSettings.shikimoriUsername,
-                bangumiUsername = appSettings.bangumiUsername,
-                onEntryClick = onEntryClick,
-                onExternalSyncMessage = onExternalSyncMessage,
-                accentColor = accentColor,
-                horizontalPadding = horizontalPadding,
-                isNotificationsVisible = isNotificationsVisible,
-                onOpenNotifications = onOpenNotifications,
-                onOpenWatchHistory = onOpenWatchHistory,
-                onOpenDownloads = onOpenDownloads
+                headerCollapsed = headerState.isCollapsed,
+                headerTitle = stringResource(R.string.tab_mylist),
+                hideTitleRow = compactLandscapeHeader
             )
         }
 
@@ -722,105 +745,49 @@ fun MyListScreen(
 
     } // end Column
 
-    // ── Scroll-aware floating category button ──
+    // ── Scroll-aware floating category pill & scroll-to-top FAB ──
     val isTv = com.kitsugi.animelist.ui.theme.LocalIsTvDevice.current
     if (!isTv) {
-        val navigationBarsPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-        val bottomPadding by animateDpAsState(
-            targetValue = if (isLandscape) {
-                16.dp
-            } else if (isBottomBarVisible) {
-                86.dp + navigationBarsPadding
-            } else {
-                70.dp + navigationBarsPadding
-            },
-            animationSpec = tween(durationMillis = 200),
-            label = "fab_bottom_padding"
-        )
+        val activeStatusLabel = statusFilters.firstOrNull { it.id == selectedStatusFilterId }
+            ?.let { myListLocalizedTitle(it.title, it.titleRes) }
+            ?: if (selectedStatusFilterId == "adult") stringResource(R.string.filter_adult)
+            else if (selectedStatusFilterId == "favorites") stringResource(R.string.mylist_filter_favorites)
+            else stringResource(R.string.mylist_filter_all)
 
         Box(
             modifier = Modifier.fillMaxSize()
         ) {
-            // Tümü (Kategori) button on the Bottom-Start (Bottom-Left)
-            AnimatedVisibility(
-                visible = isFabVisible,
-                enter = fadeIn() + scaleIn(),
-                exit = fadeOut() + scaleOut(),
+            KitsugiFloatingFilterPill(
+                visible = true,
+                label = activeStatusLabel,
+                icon = Icons.FormatListBulleted,
+                iconContentDescription = "Kategori",
+                isLandscape = isLandscape,
+                isBottomBarVisible = isBottomBarVisible,
+                onClick = { showStatusBottomSheet = true },
                 modifier = Modifier
                     .align(Alignment.BottomStart)
-                    .padding(
-                        bottom = bottomPadding,
-                        start = 20.dp
-                    )
                     .zIndex(10f)
-            ) {
-                val activeStatusLabel = statusFilters.firstOrNull { it.id == selectedStatusFilterId }
-                    ?.let { myListLocalizedTitle(it.title, it.titleRes) }
-                    ?: if (selectedStatusFilterId == "adult") stringResource(R.string.filter_adult)
-                    else if (selectedStatusFilterId == "favorites") stringResource(R.string.mylist_filter_favorites)
-                    else stringResource(R.string.mylist_filter_all)
+            )
 
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(999.dp))
-                        .background(accentColor)
-                        .tvClickable(shape = RoundedCornerShape(999.dp), onClick = { showStatusBottomSheet = true })
-                        .padding(horizontal = 20.dp, vertical = 14.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.FormatListBulleted,
-                            contentDescription = "Kategori",
-                            tint = KitsugiColors.background,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = activeStatusLabel,
-                            color = KitsugiColors.background,
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Black
-                        )
-                    }
-                }
-            }
-
-            // Scroll to Top button on the Bottom-End (Bottom-Right)
-            AnimatedVisibility(
+            KitsugiScrollToTopFab(
                 visible = showScrollToTopState,
-                enter = fadeIn() + scaleIn(),
-                exit = fadeOut() + scaleOut(),
+                isLandscape = isLandscape,
+                bottomBarScrollState = null,
+                fallbackBottomBarVisible = isBottomBarVisible,
+                contentDescriptionRes = R.string.yukari_git,
+                onClick = {
+                    onScrollReset()
+                    coroutineScope.launch {
+                        val activeState = tabScrollStates[selectedTabIndex.coerceIn(0, MY_LIST_TAB_COUNT - 1)]
+                        activeState.animateScrollToItem(0)
+                        onScrollReset()
+                    }
+                },
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(
-                        bottom = bottomPadding,
-                        end = 20.dp
-                    )
                     .zIndex(10f)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(accentColor)
-                        .tvClickable(shape = RoundedCornerShape(16.dp)) {
-                            coroutineScope.launch {
-                                val activeState = tabScrollStates[selectedTabIndex.coerceIn(0, MY_LIST_TAB_COUNT - 1)]
-                                activeState.animateScrollToItem(0)
-                                onScrollReset()
-                            }
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.KeyboardArrowUp,
-                        contentDescription = stringResource(R.string.yukari_git),
-                        tint = KitsugiColors.background,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-            }
+            )
         }
     }
 

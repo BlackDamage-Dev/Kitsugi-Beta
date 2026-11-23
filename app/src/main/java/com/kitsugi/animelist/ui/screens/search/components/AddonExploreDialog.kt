@@ -246,13 +246,12 @@ fun AddonExplorePage(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            IconButton(onClick = onBackClick, modifier = Modifier.size(40.dp)) {
-                                Icon(
-                                    imageVector = Icons.ArrowBack,
-                                    contentDescription = stringResource(R.string.geri),
-                                    tint = KitsugiColors.TextPrimary
-                                )
-                            }
+                            com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+                                icon = Icons.ArrowBack,
+                                contentDescription = stringResource(R.string.geri),
+                                onClick = onBackClick,
+                                accentColor = accentColor
+                            )
                             Column(modifier = Modifier.weight(1f)) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,

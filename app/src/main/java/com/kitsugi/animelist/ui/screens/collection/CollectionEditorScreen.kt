@@ -1,4 +1,4 @@
-﻿package com.kitsugi.animelist.ui.screens.collection
+package com.kitsugi.animelist.ui.screens.collection
 
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import com.kitsugi.animelist.ui.theme.gradient.Switch
@@ -43,23 +43,37 @@ fun CollectionEditorScreen(
     val isValid = name.isNotBlank()
 
     Scaffold(
+        containerColor = com.kitsugi.animelist.ui.theme.KitsugiColors.Background,
         topBar = {
-            TopAppBar(
-                title = { Text(if (isEditing) stringResource(R.string.ui_collection_edit) else stringResource(R.string.ui_collection_new), fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Close, contentDescription = stringResource(R.string.kapat))
-                    }
-                },
-                actions = {
-                    TextButton(
-                        onClick = { if (isValid) onSave(name.trim(), emoji, description.trim(), isPrivate) },
-                        enabled = isValid
-                    ) {
-                        Text(if (isEditing) stringResource(R.string.action_save) else stringResource(R.string.pd_create), fontWeight = FontWeight.Bold)
-                    }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(
+                        horizontal = com.kitsugi.animelist.ui.components.KitsugiTopActionTokens.HeaderHorizontalPadding,
+                        vertical = 8.dp
+                    ),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+                    icon = Icons.Close,
+                    contentDescription = stringResource(R.string.kapat),
+                    onClick = onNavigateBack
+                )
+                Text(
+                    text = if (isEditing) stringResource(R.string.ui_collection_edit) else stringResource(R.string.ui_collection_new),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Black,
+                    color = com.kitsugi.animelist.ui.theme.KitsugiColors.TextPrimary,
+                    modifier = Modifier.weight(1f)
+                )
+                TextButton(
+                    onClick = { if (isValid) onSave(name.trim(), emoji, description.trim(), isPrivate) },
+                    enabled = isValid
+                ) {
+                    Text(if (isEditing) stringResource(R.string.action_save) else stringResource(R.string.pd_create), fontWeight = FontWeight.Bold)
                 }
-            )
+            }
         },
         modifier = modifier
     ) { paddingValues ->

@@ -1,4 +1,4 @@
-﻿package com.kitsugi.animelist.ui.screens.collection
+package com.kitsugi.animelist.ui.screens.collection
 import com.kitsugi.animelist.ui.utils.rememberKitsugiGridColumns
 import com.kitsugi.animelist.ui.components.KitsugiButton
 
@@ -46,35 +46,43 @@ fun FolderDetailScreen(
     var itemToRemove by remember { mutableStateOf<CollectionItem?>(null) }
 
     Scaffold(
+        containerColor = com.kitsugi.animelist.ui.theme.KitsugiColors.Background,
         topBar = {
-            TopAppBar(
-                title = {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(folder.emoji, style = MaterialTheme.typography.titleLarge)
-                        Column {
-                            Text(folder.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                            Text(stringResource(R.string.inline_1_s_items_2d83e8a, items.size), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.ArrowBack, contentDescription = stringResource(R.string.geri))
-                    }
-                },
-                actions = {
-                    if (reorderMode) {
-                        TextButton(onClick = { reorderMode = false }) { Text("Bitti") }
-                    } else {
-                        IconButton(onClick = { reorderMode = true }) {
-                            Icon(Icons.DragHandle, contentDescription = stringResource(R.string.sirayi_duzenle))
-                        }
-                        IconButton(onClick = onEditFolder) {
-                            Icon(Icons.Edit, contentDescription = stringResource(R.string.klasoru_duzenle))
-                        }
-                    }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(
+                        horizontal = com.kitsugi.animelist.ui.components.KitsugiTopActionTokens.HeaderHorizontalPadding,
+                        vertical = 8.dp
+                    ),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+                    icon = Icons.ArrowBack,
+                    contentDescription = stringResource(R.string.geri),
+                    onClick = onNavigateBack
+                )
+                Text(folder.emoji, style = MaterialTheme.typography.titleLarge)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(folder.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = com.kitsugi.animelist.ui.theme.KitsugiColors.TextPrimary)
+                    Text(stringResource(R.string.inline_1_s_items_2d83e8a, items.size), style = MaterialTheme.typography.labelSmall, color = com.kitsugi.animelist.ui.theme.KitsugiColors.TextSecondary)
                 }
-            )
+                if (reorderMode) {
+                    TextButton(onClick = { reorderMode = false }) { Text("Bitti") }
+                } else {
+                    com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+                        icon = Icons.DragHandle,
+                        contentDescription = stringResource(R.string.sirayi_duzenle),
+                        onClick = { reorderMode = true }
+                    )
+                    com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+                        icon = Icons.Edit,
+                        contentDescription = stringResource(R.string.klasoru_duzenle),
+                        onClick = onEditFolder
+                    )
+                }
+            }
         },
         modifier = modifier
     ) { paddingValues ->

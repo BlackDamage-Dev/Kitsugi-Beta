@@ -497,22 +497,24 @@ fun PluginPickerScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                    .padding(
+                        horizontal = com.kitsugi.animelist.ui.components.KitsugiTopActionTokens.HeaderHorizontalPadding,
+                        vertical = 8.dp
+                    ),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                IconButton(onClick = onBackClick) {
-                    Icon(
-                        imageVector = Icons.ArrowBack,
-                        contentDescription = stringResource(R.string.geri),
-                        tint = KitsugiColors.TextPrimary
-                    )
-                }
+                com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+                    icon = Icons.ArrowBack,
+                    contentDescription = stringResource(R.string.geri),
+                    onClick = onBackClick,
+                    accentColor = accentColor
+                )
                 Icon(
                     imageVector = Icons.Extension,
                     contentDescription = null,
                     tint = accentColor,
-                    modifier = Modifier.size(24.dp)
+                    modifier = Modifier.size(22.dp)
                 )
                 Text(
                     text = stringResource(R.string.eklenti_portali),
@@ -669,9 +671,8 @@ fun PluginPickerScreen(
                         }
                     }
 
-                    // Kategori çipleri yalnızca Video moduna aittir (TvType grupları).
-                    // Manga modunda satıra dokunmak kaynağın Keşfet'ini açar;
-                    // sağdaki arama ikonu arama kapsamını seçer.
+                    // Kategori çipleri yalnızca Video moduna aittir (TvType grupları);
+                    // Manga modunda kaynak kapsamı, listedeki kaynağa dokunarak seçilir.
                     if (portalMode == PluginPortalMode.VIDEO && availableGroups.isNotEmpty()) {
                         Row(
                             modifier = Modifier
@@ -931,20 +932,11 @@ fun PluginPickerScreen(
                                 accentColor = accentColor,
                                 selected = selectedMangaSourceKey == source.stableSourceKey(),
                                 onClick = {
-                                    // Video eklenti satırları gibi, satıra dokunmak
-                                    // bu manga kaynağının kendi Keşfet ekranını açar.
-                                    navState.navigateToDetail(
-                                        com.kitsugi.animelist.DetailScreen.MangaSourceExplore(
-                                            sourceKey = source.stableSourceKey()
-                                        )
-                                    )
-                                },
-                                onSelectForSearch = {
-                                    // Arama ikonuyla kaynak kapsamı seçilebilir;
-                                    // satırın ana dokunuşu Keşfet'e ayrılmıştır.
+                                    // Kapsam seçimi: sonraki arama (arama butonu /
+                                    // klavye "Ara") yalnızca bu kaynakta çalışır;
+                                    // tekrar dokunmak kapsamı tüm kaynaklara açar.
                                     selectedMangaSourceKey =
-                                        if (selectedMangaSourceKey == source.stableSourceKey()) null
-                                        else source.stableSourceKey()
+                                        if (selectedMangaSourceKey == source.stableSourceKey()) null else source.stableSourceKey()
                                 }
                             )
                         }
@@ -1116,8 +1108,7 @@ private fun MangaSourceListItem(
     source: MangaSource,
     accentColor: Color,
     selected: Boolean,
-    onClick: () -> Unit,
-    onSelectForSearch: () -> Unit
+    onClick: () -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -1173,21 +1164,6 @@ private fun MangaSourceListItem(
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold
         )
-        IconButton(
-            onClick = onSelectForSearch,
-            modifier = Modifier.size(36.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Search,
-                contentDescription = if (selected) {
-                    "${source.name}: arama kapsamından çıkar"
-                } else {
-                    "${source.name}: arama kapsamına ekle"
-                },
-                tint = if (selected) accentColor else KitsugiColors.TextMuted,
-                modifier = Modifier.size(18.dp)
-            )
-        }
     }
 }
 

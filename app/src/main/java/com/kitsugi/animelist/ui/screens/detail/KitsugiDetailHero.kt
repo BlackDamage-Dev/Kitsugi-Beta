@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
@@ -340,106 +341,49 @@ fun KitsugiDetailHero(
                     )
             )
 
-            // ── Top Action Bar: Back (left) + Action buttons (right) ──
+            // ── Top Action Bar: Back (left) + Canonical Action buttons [Share, Favorite, Gallery] (right) ──
             Row(
                 modifier = Modifier
                     .align(Alignment.TopStart)
                     .fillMaxWidth()
-                    .padding(start = 12.dp, end = 12.dp, top = 24.dp),
+                    .statusBarsPadding()
+                    .padding(
+                        horizontal = com.kitsugi.animelist.ui.components.KitsugiTopActionTokens.HeaderHorizontalPadding,
+                        vertical = 8.dp
+                    ),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(KitsugiColors.Background.copy(alpha = 0.45f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    IconButton(onClick = onBackClick) {
-                        Icon(
-                            imageVector = Icons.ArrowBack,
-                            contentDescription = stringResource(R.string.geri),
-                            tint = KitsugiColors.TextPrimary
-                        )
-                    }
-                }
+                com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+                    icon = Icons.ArrowBack,
+                    contentDescription = stringResource(R.string.geri),
+                    onClick = onBackClick,
+                    accentColor = accentColor
+                )
 
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Galeri butonu (resimler yüklendiğinde görünür)
-                    if (onGalleryClick != null) {
-                        val accentColorLocal = LocalKitsugiAccent.current
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .background(accentColorLocal.copy(alpha = 0.22f))
-                                .border(
-                                    width = 1.dp,
-                                    color = accentColorLocal.copy(alpha = 0.45f),
-                                    shape = CircleShape
-                                ),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            KitsugiGalleryIconButton(onClick = onGalleryClick, accentColor = accentColorLocal)
-                        }
-                    }
-
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(KitsugiColors.Background.copy(alpha = 0.45f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        IconButton(onClick = {
-                            if (onShareClick != null) {
-                                onShareClick()
-                            } else {
-                                // Kimlik bilgisi burada yok: sayfanın kendi kaydından
-                                // (artworkItem) çözülür. `0` gibi sahte kimlikle URL üretilmez;
-                                // çözülemezse başlık bağlantısız paylaşılır (404 link yok).
-                                val url = artworkItem?.let { item ->
-                                    com.kitsugi.animelist.utils.ShareLinks.mediaUrl(
-                                        source = item.source,
-                                        storedId = item.malId,
-                                        type = item.type,
-                                        tmdbId = item.tmdbId,
-                                        realMalId = item.realMalId
-                                    )
-                                }
-                                com.kitsugi.animelist.utils.ShareUtils.shareText(context, title, url)
-                            }
-                        }) {
-                            Icon(
-                                imageVector = Icons.Share,
-                                contentDescription = stringResource(R.string.paylas),
-                                tint = KitsugiColors.TextPrimary
-                            )
-                        }
-                    }
-
-                    if (showFavoriteButton && onToggleFavoriteClick != null) {
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .background(KitsugiColors.Background.copy(alpha = 0.45f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            IconButton(onClick = onToggleFavoriteClick) {
-                                Icon(
-                                    imageVector = if (isFavorite) Icons.Favorite else Icons.FavoriteBorder,
-                                    contentDescription = if (isFavorite) stringResource(R.string.action_favourite_remove) else "Favori Yap",
-                                    tint = if (isFavorite) accentColor else KitsugiColors.TextPrimary
+                com.kitsugi.animelist.ui.components.KitsugiDetailHeaderActions(
+                    onShareClick = {
+                        if (onShareClick != null) {
+                            onShareClick()
+                        } else {
+                            val url = artworkItem?.let { item ->
+                                com.kitsugi.animelist.utils.ShareLinks.mediaUrl(
+                                    source = item.source,
+                                    storedId = item.malId,
+                                    type = item.type,
+                                    tmdbId = item.tmdbId,
+                                    realMalId = item.realMalId
                                 )
                             }
+                            com.kitsugi.animelist.utils.ShareUtils.shareText(context, title, url)
                         }
-                    }
-                }
+                    },
+                    showFavourite = showFavoriteButton && onToggleFavoriteClick != null,
+                    isFavourite = isFavorite,
+                    onFavouriteClick = onToggleFavoriteClick,
+                    showGallery = onGalleryClick != null,
+                    onGalleryClick = onGalleryClick
+                )
             }
 
             Column(

@@ -279,36 +279,34 @@ fun KitsugiPlayerSettingsDialog(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                        .padding(horizontal = KitsugiTopActionTokens.HeaderHorizontalPadding, vertical = 10.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         if (embeddedMode) {
-                            IconButton(onClick = onDismiss) {
-                                Icon(
-                                    imageVector = Icons.ArrowBack,
-                                    contentDescription = stringResource(R.string.notif_action_back),
-                                    tint = KitsugiColors.TextPrimary
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(8.dp))
+                            KitsugiIconGlassButton(
+                                icon = Icons.ArrowBack,
+                                contentDescription = stringResource(R.string.notif_action_back),
+                                onClick = onDismiss,
+                                accentColor = accentColor
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
                         }
                         Text(
                             text = stringResource(R.string.pd_title),
                             color = KitsugiColors.TextPrimary,
                             style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Black
                         )
                     }
                     if (!embeddedMode) {
-                        IconButton(onClick = onDismiss) {
-                            Icon(
-                                imageVector = Icons.Close,
-                                contentDescription = stringResource(R.string.settings_close),
-                                tint = KitsugiColors.TextSecondary
-                            )
-                        }
+                        KitsugiIconGlassButton(
+                            icon = Icons.Close,
+                            contentDescription = stringResource(R.string.settings_close),
+                            onClick = onDismiss,
+                            accentColor = accentColor
+                        )
                     }
                 }
 

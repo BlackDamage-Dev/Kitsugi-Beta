@@ -34,6 +34,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -163,18 +164,19 @@ fun StudioDetailPage(
             }
             is StudioDetailState.Error -> {
                 Box(modifier = Modifier.fillMaxSize()) {
-                    IconButton(
+                    com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+                        icon = Icons.ArrowBack,
+                        contentDescription = stringResource(R.string.geri),
                         onClick = onBackClick,
+                        accentColor = accentColor,
                         modifier = Modifier
                             .align(Alignment.TopStart)
-                            .padding(start = 12.dp, top = 24.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.ArrowBack,
-                            contentDescription = stringResource(R.string.geri),
-                            tint = KitsugiColors.TextPrimary
-                        )
-                    }
+                            .statusBarsPadding()
+                            .padding(
+                                horizontal = com.kitsugi.animelist.ui.components.KitsugiTopActionTokens.HeaderHorizontalPadding,
+                                vertical = 8.dp
+                            )
+                    )
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
@@ -692,19 +694,18 @@ private fun StudioDetailSuccessContent(
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
                     modifier = (if (isTv) Modifier.width(960.dp) else Modifier.fillMaxWidth())
-                        .height(64.dp)
-                        .background(KitsugiColors.Surface.copy(alpha = 0.92f))
-                        .padding(horizontal = 8.dp)
+                        .height(54.dp)
+                        .background(KitsugiColors.Surface.copy(alpha = 0.94f))
+                        .padding(horizontal = com.kitsugi.animelist.ui.components.KitsugiTopActionTokens.HeaderHorizontalPadding)
                 ) {
-                    IconButton(onClick = onBackClick) {
-                        Icon(
-                            Icons.ArrowBack,
-                            contentDescription = stringResource(R.string.geri),
-                            tint = KitsugiColors.TextPrimary
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
+                    com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+                        icon = Icons.ArrowBack,
+                        contentDescription = stringResource(R.string.geri),
+                        onClick = onBackClick,
+                        accentColor = accentColor
+                    )
                     Text(
                         text = detail.name.toLocalizedOrgName(),
                         color = KitsugiColors.TextPrimary,
@@ -714,95 +715,66 @@ private fun StudioDetailSuccessContent(
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f)
                     )
-                    if (onOpenGallery != null) {
-                        KitsugiGalleryIconButton(onClick = onOpenGallery, accentColor = accentColor)
-                    }
-                    IconButton(onClick = {
-                        val url = com.kitsugi.animelist.utils.ShareUtils.buildStudioUrl(source, detail.id, detail.name.toLocalizedOrgName())
-                        com.kitsugi.animelist.utils.ShareUtils.shareText(context, detail.name.toLocalizedOrgName(), url)
-                    }) {
-                        Icon(Icons.Share, contentDescription = stringResource(R.string.action_share), tint = KitsugiColors.TextSecondary)
-                    }
-                    if (showFavouriteButton) {
-                        IconButton(onClick = onToggleFavourite) {
-                            Icon(
-                                imageVector = if (isFavourite) Icons.Favorite else Icons.FavoriteBorder,
-                                contentDescription = if (isFavourite) stringResource(R.string.action_favourite_remove) else "Favori Yap",
-                                tint = if (isFavourite) accentColor else KitsugiColors.TextSecondary
-                            )
-                        }
-                    }
-                    IconButton(
+                    com.kitsugi.animelist.ui.components.KitsugiDetailHeaderActions(
+                        onShareClick = {
+                            val url = com.kitsugi.animelist.utils.ShareUtils.buildStudioUrl(source, detail.id, detail.name.toLocalizedOrgName())
+                            com.kitsugi.animelist.utils.ShareUtils.shareText(context, detail.name.toLocalizedOrgName(), url)
+                        },
+                        showFavourite = showFavouriteButton,
+                        isFavourite = isFavourite,
+                        onFavouriteClick = onToggleFavourite,
+                        showGallery = onOpenGallery != null,
+                        onGalleryClick = onOpenGallery
+                    )
+                    com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+                        icon = Icons.FilterList,
+                        contentDescription = stringResource(R.string.filtre_ve_siralama),
                         onClick = { showFilterSheet = true },
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(if (hasActiveFilter) accentColor.copy(alpha = 0.25f) else Color.Transparent)
-                    ) {
-                        Icon(
-                            Icons.FilterList,
-                            contentDescription = stringResource(R.string.filtre_ve_siralama),
-                            tint = if (hasActiveFilter) accentColor else KitsugiColors.TextPrimary
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(4.dp))
-                    IconButton(onClick = {
-                        scope.launch {
-                            if (isGridView) {
-                                val gridIndex = gridState.firstVisibleItemIndex
-                                val gridOffset = gridState.firstVisibleItemScrollOffset
-                                val listIndex = if (gridIndex == 0) 0 else gridIndex + 1
-                                isGridView = false
-                                kotlinx.coroutines.delay(10)
-                                listState.scrollToItem(listIndex, gridOffset)
-                            } else {
-                                val listIndex = listState.firstVisibleItemIndex
-                                val listOffset = listState.firstVisibleItemScrollOffset
-                                val gridIndex = if (listIndex <= 1) 0 else listIndex - 1
-                                isGridView = true
-                                kotlinx.coroutines.delay(10)
-                                gridState.scrollToItem(gridIndex, listOffset)
+                        selected = hasActiveFilter,
+                        accentColor = accentColor
+                    )
+                    com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+                        icon = if (isGridView) Icons.ListAlt else Icons.GridView,
+                        contentDescription = if (isGridView) stringResource(R.string.cd_list_view) else stringResource(R.string.cd_grid_view),
+                        onClick = {
+                            scope.launch {
+                                if (isGridView) {
+                                    val gridIndex = gridState.firstVisibleItemIndex
+                                    val gridOffset = gridState.firstVisibleItemScrollOffset
+                                    val listIndex = if (gridIndex == 0) 0 else gridIndex + 1
+                                    isGridView = false
+                                    kotlinx.coroutines.delay(10)
+                                    listState.scrollToItem(listIndex, gridOffset)
+                                } else {
+                                    val listIndex = listState.firstVisibleItemIndex
+                                    val listOffset = listState.firstVisibleItemScrollOffset
+                                    val gridIndex = if (listIndex <= 1) 0 else listIndex - 1
+                                    isGridView = true
+                                    kotlinx.coroutines.delay(10)
+                                    gridState.scrollToItem(gridIndex, listOffset)
+                                }
                             }
-                        }
-                    }) {
-                        Icon(
-                            imageVector = if (isGridView) Icons.ListAlt else Icons.GridView,
-                            contentDescription = if (isGridView) stringResource(R.string.cd_list_view) else stringResource(R.string.cd_grid_view),
-                            tint = accentColor
-                        )
-                    }
+                        },
+                        accentColor = accentColor
+                    )
                 }
             }
 
             // ── Aşağı kaydırınca çıkan yukarı kaydırma FAB'ı ──────────────────
-            AnimatedVisibility(
+            com.kitsugi.animelist.ui.components.KitsugiScrollToTopFab(
                 visible = showScrollToTop,
-                enter = fadeIn() + scaleIn(),
-                exit = fadeOut() + scaleOut(),
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(end = 20.dp, bottom = 24.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(56.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(accentColor)
-                        .tvClickable(shape = RoundedCornerShape(16.dp)) {
-                            scope.launch {
-                                if (isGridView) gridState.animateScrollToItem(0)
-                                else listState.animateScrollToItem(0)
-                            }
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.KeyboardArrowUp,
-                        contentDescription = stringResource(R.string.cd_scroll_top),
-                        tint = KitsugiColors.Background,
-                        modifier = Modifier.size(28.dp)
-                    )
-                }
-            }
+                isLandscape = isLandscape,
+                bottomBarScrollState = null,
+                fallbackBottomBarVisible = false,
+                contentDescriptionRes = R.string.cd_scroll_top,
+                onClick = {
+                    scope.launch {
+                        if (isGridView) gridState.animateScrollToItem(0)
+                        else listState.animateScrollToItem(0)
+                    }
+                },
+                modifier = Modifier.align(Alignment.BottomEnd)
+            )
         }
     }
 
@@ -837,9 +809,18 @@ private fun StudioDetailLoadingSkeleton(onBackClick: () -> Unit) {
         val hero: @Composable () -> Unit = {
             Box(Modifier.fillMaxWidth().height(heroHeight)) {
                 KitsugiShimmerBlock(brush, Modifier.fillMaxSize(), 22.dp)
-                IconButton(onClick = onBackClick, modifier = Modifier.align(Alignment.TopStart).padding(12.dp)) {
-                    Icon(Icons.ArrowBack, contentDescription = stringResource(R.string.geri), tint = KitsugiColors.TextPrimary)
-                }
+                com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+                    icon = Icons.ArrowBack,
+                    contentDescription = stringResource(R.string.geri),
+                    onClick = onBackClick,
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .statusBarsPadding()
+                        .padding(
+                            horizontal = com.kitsugi.animelist.ui.components.KitsugiTopActionTokens.HeaderHorizontalPadding,
+                            vertical = 8.dp
+                        )
+                )
                 KitsugiShimmerBlock(brush, Modifier.align(Alignment.BottomStart).padding(20.dp).width(190.dp).height(28.dp))
             }
         }

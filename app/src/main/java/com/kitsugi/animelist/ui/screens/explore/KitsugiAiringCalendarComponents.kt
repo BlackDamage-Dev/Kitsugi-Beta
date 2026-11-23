@@ -123,30 +123,33 @@ internal fun AiringCalendarHeader(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(
+                horizontal = com.kitsugi.animelist.ui.components.KitsugiTopActionTokens.HeaderHorizontalPadding,
+                vertical = 8.dp
+            ),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        IconButton(onClick = onBackClick) {
-            Icon(
-                imageVector = Icons.ArrowBack,
-                contentDescription = stringResource(R.string.geri),
-                tint = KitsugiColors.TextPrimary
-            )
-        }
-        Spacer(modifier = Modifier.width(4.dp))
+        com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+            icon = Icons.ArrowBack,
+            contentDescription = stringResource(R.string.geri),
+            onClick = onBackClick,
+            accentColor = KitsugiColors.Accent
+        )
         Icon(
             imageVector = Icons.CalendarMonth,
             contentDescription = null,
             tint = KitsugiColors.Accent,
-            modifier = Modifier.size(22.dp)
+            modifier = Modifier.size(20.dp)
         )
-        Spacer(modifier = Modifier.width(10.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = stringResource(R.string.inline_airing_this_week_88ac172),
                 style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = KitsugiColors.TextPrimary
+                fontWeight = FontWeight.Black,
+                color = KitsugiColors.TextPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
             if (totalCount > 0) {
                 Text(
@@ -156,70 +159,79 @@ internal fun AiringCalendarHeader(
                         totalCount
                     ),
                     style = MaterialTheme.typography.labelSmall,
-                    color = KitsugiColors.TextSecondary
+                    color = KitsugiColors.TextSecondary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         }
 
-        // Listemde Toggle Button
+        // Listemde Toggle Button (Koyu Cam Kapsül)
         Box(
             modifier = Modifier
-                .clip(RoundedCornerShape(10.dp))
-                .background(if (showOnlyMyList) KitsugiColors.AccentGreen.copy(0.18f) else Color.Transparent)
+                .clip(CircleShape)
+                .background(
+                    if (showOnlyMyList) KitsugiColors.AccentGreen.copy(0.20f)
+                    else com.kitsugi.animelist.ui.components.KitsugiTopActionTokens.ContainerColor
+                )
                 .border(
                     width = 1.dp,
-                    color = if (showOnlyMyList) KitsugiColors.AccentGreen else KitsugiColors.TextSecondary.copy(0.3f),
-                    shape = RoundedCornerShape(10.dp)
+                    color = if (showOnlyMyList) KitsugiColors.AccentGreen.copy(0.65f)
+                    else com.kitsugi.animelist.ui.components.KitsugiTopActionTokens.BorderColor,
+                    shape = CircleShape
                 )
                 .clickable { onShowOnlyMyListChange(!showOnlyMyList) }
-                .padding(horizontal = 12.dp, vertical = 6.dp)
+                .padding(horizontal = 11.dp, vertical = 7.dp)
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                horizontalArrangement = Arrangement.spacedBy(5.dp)
             ) {
                 Icon(
                     imageVector = if (showOnlyMyList) Icons.PlaylistAddCheck else Icons.PlaylistPlay,
                     contentDescription = null,
-                    tint = if (showOnlyMyList) KitsugiColors.AccentGreen else KitsugiColors.TextSecondary,
+                    tint = if (showOnlyMyList) KitsugiColors.AccentGreen else KitsugiColors.TextPrimary,
                     modifier = Modifier.size(16.dp)
                 )
                 Text(
                     text = stringResource(R.string.explore_calendar_my_list),
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold,
-                    color = if (showOnlyMyList) KitsugiColors.AccentGreen else KitsugiColors.TextSecondary
+                    color = if (showOnlyMyList) KitsugiColors.AccentGreen else KitsugiColors.TextPrimary
                 )
             }
         }
 
-        Spacer(modifier = Modifier.width(8.dp))
-
         // Grid/List toggle button
-        IconButton(onClick = { onGridViewChange(!isGridView) }) {
-            Icon(
-                imageVector = if (isGridView) Icons.ViewList else Icons.GridView,
-                contentDescription = stringResource(R.string.gorunum_degistir),
-                tint = KitsugiColors.TextSecondary
-            )
-        }
+        com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+            icon = if (isGridView) Icons.ViewList else Icons.GridView,
+            contentDescription = stringResource(R.string.gorunum_degistir),
+            onClick = { onGridViewChange(!isGridView) },
+            accentColor = KitsugiColors.Accent
+        )
 
-        Spacer(modifier = Modifier.width(4.dp))
-
-        IconButton(onClick = onRefresh, enabled = !isLoading) {
-            if (isLoading) {
+        if (isLoading) {
+            Box(
+                modifier = Modifier
+                    .size(com.kitsugi.animelist.ui.components.KitsugiTopActionTokens.ButtonSize)
+                    .clip(CircleShape)
+                    .background(com.kitsugi.animelist.ui.components.KitsugiTopActionTokens.ContainerColor)
+                    .border(1.dp, com.kitsugi.animelist.ui.components.KitsugiTopActionTokens.BorderColor, CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
                 CircularProgressIndicator(
-                    modifier = Modifier.size(20.dp),
+                    modifier = Modifier.size(18.dp),
                     color = KitsugiColors.Accent,
                     strokeWidth = 2.dp
                 )
-            } else {
-                Icon(
-                    imageVector = Icons.Refresh,
-                    contentDescription = stringResource(R.string.yenile),
-                    tint = KitsugiColors.TextSecondary
-                )
             }
+        } else {
+            com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+                icon = Icons.Refresh,
+                contentDescription = stringResource(R.string.yenile),
+                onClick = onRefresh,
+                accentColor = KitsugiColors.Accent
+            )
         }
     }
 }
@@ -379,34 +391,20 @@ internal fun AiringEntryList(
             }
         }
 
-        AnimatedVisibility(
+        val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+        com.kitsugi.animelist.ui.components.KitsugiScrollToTopFab(
             visible = showScrollToTop,
-            enter = fadeIn() + scaleIn(),
-            exit = fadeOut() + scaleOut(),
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(end = 20.dp, bottom = 24.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(56.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(KitsugiColors.Accent)
-                    .tvClickable(shape = RoundedCornerShape(16.dp)) {
-                        scope.launch {
-                            listState.animateScrollToItem(0)
-                        }
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.KeyboardArrowUp,
-                    contentDescription = stringResource(R.string.yukari_git),
-                    tint = KitsugiColors.Background,
-                    modifier = Modifier.size(28.dp)
-                )
-            }
-        }
+            isLandscape = isLandscape,
+            bottomBarScrollState = null,
+            fallbackBottomBarVisible = false,
+            contentDescriptionRes = R.string.yukari_git,
+            onClick = {
+                scope.launch {
+                    listState.animateScrollToItem(0)
+                }
+            },
+            modifier = Modifier.align(Alignment.BottomEnd)
+        )
     }
 }
 
@@ -467,34 +465,20 @@ internal fun AiringEntryGridList(
             }
         }
 
-        AnimatedVisibility(
+        val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+        com.kitsugi.animelist.ui.components.KitsugiScrollToTopFab(
             visible = showScrollToTop,
-            enter = fadeIn() + scaleIn(),
-            exit = fadeOut() + scaleOut(),
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(end = 20.dp, bottom = 24.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(56.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(KitsugiColors.Accent)
-                    .tvClickable(shape = RoundedCornerShape(16.dp)) {
-                        scope.launch {
-                            gridState.animateScrollToItem(0)
-                        }
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.KeyboardArrowUp,
-                    contentDescription = stringResource(R.string.yukari_git),
-                    tint = KitsugiColors.Background,
-                    modifier = Modifier.size(28.dp)
-                )
-            }
-        }
+            isLandscape = isLandscape,
+            bottomBarScrollState = null,
+            fallbackBottomBarVisible = false,
+            contentDescriptionRes = R.string.yukari_git,
+            onClick = {
+                scope.launch {
+                    gridState.animateScrollToItem(0)
+                }
+            },
+            modifier = Modifier.align(Alignment.BottomEnd)
+        )
     }
 }
 

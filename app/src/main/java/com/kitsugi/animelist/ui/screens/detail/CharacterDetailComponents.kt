@@ -1,4 +1,4 @@
-﻿package com.kitsugi.animelist.ui.screens.detail
+package com.kitsugi.animelist.ui.screens.detail
 
 import com.kitsugi.animelist.ui.components.KitsugiGalleryIconButton
 import com.kitsugi.animelist.ui.components.KitsugiOriginalToggleButton
@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -284,82 +285,32 @@ internal fun CharacterDetailLeftPanel(
                 modifier = Modifier
                     .align(Alignment.TopStart)
                     .fillMaxWidth()
-                    .padding(start = 12.dp, end = 12.dp, top = 24.dp),
+                    .statusBarsPadding()
+                    .padding(
+                        horizontal = com.kitsugi.animelist.ui.components.KitsugiTopActionTokens.HeaderHorizontalPadding,
+                        vertical = 8.dp
+                    ),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(KitsugiColors.Background.copy(alpha = 0.45f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    IconButton(onClick = onBackClick) {
-                        Icon(
-                            imageVector = Icons.ArrowBack,
-                            contentDescription = stringResource(R.string.action_back),
-                            tint = KitsugiColors.TextPrimary
-                        )
-                    }
-                }
+                com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+                    icon = Icons.ArrowBack,
+                    contentDescription = stringResource(R.string.action_back),
+                    onClick = onBackClick,
+                    accentColor = accentColor
+                )
 
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    if (!detail.imageUrl.isNullOrBlank()) {
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .background(accentColor.copy(alpha = 0.22f))
-                                .then(Modifier.padding(1.dp)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            KitsugiGalleryIconButton(onClick = {
-                                onGalleryClick(galleryItems, 0)
-                            }, accentColor = accentColor)
-                        }
-                    }
-
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(KitsugiColors.Background.copy(alpha = 0.45f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        IconButton(onClick = {
-                            val url = com.kitsugi.animelist.utils.ShareUtils.buildCharacterUrl(source, characterId, detail.name)
-                            com.kitsugi.animelist.utils.ShareUtils.shareText(context, detail.name, url)
-                        }) {
-                            Icon(
-                                imageVector = Icons.Share,
-                                contentDescription = stringResource(R.string.action_share),
-                                tint = KitsugiColors.TextPrimary
-                            )
-                        }
-                    }
-
-                    if (showFavouriteButton) {
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .background(KitsugiColors.Background.copy(alpha = 0.45f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            IconButton(onClick = onToggleFavourite) {
-                                Icon(
-                                    imageVector = if (isFavourite) Icons.Favorite else Icons.FavoriteBorder,
-                                    contentDescription = if (isFavourite) stringResource(R.string.action_favourite_remove) else stringResource(R.string.action_favourite_add),
-                                    tint = if (isFavourite) accentColor else KitsugiColors.TextPrimary
-                                )
-                            }
-                        }
-                    }
-                }
+                com.kitsugi.animelist.ui.components.KitsugiDetailHeaderActions(
+                    onShareClick = {
+                        val url = com.kitsugi.animelist.utils.ShareUtils.buildCharacterUrl(source, characterId, detail.name)
+                        com.kitsugi.animelist.utils.ShareUtils.shareText(context, detail.name, url)
+                    },
+                    showFavourite = showFavouriteButton,
+                    isFavourite = isFavourite,
+                    onFavouriteClick = onToggleFavourite,
+                    showGallery = !detail.imageUrl.isNullOrBlank(),
+                    onGalleryClick = { onGalleryClick(galleryItems, 0) }
+                )
             }
         }
         // İsim + native name + platform logosu
@@ -621,53 +572,31 @@ internal fun CharacterPortraitHeroSection(
             modifier = androidx.compose.ui.Modifier
                 .align(Alignment.TopStart)
                 .fillMaxWidth()
-                .padding(start = 12.dp, end = 12.dp, top = 24.dp),
+                .statusBarsPadding()
+                .padding(
+                    horizontal = com.kitsugi.animelist.ui.components.KitsugiTopActionTokens.HeaderHorizontalPadding,
+                    vertical = 8.dp
+                ),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(
-                modifier = androidx.compose.ui.Modifier.size(40.dp).clip(CircleShape).background(KitsugiColors.Background.copy(alpha = 0.45f)),
-                contentAlignment = Alignment.Center
-            ) {
-                IconButton(onClick = onBackClick) {
-                    Icon(Icons.ArrowBack, contentDescription = stringResource(R.string.action_back), tint = KitsugiColors.TextPrimary)
-                }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                if (!detail.imageUrl.isNullOrBlank()) {
-                    Box(
-                        modifier = androidx.compose.ui.Modifier.size(40.dp).clip(CircleShape).background(accentColor.copy(alpha = 0.22f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        KitsugiGalleryIconButton(onClick = { onGalleryOpen(galleryItems, 0) }, accentColor = accentColor)
-                    }
-                }
-                Box(
-                    modifier = androidx.compose.ui.Modifier.size(40.dp).clip(CircleShape).background(KitsugiColors.Background.copy(alpha = 0.45f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    IconButton(onClick = {
-                        val url = com.kitsugi.animelist.utils.ShareUtils.buildCharacterUrl(source, characterId, detail.name)
-                        com.kitsugi.animelist.utils.ShareUtils.shareText(context, detail.name, url)
-                    }) {
-                        Icon(Icons.Share, contentDescription = stringResource(R.string.action_share), tint = KitsugiColors.TextPrimary)
-                    }
-                }
-                if (isAniListSource) {
-                    Box(
-                        modifier = androidx.compose.ui.Modifier.size(40.dp).clip(CircleShape).background(KitsugiColors.Background.copy(alpha = 0.45f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        IconButton(onClick = onToggleFavourite) {
-                            Icon(
-                                imageVector = if (isFavourite) Icons.Favorite else Icons.FavoriteBorder,
-                                contentDescription = if (isFavourite) stringResource(R.string.action_favourite_remove) else stringResource(R.string.action_favourite_add),
-                                tint = if (isFavourite) accentColor else KitsugiColors.TextPrimary
-                            )
-                        }
-                    }
-                }
-            }
+            com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+                icon = Icons.ArrowBack,
+                contentDescription = stringResource(R.string.action_back),
+                onClick = onBackClick,
+                accentColor = accentColor
+            )
+            com.kitsugi.animelist.ui.components.KitsugiDetailHeaderActions(
+                onShareClick = {
+                    val url = com.kitsugi.animelist.utils.ShareUtils.buildCharacterUrl(source, characterId, detail.name)
+                    com.kitsugi.animelist.utils.ShareUtils.shareText(context, detail.name, url)
+                },
+                showFavourite = isAniListSource,
+                isFavourite = isFavourite,
+                onFavouriteClick = onToggleFavourite,
+                showGallery = !detail.imageUrl.isNullOrBlank(),
+                onGalleryClick = { onGalleryOpen(galleryItems, 0) }
+            )
         }
         // Name + native name + platform logosu
         Column(modifier = androidx.compose.ui.Modifier.align(Alignment.BottomStart).padding(20.dp)) {
@@ -733,16 +662,19 @@ internal fun CharacterDetailStickyHeader(
         KitsugiStickyHeaderReveal(visible = showFloatingHeader) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
                 modifier = androidx.compose.ui.Modifier
                     .fillMaxWidth()
-                    .height(64.dp)
-                    .background(KitsugiColors.Surface.copy(alpha = 0.92f))
-                    .padding(horizontal = 8.dp)
+                    .height(54.dp)
+                    .background(KitsugiColors.Surface.copy(alpha = 0.94f))
+                    .padding(horizontal = com.kitsugi.animelist.ui.components.KitsugiTopActionTokens.HeaderHorizontalPadding)
             ) {
-                IconButton(onClick = onBackClick) {
-                    Icon(Icons.ArrowBack, contentDescription = stringResource(R.string.action_back), tint = KitsugiColors.TextPrimary)
-                }
-                Spacer(modifier = androidx.compose.ui.Modifier.width(8.dp))
+                com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+                    icon = Icons.ArrowBack,
+                    contentDescription = stringResource(R.string.action_back),
+                    onClick = onBackClick,
+                    accentColor = accentColor
+                )
                 Text(
                     text = detail.name,
                     color = KitsugiColors.TextPrimary,
@@ -752,24 +684,17 @@ internal fun CharacterDetailStickyHeader(
                     overflow = TextOverflow.Ellipsis,
                     modifier = androidx.compose.ui.Modifier.weight(1f)
                 )
-                if (!detail.imageUrl.isNullOrBlank()) {
-                    KitsugiGalleryIconButton(onClick = { onGalleryOpen(galleryItems, 0) }, accentColor = accentColor)
-                }
-                IconButton(onClick = {
-                    val url = com.kitsugi.animelist.utils.ShareUtils.buildCharacterUrl(source, characterId, detail.name)
-                    com.kitsugi.animelist.utils.ShareUtils.shareText(context, detail.name, url)
-                }) {
-                    Icon(Icons.Share, contentDescription = stringResource(R.string.action_share), tint = KitsugiColors.TextSecondary)
-                }
-                if (showFavouriteButton) {
-                    IconButton(onClick = onToggleFavourite) {
-                        Icon(
-                            imageVector = if (isFavourite) Icons.Favorite else Icons.FavoriteBorder,
-                            contentDescription = if (isFavourite) stringResource(R.string.action_favourite_remove) else stringResource(R.string.action_favourite_add),
-                            tint = if (isFavourite) accentColor else KitsugiColors.TextSecondary
-                        )
-                    }
-                }
+                com.kitsugi.animelist.ui.components.KitsugiDetailHeaderActions(
+                    onShareClick = {
+                        val url = com.kitsugi.animelist.utils.ShareUtils.buildCharacterUrl(source, characterId, detail.name)
+                        com.kitsugi.animelist.utils.ShareUtils.shareText(context, detail.name, url)
+                    },
+                    showFavourite = showFavouriteButton,
+                    isFavourite = isFavourite,
+                    onFavouriteClick = onToggleFavourite,
+                    showGallery = !detail.imageUrl.isNullOrBlank(),
+                    onGalleryClick = { onGalleryOpen(galleryItems, 0) }
+                )
             }
         }
         LazyRow(

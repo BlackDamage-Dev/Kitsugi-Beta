@@ -30,6 +30,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kitsugi.animelist.ui.components.KitsugiPlatformLogo
+import com.kitsugi.animelist.ui.components.KitsugiSourceSelectorPill
 import com.kitsugi.animelist.ui.theme.KitsugiColors
 import com.kitsugi.animelist.ui.theme.LocalKitsugiAccent
 import androidx.compose.ui.res.stringResource
@@ -47,51 +48,17 @@ fun SourceEngineSelectorPill(
     modifier: Modifier = Modifier,
     /**
      * `true` ise motor adı gizlenir, yalnızca logo + ok kalır.
-     *
-     * Kullanıcı yazarken arama çubuğunda yer açmak için: arama butonu eklendiğinde
-     * küçük ekranlarda metin alanı neredeyse sıfıra iniyordu. Ad gizlenince açılan
-     * ~30-60 dp doğrudan metin alanına kalır. Motor adı zaten çubuğun altındaki
-     * özet satırında ve seçici sayfada görünür.
      */
     compact: Boolean = false
 ) {
-    val accentColor = LocalKitsugiAccent.current
-
-    Row(
+    KitsugiSourceSelectorPill(
+        label = selectedEngine.localizedLabel(),
+        platformId = if (selectedEngine == SearchSourceEngine.ALL && !compact) null else selectedEngine.id,
+        contentDescription = stringResource(R.string.search_engine_picker_accessibility),
+        compact = compact,
+        onClick = onClick,
         modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(KitsugiColors.SurfaceElevated)
-            .border(
-                width = 1.dp,
-                color = accentColor.copy(alpha = 0.35f),
-                shape = RoundedCornerShape(12.dp)
-            )
-            .clickable(onClick = onClick)
-            .padding(horizontal = 8.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        KitsugiPlatformLogo(
-            platformId = selectedEngine.id,
-            size = 18.dp,
-            fallbackTint = accentColor
-        )
-        if (!compact) {
-            Text(
-                text = selectedEngine.localizedLabel(),
-                style = MaterialTheme.typography.labelMedium.copy(
-                    fontWeight = FontWeight.SemiBold,
-                    color = KitsugiColors.TextPrimary
-                )
-            )
-        }
-        Icon(
-            imageVector = Icons.ArrowDropDown,
-            contentDescription = stringResource(R.string.search_engine_picker_accessibility),
-            tint = accentColor,
-            modifier = Modifier.size(16.dp)
-        )
-    }
+    )
 }
 
 /**

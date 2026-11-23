@@ -143,15 +143,34 @@ fun KitsugiAddonDetailDialog(
                     )
                 }
 
-                // ── Close button (top right) ──────────────────────────────
-                IconButton(
-                    onClick = onDismissRequest,
+                // ── Üst Başlık Çubuğu (Geri + Paylaş) ──────────────────────
+                Row(
                     modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(16.dp)
-                        .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                        .fillMaxWidth()
+                        .statusBarsPadding()
+                        .padding(
+                            horizontal = com.kitsugi.animelist.ui.components.KitsugiTopActionTokens.HeaderHorizontalPadding,
+                            vertical = 8.dp
+                        ),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Close, contentDescription = stringResource(R.string.kapat), tint = Color.White)
+                    com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+                        icon = Icons.ArrowBack,
+                        contentDescription = stringResource(R.string.geri),
+                        onClick = onDismissRequest,
+                        accentColor = accentColor
+                    )
+                    if (loadState is DetailLoadState.Success) {
+                        val loaded = (loadState as DetailLoadState.Success).response
+                        com.kitsugi.animelist.ui.components.KitsugiTopActionButton(
+                            action = com.kitsugi.animelist.ui.components.KitsugiTopAction.SHARE,
+                            onClick = {
+                                com.kitsugi.animelist.utils.ShareUtils.shareText(context, loaded.name, url)
+                            },
+                            accentColor = accentColor
+                        )
+                    }
                 }
             }
         }
@@ -254,8 +273,16 @@ private fun DetailContent(
             )
         }
 
+        val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+        val isLandscape = androidx.compose.ui.platform.LocalConfiguration.current.orientation ==
+            android.content.res.Configuration.ORIENTATION_LANDSCAPE
+
         LazyColumn(
-            modifier = Modifier.fillMaxSize()
+            state = listState,
+            contentPadding = PaddingValues(top = 56.dp, bottom = 32.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
         ) {
             // ── Hero Section (Poster + Title + Metadata) — Keşfet/Arama detay hero’suyla aynı
             item {
@@ -623,6 +650,13 @@ private fun DetailContent(
                 }
             }
         }
+
+        com.kitsugi.animelist.ui.components.KitsugiScrollToTopFab(
+            listState = listState,
+            isBottomBarVisible = false,
+            isLandscape = isLandscape,
+            modifier = Modifier.align(Alignment.BottomEnd)
+        )
     }
 }
 

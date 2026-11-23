@@ -656,23 +656,25 @@ fun MangaSourceExploreScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .padding(
+                        horizontal = com.kitsugi.animelist.ui.components.KitsugiTopActionTokens.HeaderHorizontalPadding,
+                        vertical = 8.dp
+                    ),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                IconButton(onClick = goBack, modifier = Modifier.size(40.dp)) {
-                    Icon(
-                        Icons.AutoMirrored.Rounded.ArrowBack,
-                        contentDescription = stringResource(R.string.geri),
-                        tint = KitsugiColors.TextPrimary,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
+                com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+                    icon = Icons.AutoMirrored.Rounded.ArrowBack,
+                    contentDescription = stringResource(R.string.geri),
+                    onClick = goBack,
+                    accentColor = accentColor
+                )
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = source.name,
                         color = KitsugiColors.TextPrimary,
                         style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
+                        fontWeight = FontWeight.Black,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -684,14 +686,12 @@ fun MangaSourceExploreScreen(
                         overflow = TextOverflow.Ellipsis
                     )
                 }
-                IconButton(onClick = { state.refresh() }, modifier = Modifier.size(40.dp)) {
-                    Icon(
-                        Icons.Rounded.Refresh,
-                        contentDescription = stringResource(R.string.yenile),
-                        tint = accentColor,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
+                com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+                    icon = Icons.Rounded.Refresh,
+                    contentDescription = stringResource(R.string.yenile),
+                    onClick = { state.refresh() },
+                    accentColor = accentColor
+                )
             }
 
             // ── Kaynak içi arama ───────────────────────────────────────────────
@@ -999,9 +999,12 @@ private fun MangaExploreGrid(
     modifier: Modifier = Modifier
 ) {
     val columns = rememberKitsugiGridColumns()
+    val gridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
+    Box(modifier = modifier.fillMaxSize()) {
     LazyVerticalGrid(
+        state = gridState,
         columns = GridCells.Fixed(columns),
-        modifier = modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -1078,6 +1081,13 @@ private fun MangaExploreGrid(
             }
         }
     }
+    com.kitsugi.animelist.ui.components.KitsugiScrollToTopFab(
+        gridState = gridState,
+        isBottomBarVisible = false,
+        isLandscape = false,
+        modifier = Modifier.align(Alignment.BottomEnd)
+    )
+    }
 }
 
 @Composable
@@ -1096,9 +1106,12 @@ private fun MangaExploreFullGrid(
     modifier: Modifier = Modifier
 ) {
     val columns = rememberKitsugiGridColumns()
+    val gridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
+    Box(modifier = modifier.fillMaxSize()) {
     LazyVerticalGrid(
+        state = gridState,
         columns = GridCells.Fixed(columns),
-        modifier = modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -1110,15 +1123,14 @@ private fun MangaExploreFullGrid(
                     .padding(bottom = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = onBack, modifier = Modifier.size(32.dp)) {
-                    Icon(
-                        Icons.AutoMirrored.Rounded.ArrowBack,
-                        contentDescription = stringResource(R.string.geri),
-                        tint = KitsugiColors.TextPrimary,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-                Spacer(Modifier.width(4.dp))
+                com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+                    icon = Icons.AutoMirrored.Rounded.ArrowBack,
+                    contentDescription = stringResource(R.string.geri),
+                    onClick = onBack,
+                    size = com.kitsugi.animelist.ui.components.KitsugiTopActionTokens.CompactButtonSize,
+                    iconSize = com.kitsugi.animelist.ui.components.KitsugiTopActionTokens.CompactIconSize
+                )
+                Spacer(Modifier.width(8.dp))
                 Text(
                     text = when (rail) {
                         MangaExploreRail.POPULAR -> stringResource(R.string.manga_explore_popular)
@@ -1198,6 +1210,13 @@ private fun MangaExploreFullGrid(
                 }
             }
         }
+    }
+    com.kitsugi.animelist.ui.components.KitsugiScrollToTopFab(
+        gridState = gridState,
+        isBottomBarVisible = false,
+        isLandscape = false,
+        modifier = Modifier.align(Alignment.BottomEnd)
+    )
     }
 }
 

@@ -112,9 +112,12 @@ fun CsPluginDiagnosticScreen(
                         )
                     }
                     if (!isRunning) {
-                        IconButton(onClick = onDismiss) {
-                            Icon(Icons.Close, contentDescription = stringResource(R.string.action_close), tint = KitsugiColors.TextSecondary)
-                        }
+                        com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+                            icon = Icons.Close,
+                            contentDescription = stringResource(R.string.action_close),
+                            onClick = onDismiss,
+                            accentColor = accent
+                        )
                     }
                 }
             }

@@ -15,9 +15,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import android.content.res.Configuration
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
@@ -27,10 +29,12 @@ import androidx.compose.material3.MaterialTheme
 import com.kitsugi.animelist.ui.theme.gradient.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -38,7 +42,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalUriHandler
+import kotlinx.coroutines.launch
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -144,7 +150,9 @@ fun BangumiProfileContent(
     onOpenAnimeOrManga: (subjectId: Int, mediaType: MediaType, title: String, imageUrl: String?) -> Unit,
     onCharacterClick: (charId: Int, name: String?, imageUrl: String?) -> Unit,
     onPersonClick: (personId: Int, name: String?, imageUrl: String?) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isBottomBarVisible: Boolean = true,
+    onScrollReset: () -> Unit = {}
 ) {
     val uriHandler = LocalUriHandler.current
     var showNotifications by rememberSaveable { mutableStateOf(false) }
@@ -216,9 +224,25 @@ fun BangumiProfileContent(
         value to "${KitsugiStrings.get(labelRes)} ($count)"
     }
 
+    val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val listState = rememberLazyListState()
+    val coroutineScope = rememberCoroutineScope()
+    val showScrollToTop by remember {
+        derivedStateOf {
+            listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 300
+        }
+    }
+    val bottomClearance = if (isLandscape) {
+        com.kitsugi.animelist.ui.navigation.KitsugiBottomBarTokens.LandscapeListBottomSpacer
+    } else {
+        com.kitsugi.animelist.ui.navigation.KitsugiBottomBarTokens.PortraitListBottomSpacer
+    }
+
+    Box(modifier = modifier.fillMaxSize()) {
     LazyColumn(
-        modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+        state = listState,
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = bottomClearance),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
@@ -338,6 +362,21 @@ fun BangumiProfileContent(
                 )
             }
         }
+    }
+
+    com.kitsugi.animelist.ui.components.KitsugiScrollToTopFab(
+        visible = showScrollToTop,
+        isLandscape = isLandscape,
+        bottomBarScrollState = null,
+        fallbackBottomBarVisible = isBottomBarVisible,
+        onClick = {
+            coroutineScope.launch {
+                listState.animateScrollToItem(0)
+                onScrollReset()
+            }
+        },
+        modifier = Modifier.align(Alignment.BottomEnd)
+    )
     }
 
     if (showNotifications) {

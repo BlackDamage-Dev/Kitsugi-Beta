@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -47,13 +48,18 @@ internal fun DetailPageLoadingSkeleton(
             item(key = "hero") {
                 Box(Modifier.fillMaxWidth().height(heroHeight)) {
                     KitsugiShimmerBlock(brush, Modifier.fillMaxSize(), 0.dp)
-                    IconButton(
+                    com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+                        icon = Icons.ArrowBack,
+                        contentDescription = stringResource(R.string.geri),
                         onClick = onBackClick,
-                        modifier = Modifier.align(Alignment.TopStart).padding(start = 12.dp, top = 24.dp)
-                    ) {
-                        Icon(Icons.ArrowBack,
-                            contentDescription = stringResource(R.string.geri), tint = KitsugiColors.TextPrimary)
-                    }
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .statusBarsPadding()
+                            .padding(
+                                horizontal = com.kitsugi.animelist.ui.components.KitsugiTopActionTokens.HeaderHorizontalPadding,
+                                vertical = 8.dp
+                            )
+                    )
                     Column(
                         modifier = Modifier.align(Alignment.BottomStart).padding(20.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp)

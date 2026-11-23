@@ -18,6 +18,11 @@ class SettingsScreenParameters(
     val download: DownloadSettings,
     val onOpenDownloads: (() -> Unit)? = null,
     val onOpenWatchHistory: (() -> Unit)? = null,
+    val isNotificationsVisible: Boolean = false,
+    val onOpenNotifications: (() -> Unit)? = null,
+    val bottomBarScrollState: com.kitsugi.animelist.utils.ScrollVisibilityState? = null,
+    val isBottomBarVisible: Boolean = true,
+    val onScrollReset: () -> Unit = {},
     val onExplorePlugin: ((String) -> Unit)? = null,
     /** Eklenti portalındaki manga eklentisinin kendi Keşfet sayfasını açar. */
     val onExploreMangaSource: ((com.kitsugi.animelist.data.manga.MangaSource) -> Unit)? = null,

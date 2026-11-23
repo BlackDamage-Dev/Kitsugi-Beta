@@ -110,7 +110,7 @@ internal fun SettingsSearchField(
         onValueChange = onValueChange,
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp),
+            .padding(horizontal = com.kitsugi.animelist.ui.components.KitsugiTopActionTokens.HeaderHorizontalPadding),
         placeholder = {
             Text(
                 text = stringResource(R.string.settings_search_hint),

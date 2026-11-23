@@ -127,37 +127,37 @@ fun WatchHistoryScreen(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(
+                    horizontal = com.kitsugi.animelist.ui.components.KitsugiTopActionTokens.HeaderHorizontalPadding,
+                    vertical = 8.dp
+                ),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            IconButton(onClick = onBack) {
-                Icon(
-                    imageVector = Icons.ArrowBack,
-                    contentDescription = stringResource(R.string.geri),
-                    tint = KitsugiColors.TextPrimary
-                )
-            }
+            com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+                icon = Icons.ArrowBack,
+                contentDescription = stringResource(R.string.geri),
+                onClick = onBack,
+                accentColor = accentColor
+            )
             Text(
                 text = stringResource(R.string.history_title),
                 color = KitsugiColors.TextPrimary,
                 fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(start = 4.dp)
+                fontWeight = FontWeight.Black,
+                modifier = Modifier.weight(1f)
             )
             AnimatedVisibility(
                 visible = watched.isNotEmpty() || readItems.isNotEmpty(),
                 enter = fadeIn(),
                 exit = fadeOut()
             ) {
-                IconButton(onClick = { clearDialog = selectedTab }) {
-                    Icon(
-                        imageVector = Icons.DeleteSweep,
-                        contentDescription = stringResource(R.string.tumunu_temizle),
-                        tint = KitsugiColors.TextMuted
-                    )
-                }
+                com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+                    icon = Icons.DeleteSweep,
+                    contentDescription = stringResource(R.string.tumunu_temizle),
+                    onClick = { clearDialog = selectedTab },
+                    accentColor = accentColor
+                )
             }
         }
 

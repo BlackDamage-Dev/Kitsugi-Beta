@@ -54,6 +54,8 @@ import com.kitsugi.animelist.ui.components.KitsugiEmptyState
 import com.kitsugi.animelist.ui.components.KitsugiPlatformLogo
 import com.kitsugi.animelist.ui.components.KitsugiTopAction
 import com.kitsugi.animelist.ui.components.KitsugiTopActionRow
+import com.kitsugi.animelist.ui.components.KitsugiTopActionTokens
+import com.kitsugi.animelist.ui.navigation.KitsugiBottomBarTokens
 import com.kitsugi.animelist.ui.components.KitsugiShimmerProvider
 import com.kitsugi.animelist.ui.components.KitsugiShimmerSearchResultList
 import com.kitsugi.animelist.ui.components.KitsugiShimmerResponsiveMediaRow
@@ -128,6 +130,7 @@ fun SearchScreen(
     onOpenSourceSearch: (SearchSourceEngine, SearchScope, List<JikanSearchResult>) -> Unit = { _, _, _ -> },
     // Alt sayfa olarak kullanıldığında büyük başlığı gizlemek için null verilebilir
     pageTitle: String? = "Arama",
+    leadingTopBarContent: (@Composable RowScope.() -> Unit)? = null,
 
     onOpenWatchHistory: (() -> Unit)? = null,
     onOpenDownloads: (() -> Unit)? = null
@@ -285,6 +288,16 @@ fun SearchScreen(
     // 7 platform rafı + sonuç listesi placeholder'ı aynı anda yüklenirken her biri
     // kendi sonsuz animasyonunu kuruyordu. Yüklenme yokken animasyon hiç çalışmaz.
     val anySearchLoading = uiState.isLoading || uiState.isLoadingMore || uiState.multiResults.isAnyLoading
+    val searchConfig = LocalConfiguration.current
+    val searchScreenWidthDp = searchConfig.screenWidthDp
+    val isNarrowSearch = searchScreenWidthDp < 375
+    val maxSearchTopActions = when {
+        leadingTopBarContent != null && searchScreenWidthDp < 440 -> 2
+        leadingTopBarContent != null && searchScreenWidthDp < 560 -> 3
+        searchScreenWidthDp < 355 -> 3
+        searchScreenWidthDp < 410 -> 4
+        else -> null
+    }
     KitsugiShimmerProvider(active = anySearchLoading) {
     Box(
         modifier = Modifier
@@ -292,57 +305,82 @@ fun SearchScreen(
             .background(KitsugiColors.Background),
         contentAlignment = Alignment.TopCenter
     ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            // ── Kanonik Üst Satır: Keşfet, Listem, Profil ve Ayarlar ile birebir aynı hiza ──
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(
+                        start = KitsugiTopActionTokens.HeaderHorizontalPadding,
+                        end = KitsugiTopActionTokens.HeaderHorizontalPadding,
+                        top = if (isLandscape) KitsugiTopActionTokens.HeaderTopPaddingLandscape else KitsugiTopActionTokens.HeaderTopPaddingPortrait,
+                        bottom = if (isLandscape) 2.dp else 4.dp
+                    )
+                    .heightIn(
+                        min = if (isLandscape) KitsugiTopActionTokens.HeaderRowMinHeightLandscape else KitsugiTopActionTokens.HeaderRowMinHeight
+                    ),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                if (leadingTopBarContent != null) {
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        content = leadingTopBarContent
+                    )
+                } else if (pageTitle != null) {
+                    Text(
+                        text = if (pageTitle == "Arama") stringResource(R.string.arama) else pageTitle,
+                        color = KitsugiColors.TextPrimary,
+                        fontSize = when {
+                            isLandscape -> 19.sp
+                            isNarrowSearch -> 22.sp
+                            else -> 24.sp
+                        },
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                } else {
+                    Spacer(modifier = Modifier.weight(1f))
+                }
+
+                KitsugiTopActionRow(
+                    actions = buildList {
+                        add(KitsugiTopAction.FILTER)
+                        if (onOpenWatchHistory != null) add(KitsugiTopAction.HISTORY)
+                        if (onOpenDownloads != null) add(KitsugiTopAction.DOWNLOADS)
+                        add(KitsugiTopAction.EXTENSIONS)
+                        if (isNotificationsVisible) add(KitsugiTopAction.NOTIFICATIONS)
+                    },
+                    maxVisibleActions = maxSearchTopActions,
+                    selectedActions = if (showSourceEngineFilterSheet) setOf(KitsugiTopAction.FILTER) else emptySet(),
+                    onActionClick = { action ->
+                        when (action) {
+                            KitsugiTopAction.FILTER -> showSourceEngineFilterSheet = true
+                            KitsugiTopAction.HISTORY -> onOpenWatchHistory?.invoke()
+                            KitsugiTopAction.DOWNLOADS -> onOpenDownloads?.invoke()
+                            KitsugiTopAction.EXTENSIONS -> onOpenPluginPicker()
+                            KitsugiTopAction.NOTIFICATIONS -> onOpenNotifications()
+                            else -> Unit
+                        }
+                    }
+                )
+            }
+
         LazyColumn(
             state = lazyListState,
             modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 20.dp)
+                .weight(1f)
+                .fillMaxWidth()
+                .padding(horizontal = KitsugiTopActionTokens.HeaderHorizontalPadding)
                 .then(if (isTv) Modifier.dpadVerticalFastScroll(lazyListState) else Modifier)
         ) {
-            // Title & Search Input Section
+            // Search Input Section
             item(key = "search_title_and_bar") {
-                // ── Başlık + sağ üst aksiyonlar (tek satır) ──────────────────
-                Spacer(modifier = Modifier.height(if (pageTitle != null) 24.dp else 10.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    if (pageTitle != null) {
-                        Text(
-                            text = pageTitle,
-                            color = KitsugiColors.TextPrimary,
-                            style = MaterialTheme.typography.headlineLarge,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f)
-                        )
-                    } else {
-                        Spacer(modifier = Modifier.weight(1f))
-                    }
-
-                    KitsugiTopActionRow(
-                        actions = buildList {
-                            add(KitsugiTopAction.FILTER)
-                            if (onOpenWatchHistory != null) add(KitsugiTopAction.HISTORY)
-                            if (onOpenDownloads != null) add(KitsugiTopAction.DOWNLOADS)
-                            add(KitsugiTopAction.EXTENSIONS)
-                            if (isNotificationsVisible) add(KitsugiTopAction.NOTIFICATIONS)
-                        },
-                        onActionClick = { action ->
-                            when (action) {
-                                KitsugiTopAction.FILTER -> showSourceEngineFilterSheet = true
-                                KitsugiTopAction.HISTORY -> onOpenWatchHistory?.invoke()
-                                KitsugiTopAction.DOWNLOADS -> onOpenDownloads?.invoke()
-                                KitsugiTopAction.EXTENSIONS -> onOpenPluginPicker()
-                                KitsugiTopAction.NOTIFICATIONS -> onOpenNotifications()
-                                else -> Unit
-                            }
-                        }
-                    )
-                }
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(if (isLandscape) 4.dp else 6.dp))
 
                 val placeholder = if (uiState.selectedEngine == SearchSourceEngine.ALL) {
                     stringResource(R.string.search_placeholder_all_sources)
@@ -377,7 +415,7 @@ fun SearchScreen(
                     focusRequester = searchBarFocusRequester,
                     modifier = Modifier.fillMaxWidth()
                 )
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(8.dp))
             }
 
             // ── Kompakt Arama Seçenekleri Özeti ─────────────────────────────
@@ -728,8 +766,16 @@ fun SearchScreen(
                 }
             }
 
-            item(key = "bottom_spacer") { Spacer(modifier = Modifier.height(90.dp)) }
+            item(key = "bottom_spacer") {
+                Spacer(
+                    modifier = Modifier.height(
+                        if (isLandscape) KitsugiBottomBarTokens.LandscapeListBottomSpacer
+                        else KitsugiBottomBarTokens.PortraitListBottomSpacer
+                    )
+                )
+            }
         }
+        } // Column
 
         // Scroll to Top FAB
         com.kitsugi.animelist.ui.components.KitsugiScrollToTopFab(

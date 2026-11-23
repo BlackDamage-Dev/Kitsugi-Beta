@@ -191,17 +191,17 @@ fun AniListProfileContent(
 
                 // Share button
                 if (state.name.isNotBlank()) {
-                    Box(
-                        modifier = Modifier.align(Alignment.TopEnd).padding(10.dp).size(36.dp).clip(CircleShape).background(KitsugiColors.Background.copy(alpha = 0.50f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        IconButton(onClick = {
+                    com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+                        icon = Icons.Share,
+                        contentDescription = stringResource(R.string.profili_paylas),
+                        onClick = {
                             val url = com.kitsugi.animelist.utils.ShareUtils.buildProfileUrl("anilist", state.name)
                             com.kitsugi.animelist.utils.ShareUtils.shareText(context, state.name, url)
-                        }) {
-                            Icon(imageVector = Icons.Share, contentDescription = stringResource(R.string.profili_paylas), tint = KitsugiColors.TextPrimary, modifier = Modifier.size(18.dp))
-                        }
-                    }
+                        },
+                        size = com.kitsugi.animelist.ui.components.KitsugiTopActionTokens.CompactButtonSize,
+                        iconSize = com.kitsugi.animelist.ui.components.KitsugiTopActionTokens.CompactIconSize,
+                        modifier = Modifier.align(Alignment.TopEnd).padding(10.dp)
+                    )
                 }
 
                 // Avatar overlay
@@ -382,24 +382,22 @@ fun AniListProfileContent(
             }
         }
 
-        item { Spacer(modifier = Modifier.height(if (isBottomBarVisible && !isLandscape) 140.dp else 80.dp)) }
+        item {
+            Spacer(
+                modifier = Modifier.height(
+                    if (isLandscape) com.kitsugi.animelist.ui.navigation.KitsugiBottomBarTokens.LandscapeListBottomSpacer + 32.dp
+                    else com.kitsugi.animelist.ui.navigation.KitsugiBottomBarTokens.PortraitListBottomSpacer + 32.dp
+                )
+            )
+        }
     }
-
-    val bottomOffset by animateDpAsState(
-        targetValue = if (isLandscape) {
-            16.dp
-        } else if (isBottomBarVisible) {
-            96.dp
-        } else {
-            20.dp
-        },
-        animationSpec = tween(durationMillis = 200),
-        label = "profile_favorites_bottom_offset"
-    )
 
     ProfileFavoritesFloatingControls(
         listState = listState,
-        visible = activeTab in 2..4,
+        visible = true,
+        showCategoryPill = activeTab in 2..4,
+        isBottomBarVisible = isBottomBarVisible,
+        isLandscape = isLandscape,
         selectedCategory = when (activeTab) { 2 -> statsSubTab; 4 -> socialFilter; else -> favoritesFilter },
         categoryCounts = when (activeTab) {
             3 -> favCategoryCounts
@@ -408,13 +406,13 @@ fun AniListProfileContent(
         },
         categoryLabels = when (activeTab) {
             2 -> listOf(
-                                        stringResource(R.string.profile_stats_general),
-                                        stringResource(R.string.detail_section_genres),
-                                        stringResource(R.string.profile_section_tags),
-                                        stringResource(R.string.profile_section_staff),
-                                        stringResource(R.string.character_tab_voice_actors),
-                                        stringResource(R.string.detail_section_studios)
-                                    )
+                stringResource(R.string.profile_stats_general),
+                stringResource(R.string.detail_section_genres),
+                stringResource(R.string.profile_section_tags),
+                stringResource(R.string.profile_section_staff),
+                stringResource(R.string.character_tab_voice_actors),
+                stringResource(R.string.detail_section_studios)
+            )
             4 -> listOf(stringResource(R.string.profile_followers), stringResource(R.string.profile_following))
             else -> profileFavoriteCategoryLabels()
         },
@@ -424,7 +422,6 @@ fun AniListProfileContent(
             4 -> socialFilter = it
             else -> favoritesFilter = it
         } },
-        bottomOffset = bottomOffset,
         onScrollReset = onScrollReset
     )
     }

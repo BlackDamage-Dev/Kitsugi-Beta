@@ -32,6 +32,7 @@ import com.kitsugi.animelist.data.remote.ApiSearchSelection
 import com.kitsugi.animelist.data.remote.JikanSearchResult
 import com.kitsugi.animelist.model.MediaEntry
 import com.kitsugi.animelist.ui.app.SourceSearchOwner
+import com.kitsugi.animelist.ui.components.KitsugiIconGlassButton
 import com.kitsugi.animelist.ui.components.KitsugiPlatformLogo
 import com.kitsugi.animelist.ui.theme.KitsugiColors
 import androidx.compose.ui.res.stringResource
@@ -91,48 +92,9 @@ fun SourceSearchPage(
         modifier = Modifier
             .fillMaxSize()
             .background(KitsugiColors.Background)
+            .statusBarsPadding()
     ) {
-        // ── Üst Bar: Geri + Kaynak Başlığı ─────────────────────────────────
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .statusBarsPadding()
-                .padding(horizontal = 8.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = onBackClick) {
-                Icon(
-                    imageVector = Icons.ArrowBack,
-                    contentDescription = stringResource(R.string.geri),
-                    tint = KitsugiColors.TextPrimary
-                )
-            }
-            // Kaynak adından ÖNCE emoji değil, platformun ORİJİNAL logosu gösterilir
-            // (KitsugiPlatformLogo: AniList, MAL, TMDB, Shikimori, Kitsu, Simkl, Bangumi).
-            // "Tümü" motorunda logo bulunmadığı için küre simgesine düşer.
-            Row(
-                modifier = Modifier.weight(1f),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                KitsugiPlatformLogo(
-                    platformId = engine.id,
-                    size = 26.dp,
-                    fallbackTint = KitsugiColors.TextPrimary
-                )
-                Text(
-                    text = "${engine.localizedLabel()} ${stringResource(R.string.arama)}",
-                    color = KitsugiColors.TextPrimary,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-            Spacer(modifier = Modifier.width(8.dp))
-        }
-
-        // ── Kaynağa Özel Arama Sayfası (filtreler + sonuçlar) ─────────────
+        // ── Kaynağa Özel Arama Sayfası (tek satır üst bar + filtreler + sonuçlar) ──
         SearchScreen(
             currentEntries = mediaEntries,
             showAdultContent = showAdultContent,
@@ -153,7 +115,28 @@ fun SourceSearchPage(
                 pageViewModel.openSourceSearch(subEngine, pageViewModel.uiState.value.query, scope, results)
             },
             isBottomBarVisible = false,
-            pageTitle = null
+            pageTitle = null,
+            leadingTopBarContent = {
+                KitsugiIconGlassButton(
+                    icon = Icons.ArrowBack,
+                    contentDescription = stringResource(R.string.geri),
+                    onClick = onBackClick
+                )
+                KitsugiPlatformLogo(
+                    platformId = engine.id,
+                    size = 22.dp,
+                    fallbackTint = KitsugiColors.TextPrimary
+                )
+                Text(
+                    text = "${engine.localizedLabel()} ${stringResource(R.string.arama)}",
+                    color = KitsugiColors.TextPrimary,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+            }
         )
     }
 }

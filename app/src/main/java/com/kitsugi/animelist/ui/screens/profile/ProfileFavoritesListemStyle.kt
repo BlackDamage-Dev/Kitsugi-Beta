@@ -54,7 +54,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.platform.LocalConfiguration
 import com.kitsugi.animelist.ui.app.ProfileFavoriteItem
+import com.kitsugi.animelist.ui.components.KitsugiFloatingFilterPill
 import com.kitsugi.animelist.ui.components.KitsugiNsfwImage
+import com.kitsugi.animelist.ui.components.KitsugiScrollToTopFab
 import com.kitsugi.animelist.ui.components.KitsugiSheetOrDialog
 import com.kitsugi.animelist.ui.components.kitsugiNeonGlow
 import com.kitsugi.animelist.ui.screens.mylist.cardSpacingForLayout
@@ -416,37 +418,18 @@ fun BoxScope.ProfileFavoritesFloatingControls(
     selectedCategory: Int,
     categoryCounts: List<Int>,
     onCategorySelected: (Int) -> Unit,
-    bottomOffset: Dp,
+    bottomOffset: Dp = 0.dp,
     onScrollReset: () -> Unit = {},
     categoryLabels: List<String>? = null,
-    showCounts: Boolean = true
+    showCounts: Boolean = true,
+    showCategoryPill: Boolean = visible,
+    isBottomBarVisible: Boolean = bottomOffset > 48.dp,
+    isLandscape: Boolean = LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
 ) {
     val accent = LocalKitsugiAccent.current
     val scope = rememberCoroutineScope()
-    val navBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-    val bottomPadding = bottomOffset + navBottom
     val resolvedCategoryLabels = categoryLabels ?: profileFavoriteCategoryLabels()
-
-    // Aşağı kaydırınca kategori butonu gizlenir, yukarı çıkınca geri gelir (Listem ile aynı)
-    var isFabVisible by remember { mutableStateOf(true) }
-    var prevIndex by remember { mutableIntStateOf(0) }
-    var prevOffset by remember { mutableIntStateOf(0) }
     var showCategorySheet by remember { mutableStateOf(false) }
-
-    LaunchedEffect(listState) {
-        snapshotFlow { listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset }
-            .collect { (index, offset) ->
-                if (index == 0 && offset < 40) {
-                    isFabVisible = true
-                } else if (index > prevIndex || (index == prevIndex && offset > prevOffset + 15)) {
-                    isFabVisible = false
-                } else if (index < prevIndex || (index == prevIndex && offset < prevOffset - 15)) {
-                    isFabVisible = true
-                }
-                prevIndex = index
-                prevOffset = offset
-            }
-    }
 
     // Aşağı inildiği anda görünür olsun: ilk öğe dışına çıkmış ya da birkaç yüz piksel kaydırılmış olması yeterli
     val showScrollToTop by remember(visible) {
@@ -455,77 +438,41 @@ fun BoxScope.ProfileFavoritesFloatingControls(
         }
     }
 
-    // Sol alt: kategori (Tümü butonunun karşılığı)
-    AnimatedVisibility(
-        visible = visible && isFabVisible,
-        enter = fadeIn() + scaleIn(),
-        exit = fadeOut() + scaleOut(),
+    // Sol alt: kategori (Listem'deki Tamamlandı hapı ile birebir aynı Keşfet koyu cam tasarım ve alt bar hizası)
+    KitsugiFloatingFilterPill(
+        visible = visible && showCategoryPill,
+        label = resolvedCategoryLabels.getOrElse(selectedCategory) { resolvedCategoryLabels.firstOrNull().orEmpty() },
+        icon = Icons.FormatListBulleted,
+        iconContentDescription = stringResource(R.string.search_filter_category),
+        isLandscape = isLandscape,
+        isBottomBarVisible = isBottomBarVisible,
+        onClick = { showCategorySheet = true },
         modifier = Modifier
             .align(Alignment.BottomStart)
-            .padding(bottom = bottomPadding, start = 20.dp)
             .zIndex(10f)
-    ) {
-        Box(
-            modifier = Modifier
-                .clip(RoundedCornerShape(999.dp))
-                .background(accent)
-                .tvClickable(shape = RoundedCornerShape(999.dp), onClick = { showCategorySheet = true })
-                .padding(horizontal = 20.dp, vertical = 14.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.FormatListBulleted,
-                    contentDescription = stringResource(R.string.search_filter_category),
-                    tint = KitsugiColors.Background,
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = resolvedCategoryLabels.getOrElse(selectedCategory) { resolvedCategoryLabels.firstOrNull().orEmpty() },
-                    color = KitsugiColors.Background,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Black
-                )
-            }
-        }
-    }
+    )
 
-    // Sağ alt: yukarı hızlı kaydırma
-    AnimatedVisibility(
+    // Sağ alt: yukarı hızlı kaydırma (Keşfet yuvarlak cam + vurgu çerçeve düğmesi)
+    KitsugiScrollToTopFab(
         visible = showScrollToTop,
-        enter = fadeIn() + scaleIn(),
-        exit = fadeOut() + scaleOut(),
+        isLandscape = isLandscape,
+        bottomBarScrollState = null,
+        fallbackBottomBarVisible = isBottomBarVisible,
+        contentDescriptionRes = R.string.yukari_git,
+        onClick = {
+            // Tapping the profile's scroll-to-top control must restore the shared
+            // navigation bar even though programmatic scrolling may not emit a
+            // nested-scroll gesture that makes the bar visible again.
+            onScrollReset()
+            scope.launch {
+                listState.animateScrollToItem(0)
+                onScrollReset()
+            }
+        },
         modifier = Modifier
             .align(Alignment.BottomEnd)
-            .padding(bottom = bottomPadding, end = 20.dp)
             .zIndex(10f)
-    ) {
-        Box(
-            modifier = Modifier
-                .size(48.dp)
-                .clip(RoundedCornerShape(16.dp))
-                .background(accent)
-                .tvClickable(shape = RoundedCornerShape(16.dp)) {
-                    // Tapping the profile's scroll-to-top control must restore the shared
-                    // navigation bar even though programmatic scrolling may not emit a
-                    // nested-scroll gesture that makes the bar visible again.
-                    onScrollReset()
-                    scope.launch {
-                        listState.animateScrollToItem(0)
-                        onScrollReset()
-                    }
-                },
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.KeyboardArrowUp,
-                contentDescription = stringResource(R.string.yukari_git),
-                tint = KitsugiColors.Background,
-                modifier = Modifier.size(24.dp)
-            )
-        }
-    }
+    )
 
     if (showCategorySheet) {
         KitsugiSheetOrDialog(onDismiss = { showCategorySheet = false }) {

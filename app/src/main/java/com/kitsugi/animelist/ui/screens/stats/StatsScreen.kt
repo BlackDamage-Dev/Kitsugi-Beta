@@ -1,4 +1,4 @@
-﻿package com.kitsugi.animelist.ui.screens.stats
+package com.kitsugi.animelist.ui.screens.stats
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -19,16 +19,22 @@ import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
 import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import android.content.res.Configuration
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
+import kotlinx.coroutines.launch
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -77,6 +83,17 @@ fun StatsScreen(
         }
     }
 
+    val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val coroutineScope = rememberCoroutineScope()
+    val showScrollToTop by remember {
+        derivedStateOf { scrollState.value > 500 }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(KitsugiColors.Background)
+    ) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -85,22 +102,24 @@ fun StatsScreen(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(
+                    horizontal = com.kitsugi.animelist.ui.components.KitsugiTopActionTokens.HeaderHorizontalPadding,
+                    vertical = if (isLandscape) 6.dp else 8.dp
+                ),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            IconButton(onClick = onBack) {
-                Icon(
-                    imageVector = Icons.ArrowBack,
-                    contentDescription = stringResource(R.string.geri),
-                    tint = KitsugiColors.TextPrimary
-                )
-            }
-            Spacer(Modifier.padding(start = 4.dp))
+            com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+                icon = Icons.ArrowBack,
+                contentDescription = stringResource(R.string.geri),
+                onClick = onBack,
+                accentColor = accentColor
+            )
             Text(
                 text = stringResource(R.string.istatistikler),
                 color = KitsugiColors.TextPrimary,
                 style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Black
             )
         }
 
@@ -318,8 +337,23 @@ fun StatsScreen(
                         icon = Icons.BarChart
                     )
                 }
+                Spacer(Modifier.height(48.dp))
             }
         }
+    }
+
+    com.kitsugi.animelist.ui.components.KitsugiScrollToTopFab(
+        visible = showScrollToTop,
+        isLandscape = isLandscape,
+        bottomBarScrollState = null,
+        fallbackBottomBarVisible = false,
+        onClick = {
+            coroutineScope.launch {
+                scrollState.animateScrollTo(0)
+            }
+        },
+        modifier = Modifier.align(Alignment.BottomEnd)
+    )
     }
 }
 

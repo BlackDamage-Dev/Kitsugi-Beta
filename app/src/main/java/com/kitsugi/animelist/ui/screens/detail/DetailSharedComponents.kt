@@ -358,25 +358,26 @@ internal fun DataUnavailableScreen(
         modifier = modifier
             .fillMaxSize()
             .background(KitsugiColors.Background)
-            .padding(24.dp)
     ) {
-        // Back Button
-        IconButton(
+        // Back Button — hero ve sticky başlıkla birebir aynı hizada
+        com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+            icon = Icons.ArrowBack,
+            contentDescription = stringResource(R.string.geri),
             onClick = onBackClick,
             modifier = Modifier
                 .align(Alignment.TopStart)
                 .statusBarsPadding()
-        ) {
-            Icon(
-                imageVector = Icons.ArrowBack,
-                contentDescription = stringResource(R.string.geri),
-                tint = KitsugiColors.TextPrimary
-            )
-        }
+                .padding(
+                    horizontal = com.kitsugi.animelist.ui.components.KitsugiTopActionTokens.HeaderHorizontalPadding,
+                    vertical = 8.dp
+                )
+        )
 
         // Center Warning Panel
         Column(
-            modifier = Modifier.align(Alignment.Center),
+            modifier = Modifier
+                .align(Alignment.Center)
+                .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {

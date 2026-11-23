@@ -1,4 +1,4 @@
-﻿package com.kitsugi.animelist.ui.screens.manga
+package com.kitsugi.animelist.ui.screens.manga
 
 import android.content.res.Configuration
 import androidx.compose.animation.AnimatedVisibility
@@ -711,6 +711,13 @@ fun MangaBrowseScreen(
                                 IntOffset(0, y.roundToInt())
                             }
                             .onSizeChanged { chipsHeightPx.floatValue = it.height.toFloat() }
+                    )
+
+                    com.kitsugi.animelist.ui.components.KitsugiScrollToTopFab(
+                        gridState = gridState,
+                        isBottomBarVisible = false,
+                        isLandscape = isLandscape,
+                        modifier = Modifier.align(Alignment.BottomEnd)
                     )
                 }
             }

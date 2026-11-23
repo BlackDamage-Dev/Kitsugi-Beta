@@ -78,7 +78,9 @@ fun MalProfileContent(
     onLoadMoreFriends: (() -> Unit)? = null,
     onLoadMoreReviews: (() -> Unit)? = null,
     onLoadMoreRecommendations: (() -> Unit)? = null,
-    onLoadMoreClubs: (() -> Unit)? = null
+    onLoadMoreClubs: (() -> Unit)? = null,
+    isBottomBarVisible: Boolean = true,
+    onScrollReset: () -> Unit = {}
 ) {
     var activeTab by rememberSaveable { mutableIntStateOf(viewModel.malActiveTab) }
     LaunchedEffect(activeTab) { viewModel.malActiveTab = activeTab }
@@ -144,6 +146,13 @@ fun MalProfileContent(
         onLoadMore = { onLoadMoreClubs?.invoke() }
     )
 
+    val showScrollToTop by remember {
+        derivedStateOf {
+            listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 300
+        }
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
     LazyColumn(
         state = listState,
         modifier = Modifier
@@ -180,27 +189,18 @@ fun MalProfileContent(
 
                 // Share butonu – sağ üst köşe
                 if (state.name.isNotBlank()) {
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(10.dp)
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(KitsugiColors.Background.copy(alpha = 0.50f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        IconButton(onClick = {
+                    com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+                        icon = Icons.Share,
+                        contentDescription = stringResource(R.string.profili_paylas),
+                        onClick = {
                             val url = com.kitsugi.animelist.utils.ShareUtils.buildProfileUrl("myanimelist", state.name)
                             com.kitsugi.animelist.utils.ShareUtils.shareText(context, state.name, url)
-                        }) {
-                            Icon(
-                                imageVector = Icons.Share,
-                                contentDescription = stringResource(R.string.profili_paylas),
-                                tint = KitsugiColors.TextPrimary,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                    }
+                        },
+                        accentColor = accentColor,
+                        size = com.kitsugi.animelist.ui.components.KitsugiTopActionTokens.CompactButtonSize,
+                        iconSize = com.kitsugi.animelist.ui.components.KitsugiTopActionTokens.CompactIconSize,
+                        modifier = Modifier.align(Alignment.TopEnd).padding(10.dp)
+                    )
                 }
 
                 // Avatar overlay
@@ -677,8 +677,31 @@ fun MalProfileContent(
         }
 
         item {
-            Spacer(modifier = Modifier.height(80.dp))
+            Spacer(
+                modifier = Modifier.height(
+                    if (isLandscape) {
+                        com.kitsugi.animelist.ui.navigation.KitsugiBottomBarTokens.LandscapeListBottomSpacer
+                    } else {
+                        com.kitsugi.animelist.ui.navigation.KitsugiBottomBarTokens.PortraitListBottomSpacer
+                    }
+                )
+            )
         }
+    }
+
+    com.kitsugi.animelist.ui.components.KitsugiScrollToTopFab(
+        visible = showScrollToTop,
+        isLandscape = isLandscape,
+        bottomBarScrollState = null,
+        fallbackBottomBarVisible = isBottomBarVisible,
+        onClick = {
+            coroutineScope.launch {
+                listState.animateScrollToItem(0)
+                onScrollReset()
+            }
+        },
+        modifier = Modifier.align(Alignment.BottomEnd)
+    )
     }
 }
 

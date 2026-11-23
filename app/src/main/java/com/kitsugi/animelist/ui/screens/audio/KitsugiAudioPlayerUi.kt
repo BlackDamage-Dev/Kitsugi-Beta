@@ -1,4 +1,4 @@
-﻿package com.kitsugi.animelist.ui.screens.audio
+package com.kitsugi.animelist.ui.screens.audio
 
 import android.content.Context
 import android.content.Intent
@@ -342,14 +342,12 @@ fun KitsugiAudioPlayerFullContent(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = onCollapse, modifier = Modifier.size(38.dp)) {
-                Icon(
-                    imageVector = if (isStandaloneScreen) Icons.ArrowBack else Icons.KeyboardArrowDown,
-                    contentDescription = stringResource(R.string.audio_player_collapse),
-                    tint = KitsugiColors.TextPrimary,
-                    modifier = Modifier.size(22.dp)
-                )
-            }
+            com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+                icon = if (isStandaloneScreen) Icons.ArrowBack else Icons.KeyboardArrowDown,
+                contentDescription = stringResource(R.string.audio_player_collapse),
+                onClick = onCollapse,
+                accentColor = accent
+            )
             Column(
                 modifier = Modifier.weight(1f),
                 horizontalAlignment = Alignment.CenterHorizontally
@@ -367,20 +365,15 @@ fun KitsugiAudioPlayerFullContent(
                     fontWeight = FontWeight.Bold
                 )
             }
-            IconButton(
+            com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+                icon = Icons.Close,
+                contentDescription = stringResource(R.string.audio_player_close),
                 onClick = {
                     onClosePlayer()
                     if (isStandaloneScreen) onCollapse()
                 },
-                modifier = Modifier.size(38.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Close,
-                    contentDescription = stringResource(R.string.audio_player_close),
-                    tint = KitsugiColors.TextMuted,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
+                accentColor = accent
+            )
         }
 
         Spacer(Modifier.height(14.dp))

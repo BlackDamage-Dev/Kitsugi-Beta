@@ -9,6 +9,7 @@ import com.kitsugi.animelist.ui.components.KitsugiChevronIcon
 import com.kitsugi.animelist.ui.components.KitsugiEmojiLabel
 import com.kitsugi.animelist.ui.components.KitsugiPlatformLogo
 import com.kitsugi.animelist.ui.components.KitsugiStickyHeaderReveal
+import com.kitsugi.animelist.ui.navigation.KitsugiBottomBarTokens
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -25,6 +26,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -65,9 +67,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kitsugi.animelist.model.MediaEntry
 import com.kitsugi.animelist.model.WatchStatus
+import com.kitsugi.animelist.ui.components.KitsugiIconGlassButton
 import com.kitsugi.animelist.ui.components.KitsugiSearchField
+import com.kitsugi.animelist.ui.components.KitsugiSourceSelectorPill
 import com.kitsugi.animelist.ui.components.KitsugiTopAction
 import com.kitsugi.animelist.ui.components.KitsugiTopActionRow
+import com.kitsugi.animelist.ui.components.KitsugiTopActionTokens
 import com.kitsugi.animelist.ui.screens.mylist.components.KitsugiMyListFilterSheet
 import com.kitsugi.animelist.ui.screens.mylist.components.KitsugiMyListSortMenu
 import com.kitsugi.animelist.ui.theme.LocalKitsugiColors
@@ -119,20 +124,19 @@ fun MyListHeaderSection(
     headerTitle: String = "Listem",
     headerSubtitle: String? = null,
     onBackClick: (() -> Unit)? = null,
-    searchPlaceholder: String = "Listende ara..."
+    searchPlaceholder: String = "Listende ara...",
+    hideTitleRow: Boolean = false
 ) {
     val KitsugiColors = LocalKitsugiColors.current
     var showSortMenu by rememberSaveable { mutableStateOf(false) }
+    val config = LocalConfiguration.current
+    val isNarrow = config.screenWidthDp < 375
+    val edgePad = if (onBackClick == null) KitsugiTopActionTokens.HeaderHorizontalPadding else 10.dp
 
-    val expandedHeaderHeight = if (headerSubtitle.isNullOrBlank()) 60.dp else 68.dp
+    val expandedHeaderHeight = if (headerSubtitle.isNullOrBlank()) 48.dp else 56.dp
 
     Column {
-        // Başlık eskiden 60.dp → 0.dp yüksekliğine tek karede atlıyor, bu yüzden üst bar
-        // aşağı kaydırınca "pat diye" kaybolup tepede geri geliyordu. Artık uygulamanın
-        // ortak hareket dilini (KitsugiMotion sticky header geçişi) kullanıyor: yükseklik,
-        // soluklaşma ve yukarı süzülme aynı anda yumuşak easing ile animasyonlanır;
-        // liste de başlıkla birlikte akarak yer değiştirir.
-        KitsugiStickyHeaderReveal(visible = !headerCollapsed) {
+        KitsugiStickyHeaderReveal(visible = !hideTitleRow && !headerCollapsed) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -142,30 +146,31 @@ fun MyListHeaderSection(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(expandedHeaderHeight)
-                        .padding(start = if (onBackClick == null) horizontalPadding else 4.dp, end = 4.dp),
+                        .padding(start = edgePad, end = KitsugiTopActionTokens.HeaderHorizontalPadding),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.weight(1f).padding(end = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         if (onBackClick != null) {
-                            IconButton(onClick = onBackClick) {
-                                Icon(
-                                    imageVector = Icons.ArrowBack,
-                                    contentDescription = stringResource(R.string.geri),
-                                    tint = KitsugiColors.textPrimary
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(4.dp))
+                            KitsugiIconGlassButton(
+                                icon = Icons.ArrowBack,
+                                contentDescription = stringResource(R.string.geri),
+                                onClick = onBackClick,
+                                accentColor = accentColor,
+                                size = if (isNarrow) KitsugiTopActionTokens.CompactButtonSize else KitsugiTopActionTokens.ButtonSize,
+                                iconSize = if (isNarrow) KitsugiTopActionTokens.CompactIconSize else KitsugiTopActionTokens.IconSize
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
                         }
 
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = headerTitle,
                                 color = KitsugiColors.textPrimary,
-                                style = MaterialTheme.typography.headlineLarge,
+                                fontSize = if (isNarrow) 22.sp else 26.sp,
                                 fontWeight = FontWeight.Bold,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
@@ -182,54 +187,18 @@ fun MyListHeaderSection(
                         }
                     }
 
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(0.dp)
-                    ) {
-                        IconButton(
-                            onClick = {
-                                val nextLayoutId = when (selectedListLayoutId) {
-                                    "compact" -> "comfortable"
-                                    "comfortable" -> "large"
-                                    "large" -> "grid_2col"
-                                    "grid_2col" -> "compact"
-                                    else -> "comfortable"
-                                }
-                                onListLayoutChange(nextLayoutId)
-                            }
-                        ) {
-                            val layoutIcon = when (selectedListLayoutId) {
-                                "compact" -> Icons.DensityMedium
-                                "comfortable" -> Icons.FormatListBulleted
-                                "large" -> Icons.ViewStream
-                                "grid_2col" -> Icons.GridView
-                                else -> Icons.FormatListBulleted
-                            }
-                            Icon(
-                                imageVector = layoutIcon,
-                                contentDescription = stringResource(R.string.gorunum_degistir),
-                                tint = KitsugiColors.textSecondary
-                            )
-                        }
-
-                        IconButton(onClick = onSearchFieldToggle) {
-                            Icon(
-                                imageVector = Icons.Search,
-                                contentDescription = stringResource(R.string.arama),
-                                tint = if (showSearchField || searchQuery.isNotBlank()) accentColor else KitsugiColors.textSecondary
-                            )
-                        }
-
-                        Box {
-                            IconButton(onClick = onFilterPanelToggle) {
-                                Icon(
-                                    imageVector = Icons.FilterList,
-                                    contentDescription = "Filtrele ve Sırala",
-                                    tint = if (showFilterPanel || hasActiveFilters) accentColor else KitsugiColors.textSecondary
-                                )
-                            }
-                        }
-                    }
+                    MyListInlineToolButtons(
+                        selectedListLayoutId = selectedListLayoutId,
+                        onListLayoutChange = onListLayoutChange,
+                        showSearchField = showSearchField,
+                        searchQuery = searchQuery,
+                        onSearchFieldToggle = onSearchFieldToggle,
+                        showFilterPanel = showFilterPanel,
+                        hasActiveFilters = hasActiveFilters,
+                        onFilterPanelToggle = onFilterPanelToggle,
+                        accentColor = accentColor,
+                        compact = isNarrow
+                    )
                 }
             }
         }
@@ -433,14 +402,14 @@ fun MyListSingleSourceBar(
     ) {
         Row(
             modifier = Modifier
-                .clip(RoundedCornerShape(16.dp))
-                .background(KitsugiColors.surface)
+                .clip(androidx.compose.foundation.shape.CircleShape)
+                .background(KitsugiColors.surface.copy(alpha = 0.90f))
                 .border(
                     width = 1.dp,
-                    color = accentColor.copy(alpha = 0.5f),
-                    shape = RoundedCornerShape(16.dp)
+                    color = accentColor.copy(alpha = 0.45f),
+                    shape = androidx.compose.foundation.shape.CircleShape
                 )
-                .padding(horizontal = 10.dp, vertical = 8.dp),
+                .padding(horizontal = 12.dp, vertical = 7.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
@@ -460,29 +429,80 @@ fun MyListSingleSourceBar(
 
         Spacer(modifier = Modifier.weight(1f))
 
-        Box(
-            modifier = Modifier
-                .size(38.dp)
-                .clip(RoundedCornerShape(14.dp))
-                .background(KitsugiColors.surface)
-                .border(
-                    width = 1.dp,
-                    color = KitsugiColors.border.copy(alpha = 0.2f),
-                    shape = RoundedCornerShape(14.dp)
-                )
-                .tvClickable(shape = RoundedCornerShape(14.dp)) {
-                    if (visibleEntries.isNotEmpty()) onEntryClick(visibleEntries.random())
-                    else onEmptyMessage()
-                },
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.Dices,
-                contentDescription = null,
-                tint = LocalContentColor.current,
-                modifier = Modifier.size(18.dp)
-            )
-        }
+        com.kitsugi.animelist.ui.components.KitsugiTopActionButton(
+            action = com.kitsugi.animelist.ui.components.KitsugiTopAction.RANDOM,
+            onClick = {
+                if (visibleEntries.isNotEmpty()) onEntryClick(visibleEntries.random())
+                else onEmptyMessage()
+            }
+        )
+    }
+}
+
+@Composable
+fun MyListInlineToolButtons(
+    selectedListLayoutId: String,
+    onListLayoutChange: (String) -> Unit,
+    showSearchField: Boolean,
+    searchQuery: String,
+    onSearchFieldToggle: () -> Unit,
+    showFilterPanel: Boolean,
+    hasActiveFilters: Boolean,
+    onFilterPanelToggle: () -> Unit,
+    accentColor: Color,
+    compact: Boolean = false
+) {
+    val btnSize = if (compact) KitsugiTopActionTokens.CompactButtonSize else KitsugiTopActionTokens.ButtonSize
+    val iconSz = if (compact) KitsugiTopActionTokens.CompactIconSize else KitsugiTopActionTokens.IconSize
+    val gap = if (compact) KitsugiTopActionTokens.CompactSpacing else KitsugiTopActionTokens.Spacing
+    val layoutIcon = when (selectedListLayoutId) {
+        "compact" -> Icons.DensityMedium
+        "comfortable" -> Icons.FormatListBulleted
+        "large" -> Icons.ViewStream
+        "grid_2col" -> Icons.GridView
+        else -> Icons.FormatListBulleted
+    }
+
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(gap)
+    ) {
+        KitsugiIconGlassButton(
+            icon = layoutIcon,
+            contentDescription = stringResource(R.string.gorunum_degistir),
+            onClick = {
+                val nextLayoutId = when (selectedListLayoutId) {
+                    "compact" -> "comfortable"
+                    "comfortable" -> "large"
+                    "large" -> "grid_2col"
+                    "grid_2col" -> "compact"
+                    else -> "comfortable"
+                }
+                onListLayoutChange(nextLayoutId)
+            },
+            accentColor = accentColor,
+            size = btnSize,
+            iconSize = iconSz
+        )
+        KitsugiIconGlassButton(
+            icon = Icons.Search,
+            contentDescription = stringResource(R.string.arama),
+            onClick = onSearchFieldToggle,
+            accentColor = accentColor,
+            size = btnSize,
+            iconSize = iconSz,
+            selected = showSearchField || searchQuery.isNotBlank()
+        )
+        KitsugiIconGlassButton(
+            icon = Icons.FilterList,
+            contentDescription = "Filtrele ve Sırala",
+            onClick = onFilterPanelToggle,
+            accentColor = accentColor,
+            size = btnSize,
+            iconSize = iconSz,
+            selected = showFilterPanel || hasActiveFilters,
+            showBadge = hasActiveFilters
+        )
     }
 }
 
@@ -516,7 +536,9 @@ fun MyListTabBar(
     isNotificationsVisible: Boolean = false,
     onOpenNotifications: () -> Unit = {},
     onOpenWatchHistory: (() -> Unit)? = null,
-    onOpenDownloads: (() -> Unit)? = null
+    onOpenDownloads: (() -> Unit)? = null,
+    inlineTitle: String? = null,
+    inlineTools: (@Composable () -> Unit)? = null
 ) {
     val KitsugiColors = LocalKitsugiColors.current
     var showSourcePickerSheet by rememberSaveable { mutableStateOf(false) }
@@ -637,51 +659,65 @@ fun MyListTabBar(
     )
     val displayPlatforms = listOf(allPlatform) + platforms
     val currentPlatform = displayPlatforms.firstOrNull { it.index == selectedTabIndex } ?: allPlatform
+    val config = LocalConfiguration.current
+    val isLandscape = config.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val screenWidthDp = config.screenWidthDp
+    // When inline tools are shown in landscape on a compact window, fold extra actions into overflow
+    val maxTopActions = when {
+        inlineTools != null && screenWidthDp < 560 -> 2
+        inlineTools != null && screenWidthDp < 680 -> 3
+        else -> null
+    }
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 8.dp, bottom = 6.dp),
+            .padding(
+                start = KitsugiTopActionTokens.HeaderHorizontalPadding,
+                end = KitsugiTopActionTokens.HeaderHorizontalPadding,
+                top = if (isLandscape) KitsugiTopActionTokens.HeaderTopPaddingLandscape else KitsugiTopActionTokens.HeaderTopPaddingPortrait,
+                bottom = if (isLandscape) 2.dp else 4.dp
+            )
+            .heightIn(
+                min = if (isLandscape) KitsugiTopActionTokens.HeaderRowMinHeightLandscape else KitsugiTopActionTokens.HeaderRowMinHeight
+            ),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        // 1. Arama ekranı kaynak seçimine benzer Seçici Hap Buton
         Row(
-            modifier = Modifier
-                .clip(RoundedCornerShape(16.dp))
-                .background(KitsugiColors.surface)
-                .border(
-                    width = 1.dp,
-                    color = currentPlatform.brandColor.copy(alpha = 0.5f),
-                    shape = RoundedCornerShape(16.dp)
-                )
-                .tvClickable(shape = RoundedCornerShape(16.dp), onClick = { showSourcePickerSheet = true })
-                .padding(horizontal = 10.dp, vertical = 8.dp),
+            modifier = Modifier.weight(1f),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            KitsugiPlatformLogo(
-                platformId = currentPlatform.id,
-                size = 18.dp,
-                fallbackTint = currentPlatform.brandColor
-            )
-            Text(
-                text = currentPlatform.shortName,
-                style = MaterialTheme.typography.labelMedium.copy(
+            if (!inlineTitle.isNullOrBlank()) {
+                Text(
+                    text = inlineTitle,
+                    color = KitsugiColors.textPrimary,
+                    fontSize = 19.sp,
                     fontWeight = FontWeight.Bold,
-                    color = KitsugiColors.textPrimary
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
-            )
-            Icon(
-                imageVector = Icons.ArrowDropDown,
+            }
+            KitsugiSourceSelectorPill(
+                label = currentPlatform.shortName,
+                platformId = if (currentPlatform.id == "all") null else currentPlatform.id,
                 contentDescription = "Kaynak Seç",
-                tint = currentPlatform.brandColor,
-                modifier = Modifier.size(18.dp)
+                isConnectedDotVisible = currentPlatform.isConnected,
+                accentColor = accentColor,
+                onClick = { showSourcePickerSheet = true }
             )
         }
 
-        // Kaynak değişimi zaten soldaki açılır seçicide var; yinelenen sekme çubuğu kaldırıldı.
-        Spacer(modifier = Modifier.weight(1f))
+        if (inlineTools != null) {
+            inlineTools()
+            Box(
+                modifier = Modifier
+                    .width(1.dp)
+                    .height(20.dp)
+                    .background(KitsugiColors.border.copy(alpha = 0.7f))
+            )
+        }
 
         // 🎲 Rastgele + 🔔 Bildirim → Keşfet ile birebir aynı ortak aksiyon satırı.
         // Sıra kanoniktir: rastgele solda, bildirim her zaman en sağda.
@@ -692,6 +728,7 @@ fun MyListTabBar(
                 add(KitsugiTopAction.RANDOM)
                 if (isNotificationsVisible) add(KitsugiTopAction.NOTIFICATIONS)
             },
+            maxVisibleActions = maxTopActions,
             onActionClick = { action ->
                 when (action) {
                     KitsugiTopAction.RANDOM -> {
@@ -1004,7 +1041,12 @@ fun MyListContentPage(
                             selectedExtraFilterId = selectedExtraFilterId,
                             selectedSortId = selectedSortId
                         )
-                        Spacer(modifier = Modifier.height(90.dp))
+                        Spacer(
+                            modifier = Modifier.height(
+                                if (isLandscape) KitsugiBottomBarTokens.LandscapeListBottomSpacer
+                                else KitsugiBottomBarTokens.PortraitListBottomSpacer
+                            )
+                        )
                     }
                 } else if (groupingId == MyListGroupingIds.NONE || !appSettings.separatedListStyle) {
                     MyListFlatContent(
@@ -1035,7 +1077,14 @@ fun MyListContentPage(
                         onPosterLongClick = onPosterLongClick
                     )
                 }
-                item(key = "bottom_spacer", contentType = "mylist_spacer") { Spacer(modifier = Modifier.height(90.dp)) }
+                item(key = "bottom_spacer", contentType = "mylist_spacer") {
+                    Spacer(
+                        modifier = Modifier.height(
+                            if (isLandscape) KitsugiBottomBarTokens.LandscapeListBottomSpacer
+                            else KitsugiBottomBarTokens.PortraitListBottomSpacer
+                        )
+                    )
+                }
             }
         }
     }

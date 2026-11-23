@@ -3,6 +3,7 @@
 package com.kitsugi.animelist.ui.screens.settings
 
 
+import android.content.res.Configuration
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.SizeTransform
@@ -11,12 +12,15 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -35,7 +39,9 @@ import com.kitsugi.animelist.ui.theme.gradient.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.collectAsState
 import com.kitsugi.animelist.data.settings.SettingsDataStore
 import androidx.compose.runtime.CompositionLocalProvider
@@ -45,16 +51,26 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import kotlinx.coroutines.launch
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import com.kitsugi.animelist.R
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.kitsugi.animelist.BuildConfig
 import com.kitsugi.animelist.ui.components.BackupImportMode
 import com.kitsugi.animelist.ui.components.KitsugiAccountConnectionsDialog
+import com.kitsugi.animelist.ui.components.KitsugiIconGlassButton
+import com.kitsugi.animelist.ui.components.KitsugiScrollToTopFab
+import com.kitsugi.animelist.ui.components.KitsugiTopAction
+import com.kitsugi.animelist.ui.components.KitsugiTopActionRow
+import com.kitsugi.animelist.ui.components.KitsugiTopActionTokens
+import com.kitsugi.animelist.ui.navigation.KitsugiBottomBarTokens
 import com.kitsugi.animelist.ui.screens.account.KitsugiAccountContent
 import com.kitsugi.animelist.ui.components.KitsugiAddonsSettingsDialog
 import com.kitsugi.animelist.ui.components.KitsugiChoiceOption
@@ -577,47 +593,99 @@ private fun SettingsMainPage(
     onSearchResultSelected: (SettingsSearchEntry) -> Unit
 ) {
     val accentColor = LocalKitsugiAccent.current
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val isNarrowSettings = configuration.screenWidthDp < 375
+    val coroutineScope = rememberCoroutineScope()
     val scrollState = rememberLazyListState()
     val searchResults = findSettingsMatches(settingsSearchEntries(), searchQuery)
     val isSearching = searchQuery.isNotBlank()
-
-    LaunchedEffect(searchQuery) {
-        if (isSearching) scrollState.scrollToItem(0)
+    val showScrollToTop by remember {
+        derivedStateOf {
+            scrollState.firstVisibleItemIndex > 1 ||
+                (scrollState.firstVisibleItemIndex == 1 && scrollState.firstVisibleItemScrollOffset > 120)
+        }
     }
 
-    Column(
+    LaunchedEffect(searchQuery) {
+        if (isSearching && scrollState.firstVisibleItemIndex > 0) {
+            scrollState.scrollToItem(0)
+        }
+    }
+
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .statusBarsPadding()
     ) {
-        TopAppBar(
-            title = {
+        Column(
+            modifier = Modifier.fillMaxSize()
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(
+                        start = KitsugiTopActionTokens.HeaderHorizontalPadding,
+                        end = KitsugiTopActionTokens.HeaderHorizontalPadding,
+                        top = if (isLandscape) KitsugiTopActionTokens.HeaderTopPaddingLandscape else KitsugiTopActionTokens.HeaderTopPaddingPortrait,
+                        bottom = if (isLandscape) 2.dp else 4.dp
+                    )
+                    .heightIn(
+                        min = if (isLandscape) KitsugiTopActionTokens.HeaderRowMinHeightLandscape else KitsugiTopActionTokens.HeaderRowMinHeight
+                    ),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 Text(
                     text = stringResource(R.string.tab_settings),
-                    style = MaterialTheme.typography.headlineSmall,
+                    fontSize = when {
+                        isLandscape -> 19.sp
+                        isNarrowSettings -> 22.sp
+                        else -> 24.sp
+                    },
                     fontWeight = FontWeight.Bold,
-                    color = KitsugiColors.TextPrimary
+                    color = KitsugiColors.TextPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
                 )
-            },
-            colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = KitsugiColors.Background
-            )
-        )
 
-        Spacer(Modifier.height(4.dp))
-        SettingsSearchField(
-            value = searchQuery,
-            onValueChange = onSearchQueryChange
-        )
-        Spacer(Modifier.height(4.dp))
+                KitsugiTopActionRow(
+                    actions = buildList {
+                        if (params.onOpenWatchHistory != null) add(KitsugiTopAction.HISTORY)
+                        add(KitsugiTopAction.DOWNLOADS)
+                        if (params.isNotificationsVisible && params.onOpenNotifications != null) {
+                            add(KitsugiTopAction.NOTIFICATIONS)
+                        }
+                    },
+                    onActionClick = { action ->
+                        when (action) {
+                            KitsugiTopAction.HISTORY -> params.onOpenWatchHistory?.invoke()
+                            KitsugiTopAction.DOWNLOADS -> onOpenDownloads()
+                            KitsugiTopAction.NOTIFICATIONS -> params.onOpenNotifications?.invoke()
+                            else -> Unit
+                        }
+                    }
+                )
+            }
 
-        LazyColumn(
-            state = scrollState,
-            modifier = Modifier
-                .fillMaxSize()
-                .navigationBarsPadding(),
-        ) {
-            if (isSearching) {
+            LazyColumn(
+                state = scrollState,
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .navigationBarsPadding(),
+            ) {
+                item(key = "settings_search_bar") {
+                    Spacer(Modifier.height(if (isLandscape) 2.dp else 4.dp))
+                    SettingsSearchField(
+                        value = searchQuery,
+                        onValueChange = onSearchQueryChange
+                    )
+                    Spacer(Modifier.height(if (isLandscape) 4.dp else 6.dp))
+                }
+
+                if (isSearching) {
                 item {
                     Text(
                         text = stringResource(R.string.settings_search_results_count, searchResults.size),
@@ -838,10 +906,28 @@ private fun SettingsMainPage(
                             onClick = { onNavigate(SettingsRoute.ExperimentalFeatures) }
                         )
                     }
-                    Spacer(Modifier.height(80.dp))
+                    Spacer(
+                        Modifier.height(
+                            if (isLandscape) KitsugiBottomBarTokens.LandscapeListBottomSpacer
+                            else KitsugiBottomBarTokens.PortraitListBottomSpacer
+                        )
+                    )
                 }
             }
         }
+        }
+
+        KitsugiScrollToTopFab(
+            visible = showScrollToTop,
+            isLandscape = isLandscape,
+            bottomBarScrollState = params.bottomBarScrollState,
+            fallbackBottomBarVisible = params.isBottomBarVisible,
+            onClick = {
+                params.onScrollReset()
+                coroutineScope.launch { scrollState.animateScrollToItem(0) }
+            },
+            modifier = Modifier.align(Alignment.BottomEnd)
+        )
     }
 }
 
@@ -855,34 +941,45 @@ private fun SettingsSubPage(
     contentHandlesNavigationBars: Boolean = false,
     content: @Composable () -> Unit
 ) {
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .statusBarsPadding()
     ) {
-        TopAppBar(
-            title = {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = KitsugiColors.TextPrimary
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(
+                    start = KitsugiTopActionTokens.HeaderHorizontalPadding,
+                    end = KitsugiTopActionTokens.HeaderHorizontalPadding,
+                    top = if (isLandscape) KitsugiTopActionTokens.HeaderTopPaddingLandscape else KitsugiTopActionTokens.HeaderTopPaddingPortrait,
+                    bottom = if (isLandscape) 4.dp else 6.dp
                 )
-            },
-            navigationIcon = {
-                IconButton(onClick = onBack) {
-                    Icon(
-                        imageVector = Icons.ArrowBack,
-                        contentDescription = stringResource(R.string.action_back),
-                        tint = KitsugiColors.TextPrimary
-                    )
-                }
-            },
-            colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = KitsugiColors.Background
+                .heightIn(
+                    min = if (isLandscape) KitsugiTopActionTokens.HeaderRowMinHeightLandscape else KitsugiTopActionTokens.HeaderRowMinHeight
+                ),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            KitsugiIconGlassButton(
+                icon = Icons.ArrowBack,
+                contentDescription = stringResource(R.string.action_back),
+                onClick = onBack
             )
-        )
-        HorizontalDivider(color = KitsugiColors.Border.copy(alpha = 0.5f))
+            Text(
+                text = title,
+                style = if (isLandscape) MaterialTheme.typography.titleMedium else MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = KitsugiColors.TextPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
+        }
+        HorizontalDivider(color = KitsugiColors.Border.copy(alpha = 0.35f))
         Box(
             modifier = Modifier
                 .weight(1f)
@@ -906,7 +1003,7 @@ internal fun SectionHeader(text: String) {
         style = MaterialTheme.typography.labelMedium,
         fontWeight = FontWeight.Bold,
         color = KitsugiColors.TextMuted,
-        modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
+        modifier = Modifier.padding(horizontal = 17.dp, vertical = 6.dp)
     )
 }
 
@@ -915,7 +1012,7 @@ internal fun SettingsNavCard(content: @Composable () -> Unit) {
     androidx.compose.material3.Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp),
+            .padding(horizontal = KitsugiTopActionTokens.HeaderHorizontalPadding),
         shape = RoundedCornerShape(24.dp),
         colors = androidx.compose.material3.CardDefaults.cardColors(
             containerColor = KitsugiColors.Surface

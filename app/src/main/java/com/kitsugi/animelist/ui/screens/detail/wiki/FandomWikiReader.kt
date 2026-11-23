@@ -1,4 +1,4 @@
-﻿package com.kitsugi.animelist.ui.screens.detail.wiki
+package com.kitsugi.animelist.ui.screens.detail.wiki
 
 import com.kitsugi.animelist.ui.components.KitsugiChevronIcon
 import androidx.compose.animation.AnimatedVisibility
@@ -1318,31 +1318,16 @@ private fun ReaderContent(
         }
         Spacer(modifier = Modifier.height(24.dp))
     }
-    // ── Yukarı hızlı kaydırma FAB'ı (tüm wiki okuyucularında tek tip) ─────────
-    androidx.compose.animation.AnimatedVisibility(
+    // ── Yukarı hızlı kaydırma FAB'ı (tüm ekranlarda tek tip Keşfet cam düğmesi) ─
+    com.kitsugi.animelist.ui.components.KitsugiScrollToTopFab(
         visible = showReaderScrollToTop,
-        enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.scaleIn(),
-        exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.scaleOut(),
-        modifier = Modifier
-            .align(Alignment.BottomEnd)
-            .padding(end = 20.dp, bottom = 24.dp)
-    ) {
-        androidx.compose.material3.FloatingActionButton(
-            onClick = { readerScrollScope.launch { scrollState.animateScrollTo(0) } },
-            containerColor = accentColor,
-            // Açık vurgu renklerinde (sarı, mint) beyaz ikon okunmuyordu; kontrast
-            // rengi vurguya göre hesaplanıyor.
-            contentColor = com.kitsugi.animelist.ui.theme.onAccentColor(accentColor),
-            shape = CircleShape,
-            modifier = Modifier.size(56.dp)
-        ) {
-            androidx.compose.material3.Icon(
-                imageVector = Icons.KeyboardArrowUp,
-                contentDescription = null,
-                modifier = Modifier.size(30.dp)
-            )
-        }
-    }
+        isLandscape = androidx.compose.ui.platform.LocalConfiguration.current.orientation ==
+            android.content.res.Configuration.ORIENTATION_LANDSCAPE,
+        bottomBarScrollState = null,
+        fallbackBottomBarVisible = false,
+        onClick = { readerScrollScope.launch { scrollState.animateScrollTo(0) } },
+        modifier = Modifier.align(Alignment.BottomEnd)
+    )
     }
     }
 }

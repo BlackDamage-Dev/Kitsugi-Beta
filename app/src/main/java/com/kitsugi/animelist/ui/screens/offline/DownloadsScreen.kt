@@ -1,4 +1,4 @@
-﻿package com.kitsugi.animelist.ui.screens.offline
+package com.kitsugi.animelist.ui.screens.offline
 
 import com.kitsugi.animelist.ui.components.KitsugiSheetOrDialog
 import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
@@ -1010,29 +1010,33 @@ fun DownloadsScreen(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(
+                    horizontal = com.kitsugi.animelist.ui.components.KitsugiTopActionTokens.HeaderHorizontalPadding,
+                    vertical = 8.dp
+                ),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            IconButton(onClick = onBack) {
-                Icon(
-                    imageVector = Icons.ArrowBack,
-                    contentDescription = stringResource(R.string.geri),
-                    tint = KitsugiColors.TextPrimary
-                )
-            }
+            com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+                icon = Icons.ArrowBack,
+                contentDescription = stringResource(R.string.geri),
+                onClick = onBack,
+                accentColor = accentColor
+            )
             Text(
                 text = stringResource(R.string.settings_downloads),
                 color = KitsugiColors.TextPrimary,
                 fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(start = 4.dp)
+                fontWeight = FontWeight.Black,
+                modifier = Modifier.weight(1f)
             )
 
-            IconButton(onClick = { menuOpen = true }, modifier = Modifier.size(40.dp)) {
-                Icon(imageVector = Icons.Menu, contentDescription = stringResource(R.string.page_controls), tint = accentColor)
-            }
+            com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+                icon = Icons.Menu,
+                contentDescription = stringResource(R.string.page_controls),
+                onClick = { menuOpen = true },
+                accentColor = accentColor
+            )
         }
 
         // ── Arama alanı ──────────────────────────────────────────────────────
@@ -1486,6 +1490,39 @@ fun DownloadsScreen(
                 }
             }
         }
+    }
+
+    when (pagerState.currentPage) {
+        0 -> com.kitsugi.animelist.ui.components.KitsugiScrollToTopFab(
+            listState = videoListState,
+            isBottomBarVisible = false,
+            isLandscape = false,
+            modifier = Modifier.align(Alignment.BottomEnd)
+        )
+        1 -> com.kitsugi.animelist.ui.components.KitsugiScrollToTopFab(
+            listState = audioListState,
+            isBottomBarVisible = false,
+            isLandscape = false,
+            modifier = Modifier.align(Alignment.BottomEnd)
+        )
+        2 -> com.kitsugi.animelist.ui.components.KitsugiScrollToTopFab(
+            listState = subtitleListState,
+            isBottomBarVisible = false,
+            isLandscape = false,
+            modifier = Modifier.align(Alignment.BottomEnd)
+        )
+        3 -> com.kitsugi.animelist.ui.components.KitsugiScrollToTopFab(
+            gridState = imageGridState,
+            isBottomBarVisible = false,
+            isLandscape = false,
+            modifier = Modifier.align(Alignment.BottomEnd)
+        )
+        4 -> com.kitsugi.animelist.ui.components.KitsugiScrollToTopFab(
+            listState = mangaListState,
+            isBottomBarVisible = false,
+            isLandscape = false,
+            modifier = Modifier.align(Alignment.BottomEnd)
+        )
     }
 
     // ── Dahili evrensel ses oynatıcısı (mini çubuk + tam ekran panel) ────────

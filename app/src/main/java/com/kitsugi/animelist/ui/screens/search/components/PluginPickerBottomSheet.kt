@@ -204,17 +204,19 @@ fun PluginPickerBottomSheet(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                    .padding(
+                        horizontal = com.kitsugi.animelist.ui.components.KitsugiTopActionTokens.HeaderHorizontalPadding,
+                        vertical = 10.dp
+                    ),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                IconButton(onClick = onDismissRequest) {
-                    Icon(
-                        imageVector = Icons.ArrowBack,
-                        contentDescription = stringResource(R.string.geri),
-                        tint = KitsugiColors.TextPrimary
-                    )
-                }
+                com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+                    icon = Icons.ArrowBack,
+                    contentDescription = stringResource(R.string.geri),
+                    onClick = onDismissRequest,
+                    accentColor = accentColor
+                )
                 Icon(
                     imageVector = Icons.Extension,
                     contentDescription = null,
@@ -225,7 +227,7 @@ fun PluginPickerBottomSheet(
                     text = stringResource(R.string.eklenti_portali),
                     color = KitsugiColors.TextPrimary,
                     fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Black
                 )
                 Spacer(modifier = Modifier.weight(1f))
                 Text(

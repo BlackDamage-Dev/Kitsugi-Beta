@@ -124,15 +124,21 @@ fun MangaSourceHealthScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                    .padding(
+                        horizontal = com.kitsugi.animelist.ui.components.KitsugiTopActionTokens.HeaderHorizontalPadding,
+                        vertical = 8.dp
+                    ),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                IconButton(onClick = onBack) {
-                    Icon(Icons.ArrowBack, contentDescription = stringResource(R.string.geri), tint = KitsugiColors.TextPrimary)
-                }
+                com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+                    icon = Icons.ArrowBack,
+                    contentDescription = stringResource(R.string.geri),
+                    onClick = onBack,
+                    accentColor = accent
+                )
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(stringResource(R.string.inline_manage_sources_5833fb6), color = KitsugiColors.TextPrimary, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.inline_manage_sources_5833fb6), color = KitsugiColors.TextPrimary, fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium)
                     Text(stringResource(R.string.inline_1_s_items_60ab3ed, installedSources.size), color = KitsugiColors.TextSecondary, fontSize = 12.sp)
                 }
                 if (selectedTab == 0) {

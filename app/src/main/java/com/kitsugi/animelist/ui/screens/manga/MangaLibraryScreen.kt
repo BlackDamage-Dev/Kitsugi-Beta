@@ -95,22 +95,25 @@ fun MangaLibraryScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 4.dp, end = 8.dp, top = 6.dp, bottom = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .padding(
+                        horizontal = com.kitsugi.animelist.ui.components.KitsugiTopActionTokens.HeaderHorizontalPadding,
+                        vertical = 8.dp
+                    ),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                IconButton(onClick = onBack, modifier = Modifier.size(40.dp)) {
-                    Icon(
-                        Icons.AutoMirrored.Rounded.ArrowBack,
-                        contentDescription = stringResource(R.string.geri),
-                        tint = KitsugiColors.TextPrimary
-                    )
-                }
+                com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+                    icon = Icons.AutoMirrored.Rounded.ArrowBack,
+                    contentDescription = stringResource(R.string.geri),
+                    onClick = onBack,
+                    accentColor = accent
+                )
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = stringResource(R.string.manga_library_title),
                         color = KitsugiColors.TextPrimary,
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.Bold
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Black
                     )
                     Text(
                         // Kitaplığın özeti: kaç seri, kaç bölüm indirilmiş.
@@ -126,14 +129,12 @@ fun MangaLibraryScreen(
                     )
                 }
                 Box {
-                    IconButton(onClick = { sortMenuOpen = true }, modifier = Modifier.size(38.dp)) {
-                        Icon(
-                            Icons.Rounded.Sort,
-                            contentDescription = stringResource(R.string.manga_library_sort),
-                            tint = KitsugiColors.TextSecondary,
-                            modifier = Modifier.size(19.dp)
-                        )
-                    }
+                    com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+                        icon = Icons.Rounded.Sort,
+                        contentDescription = stringResource(R.string.manga_library_sort),
+                        onClick = { sortMenuOpen = true },
+                        accentColor = accent
+                    )
                     KitsugiDropdownMenu(
                         expanded = sortMenuOpen,
                         onDismissRequest = { sortMenuOpen = false },

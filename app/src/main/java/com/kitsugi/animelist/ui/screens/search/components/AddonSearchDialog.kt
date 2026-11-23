@@ -181,24 +181,23 @@ fun AddonSearchDialog(
 
                         // ── Başlık — Ana Arama'daki headlineLarge ile birebir aynı
                         item(key = "header") {
-                            Spacer(modifier = Modifier.height(28.dp))
+                            Spacer(modifier = Modifier.height(16.dp))
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
-                                IconButton(onClick = onDismissRequest) {
-                                    Icon(
-                                        imageVector = Icons.ArrowBack,
-                                        contentDescription = stringResource(R.string.geri),
-                                        tint = KitsugiColors.TextPrimary
-                                    )
-                                }
+                                com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+                                    icon = Icons.ArrowBack,
+                                    contentDescription = stringResource(R.string.geri),
+                                    onClick = onDismissRequest,
+                                    accentColor = accentColor
+                                )
                                 Text(
                                     text = stringResource(R.string.eklenti_portali),
                                     color = KitsugiColors.TextPrimary,
                                     style = MaterialTheme.typography.headlineLarge,
-                                    fontWeight = FontWeight.Bold,
+                                    fontWeight = FontWeight.Black,
                                     modifier = Modifier.weight(1f)
                                 )
                             }

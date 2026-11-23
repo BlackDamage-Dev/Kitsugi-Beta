@@ -1,4 +1,4 @@
-﻿package com.kitsugi.animelist.ui.screens.detail
+package com.kitsugi.animelist.ui.screens.detail
 
 import android.content.Intent
 import android.net.Uri
@@ -325,11 +325,22 @@ private fun gallerySourceBadgeColor(sourceLower: String, fallback: Color): Color
     else                          -> fallback
 }
 
-private fun precomputeGalleryModel(items: List<GalleryItem>): GalleryPrecomputedModel {
+private val GalleryLogoContrastBrush = Brush.linearGradient(
+    listOf(
+        Color(0xFF334155),
+        Color(0xFF1E293B)
+    )
+)
+
+private fun precomputeGalleryModel(
+    items: List<GalleryItem>,
+    failedUrls: Set<String> = emptySet()
+): GalleryPrecomputedModel {
     val byCategory = java.util.EnumMap<GalleryCategory, MutableList<GalleryIndexedEntry>>(GalleryCategory::class.java)
     val sourceBuckets = LinkedHashMap<String, Pair<String, Int>>()
 
     items.forEachIndexed { index, item ->
+        if (item.url.isBlank() || item.url in failedUrls) return@forEachIndexed
         val aspect = galleryItemAspectRatio(item.category)
         val entry = GalleryIndexedEntry(
             item = item,
@@ -409,8 +420,11 @@ internal fun DetailGalleryCard(
     val galleryLoading = LocalKitsugiGalleryLoading.current
     val galleryLoadingState = rememberUpdatedState(galleryLoading)
     val latestOnItemClickState = rememberUpdatedState(onItemClick)
+    val failedUrls = remember { androidx.compose.runtime.mutableStateMapOf<String, Boolean>() }
+    val failedUrlSnapshot = failedUrls.keys.toSet()
 
-    val precomputed = remember(items) { precomputeGalleryModel(items) }
+    val precomputed = remember(items, failedUrlSnapshot) { precomputeGalleryModel(items, failedUrlSnapshot) }
+    val validItemCount = remember(precomputed) { precomputed.categoryCounts.values.sum() }
     val initialSectionBatch = 3
     var mountedSectionCount by remember(precomputed) {
         mutableIntStateOf(minOf(initialSectionBatch, precomputed.sections.size))
@@ -436,7 +450,7 @@ internal fun DetailGalleryCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 16.dp, end = 8.dp),
+                .padding(start = 16.dp, end = 12.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -448,23 +462,18 @@ internal fun DetailGalleryCard(
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = stringResource(R.string.gallery_summary, items.size, precomputed.availableCategories.size),
+                    text = stringResource(R.string.gallery_summary, validItemCount, precomputed.availableCategories.size),
                     color = KitsugiColors.TextMuted,
                     style = MaterialTheme.typography.labelSmall
                 )
             }
 
-            IconButton(
-                onClick = { showCategoryMenu = true },
-                enabled = !galleryLoading
-            ) {
-                Icon(
-                    imageVector = Icons.PhotoLibrary,
-                    contentDescription = stringResource(R.string.cd_open_gallery),
-                    tint = accentColor,
-                    modifier = Modifier.size(22.dp)
-                )
-            }
+            com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+                icon = Icons.PhotoLibrary,
+                contentDescription = stringResource(R.string.cd_open_gallery),
+                onClick = { if (!galleryLoading) showCategoryMenu = true },
+                accentColor = accentColor
+            )
         }
 
         if (showCategoryMenu) {
@@ -562,7 +571,8 @@ internal fun DetailGalleryCard(
                     isAdult = isAdult,
                     accentColor = accentColor,
                     galleryLoadingState = galleryLoadingState,
-                    onItemClickState = latestOnItemClickState
+                    onItemClickState = latestOnItemClickState,
+                    onUrlFailed = { url -> failedUrls[url] = true }
                 )
             } else {
                 // Henüz monte edilmemiş alt kategoriler için deterministik yükseklik ayır
@@ -580,7 +590,8 @@ private fun GalleryCategorySectionBlock(
     isAdult: Boolean,
     accentColor: Color,
     galleryLoadingState: androidx.compose.runtime.State<Boolean>,
-    onItemClickState: androidx.compose.runtime.State<(Int) -> Unit>
+    onItemClickState: androidx.compose.runtime.State<(Int) -> Unit>,
+    onUrlFailed: (String) -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -665,12 +676,18 @@ private fun GalleryCategorySectionBlock(
                         rowEntries.forEach { entry ->
                             val item = entry.item
                             val cardShape = RoundedCornerShape(12.dp)
+                            val isTransparentArtwork = section.category == GalleryCategory.LOGO ||
+                                section.category == GalleryCategory.CLEARART
 
                             Box(
                                 modifier = Modifier
                                     .weight(1f)
                                     .aspectRatio(entry.aspectRatio)
                                     .clip(cardShape)
+                                    .then(
+                                        if (isTransparentArtwork) Modifier.background(GalleryLogoContrastBrush)
+                                        else Modifier.background(KitsugiColors.Surface)
+                                    )
                                     .border(1.dp, KitsugiColors.Border, cardShape)
                                     .graphicsLayer {
                                         alpha = if (galleryLoadingState.value) 0.5f else 1f
@@ -685,8 +702,11 @@ private fun GalleryCategorySectionBlock(
                                     model = item.url,
                                     contentDescription = "$localizedCategoryLabel – $sourceName",
                                     isAdult = isAdult,
-                                    modifier = Modifier.matchParentSize(),
-                                    contentScale = ContentScale.Crop
+                                    modifier = Modifier
+                                        .matchParentSize()
+                                        .then(if (isTransparentArtwork) Modifier.padding(10.dp) else Modifier),
+                                    contentScale = if (isTransparentArtwork) ContentScale.Fit else ContentScale.Crop,
+                                    onLoadingFailed = { onUrlFailed(item.url) }
                                 )
 
                                 Box(

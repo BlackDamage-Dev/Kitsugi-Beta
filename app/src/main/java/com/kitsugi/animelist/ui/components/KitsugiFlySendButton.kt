@@ -11,6 +11,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import com.kitsugi.animelist.ui.theme.gradient.background
+import com.kitsugi.animelist.ui.theme.gradient.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -265,9 +266,17 @@ fun KitsugiFlySendIconButton(
     Box(
         modifier = modifier
             .size(size)
-            .shadow(if (isInteracting) 6.dp else 2.dp, RoundedCornerShape(12.dp), spotColor = effectiveColor.copy(alpha = 0.4f))
-            .clip(RoundedCornerShape(12.dp))
-            .background(effectiveColor)
+            .shadow(if (isInteracting) 6.dp else 2.dp, androidx.compose.foundation.shape.CircleShape, spotColor = effectiveColor.copy(alpha = 0.4f))
+            .clip(androidx.compose.foundation.shape.CircleShape)
+            .background(
+                androidx.compose.ui.graphics.Brush.linearGradient(
+                    listOf(
+                        effectiveColor.copy(alpha = if (isInteracting) 0.30f else 0.18f),
+                        com.kitsugi.animelist.ui.theme.KitsugiColors.Surface.copy(alpha = 0.92f)
+                    )
+                )
+            )
+            .border(1.dp, effectiveColor.copy(alpha = 0.52f), androidx.compose.foundation.shape.CircleShape)
             .pointerInput(Unit) {
                 awaitPointerEventScope {
                     while (true) {

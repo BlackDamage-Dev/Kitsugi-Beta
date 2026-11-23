@@ -129,30 +129,18 @@ fun KitsugiCinematicLoadingScreen(
         )
 
         // Back remains available while an API call is in flight, including on TV/D-pad devices.
-        Row(
+        KitsugiIconGlassButton(
+            icon = Icons.ArrowBack,
+            contentDescription = stringResource(R.string.geri),
+            onClick = onBackClick,
+            accentColor = accentColor,
             modifier = Modifier
                 .statusBarsPadding()
-                .padding(start = 16.dp, top = 16.dp)
-                .clip(RoundedCornerShape(99.dp))
-                .background(Color.Black.copy(alpha = 0.6f))
-                .tvClickable(shape = RoundedCornerShape(99.dp)) { onBackClick() }
-                .padding(horizontal = 16.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = Icons.ArrowBack,
-                contentDescription = stringResource(R.string.geri),
-                tint = KitsugiColors.TextPrimary,
-                modifier = Modifier.size(18.dp)
-            )
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(
-                text = stringResource(R.string.geri),
-                color = KitsugiColors.TextPrimary,
-                fontWeight = FontWeight.Bold,
-                fontSize = 14.sp
-            )
-        }
+                .padding(
+                    horizontal = KitsugiTopActionTokens.HeaderHorizontalPadding,
+                    vertical = 8.dp
+                )
+        )
 
         Column(
             modifier = Modifier

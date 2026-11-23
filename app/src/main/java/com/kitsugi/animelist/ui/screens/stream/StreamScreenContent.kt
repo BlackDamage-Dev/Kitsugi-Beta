@@ -1,4 +1,4 @@
-﻿package com.kitsugi.animelist.ui.screens.stream
+package com.kitsugi.animelist.ui.screens.stream
 
 import android.content.SharedPreferences
 import android.content.res.Configuration
@@ -510,28 +510,33 @@ private fun StreamTopBar(
     trailing: @Composable RowScope.() -> Unit = {}
 ) {
     Surface(color = KitsugiColors.Background.copy(alpha = 0.94f)) {
+        val isNarrow = LocalConfiguration.current.screenWidthDp < 360
+        val topActions = buildList {
+            if (onManualSearchClick != null) add(KitsugiTopAction.SEARCH)
+            if (onOpenHistory != null) add(KitsugiTopAction.HISTORY)
+            if (onOpenDownloads != null) add(KitsugiTopAction.DOWNLOADS)
+        }
         Column(Modifier.fillMaxWidth()) {
             Row(
-                modifier = Modifier.fillMaxWidth().height(TOP_BAR_HEIGHT).padding(horizontal = 8.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(TOP_BAR_HEIGHT)
+                    .padding(horizontal = com.kitsugi.animelist.ui.components.KitsugiTopActionTokens.HeaderHorizontalPadding),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(
+                com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+                    icon = Icons.ArrowBack,
+                    contentDescription = stringResource(R.string.action_back),
                     onClick = onBack,
-                    modifier = Modifier.size(38.dp),
-                    colors = IconButtonDefaults.iconButtonColors(
-                        containerColor = KitsugiColors.SurfaceStrong.copy(alpha = 0.55f),
-                        contentColor = KitsugiColors.TextPrimary
-                    )
-                ) {
-                    Icon(Icons.ArrowBack, stringResource(R.string.action_back), modifier = Modifier.size(18.dp))
-                }
+                    accentColor = accentColor
+                )
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
                     Text(
                         text = title,
                         color = KitsugiColors.TextPrimary,
                         style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
+                        fontWeight = FontWeight.Black,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -548,36 +553,22 @@ private fun StreamTopBar(
                     ImdbBadge(it)
                 }
                 trailing()
-                // Kanonik sıra: Geçmiş → İndirmeler → Arama (uygulamanın her yerinde aynı
-                // ortak üst çubuk butonları; bkz. KitsugiTopActionBar.kt).
-                if (onOpenHistory != null) {
-                    KitsugiTopActionButton(
-                        action = KitsugiTopAction.HISTORY,
-                        onClick = onOpenHistory,
-                        size = 34.dp,
-                        cornerRadius = 10.dp,
-                        iconSize = 17.dp,
-                        modifier = Modifier.padding(start = 2.dp)
-                    )
-                }
-                if (onOpenDownloads != null) {
-                    KitsugiTopActionButton(
-                        action = KitsugiTopAction.DOWNLOADS,
-                        onClick = onOpenDownloads,
-                        size = 34.dp,
-                        cornerRadius = 10.dp,
-                        iconSize = 17.dp,
-                        modifier = Modifier.padding(start = 2.dp)
-                    )
-                }
-                if (onManualSearchClick != null) {
-                    KitsugiTopActionButton(
-                        action = KitsugiTopAction.SEARCH,
-                        onClick = onManualSearchClick,
-                        size = 34.dp,
-                        cornerRadius = 10.dp,
-                        iconSize = 17.dp,
-                        modifier = Modifier.padding(start = 2.dp)
+                if (topActions.isNotEmpty()) {
+                    Spacer(Modifier.width(6.dp))
+                    com.kitsugi.animelist.ui.components.KitsugiTopActionRow(
+                        actions = topActions,
+                        onActionClick = { action ->
+                            when (action) {
+                                KitsugiTopAction.SEARCH -> onManualSearchClick?.invoke()
+                                KitsugiTopAction.HISTORY -> onOpenHistory?.invoke()
+                                KitsugiTopAction.DOWNLOADS -> onOpenDownloads?.invoke()
+                                else -> {}
+                            }
+                        },
+                        accentColor = accentColor,
+                        size = com.kitsugi.animelist.ui.components.KitsugiTopActionTokens.CompactButtonSize,
+                        spacing = 4.dp,
+                        maxVisibleActions = if (isNarrow) 2 else 3
                     )
                 }
             }
@@ -716,6 +707,15 @@ private fun PortraitLayout(
                 onAudioDownloadSelected = onAudioDownloadSelected
             )
         }
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        com.kitsugi.animelist.ui.components.KitsugiScrollToTopFab(
+            listState = listState,
+            isBottomBarVisible = false,
+            isLandscape = false,
+            modifier = Modifier.align(Alignment.BottomEnd)
+        )
     }
 
     if (showSourceSheet) {
@@ -865,6 +865,15 @@ private fun LandscapeLayout(
                 )
             }
         }
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        com.kitsugi.animelist.ui.components.KitsugiScrollToTopFab(
+            listState = listState,
+            isBottomBarVisible = false,
+            isLandscape = true,
+            modifier = Modifier.align(Alignment.BottomEnd)
+        )
     }
 
     if (showSourceSheet) {

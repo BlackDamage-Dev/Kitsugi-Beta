@@ -436,17 +436,7 @@ fun ExploreScreen(
                         KitsugiPullToRefreshIndicator(
                             state = pullRefreshState,
                             isRefreshing = viewModel.isLoading,
-                            modifier = Modifier
-                                .align(Alignment.TopCenter)
-                                .then(
-                                    if (!isTvDevice) {
-                                        Modifier
-                                            .statusBarsPadding()
-                                            .padding(top = if (isLandscape) 86.dp else 112.dp)
-                                    } else {
-                                        Modifier
-                                    }
-                                )
+                            modifier = Modifier.align(Alignment.TopCenter)
                         )
                     }
                 ) {
@@ -795,6 +785,13 @@ fun ExploreScreen(
                         }
                     }
                 } else {
+                    val exploreScreenWidthDp = LocalConfiguration.current.screenWidthDp
+                    val exploreMaxActions = when {
+                        isLandscape && exploreScreenWidthDp < 580 -> 2
+                        isLandscape && exploreScreenWidthDp < 700 -> 3
+                        !isLandscape && exploreScreenWidthDp < 335 -> 3
+                        else -> null
+                    }
                     MobileExploreVisualHost(
                         selectedSource = viewModel.selectedPlatform,
                         content = mobileContent,
@@ -807,10 +804,7 @@ fun ExploreScreen(
                                     add(KitsugiTopAction.RANDOM)
                                     if (isNotificationsVisible) add(KitsugiTopAction.NOTIFICATIONS)
                                 },
-                                size = 34.dp,
-                                cornerRadius = 17.dp,
-                                spacing = 5.dp,
-                                glassStyle = true,
+                                maxVisibleActions = exploreMaxActions,
                                 onActionClick = { action ->
                                     when (action) {
                                         KitsugiTopAction.RANDOM -> {

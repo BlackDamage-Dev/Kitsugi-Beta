@@ -611,6 +611,13 @@ internal fun SettingsContext.buildSettingsParams() =
         onOpenWatchHistory = {
             navState.navigateToDetail(DetailScreen.WatchHistory)
         },
+        isNotificationsVisible = authViewModel.isAniListConnected || authViewModel.isMalConnected || authViewModel.isSimklConnected || authViewModel.isTmdbConnected,
+        onOpenNotifications = {
+            navState.navigateToDetail(DetailScreen.Notifications())
+        },
+        bottomBarScrollState = bottomBarScrollState,
+        isBottomBarVisible = appSettings.fixedNavBar || (bottomBarScrollState?.isVisible ?: true),
+        onScrollReset = onScrollReset,
         onExplorePlugin = { pluginName ->
             navState.navigateToDetail(DetailScreen.AddonExplore(pluginName))
         },

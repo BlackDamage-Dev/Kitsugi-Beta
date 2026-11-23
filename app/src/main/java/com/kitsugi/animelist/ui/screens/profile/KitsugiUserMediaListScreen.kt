@@ -119,7 +119,7 @@ fun KitsugiUserMediaListScreen(
     val colors = LocalKitsugiColors.current
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-    val horizontalPadding = if (isLandscape) 12.dp else 20.dp
+    val horizontalPadding = com.kitsugi.animelist.ui.components.KitsugiTopActionTokens.HeaderHorizontalPadding
     val isTvDevice = LocalIsTvDevice.current
     val coroutineScope = rememberCoroutineScope()
     val listState = rememberLazyListState()
@@ -488,90 +488,44 @@ fun KitsugiUserMediaListScreen(
     }
 
     if (!isTvDevice && state.items.isNotEmpty()) {
-        val navigationBarPadding = WindowInsets.navigationBars
-            .asPaddingValues()
-            .calculateBottomPadding()
-        val floatingBottomPadding by animateDpAsState(
-            targetValue = 16.dp + navigationBarPadding,
-            animationSpec = tween(durationMillis = 200),
-            label = "user_list_fab_bottom_padding"
-        )
+        val activeStatusLabel = when (selectedStatusFilterId) {
+            "watching" -> stringResource(R.string.mylist_filter_watching)
+            "completed" -> stringResource(R.string.mylist_filter_completed)
+            "planned" -> stringResource(R.string.mylist_filter_planned)
+            "dropped" -> stringResource(R.string.mylist_filter_dropped)
+            "paused" -> stringResource(R.string.mylist_filter_paused)
+            "adult" -> stringResource(R.string.filter_adult)
+            "favorites" -> stringResource(R.string.mylist_filter_favorites)
+            else -> stringResource(R.string.mylist_filter_all)
+        }
 
         Box(modifier = Modifier.fillMaxSize()) {
-            AnimatedVisibility(
-                visible = isCategoryFabVisible,
-                enter = fadeIn() + scaleIn(),
-                exit = fadeOut() + scaleOut(),
+            com.kitsugi.animelist.ui.components.KitsugiFloatingFilterPill(
+                visible = true,
+                label = activeStatusLabel,
+                icon = Icons.FormatListBulleted,
+                iconContentDescription = stringResource(R.string.search_filter_category),
+                isLandscape = isLandscape,
+                isBottomBarVisible = false,
+                onClick = { showStatusBottomSheet = true },
                 modifier = Modifier
                     .align(Alignment.BottomStart)
-                    .padding(start = 20.dp, bottom = floatingBottomPadding)
                     .zIndex(10f)
-            ) {
-                val activeStatusLabel = when (selectedStatusFilterId) {
-                    "watching" -> stringResource(R.string.mylist_filter_watching)
-                    "completed" -> stringResource(R.string.mylist_filter_completed)
-                    "planned" -> stringResource(R.string.mylist_filter_planned)
-                    "dropped" -> stringResource(R.string.mylist_filter_dropped)
-                    "paused" -> stringResource(R.string.mylist_filter_paused)
-                    "adult" -> stringResource(R.string.filter_adult)
-                    "favorites" -> stringResource(R.string.mylist_filter_favorites)
-                    else -> stringResource(R.string.mylist_filter_all)
-                }
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(999.dp))
-                        .background(accentColor)
-                        .tvClickable(shape = RoundedCornerShape(999.dp)) {
-                            showStatusBottomSheet = true
-                        }
-                        .padding(horizontal = 20.dp, vertical = 14.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.FormatListBulleted,
-                            contentDescription = stringResource(R.string.search_filter_category),
-                            tint = colors.background,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = activeStatusLabel,
-                            color = colors.background,
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Black
-                        )
-                    }
-                }
-            }
+            )
 
-            AnimatedVisibility(
+            com.kitsugi.animelist.ui.components.KitsugiScrollToTopFab(
                 visible = showScrollToTop,
-                enter = fadeIn() + scaleIn(),
-                exit = fadeOut() + scaleOut(),
+                isLandscape = isLandscape,
+                bottomBarScrollState = null,
+                fallbackBottomBarVisible = false,
+                contentDescriptionRes = R.string.yukari_git,
+                onClick = {
+                    coroutineScope.launch { listState.animateScrollToItem(0) }
+                },
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(end = 20.dp, bottom = floatingBottomPadding)
                     .zIndex(10f)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(accentColor)
-                        .tvClickable(shape = RoundedCornerShape(16.dp)) {
-                            coroutineScope.launch { listState.animateScrollToItem(0) }
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.KeyboardArrowUp,
-                        contentDescription = stringResource(R.string.yukari_git),
-                        tint = colors.background,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-            }
+            )
         }
     }
 

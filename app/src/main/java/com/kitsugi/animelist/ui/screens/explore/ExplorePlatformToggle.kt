@@ -1,4 +1,4 @@
-﻿package com.kitsugi.animelist.ui.screens.explore
+package com.kitsugi.animelist.ui.screens.explore
 
 import androidx.compose.foundation.rememberScrollState
 import com.kitsugi.animelist.ui.utils.kitsugiVerticalScroll
@@ -36,6 +36,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kitsugi.animelist.ui.components.KitsugiPlatformLogo
+import com.kitsugi.animelist.ui.components.KitsugiSourceSelectorPill
 import com.kitsugi.animelist.ui.theme.KitsugiColors
 import com.kitsugi.animelist.ui.theme.LocalKitsugiAccent
 import com.kitsugi.animelist.ui.utils.tvClickable
@@ -78,44 +79,13 @@ fun ExploreSourceEngineSelectorPill(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val accentColor = LocalKitsugiAccent.current
-
-    Row(
+    KitsugiSourceSelectorPill(
+        label = selectedPlatform.localizedLabel(),
+        platformId = if (selectedPlatform == ExplorePlatform.ALL) null else selectedPlatform.name,
+        contentDescription = stringResource(R.string.explore_source_platform_select),
+        onClick = onClick,
         modifier = modifier
-            .clip(RoundedCornerShape(14.dp))
-            .background(KitsugiColors.SurfaceElevated)
-            .border(
-                width = 1.dp,
-                color = accentColor.copy(alpha = 0.35f),
-                shape = RoundedCornerShape(14.dp)
-            )
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 7.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        KitsugiPlatformLogo(
-            platformId = selectedPlatform.name,
-            size = 18.dp
-        )
-        Column(modifier = Modifier.weight(1f, fill = false)) {
-            Text(
-                text = selectedPlatform.localizedLabel(),
-                style = MaterialTheme.typography.labelMedium.copy(
-                    fontWeight = FontWeight.Bold,
-                    color = KitsugiColors.TextPrimary
-                ),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-        Icon(
-            imageVector = Icons.ArrowDropDown,
-            contentDescription = stringResource(R.string.explore_source_platform_select),
-            tint = accentColor,
-            modifier = Modifier.size(18.dp)
-        )
-    }
+    )
 }
 
 /**

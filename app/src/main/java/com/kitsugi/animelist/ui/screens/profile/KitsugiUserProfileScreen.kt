@@ -124,33 +124,43 @@ fun KitsugiUserProfileScreen(
     Column(modifier = Modifier.fillMaxSize().background(KitsugiColors.Background)) {
 
         // ── Top bar ──────────────────────────────────────────────────────────
-        Surface(modifier = Modifier.fillMaxWidth(), color = KitsugiColors.Surface, shadowElevation = 2.dp) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onBackClick) {
-                        Icon(Icons.ArrowBack, contentDescription = stringResource(R.string.geri), tint = KitsugiColors.TextPrimary)
-                    }
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = state.name.ifBlank { fallbackUsername ?: stringResource(R.string.ui_profile_user_fallback) },
-                        color = KitsugiColors.TextPrimary,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-                if (state.name.isNotBlank()) {
-                    IconButton(onClick = {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(
+                    start = com.kitsugi.animelist.ui.components.KitsugiTopActionTokens.HeaderHorizontalPadding,
+                    end = com.kitsugi.animelist.ui.components.KitsugiTopActionTokens.HeaderHorizontalPadding,
+                    top = if (isLandscape) com.kitsugi.animelist.ui.components.KitsugiTopActionTokens.HeaderTopPaddingLandscape else com.kitsugi.animelist.ui.components.KitsugiTopActionTokens.HeaderTopPaddingPortrait,
+                    bottom = if (isLandscape) 2.dp else 4.dp
+                )
+                .heightIn(
+                    min = if (isLandscape) com.kitsugi.animelist.ui.components.KitsugiTopActionTokens.HeaderRowMinHeightLandscape else com.kitsugi.animelist.ui.components.KitsugiTopActionTokens.HeaderRowMinHeight
+                ),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+                icon = Icons.ArrowBack,
+                contentDescription = stringResource(R.string.geri),
+                onClick = onBackClick,
+                accentColor = resolvedAccent
+            )
+            Text(
+                text = state.name.ifBlank { fallbackUsername ?: stringResource(R.string.ui_profile_user_fallback) },
+                color = KitsugiColors.TextPrimary,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
+            if (state.name.isNotBlank()) {
+                com.kitsugi.animelist.ui.components.KitsugiTopActionButton(
+                    action = com.kitsugi.animelist.ui.components.KitsugiTopAction.SHARE,
+                    onClick = {
                         ShareUtils.shareText(context, state.name, ShareUtils.buildProfileUrl("anilist", state.name))
-                    }) {
-                        Icon(Icons.Share, contentDescription = stringResource(R.string.profili_paylas), tint = KitsugiColors.TextPrimary)
                     }
-                }
+                )
             }
         }
 
@@ -370,7 +380,10 @@ fun KitsugiUserProfileScreen(
                 // Listem tarzı alt kontroller: kategori (sol) + yukarı kaydırma (sağ)
                 ProfileFavoritesFloatingControls(
                     listState = listState,
-                    visible = activeTab in 2..4,
+                    visible = true,
+                    showCategoryPill = activeTab in 2..4,
+                    isBottomBarVisible = false,
+                    isLandscape = isLandscape,
                     selectedCategory = when (activeTab) { 2 -> viewModel.statsSubTab; 4 -> viewModel.socialFilter; else -> favFilter },
                     categoryCounts = when (activeTab) {
                         3 -> listOf(state.favoriteAnime.size, state.favoriteManga.size, state.favoriteCharacters.size,
@@ -396,7 +409,6 @@ fun KitsugiUserProfileScreen(
                         4 -> viewModel.socialFilter = it
                         else -> viewModel.favoritesFilter = it
                     } },
-                    bottomOffset = 20.dp,
                     onScrollReset = onScrollReset
                 )
                 }

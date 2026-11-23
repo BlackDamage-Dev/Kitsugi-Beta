@@ -124,7 +124,7 @@ fun AppRootTabPages(
                     authViewModel = ctx.authViewModel,
                     navState = ctx.navState,
                     context = context,
-                    isBottomBarVisible = ctx.bottomBarScrollState.isVisible,
+                    isBottomBarVisible = ctx.appSettings.fixedNavBar || ctx.bottomBarScrollState.isVisible,
                     onScrollReset = ctx.onScrollReset
                 )
             }
@@ -262,7 +262,7 @@ fun AppRootTabPages(
                     onMalUserProfileClick = { userId, username, avatarUrl ->
                         ctx.navState.navigateToDetail(DetailScreen.UserProfile(userId, username, avatarUrl, "mal"))
                     },
-                    isBottomBarVisible = ctx.bottomBarScrollState.isVisible,
+                    isBottomBarVisible = ctx.appSettings.fixedNavBar || ctx.bottomBarScrollState.isVisible,
                     onScrollReset = ctx.onScrollReset
                 )
             }
@@ -400,7 +400,7 @@ private fun SearchTabPage(ctx: TabPagesContext) {
         onOpenAddonExplore = { apiName -> ctx.navState.navigateToDetail(com.kitsugi.animelist.DetailScreen.AddonExplore(apiName)) },
         // AKILLI BİLDİRİM: arama sayfasında seçili kaynak hangisiyse (Tümü / AniList / MAL /
         // TMDB / Shikimori / Kitsu / Simkl / Bangumi) bildirimler doğrudan o kaynakla açılır.
-        isNotificationsVisible = ctx.authViewModel.isAniListConnected || ctx.authViewModel.isMalConnected || ctx.authViewModel.isSimklConnected,
+        isNotificationsVisible = ctx.authViewModel.isAniListConnected || ctx.authViewModel.isMalConnected || ctx.authViewModel.isSimklConnected || ctx.authViewModel.isTmdbConnected,
         onOpenNotifications = {
             ctx.navState.navigateToDetail(
                 com.kitsugi.animelist.DetailScreen.Notifications(
@@ -474,7 +474,9 @@ private fun SettingsTabPage(
             onExportBackupFileClick = ctx.onExportBackupFileClick,
             onImportBackupFileClick = ctx.onImportBackupFileClick,
             context = context,
-            navState = ctx.navState
+            navState = ctx.navState,
+            bottomBarScrollState = ctx.bottomBarScrollState,
+            onScrollReset = ctx.onScrollReset
         )
     )
 }

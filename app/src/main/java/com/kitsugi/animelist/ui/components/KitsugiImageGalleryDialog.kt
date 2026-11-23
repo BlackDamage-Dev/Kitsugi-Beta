@@ -1,4 +1,4 @@
-﻿package com.kitsugi.animelist.ui.components
+package com.kitsugi.animelist.ui.components
 
 import com.kitsugi.animelist.ui.theme.gradient.Icon
 import com.kitsugi.animelist.ui.utils.uniqueItems
@@ -845,7 +845,7 @@ private fun GalleryLandscapeLayout(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                        .padding(horizontal = KitsugiTopActionTokens.HeaderHorizontalPadding, vertical = 10.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -853,30 +853,23 @@ private fun GalleryLandscapeLayout(
                     if (showDownloadButton) {
                         val downloadBtnColor =
                             if (isAlreadyDownloaded) KitsugiColors.AccentGreen else accentColor
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .background(
-                                    color = downloadBtnColor.copy(alpha = 0.18f * downloadGlow),
-                                    shape = RoundedCornerShape(10.dp)
-                                )
-                                .border(1.dp, downloadBtnColor.copy(alpha = 0.45f), RoundedCornerShape(10.dp))
-                                .tvClickable(shape = RoundedCornerShape(10.dp), onClick = onDownload),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = if (isAlreadyDownloaded) Icons.CheckCircle else Icons.Download,
-                                contentDescription = stringResource(if (isAlreadyDownloaded) R.string.gallery_downloaded_status else R.string.gallery_download_action),
-                                tint = downloadBtnColor,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
+                        KitsugiIconGlassButton(
+                            icon = if (isAlreadyDownloaded) Icons.CheckCircle else Icons.Download,
+                            contentDescription = stringResource(if (isAlreadyDownloaded) R.string.gallery_downloaded_status else R.string.gallery_download_action),
+                            onClick = onDownload,
+                            accentColor = downloadBtnColor,
+                            iconTint = downloadBtnColor,
+                            size = 36.dp,
+                            iconSize = 18.dp,
+                            selected = true
+                        )
                     }
 
                     // Share / Send (Animated Fly)
                     KitsugiFlySendIconButton(
                         onClick = onShare,
                         size = 36.dp,
+                        contentColor = accentColor,
                         contentDescription = stringResource(R.string.paylas)
                     )
 
@@ -885,7 +878,7 @@ private fun GalleryLandscapeLayout(
                         KitsugiGalleryDeleteButton(
                             size = 36.dp,
                             iconSize = 18.dp,
-                            corner = 10.dp,
+                            corner = 999.dp,
                             active = deleteActive,
                             glow = downloadGlow,
                             onClick = onRequestDelete
@@ -895,24 +888,14 @@ private fun GalleryLandscapeLayout(
                     Spacer(modifier = Modifier.weight(1f))
 
                     // Close
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .background(
-                                color = KitsugiColors.SurfaceStrong.copy(alpha = 0.85f),
-                                shape = RoundedCornerShape(10.dp)
-                            )
-                            .border(1.dp, KitsugiColors.Border, RoundedCornerShape(10.dp))
-                            .tvClickable(shape = RoundedCornerShape(10.dp), onClick = { onDismiss() }),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Close,
-                            contentDescription = stringResource(R.string.kapat),
-                            tint = KitsugiColors.TextSecondary,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
+                    KitsugiIconGlassButton(
+                        icon = Icons.Close,
+                        contentDescription = stringResource(R.string.kapat),
+                        onClick = onDismiss,
+                        accentColor = accentColor,
+                        size = 36.dp,
+                        iconSize = 18.dp
+                    )
                 }
 
                 // Title
@@ -2119,7 +2102,7 @@ private fun KitsugiGalleryHeader(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                    .padding(horizontal = KitsugiTopActionTokens.HeaderHorizontalPadding, vertical = 12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -2129,18 +2112,18 @@ private fun KitsugiGalleryHeader(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     modifier = Modifier.weight(1f)
                 ) {
-                    // İkon kutusu
+                    // İkon kutusu (Dairesel koyu cam)
                     Box(
                         modifier = Modifier
                             .size(36.dp)
                             .background(
                                 color = accentColor.copy(alpha = 0.15f),
-                                shape = RoundedCornerShape(10.dp)
+                                shape = CircleShape
                             )
                             .border(
                                 width = 1.dp,
-                                color = accentColor.copy(alpha = 0.3f),
-                                shape = RoundedCornerShape(10.dp)
+                                color = accentColor.copy(alpha = 0.35f),
+                                shape = CircleShape
                             ),
                         contentAlignment = Alignment.Center
                     ) {
@@ -2191,28 +2174,14 @@ private fun KitsugiGalleryHeader(
                     // Detaylar Butonu — dikey modda ayrıntı levhasını açar
                     // (yatay modda bu bilgi zaten sağ panelde durur)
                     if (showDetailsButton) {
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .background(
-                                    color = accentColor.copy(alpha = 0.12f),
-                                    shape = RoundedCornerShape(12.dp)
-                                )
-                                .border(
-                                    width = 1.dp,
-                                    color = accentColor.copy(alpha = 0.4f),
-                                    shape = RoundedCornerShape(12.dp)
-                                )
-                                .tvClickable(shape = RoundedCornerShape(12.dp), onClick = onShowDetails),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Info,
-                                contentDescription = stringResource(R.string.gallery_details_accessibility),
-                                tint = accentColor,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
+                        KitsugiIconGlassButton(
+                            icon = Icons.Info,
+                            contentDescription = stringResource(R.string.gallery_details_accessibility),
+                            onClick = onShowDetails,
+                            accentColor = accentColor,
+                            iconTint = accentColor,
+                            selected = true
+                        )
                     }
 
                     // İndirme Butonu — accent renkli, animasyonlu
@@ -2220,73 +2189,44 @@ private fun KitsugiGalleryHeader(
                     if (showDownloadButton) {
                         val downloadBtnColor =
                             if (isAlreadyDownloaded) KitsugiColors.AccentGreen else accentColor
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .background(
-                                    color = downloadBtnColor.copy(alpha = 0.18f * downloadGlow),
-                                    shape = RoundedCornerShape(12.dp)
-                                )
-                                .border(
-                                    width = 1.dp,
-                                    color = downloadBtnColor.copy(alpha = 0.45f),
-                                    shape = RoundedCornerShape(12.dp)
-                                )
-                                .tvClickable(shape = RoundedCornerShape(12.dp), onClick = onDownload),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = if (isAlreadyDownloaded) Icons.CheckCircle else Icons.Download,
-                                contentDescription = stringResource(if (isAlreadyDownloaded) R.string.gallery_downloaded_status else R.string.gallery_download_action),
-                                tint = downloadBtnColor,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
+                        KitsugiIconGlassButton(
+                            icon = if (isAlreadyDownloaded) Icons.CheckCircle else Icons.Download,
+                            contentDescription = stringResource(if (isAlreadyDownloaded) R.string.gallery_downloaded_status else R.string.gallery_download_action),
+                            onClick = onDownload,
+                            accentColor = downloadBtnColor,
+                            iconTint = downloadBtnColor,
+                            selected = true
+                        )
                     }
 
                     // Paylaşım Butonu — accent dokunuşlu glassmorphism
                     // Share / Send (Animated Fly)
                     KitsugiFlySendIconButton(
                         onClick = onShare,
-                        size = 40.dp,
+                        size = KitsugiTopActionTokens.ButtonSize,
+                        contentColor = accentColor,
                         contentDescription = stringResource(R.string.paylas)
                     )
 
                     // Silme Butonu — indirilen kopyayı (veya yerel dosyayı) kaldırır.
                     if (allowDelete) {
                         KitsugiGalleryDeleteButton(
-                            size = 40.dp,
-                            iconSize = 20.dp,
-                            corner = 12.dp,
+                            size = KitsugiTopActionTokens.ButtonSize,
+                            iconSize = KitsugiTopActionTokens.IconSize,
+                            corner = 999.dp,
                             active = deleteActive,
                             glow = downloadGlow,
                             onClick = onRequestDelete
                         )
                     }
 
-                    // Kapatma Butonu — nötr, SurfaceSoft tabanlı
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .background(
-                                color = KitsugiColors.SurfaceStrong.copy(alpha = 0.85f),
-                                shape = RoundedCornerShape(12.dp)
-                            )
-                            .border(
-                                width = 1.dp,
-                                color = KitsugiColors.Border,
-                                shape = RoundedCornerShape(12.dp)
-                            )
-                            .tvClickable(shape = RoundedCornerShape(12.dp), onClick = onDismiss),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Close,
-                            contentDescription = stringResource(R.string.kapat),
-                            tint = KitsugiColors.TextSecondary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
+                    // Kapatma Butonu — dairesel koyu cam
+                    KitsugiIconGlassButton(
+                        icon = Icons.Close,
+                        contentDescription = stringResource(R.string.kapat),
+                        onClick = onDismiss,
+                        accentColor = accentColor
+                    )
                 }
             }
         }
@@ -2353,7 +2293,7 @@ internal fun KitsugiGalleryDeleteButton(
     onClick: () -> Unit
 ) {
     val danger = Color(0xFFFF3B3B)
-    val shape = RoundedCornerShape(corner)
+    val shape = if (corner >= 900.dp) CircleShape else RoundedCornerShape(corner)
     val container = if (active) danger.copy(alpha = 0.20f * glow) else KitsugiColors.SurfaceStrong.copy(alpha = 0.72f)
     val stroke = if (active) danger.copy(alpha = 0.55f) else KitsugiColors.Border.copy(alpha = 0.45f)
     val tint = if (active) danger else KitsugiColors.TextMuted

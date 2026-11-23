@@ -65,30 +65,21 @@ fun MangaDetailTopBar(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(MangaDetailTopBarHeight)
-                        .padding(horizontal = 8.dp),
+                        .padding(horizontal = com.kitsugi.animelist.ui.components.KitsugiTopActionTokens.HeaderHorizontalPadding),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    IconButton(
-                        onClick = onBack,
-                        modifier = Modifier.size(38.dp),
-                        colors = IconButtonDefaults.iconButtonColors(
-                            containerColor = KitsugiColors.SurfaceStrong.copy(alpha = 0.55f),
-                            contentColor = KitsugiColors.TextPrimary
-                        )
-                    ) {
-                        Icon(
-                            Icons.AutoMirrored.Rounded.ArrowBack,
-                            contentDescription = stringResource(R.string.geri),
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
+                    com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+                        icon = Icons.AutoMirrored.Rounded.ArrowBack,
+                        contentDescription = stringResource(R.string.geri),
+                        onClick = onBack
+                    )
                     Spacer(Modifier.width(10.dp))
                     Column(Modifier.weight(1f)) {
                         Text(
                             text = title,
                             color = KitsugiColors.TextPrimary,
                             style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold,
+                            fontWeight = FontWeight.Black,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -102,20 +93,11 @@ fun MangaDetailTopBar(
                             )
                         }
                     }
-                    IconButton(
-                        onClick = onRefresh,
-                        modifier = Modifier.size(36.dp),
-                        colors = IconButtonDefaults.iconButtonColors(
-                            containerColor = Color.Transparent,
-                            contentColor = KitsugiColors.TextSecondary
-                        )
-                    ) {
-                        Icon(
-                            Icons.Rounded.Refresh,
-                            contentDescription = stringResource(R.string.yenile),
-                            modifier = Modifier.size(19.dp)
-                        )
-                    }
+                    com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+                        icon = Icons.Rounded.Refresh,
+                        contentDescription = stringResource(R.string.yenile),
+                        onClick = onRefresh
+                    )
                 }
                 Box(
                     Modifier
@@ -146,21 +128,17 @@ fun MangaFloatingBackButton(
         exit = androidx.compose.animation.fadeOut(),
         modifier = modifier
     ) {
-        IconButton(
+        com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+            icon = Icons.AutoMirrored.Rounded.ArrowBack,
+            contentDescription = stringResource(R.string.geri),
             onClick = onBack,
             modifier = Modifier
                 .statusBarsPadding()
-                .padding(4.dp)
-                .size(40.dp)
-                .clip(CircleShape)
-                .background(KitsugiColors.SurfaceStrong.copy(alpha = 0.75f))
-        ) {
-            Icon(
-                Icons.AutoMirrored.Rounded.ArrowBack,
-                contentDescription = stringResource(R.string.geri),
-                tint = KitsugiColors.TextPrimary
-            )
-        }
+                .padding(
+                    horizontal = com.kitsugi.animelist.ui.components.KitsugiTopActionTokens.HeaderHorizontalPadding,
+                    vertical = 8.dp
+                )
+        )
     }
 }
 
@@ -174,16 +152,14 @@ fun MangaHeaderIconButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    IconButton(
+    com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+        icon = icon,
+        contentDescription = contentDescription,
         onClick = onClick,
-        modifier = modifier.size(36.dp),
-        colors = IconButtonDefaults.iconButtonColors(
-            containerColor = if (active) accentColor.copy(alpha = 0.18f) else Color.Transparent,
-            contentColor = if (active) accentColor else KitsugiColors.TextSecondary
-        )
-    ) {
-        Icon(icon, contentDescription = contentDescription, modifier = Modifier.size(19.dp))
-    }
+        selected = active,
+        accentColor = accentColor,
+        modifier = modifier
+    )
 }
 
 /** Boş liste / filtre sonucu yok durumu için ortak yerleşim. */

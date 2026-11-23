@@ -75,7 +75,9 @@ fun KitsuProfileContent(
     onOpenStatsClick: (() -> Unit)? = null,
     isLandscape: Boolean,
     accentColor: Color,
-    onImageClick: ((urls: List<String>, initialIndex: Int, title: String) -> Unit)? = null
+    onImageClick: ((urls: List<String>, initialIndex: Int, title: String) -> Unit)? = null,
+    isBottomBarVisible: Boolean = true,
+    onScrollReset: () -> Unit = {}
 ) {
     val context = LocalContext.current
     var activeTab by rememberSaveable { mutableIntStateOf(viewModel.kitsuActiveTab) }
@@ -102,6 +104,13 @@ fun KitsuProfileContent(
         }
     }
 
+    val showScrollToTop by remember {
+        derivedStateOf {
+            listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 300
+        }
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
     LazyColumn(
         state = listState,
         modifier = Modifier
@@ -154,29 +163,21 @@ fun KitsuProfileContent(
 
                 // Share butonu
                 if (state.name.isNotBlank()) {
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(10.dp)
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(KitsugiColors.Background.copy(alpha = 0.6f))
-                            .clickable {
-                                com.kitsugi.animelist.utils.ShareUtils.shareText(
-                                    context,
-                                    state.name,
-                                    com.kitsugi.animelist.utils.ShareUtils.buildProfileUrl("kitsu", state.name)
-                                )
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Share,
-                            contentDescription = stringResource(R.string.paylas),
-                            tint = KitsugiColors.TextPrimary,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
+                    com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+                        icon = Icons.Share,
+                        contentDescription = stringResource(R.string.paylas),
+                        onClick = {
+                            com.kitsugi.animelist.utils.ShareUtils.shareText(
+                                context,
+                                state.name,
+                                com.kitsugi.animelist.utils.ShareUtils.buildProfileUrl("kitsu", state.name)
+                            )
+                        },
+                        accentColor = accentColor,
+                        size = com.kitsugi.animelist.ui.components.KitsugiTopActionTokens.CompactButtonSize,
+                        iconSize = com.kitsugi.animelist.ui.components.KitsugiTopActionTokens.CompactIconSize,
+                        modifier = Modifier.align(Alignment.TopEnd).padding(10.dp)
+                    )
                 }
 
                 // Avatar and User Info
@@ -318,6 +319,33 @@ fun KitsuProfileContent(
                 }
             }
         }
+
+        item {
+            Spacer(
+                modifier = Modifier.height(
+                    if (isLandscape) {
+                        com.kitsugi.animelist.ui.navigation.KitsugiBottomBarTokens.LandscapeListBottomSpacer
+                    } else {
+                        com.kitsugi.animelist.ui.navigation.KitsugiBottomBarTokens.PortraitListBottomSpacer
+                    }
+                )
+            )
+        }
+    }
+
+    com.kitsugi.animelist.ui.components.KitsugiScrollToTopFab(
+        visible = showScrollToTop,
+        isLandscape = isLandscape,
+        bottomBarScrollState = null,
+        fallbackBottomBarVisible = isBottomBarVisible,
+        onClick = {
+            coroutineScope.launch {
+                listState.animateScrollToItem(0)
+                onScrollReset()
+            }
+        },
+        modifier = Modifier.align(Alignment.BottomEnd)
+    )
     }
 }
 

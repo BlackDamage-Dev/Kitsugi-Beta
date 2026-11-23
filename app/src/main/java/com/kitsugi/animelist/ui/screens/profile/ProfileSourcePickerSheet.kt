@@ -32,6 +32,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kitsugi.animelist.ui.components.KitsugiPlatformLogo
+import com.kitsugi.animelist.ui.components.KitsugiSourceSelectorPill
 import com.kitsugi.animelist.ui.theme.KitsugiColors
 import com.kitsugi.animelist.ui.theme.LocalKitsugiAccent
 import androidx.compose.ui.res.stringResource
@@ -92,52 +93,17 @@ fun ProfileSourceSelectorPill(
     selectedPlatform: ProfilePlatform,
     isConnected: Boolean,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    compact: Boolean = false
 ) {
-    val accentColor = LocalKitsugiAccent.current
-
-    Row(
+    KitsugiSourceSelectorPill(
+        platformId = selectedPlatform.id,
+        label = selectedPlatform.label,
+        isConnectedDotVisible = isConnected,
+        compact = compact,
+        onClick = onClick,
         modifier = modifier
-            .clip(RoundedCornerShape(14.dp))
-            .background(KitsugiColors.SurfaceElevated)
-            .border(
-                width = 1.dp,
-                color = accentColor.copy(alpha = 0.35f),
-                shape = RoundedCornerShape(14.dp)
-            )
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 7.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        KitsugiPlatformLogo(
-            platformId = selectedPlatform.id,
-            size = 20.dp
-        )
-        Text(
-            text = selectedPlatform.label,
-            style = MaterialTheme.typography.labelMedium.copy(
-                fontWeight = FontWeight.Bold,
-                color = KitsugiColors.TextPrimary
-            ),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-        if (isConnected) {
-            Box(
-                modifier = Modifier
-                    .size(6.dp)
-                    .clip(CircleShape)
-                    .background(KitsugiColors.AccentGreen)
-            )
-        }
-        Icon(
-            imageVector = Icons.ArrowDropDown,
-            contentDescription = stringResource(R.string.profil_kaynagi_sec),
-            tint = accentColor,
-            modifier = Modifier.size(18.dp)
-        )
-    }
+    )
 }
 
 /**

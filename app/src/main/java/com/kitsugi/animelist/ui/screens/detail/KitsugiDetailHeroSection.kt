@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
@@ -228,98 +229,38 @@ internal fun DetailHero(
                     )
             )
 
-            // ── Top action bar: Back (left) + Action buttons (right) ───────────────
+            // ── Top action bar: Back (left) + Canonical Action buttons [Share, Favorite, Gallery] (right) ──
+            val shareAction: () -> Unit = onShareClick ?: {
+                val url = ShareUtils.buildMediaUrl(entry)
+                ShareUtils.shareText(context, entry.title, url)
+            }
             Row(
                 modifier = Modifier
                     .align(Alignment.TopStart)
                     .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 16.dp),
+                    .statusBarsPadding()
+                    .padding(
+                        horizontal = com.kitsugi.animelist.ui.components.KitsugiTopActionTokens.HeaderHorizontalPadding,
+                        vertical = 8.dp
+                    ),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Geri butonu
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(KitsugiColors.Background.copy(alpha = 0.45f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    IconButton(onClick = onBackClick) {
-                        Icon(
-                            imageVector = Icons.ArrowBack,
-                            contentDescription = stringResource(R.string.geri),
-                            tint = KitsugiColors.TextPrimary
-                        )
-                    }
-                }
+                com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+                    icon = Icons.ArrowBack,
+                    contentDescription = stringResource(R.string.geri),
+                    onClick = onBackClick,
+                    accentColor = accentColor
+                )
 
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Galeri butonu (yalnızca içerik varsa görünür)
-                    if (onGalleryClick != null) {
-                        val accentColorLocal = LocalKitsugiAccent.current
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .background(accentColorLocal.copy(alpha = 0.22f))
-                                .then(
-                                    Modifier.border(
-                                        width = 1.dp,
-                                        color = accentColorLocal.copy(alpha = 0.45f),
-                                        shape = CircleShape
-                                    )
-                                ),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            KitsugiGalleryIconButton(onClick = onGalleryClick, accentColor = accentColorLocal)
-                        }
-                    }
-
-                    // Paylaş butonu
-                    val shareAction: () -> Unit = onShareClick ?: {
-                        // Kimlik yoksa `entry.id` (yerel veritabanı satırı) ASLA kullanılmaz;
-                        // çözülemezse bağlantısız paylaşılır.
-                        val url = ShareUtils.buildMediaUrl(entry)
-                        ShareUtils.shareText(context, entry.title, url)
-                    }
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(KitsugiColors.Background.copy(alpha = 0.45f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        IconButton(onClick = shareAction) {
-                            Icon(
-                                imageVector = Icons.Share,
-                                contentDescription = stringResource(R.string.paylas),
-                                tint = KitsugiColors.TextPrimary
-                            )
-                        }
-                    }
-
-                    if (showFavoriteButton && onToggleFavoriteClick != null) {
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .background(KitsugiColors.Background.copy(alpha = 0.45f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            IconButton(onClick = onToggleFavoriteClick) {
-                                Icon(
-                                    imageVector = if (entry.isFavorite) Icons.Favorite else Icons.FavoriteBorder,
-                                    contentDescription = if (entry.isFavorite) stringResource(R.string.action_favourite_remove) else "Favori Yap",
-                                    tint = if (entry.isFavorite) accentColor else KitsugiColors.TextPrimary
-                                )
-                            }
-                        }
-                    }
-                }
+                com.kitsugi.animelist.ui.components.KitsugiDetailHeaderActions(
+                    onShareClick = shareAction,
+                    showFavourite = showFavoriteButton && onToggleFavoriteClick != null,
+                    isFavourite = entry.isFavorite,
+                    onFavouriteClick = onToggleFavoriteClick,
+                    showGallery = onGalleryClick != null,
+                    onGalleryClick = onGalleryClick
+                )
             }
 
             Column(

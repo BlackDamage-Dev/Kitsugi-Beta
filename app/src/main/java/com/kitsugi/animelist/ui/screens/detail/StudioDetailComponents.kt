@@ -1,4 +1,4 @@
-﻿package com.kitsugi.animelist.ui.screens.detail
+package com.kitsugi.animelist.ui.screens.detail
 
 import com.kitsugi.animelist.ui.components.KitsugiEmojiLabel
 import com.kitsugi.animelist.ui.components.KitsugiGalleryIconButton
@@ -133,78 +133,32 @@ internal fun StudioHeroHeader(
             modifier = Modifier
                 .align(Alignment.TopStart)
                 .fillMaxWidth()
-                .padding(start = 12.dp, end = 12.dp, top = 24.dp),
+                .statusBarsPadding()
+                .padding(
+                    horizontal = com.kitsugi.animelist.ui.components.KitsugiTopActionTokens.HeaderHorizontalPadding,
+                    vertical = 8.dp
+                ),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(KitsugiColors.Background.copy(alpha = 0.45f)),
-                contentAlignment = Alignment.Center
-            ) {
-                IconButton(onClick = onBackClick) {
-                    Icon(
-                        imageVector = Icons.ArrowBack,
-                        contentDescription = stringResource(R.string.action_back),
-                        tint = KitsugiColors.TextPrimary
-                    )
-                }
-            }
+            com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+                icon = Icons.ArrowBack,
+                contentDescription = stringResource(R.string.action_back),
+                onClick = onBackClick,
+                accentColor = accentColor
+            )
 
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (onGalleryClick != null) {
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(accentColor.copy(alpha = 0.22f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        KitsugiGalleryIconButton(onClick = onGalleryClick, accentColor = accentColor)
-                    }
-                }
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(KitsugiColors.Background.copy(alpha = 0.45f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    IconButton(onClick = {
-                        val url = com.kitsugi.animelist.utils.ShareUtils.buildStudioUrl(source, detail.id, detail.name.toLocalizedOrgName())
-                        com.kitsugi.animelist.utils.ShareUtils.shareText(context, detail.name.toLocalizedOrgName(), url)
-                    }) {
-                        Icon(
-                            imageVector = Icons.Share,
-                            contentDescription = stringResource(R.string.action_share),
-                            tint = KitsugiColors.TextPrimary
-                        )
-                    }
-                }
-
-                if (showFavouriteButton) {
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(KitsugiColors.Background.copy(alpha = 0.45f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        IconButton(onClick = onToggleFavourite) {
-                            Icon(
-                                imageVector = if (isFavourite) Icons.Favorite else Icons.FavoriteBorder,
-                                contentDescription = if (isFavourite) stringResource(R.string.action_favourite_remove) else stringResource(R.string.action_favourite_add),
-                                tint = if (isFavourite) accentColor else KitsugiColors.TextPrimary
-                            )
-                        }
-                    }
-                }
-            }
+            com.kitsugi.animelist.ui.components.KitsugiDetailHeaderActions(
+                onShareClick = {
+                    val url = com.kitsugi.animelist.utils.ShareUtils.buildStudioUrl(source, detail.id, detail.name.toLocalizedOrgName())
+                    com.kitsugi.animelist.utils.ShareUtils.shareText(context, detail.name.toLocalizedOrgName(), url)
+                },
+                showFavourite = showFavouriteButton,
+                isFavourite = isFavourite,
+                onFavouriteClick = onToggleFavourite,
+                showGallery = onGalleryClick != null,
+                onGalleryClick = onGalleryClick
+            )
         }
 
         // Details Column (Name & Info Row)
@@ -404,80 +358,32 @@ internal fun StudioDetailLeftPanel(
                 modifier = Modifier
                     .align(Alignment.TopStart)
                     .fillMaxWidth()
-                    .padding(start = 12.dp, end = 12.dp, top = 24.dp),
+                    .statusBarsPadding()
+                    .padding(
+                        horizontal = com.kitsugi.animelist.ui.components.KitsugiTopActionTokens.HeaderHorizontalPadding,
+                        vertical = 8.dp
+                    ),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(KitsugiColors.Background.copy(alpha = 0.45f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    IconButton(onClick = onBackClick) {
-                        Icon(
-                            imageVector = Icons.ArrowBack,
-                            contentDescription = stringResource(R.string.action_back),
-                            tint = KitsugiColors.TextPrimary
-                        )
-                    }
-                }
+                com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+                    icon = Icons.ArrowBack,
+                    contentDescription = stringResource(R.string.action_back),
+                    onClick = onBackClick,
+                    accentColor = accentColor
+                )
 
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    if (galleryItems.isNotEmpty()) {
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .background(accentColor.copy(alpha = 0.22f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            KitsugiGalleryIconButton(onClick = {
-                                onGalleryClick(galleryItems, 0)
-                            }, accentColor = accentColor)
-                        }
-                    }
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(KitsugiColors.Background.copy(alpha = 0.45f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        IconButton(onClick = {
-                            val url = com.kitsugi.animelist.utils.ShareUtils.buildStudioUrl(source, studioId, detail.name.toLocalizedOrgName())
-                            com.kitsugi.animelist.utils.ShareUtils.shareText(context, detail.name.toLocalizedOrgName(), url)
-                        }) {
-                            Icon(
-                                imageVector = Icons.Share,
-                                contentDescription = stringResource(R.string.action_share),
-                                tint = KitsugiColors.TextPrimary
-                            )
-                        }
-                    }
-
-                    if (showFavouriteButton) {
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .background(KitsugiColors.Background.copy(alpha = 0.45f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            IconButton(onClick = onToggleFavourite) {
-                                Icon(
-                                    imageVector = if (isFavourite) Icons.Favorite else Icons.FavoriteBorder,
-                                    contentDescription = if (isFavourite) stringResource(R.string.action_favourite_remove) else stringResource(R.string.action_favourite_add),
-                                    tint = if (isFavourite) accentColor else KitsugiColors.TextPrimary
-                                )
-                            }
-                        }
-                    }
-                }
+                com.kitsugi.animelist.ui.components.KitsugiDetailHeaderActions(
+                    onShareClick = {
+                        val url = com.kitsugi.animelist.utils.ShareUtils.buildStudioUrl(source, studioId, detail.name.toLocalizedOrgName())
+                        com.kitsugi.animelist.utils.ShareUtils.shareText(context, detail.name.toLocalizedOrgName(), url)
+                    },
+                    showFavourite = showFavouriteButton,
+                    isFavourite = isFavourite,
+                    onFavouriteClick = onToggleFavourite,
+                    showGallery = galleryItems.isNotEmpty(),
+                    onGalleryClick = { onGalleryClick(galleryItems, 0) }
+                )
             }
         }
         Column(modifier = Modifier.padding(16.dp)) {

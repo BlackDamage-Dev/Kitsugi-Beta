@@ -145,34 +145,44 @@ fun PlatformUserProfileScreen(
 
     Column(modifier = Modifier.fillMaxSize().background(KitsugiColors.Background)) {
         // ── Top bar ──────────────────────────────────────────────────────────
-        Surface(modifier = Modifier.fillMaxWidth(), color = KitsugiColors.Surface, shadowElevation = 2.dp) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(
+                    horizontal = com.kitsugi.animelist.ui.components.KitsugiTopActionTokens.HeaderHorizontalPadding,
+                    vertical = if (isLandscape) 6.dp else 8.dp
+                ),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween
+                modifier = Modifier.weight(1f)
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onBackClick) {
-                        Icon(
-                            Icons.ArrowBack,
-                            contentDescription = KitsugiStrings.get(R.string.geri),
-                            tint = KitsugiColors.TextPrimary
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(4.dp))
-                    KitsugiPlatformLogo(platformId = canonicalSource, size = 18.dp)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = displayName.ifBlank { KitsugiStrings.get(R.string.kullanici) },
-                        color = KitsugiColors.TextPrimary,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-                if (displayName.isNotBlank()) {
-                    IconButton(onClick = {
+                com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+                    icon = Icons.ArrowBack,
+                    contentDescription = KitsugiStrings.get(R.string.geri),
+                    onClick = onBackClick,
+                    accentColor = accentColor
+                )
+                Spacer(modifier = Modifier.width(10.dp))
+                KitsugiPlatformLogo(platformId = canonicalSource, size = 18.dp)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = displayName.ifBlank { KitsugiStrings.get(R.string.kullanici) },
+                    color = KitsugiColors.TextPrimary,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            if (displayName.isNotBlank()) {
+                Spacer(modifier = Modifier.width(8.dp))
+                com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+                    icon = Icons.OpenInNew,
+                    contentDescription = KitsugiStrings.get(R.string.profili_paylas),
+                    onClick = {
                         runCatching {
                             val intent = android.content.Intent(
                                 android.content.Intent.ACTION_VIEW,
@@ -180,14 +190,9 @@ fun PlatformUserProfileScreen(
                             )
                             context.startActivity(intent)
                         }
-                    }) {
-                        Icon(
-                            Icons.OpenInNew,
-                            contentDescription = KitsugiStrings.get(R.string.profili_paylas),
-                            tint = KitsugiColors.TextPrimary
-                        )
-                    }
-                }
+                    },
+                    accentColor = accentColor
+                )
             }
         }
 
@@ -244,7 +249,8 @@ fun PlatformUserProfileScreen(
                                     onOpenStatsClick = null,
                                     isLandscape = isLandscape,
                                     accentColor = accentColor,
-                                    onImageClick = { urls, idx, title -> activeGalleryImages = Triple(urls, idx, title) }
+                                    onImageClick = { urls, idx, title -> activeGalleryImages = Triple(urls, idx, title) },
+                                    isBottomBarVisible = false
                                 )
                             }
                         }
@@ -274,7 +280,8 @@ fun PlatformUserProfileScreen(
                                     onOpenStatsClick = null,
                                     isLandscape = isLandscape,
                                     accentColor = accentColor,
-                                    onImageClick = { urls, idx, title -> activeGalleryImages = Triple(urls, idx, title) }
+                                    onImageClick = { urls, idx, title -> activeGalleryImages = Triple(urls, idx, title) },
+                                    isBottomBarVisible = false
                                 )
                             }
                         }
@@ -353,7 +360,8 @@ fun PlatformUserProfileScreen(
                                                 malState = loaded.copy(isLoadingMoreClubs = false)
                                             }
                                         }
-                                    }
+                                    },
+                                    isBottomBarVisible = false
                                 )
                             }
                         }

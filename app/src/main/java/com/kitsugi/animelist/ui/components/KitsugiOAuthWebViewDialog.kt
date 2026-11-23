@@ -202,15 +202,26 @@ fun KitsugiOAuthWebViewDialog(
                         )
                     }
                     Spacer(Modifier.width(8.dp))
-                    IconButton(onClick = { webViewInstance?.reload() }) {
-                        Icon(Icons.Refresh, contentDescription = stringResource(R.string.yenile), tint = KitsugiColors.TextSecondary)
-                    }
-                    IconButton(onClick = {
-                        CookieManager.getInstance().flush()
-                        onDismiss()
-                    }) {
-                        Icon(Icons.Close, contentDescription = stringResource(R.string.kapat), tint = KitsugiColors.TextPrimary)
-                    }
+                    KitsugiIconGlassButton(
+                        icon = Icons.Refresh,
+                        contentDescription = stringResource(R.string.yenile),
+                        onClick = { webViewInstance?.reload() },
+                        accentColor = accentColor,
+                        size = KitsugiTopActionTokens.CompactButtonSize,
+                        iconSize = KitsugiTopActionTokens.CompactIconSize
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    KitsugiIconGlassButton(
+                        icon = Icons.Close,
+                        contentDescription = stringResource(R.string.kapat),
+                        onClick = {
+                            CookieManager.getInstance().flush()
+                            onDismiss()
+                        },
+                        accentColor = accentColor,
+                        size = KitsugiTopActionTokens.CompactButtonSize,
+                        iconSize = KitsugiTopActionTokens.CompactIconSize
+                    )
                 }
 
                 if (isLoading) {

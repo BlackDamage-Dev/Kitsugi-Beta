@@ -439,34 +439,34 @@ private fun NotifTopBarRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(
+                horizontal = com.kitsugi.animelist.ui.components.KitsugiTopActionTokens.HeaderHorizontalPadding,
+                vertical = 8.dp
+            ),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        IconButton(onClick = onBack) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                contentDescription = stringResource(R.string.notif_action_back),
-                tint = KitsugiColors.TextPrimary
-            )
-        }
+        com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+            icon = Icons.AutoMirrored.Rounded.ArrowBack,
+            contentDescription = stringResource(R.string.notif_action_back),
+            onClick = onBack,
+            accentColor = accentColor
+        )
         Text(
             text = title,
             color = KitsugiColors.TextPrimary,
             fontSize = 20.sp,
-            fontWeight = FontWeight.Bold,
+            fontWeight = FontWeight.Black,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier
-                .weight(1f)
-                .padding(start = 4.dp)
+            modifier = Modifier.weight(1f)
         )
-        IconButton(onClick = onDiagnostics) {
-            Icon(
-                imageVector = Icons.Rounded.BugReport,
-                contentDescription = stringResource(R.string.notif_diag_action),
-                tint = KitsugiColors.TextPrimary
-            )
-        }
+        com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+            icon = Icons.Rounded.BugReport,
+            contentDescription = stringResource(R.string.notif_diag_action),
+            onClick = onDiagnostics,
+            accentColor = accentColor
+        )
         NotifRefreshButton(
             accentColor = accentColor,
             isRefreshing = isRefreshing,
@@ -485,33 +485,41 @@ private fun NotifRefreshButton(
     isRefreshing: Boolean,
     onClick: () -> Unit
 ) {
-    IconButton(onClick = onClick) {
-        if (isRefreshing) {
-            val spin = rememberInfiniteTransition(label = "notif_refresh_spin").animateFloat(
-                initialValue = 0f,
-                targetValue = 360f,
-                animationSpec = infiniteRepeatable(
-                    animation = tween(durationMillis = 900, easing = LinearEasing),
-                    repeatMode = RepeatMode.Restart
-                ),
-                label = "notif_refresh_angle"
-            )
+    if (isRefreshing) {
+        val spin = rememberInfiniteTransition(label = "notif_refresh_spin").animateFloat(
+            initialValue = 0f,
+            targetValue = 360f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 900, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "notif_refresh_angle"
+        )
+        Box(
+            modifier = Modifier
+                .size(com.kitsugi.animelist.ui.components.KitsugiTopActionTokens.ButtonSize)
+                .clip(CircleShape)
+                .background(accentColor.copy(alpha = 0.22f))
+                .border(1.dp, accentColor.copy(alpha = 0.72f), CircleShape)
+                .tvClickable(shape = CircleShape, onClick = onClick),
+            contentAlignment = Alignment.Center
+        ) {
             Icon(
                 imageVector = Icons.Rounded.Refresh,
                 contentDescription = stringResource(R.string.notif_action_refresh),
                 tint = accentColor,
                 modifier = Modifier
-                    .size(24.dp)
+                    .size(com.kitsugi.animelist.ui.components.KitsugiTopActionTokens.IconSize)
                     .graphicsLayer { rotationZ = spin.value }
             )
-        } else {
-            Icon(
-                imageVector = Icons.Rounded.Refresh,
-                contentDescription = stringResource(R.string.notif_action_refresh),
-                tint = accentColor,
-                modifier = Modifier.size(24.dp)
-            )
         }
+    } else {
+        com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+            icon = Icons.Rounded.Refresh,
+            contentDescription = stringResource(R.string.notif_action_refresh),
+            onClick = onClick,
+            accentColor = accentColor
+        )
     }
 }
 
@@ -1019,6 +1027,12 @@ internal fun NotifFeedList(
                 }
             }
         }
+        com.kitsugi.animelist.ui.components.KitsugiScrollToTopFab(
+            listState = listState,
+            isBottomBarVisible = false,
+            isLandscape = false,
+            modifier = Modifier.align(Alignment.BottomEnd)
+        )
     }
 }
 

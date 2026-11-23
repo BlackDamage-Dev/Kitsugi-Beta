@@ -64,23 +64,18 @@ fun MangaDiscoverTopBar(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(start = 6.dp, end = 8.dp, top = 6.dp, bottom = 2.dp),
+            .padding(
+                horizontal = com.kitsugi.animelist.ui.components.KitsugiTopActionTokens.HeaderHorizontalPadding,
+                vertical = 8.dp
+            ),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        IconButton(
-            onClick  = onBack,
-            colors   = IconButtonDefaults.iconButtonColors(
-                containerColor = KitsugiColors.SurfaceStrong.copy(alpha = 0.45f)
-            ),
-            modifier = Modifier.size(34.dp)
-        ) {
-            Icon(
-                Icons.AutoMirrored.Rounded.ArrowBack,
-                contentDescription = stringResource(R.string.geri),
-                tint = KitsugiColors.TextPrimary,
-                modifier = Modifier.size(17.dp)
-            )
-        }
+        com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+            icon = Icons.AutoMirrored.Rounded.ArrowBack,
+            contentDescription = stringResource(R.string.geri),
+            onClick = onBack,
+            accentColor = accent
+        )
 
         Spacer(Modifier.width(10.dp))
 
@@ -97,7 +92,7 @@ fun MangaDiscoverTopBar(
                     text = stringResource(R.string.inline_discover_manga_eb24f62),
                     color = KitsugiColors.TextPrimary,
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = FontWeight.Black,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -122,42 +117,28 @@ fun MangaDiscoverTopBar(
             Spacer(Modifier.width(8.dp))
         }
 
-        TopBarGlyphButton(
+        com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+            icon = Icons.Rounded.Translate,
+            contentDescription = stringResource(R.string.manga_discover_more_info),
             onClick = onShowInfo,
-            contentDescription = stringResource(R.string.manga_discover_more_info)
-        ) {
-            Icon(
-                Icons.Rounded.Translate,
-                contentDescription = null,
-                tint = if (isResolving) accent else KitsugiColors.TextSecondary,
-                modifier = Modifier.size(16.dp)
-            )
-        }
-        Spacer(Modifier.width(6.dp))
-        TopBarGlyphButton(
+            selected = isResolving,
+            accentColor = accent
+        )
+        Spacer(Modifier.width(8.dp))
+        com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+            icon = Icons.Rounded.TravelExplore,
+            contentDescription = stringResource(R.string.inline_edit_extensions_134b588),
             onClick = onOpenSettings,
-            contentDescription = stringResource(R.string.inline_edit_extensions_134b588)
-        ) {
-            Icon(
-                Icons.Rounded.TravelExplore,
-                contentDescription = null,
-                tint = KitsugiColors.TextSecondary,
-                modifier = Modifier.size(16.dp)
-            )
-        }
+            accentColor = accent
+        )
         if (onOpenLibrary != null) {
-            Spacer(Modifier.width(6.dp))
-            TopBarGlyphButton(
+            Spacer(Modifier.width(8.dp))
+            com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+                icon = Icons.Rounded.CollectionsBookmark,
+                contentDescription = stringResource(R.string.manga_library_title),
                 onClick = onOpenLibrary,
-                contentDescription = stringResource(R.string.manga_library_title)
-            ) {
-                Icon(
-                    Icons.Rounded.CollectionsBookmark,
-                    contentDescription = null,
-                    tint = KitsugiColors.TextSecondary,
-                    modifier = Modifier.size(16.dp)
-                )
-            }
+                accentColor = accent
+            )
         }
     }
 }

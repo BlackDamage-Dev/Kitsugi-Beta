@@ -10,7 +10,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import kotlinx.coroutines.launch
 import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -65,41 +67,54 @@ fun FavouritesScreen(
         }
     }
 
-    Scaffold(
-        topBar = {
-            Box(
+    val gridState = rememberLazyGridState()
+    val coroutineScope = rememberCoroutineScope()
+    val showScrollToTop by remember {
+        derivedStateOf {
+            gridState.firstVisibleItemIndex > 0 || gridState.firstVisibleItemScrollOffset > 300
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(KitsugiColors.background)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+        ) {
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = if (isLandscape) 12.dp else 16.dp, vertical = 12.dp)
+                    .padding(
+                        horizontal = com.kitsugi.animelist.ui.components.KitsugiTopActionTokens.HeaderHorizontalPadding,
+                        vertical = if (isLandscape) 6.dp else 8.dp
+                    ),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                IconButton(
+                com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+                    icon = Icons.ArrowBack,
+                    contentDescription = stringResource(R.string.geri),
                     onClick = onBackClick,
-                    modifier = Modifier.align(Alignment.CenterStart)
-                ) {
-                    Icon(
-                        imageVector = Icons.ArrowBack,
-                        contentDescription = stringResource(R.string.geri),
-                        tint = KitsugiColors.textPrimary
-                    )
-                }
+                    accentColor = accentColor
+                )
 
                 Text(
                     text = stringResource(R.string.profile_my_favorites),
                     color = KitsugiColors.textPrimary,
                     style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.align(Alignment.Center)
+                    fontWeight = FontWeight.Black,
+                    modifier = Modifier.weight(1f)
                 )
             }
-        },
-        containerColor = KitsugiColors.background
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .padding(horizontal = if (isLandscape) 16.dp else 20.dp)
-        ) {
+
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = if (isLandscape) 16.dp else 20.dp)
+            ) {
             // Tab Row
             Row(
                 modifier = Modifier
@@ -183,7 +198,9 @@ fun FavouritesScreen(
                 }
             } else {
                 LazyVerticalGrid(
+                    state = gridState,
                     columns = GridCells.Fixed(rememberKitsugiGridColumns()),
+                    contentPadding = PaddingValues(bottom = 32.dp),
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                     modifier = Modifier
@@ -206,6 +223,20 @@ fun FavouritesScreen(
                     }
                 }
             }
+            }
         }
+
+        com.kitsugi.animelist.ui.components.KitsugiScrollToTopFab(
+            visible = showScrollToTop,
+            isLandscape = isLandscape,
+            bottomBarScrollState = null,
+            fallbackBottomBarVisible = false,
+            onClick = {
+                coroutineScope.launch {
+                    gridState.animateScrollToItem(0)
+                }
+            },
+            modifier = Modifier.align(Alignment.BottomEnd)
+        )
     }
 }

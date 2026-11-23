@@ -39,5 +39,7 @@ data class SettingsContext(
     val onExportBackupFileClick: () -> Unit,
     val onImportBackupFileClick: () -> Unit,
     val context: android.content.Context,
-    val navState: AppNavigationState
+    val navState: AppNavigationState,
+    val bottomBarScrollState: com.kitsugi.animelist.utils.ScrollVisibilityState? = null,
+    val onScrollReset: () -> Unit = {}
 )

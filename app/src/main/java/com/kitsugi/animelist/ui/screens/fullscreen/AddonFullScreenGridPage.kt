@@ -203,17 +203,10 @@ fun AddonFullScreenGridPage(
                         loadedItems = (loadedItems + newItems).distinctBy { it.url }
                         currentPage = nextPage
                     }
-                    // Eklentinin kendi hasNext bayrağına uyulur (CS3 standardı). Ancak
-                    // "hasNext=true + boş sayfa" durumu (geçici hata/429) sayfayı kalıcı
-                    // olarak bitirmemeli: hata gösterilir, kullanıcı "Tekrar dene" ile
-                    // aynı sayfayı yeniden çeker, sonsuz döngüye girilmez.
+                    // Respect the plugin's own hasNext flag (CS3 standard)
                     hasMorePages = response.hasNext
-                    if (newItems.isEmpty() && response.hasNext) {
-                        loadError = context.getString(R.string.addon_page_load_error)
-                    }
                 } else {
-                    // Yanıt alınamadı: liste sonu DEĞİL, geçici hata. Kullanıcı tekrar deneyebilir.
-                    loadError = context.getString(R.string.addon_page_load_error)
+                    hasMorePages = false
                 }
             } catch (e: Exception) {
                 Log.e("AddonFullScreenGridPage", "Pagination failed: ${e.message}")
@@ -287,32 +280,35 @@ fun AddonFullScreenGridPage(
         }
     }
 
-    // ── Başlık + kontroller + çipler (keşfet "Tümünü Gör" başlığıyla aynı) ────
+    // ── Başlık + kontroller + çipler (keşfet "Tümünü Gör" tek-satır başlığıyla aynı) ────
     val controlsHeader: @Composable () -> Unit = {
-        Column(modifier = Modifier.padding(horizontal = 8.dp, vertical = 12.dp)) {
-            Row(modifier = Modifier.fillMaxWidth()) {
-                TextButton(onClick = onBackClick) {
-                    Text(stringResource(R.string.geri), color = accentColor, fontWeight = FontWeight.Bold)
-                }
-            }
+        Column(modifier = Modifier.padding(horizontal = 2.dp, vertical = 10.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+                    icon = Icons.ArrowBack,
+                    contentDescription = stringResource(R.string.geri),
+                    onClick = onBackClick,
+                    accentColor = accentColor
+                )
                 Text(
                     text = state.title,
                     color = KitsugiColors.TextPrimary,
-                    style = MaterialTheme.typography.headlineLarge,
+                    style = if (isLandscape) MaterialTheme.typography.titleMedium else MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Black,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f)
                 )
                 // Eklenti adı badge
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(KitsugiColors.Surface)
-                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                        .clip(androidx.compose.foundation.shape.CircleShape)
+                        .background(KitsugiColors.Surface.copy(alpha = 0.90f))
+                        .padding(horizontal = 10.dp, vertical = 5.dp)
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -334,34 +330,19 @@ fun AddonFullScreenGridPage(
                         )
                     }
                 }
-                Spacer(modifier = Modifier.width(6.dp))
-                // Filtre ve Sıralama butonu
-                IconButton(
+                com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+                    icon = Icons.FilterList,
+                    contentDescription = stringResource(R.string.filtre_ve_siralama),
                     onClick = { showFilterSheet = true },
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(if (hasActiveFilter) accentColor.copy(alpha = 0.25f) else KitsugiColors.Surface)
-                ) {
-                    Icon(
-                        Icons.FilterList,
-                        contentDescription = stringResource(R.string.filtre_ve_siralama),
-                        tint = if (hasActiveFilter) accentColor else KitsugiColors.TextPrimary
-                    )
-                }
-                Spacer(modifier = Modifier.width(6.dp))
-                // Grid ↔ Liste toggle
-                IconButton(
+                    selected = hasActiveFilter,
+                    accentColor = accentColor
+                )
+                com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+                    icon = if (isGridView) Icons.ListAlt else Icons.GridView,
+                    contentDescription = if (isGridView) stringResource(R.string.cd_list_view) else stringResource(R.string.cd_grid_view),
                     onClick = toggleView,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(KitsugiColors.Surface)
-                ) {
-                    Icon(
-                        imageVector = if (isGridView) Icons.ListAlt else Icons.GridView,
-                        contentDescription = if (isGridView) stringResource(R.string.cd_list_view) else stringResource(R.string.cd_grid_view),
-                        tint = accentColor
-                    )
-                }
+                    accentColor = accentColor
+                )
             }
 
             // Emojili hızlı tür çipleri (Nested LazyRow ana ızgarayı yeniden ölçüyordu)
@@ -580,20 +561,19 @@ fun AddonFullScreenGridPage(
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(64.dp)
-                    .background(KitsugiColors.Surface.copy(alpha = 0.92f))
-                    .padding(horizontal = 8.dp)
+                    .height(if (isLandscape) 48.dp else 54.dp)
+                    .background(KitsugiColors.Surface.copy(alpha = 0.94f))
+                    .padding(horizontal = com.kitsugi.animelist.ui.components.KitsugiTopActionTokens.HeaderHorizontalPadding)
             ) {
-                IconButton(onClick = onBackClick) {
-                    Icon(
-                        Icons.ArrowBack,
-                        contentDescription = stringResource(R.string.geri),
-                        tint = KitsugiColors.TextPrimary
-                    )
-                }
-                Spacer(modifier = Modifier.width(8.dp))
+                com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+                    icon = Icons.ArrowBack,
+                    contentDescription = stringResource(R.string.geri),
+                    onClick = onBackClick,
+                    accentColor = accentColor
+                )
                 Text(
                     text = state.title,
                     color = KitsugiColors.TextPrimary,
@@ -603,12 +583,11 @@ fun AddonFullScreenGridPage(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f)
                 )
-                // Eklenti adı — floating header'da
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(KitsugiColors.Surface)
-                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                        .clip(androidx.compose.foundation.shape.CircleShape)
+                        .background(KitsugiColors.Surface.copy(alpha = 0.90f))
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -628,59 +607,37 @@ fun AddonFullScreenGridPage(
                         )
                     }
                 }
-                IconButton(
+                com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+                    icon = Icons.FilterList,
+                    contentDescription = stringResource(R.string.filtre_ve_siralama),
                     onClick = { showFilterSheet = true },
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(if (hasActiveFilter) accentColor.copy(alpha = 0.25f) else androidx.compose.ui.graphics.Color.Transparent)
-                ) {
-                    Icon(
-                        Icons.FilterList,
-                        contentDescription = stringResource(R.string.filtre_ve_siralama),
-                        tint = if (hasActiveFilter) accentColor else KitsugiColors.TextPrimary
-                    )
-                }
-                Spacer(modifier = Modifier.width(4.dp))
-                IconButton(onClick = toggleView) {
-                    Icon(
-                        imageVector = if (isGridView) Icons.ListAlt else Icons.GridView,
-                        contentDescription = if (isGridView) KitsugiStrings.get(R.string.liste) else "Grid",
-                        tint = accentColor
-                    )
-                }
+                    selected = hasActiveFilter,
+                    accentColor = accentColor
+                )
+                com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+                    icon = if (isGridView) Icons.ListAlt else Icons.GridView,
+                    contentDescription = if (isGridView) KitsugiStrings.get(R.string.liste) else "Grid",
+                    onClick = toggleView,
+                    accentColor = accentColor
+                )
             }
         }
 
         // ── Scroll to top FAB ─────────────────────────────────────────────────
-        AnimatedVisibility(
+        com.kitsugi.animelist.ui.components.KitsugiScrollToTopFab(
             visible = showScrollToTop,
-            enter = fadeIn() + scaleIn(),
-            exit = fadeOut() + scaleOut(),
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(end = 20.dp, bottom = 24.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(56.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(accentColor)
-                    .tvClickable(shape = RoundedCornerShape(16.dp)) {
-                        scope.launch {
-                            if (isGridView) gridState.animateScrollToItem(0)
-                            else listState.animateScrollToItem(0)
-                        }
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.KeyboardArrowUp,
-                    contentDescription = stringResource(R.string.cd_scroll_top),
-                    tint = KitsugiColors.Background,
-                    modifier = Modifier.size(28.dp)
-                )
-            }
-        }
+            isLandscape = isLandscape,
+            bottomBarScrollState = null,
+            fallbackBottomBarVisible = false,
+            contentDescriptionRes = R.string.cd_scroll_top,
+            onClick = {
+                scope.launch {
+                    if (isGridView) gridState.animateScrollToItem(0)
+                    else listState.animateScrollToItem(0)
+                }
+            },
+            modifier = Modifier.align(Alignment.BottomEnd)
+        )
     }
 
     // ── Filtre ve Sıralama bottom sheet (keşfet/stüdyo sayfalarıyla aynı) ─────

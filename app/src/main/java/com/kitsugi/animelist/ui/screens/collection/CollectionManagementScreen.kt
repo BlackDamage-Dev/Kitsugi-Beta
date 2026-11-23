@@ -1,4 +1,4 @@
-﻿package com.kitsugi.animelist.ui.screens.collection
+package com.kitsugi.animelist.ui.screens.collection
 import com.kitsugi.animelist.ui.components.KitsugiButton
 
 import androidx.compose.foundation.layout.*
@@ -43,24 +43,36 @@ fun CollectionManagementScreen(
     var showDeleteDialog by remember { mutableStateOf<CollectionFolder?>(null) }
 
     Scaffold(
+        containerColor = com.kitsugi.animelist.ui.theme.KitsugiColors.Background,
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.inline_my_collections_ff95e62), fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.ArrowBack, contentDescription = stringResource(R.string.geri))
-                    }
-                },
-                actions = {
-                    IconButton(onClick = onCreateCollection) {
-                        Icon(Icons.Add, contentDescription = stringResource(R.string.yeni_koleksiyon))
-                    }
-                }
-            )
-        },
-        floatingActionButton = {
-            FloatingActionButton(onClick = onCreateCollection) {
-                Icon(Icons.Add, contentDescription = stringResource(R.string.yeni_koleksiyon))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(
+                        horizontal = com.kitsugi.animelist.ui.components.KitsugiTopActionTokens.HeaderHorizontalPadding,
+                        vertical = 8.dp
+                    ),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+                    icon = Icons.ArrowBack,
+                    contentDescription = stringResource(R.string.geri),
+                    onClick = onNavigateBack
+                )
+                Text(
+                    text = stringResource(R.string.inline_my_collections_ff95e62),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Black,
+                    color = com.kitsugi.animelist.ui.theme.KitsugiColors.TextPrimary,
+                    modifier = Modifier.weight(1f)
+                )
+                com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+                    icon = Icons.Add,
+                    contentDescription = stringResource(R.string.yeni_koleksiyon),
+                    onClick = onCreateCollection,
+                    selected = true
+                )
             }
         },
         modifier = modifier

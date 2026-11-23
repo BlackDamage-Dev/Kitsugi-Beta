@@ -1,7 +1,9 @@
 package com.kitsugi.animelist.ui.screens.profile
 
+import android.content.res.Configuration
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -14,6 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
@@ -21,8 +24,11 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -30,7 +36,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalUriHandler
+import kotlinx.coroutines.launch
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -49,15 +57,32 @@ fun TmdbProfileContent(
     state: TmdbProfileState,
     accentColor: Color,
     onMediaClick: (mediaId: Int, mediaType: MediaType, title: String, imageUrl: String?) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isBottomBarVisible: Boolean = true,
+    onScrollReset: () -> Unit = {}
 ) {
     val snapshot = state.snapshot
     val uriHandler = LocalUriHandler.current
     var filter by rememberSaveable { mutableIntStateOf(0) }
+    val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val listState = rememberLazyListState()
+    val coroutineScope = rememberCoroutineScope()
+    val showScrollToTop by remember {
+        derivedStateOf {
+            listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 300
+        }
+    }
+    val bottomClearance = if (isLandscape) {
+        com.kitsugi.animelist.ui.navigation.KitsugiBottomBarTokens.LandscapeListBottomSpacer
+    } else {
+        com.kitsugi.animelist.ui.navigation.KitsugiBottomBarTokens.PortraitListBottomSpacer
+    }
 
+    Box(modifier = modifier.fillMaxSize()) {
     LazyColumn(
-        modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+        state = listState,
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = bottomClearance),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
@@ -185,7 +210,21 @@ fun TmdbProfileContent(
                 )
             }
         }
-        item { Spacer(Modifier.height(72.dp)) }
+    }
+
+    com.kitsugi.animelist.ui.components.KitsugiScrollToTopFab(
+        visible = showScrollToTop,
+        isLandscape = isLandscape,
+        bottomBarScrollState = null,
+        fallbackBottomBarVisible = isBottomBarVisible,
+        onClick = {
+            coroutineScope.launch {
+                listState.animateScrollToItem(0)
+                onScrollReset()
+            }
+        },
+        modifier = Modifier.align(Alignment.BottomEnd)
+    )
     }
 }
 

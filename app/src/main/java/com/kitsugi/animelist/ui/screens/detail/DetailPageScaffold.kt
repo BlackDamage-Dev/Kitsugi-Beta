@@ -1,4 +1,4 @@
-﻿@file:OptIn(
+@file:OptIn(
     androidx.compose.foundation.ExperimentalFoundationApi::class,
     androidx.compose.material3.ExperimentalMaterial3Api::class
 )
@@ -306,20 +306,23 @@ fun DetailPageScaffold(
                                         KitsugiStickyHeaderReveal(visible = showFloatingHeader) {
                                             Row(
                                                 verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(10.dp),
                                                 modifier = Modifier
                                                     .fillMaxWidth()
-                                                    .height(64.dp)
-                                                    .background(KitsugiColors.Surface.copy(alpha = 0.92f))
-                                                    .padding(horizontal = 8.dp)
-                                            ) {
-                                                IconButton(onClick = onBackClick) {
-                                                    Icon(
-                                                        imageVector = Icons.ArrowBack,
-                                                        contentDescription = stringResource(R.string.geri),
-                                                        tint = KitsugiColors.TextPrimary
+                                                    .background(KitsugiColors.Surface.copy(alpha = 0.94f))
+                                                    .statusBarsPadding()
+                                                    .heightIn(min = 52.dp)
+                                                    .padding(
+                                                        horizontal = com.kitsugi.animelist.ui.components.KitsugiTopActionTokens.HeaderHorizontalPadding,
+                                                        vertical = 6.dp
                                                     )
-                                                }
-                                                Spacer(modifier = Modifier.width(8.dp))
+                                            ) {
+                                                com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+                                                    icon = Icons.ArrowBack,
+                                                    contentDescription = stringResource(R.string.geri),
+                                                    onClick = onBackClick,
+                                                    accentColor = stickyAccent
+                                                )
                                                 Text(
                                                     text = title,
                                                     color = KitsugiColors.TextPrimary,

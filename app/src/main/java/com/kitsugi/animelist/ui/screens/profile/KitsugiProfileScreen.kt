@@ -37,6 +37,7 @@ import com.kitsugi.animelist.ui.components.KitsugiShikimoriLoginDialog
 import com.kitsugi.animelist.ui.components.KitsugiBangumiLoginDialog
 import com.kitsugi.animelist.ui.components.KitsugiTopAction
 import com.kitsugi.animelist.ui.components.KitsugiTopActionRow
+import com.kitsugi.animelist.ui.components.KitsugiTopActionTokens
 import com.kitsugi.animelist.ui.theme.KitsugiColors
 import com.kitsugi.animelist.ui.theme.LocalKitsugiAccent
 import kotlinx.coroutines.launch
@@ -153,28 +154,28 @@ fun KitsugiProfileScreen(
                 ProfilePlatform.TMDB -> isTmdbConnected
             }
 
+            val screenWidthDp = configuration.screenWidthDp
+            val isNarrowProfile = screenWidthDp < 375
+            val maxProfileActions = when {
+                screenWidthDp < 355 -> 3
+                else -> null
+            }
+
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = if (isLandscape) 18.dp else 16.dp, vertical = 10.dp),
+                    .padding(
+                        start = KitsugiTopActionTokens.HeaderHorizontalPadding,
+                        end = KitsugiTopActionTokens.HeaderHorizontalPadding,
+                        top = if (isLandscape) KitsugiTopActionTokens.HeaderTopPaddingLandscape else KitsugiTopActionTokens.HeaderTopPaddingPortrait,
+                        bottom = if (isLandscape) 2.dp else 4.dp
+                    )
+                    .heightIn(
+                        min = if (isLandscape) KitsugiTopActionTokens.HeaderRowMinHeightLandscape else KitsugiTopActionTokens.HeaderRowMinHeight
+                    ),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // Kaynak seçici hap buton — solda kalır.
-                //
-                // ⚠️ Eski hatalı düzen:
-                //     ProfileSourceSelectorPill(Modifier.weight(1f, fill = false))
-                //     Spacer(Modifier.weight(1f))
-                //     KitsugiTopActionRow(...)
-                //   Ağırlıklı iki çocuk kalan alanı ikiye bölüyordu; pill kendi dilimini
-                //   DOLDURMADIĞI için (fill = false) artan boşluk yeniden dağıtılmıyor,
-                //   satırın SONUNA ekleniyordu. Sonuç: sağ üstteki aksiyon butonları sağ
-                //   köşeye yapışmıyor, ~290dp içeride "havada" kalıyordu (sağda kocaman
-                //   boş bir şerit oluşuyordu).
-                //   Yeni düzen: pill, ağırlığı TAM dolduran bir sarmalayıcı Row içinde;
-                //   aksiyon satırı ise sarmalayıcıdan sonra geldiği için daima en sağda
-                //   (sağ padding'in hemen yanında) biter. Pill dar ekranda taşmaz, metni
-                //   üç nokta ile kısalır.
                 Row(
                     modifier = Modifier.weight(1f),
                     verticalAlignment = Alignment.CenterVertically
@@ -182,12 +183,12 @@ fun KitsugiProfileScreen(
                     ProfileSourceSelectorPill(
                         selectedPlatform = currentPlatform,
                         isConnected = isCurrentConnected,
+                        compact = isNarrowProfile,
                         onClick = { showSourcePickerSheet = true }
                     )
                 }
 
-                // 📊 İstatistik + 🔔 Bildirim → ortak üst çubuk aksiyon satırı.
-                // Kanonik sıra: istatistik solda, bildirim her zaman en sağda.
+                // 📊 İstatistik + 🕒 Geçmiş + ⬇ İndirilenler + 🔔 Bildirim → kanonik sıra.
                 KitsugiTopActionRow(
                     actions = buildList {
                         if (onOpenWatchHistory != null) add(KitsugiTopAction.HISTORY)
@@ -195,6 +196,7 @@ fun KitsugiProfileScreen(
                         if (onOpenStatsClick != null) add(KitsugiTopAction.STATS)
                         if (isNotificationsVisible && onOpenNotifications != null) add(KitsugiTopAction.NOTIFICATIONS)
                     },
+                    maxVisibleActions = maxProfileActions,
                     onActionClick = { action ->
                         when (action) {
                             KitsugiTopAction.HISTORY -> onOpenWatchHistory?.invoke()
@@ -303,7 +305,9 @@ fun KitsugiProfileScreen(
                                 onLoadMoreFriends = { viewModel.loadMoreMalFriends() },
                                 onLoadMoreReviews = { viewModel.loadMoreMalReviews() },
                                 onLoadMoreRecommendations = { viewModel.loadMoreMalRecommendations() },
-                                onLoadMoreClubs = { viewModel.loadMoreMalClubs() }
+                                onLoadMoreClubs = { viewModel.loadMoreMalClubs() },
+                                isBottomBarVisible = isBottomBarVisible,
+                                onScrollReset = onScrollReset
                             )
                         }
                         2 -> ExternalProfileWrapper(
@@ -327,7 +331,9 @@ fun KitsugiProfileScreen(
                                 onOpenStatsClick = onOpenStatsClick,
                                 isLandscape = isLandscape,
                                 accentColor = accentColor,
-                                onImageClick = { urls, idx, title -> activeGalleryImages = Triple(urls, idx, title) }
+                                onImageClick = { urls, idx, title -> activeGalleryImages = Triple(urls, idx, title) },
+                                isBottomBarVisible = isBottomBarVisible,
+                                onScrollReset = onScrollReset
                             )
                         }
                         3 -> ExternalProfileWrapper(
@@ -351,7 +357,9 @@ fun KitsugiProfileScreen(
                                 onOpenStatsClick = onOpenStatsClick,
                                 isLandscape = isLandscape,
                                 accentColor = accentColor,
-                                onImageClick = { urls, idx, title -> activeGalleryImages = Triple(urls, idx, title) }
+                                onImageClick = { urls, idx, title -> activeGalleryImages = Triple(urls, idx, title) },
+                                isBottomBarVisible = isBottomBarVisible,
+                                onScrollReset = onScrollReset
                             )
                         }
                         5 -> ExternalProfileWrapper(
@@ -379,7 +387,9 @@ fun KitsugiProfileScreen(
                                 },
                                 onPersonClick = { personId, personName, personImageUrl ->
                                     onFavoriteStaffClick(personId, "bangumi", personName, personImageUrl)
-                                }
+                                },
+                                isBottomBarVisible = isBottomBarVisible,
+                                onScrollReset = onScrollReset
                             )
                         }
                         6 -> ExternalProfileWrapper(
@@ -397,7 +407,9 @@ fun KitsugiProfileScreen(
                                 accentColor = accentColor,
                                 onMediaClick = { mediaId, mediaType, title, imageUrl ->
                                     onFavoriteMediaClick(mediaId, mediaType, "tmdb", title, imageUrl)
-                                }
+                                },
+                                isBottomBarVisible = isBottomBarVisible,
+                                onScrollReset = onScrollReset
                             )
                         }
                         4 -> ExternalProfileWrapper(
@@ -421,7 +433,9 @@ fun KitsugiProfileScreen(
                                 onOpenStatsClick = onOpenStatsClick,
                                 isLandscape = isLandscape,
                                 accentColor = accentColor,
-                                onImageClick = { urls, idx, title -> activeGalleryImages = Triple(urls, idx, title) }
+                                onImageClick = { urls, idx, title -> activeGalleryImages = Triple(urls, idx, title) },
+                                isBottomBarVisible = isBottomBarVisible,
+                                onScrollReset = onScrollReset
                             )
                         }
                     }

@@ -1,4 +1,4 @@
-﻿@file:OptIn(
+@file:OptIn(
     androidx.compose.foundation.ExperimentalFoundationApi::class,
     androidx.compose.material3.ExperimentalMaterial3Api::class
 )
@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -198,18 +199,19 @@ fun CharacterDetailPage(
             }
             is CharacterDetailState.Error -> {
                 Box(modifier = Modifier.fillMaxSize()) {
-                    IconButton(
+                    com.kitsugi.animelist.ui.components.KitsugiIconGlassButton(
+                        icon = Icons.ArrowBack,
+                        contentDescription = stringResource(R.string.action_back),
                         onClick = onBackClick,
+                        accentColor = accentColor,
                         modifier = Modifier
                             .align(Alignment.TopStart)
-                            .padding(start = 12.dp, top = 24.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.ArrowBack,
-                            contentDescription = stringResource(R.string.action_back),
-                            tint = KitsugiColors.TextPrimary
-                        )
-                    }
+                            .statusBarsPadding()
+                            .padding(
+                                horizontal = com.kitsugi.animelist.ui.components.KitsugiTopActionTokens.HeaderHorizontalPadding,
+                                vertical = 8.dp
+                            )
+                    )
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
@@ -439,11 +441,12 @@ fun CharacterDetailPage(
                                         userScrollEnabled = !isTv,
                                         modifier = Modifier.fillMaxSize()
                                     ) { page ->
-                                    val currentTab = tabs.getOrNull(page)
+                                    val pageScrollState = rememberScrollState()
+                                    Box(modifier = Modifier.fillMaxSize()) {
                                     Column(
                                         modifier = Modifier
                                             .fillMaxSize()
-                                            .kitsugiVerticalScroll(rememberScrollState())
+                                            .kitsugiVerticalScroll(pageScrollState)
                                             .padding(horizontal = 16.dp, vertical = 8.dp)
                                     ) {
                                         when (tabKeys.getOrNull(page)) {
@@ -488,7 +491,20 @@ fun CharacterDetailPage(
 
                                             null -> Unit
                                         }
-                                        Spacer(modifier = Modifier.height(32.dp))
+                                        Spacer(modifier = Modifier.height(48.dp))
+                                    }
+                                    com.kitsugi.animelist.ui.components.KitsugiScrollToTopFab(
+                                        visible = pageScrollState.value > 400,
+                                        isLandscape = true,
+                                        bottomBarScrollState = null,
+                                        fallbackBottomBarVisible = false,
+                                        onClick = {
+                                            coroutineScope.launch {
+                                                pageScrollState.animateScrollTo(0)
+                                            }
+                                        },
+                                        modifier = Modifier.align(Alignment.BottomEnd)
+                                    )
                                     }
                                     } // end HorizontalPager
                                 }
@@ -632,12 +648,25 @@ fun CharacterDetailPage(
 
                                                 null -> Unit
                                             }
-                                            Spacer(modifier = Modifier.height(50.dp))
+                                            Spacer(modifier = Modifier.height(64.dp))
                                         }
                                     }
                                 } // end HorizontalPager
                             }
                         }
+
+                        com.kitsugi.animelist.ui.components.KitsugiScrollToTopFab(
+                            visible = listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 350,
+                            isLandscape = false,
+                            bottomBarScrollState = null,
+                            fallbackBottomBarVisible = false,
+                            onClick = {
+                                coroutineScope.launch {
+                                    listState.animateScrollToItem(0)
+                                }
+                            },
+                            modifier = Modifier.align(Alignment.BottomEnd)
+                        )
 
                         if (activeGalleryItems.isNotEmpty()) {
                             KitsugiImageGalleryDialog(
