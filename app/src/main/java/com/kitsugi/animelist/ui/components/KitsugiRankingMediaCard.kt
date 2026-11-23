@@ -17,31 +17,24 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import com.kitsugi.animelist.ui.icons.KitsugiIcons as Icons
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import com.kitsugi.animelist.ui.theme.gradient.Icon
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import com.kitsugi.animelist.ui.theme.gradient.Text
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil3.compose.AsyncImage
 import com.kitsugi.animelist.data.remote.JikanSearchResult
-import com.kitsugi.animelist.model.MediaType
 import com.kitsugi.animelist.ui.theme.KitsugiColors
 import com.kitsugi.animelist.ui.theme.LocalKitsugiAccent
 import com.kitsugi.animelist.ui.utils.tvClickable
 import com.kitsugi.animelist.utils.PreferenceHelpers.getDisplayTitle
-import java.text.NumberFormat
-import java.util.Locale
-import androidx.compose.ui.res.stringResource
-import com.kitsugi.animelist.R
 
 @Composable
 fun KitsugiRankingMediaCard(
@@ -54,6 +47,8 @@ fun KitsugiRankingMediaCard(
     titleLanguage: String = "ENGLISH",
     hideScores: Boolean = false,
     blurAdultMedia: Boolean = false,
+    /** Rozetlerdeki puan biçimi (kare görünümle aynı sonucu verir). */
+    scoreFormat: String = "POINT_10",
     onQuickAddClick: (() -> Unit)? = null
 ) {
     val accentColor = LocalKitsugiAccent.current
@@ -173,98 +168,16 @@ fun KitsugiRankingMediaCard(
                     overflow = TextOverflow.Ellipsis
                 )
 
-                // Subtitle (Format + Total Episodes/Chapters)
-                val formatText = buildFormatText(result)
-                if (formatText.isNotEmpty()) {
-                    Text(
-                        text = formatText,
-                        color = KitsugiColors.TextSecondary,
-                        style = MaterialTheme.typography.bodySmall,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-
-                if (mediaEntry != null) {
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Text(
-                            text = entryProgressText(mediaEntry),
-                            color = statusColor(mediaEntry.status),
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold
-                        )
-                        if (mediaEntry.score != null) {
-                            KitsugiEmojiLabel(
-                                label = "${mediaEntry.score}",
-                                icon = Icons.StarSolid,
-                                iconSize = 9.dp,
-                                color = KitsugiColors.TextMuted,
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(2.dp))
-                    EpisodeProgressBar(
-                        progress = mediaEntry.progress,
-                        total = mediaEntry.total,
-                        color = statusColor(mediaEntry.status),
-                        modifier = Modifier.fillMaxWidth(0.9f)
-                    )
-                } else {
-                    Spacer(modifier = Modifier.height(2.dp))
-
-                    // Score Line
-                    if (!hideScores) {
-                        val scoreVal = result.rawScoreDouble
-                            ?: result.score?.let { it.toDouble() }
-                        if (scoreVal != null && scoreVal > 0) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Star,
-                                    contentDescription = stringResource(R.string.detail_stat_score),
-                                    tint = Color(0xFFFFB800),
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Text(
-                                    text = String.format(Locale.US, "%.2f", scoreVal),
-                                    color = KitsugiColors.TextPrimary,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
-                    }
-
-                    // Members / Popularity Line
-                    val membersVal = result.members ?: result.favorites
-                    if (membersVal != null && membersVal > 0) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Group,
-                                contentDescription = stringResource(R.string.uyeler),
-                                tint = KitsugiColors.TextMuted,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Text(
-                                text = formatNumber(membersVal),
-                                color = KitsugiColors.TextMuted,
-                                style = MaterialTheme.typography.bodySmall,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
-                    }
-                }
+                // Biçim satırı + istatistik rozetleri + ilerleme çubuğu.
+                // Kare (ızgara) görünümüyle BİREBİR aynı ortak bileşen kullanılır;
+                // "kutucuk içi sayı/puan" rozetleri iki görünümde de aynıdır.
+                Spacer(modifier = Modifier.height(2.dp))
+                KitsugiMediaCardStatBlock(
+                    result = result,
+                    mediaEntry = mediaEntry,
+                    scoreFormat = scoreFormat,
+                    hideScores = hideScores
+                )
 
                 // Yayın geri sayımı — tüm kaynaklar (nextAiringEpisode dolu ise): tarih + geri sayım
                 if (!result.nextAiringEpisode.isNullOrBlank()) {
@@ -322,35 +235,6 @@ private fun StatusBadge(
     }
 }
 
-@Composable
-private fun EpisodeProgressBar(
-    progress: Int,
-    total: Int?,
-    color: Color = LocalKitsugiAccent.current,
-    modifier: Modifier = Modifier
-) {
-    val fraction = remember(progress, total) {
-        val maxVal = if (total != null && total > 0) total else if (progress > 0) progress else 1
-        (progress.toFloat() / maxVal.toFloat()).coerceIn(0f, 1f)
-    }
-
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(4.dp)
-            .clip(RoundedCornerShape(999.dp))
-            .background(KitsugiColors.SurfaceSoft)
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth(fraction)
-                .height(4.dp)
-                .clip(RoundedCornerShape(999.dp))
-                .background(color)
-        )
-    }
-}
-
 private fun statusColor(status: com.kitsugi.animelist.model.WatchStatus): Color {
     return when (status) {
         com.kitsugi.animelist.model.WatchStatus.Watching   -> KitsugiColors.AccentBlue
@@ -360,38 +244,4 @@ private fun statusColor(status: com.kitsugi.animelist.model.WatchStatus): Color 
         com.kitsugi.animelist.model.WatchStatus.Paused     -> KitsugiColors.AccentPurple
         com.kitsugi.animelist.model.WatchStatus.Repeating  -> KitsugiColors.AccentBlue
     }
-}
-
-private fun entryProgressText(entry: com.kitsugi.animelist.model.MediaEntry): String {
-    val unit = when (entry.type) {
-        com.kitsugi.animelist.model.MediaType.Anime -> "bölüm"
-        com.kitsugi.animelist.model.MediaType.Manga -> "chapter"
-        else -> "bölüm"
-    }
-
-    val totalText = entry.total?.toString() ?: "?"
-    return "${entry.progress}/$totalText $unit"
-}
-
-private fun buildFormatText(result: JikanSearchResult): String {
-    val typeName = when (result.type) {
-        MediaType.Anime -> "Anime"
-        MediaType.Manga -> "Manga"
-        MediaType.Movie -> "Film"
-        MediaType.TvShow -> "Dizi"
-    }
-
-    return if (result.total != null && result.total > 0) {
-        val countLabel = if (result.type == MediaType.Manga) "bölüm" else "bölüm"
-        "$typeName (${result.total} $countLabel)"
-    } else {
-        result.subtitle.ifBlank { typeName }
-    }
-}
-
-private val trLocale = Locale("tr", "TR")
-private val trNumberFormat = NumberFormat.getInstance(trLocale)
-
-private fun formatNumber(number: Int): String {
-    return trNumberFormat.format(number)
 }

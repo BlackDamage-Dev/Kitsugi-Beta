@@ -13,10 +13,10 @@ class DetailTabIndexMappingTest {
     @Test
     fun pagesAroundVideoTabKeepTheirLegacyDataIndexes() {
         assertEquals(0, detailDataTabIndexForPage(0)) // Info
-        assertEquals(1, detailDataTabIndexForPage(1)) // Images
-        assertEquals(2, detailDataTabIndexForPage(3)) // Characters
-        assertEquals(3, detailDataTabIndexForPage(4)) // Staff
-        assertEquals(7, detailDataTabIndexForPage(8)) // Reviews
-        assertEquals(8, detailDataTabIndexForPage(9)) // Episodes
+        assertNull(detailDataTabIndexForPage(1)) // Videos - no remote data
+        assertEquals(2, detailDataTabIndexForPage(2)) // Characters
+        assertEquals(3, detailDataTabIndexForPage(3)) // Staff
+        assertEquals(7, detailDataTabIndexForPage(7)) // Reviews
+        assertEquals(8, detailDataTabIndexForPage(8)) // Episodes
     }
 }

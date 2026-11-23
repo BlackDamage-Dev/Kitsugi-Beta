@@ -405,7 +405,6 @@ fun ApiResultDetailPage(
     val tabs = buildList {
         addAll(listOf(
             stringResource(R.string.detail_tab_info),
-            stringResource(R.string.detail_tab_images),
             stringResource(R.string.detail_tab_videos),
             stringResource(R.string.detail_tab_characters),
             stringResource(R.string.detail_tab_staff),
@@ -727,56 +726,8 @@ fun ApiResultDetailPage(
                         )
                     }
                     1 -> {
-                        // Resimler sekmesi — tüm galeri öğeleri (Fanart.tv, TMDB, AniList posterler)
-                        Column(
-                            modifier = androidx.compose.ui.Modifier.padding(horizontal = 0.dp, vertical = 14.dp)
-                        ) {
-                            if (galleryLoading && galleryItems.isEmpty()) {
-                                DetailGalleryLoadingCard()
-                            } else if (galleryItems.isNotEmpty()) {
-                                DetailGalleryCard(
-                                    items = galleryItems,
-                                    isAdult = displayResult.isAdult,
-                                    onItemClick = { index ->
-                                        if (!galleryLoading) activeGalleryItems = galleryItems
-                                        activeGalleryIndex = index
-                                    },
-                                    onOpenGallery = { category ->
-                                        val startIndex = if (category == null) 0
-                                        else galleryItems.indexOfFirst { it.category == category }.coerceAtLeast(0)
-                                        activeGalleryCategory = category
-                                        if (!galleryLoading) activeGalleryItems = galleryItems
-                                        activeGalleryIndex = startIndex
-                                    },
-                                    onOpenSourceGallery = { source ->
-                                        val sourceItems = galleryItems.filter { it.source.equals(source, ignoreCase = true) }
-                                        if (sourceItems.isNotEmpty()) {
-                                            activeGalleryCategory = sourceItems.first().category
-                                            if (!galleryLoading) activeGalleryItems = sourceItems
-                                            activeGalleryIndex = 0
-                                        }
-                                    }
-                                )
-                            } else {
-                                // Galeri yüklenirken veya boşken bilgi mesajı
-                                androidx.compose.foundation.layout.Box(
-                                    modifier = androidx.compose.ui.Modifier
-                                        .fillMaxWidth()
-                                        .padding(32.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = if (galleryLoading) stringResource(R.string.ui_images_loading) else stringResource(R.string.ui_no_image_available),
-                                        color = KitsugiColors.TextMuted,
-                                        style = MaterialTheme.typography.bodyMedium
-                                    )
-                                }
-                            }
-                        }
-                    }
-                    2 -> {
                         // KASMA/ÇÖKME FIX (2026-11-05): gereksiz `selectedTab` kontrolü
-                        // kaldırıldı. `page == 2` zaten Videolar sekmesidir; kontrol
+                        // kaldırıldı. `page == 1` zaten Videolar sekmesidir; kontrol
                         // yüzünden sekme geçişi sırasında içerik bir kare boyunca boş
                         // kalıyor ve bu ekranın tamamının yeniden kompoze olmasına yol
                         // açan bir state okuması yapılıyordu.
@@ -787,7 +738,7 @@ fun ApiResultDetailPage(
                             primarySource = result.source
                         )
                     }
-                    3 -> ApiCharactersTabSlot(
+                    2 -> ApiCharactersTabSlot(
                         viewModel = viewModel,
                         onCharacterClick = onCharacterClick,
                         onStaffClick = onStaffClick,
@@ -795,26 +746,26 @@ fun ApiResultDetailPage(
                         titleLanguage = titleLanguage,
                         staffNameLanguage = staffNameLanguage
                     )
-                    4 -> ApiStaffTabSlot(
+                    3 -> ApiStaffTabSlot(
                         viewModel = viewModel,
                         onStaffClick = onStaffClick,
                         titleLanguage = titleLanguage,
                         staffNameLanguage = staffNameLanguage
                     )
-                    5 -> ApiRecommendationsTabSlot(
+                    4 -> ApiRecommendationsTabSlot(
                         viewModel = viewModel,
                         titleLanguage = titleLanguage,
                         blurAdultMedia = blurAdultMedia,
                         onRelationClick = onRelationClick
                     )
-                    6 -> ApiRelationsTabSlot(
+                    5 -> ApiRelationsTabSlot(
                         viewModel = viewModel,
                         titleLanguage = titleLanguage,
                         blurAdultMedia = blurAdultMedia,
                         onRelationClick = onRelationClick
                     )
-                    7 -> ApiStatsTabSlot(viewModel = viewModel)
-                    8 -> ApiReviewsTabSlot(
+                    6 -> ApiStatsTabSlot(viewModel = viewModel)
+                    7 -> ApiReviewsTabSlot(
                         viewModel = viewModel,
                         source = result.source,
                         externalId = result.malId,
@@ -832,7 +783,7 @@ fun ApiResultDetailPage(
                         onUserProfileClick = onUserProfileClick,
                         preferredTranslator = settingsSlice?.preferredTranslator ?: "DEFAULT"
                     )
-                    9 -> ApiEpisodesTabSlot(
+                    8 -> ApiEpisodesTabSlot(
                         viewModel = viewModel,
                         result = result,
                         displayResult = displayResult,

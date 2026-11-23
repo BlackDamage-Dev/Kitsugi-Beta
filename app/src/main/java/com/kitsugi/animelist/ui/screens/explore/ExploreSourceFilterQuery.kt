@@ -174,7 +174,15 @@ suspend fun fetchFilteredExplorePage(
     clients: ExploreFilterClients,
     seasonalSeason: String? = null,
     seasonalYear: Int? = null,
-    seasonalSort: String? = null
+    seasonalSort: String? = null,
+    /**
+     * `true` → kaynak hataları yutulmaz, çağırana iletilir.
+     *
+     * "Tümünü Gör" sayfası bunu kullanır: hata ile "bu sayfada sonuç yok" ayrımı
+     * yapılmazsa tek bir 429/ağ hatası sayfalamayı kalıcı olarak bitirir ve kaydırdıkça
+     * yeni veri gelmez. Keşfet ekranı eski (bağışlayıcı) davranışı korur.
+     */
+    orThrow: Boolean = false
 ): List<JikanSearchResult> {
     if (page < 1) return emptyList()
     val term = if (genreId != "ALL") GENRE_TERMS[genreId] else null
@@ -223,6 +231,7 @@ suspend fun fetchFilteredExplorePage(
         }
     }.getOrElse { error ->
         if (error is kotlinx.coroutines.CancellationException) throw error
+        if (orThrow) throw error
         emptyList()
     }
 }

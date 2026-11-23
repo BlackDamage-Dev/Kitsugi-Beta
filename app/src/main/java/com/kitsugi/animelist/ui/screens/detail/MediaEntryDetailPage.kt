@@ -337,7 +337,6 @@ fun MediaEntryDetailPage(
     val tabs = buildList {
         addAll(listOf(
             stringResource(R.string.detail_tab_info),
-            stringResource(R.string.detail_tab_images),
             stringResource(R.string.detail_tab_videos),
             stringResource(R.string.detail_tab_characters),
             stringResource(R.string.detail_tab_staff),
@@ -604,56 +603,8 @@ fun MediaEntryDetailPage(
                         )
                     }
                     1 -> {
-                        // Resimler sekmesi — tüm galeri öğeleri (Fanart.tv, TMDB, AniList posterler)
-                        Column(
-                            modifier = androidx.compose.ui.Modifier.padding(horizontal = 0.dp, vertical = 14.dp)
-                        ) {
-                            if (galleryLoading && galleryItems.isEmpty()) {
-                                DetailGalleryLoadingCard()
-                            } else if (galleryItems.isNotEmpty()) {
-                                DetailGalleryCard(
-                                    items = galleryItems,
-                                    isAdult = displayEntry.isAdult,
-                                    onItemClick = { index ->
-                                        if (!galleryLoading) activeGalleryItems = galleryItems
-                                        activeGalleryIndex = index
-                                    },
-                                    onOpenGallery = { category ->
-                                        val startIndex = if (category == null) 0
-                                        else galleryItems.indexOfFirst { it.category == category }.coerceAtLeast(0)
-                                        activeGalleryCategory = category
-                                        if (!galleryLoading) activeGalleryItems = galleryItems
-                                        activeGalleryIndex = startIndex
-                                    },
-                                    onOpenSourceGallery = { source ->
-                                        val sourceItems = galleryItems.filter { it.source.equals(source, ignoreCase = true) }
-                                        if (sourceItems.isNotEmpty()) {
-                                            activeGalleryCategory = sourceItems.first().category
-                                            if (!galleryLoading) activeGalleryItems = sourceItems
-                                            activeGalleryIndex = 0
-                                        }
-                                    }
-                                )
-                            } else {
-                                // Galeri yüklenirken veya boşken bilgi mesajı
-                                androidx.compose.foundation.layout.Box(
-                                    modifier = androidx.compose.ui.Modifier
-                                        .fillMaxWidth()
-                                        .padding(32.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = if (galleryLoading) stringResource(R.string.ui_images_loading) else stringResource(R.string.ui_no_image_available),
-                                        color = KitsugiColors.TextMuted,
-                                        style = MaterialTheme.typography.bodyMedium
-                                    )
-                                }
-                            }
-                        }
-                    }
-                    2 -> {
                         // KASMA/ÇÖKME FIX (2026-11-05): gereksiz `selectedTab` kontrolü
-                        // kaldırıldı; `page == 2` zaten Videolar sekmesidir.
+                        // kaldırıldı; `page == 1` zaten Videolar sekmesidir.
                         EntryVideoTabSlot(
                             viewModel = viewModel,
                             detail = detailState,
@@ -661,7 +612,7 @@ fun MediaEntryDetailPage(
                             primarySource = entry.source
                         )
                     }
-                    3 -> EntryCharactersTabSlot(
+                    2 -> EntryCharactersTabSlot(
                         viewModel = viewModel,
                         onCharacterClick = onCharacterClick,
                         onStaffClick = onStaffClick,
@@ -669,26 +620,26 @@ fun MediaEntryDetailPage(
                         titleLanguage = titleLanguage,
                         staffNameLanguage = staffNameLanguage
                     )
-                    4 -> EntryStaffTabSlot(
+                    3 -> EntryStaffTabSlot(
                         viewModel = viewModel,
                         onStaffClick = onStaffClick,
                         titleLanguage = titleLanguage,
                         staffNameLanguage = staffNameLanguage
                     )
-                    5 -> EntryRecommendationsTabSlot(
+                    4 -> EntryRecommendationsTabSlot(
                         viewModel = viewModel,
                         titleLanguage = titleLanguage,
                         blurAdultMedia = blurAdultMedia,
                         onRelationClick = onRelationClick
                     )
-                    6 -> EntryRelationsTabSlot(
+                    5 -> EntryRelationsTabSlot(
                         viewModel = viewModel,
                         titleLanguage = titleLanguage,
                         blurAdultMedia = blurAdultMedia,
                         onRelationClick = onRelationClick
                     )
-                    7 -> EntryStatsTabSlot(viewModel = viewModel)
-                    8 -> EntryReviewsTabSlot(
+                    6 -> EntryStatsTabSlot(viewModel = viewModel)
+                    7 -> EntryReviewsTabSlot(
                         viewModel = viewModel,
                         source = displayEntry.source,
                         externalId = if (displayEntry.source.equals("simkl", true)) {
@@ -710,7 +661,7 @@ fun MediaEntryDetailPage(
                         onUserProfileClick = onUserProfileClick,
                         preferredTranslator = preferredTranslator
                     )
-                    9 -> EntryEpisodesTabSlot(
+                    8 -> EntryEpisodesTabSlot(
                         viewModel = viewModel,
                         entry = displayEntry,
                         detailState = detailState,
