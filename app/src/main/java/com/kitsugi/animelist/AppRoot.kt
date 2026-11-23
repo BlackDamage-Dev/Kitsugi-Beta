@@ -20,6 +20,7 @@ import com.kitsugi.animelist.ui.theme.gradient.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.calculateStartPadding
@@ -47,14 +48,7 @@ import com.kitsugi.animelist.ui.theme.gradient.FloatingActionButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.consumeWindowInsets
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.ui.platform.LocalDensity
 import com.kitsugi.animelist.utils.rememberScrollVisibilityState
 import com.kitsugi.animelist.utils.rememberScrollConnection
@@ -126,8 +120,8 @@ import com.kitsugi.animelist.ui.components.KitsugiUpdateDialog
 import com.kitsugi.animelist.core.update.AppUpdateViewModel
 import com.kitsugi.animelist.ui.navigation.AppBottomBar
 import com.kitsugi.animelist.ui.navigation.AppNavigationRail
-import com.kitsugi.animelist.ui.navigation.KitsugiBottomBarTokens
 import com.kitsugi.animelist.ui.navigation.MainTab
+import com.kitsugi.animelist.ui.navigation.NuvioFloatingNavBar
 import com.kitsugi.animelist.ui.screens.anime.AnimeScreen
 import com.kitsugi.animelist.ui.screens.detail.ApiResultDetailPage
 import com.kitsugi.animelist.ui.screens.detail.MediaEntryDetailPage
@@ -857,31 +851,16 @@ fun AppRoot(
             touchBringIntoView
         }
     ) {
-        LaunchedEffect(appSettings.fixedNavBar) {
-            if (appSettings.fixedNavBar) {
-                bottomBarScrollState.show()
-            }
-        }
-        val isBottomBarShown = !isInFullScreenMode && !isLandscape &&
-            (appSettings.fixedNavBar || bottomBarScrollState.isVisible)
         Scaffold(
             containerColor = KitsugiColors.Background,
-            modifier = if (isInFullScreenMode || appSettings.fixedNavBar) Modifier else Modifier.nestedScroll(bottomBarScrollConnection),
+            modifier = if (isInFullScreenMode) Modifier else Modifier.nestedScroll(bottomBarScrollConnection),
             snackbarHost = {
-                val density = LocalDensity.current
-                val snackbarSlideDownPx by animateFloatAsState(
-                    targetValue = if (!isInFullScreenMode && !isLandscape && !isBottomBarShown) {
-                        with(density) { (KitsugiBottomBarTokens.PillHeight + KitsugiBottomBarTokens.BottomMargin).toPx() }
-                    } else {
-                        0f
-                    },
-                    animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing),
-                    label = "snackbar_bottom_offset"
-                )
                 SnackbarHost(
                     hostState = snackbarHostState,
-                    modifier = Modifier.graphicsLayer {
-                        translationY = snackbarSlideDownPx
+                    modifier = if (!isInFullScreenMode && !isLandscape && !isTvDevice) {
+                        Modifier.padding(bottom = 78.dp)
+                    } else {
+                        Modifier
                     },
                     snackbar = { snackbarData ->
                         Snackbar(
@@ -895,43 +874,40 @@ fun AppRoot(
                 )
             },
             bottomBar = {
-                // Yatay modda NavigationRail kullanıldığı için BottomBar gizleniyor
-                if (!isInFullScreenMode && !isLandscape) {
-                    val density = LocalDensity.current
-                    val bottomBarOffset by animateFloatAsState(
-                        targetValue = if (isBottomBarShown) 0f else with(density) { 120.dp.toPx() },
-                        animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing),
-                        label = "bottom_bar_offset"
+                // Android TV dikey yerleşimde (nadir) klasik alt bar korunur; mobil/tablet NuvioFloatingNavBar kullanır.
+                if (isTvDevice && !isInFullScreenMode && !isLandscape) {
+                    AppBottomBar(
+                        currentTab = selectedTab,
+                        onTabSelected = { tab -> appViewModel.selectTab(tab) }
                     )
-                    Box(
-                        modifier = Modifier
-                            .graphicsLayer {
-                                translationY = bottomBarOffset
-                            }
-                    ) {
-                        AppBottomBar(
-                            currentTab = selectedTab,
-                            onTabSelected = { tab ->
-                                appViewModel.selectTab(tab)
-                            }
-                        )
-                    }
                 }
             }
         ) { innerPadding ->
-            val rootConsumedPadding = PaddingValues(
-                top = innerPadding.calculateTopPadding(),
-                start = innerPadding.calculateStartPadding(LayoutDirection.Ltr),
-                end = innerPadding.calculateEndPadding(LayoutDirection.Ltr)
-            )
-            // Yatay modda NavigationRail + içerik yan yana; dikey modda normal tam ekran içerik
+            // NuvioMobile tarzı yüzen cam navigasyon düzeni:
+            // - Keşfet ekranında kenardan kenara (edge-to-edge) hero üst çubuğun arkasına uzanır.
+            // - Yatay modda diğer sekmeler üst ortadaki yüzen kapsülle çakışmaması için boşluk bırakır.
+            // - Android TV yatay modda kendi AppNavigationRail'ini korur.
+            val isEdgeToEdgeExplore = !isTvDevice && !isInFullScreenMode && selectedTab == MainTab.Explore
+            val contentTopPadding = when {
+                isEdgeToEdgeExplore -> 0.dp
+                !isTvDevice && isLandscape && !isInFullScreenMode -> innerPadding.calculateTopPadding() + 62.dp
+                else -> innerPadding.calculateTopPadding()
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(KitsugiColors.Background)
+            ) {
             Row(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(rootConsumedPadding)
-                    .consumeWindowInsets(rootConsumedPadding)
+                    .padding(
+                        top = contentTopPadding,
+                        start = innerPadding.calculateStartPadding(LayoutDirection.Ltr),
+                        end = innerPadding.calculateEndPadding(LayoutDirection.Ltr)
+                    )
             ) {
-                if (isLandscape && !isInFullScreenMode) {
+                if (isTvDevice && isLandscape && !isInFullScreenMode) {
                     AppNavigationRail(
                         currentTab = selectedTab,
                         onTabSelected = { tab -> appViewModel.selectTab(tab) }
@@ -941,7 +917,6 @@ fun AppRoot(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxSize()
-                    .background(KitsugiColors.Background)
             ) {
                 val activeApiResult = selectedApiResult
                 val activeFullScreenGrid = navState.fullScreenGridState
@@ -1054,23 +1029,42 @@ fun AppRoot(
                 // İndirilenler ekranı kendi içinde KitsugiAudioPlayerHost barındırdığı için
                 // diğer tüm uygulama ekranlarında mini ses oynatıcısını burada tutuyoruz.
                 if (currentAppStateKey !is AppStateKey.Downloads) {
-                    val navBottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-                    val audioPlayerBottomPadding by animateDpAsState(
-                        targetValue = if (isBottomBarShown) {
-                            innerPadding.calculateBottomPadding()
-                        } else {
-                            navBottomInset + 8.dp
-                        },
-                        animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing),
-                        label = "audio_player_bottom_padding"
-                    )
                     com.kitsugi.animelist.ui.screens.audio.KitsugiAudioPlayerHost(
-                        bottomPadding = audioPlayerBottomPadding,
+                        bottomPadding = if (!isInFullScreenMode && !isLandscape && !isTvDevice) {
+                            innerPadding.calculateBottomPadding() + 74.dp
+                        } else {
+                            innerPadding.calculateBottomPadding()
+                        },
                         modifier = Modifier.align(Alignment.BottomCenter)
                     )
                 }
             } // Box (içerik alanı)
-            } // Row (landscape layout)
+            } // Row (TV navigation rail + içerik)
+
+                // NuvioMobile tarzı yüzen cam navigasyon kapsülü:
+                // - Yatay / tablet: Üst Orta (TopCenter), kompakt simge modu
+                // - Dikey: Alt Orta (BottomCenter), kaydırmaya duyarlı etiketli/kompakt geçiş
+                if (!isInFullScreenMode && !isTvDevice) {
+                    NuvioFloatingNavBar(
+                        currentTab = selectedTab,
+                        onTabSelected = { tab -> appViewModel.selectTab(tab) },
+                        isLandscape = isLandscape,
+                        isCompact = !appSettings.fixedNavBar && !bottomBarScrollState.isVisible,
+                        overHero = isLandscape && selectedTab == MainTab.Explore,
+                        modifier = if (isLandscape) {
+                            Modifier
+                                .align(Alignment.TopCenter)
+                                .statusBarsPadding()
+                                .padding(top = 6.dp)
+                        } else {
+                            Modifier
+                                .align(Alignment.BottomCenter)
+                                .navigationBarsPadding()
+                                .padding(bottom = 10.dp)
+                        }
+                    )
+                }
+            } // Root Box
         }
 
         AppDialogHost(
@@ -1442,6 +1436,7 @@ private fun AppNavigationContent(
                             scoreFormat = appSettings.scoreFormat,
                             hideScores = appSettings.hideScores,
                             blurAdultMedia = appSettings.blurAdultMedia,
+                            platform = key.state.platform,
                         )
                     } else FullScreenMediaGridPage(
                         title = key.state.title,
@@ -1473,22 +1468,6 @@ private fun AppNavigationContent(
                             } else {
                                 onAddApiSelectionToList(ApiSearchSelection(result = result, synopsis = null))
                             }
-                        },
-                        // Başlıktaki toplu ekleme: görünen tüm sonuçlar tek seferde eklenir;
-                        // AppViewModel tek bir özet bildirim gösterir.
-                        onAddAllToList = { results ->
-                            appViewModel.addApiSelectionsToList(
-                                selections = results.map { ApiSearchSelection(result = it, synopsis = null) },
-                                currentEntries = mediaEntries,
-                                repository = mediaRepository,
-                                isAniListConnected = authViewModel.isAniListConnected,
-                                isMalConnected = authViewModel.isMalConnected,
-                                isSimklConnected = authViewModel.isSimklConnected,
-                                isBangumiConnected = authViewModel.isBangumiConnected,
-                                isTmdbConnected = authViewModel.isTmdbConnected,
-                                isKitsuConnected = authViewModel.isKitsuConnected,
-                                isShikimoriConnected = authViewModel.isShikimoriConnected
-                            )
                         }
                     )
                 }

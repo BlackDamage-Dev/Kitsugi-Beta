@@ -2,18 +2,23 @@ package com.kitsugi.animelist.ui.screens.explore.mobile
 
 import android.content.res.Configuration
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.unit.dp
 import com.kitsugi.animelist.data.remote.JikanSearchResult
-import com.kitsugi.animelist.ui.navigation.KitsugiBottomBarTokens
 import com.kitsugi.animelist.ui.screens.explore.ExplorePlatform
 
 /**
@@ -32,43 +37,49 @@ internal fun MobileExploreHost(
     emptyPage: @Composable (page: MobileExplorePageData) -> Unit,
     onOpenShelf: (MobileExploreShelfData) -> Unit,
     modifier: Modifier = Modifier,
-    hideUnsupportedTabs: Boolean = false,
     extraItems: LazyListScope.(MobileExplorePageData) -> Unit = {},
     onActiveListChanged: (androidx.compose.foundation.lazy.LazyListState) -> Unit = {},
+    overlayTabBar: Boolean = false,
+    heroCarousel: (@Composable (page: MobileExplorePageData, isLoading: Boolean) -> Unit)? = null,
 ) {
     // Reject malformed input early rather than pairing a tab with another tab's hero/results.
     require(content.pages.map { it.tab } == MobileExploreTab.entries)
-    val visibleTabs = remember(content.pages, hideUnsupportedTabs) {
-        if (hideUnsupportedTabs) {
-            content.pages.filter { it.supported }.map { it.tab }.ifEmpty { MobileExploreTab.entries }
-        } else {
-            MobileExploreTab.entries
-        }
-    }
-    val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
-    val bottomClearance = if (isLandscape) {
-        KitsugiBottomBarTokens.LandscapeListBottomSpacer
-    } else {
-        KitsugiBottomBarTokens.PortraitListBottomSpacer
-    }
-
     MobileExplorePager(
         selectedSource = selectedSource,
         contentReady = { tab -> content.pages[tab.ordinal].readyForScrollRestore },
         tabBar = tabBar,
-        tabs = visibleTabs,
         modifier = modifier,
         onActiveListChanged = onActiveListChanged,
+        overlayTabBar = overlayTabBar,
         page = { tab, listState ->
             val page = content.pages[tab.ordinal]
+            val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+            val navBarBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize().testTag("mobile_explore_page_list"),
-                contentPadding = PaddingValues(bottom = bottomClearance),
+                // Matches clearance above the floating bottom navigation pill (portrait) or gesture bar (landscape).
+                contentPadding = PaddingValues(
+                    bottom = (if (isLandscape) 36.dp else 104.dp) + navBarBottom
+                ),
             ) {
-                item(key = "mobile_hero_${tab.name}") {
-                    val loading = page.hero == null && (page.awaitingSourceState || page.loadingSources.isNotEmpty())
-                    hero(page.hero, loading)
+                if (overlayTabBar && !page.supported) {
+                    item(key = "mobile_top_spacer_${tab.name}") {
+                        Spacer(
+                            modifier = Modifier
+                                .statusBarsPadding()
+                                .height(if (isLandscape) 86.dp else 118.dp)
+                        )
+                    }
+                } else {
+                    item(key = "mobile_hero_${tab.name}") {
+                        val loading = page.hero == null && (page.awaitingSourceState || page.loadingSources.isNotEmpty())
+                        if (heroCarousel != null) {
+                            heroCarousel(page, loading)
+                        } else {
+                            hero(page.hero, loading)
+                        }
+                    }
                 }
                 extraItems(page)
                 items(page.sourceStatuses, key = { "mobile_status_${it.source.name}" }) { status ->
