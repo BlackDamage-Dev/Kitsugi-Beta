@@ -669,8 +669,9 @@ fun PluginPickerScreen(
                         }
                     }
 
-                    // Kategori çipleri yalnızca Video moduna aittir (TvType grupları);
-                    // Manga modunda kaynak kapsamı, listedeki kaynağa dokunarak seçilir.
+                    // Kategori çipleri yalnızca Video moduna aittir (TvType grupları).
+                    // Manga modunda satıra dokunmak kaynağın Keşfet'ini açar;
+                    // sağdaki arama ikonu arama kapsamını seçer.
                     if (portalMode == PluginPortalMode.VIDEO && availableGroups.isNotEmpty()) {
                         Row(
                             modifier = Modifier
@@ -930,11 +931,20 @@ fun PluginPickerScreen(
                                 accentColor = accentColor,
                                 selected = selectedMangaSourceKey == source.stableSourceKey(),
                                 onClick = {
-                                    // Kapsam seçimi: sonraki arama (arama butonu /
-                                    // klavye "Ara") yalnızca bu kaynakta çalışır;
-                                    // tekrar dokunmak kapsamı tüm kaynaklara açar.
+                                    // Video eklenti satırları gibi, satıra dokunmak
+                                    // bu manga kaynağının kendi Keşfet ekranını açar.
+                                    navState.navigateToDetail(
+                                        com.kitsugi.animelist.DetailScreen.MangaSourceExplore(
+                                            sourceKey = source.stableSourceKey()
+                                        )
+                                    )
+                                },
+                                onSelectForSearch = {
+                                    // Arama ikonuyla kaynak kapsamı seçilebilir;
+                                    // satırın ana dokunuşu Keşfet'e ayrılmıştır.
                                     selectedMangaSourceKey =
-                                        if (selectedMangaSourceKey == source.stableSourceKey()) null else source.stableSourceKey()
+                                        if (selectedMangaSourceKey == source.stableSourceKey()) null
+                                        else source.stableSourceKey()
                                 }
                             )
                         }
@@ -1106,7 +1116,8 @@ private fun MangaSourceListItem(
     source: MangaSource,
     accentColor: Color,
     selected: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onSelectForSearch: () -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -1162,6 +1173,21 @@ private fun MangaSourceListItem(
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold
         )
+        IconButton(
+            onClick = onSelectForSearch,
+            modifier = Modifier.size(36.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Search,
+                contentDescription = if (selected) {
+                    "${source.name}: arama kapsamından çıkar"
+                } else {
+                    "${source.name}: arama kapsamına ekle"
+                },
+                tint = if (selected) accentColor else KitsugiColors.TextMuted,
+                modifier = Modifier.size(18.dp)
+            )
+        }
     }
 }
 

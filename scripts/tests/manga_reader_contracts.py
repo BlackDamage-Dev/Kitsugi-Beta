@@ -158,9 +158,11 @@ class MangaReaderContracts(unittest.TestCase):
             self.assertIn(marker, session)
 
     def test_image_filters_are_shared_and_inversion_uses_255(self):
+        # Both components now delegate to MangaImageFilters (single source of truth in MangaReaderOptions.kt)
         for component in ("MangaPageItem.kt", "MangaWebtoonReader.kt"):
             self.assertIn("mangaPageColorFilter(colorFilterType)", read("ui/screens/manga/components/" + component))
-        self.assertEqual(read("ui/screens/manga/components/MangaPageColorFilter.kt").count("255f"), 3)
+        # The ColorMatrix definitions with 255f are now in MangaImageFilters object in MangaReaderOptions.kt
+        self.assertEqual(read("data/manga/MangaReaderOptions.kt").count("255f"), 3)
 
 
 if __name__ == "__main__":

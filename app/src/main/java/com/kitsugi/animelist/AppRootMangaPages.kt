@@ -113,7 +113,10 @@ fun AppRootMangaPages(
             // kaynak listesinden çözülür (video tarafındaki APIHolder çözümüyle aynı mantık).
             val exploreKey = "manga_source_explore_${key.depth}_${key.sourceKey}"
             navState.stateHolder.SaveableStateProvider(key = exploreKey) {
-                val source = mangaViewModel.mangaSources
+                // Çözümlemeyi repository'nin güncel listesiyle yap: portalın
+                // kendi yüklemesi, ViewModel'in snapshot'ından daha güncel
+                // olabilir (özellikle eklenti açılış/kurulumundan hemen sonra).
+                val source = mangaViewModel.mangaRepository.getInstalledSources()
                     .firstOrNull { it.stableSourceKey() == key.sourceKey }
                 if (source != null) {
                     MangaSourceExploreScreen(
