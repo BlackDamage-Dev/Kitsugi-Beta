@@ -3,6 +3,7 @@ package com.kitsugi.animelist.data.cloudstream
 import android.util.Log
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
+import com.kitsugi.animelist.core.network.RetryInterceptor
 import java.security.SecureRandom
 import java.security.cert.X509Certificate
 import java.util.concurrent.TimeUnit
@@ -90,6 +91,10 @@ object CsVideoInterceptorFactory {
 
         return OkHttpClient.Builder().apply {
             addInterceptor(PluginNetworkFailureGuard)
+            // 429/5xx/IO hatalarında üstel geri çekilme ile yeniden dene: HLS manifest
+            // (rapidrame HTTP 429 → ExoPlayer 2004) ve vidcache segment istekleri için
+            // geçici sunucu hatalarını geçer; GET video istekleri idempotent olduğu için güvenlidir.
+            addInterceptor(RetryInterceptor())
             dns(com.kitsugi.animelist.core.network.IPv4FirstDns())
             connectTimeout(20, TimeUnit.SECONDS)
             readTimeout(20, TimeUnit.SECONDS)

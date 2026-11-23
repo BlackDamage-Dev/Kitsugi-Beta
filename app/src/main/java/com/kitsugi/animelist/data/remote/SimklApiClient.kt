@@ -735,7 +735,7 @@ class SimklApiClient(
             WatchStatus.Watching -> "watching"
             WatchStatus.Completed -> "completed"
             WatchStatus.Planned -> "plantowatch"
-            WatchStatus.Dropped -> "dropped"
+            WatchStatus.Dropped -> "notinteresting" // Simkl reddeder "dropped"; bırakılanlar "notinteresting" Kovası altında tutulur
             WatchStatus.Paused -> "hold"
             WatchStatus.Repeating -> "watching" // Simkl has no rewatching; treat as watching
         }
