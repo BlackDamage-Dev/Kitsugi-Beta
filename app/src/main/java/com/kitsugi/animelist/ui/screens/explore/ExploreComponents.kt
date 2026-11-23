@@ -35,8 +35,10 @@ import com.kitsugi.animelist.utils.PreferenceHelpers.getDisplayTitle
 import com.kitsugi.animelist.ui.theme.LocalKitsugiAccent
 import com.kitsugi.animelist.ui.utils.tvClickable
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import com.kitsugi.animelist.R
+import com.kitsugi.animelist.ui.navigation.NuvioCircularActionButton
 
 
 @Composable
@@ -328,37 +330,41 @@ fun ExploreAiringSoonSection(
     blurAdultMedia: Boolean = false,
     modifier: Modifier = Modifier
 ) {
+    val horizontalPad = if (LocalConfiguration.current.screenWidthDp >= 600) 24.dp else 16.dp
     Column(modifier = modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp),
+                .padding(horizontal = horizontalPad),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(
                 text = title,
                 color = KitsugiColors.TextPrimary,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
             )
-            IconButton(onClick = onOpenAiringCalendar) {
-                Icon(
-                    imageVector = Icons.ArrowForward,
-                    contentDescription = stringResource(R.string.yayin_takvimi),
-                    tint = accentColor
-                )
-            }
+            NuvioCircularActionButton(
+                icon = Icons.ChevronRight,
+                contentDescription = stringResource(R.string.yayin_takvimi),
+                onClick = onOpenAiringCalendar,
+                visualSize = 34.dp,
+                iconSize = 18.dp
+            )
         }
 
-        Spacer(modifier = Modifier.height(10.dp))
+        Spacer(modifier = Modifier.height(4.dp))
 
         val lazyListState = androidx.compose.runtime.saveable.rememberSaveable(saver = androidx.compose.foundation.lazy.LazyListState.Saver) { androidx.compose.foundation.lazy.LazyListState() }
         LazyRow(
             state = lazyListState,
             flingBehavior = com.kitsugi.animelist.ui.utils.KitsugiScrollDefaults.rememberRowSnapFling(lazyListState),
-            contentPadding = PaddingValues(horizontal = 20.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            contentPadding = PaddingValues(horizontal = horizontalPad),
+            horizontalArrangement = Arrangement.spacedBy(11.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
             if (airingSoonAnime.isEmpty() && isLoading) {

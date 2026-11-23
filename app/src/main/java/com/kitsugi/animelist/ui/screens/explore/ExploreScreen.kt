@@ -436,7 +436,17 @@ fun ExploreScreen(
                         KitsugiPullToRefreshIndicator(
                             state = pullRefreshState,
                             isRefreshing = viewModel.isLoading,
-                            modifier = Modifier.align(Alignment.TopCenter)
+                            modifier = Modifier
+                                .align(Alignment.TopCenter)
+                                .then(
+                                    if (!isTvDevice) {
+                                        Modifier
+                                            .statusBarsPadding()
+                                            .padding(top = if (isLandscape) 86.dp else 112.dp)
+                                    } else {
+                                        Modifier
+                                    }
+                                )
                         )
                     }
                 ) {
@@ -797,6 +807,10 @@ fun ExploreScreen(
                                     add(KitsugiTopAction.RANDOM)
                                     if (isNotificationsVisible) add(KitsugiTopAction.NOTIFICATIONS)
                                 },
+                                size = 34.dp,
+                                cornerRadius = 17.dp,
+                                spacing = 5.dp,
+                                glassStyle = true,
                                 onActionClick = { action ->
                                     when (action) {
                                         KitsugiTopAction.RANDOM -> {

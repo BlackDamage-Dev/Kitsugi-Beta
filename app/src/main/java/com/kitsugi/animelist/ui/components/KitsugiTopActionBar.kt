@@ -22,11 +22,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.kitsugi.animelist.R
+import com.kitsugi.animelist.ui.navigation.LocalNuvioOverHero
 import com.kitsugi.animelist.ui.theme.KitsugiColors
 import com.kitsugi.animelist.ui.theme.LocalKitsugiAccent
 import com.kitsugi.animelist.ui.icons.KitsugiIcons
@@ -132,9 +134,10 @@ fun KitsugiTopActionButton(
     iconSize: Dp = KitsugiTopActionTokens.IconSize,
     showBadge: Boolean = false,
     enabled: Boolean = true,
-    selected: Boolean = false
+    selected: Boolean = false,
+    glassStyle: Boolean = false
 ) {
-    val shape = RoundedCornerShape(cornerRadius)
+    val shape = if (glassStyle) CircleShape else RoundedCornerShape(cornerRadius)
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
@@ -143,23 +146,47 @@ fun KitsugiTopActionButton(
         label = "kitsugiTopActionPress"
     )
     val surface = KitsugiColors.Surface
-    val borderColor = accentColor.copy(alpha = if (selected) 0.65f else 0.30f)
-    val iconTint = if (selected) accentColor else KitsugiColors.TextPrimary
+    val isLightTheme = KitsugiColors.Background.luminance() > 0.5f
+    val useDarkGlass = glassStyle && (LocalNuvioOverHero.current || !isLightTheme)
+    val useLightGlass = glassStyle && !useDarkGlass
+    val borderColor = when {
+        useDarkGlass -> if (selected) accentColor.copy(alpha = 0.65f) else Color.White.copy(alpha = 0.18f)
+        useLightGlass -> if (selected) accentColor.copy(alpha = 0.55f) else KitsugiColors.Border
+        else -> accentColor.copy(alpha = if (selected) 0.65f else 0.30f)
+    }
+    val iconTint = when {
+        useDarkGlass -> if (selected) accentColor else Color.White.copy(alpha = 0.92f)
+        useLightGlass -> if (selected) accentColor else KitsugiColors.TextPrimary
+        else -> if (selected) accentColor else KitsugiColors.TextPrimary
+    }
+    val backgroundBrush = when {
+        useDarkGlass -> Brush.verticalGradient(
+            listOf(
+                Color(0xFF1A1B1F).copy(alpha = if (selected) 0.85f else 0.72f),
+                Color(0xFF141519).copy(alpha = if (selected) 0.90f else 0.78f)
+            )
+        )
+        useLightGlass -> Brush.verticalGradient(
+            listOf(
+                surface.copy(alpha = if (selected) 0.96f else 0.90f),
+                surface.copy(alpha = if (selected) 0.98f else 0.94f)
+            )
+        )
+        else -> Brush.linearGradient(
+            listOf(
+                accentColor.copy(alpha = if (selected) 0.28f else 0.14f),
+                surface.copy(alpha = 0.94f)
+            )
+        )
+    }
 
     Box(
         modifier = modifier
             .size(size)
             .scale(scale)
             .clip(shape)
-            .background(
-                Brush.linearGradient(
-                    listOf(
-                        accentColor.copy(alpha = if (selected) 0.28f else 0.14f),
-                        surface.copy(alpha = 0.94f)
-                    )
-                )
-            )
-            .border(width = 1.dp, color = borderColor, shape = shape)
+            .background(backgroundBrush)
+            .border(width = if (glassStyle) 0.85.dp else 1.dp, color = borderColor, shape = shape)
             .tvClickable(
                 enabled = enabled,
                 shape = shape,
@@ -168,19 +195,21 @@ fun KitsugiTopActionButton(
             ),
         contentAlignment = Alignment.Center
     ) {
+        val effectiveIconSize = if (glassStyle && size <= 36.dp) 17.dp else iconSize
         Icon(
             imageVector = if (selected) action.selectedIcon ?: action.icon else action.icon,
             contentDescription = contentDescription ?: action.defaultLabel(),
             tint = if (enabled) iconTint else KitsugiColors.TextMuted,
-            modifier = Modifier.size(iconSize)
+            modifier = Modifier.size(effectiveIconSize)
         )
 
         if (showBadge) {
+            val badgeInset = if (size <= 36.dp) 5.dp else 7.dp
             Box(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .offset(x = (-7).dp, y = 7.dp)
-                    .size(9.dp)
+                    .offset(x = -badgeInset, y = badgeInset)
+                    .size(if (size <= 36.dp) 8.dp else 9.dp)
                     .clip(CircleShape)
                     .background(accentColor)
                     .border(1.5.dp, surface, CircleShape)
@@ -209,7 +238,8 @@ fun KitsugiTopActionRow(
     spacing: Dp = KitsugiTopActionTokens.Spacing,
     notificationBadge: Boolean = false,
     selectedActions: Set<KitsugiTopAction> = emptySet(),
-    enabledActions: Set<KitsugiTopAction> = KitsugiTopAction.entries.toSet()
+    enabledActions: Set<KitsugiTopAction> = KitsugiTopAction.entries.toSet(),
+    glassStyle: Boolean = false
 ) {
     val ordered = remember(actions) { KitsugiTopAction.canonicalOrder(actions) }
 
@@ -227,7 +257,8 @@ fun KitsugiTopActionRow(
                 cornerRadius = cornerRadius,
                 showBadge = notificationBadge && action == KitsugiTopAction.NOTIFICATIONS,
                 selected = action in selectedActions,
-                enabled = action in enabledActions
+                enabled = action in enabledActions,
+                glassStyle = glassStyle
             )
         }
     }

@@ -730,9 +730,9 @@ fun MyListScreen(
             targetValue = if (isLandscape) {
                 16.dp
             } else if (isBottomBarVisible) {
-                96.dp + navigationBarsPadding
+                86.dp + navigationBarsPadding
             } else {
-                16.dp + navigationBarsPadding
+                70.dp + navigationBarsPadding
             },
             animationSpec = tween(durationMillis = 200),
             label = "fab_bottom_padding"

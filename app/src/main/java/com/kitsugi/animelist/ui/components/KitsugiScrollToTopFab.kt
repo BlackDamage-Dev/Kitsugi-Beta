@@ -54,11 +54,13 @@ fun KitsugiScrollToTopFab(
     bottomBarHeight: Dp = 88.dp
 ) {
     val bottomBarVisible = bottomBarScrollState?.isVisible ?: fallbackBottomBarVisible
+    val hasFloatingNavPill = bottomBarScrollState != null
     val navigationPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val bottomPadding by animateDpAsState(
         targetValue = when {
             isLandscape -> 20.dp
             bottomBarVisible -> bottomBarHeight + navigationPadding
+            hasFloatingNavPill -> 70.dp + navigationPadding
             else -> 24.dp + navigationPadding
         },
         animationSpec = tween(220),

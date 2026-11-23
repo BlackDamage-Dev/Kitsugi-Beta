@@ -115,9 +115,8 @@ class MobileExploreVisualHostTest {
         val card = compose.onAllNodesWithTag(MobileExploreTestTags.CARD)[0].fetchSemanticsNode().boundsInRoot
         val scale = compose.density.density
         val gap = (card.top - hero.bottom) / scale
-        // The reference has ~36dp between the hero and first poster. Text scaling,
-        // fonts and accessibility may legitimately enlarge it.
-        assertTrue("hero/poster gap=$gap dp", gap in 30f..45f)
+        // Compact NuvioMobile vertical rhythm: 12dp hero bottom margin + 48dp shelf header touch row + 2dp spacing.
+        assertTrue("hero/poster gap=$gap dp", gap in 44f..90f)
     }
 
     @Test fun visualSlotsForwardSourceSelectionAndOriginalShelfWithVisibleTitle() {

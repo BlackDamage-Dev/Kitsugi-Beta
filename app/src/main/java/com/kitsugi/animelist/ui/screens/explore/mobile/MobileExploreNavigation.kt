@@ -14,7 +14,17 @@ fun AppNavigationState.openMobileExploreShelf(shelf: MobileExploreShelfData, tit
         MobileShelfAction.NONE -> return false
         MobileShelfAction.WATCH_HISTORY -> navigateToDetail(DetailScreen.WatchHistory)
         MobileShelfAction.FINITE_GRID_REQUIRES_UI -> {
-            fullScreenGridState = mobileFiniteGridState(shelf, title)
+            fullScreenGridState = if (shelf.requiresSpecialContinuation) {
+                mobileFiniteGridState(shelf, title)
+            } else {
+                FullScreenMediaGridState(
+                    title = title,
+                    categoryType = shelf.category,
+                    platform = shelf.source,
+                    initialResults = shelf.results.toList(),
+                    mobileFiniteResults = false,
+                )
+            }
         }
     }
     return true

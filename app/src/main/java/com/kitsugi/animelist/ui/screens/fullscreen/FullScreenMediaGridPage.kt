@@ -3,7 +3,13 @@
 package com.kitsugi.animelist.ui.screens.fullscreen
 
 import com.kitsugi.animelist.ui.components.KitsugiEmojiLabel
+import com.kitsugi.animelist.ui.components.KitsugiPlatformLogo
+import com.kitsugi.animelist.ui.components.NuvioCatalogPosterTile
+import com.kitsugi.animelist.ui.navigation.NuvioCircularActionButton
+import com.kitsugi.animelist.ui.navigation.nuvioCatalogGridColumnsForWidth
 import com.kitsugi.animelist.ui.utils.rememberKitsugiGridColumns
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.unit.sp
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -136,12 +142,12 @@ fun FullScreenMediaGridPage(
     val configuration = androidx.compose.ui.platform.LocalConfiguration.current
     val screenWidthDp = configuration.screenWidthDp
     val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
-    val columnCount = rememberKitsugiGridColumns()
+    val columnCount = if (isTv) rememberKitsugiGridColumns() else nuvioCatalogGridColumnsForWidth(screenWidthDp.dp)
 
     val context = androidx.compose.ui.platform.LocalContext.current
     val gridPrefs = remember(context) { context.getSharedPreferences("kitsugi_ui_prefs", android.content.Context.MODE_PRIVATE) }
-    // Grid/Liste görünümü tercihi kalıcı olarak hatırlanır
-    var isGridView by rememberSaveable { mutableStateOf(gridPrefs.getBoolean("fullscreen_media_grid_is_grid_view", false)) }
+    // Grid/Liste görünümü tercihi kalıcı olarak hatırlanır (NuvioMobile tarzı poster ızgarası varsayılan)
+    var isGridView by rememberSaveable { mutableStateOf(gridPrefs.getBoolean("fullscreen_media_grid_is_grid_view", true)) }
     LaunchedEffect(isGridView) {
         gridPrefs.edit().putBoolean("fullscreen_media_grid_is_grid_view", isGridView).apply()
     }
@@ -872,57 +878,81 @@ fun FullScreenMediaGridPage(
     ) {
 
         if (isGridView) {
-            // ── GRID MODU ────────────────────────────────────────────────────
+            // ── GRID MODU (NuvioMobile CatalogScreen estetiği) ────────────────
+            val gridHorizontalPad = if (screenWidthDp >= 600) 24.dp else 16.dp
             LazyVerticalGrid(
                 columns = GridCells.Fixed(columnCount),
                 state = gridState,
                 modifier = if (isTv) Modifier.width(960.dp) else Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 90.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                contentPadding = PaddingValues(start = gridHorizontalPad, end = gridHorizontalPad, bottom = 96.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 // Başlık - tam genişlik span
                 item(key = "grid_header", span = { GridItemSpan(maxLineSpan) }) {
-                    Column(modifier = Modifier.padding(horizontal = 8.dp, vertical = 16.dp)) {
-                        // Geri butonu
-                        Row(modifier = Modifier.fillMaxWidth()) {
-                            TextButton(onClick = onBackClick) {
-                                Text(stringResource(R.string.geri), color = accentColor, fontWeight = FontWeight.Bold)
-                            }
-                        }
-                        // Başlık + toggle + filtre
+                    Column(modifier = Modifier.padding(top = 12.dp, bottom = 8.dp)) {
+                        // Nuvio Catalog Header: Dairesel geri + Başlık + Kaynak rozeti + Aksiyonlar
                         val hasActiveFilter = selectedGenreId != "ALL" || selectedSortOption != KitsugiGridSortOption.DEFAULT
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = dynamicTitle,
-                                color = KitsugiColors.TextPrimary,
-                                style = MaterialTheme.typography.headlineLarge,
-                                fontWeight = FontWeight.Black,
-                                modifier = Modifier.weight(1f)
+                            NuvioCircularActionButton(
+                                icon = Icons.ArrowBack,
+                                contentDescription = stringResource(R.string.geri),
+                                onClick = onBackClick,
+                                visualSize = 36.dp,
+                                iconSize = 18.dp,
+                                modifier = Modifier.size(40.dp)
                             )
-                            // Toplu ekleme kısayolu — her iki görünümde de başlıkta (kompakt)
-                            if (onAddAllToList != null) {
-                                IconButton(
-                                    onClick = { onAddAllToList?.invoke(displayedResults) },
-                                    enabled = displayedResults.isNotEmpty(),
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(KitsugiColors.Surface)
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = dynamicTitle,
+                                    color = KitsugiColors.TextPrimary,
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Black,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    modifier = Modifier.padding(top = 2.dp)
                                 ) {
-                                    Icon(
-                                        Icons.PlaylistAdd,
-                                        contentDescription = stringResource(R.string.tumunu_listeye_ekle),
-                                        tint = accentColor
+                                    if (platform != ExplorePlatform.ALL) {
+                                        KitsugiPlatformLogo(platformId = platform.name, size = 13.dp)
+                                    }
+                                    Text(
+                                        text = if (platform == ExplorePlatform.ALL) {
+                                            stringResource(R.string.explore_source_all_label)
+                                        } else {
+                                            platform.shortName
+                                        },
+                                        color = KitsugiColors.TextMuted,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 1
                                     )
                                 }
-                                Spacer(modifier = Modifier.width(6.dp))
+                            }
+                            // Toplu ekleme kısayolu — her iki görünümde de başlıkta (kompakt Nuvio dairesi)
+                            if (onAddAllToList != null) {
+                                NuvioCircularActionButton(
+                                    icon = Icons.PlaylistAdd,
+                                    contentDescription = stringResource(R.string.tumunu_listeye_ekle),
+                                    onClick = { onAddAllToList?.invoke(displayedResults) },
+                                    enabled = displayedResults.isNotEmpty(),
+                                    visualSize = 36.dp,
+                                    iconSize = 18.dp,
+                                    contentColor = accentColor,
+                                    modifier = Modifier.size(40.dp)
+                                )
                             }
                             // Filtre ve Sıralama Butonu (Her kategoride aktif)
-                            IconButton(
+                            NuvioCircularActionButton(
+                                icon = Icons.FilterList,
+                                contentDescription = stringResource(R.string.filtre_ve_siralama),
                                 onClick = {
                                     if (isSeasonalAnime) {
                                         showFilterBottomSheet = true
@@ -930,19 +960,17 @@ fun FullScreenMediaGridPage(
                                         showGeneralFilterBottomSheet = true
                                     }
                                 },
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(if (hasActiveFilter) accentColor.copy(alpha = 0.25f) else KitsugiColors.Surface)
-                            ) {
-                                Icon(
-                                    Icons.FilterList,
-                                    contentDescription = stringResource(R.string.filtre_ve_siralama),
-                                    tint = if (hasActiveFilter) accentColor else KitsugiColors.TextPrimary
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(6.dp))
+                                visualSize = 36.dp,
+                                iconSize = 18.dp,
+                                containerColor = if (hasActiveFilter) accentColor.copy(alpha = 0.22f) else KitsugiColors.SurfaceElevated,
+                                contentColor = if (hasActiveFilter) accentColor else KitsugiColors.TextPrimary,
+                                borderColor = if (hasActiveFilter) accentColor.copy(alpha = 0.55f) else KitsugiColors.Border.copy(alpha = 0.55f),
+                                modifier = Modifier.size(40.dp)
+                            )
                             // Grid→Liste toggle
-                            IconButton(
+                            NuvioCircularActionButton(
+                                icon = Icons.ListAlt,
+                                contentDescription = KitsugiStrings.get(R.string.settings_list_layout),
                                 onClick = {
                                     scope.launch {
                                         val gridIndex = gridState.firstVisibleItemIndex
@@ -953,10 +981,11 @@ fun FullScreenMediaGridPage(
                                         listState.scrollToItem(listIndex, gridOffset)
                                     }
                                 },
-                                modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(KitsugiColors.Surface)
-                            ) {
-                                Icon(Icons.ListAlt, contentDescription = KitsugiStrings.get(R.string.settings_list_layout), tint = accentColor)
-                            }
+                                visualSize = 36.dp,
+                                iconSize = 18.dp,
+                                contentColor = accentColor,
+                                modifier = Modifier.size(40.dp)
+                            )
                         }
 
                         // Nested LazyRow kaydırma sırasında ana ızgarayı yeniden ölçüyordu.
@@ -1034,21 +1063,41 @@ fun FullScreenMediaGridPage(
                         contentType = { _, _ -> "media_card" }
                     ) { index, result ->
                         val showRank = !isSeasonalAnime
-                        KitsugiExploreMediaCard(
-                            result = result,
-                            alreadyInList = alreadyInList(result),
-                            mediaEntry = getMediaEntry(result),
-                            onClick = { onItemClick(result) },
-                            titleLanguage = titleLanguage,
-                            scoreFormat = scoreFormat,
-                            hideScores = hideScores,
-                            blurAdultMedia = blurAdultMedia,
-                            forceVertical = !isLandscape,
-                            rankIndex = if (showRank) index + 1 else null,
-                            onQuickAddClick = onQuickAddToList?.let { quickAdd ->
-                                { quickAdd(result) }
-                            }
-                        )
+                        if (isTv) {
+                            KitsugiExploreMediaCard(
+                                result = result,
+                                alreadyInList = alreadyInList(result),
+                                mediaEntry = getMediaEntry(result),
+                                onClick = { onItemClick(result) },
+                                titleLanguage = titleLanguage,
+                                scoreFormat = scoreFormat,
+                                hideScores = hideScores,
+                                blurAdultMedia = blurAdultMedia,
+                                forceVertical = true,
+                                rankIndex = if (showRank) index + 1 else null,
+                                onQuickAddClick = onQuickAddToList?.let { quickAdd ->
+                                    { quickAdd(result) }
+                                }
+                            )
+                        } else {
+                            NuvioCatalogPosterTile(
+                                result = result,
+                                alreadyInList = alreadyInList(result),
+                                mediaEntry = getMediaEntry(result),
+                                titleLanguage = titleLanguage,
+                                scoreFormat = scoreFormat,
+                                hideScores = hideScores,
+                                blurAdultMedia = blurAdultMedia,
+                                onClick = { onItemClick(result) },
+                                onLongClick = onQuickAddToList?.let { quickAdd ->
+                                    { quickAdd(result) }
+                                },
+                                rankIndex = if (showRank) index + 1 else null,
+                                onQuickAddClick = onQuickAddToList?.let { quickAdd ->
+                                    { quickAdd(result) }
+                                }
+                            )
+                        }
                     }
                 }
 
@@ -1086,47 +1135,69 @@ fun FullScreenMediaGridPage(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 item(key = "list_header") {
-                    Column {
-                        Spacer(modifier = Modifier.height(28.dp))
-                        // Geri butonu
-                        Row(modifier = Modifier.fillMaxWidth()) {
-                            TextButton(onClick = onBackClick) {
-                                Text(stringResource(R.string.geri), color = accentColor, fontWeight = FontWeight.Bold)
-                            }
-                        }
-                        // Başlık + toggle + filtre
+                    Column(modifier = Modifier.padding(top = 12.dp)) {
+                        // Nuvio Catalog Header (Liste modu): Dairesel geri + Başlık + Aksiyonlar
                         val hasActiveFilter = selectedGenreId != "ALL" || selectedSortOption != KitsugiGridSortOption.DEFAULT
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = dynamicTitle,
-                                color = KitsugiColors.TextPrimary,
-                                style = MaterialTheme.typography.headlineLarge,
-                                fontWeight = FontWeight.Black,
-                                modifier = Modifier.weight(1f)
+                            NuvioCircularActionButton(
+                                icon = Icons.ArrowBack,
+                                contentDescription = stringResource(R.string.geri),
+                                onClick = onBackClick,
+                                visualSize = 36.dp,
+                                iconSize = 18.dp,
+                                modifier = Modifier.size(40.dp)
                             )
-                            // Toplu ekleme kısayolu — her iki görünümde de başlıkta (kompakt)
-                            if (onAddAllToList != null) {
-                                IconButton(
-                                    onClick = { onAddAllToList?.invoke(displayedResults) },
-                                    enabled = displayedResults.isNotEmpty(),
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(KitsugiColors.Surface)
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = dynamicTitle,
+                                    color = KitsugiColors.TextPrimary,
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Black,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    modifier = Modifier.padding(top = 2.dp)
                                 ) {
-                                    Icon(
-                                        Icons.PlaylistAdd,
-                                        contentDescription = stringResource(R.string.tumunu_listeye_ekle),
-                                        tint = accentColor
+                                    if (platform != ExplorePlatform.ALL) {
+                                        KitsugiPlatformLogo(platformId = platform.name, size = 13.dp)
+                                    }
+                                    Text(
+                                        text = if (platform == ExplorePlatform.ALL) {
+                                            stringResource(R.string.explore_source_all_label)
+                                        } else {
+                                            platform.shortName
+                                        },
+                                        color = KitsugiColors.TextMuted,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 1
                                     )
                                 }
-                                Spacer(modifier = Modifier.width(6.dp))
+                            }
+                            // Toplu ekleme kısayolu — her iki görünümde de başlıkta (kompakt Nuvio dairesi)
+                            if (onAddAllToList != null) {
+                                NuvioCircularActionButton(
+                                    icon = Icons.PlaylistAdd,
+                                    contentDescription = stringResource(R.string.tumunu_listeye_ekle),
+                                    onClick = { onAddAllToList?.invoke(displayedResults) },
+                                    enabled = displayedResults.isNotEmpty(),
+                                    visualSize = 36.dp,
+                                    iconSize = 18.dp,
+                                    contentColor = accentColor,
+                                    modifier = Modifier.size(40.dp)
+                                )
                             }
                             // Filtre ve Sıralama Butonu (Her kategoride aktif)
-                            IconButton(
+                            NuvioCircularActionButton(
+                                icon = Icons.FilterList,
+                                contentDescription = stringResource(R.string.filtre_ve_siralama),
                                 onClick = {
                                     if (isSeasonalAnime) {
                                         showFilterBottomSheet = true
@@ -1134,19 +1205,17 @@ fun FullScreenMediaGridPage(
                                         showGeneralFilterBottomSheet = true
                                     }
                                 },
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(if (hasActiveFilter) accentColor.copy(alpha = 0.25f) else KitsugiColors.Surface)
-                            ) {
-                                Icon(
-                                    Icons.FilterList,
-                                    contentDescription = stringResource(R.string.filtre_ve_siralama),
-                                    tint = if (hasActiveFilter) accentColor else KitsugiColors.TextPrimary
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(6.dp))
+                                visualSize = 36.dp,
+                                iconSize = 18.dp,
+                                containerColor = if (hasActiveFilter) accentColor.copy(alpha = 0.22f) else KitsugiColors.SurfaceElevated,
+                                contentColor = if (hasActiveFilter) accentColor else KitsugiColors.TextPrimary,
+                                borderColor = if (hasActiveFilter) accentColor.copy(alpha = 0.55f) else KitsugiColors.Border.copy(alpha = 0.55f),
+                                modifier = Modifier.size(40.dp)
+                            )
                             // Liste→Grid toggle
-                            IconButton(
+                            NuvioCircularActionButton(
+                                icon = Icons.GridView,
+                                contentDescription = KitsugiStrings.get(R.string.cd_grid_view),
                                 onClick = {
                                     scope.launch {
                                         val listIndex = listState.firstVisibleItemIndex
@@ -1157,10 +1226,11 @@ fun FullScreenMediaGridPage(
                                         gridState.scrollToItem(gridIndex, listOffset)
                                     }
                                 },
-                                modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(KitsugiColors.Surface)
-                            ) {
-                                Icon(Icons.GridView, contentDescription = KitsugiStrings.get(R.string.cd_grid_view), tint = accentColor)
-                            }
+                                visualSize = 36.dp,
+                                iconSize = 18.dp,
+                                contentColor = accentColor,
+                                modifier = Modifier.size(40.dp)
+                            )
                         }
 
                         // Nested LazyRow kaydırma sırasında ana ızgarayı yeniden ölçüyordu.
@@ -1306,14 +1376,18 @@ fun FullScreenMediaGridPage(
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = (if (isTv) Modifier.width(960.dp) else Modifier.fillMaxWidth())
-                    .height(64.dp)
-                    .background(KitsugiColors.Surface.copy(alpha = 0.92f))
-                    .padding(horizontal = 8.dp)
+                    .height(60.dp)
+                    .background(KitsugiColors.Background.copy(alpha = 0.94f))
+                    .padding(horizontal = 10.dp)
             ) {
-                IconButton(onClick = onBackClick) {
-                    Icon(Icons.ArrowBack, contentDescription = stringResource(R.string.geri), tint = KitsugiColors.TextPrimary)
-                }
-                Spacer(modifier = Modifier.width(8.dp))
+                NuvioCircularActionButton(
+                    icon = Icons.ArrowBack,
+                    contentDescription = stringResource(R.string.geri),
+                    onClick = onBackClick,
+                    visualSize = 36.dp,
+                    iconSize = 18.dp
+                )
+                Spacer(modifier = Modifier.width(6.dp))
                 Text(
                     text = dynamicTitle,
                     color = KitsugiColors.TextPrimary,
@@ -1329,7 +1403,7 @@ fun FullScreenMediaGridPage(
                         onClick = { onAddAllToList?.invoke(displayedResults) },
                         enabled = displayedResults.isNotEmpty(),
                         modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
+                            .clip(CircleShape)
                             .background(Color.Transparent)
                     ) {
                         Icon(
@@ -1338,7 +1412,7 @@ fun FullScreenMediaGridPage(
                             tint = accentColor
                         )
                     }
-                    Spacer(modifier = Modifier.width(4.dp))
+                    Spacer(modifier = Modifier.width(2.dp))
                 }
                 // Filtre ve Sıralama Butonu (Her zaman toggle'dan önce gösterilir)
                 val hasActiveFilterFloating = selectedGenreId != "ALL" || selectedSortOption != KitsugiGridSortOption.DEFAULT
@@ -1351,7 +1425,7 @@ fun FullScreenMediaGridPage(
                         }
                     },
                     modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
+                        .clip(CircleShape)
                         .background(if (hasActiveFilterFloating) accentColor.copy(alpha = 0.25f) else Color.Transparent)
                 ) {
                     Icon(
@@ -1360,27 +1434,30 @@ fun FullScreenMediaGridPage(
                         tint = if (hasActiveFilterFloating) accentColor else KitsugiColors.TextPrimary
                     )
                 }
-                Spacer(modifier = Modifier.width(4.dp))
+                Spacer(modifier = Modifier.width(2.dp))
                 // Toggle – floating header'da da göster
-                IconButton(onClick = {
-                    scope.launch {
-                        if (isGridView) {
-                            val gridIndex = gridState.firstVisibleItemIndex
-                            val gridOffset = gridState.firstVisibleItemScrollOffset
-                            val listIndex = if (gridIndex == 0) 0 else gridIndex + 1
-                            isGridView = false
-                            kotlinx.coroutines.delay(10)
-                            listState.scrollToItem(listIndex, gridOffset)
-                        } else {
-                            val listIndex = listState.firstVisibleItemIndex
-                            val listOffset = listState.firstVisibleItemScrollOffset
-                            val gridIndex = if (listIndex <= 1) 0 else listIndex - 1
-                            isGridView = true
-                            kotlinx.coroutines.delay(10)
-                            gridState.scrollToItem(gridIndex, listOffset)
+                IconButton(
+                    onClick = {
+                        scope.launch {
+                            if (isGridView) {
+                                val gridIndex = gridState.firstVisibleItemIndex
+                                val gridOffset = gridState.firstVisibleItemScrollOffset
+                                val listIndex = if (gridIndex == 0) 0 else gridIndex + 1
+                                isGridView = false
+                                kotlinx.coroutines.delay(10)
+                                listState.scrollToItem(listIndex, gridOffset)
+                            } else {
+                                val listIndex = listState.firstVisibleItemIndex
+                                val listOffset = listState.firstVisibleItemScrollOffset
+                                val gridIndex = if (listIndex <= 1) 0 else listIndex - 1
+                                isGridView = true
+                                kotlinx.coroutines.delay(10)
+                                gridState.scrollToItem(gridIndex, listOffset)
+                            }
                         }
-                    }
-                }) {
+                    },
+                    modifier = Modifier.clip(CircleShape)
+                ) {
                     Icon(
                         imageVector = if (isGridView) Icons.ListAlt else Icons.GridView,
                         contentDescription = if (isGridView) KitsugiStrings.get(R.string.liste) else "Grid",
@@ -1458,35 +1535,37 @@ private fun GridGenreChipRow(
     accentColor: Color,
     onGenreClick: (genreId: String, isSelected: Boolean) -> Unit
 ) {
+    val accentBrush = KitsugiColors.AccentBrush
+    val onAccent = KitsugiColors.OnAccent
     Row(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(7.dp),
         modifier = Modifier
             .fillMaxWidth()
             .horizontalScroll(rememberScrollState())
-            .padding(top = 12.dp, bottom = 4.dp)
+            .padding(top = 10.dp, bottom = 4.dp)
     ) {
         KITSUGI_MEDIA_GENRES.forEach { genre ->
             val isSelected = selectedGenreId == genre.id
             Box(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(
-                        if (isSelected) accentColor.copy(alpha = 0.22f)
-                        else KitsugiColors.Surface
-                    )
-                    .border(
-                        width = if (isSelected) 1.5.dp else 1.dp,
-                        color = if (isSelected) accentColor else Color.Transparent,
-                        shape = RoundedCornerShape(20.dp)
+                    .clip(CircleShape)
+                    .then(
+                        if (isSelected) {
+                            Modifier.background(brush = accentBrush, shape = CircleShape)
+                        } else {
+                            Modifier
+                                .background(KitsugiColors.SurfaceElevated, CircleShape)
+                                .border(0.85.dp, KitsugiColors.Border.copy(alpha = 0.55f), CircleShape)
+                        }
                     )
                     .clickable { onGenreClick(genre.id, isSelected) }
-                    .padding(horizontal = 13.dp, vertical = 7.dp),
+                    .padding(horizontal = 13.dp, vertical = 6.dp),
                 contentAlignment = Alignment.Center
             ) {
                 KitsugiEmojiLabel(
                     label = genre.displayLabel(),
-                    color = if (isSelected) accentColor else KitsugiColors.TextPrimary,
-                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                    color = if (isSelected) onAccent else KitsugiColors.TextSecondary,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
                     style = MaterialTheme.typography.labelMedium,
                     iconSize = 13.dp,
                     icon = genre.icon

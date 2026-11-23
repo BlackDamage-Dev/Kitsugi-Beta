@@ -1,7 +1,9 @@
 package com.kitsugi.animelist.ui.screens.explore.mobile
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -14,6 +16,7 @@ import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.kitsugi.animelist.ui.screens.explore.ExplorePlatform
 import kotlinx.coroutines.flow.collect
@@ -66,18 +69,16 @@ internal fun MobileExplorePager(
     page: @Composable (tab: MobileExploreTab, listState: LazyListState) -> Unit,
     modifier: Modifier = Modifier,
     onActiveListChanged: (LazyListState) -> Unit = {},
+    overlayTabBar: Boolean = false,
 ) {
     val tabs = MobileExploreTab.entries
     val pagerState = rememberPagerState(initialPage = 0, pageCount = { tabs.size })
     val stateHolder = rememberSaveableStateHolder()
     val scope = rememberCoroutineScope()
-    Column(modifier = modifier) {
-        tabBar(pagerState.currentPage) { index ->
-            if (index in tabs.indices) scope.launch { pagerState.animateScrollToPage(index) }
-        }
+    val renderPager: @Composable (Modifier) -> Unit = { pagerModifier ->
         HorizontalPager(
             state = pagerState,
-            modifier = Modifier.weight(1f).fillMaxWidth(),
+            modifier = pagerModifier,
             key = { index -> tabs[index].name },
         ) { index ->
             val tab = tabs[index]
@@ -88,6 +89,27 @@ internal fun MobileExplorePager(
                 }
                 page(tab, listState)
             }
+        }
+    }
+    if (overlayTabBar) {
+        Box(modifier = modifier) {
+            renderPager(Modifier.fillMaxSize())
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth(),
+            ) {
+                tabBar(pagerState.currentPage) { index ->
+                    if (index in tabs.indices) scope.launch { pagerState.animateScrollToPage(index) }
+                }
+            }
+        }
+    } else {
+        Column(modifier = modifier) {
+            tabBar(pagerState.currentPage) { index ->
+                if (index in tabs.indices) scope.launch { pagerState.animateScrollToPage(index) }
+            }
+            renderPager(Modifier.weight(1f).fillMaxWidth())
         }
     }
 }

@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -349,8 +351,11 @@ class MobileExploreVisualsTest {
     fun heroKeepsApprovedWideAspectRatio() {
         setMobile { MobileExploreHero(item(), false, false, {}) }
         val bounds = compose.onNodeWithTag(MobileExploreTestTags.HERO).fetchSemanticsNode().boundsInRoot
-        val ratio = bounds.width / bounds.height
-        assertTrue("hero ratio=$ratio", ratio in 2.2f..2.4f)
+        val scale = compose.density.density
+        val widthDp = bounds.width / scale
+        val heightDp = bounds.height / scale
+        assertTrue("hero full-bleed width=$widthDp", widthDp >= 380f)
+        assertTrue("hero nuvio height=$heightDp", heightDp in 354f..455f)
     }
 
     // ── SHELF başlık/kaynak/Tümünü gör ───────────────────────────────────────
@@ -361,7 +366,7 @@ class MobileExploreVisualsTest {
         setMobile { shelf(onSeeAll = { seeAll++ }) }
         compose.onNodeWithText("Trend").assertIsDisplayed()
         compose.onNodeWithText("TMDB").assertIsDisplayed()
-        compose.onNodeWithText(str(R.string.mobile_explore_see_all)).assertIsDisplayed()
+        compose.onNodeWithContentDescription(str(R.string.mobile_explore_see_all)).assertIsDisplayed()
         compose.onNodeWithTag(MobileExploreTestTags.SEE_ALL).performClick()
         compose.runOnIdle { assertEquals(1, seeAll) }
     }
@@ -416,7 +421,7 @@ class MobileExploreVisualsTest {
         val first = compose.onAllNodesWithTag(MobileExploreTestTags.CARD)
             .fetchSemanticsNodes().minByOrNull { it.boundsInRoot.left }
         assertTrue("No visible card after swipe", first != null)
-        val expectedStart = listBounds.left + 13f * compose.density.density
+        val expectedStart = listBounds.left + 16f * compose.density.density
         val actualStart = first!!.boundsInRoot.left
         assertTrue("card=$actualStart expected=$expectedStart", abs(actualStart - expectedStart) <= 2f * compose.density.density)
     }
@@ -429,9 +434,9 @@ class MobileExploreVisualsTest {
         val scale = compose.density.density
         val first = cards[0].boundsInRoot
         val second = cards[1].boundsInRoot
-        assertTrue("width=${first.width / scale}", abs(first.width / scale - 84f) < 1.5f)
-        assertTrue("height=${first.height / scale}", abs(first.height / scale - 135f) < 1.5f)
-        assertTrue("gap=${(second.left - first.right) / scale}", abs((second.left - first.right) / scale - 7f) < 1.5f)
+        assertTrue("width=${first.width / scale}", abs(first.width / scale - 112f) < 1.5f)
+        assertTrue("height=${first.height / scale}", first.height > first.width)
+        assertTrue("gap=${(second.left - first.right) / scale}", abs((second.left - first.right) / scale - 11f) < 1.5f)
     }
 
     @Test
@@ -607,7 +612,7 @@ class MobileExploreVisualsTest {
 
     private fun setFullExplore(widthDp: Int, heightDp: Int, landscape: Boolean = false, fontScale: Float = 1f) {
         setMobile(widthDp = widthDp, heightDp = heightDp, landscape = landscape, fontScale = fontScale) {
-            Column {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                 MobileExploreHeader(ExplorePlatform.ALL, {}, {})
                 MobileExploreTabs(0, {})
                 MobileExploreHero(item(backdrop = "https://fixture.invalid/wide.jpg"), false, false, {})
@@ -631,9 +636,9 @@ class MobileExploreVisualsTest {
     }
 
     @Test
-    fun width384ShowsFourCardsAndPartOfFifth() {
+    fun width384ShowsThreeCardsAndPartOfFourth() {
         setFullExplore(384, 683)
-        compose.onAllNodesWithTag(MobileExploreTestTags.CARD)[3].assertIsDisplayed()
+        compose.onAllNodesWithTag(MobileExploreTestTags.CARD)[2].assertIsDisplayed()
     }
 
     @Test
