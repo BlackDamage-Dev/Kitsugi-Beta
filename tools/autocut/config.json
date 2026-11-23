@@ -1,0 +1,40 @@
+{
+  "paths": {
+    "source": "/tmp/act/src",
+    "output": "/tmp/act/out",
+    "memes": "data/memes",
+    "music": "data/music"
+  },
+  "video": {
+    "vertical": true,
+    "fps": 30,
+    "crf": 21,
+    "target_duration": 45,
+    "max_clips": 6,
+    "memes_enabled": true,
+    "meme_frequency": 60,
+    "shake_strength": 9.0,
+    "beat_flash": true,
+    "intro_text": "",
+    "outro_text": "",
+    "recursive": false,
+    "single_max_duration": 45,
+    "encoder": "auto"
+  },
+  "audio": {
+    "enabled": true,
+    "music_volume": 0.13,
+    "music": "",
+    "music_track": "auto"
+  },
+  "youtube": {
+    "auto_upload": false,
+    "auto_publish": false,
+    "privacy": "private"
+  },
+  "llm": {
+    "enabled": false,
+    "url": "http://localhost:11434",
+    "model": "llama3.1:8b"
+  }
+}

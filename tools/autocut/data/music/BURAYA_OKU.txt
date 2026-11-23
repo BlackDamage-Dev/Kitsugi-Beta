@@ -1,0 +1,13 @@
+Bu klasore TELIFSIZE muzikleri at (mp3/wav).
+
+Her parcanin yanina ayni isimle .json koy:
+  epic_01.mp3
+  epic_01.json -> {"title":"Epic","artist":"X","license":"youtube-audio-library","bpm":128}
+
+Guvenli lisanslar: youtube-audio-library, pixabay, mixkit, cc0, original
+Bilinmeyen lisansli parcalar program tarafindan secilmez.
+
+Nereden bulurum:
+- YouTube Studio -> Audio Library (en garantisi)
+- pixabay.com/music
+- mixkit.co/free-stock-music

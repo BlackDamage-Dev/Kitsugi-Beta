@@ -1,0 +1,19 @@
+venv/
+__pycache__/
+*.pyc
+token.json
+client_secret*.json
+
+# kullanici kendi dosyalarini buraya koyar; baslangic paketi haric
+data/memes/*
+!data/memes/BURAYA_OKU.txt
+!data/memes/*.jpg
+!data/memes/*.json
+data/music/*
+!data/music/BURAYA_OKU.txt
+!data/music/*.mp3
+!data/music/*.json
+
+Cikti/
+*.mp4
+*.log

@@ -1,0 +1,8 @@
+Bu klasore meme resimlarini at (png/jpg).
+
+Her resmin yanina ayni isimle bir .json koy:
+  ace_01.png
+  ace_01.json  ->  {"tags":["ace"],"text":"ACE","callout":"ACE!"}
+
+Etiketler: ace, clutch, hype, whiff, fail, chill, scary, troll
+Json koymazsan dosya adindan etiket cikarilir.
