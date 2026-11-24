@@ -1,6 +1,6 @@
 id=force_landscape_all
 name=Force Landscape - All Apps
-version=v2.23.0
-versionCode=38
+version=v2.23.1
+versionCode=39
 author=Arena.ai Agent
-description=v2.23.0: "adam akilli kontroler" surumu. (1) UYGULAMA BAZLI YON KILIDI: her uygulama icin dikey / yatay / serbest — MIUI'nin allPortrait semasina yazilir ve DOSYADAN GERI OKUNARAK dogrulanir. (2) Tiklama ANINDA tepki: dugme komut bitmeden degisir, sonuc HATA ise eski haline doner (yalan yok). (3) Yon modu dugmeleri artik calisiyor (ignore-orientation config'e bagli kalmisti), cift HATA ciktisi bitti. (4) Acilista "dikey sectigim uygulama yatay oldu" hatasi giderildi. (5) "Dokunma"dan sonra cikan sahte kirmizi "hata" rozeti kaldirildi. (6) watch.sh baslatma yarisi/PID hatalari; save/backup/restore saglamlastirildi; fl_prepare sessiz cikis kodu sizintisi giderildi.
+description=v2.23.1: "her dugme tek tek test edildi" surumu. (1) UYGULAMA BAZLI YON KILIDI: her uygulama icin dikey / yatay / serbest — MIUI allPortrait semasina yazilir, DOSYADAN GERI OKUNARAK dogrulanir, reboot sonrasi korunur. (2) DUZELTME: islem surerken TUM SAYFA siliniyordu (detay penceresi kayboluyor, "bastim bisey olmadi" hissi) -> artik ustune katman cikar, sayfa yerinde kalir. (3) DUZELTME: yedek metni render sonrasi siliniyordu -> "Yedekten yukle" hep "alan bos" diyordu, artik kalici. (4) DUZELTME: panoya kopyalama sessizce basarisiz oluyordu -> 3 yol denenir, olmazsa metin ekranda acilir. (5) DUZELTME: acilista "dikey sectigim yatay oldu" hatasi. (6) DUZELTME: yedek geri yukleme listeleri bozuyordu (global degisken ezilmesi). (7) Bilinmeyen komut artik HATA doner; kurulu olmayan paket kural dosyasini kirletmez.

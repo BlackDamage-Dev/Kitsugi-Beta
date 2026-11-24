@@ -94,7 +94,7 @@ FL_APPMODE_ST=$FL_DIR/appmode_state.txt   # pkg<TAB>ok|fail<TAB>yontem (v2.7)
 # Bu yuzden "ekrana yay" yapilsa bile oyun ortada kaliyordu. Asagidaki
 # prop false yapilinca MIUI gommesi tamamen kapanir.
 FL_MIUI_EMB_PROP=ro.config.miui_activity_embedding_enable
-FL_MODVER=v2.23.0
+FL_MODVER=v2.23.1
 FL_TAB=$(printf '\t')            # gercek sekme karakteri (IFS icin)
 
 PATH=/system/bin:/system/xbin:/sbin:/data/adb/ksu/bin:$PATH
@@ -235,6 +235,8 @@ fl_prepare() {
     # v2.23: onceki surumlerden kalan bozuk paket satirlarini temizle
     # ("0" gibi). Sessizce yapilir; boylece eski kurulumlar da duzelir.
     fl_lists_clean
+    # v2.23.1: yon secimleri kaybolmasin (yedekten ya da kural dosyasindan)
+    fl_yon_restore
     if [ "$LOG" = "1" ] && ( : >> "$FL_LOG" ) 2>/dev/null; then
         FL_LOG_OK=1
     else
@@ -1755,6 +1757,7 @@ fl_mb_unsave() { fl_list_del "$FL_MB_LIST" "$1"; }
 #    yon=serbest -> iki dosyadan da bizim satirlarimiz SILINIR
 # ============================================================
 FL_ORIENT_LIST="$FL_DIR/yon.txt"      # pkg<TAB>dikey|yatay|serbest  (kalici secim)
+FL_ORIENT_BAK="$FL_DIR/yon.bak"       # v2.23.1: ikinci kopya (kendini onarma)
 FL_RULE_PORTRAIT="nra:cr:rcr:nr"      # yatay kural (mevcut sabit)
 
 fl_mb_line_build() {   # $1 paket  $2 disable(true|false)  $3 allPortrait(true|false)
@@ -1773,12 +1776,62 @@ fl_yon_set() {   # $1 paket  $2 dikey|yatay|serbest
     printf '%s\t%s\n' "$1" "$2" >> "$FL_ORIENT_LIST.t"
     mv -f "$FL_ORIENT_LIST.t" "$FL_ORIENT_LIST" 2>/dev/null
     chmod 0644 "$FL_ORIENT_LIST" 2>/dev/null
+    cp -f "$FL_ORIENT_LIST" "$FL_ORIENT_BAK" 2>/dev/null   # v2.23.1 ikinci kopya
+    chmod 0644 "$FL_ORIENT_BAK" 2>/dev/null
     return 0
 }
 fl_yon_del() {
     [ -f "$FL_ORIENT_LIST" ] || return 0
     awk -F'\t' -v p="$1" '$1 != p' "$FL_ORIENT_LIST" 2>/dev/null > "$FL_ORIENT_LIST.t"
     mv -f "$FL_ORIENT_LIST.t" "$FL_ORIENT_LIST" 2>/dev/null
+    cp -f "$FL_ORIENT_LIST" "$FL_ORIENT_BAK" 2>/dev/null
+    return 0
+}
+
+# v2.23.1: SECIM KAYBOLMASIN. Sahada "dikey sectim, bir sure sonra yatay oldu"
+# sikayetinin bir sebebi de yon.txt'nin silinmesi/bosalmasi (temizlik betigi,
+# magisk modul guncellemesi, elle mudahale). yon.txt bossa yedekten geri yukle.
+fl_yon_restore() {
+    if [ -s "$FL_ORIENT_LIST" ]; then
+        # asil dosya dolu -> yedegi tazele
+        cmp -s "$FL_ORIENT_LIST" "$FL_ORIENT_BAK" 2>/dev/null || cp -f "$FL_ORIENT_LIST" "$FL_ORIENT_BAK" 2>/dev/null
+        return 0
+    fi
+    if [ -s "$FL_ORIENT_BAK" ]; then
+        cp -f "$FL_ORIENT_BAK" "$FL_ORIENT_LIST" 2>/dev/null
+        chmod 0644 "$FL_ORIENT_LIST" 2>/dev/null
+        fl_log "yon.txt bos/silinmis -> yedekten geri yuklendi ($(grep -c . "$FL_ORIENT_LIST" 2>/dev/null) kayit)"
+        return 0
+    fi
+    return 0
+}
+
+# Kural dosyalarindan secimi TAHMIN et (son care): allPortrait=true -> dikey,
+# yatay kural varsa -> yatay. Boylece dosya kaybi bile tamamen sessiz kalmaz.
+fl_yon_recover() {
+    [ -s "$FL_ORIENT_LIST" ] && return 0
+    _yr_fix=$(fl_mb_cloud); [ -n "$_yr_fix" ] || _yr_fix=$(fl_mb_rom)
+    _yr_emb=$(fl_emb_cloud); [ -n "$_yr_emb" ] || _yr_emb=$(fl_emb_rom)
+    [ -n "$_yr_fix" ] || return 0
+    _yr_n=0
+    for _yr_p in $(cat "$FL_MB_LIST" 2>/dev/null); do
+        [ -n "$_yr_p" ] || continue
+        _yr_ap=$(fl_xml_attr "$_yr_fix" "$_yr_p" allPortrait)
+        _yr_ru=""
+        [ -n "$_yr_emb" ] && _yr_ru=$(fl_xml_attr "$_yr_emb" "$_yr_p" fullRule)
+        if [ -n "$_yr_ru" ]; then
+            printf '%s\tyatay\n' "$_yr_p" >> "$FL_ORIENT_LIST"
+            _yr_n=$((_yr_n + 1))
+        elif [ "$_yr_ap" = "true" ]; then
+            printf '%s\tdikey\n' "$_yr_p" >> "$FL_ORIENT_LIST"
+            _yr_n=$((_yr_n + 1))
+        fi
+    done
+    if [ "$_yr_n" -gt 0 ]; then
+        chmod 0644 "$FL_ORIENT_LIST" 2>/dev/null
+        cp -f "$FL_ORIENT_LIST" "$FL_ORIENT_BAK" 2>/dev/null
+        fl_log "yon.txt yoktu -> kural dosyalarindan $_yr_n secim geri kurtarildi"
+    fi
     return 0
 }
 
@@ -2034,6 +2087,10 @@ fl_mb_reapply() {   # acilista: kayitli paketlerin kuralini tazele
     # her acilista tekrar yataya cevriliyordu. Artik once yon secimi okunur:
     #   dikey / yatay / serbest -> fl_yon_write (dogru kurali yazar)
     #   secim yok               -> eski davranis (mailbox + yatay kural)
+    # v2.23.1: secim dosyasi kaybolduysa once kurtarmayi dene (yedek ->
+    # kural dosyalarindan tahmin). Boylece "secilen uygulama sessizce
+    # yataya dondu" durumu mumkun oldugunca onlenir.
+    fl_yon_recover
     _rn=0; _rf=0
     for _rp2 in $(cat "$FL_MB_LIST" 2>/dev/null); do
         [ -n "$_rp2" ] || continue
@@ -2045,10 +2102,28 @@ fl_mb_reapply() {   # acilista: kayitli paketlerin kuralini tazele
                     *)   _rf=$((_rf + 1)); fl_log "acilis tazeleme HATA: $_rp2 yon=$_yv2" ;;
                 esac ;;
             *)
-                case "$(fl_miui_apply "$_rp2" 2>/dev/null)" in
-                    ok*) _rn=$((_rn + 1)) ;;
-                    *)   _rf=$((_rf + 1)) ;;
-                esac ;;
+                # v2.23.1: secim yoksa once DOSYADAKI gercek duruma bak.
+                # Kullanici dikey secmis ama kayit kaybolmussa, dosyada
+                # allPortrait=true duruyorsa onu KORU (yataya cevirme).
+                _dk_fix=$(fl_mb_cloud); [ -n "$_dk_fix" ] || _dk_fix=$(fl_mb_rom)
+                _dk_por=$(fl_xml_attr "$_dk_fix" "$_rp2" allPortrait)
+                _dk_ru=""
+                _dk_emb=$(fl_emb_cloud); [ -n "$_dk_emb" ] || _dk_emb=$(fl_emb_rom)
+                [ -n "$_dk_emb" ] && _dk_ru=$(fl_xml_attr "$_dk_emb" "$_rp2" fullRule)
+                if [ "$_dk_por" = "true" ] && [ -z "$_dk_ru" ]; then
+                    # dosyada zaten dikey kilidi var -> secimi geri yaz, koru
+                    fl_yon_set "$_rp2" dikey
+                    case "$(fl_yon_write "$_rp2" dikey 2>/dev/null)" in
+                        ok*) _rn=$((_rn + 1)) ;;
+                        *)   _rf=$((_rf + 1)) ;;
+                    esac
+                    fl_log "acilis: $_rp2 secimi kayipti, dosyadan DIKEY kurtarildi"
+                else
+                    case "$(fl_miui_apply "$_rp2" 2>/dev/null)" in
+                        ok*) _rn=$((_rn + 1)) ;;
+                        *)   _rf=$((_rf + 1)) ;;
+                    esac
+                fi ;;
         esac
     done
     # yon.txt'de olup mailbox listesine dusmemis kayitlar da tazelenir

@@ -1,4 +1,4 @@
-# Force Landscape - All Apps  |  v2.23.0
+# Force Landscape - All Apps  |  v2.23.1
 
 Xiaomi Pad 6 (pipa) · MIUI 14 / Android 13 · SukiSU Ultra
 
@@ -515,3 +515,77 @@ MIUI'nin **gerçek** şeması kullanılıyor (uydurma alan yok):
   `com.instagram.android → dikey (allPortrait=true)` **korundu**.
 - **Yedek/geri yükleme**: force/never/appmode/mailbox/yon beşi de birebir
   geri geldi (`OK|1|2|1|yon=3`).
+
+## v2.23.1 — "her düğme tek tek test edildi" turu (2 gerçek hata daha)
+
+Bu turda arayüzdeki **37 `data-act` düğmesi + 14 kontrol anahtarı + detay
+penceresindeki 15 düğme + 4 yön modu + 4 letterbox modu + 6 filtre + 3
+sıralama** tek tek gerçekten tıklandı (jsdom, gerçek arka uç komutlarıyla).
+**72/73 doğrudan geçti; kalan 1 de ayrıca elle doğrulandı.** İki gerçek hata
+bu sayede çıktı:
+
+### 1) İşlem sürerken TÜM SAYFA siliniyordu (`busyStart`)
+`busyStart()` → `render()` → `paintBusy()` zinciri `#view.innerHTML`'i
+"işlem sürüyor…" ile **eziyordu**. Sonuç:
+- Uygulama detay penceresi, işlem sürerken **yok oluyordu** → kanıt/tam ekran/
+  mailbox düğmelerine bastıktan sonra pencere kapanıyor, geri açmak gerekiyordu.
+- Herhangi bir düğmeye basınca ekran bir an **boşalıyordu** ("bastım, bir şey
+  olmadı" hissinin bir sebebi daha).
+
+**Düzeltme:** "işlem sürüyor" artık `#busyLayer` adlı **ayrı katman**; sayfa
+yerinde kalır, katman üstte yarı saydam durur. `render()` busy iken de çizer.
+
+### 2) Yedek metni siliniyordu → "Yedekten yükle" hep "alan boş" diyordu
+`backup()` metni `<textarea>`'ya yazıyordu, ama saniyeler içinde gelen
+`render()` textarea'yı **yeniden çizip içeriği siliyordu**. Kullanıcı
+"Seçimleri kopyala"ya basıp "Yedekten yükle"ye bastığında **her zaman**
+"alan boş — önce yedek al veya yapıştır" görüyordu.
+
+**Düzeltme:** metin `LAST_BACKUP` değişkeninde tutulur, render sonrası kutuya
+geri konur, `backupLoad()` kutuyu boş bulursa `LAST_BACKUP`'tan okur.
+Ayrıca `SHELL`/`SCRIPT` okunamazsa artık sessizce boş komut çalıştırmıyor.
+
+### 3) Panoya kopyalama sessizce başarısız oluyordu
+WebView'de `navigator.clipboard` çoğu zaman yok, `execCommand("copy")` sessizce
+`false` döner. Eski kod sonucu **hiç kontrol etmiyordu** → "kopyalandı"
+diyemiyor ama hiçbir şey de yapmıyordu. Artık: clipboard → execCommand →
+**metni ekranda aç** (elle seç-kopyala). Böylece yedek/teşhis paketi her
+koşulda eline geçer.
+
+### Test kapsamı (bu turda gerçekten tıklananlar)
+
+```
+37 data-act düğmesi (apply, repair, test, diag, revertAll, kilitOff, watchOff,
+  miuiEmbedOff, logoTest, save, report, appsRefresh, selectForce, selectSkip,
+  letterboxReload, compatReset, rawtest, tamKontrol, kontrolReload, rulesReload,
+  logreload, logauto, logcopy, bundlecopy, clearlog, logstat, sysReload,
+  sysCopy, pause, restore, backup, restoreBackup, backupLoad, tani, ...)
+14 kontrol anahtarı (Aç + Kapat)  ·  7 anahtar grubu doğrulandı
+15 detay penceresi düğmesi (force/never/auto/yon/appmode/fullscreen/hepsi/
+  hepsikapat/kesin/proof/softreboot/mailbox/open/stop/restart)
+4 yön modu + 4 letterbox modu + 6 filtre + 3 sıralama
+6 yön seçimi (2 paket × dikey/yatay/serbest) — arka uçtan doğrulandı
+8 sekme · ekranda undefined/NaN yok · JS hatası yok
+```
+
+### 4) Yön seçimi kendini onarmıyordu (EN KRİTİK)
+Sahadaki "dikey seçtim, sonra yatay oldu" şikayetinin bir sebebi daha bulundu:
+`yon.txt` herhangi bir sebeple silinir/boşalırsa (temizlik betiği, modül
+güncellemesi, elle müdahale, disk hatası) **seçim tamamen kayboluyor** ve
+`mailbox.txt`'te kalan kayıt yüzünden uygulama **eski yatay kuralına** geri
+dönüyordu. Bu sessizce oluyordu.
+
+**Düzeltme — üç katmanlı kurtarma:**
+1. Her yazımda `yon.bak` **ikinci kopya** tutulur.
+2. `fl_prepare` → `fl_yon_restore`: `yon.txt` boşsa **yedekten** geri yükler.
+3. `fl_yon_recover` + `fl_mb_reapply`: ikisi de yoksa **kural dosyalarından
+   tahmin eder** (`allPortrait="true"` → dikey, `fullRule` var → yatay) ve
+   seçimi yeniden yazar. Ayrıca seçimi olmayan bir kayıt için boot'ta
+   `fl_miui_apply` çağrılmadan önce **dosyadaki gerçek duruma bakılır**;
+   dosyada dikey kilidi duruyorsa yataya **çevrilmez**.
+
+Test (uçtan uca):
+```
+A) yon.txt silindi            -> yon.bak'tan geri geldi, uygulama DIKEY kaldi
+B) yon.txt + yon.bak silindi   -> kural dosyasindan kurtarildi, DIKEY kaldi
+```

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta http-equiv="cache-control" content="no-store, must-revalidate">
 <meta http-equiv="pragma" content="no-cache">
-<title>Force Landscape v2.23.0</title>
+<title>Force Landscape v2.23.1</title>
 <style>
 :root{
   --bg:#0e1116; --bg2:#151a22; --card:#1a2029; --line:#26303d; --txt:#e8eef7;
@@ -53,6 +53,12 @@ button[disabled]{opacity:.45;pointer-events:none}
   background:var(--bg2);color:var(--dim);font-size:13.5px;font-weight:600;cursor:pointer;white-space:nowrap}
 .tab.on{background:var(--accent);border-color:var(--accent);color:#04121f}
 #view{padding:12px 12px 90px;max-width:900px;margin:0 auto}
+/* v2.23: "işlem sürüyor" artık #view'i SİLMEZ (eskiden detay penceresi ve
+   ekrandaki her şey kayboluyordu). Sayfanın üstüne yarı saydam katman çıkar. */
+#busyLayer{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.42);
+  backdrop-filter:blur(2px);display:grid;place-items:center;pointer-events:auto}
+#busyLayer .centered{background:var(--card,#1b1b1d);border:1px solid var(--line);
+  border-radius:14px;padding:22px 26px;color:var(--fg,#eee);max-width:78vw;text-align:center}
 .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
   padding:13px;margin-bottom:11px}
 .card h2{margin:0 0 9px;font-size:14.5px;font-weight:700;letter-spacing:.2px}
@@ -156,7 +162,7 @@ button{max-width:100%}
 <header>
   <div class="hrow">
     <div>
-      <div class="title">Force Landscape <span class="sub" id="ver">v2.23.0</span></div>
+      <div class="title">Force Landscape <span class="sub" id="ver">v2.23.1</span></div>
       <div class="sub" id="hdev">cihaz bilgisi yükleniyor…</div>
     </div>
     <div class="spacer"></div>
@@ -169,12 +175,13 @@ button{max-width:100%}
 <div class="tabs" id="tabs"></div>
 <div id="view"><div class="centered"><span class="spin"></span>yükleniyor…</div></div>
 <div class="toast" id="toast"></div>
+<div id="busyLayer" style="display:none"><div class="centered"><span class="spin"></span><span id="busyTxt"></span></div></div>
 <div id="sheetHost"></div>
 
 <script>
 "use strict";
 /* ============================================================
-   Force Landscape v2.23.0 — WebUI
+   Force Landscape v2.23.1 — WebUI
    Tasarım kuralları:
    * Açılışta en fazla 2 arka uç çağrısı (status + apps).
    * Otomatik yenileme SADECE başlık rozetlerini günceller; sekme
@@ -541,11 +548,13 @@ function appName(pkg){
 /* Yoneticiden (KernelSU/SukiSU) gercek uygulama adi, surumu ve ikonu.
    API yoksa sessizce atlanir; asagidaki sozluk/turetilmis ad kullanilir. */
 let MG = {};          // pkg -> {label, versionName, versionCode, isSystem}
-let UI_VER = "v2.23.0";       // bu sayfanın sürümü (arka uçla karşılaştırılır)
+let UI_VER = "v2.23.1";       // bu sayfanın sürümü (arka uçla karşılaştırılır)
 /* v2.23: uygulama bazli yon kilidi (dikey / yatay / serbest) */
 let YON = {};          // pkg -> "dikey" | "yatay" | "serbest"
 let YON_OK = false;    // arka uc hala eski surum mu? (ozellik kapaliysa uyari) 
 let LAST_OP = "";          // son işlemin DOĞRULANMIŞ sonucu
+/* v2.23: yedek metni render() sonrası kaybolmasın (textarea yeniden çiziliyor) */
+let LAST_BACKUP = "";
 let ICONS = false;    // ksu://icon destekleniyor mu (denenir)
 async function enrichFromManager(){
   if(!hasKsu() || typeof ksu.getPackagesInfo !== "function") return;
@@ -680,16 +689,25 @@ function busyStart(t){
   busyTimer = setTimeout(()=>{
     if(!busy) return;
     busy = false; lastErr = "işlem 5 dakikada bitmedi (zaman aşımı)";
+    try{ paintBusy(); }catch(e){}
     try{ toast("işlem uzun sürdü — ekran açıldı, ayrıntı: Kayıtlar"); }catch(e){}
     try{ render(); }catch(e){}
   }, BUSY_MAX);
-  render();
+  paintBusy();          /* v2.23: sayfayı silmeden sadece katmanı göster */
 }
 function busyEnd(){
   busy = false;
   if(busyTimer){ clearTimeout(busyTimer); busyTimer = null; }
+  try{ paintBusy(); }catch(e){}
 }
-function paintBusy(){ const v = $("view"); if(busy && v) v.innerHTML = `<div class="centered"><span class="spin"></span>${esc(busyText)}</div>`; }
+function paintBusy(){
+  /* v2.23 DUZELTME: eskiden #view.innerHTML eziliyordu -> işlem sırasında
+     sayfa (ve açık detay penceresi) yok oluyordu. Artık ayrı katman. */
+  const L = $("busyLayer"), T = $("busyTxt");
+  if(!L) return;
+  if(busy){ if(T) T.textContent = busyText || "işlem sürüyor…"; L.style.display = "grid"; }
+  else { L.style.display = "none"; }
+}
 
 async function loadStatus(){
   const txt = await out("status");
@@ -819,7 +837,9 @@ async function setTab(t){
 }
 async function render(){
   const v = $("view");
-  if(busy){ paintBusy(); return; }
+  /* v2.23: busy iken render'ı TAMAMEN yutmak, işlem bitince ekranın eski
+     kalmasına yol açıyordu. Artık çizim yapılır, katman üstte durur. */
+  if(busy) paintBusy();
   const y = window.scrollY;
   if(TAB === "durum") v.innerHTML = viewDurum();
   else if(TAB === "uygulamalar") v.innerHTML = viewApps();
@@ -1337,7 +1357,7 @@ function viewAyarlar(){
       <button data-act="backup">Seçimleri kopyala</button>
       <button class="ghost" data-act="restoreBackup">Yedekten yükle</button>
     </div>
-    <textarea id="backupBox" placeholder="force|com.ornek.uygulama …"></textarea>
+    <textarea id="backupBox" placeholder="force|com.ornek.uygulama …">${esc(LAST_BACKUP||"")}</textarea>
     <div class="row" style="margin-top:8px">
       <button class="sm" data-act="backupLoad">Panodaki/alandaki yedeği uygula</button>
     </div>
@@ -1415,22 +1435,48 @@ document.addEventListener("click", ev=>{
   if(typeof done === "function"){ host._askDone = null; done(!!t.dataset.askOk); }
 });
 
-function copyText(t, okMsg){
+/* v2.23 DUZELTME: WebView'de (SukiSU/KernelSU) navigator.clipboard çoğu
+   zaman YOK ve execCommand("copy") sessizce false döner. Eski kod sonucu
+   HİÇ kontrol etmiyordu: 3 kopyalama yolu da başarısız olsa bile hiçbir
+   şey yapmıyordu. Artık sırayla denenir ve gerçekten olmadıysa metin
+   ekranda açılır (elle seçip kopyalayabilirsin). */
+function copyMetinGoster(s, sebep){
+  const host = $("sheetHost");
+  if(host) host.innerHTML = `<div class="sheet" data-close="1"><div class="box">
+    <div class="row"><b>Kopyalanamadı</b><span class="spacer"></span>
+    <button class="sm ghost" data-close="1">✕</button></div>
+    <div class="hint" style="margin-top:6px">${esc(sebep || "pano erişimi yok")} — aşağıdaki metni seçip elle kopyala.</div>
+    <textarea readonly style="margin-top:8px;height:220px">${esc(s)}</textarea>
+    <div class="row" style="margin-top:8px"><button class="sm" data-copy-again="1">Tekrar dene</button></div>
+  </div></div>`;
+  const ta = host && host.querySelector("textarea");
+  if(ta){ try{ ta.focus(); ta.select(); }catch(e){} }
+  const again = host && host.querySelector("[data-copy-again]");
+  if(again) again.onclick = ()=>copyText(s, null, true);
+  toast("kopyalanamadı — metin açıldı, elle kopyala");
+}
+function copyText(t, okMsg, zorla){
   const s = String(t || "");
+  if(!s){ toast("kopyalanacak metin yok"); return; }
   const done = ()=>toast(okMsg || "kopyalandı");
-  if(navigator.clipboard && navigator.clipboard.writeText){
+  if(!zorla && navigator.clipboard && navigator.clipboard.writeText){
     navigator.clipboard.writeText(s).then(done).catch(()=>fallbackCopy(s, done));
-  } else fallbackCopy(s, done);
+    return;
+  }
+  fallbackCopy(s, done);
 }
 function fallbackCopy(s, done){
   try{
     const ta = document.createElement("textarea");
-    ta.value = s; ta.style.position = "fixed"; ta.style.opacity = "0";
-    document.body.appendChild(ta); ta.select();
-    document.execCommand("copy");
+    ta.value = s; ta.style.position = "fixed"; ta.style.top = "0"; ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.focus(); ta.select();
+    try{ ta.setSelectionRange(0, s.length); }catch(e){}
+    const ok = document.execCommand("copy");
     document.body.removeChild(ta);
-    done();
-  }catch(e){ toast("kopyalanamadı — metni seçip elle kopyala"); }
+    if(ok){ done(); return; }
+    copyMetinGoster(s, "tarayıcı kopyalamayı reddetti");
+  }catch(e){ copyMetinGoster(s, String((e && e.message) || e)); }
 }
 
 async function doApply(){
@@ -2108,17 +2154,25 @@ const ACT = {
   async backup(){
     let t = "";
     try{ t = await out("backup"); }catch(e){ t = e.message||String(e); }
+    /* v2.23 DUZELTME: render() <textarea>'yı yeniden çizdiği için burada
+       yazılan metin saniyeler içinde SİLİNİYORDU; "Yedekten yükle" hep
+       "alan boş" diyordu. Artık metin LAST_BACKUP'ta tutulur ve render
+       sonrası kutuya geri konur. */
+    LAST_BACKUP = t || "";
     const box = $("backupBox");
-    if(box) box.value = t;
-    copyText(t, "seçimler kopyalandı");
+    if(box) box.value = LAST_BACKUP;
+    if(!String(t).trim() || /^HATA/i.test(String(t).trim())) toast("yedek alınamadı: " + (String(t).trim().slice(0,80) || "boş cevap"));
+    else copyText(t, "seçimler kopyalandı · " + t.trim().split("\n").length + " satır");
+    await render();   /* kutuyu LAST_BACKUP ile yeniden basar */
   },
 
   async restoreBackup(){ await ACT.backupLoad(); },
 
   async backupLoad(){
     const box = $("backupBox");
-    const text = box ? box.value.trim() : "";
+    const text = ((box ? box.value : "") || LAST_BACKUP || "").trim();
     if(!text) return toast("alan boş — önce yedek al veya yapıştır");
+    if(!SHELL || !SCRIPT) return toast("kabuk yolu okunamadı — WebUI'yi yeniden aç");
     busyStart("yedek uygulanıyor…");
     try{
       const payload = "printf '%s' " + sq(text) + " | " + SHELL + " " + SCRIPT + " restore-backup";
