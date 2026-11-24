@@ -99,7 +99,7 @@ FL_APPMODE_ST=$FL_DIR/appmode_state.txt   # pkg<TAB>ok|fail<TAB>yontem (v2.7)
 # Bu yuzden "ekrana yay" yapilsa bile oyun ortada kaliyordu. Asagidaki
 # prop false yapilinca MIUI gommesi tamamen kapanir.
 FL_MIUI_EMB_PROP=ro.config.miui_activity_embedding_enable
-FL_MODVER=v2.23.3
+FL_MODVER=v2.23.4
 FL_TAB=$(printf '\t')            # gercek sekme karakteri (IFS icin)
 
 PATH=/system/bin:/system/xbin:/sbin:/data/adb/ksu/bin:$PATH
@@ -114,6 +114,14 @@ COMPAT_FORCE_RESIZE=true       # uygulama bazli FORCE_RESIZE_APP (letterbox cozu
 COMPAT_MODE=smart             # smart | all | off
 LEARN_ORIENTATION=true
 COMPAT_ID=174042936            # Android 13: FORCE_RESIZE_APP
+# v2.23.4 — PlatformCompat change-id haritasi (config.conf ile ezilebilir).
+# SAHA KANITI: tek id (174042936) kullanildiginda "ekrana yay" acarken
+# disable PORTRAIT_ONLY kapiciyi kapatiyordu -> ozellik hic calismiyordu.
+FL_ID_GATE=${FL_ID_GATE:-174042980}        # OVERRIDE_MIN_ASPECT_RATIO (KAPICI)
+FL_ID_LARGE=${FL_ID_LARGE:-180326787}      # OVERRIDE_MIN_ASPECT_RATIO_LARGE
+FL_ID_MEDIUM=${FL_ID_MEDIUM:-180326787}
+FL_ID_PONLY=${FL_ID_PONLY:-203647190}      # ..._PORTRAIT_ONLY
+FL_ID_ANYORIENT=${FL_ID_ANYORIENT:-310816437}  # Android 14+
 COMPAT_BUDGET=120             # saniye (boot'u bekletmemek icin butce)
 COMPAT_MIN_PER_TURN=8         # tur basina garanti edilen paket sayisi
 COMPAT_XML_FALLBACK=auto      # auto | off | on  (am compat calismazsa XML)
@@ -245,7 +253,7 @@ fl_prepare() {
     # v2.23: onceki surumlerden kalan bozuk paket satirlarini temizle
     # ("0" gibi). Sessizce yapilir; boylece eski kurulumlar da duzelir.
     fl_lists_clean
-    # v2.23.3: yon secimleri kaybolmasin (yedekten ya da kural dosyasindan)
+    # v2.23.4: yon secimleri kaybolmasin (yedekten ya da kural dosyasindan)
     fl_yon_restore
     if [ "$LOG" = "1" ] && ( : >> "$FL_LOG" ) 2>/dev/null; then
         FL_LOG_OK=1
@@ -330,7 +338,7 @@ fl_log() {
 }
 
 # ============================================================
-# v2.23.3 — OLAY GUNLUGU (forensic log)
+# v2.23.4 — OLAY GUNLUGU (forensic log)
 # Amac: "bir sey ters gitti" cumlesini YASAK etmek. Her basarisiz
 # islem su 9 alanla yazilir, eksik alan "?" ile isaretlenir:
 #   t  : zaman (ms)
@@ -416,7 +424,7 @@ fl_evt() {   # $1 seviye(ERROR|WARN|DENY) $2 komut $3 rc $4 cikti $5 paket $6 ek
         "$(fl_json_esc "${6:-}")" "$FL_MODVER")
     printf '%s\n' "$_ev_line" >> "$FL_EVT" 2>/dev/null
     case "$1" in ERROR|DENY) printf '%s\n' "$_ev_line" >> "$FL_ERR" 2>/dev/null ;; esac
-    # v2.23.3: rc=0 olsa da ciktida hata kaliplari varsa WARN'a yukselt.
+    # v2.23.4: rc=0 olsa da ciktida hata kaliplari varsa WARN'a yukselt.
     # ("komut basarili gorunuyor ama sistem reddetmis" sessiz hatasi)
     if [ "${3:-0}" = "0" ]; then
         case "$(printf '%s' "$4" | tr 'A-Z' 'a-z')" in
@@ -490,7 +498,7 @@ fl_run() {
     else
         fl_log "   \$ $* -> rc=$_r"
     fi
-    # v2.23.3: basarisiz komut ARTIK SESSIZ KALMAZ -> ayrintili olay kaydi
+    # v2.23.4: basarisiz komut ARTIK SESSIZ KALMAZ -> ayrintili olay kaydi
     if [ "$_r" != "0" ]; then
         fl_evt ERROR "$*" "$_r" "$_o" "${FL_CTX_PKG:--}"
     fi
@@ -573,7 +581,7 @@ fl_wait_stable() {
 }
 
 # ---------- mod 1: sensor (tercih edilen) --------------------
-# v2.23.3 DUZELTME (gercek Android 13 sozdizimi): "fixed-to-user-rotation"
+# v2.23.4 DUZELTME (gercek Android 13 sozdizimi): "fixed-to-user-rotation"
 # yalnizca enabled|disabled kabul eder. Eski kod "default" yaziyordu ->
 # cihazda "Error: bad value: default" alinip HICBIR SEY yapilmiyordu,
 # yani "sensör" modu ve "kapali" modu kullanici kilidi birakiyordu.
@@ -1311,7 +1319,7 @@ fl_compat_left() {
 
 fl_get_ignore() {
     FL_CTX=fl_get_ignore; FL_LINE=${LINENO:-0}
-    # v2.23.3: `wm help` (Android 12L/13) bu komutu "[-d DISPLAY_ID]" ile
+    # v2.23.4: `wm help` (Android 12L/13) bu komutu "[-d DISPLAY_ID]" ile
     # listeliyor -> -d 0 DOGRU. Yine de bazi ROM'lar/alt surumler kabul
     # etmiyor; o yuzden once -d 0, hata/boş donerse argumansiz denenir.
     # Tek bir okuma noktasi: 9 cagri ayni yerde duzeltilir.
@@ -1325,7 +1333,7 @@ fl_get_ignore() {
 fl_compat_dump() {
     FL_CTX=fl_compat_dump; FL_LINE=${LINENO:-0}
     # dumpsys platform_compat ciktisi turda bir kez alinir (yavas komut)
-    # v2.23.3 DUZELTME: eski onbellek "date +%s" ile 1 SANIYELIK penceredeydi.
+    # v2.23.4 DUZELTME: eski onbellek "date +%s" ile 1 SANIYELIK penceredeydi.
     # Ayni saniye icinde yapilan ikinci dogrulama ESKI ciktiya bakiyordu ->
     # "am compat enable" calismamis olsa bile "sistemde gorunuyor" deniyordu.
     # Artik onbellek yalnizca DOGRULAMA SIRASINDA (FL_CDUMP_FRESH=1) gecerli;
@@ -1342,7 +1350,7 @@ fl_compat_verify() {
     FL_CTX=fl_compat_verify; FL_LINE=${LINENO:-0}
     # $1 = paket  $2 = (ops.) change id — verilirse O ID icin aranir
     # 0 = sistemde gorunuyor, 1 = gorunmuyor, 2 = dogrulanamiyor (dumpsys yok)
-    # v2.23.3 DUZELTME: eski kod SADECE paket adini ariyordu. Paket dumpsys'te
+    # v2.23.4 DUZELTME: eski kod SADECE paket adini ariyordu. Paket dumpsys'te
     # bambaska bir degisiklik icin gorunuyorsa "dogrulandi" deniyordu (yanlis
     # pozitif). Artik istenirse change id eslesmesi de aranir.
     _vf_p=$1
@@ -1404,7 +1412,7 @@ fl_compat_try() {
     FL_CTX=fl_compat_try; FL_LINE=${LINENO:-0}
     # $1 = paket   $2 = dogrula (yes|no)
     # Cikti: "ok|<yontem>|" ya da "fail||<son hata>"
-    # v2.23.3: Bu fonksiyon kendi komut dongusunu calistiriyordu -> tum
+    # v2.23.4: Bu fonksiyon kendi komut dongusunu calistiriyordu -> tum
     # yontem denemeleri LOGSUZ yutuluyordu. Artik tek kaynak: fl_am_cmd
     # (her deneme WARN, hepsi basarisizsa DENY olarak events.log'a duser).
     _cp=$1
@@ -2039,7 +2047,7 @@ fl_mb_unsave() { fl_list_del "$FL_MB_LIST" "$1"; }
 #    yon=serbest -> iki dosyadan da bizim satirlarimiz SILINIR
 # ============================================================
 FL_ORIENT_LIST="$FL_DIR/yon.txt"      # pkg<TAB>dikey|yatay|serbest  (kalici secim)
-FL_ORIENT_BAK="$FL_DIR/yon.bak"       # v2.23.3: ikinci kopya (kendini onarma)
+FL_ORIENT_BAK="$FL_DIR/yon.bak"       # v2.23.4: ikinci kopya (kendini onarma)
 FL_RULE_PORTRAIT="nra:cr:rcr:nr"      # yatay kural (mevcut sabit)
 
 fl_mb_line_build() {   # $1 paket  $2 disable(true|false)  $3 allPortrait(true|false)
@@ -2061,7 +2069,7 @@ fl_yon_set() {   # $1 paket  $2 dikey|yatay|serbest
     printf '%s\t%s\n' "$1" "$2" >> "$FL_ORIENT_LIST.t"
     mv -f "$FL_ORIENT_LIST.t" "$FL_ORIENT_LIST" 2>/dev/null
     chmod 0644 "$FL_ORIENT_LIST" 2>/dev/null
-    cp -f "$FL_ORIENT_LIST" "$FL_ORIENT_BAK" 2>/dev/null   # v2.23.3 ikinci kopya
+    cp -f "$FL_ORIENT_LIST" "$FL_ORIENT_BAK" 2>/dev/null   # v2.23.4 ikinci kopya
     chmod 0644 "$FL_ORIENT_BAK" 2>/dev/null
     return 0
 }
@@ -2074,7 +2082,7 @@ fl_yon_del() {
     return 0
 }
 
-# v2.23.3: SECIM KAYBOLMASIN. Sahada "dikey sectim, bir sure sonra yatay oldu"
+# v2.23.4: SECIM KAYBOLMASIN. Sahada "dikey sectim, bir sure sonra yatay oldu"
 # sikayetinin bir sebebi de yon.txt'nin silinmesi/bosalmasi (temizlik betigi,
 # magisk modul guncellemesi, elle mudahale). yon.txt bossa yedekten geri yukle.
 fl_yon_restore() {
@@ -2265,6 +2273,11 @@ fl_miui_cmd_run() {   # cmd miui_embedding_window <args> -> 0 ok | 1 fail
     FL_CTX=fl_miui_cmd_run; FL_LINE=${LINENO:-0}
     _mo=$(cmd miui_embedding_window "$@" 2>&1 </dev/null)
     _mrc=$?
+    # v2.23.4: "No exist config"/"Not found"/"Unknown" gibi RED cevaplari
+    # basarisizlik sayilir (eskiden yalniz Error/Failure kaliplari sayiliyordu).
+    case "$_mo" in
+        *"No exist config"*) fl_log "  miui-cmd: $* -> REDDEDILDI (paket icin config yok)"; return 1 ;;
+    esac
     fl_log "  miui-cmd: $* -> rc=$_mrc $(printf '%s' "$_mo" | tr '\n' ' ' | cut -c1-140)"
     case "$_mo" in
         *[Ee]rror*|*Exception*|*"Failed transaction"*|*"No such"*|*"Unknown"*|*[Ff]ailure*|*"not found"*) return 1 ;;
@@ -2275,17 +2288,126 @@ fl_miui_cmd_run() {   # cmd miui_embedding_window <args> -> 0 ok | 1 fail
 fl_miui_cmd_apply() {   # $1 paket -> ok|yok : canli yatay + mailbox kapat
     FL_CTX=fl_miui_cmd_apply; FL_LINE=${LINENO:-0}
     fl_miui_cmd_avail || { echo yok; return 1; }
-    _ok=ok
-    fl_miui_cmd_run update-rule "$1" "fullRule::${FL_RULE_LANDSCAPE:-nra:cr:rcr:nr}" || _ok=yok
-    fl_miui_cmd_run set-fixedOri "$1" "disable::true" || _ok=yok
-    echo "$_ok"
-    [ "$_ok" = "ok" ]
+    # v2.23.4: "successful" cevabi KANIT DEGIL. Sira:
+    #   1) servis bu paket icin config tanisin (yoksa yazma yutuluyor)
+    #   2) yatay kurali yaz + GERI OKU
+    #   3) mailbox'i kapat + GERI OKU
+    # Herhangi biri dogrulanamazsa "yok" doner -> cagiran katman AOSP'a duser.
+    fl_miui_ensure_pkg "$1" || { fl_log "miui-apply: $1 config yok -> canli katman atlandi"; echo yok; return 1; }
+    _rule="${FL_RULE_LANDSCAPE:-nra:cr:rcr:nr}"
+    # Kural yazimi: servis once "splitRule"yi gunceller, "fixedOri" AYRI
+    # komuttur. Ikisi de okunana kadar beklenir; biri hic gelmezse
+    # basarisiz sayilir (ve sebebi events.log'a duser).
+    fl_miui_cmd_run update-rule "$1" "fullRule::$_rule" >/dev/null 2>&1
+    fl_miui_cmd_run set-fixedOri "$1" "disable::true" >/dev/null 2>&1
+    fl_miui_wait_rule "$1" evet "$_rule" || { echo yok; return 1; }
+    echo ok
+    return 0
+}
+
+# ============================================================
+# v2.23.4 — MIUI SERVISINDEN GERCEK DURUM OKUMA (canli dogrulama)
+# SAHA KANITI (kullanici logu, 2026-11-24):
+#   update-rule ... fullRule::nra:cr:rcr:nr -> "No exist config for X
+#                                              Update ... successful"
+#   set-fixedOri disable::true  -> "successful"
+#   set-fixedOri disable::false -> "successful"   <-- ikisi de "basarili"
+# Yani servisin "successful" demesi HICBIR SEY kanitlamaz. Servis,
+# paket icin o an bir config yoksa yazmayi SESSIZCE YUTUYOR.
+# Cozum: servisin KENDI okuma komutu `dump-rule <pkg>`.
+# ============================================================
+fl_miui_dump_rule() {   # $1 paket -> servisin gercek kural dokumu (ham)
+    FL_CTX=fl_miui_dump_rule; FL_LINE=${LINENO:-0}
+    fl_miui_cmd_avail || return 1
+    # fl_miui_cmd_run cikti DONDURMEZ (sadece loglar) -> dogrudan cagir
+    cmd miui_embedding_window dump-rule "$1" 2>&1 </dev/null
+}
+
+fl_miui_rule_state() {   # $1 paket -> "<fixedOri>|<fullRule>|<kaynak>"
+    # Cikti: yes|no|yok   ·   kural metni ya da "yok"
+    _mrs_p=$1
+    _mrs_o=$(fl_miui_dump_rule "$_mrs_p" 2>/dev/null)
+    if [ -z "$_mrs_o" ]; then
+        printf '%s|%s|%s\n' "yok" "yok" "dump-bos"
+        return 1
+    fi
+    # disable degeri: satirda disable=true/false, yoksa "yok"
+    _mrs_f="yok"
+    # DIKKAT: MIUI servisi "disable::true" (CIFT iki nokta) yazar; XML'de
+    # ise disable="true". Ikisi de yakalanmali. v2.23.4 ilk denemede
+    # yalniz tek iki nokta yazilmisti -> gercek cihazda hic eslesmiyordu.
+    case "$_mrs_o" in
+        *disable::true*|*disable=true*|*disable=\"true\"*)   _mrs_f=evet ;;
+        *disable::false*|*disable=false*|*disable=\"false\"*) _mrs_f=hayir ;;
+        *"not disabled"*|*"enabled"*) _mrs_f=hayir ;;
+        *disabled*)                   _mrs_f=evet ;;
+    esac
+    # Kural degeri. Servis "splitRule:" diyor (bazi ROM'larda "fullRule:").
+    # Ikisi de kabul edilir; deger bos ise "yok".
+    _mrs_r=$(printf '%s\n' "$_mrs_o" \
+        | grep -oE '(splitRule|fullRule)[=: ]+[A-Za-z0-9:._-]+' \
+        | head -n 1 | sed -E 's/^(splitRule|fullRule)[=: ]+//')
+    case "$_mrs_r" in ''|*[!A-Za-z0-9:._-]*) _mrs_r="yok" ;; esac
+    printf '%s|%s|%s\n' "$_mrs_f" "$_mrs_r" "dump-rule"
+}
+
+fl_miui_wait_rule() {   # $1 paket  $2 beklenen: evet|hayir  $3 beklenen fullRule (bos=tolerans)  -> 0 basarili
+    # Servis asenkron yaziyor olabilir -> kisa sure israrli okuma (en fazla ~2 s)
+    _mwr_p=$1; _mwr_want=$2; _mwr_rule=${3:-}
+    _mwr_i=0
+    while [ "$_mwr_i" -lt 6 ]; do
+        _mwr_s=$(fl_miui_rule_state "$_mwr_p" 2>/dev/null)
+        _mwr_f=$(printf '%s' "$_mwr_s" | cut -d'|' -f1)
+        _mwr_r=$(printf '%s' "$_mwr_s" | cut -d'|' -f2)
+        if [ "$_mwr_f" = "$_mwr_want" ]; then
+            if [ -z "$_mwr_rule" ] || [ "$_mwr_r" = "$_mwr_rule" ]; then
+                fl_log "canli-dogrulandi: $_mwr_p fixedOri=$_mwr_f fullRule=$_mwr_r (deneme $((_mwr_i+1)))"
+                return 0
+            fi
+        fi
+        _mwr_i=$((_mwr_i + 1))
+        sleep 0.3 2>/dev/null || sleep 1
+    done
+    fl_evt WARN "miui-wait-rule $_mwr_p" 1 \
+        "servis kurali yazmadi: beklenen fixedOri=$_mwr_want${_mwr_rule:+ fullRule=$_mwr_rule}, okunan: $_mwr_s" \
+        "$_mwr_p" "MIUI servisi 'successful' dedi ama kural yok -> paket icin once enable gerekiyor olabilir"
+    return 1
+}
+
+fl_miui_ensure_pkg() {   # $1 paket : servis bu paket icin config tanisin
+    # Servis "No exist config for X" diyorsa yazma sessizce yutuluyor.
+    # Once enable <pkg>, sonra relaunch/scale ile config olustur.
+    _mep_i=0
+    while [ "$_mep_i" -lt 4 ]; do
+        _mep_o=$(fl_miui_dump_rule "$1" 2>/dev/null)
+        case "$_mep_o" in
+            *"No exist config"*|*"no config"*|"") : ;;
+            *) return 0 ;;   # config var
+        esac
+        fl_miui_cmd_run enable "$1" >/dev/null 2>&1
+        fl_miui_cmd_run set-relaunch "$1" 1 >/dev/null 2>&1
+        fl_miui_cmd_run set-scale "$1" 1 >/dev/null 2>&1
+        _mep_i=$((_mep_i + 1))
+        sleep 0.2 2>/dev/null || sleep 1
+    done
+    _mep_o=$(fl_miui_dump_rule "$1" 2>/dev/null)
+    case "$_mep_o" in
+        *"No exist config"*|"") fl_log "miui-ensure: $1 icin config OLUSMADI (servis reddediyor)"; return 1 ;;
+        *) fl_log "miui-ensure: $1 icin config olustu"; return 0 ;;
+    esac
 }
 
 fl_miui_cmd_mailbox() {   # $1 paket $2 true|false -> 0/1 (sadece mailbox, canli)
     FL_CTX=fl_miui_cmd_mailbox; FL_LINE=${LINENO:-0}
     fl_miui_cmd_avail || return 1
-    fl_miui_cmd_run set-fixedOri "$1" "disable::$2"
+    # v2.23.4: "successful" cevabi KANIT DEGIL (saha logu: disable::true ve
+    # disable::false ikisi de "successful" donuyor). Once paket icin config
+    # oldugundan emin ol, sonra yaz, sonra servisten GERI OKU.
+    fl_miui_ensure_pkg "$1"
+    fl_miui_cmd_run set-fixedOri "$1" "disable::$2" >/dev/null 2>&1
+    _mcm_want=evet; [ "$2" = "false" ] && _mcm_want=hayir
+    fl_miui_wait_rule "$1" "$_mcm_want" || return 1
+    return 0
 }
 
 fl_miui_cmd_revert() {   # $1 paket : canli kurallari geri al -> "tam|kismi|fail"
@@ -2386,7 +2508,7 @@ fl_mb_reapply() {   # acilista: kayitli paketlerin kuralini tazele
     # her acilista tekrar yataya cevriliyordu. Artik once yon secimi okunur:
     #   dikey / yatay / serbest -> fl_yon_write (dogru kurali yazar)
     #   secim yok               -> eski davranis (mailbox + yatay kural)
-    # v2.23.3: secim dosyasi kaybolduysa once kurtarmayi dene (yedek ->
+    # v2.23.4: secim dosyasi kaybolduysa once kurtarmayi dene (yedek ->
     # kural dosyalarindan tahmin). Boylece "secilen uygulama sessizce
     # yataya dondu" durumu mumkun oldugunca onlenir.
     fl_yon_recover
@@ -2401,7 +2523,7 @@ fl_mb_reapply() {   # acilista: kayitli paketlerin kuralini tazele
                     *)   _rf=$((_rf + 1)); fl_log "acilis tazeleme HATA: $_rp2 yon=$_yv2" ;;
                 esac ;;
             *)
-                # v2.23.3: secim yoksa once DOSYADAKI gercek duruma bak.
+                # v2.23.4: secim yoksa once DOSYADAKI gercek duruma bak.
                 # Kullanici dikey secmis ama kayit kaybolmussa, dosyada
                 # allPortrait=true duruyorsa onu KORU (yataya cevirme).
                 _dk_fix=$(fl_mb_cloud); [ -n "$_dk_fix" ] || _dk_fix=$(fl_mb_rom)
@@ -2925,13 +3047,13 @@ fl_id_should_off() {
     return 1
 }
 
-# v2.23.3 KRITIK DUZELTME: "am compat" komutlari ID'nin SAYISAL degerini
+# v2.23.4 KRITIK DUZELTME: "am compat" komutlari ID'nin SAYISAL degerini
 # ister (or. 174042936). Eski kod ID ADINI ("OVERRIDE_MIN_ASPECT_RATIO")
 # geciyordu -> gercek cihazda `am compat reset ... OVERRIDE_MIN_ASPECT_RATIO`
 # "Error: bad change id" verip HICBIR SEY yapmiyordu. Yani "Dokunma" /
 # "Her seyi geri al" letterbox katmanini CIHAZDA HIC temizlemiyordu.
 # Simulasyonda da "her komut kabul" oldugu icin bu yillarca gorunmedi.
-# v2.23.3 — RESMI CHANGE ID HARITASI (developer.android.com
+# v2.23.4 — RESMI CHANGE ID HARITASI (developer.android.com
 # "Device compatibility mode" + "Compatibility framework changes")
 #   FORCE_RESIZE_APP ........................... 174042936
 #   OVERRIDE_MIN_ASPECT_RATIO (KAPICI) ......... 174042980
@@ -2995,7 +3117,7 @@ fl_reset_pkg_ids() {   # $1 paket -> "temiz" | "kalan:id1,id2"
             *) _kalan="$_kalan,$_id" ;;
         esac
     done
-    # v2.23.3: yukaridaki donguden SONRA kalan id'leri de dene. Eski
+    # v2.23.4: yukaridaki donguden SONRA kalan id'leri de dene. Eski
     # kod yalnizca fl_ids_of_pkg listesindekileri temizliyordu; ROM
     # kendi id'sini eklemis olabilir. Bilinen tum id'ler icin bir kez
     # daha reset atilir (idempotent).
@@ -3258,7 +3380,7 @@ fl_miui_softreboot() {
 # ============================================================
 fl_compat_xml_state() {   # $1 id  $2 pkg -> enabled|disabled|(bos)
     FL_CTX=fl_compat_xml_state; FL_LINE=${LINENO:-0}
-    # v2.23.3 DUZELTME: dosyada <change id="174042936"> (SAYISAL) yazar.
+    # v2.23.4 DUZELTME: dosyada <change id="174042936"> (SAYISAL) yazar.
     # Eski kod ID ADINI aradigi icin hicbir zaman eslesmiyordu ->
     # XML'den yazilan override "okunamadi" sayiliyordu.
     _xs_f=/data/misc/appcompat/compat_framework_overrides.xml
@@ -3276,7 +3398,7 @@ fl_compat_xml_state() {   # $1 id  $2 pkg -> enabled|disabled|(bos)
 
 fl_compat_state_src() {   # $1 id  $2 pkg -> "<state>|<kaynak>"
     FL_CTX=fl_compat_state_src; FL_LINE=${LINENO:-0}
-    # v2.23.3 IKI KRITIK DUZELTME:
+    # v2.23.4 IKI KRITIK DUZELTME:
     #  (a) `am compat state` SAYISAL id ister; ID adi gecirilirse cihaz
     #      "Error: bad change id" doner ve durum HIC okunamaz.
     #  (b) SOURCES: "DISABLED" kelimesi "ENABLED" icerir! Eski `case` deseni
@@ -3408,7 +3530,7 @@ fl_am_cmd() {   # $1 enable|disable|reset  $2 id  $3 paket ; basarili -> stdout:
     _an=$(fl_id_num "$2")
     _ac_id="$2"
     [ "$_an" = "$2" ] || _ac_id="$2(${_an})"
-    # v2.23.3: HER yontem denemesi kayda duser. Onceki kod hata yolunda
+    # v2.23.4: HER yontem denemesi kayda duser. Onceki kod hata yolunda
     # SESSIZ donuyordu -> "neden olmadi" sorusunun cevabi hicbir yerde yoktu.
     _ac_try() {   # $1 etiket ; geri kalan = komut
         _at_l=$1; shift
@@ -3441,6 +3563,11 @@ fl_am_state() {   # $1 id  $2 paket -> on | off | (bos)
 }
 
 fl_appmode_apply() {   # $1 paket -> "ok|<yontemler>" | "fail|<sebep>" (return 1)
+    # v2.23.4 SAHA KANITI: cihazda "dogrulandi:gate=unknown,large=unknown"
+    # goruluyor. Yani `am compat state <id> <pkg>` o ROM'da degeri okumuyor.
+    # Asagidaki kodda `disabled` OLUMCUL, `unknown` ise tolere edilir; ama
+    # arayuz "dogrulandi" diyerek YALAN soyluyordu. Artik her durumda
+    # DOGRULANAMAYAN alan adiyla birlikte yazilir.
     FL_CTX=fl_appmode_apply; FL_LINE=${LINENO:-0}
     _ap=$1
     [ -n "$_ap" ] || { echo "fail|paket-yok"; return 1; }
@@ -3449,7 +3576,7 @@ fl_appmode_apply() {   # $1 paket -> "ok|<yontemler>" | "fail|<sebep>" (return 1
     case "$_sdk" in ''|*[!0-9]*) _sdk=33 ;; esac
 
     # 1) KAPICI: acilmadan hicbir oran override'i islemez
-    # v2.23.3 DUZELTME: "$( )" ATAMASINDAN SONRA $? HER ZAMAN 0'dir
+    # v2.23.4 DUZELTME: "$( )" ATAMASINDAN SONRA $? HER ZAMAN 0'dir
     # (atama komutunun kendi cikis kodu). Eski kod "_w=$(...); _ok=$?" ile
     # komutun basarisini olcuyordu -> her zaman 0 -> kapici reddetse bile
     # "basarili" sayiliyordu. Bu yuzden "ekrana yay" cihazda sessizce
@@ -3486,7 +3613,12 @@ fl_appmode_apply() {   # $1 paket -> "ok|<yontemler>" | "fail|<sebep>" (return 1
     case "$_st_gate" in
         disabled) echo "fail|dogrulanmadi(gate=disabled)"; return 1 ;;
     esac
-    _m="$_m dogrulandi:gate=$_st_gate,large=$_st_large"
+    # v2.23.4: "dogrulandi" YALNIZCA gercekten okunabilen alanlar icin.
+    # Cihaz logunda "gate=unknown,large=unknown" goruldu: ROM `am compat state`
+    # cevap vermiyor. Eskiden buna ragmen "dogrulandi" yaziyordu = YALAN.
+    _ap_g=$_st_gate; [ "$_ap_g" = "unknown" ] && _ap_g="okunamadi"
+    _ap_l=$_st_large; [ "$_ap_l" = "unknown" ] && _ap_l="okunamadi"
+    _m="$_m gate=$_ap_g($FL_ID_GATE) large=$_ap_l($FL_ID_LARGE)"
 
     # 6) v2.11: MIUI mailbox (asil neden) + "强制横屏" kurali.
     #    AOSP anahtarlari MIUI'nin ortadaki telefon sutununu KALDIRMAZ;
@@ -3778,7 +3910,7 @@ fl_apply() {
     fi
 
     # 2b) Multi-window katmani: resize edilemeyen uygulamalari da boyutlanabilir say
-    # v2.23.3: IKI KATMAN birlikte uygulanir.
+    # v2.23.4: IKI KATMAN birlikte uygulanir.
     #  1) wm set-multi-window-config -> 12L/13'te VAR, ama GECICI (reboot'ta
     #     sifirlanir). "Ekrana yay"in aninda islemesi icin gerekli.
     #  2) settings force_resizable_activities -> KALICI, reboot sonrasi korunur.
@@ -4106,7 +4238,7 @@ fl_restore() {
 }
 
 # ============================================================
-# v2.23.3 — TUZAKLAR (betik burada BITER; webui.sh bunu . ile
+# v2.23.4 — TUZAKLAR (betik burada BITER; webui.sh bunu . ile
 # kaynak olarak yukler, yani tuzaklar WebUI surecini de kapsar)
 #   EXIT    : beklenmedik cikis (rc != 0) -> crashes.log
 #   INT/TERM/HUP/SEGV/BUS/ABRT : sinyal -> crashes.log

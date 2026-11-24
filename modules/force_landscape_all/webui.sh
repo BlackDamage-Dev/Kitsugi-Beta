@@ -107,7 +107,7 @@ status)
     echo "compat_kalan|$(fl_compat_left)"
     echo "compat_ozet|$(fl_compat_summary)"
     echo "compat_hatali|$(awk -F'\t' '$2=="fail" && $3!="geri-alindi"' "$FL_CSTAT" 2>/dev/null | grep -c .)"
-    # v2.23.3: Olaylar sekmesi rozeti (errors.log satir sayisi, ust sinir 999)
+    # v2.23.4: Olaylar sekmesi rozeti (errors.log satir sayisi, ust sinir 999)
     echo "hata_sayisi|$( [ -f "$FL_ERR" ] && { _hs=$(grep -c . "$FL_ERR" 2>/dev/null); [ "${_hs:-0}" -gt 999 ] && echo 999 || echo "${_hs:-0}"; } || echo 0)"
     echo "cokme_var|$( [ -s "$FL_CRASH" ] && echo 1 || echo 0)"
     echo "son_hata|$(fl_compat_errors_tail 1 2>/dev/null | cut -f2- | cut -c1-180)"
@@ -502,16 +502,27 @@ mailbox)  # mailbox <paket> <ac|kapat|durum>  -> MIUI ortadaki sutunu
     # ile YATAY kuralini da siliyordu -> butonlar birbirinin isini bozuyordu.
     case "$_v" in
         ac|on|1)
+            # v2.23.4: ESKI HATA — buton "ac" derken durum "kapali" donuyordu.
+            # Kullanici haklı: basinca tersini yapiyor gibi gorunuyordu.
+            # Sebep: fl_miui_cmd_mailbox "successful" cevabina guveniyordu,
+            # oysa servis paket icin config yoksa yazmayi SESSIZCE YUTUYOR.
+            # Artik: config hazirla -> yaz -> SERVISTEN GERI OKU -> dogrula.
             _r=$(fl_mb_write2 "$_p" true 2>/dev/null)
             case "$_r" in
-                ok*)  fl_mb_save "$_p"
-                      _mbst=$(fl_mb_state "$_p")
-                      [ "$_mbst" = "kapali" ] || { echo "HATA|mailbox yazildi ama durum=$_mbst"; exit 1; }
-                      _live=yok; fl_miui_cmd_mailbox "$_p" true >/dev/null 2>&1 && _live=ok
-                      echo "OK|mailbox|ac|$_mbst|canli=$_live"
-                      fl_log "webui: mailbox AC $_p -> kapali (canli=$_live)" ;;
-                *)    echo "HATA|$(printf '%s' "$_r" | cut -d'|' -f2-)"; exit 1 ;;
+                ok*)  fl_mb_save "$_p" ;;
+                *)    echo "HATA|kural-dosyasi|$(printf '%s' "$_r" | cut -d'|' -f2-)"; exit 1 ;;
             esac
+            if fl_miui_cmd_mailbox "$_p" true; then
+                echo "OK|mailbox|ac|kapali|canli=ok"
+                fl_log "webui: mailbox AC $_p -> kapali (canli DOGRULANDI: dump-rule)"
+            else
+                _mbst=$(fl_mb_state "$_p")
+                echo "OK|mailbox|ac|$_mbst|canli=YOK"
+                fl_evt WARN "mailbox ac $_p" 1 \
+                    "kural dosyasina yazildi, dosya durumu=$_mbst, ama MIUI servisi kurali yazmadi" \
+                    "$_p" "uygulama yeniden baslatilana kadar etki etmeyebilir; Olaylar sekmesinde ayrinti var"
+                fl_log "webui: mailbox AC $_p -> $_mbst | CANLI KATMAN OLMADI (servis reddetti)"
+            fi
             ;;
         kapat|off|0)
             # disable="false" = MIUI varsayilani acikca yazilir
@@ -520,8 +531,14 @@ mailbox)  # mailbox <paket> <ac|kapat|durum>  -> MIUI ortadaki sutunu
                 fail*) _r=$(fl_mb_set "$_p" false) ;;
                 *)     fl_mb_unsave "$_p" ;;
             esac
+            if fl_miui_cmd_mailbox "$_p" false; then
+                _live=ok
+            else
+                _live=YOK
+                fl_evt WARN "mailbox kapat $_p" 1 "MIUI servisi kurali yazmadi" "$_p" \
+                    "dosya durumu okunur, canli katman dogrulanamadi"
+            fi
             _mbst=$(fl_mb_state "$_p")
-            _live=yok; fl_miui_cmd_mailbox "$_p" false >/dev/null 2>&1 && _live=ok
             echo "OK|mailbox|kapat|$_mbst|canli=$_live"
             fl_log "webui: mailbox KAPAT $_p -> $_mbst canli=$_live (yatay kuralina dokunulmadi)"
             ;;
@@ -854,7 +871,7 @@ logs) # logs <kaynak> <satir>   kaynak: modul | hata | compat | sistem | test | 
     ;;
 
 # ------------------------------------------------------------
-# v2.23.3 — OLAY GUNLUGU (forensic)
+# v2.23.4 — OLAY GUNLUGU (forensic)
 olaylar)   # ham JSON satirlari (index.html olayParse ile cozer)
     [ -f "$FL_ERR" ] || : > "$FL_ERR" 2>/dev/null
     # son 200 olay (dosya buyurse arayuz bogulmasin)

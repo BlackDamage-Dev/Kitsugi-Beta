@@ -1,15 +1,15 @@
-# Force Landscape - All Apps  |  v2.23.3
+# Force Landscape - All Apps  |  v2.23.4
 
 Xiaomi Pad 6 (pipa) · MIUI 14 / Android 13 · SukiSU Ultra
 
 ## İndirme (Google Drive)
 
 Klasör: https://drive.google.com/drive/folders/1EfhlGo-y7mCivtLEjD-blDrF20c2BJEF
-→ `v2.23.3/` altında:
+→ `v2.23.4/` altında:
 
 | Dosya | Ne işe yarar |
 |-------|--------------|
-| **ForceLandscape-AllApps-v2.23.3.zip** | **KURULACAK DOSYA** (145 KB) |
+| **ForceLandscape-AllApps-v2.23.4.zip** | **KURULACAK DOSYA** (145 KB) |
 | `README.md` | Bu kılavuz |
 | `KOMUT-DENETIM-RAPORU.md` | Tüm komutların AOSP 13 ile karşılaştırması + 7 hata |
 | `KURULUM-VE-DOGRULAMA.md` | Adım adım kurulum |
@@ -533,7 +533,7 @@ MIUI'nin **gerçek** şeması kullanılıyor (uydurma alan yok):
 - **Yedek/geri yükleme**: force/never/appmode/mailbox/yon beşi de birebir
   geri geldi (`OK|1|2|1|yon=3`).
 
-## v2.23.3 — "her düğme tek tek test edildi" turu (2 gerçek hata daha)
+## v2.23.4 — "her düğme tek tek test edildi" turu (2 gerçek hata daha)
 
 Bu turda arayüzdeki **37 `data-act` düğmesi + 14 kontrol anahtarı + detay
 penceresindeki 15 düğme + 4 yön modu + 4 letterbox modu + 6 filtre + 3
@@ -605,7 +605,7 @@ Test (uçtan uca):
 ```
 A) yon.txt silindi            -> yon.bak'tan geri geldi, uygulama DIKEY kaldi
 B) yon.txt + yon.bak silindi   -> kural dosyasindan kurtarildi, DIKEY kaldi
-```## v2.23.3 — "komut denetimi" turu (5 gerçek hata daha)
+```## v2.23.4 — "komut denetimi" turu (5 gerçek hata daha)
 
 Bu sürümde **sahte AOSP araçları katı hale getirildi**: yanlış komut artık `Error: ...` + rc=1
 döner. Modülün 48 çağrısı bu araçlardan geçirildi. Sonuç: önceki "0 hata" sonuçları **yalan
@@ -643,7 +643,7 @@ $ node final.js         → 1 hata / 73 (yalnız act:kontrolReload toast'i)
 `Tanı` sekmesindeki `compat_testi` satırı `CALISIYOR` demeli; demiyorsa change-id haritası
 ROM'da farklıdır ve o satır bunu açıkça yazar.
 
-## v2.23.3 — "kimse sessiz kalmaz" turu
+## v2.23.4 — "kimse sessiz kalmaz" turu
 
 Bu sürümün tek amacı: **hiçbir hata sessizce yutulmaz.** Her başarısız sistem komutu
 en ince ayrıntısına kadar kayda düşer.

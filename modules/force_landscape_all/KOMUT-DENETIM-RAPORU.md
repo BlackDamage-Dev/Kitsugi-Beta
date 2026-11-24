@@ -1,4 +1,4 @@
-# Force Landscape — Komut Denetim Raporu (v2.23.3)
+# Force Landscape — Komut Denetim Raporu (v2.23.4)
 
 Xiaomi Pad 6 (pipa) · MIUI 14 (V140) · Android 13 (SDK 33) · SukiSU Ultra
 

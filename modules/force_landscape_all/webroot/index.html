@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta http-equiv="cache-control" content="no-store, must-revalidate">
 <meta http-equiv="pragma" content="no-cache">
-<title>Force Landscape v2.23.3</title>
+<title>Force Landscape v2.23.4</title>
 <style>
 :root{
   --bg:#0e1116; --bg2:#151a22; --card:#1a2029; --line:#26303d; --txt:#e8eef7;
@@ -162,7 +162,7 @@ button{max-width:100%}
 <header>
   <div class="hrow">
     <div>
-      <div class="title">Force Landscape <span class="sub" id="ver">v2.23.3</span></div>
+      <div class="title">Force Landscape <span class="sub" id="ver">v2.23.4</span></div>
       <div class="sub" id="hdev">cihaz bilgisi yükleniyor…</div>
     </div>
     <div class="spacer"></div>
@@ -181,7 +181,7 @@ button{max-width:100%}
 <script>
 "use strict";
 /* ============================================================
-   Force Landscape v2.23.3 — WebUI
+   Force Landscape v2.23.4 — WebUI
    Tasarım kuralları:
    * Açılışta en fazla 2 arka uç çağrısı (status + apps).
    * Otomatik yenileme SADECE başlık rozetlerini günceller; sekme
@@ -548,7 +548,7 @@ function appName(pkg){
 /* Yoneticiden (KernelSU/SukiSU) gercek uygulama adi, surumu ve ikonu.
    API yoksa sessizce atlanir; asagidaki sozluk/turetilmis ad kullanilir. */
 let MG = {};          // pkg -> {label, versionName, versionCode, isSystem}
-let UI_VER = "v2.23.3";       // bu sayfanın sürümü (arka uçla karşılaştırılır)
+let UI_VER = "v2.23.4";       // bu sayfanın sürümü (arka uçla karşılaştırılır)
 /* v2.23: uygulama bazli yon kilidi (dikey / yatay / serbest) */
 let YON = {};          // pkg -> "dikey" | "yatay" | "serbest"
 let YON_OK = false;    // arka uc hala eski surum mu? (ozellik kapaliysa uyari) 
@@ -1244,7 +1244,7 @@ function stopLogAuto(){ if(logTimer){ clearInterval(logTimer); logTimer = null; 
 
 /* ---------------- CİHAZ ---------------- */
 let SYS = {};
-/* ---------------- OLAYLAR (v2.23.3) ----------------
+/* ---------------- OLAYLAR (v2.23.4) ----------------
    Ham errors.log (JSON satirlari) burada insan diline cevrilir.
    Her satir: zaman · seviye · PAKET · KOMUT · SEBEP · COZUM · fonksiyon:satir
    "Suclu" alani = fn:ln -> geliştirici kodun tam yerini görür. */
@@ -1505,7 +1505,7 @@ document.addEventListener("click", ev=>{
    HİÇ kontrol etmiyordu: 3 kopyalama yolu da başarısız olsa bile hiçbir
    şey yapmıyordu. Artık sırayla denenir ve gerçekten olmadıysa metin
    ekranda açılır (elle seçip kopyalayabilirsin). */
-/* v2.23.3: panoya yazmayi dener, olmazsa metni ekranda acar */
+/* v2.23.4: panoya yazmayi dener, olmazsa metni ekranda acar */
 async function kopyalaVeyaGoster(baslik, metin){
   try{
     if(navigator.clipboard && navigator.clipboard.writeText){
@@ -1862,7 +1862,7 @@ async function appAction(cmd, pkg, label){
 }
 
 const ACT = {
-  /* v2.23.3 — OLAYLAR sekmesi eylemleri */
+  /* v2.23.4 — OLAYLAR sekmesi eylemleri */
   async olayYenile(){
     OLAYLAR = [];
     try{ OLAYLAR = olayParse(await out("olaylar")); }catch(e){ OLAYLAR = []; }
