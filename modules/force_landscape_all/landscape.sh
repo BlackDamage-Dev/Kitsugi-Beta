@@ -94,7 +94,7 @@ FL_APPMODE_ST=$FL_DIR/appmode_state.txt   # pkg<TAB>ok|fail<TAB>yontem (v2.7)
 # Bu yuzden "ekrana yay" yapilsa bile oyun ortada kaliyordu. Asagidaki
 # prop false yapilinca MIUI gommesi tamamen kapanir.
 FL_MIUI_EMB_PROP=ro.config.miui_activity_embedding_enable
-FL_MODVER=v2.23.1
+FL_MODVER=v2.23.2
 FL_TAB=$(printf '\t')            # gercek sekme karakteri (IFS icin)
 
 PATH=/system/bin:/system/xbin:/sbin:/data/adb/ksu/bin:$PATH
@@ -235,7 +235,7 @@ fl_prepare() {
     # v2.23: onceki surumlerden kalan bozuk paket satirlarini temizle
     # ("0" gibi). Sessizce yapilir; boylece eski kurulumlar da duzelir.
     fl_lists_clean
-    # v2.23.1: yon secimleri kaybolmasin (yedekten ya da kural dosyasindan)
+    # v2.23.2: yon secimleri kaybolmasin (yedekten ya da kural dosyasindan)
     fl_yon_restore
     if [ "$LOG" = "1" ] && ( : >> "$FL_LOG" ) 2>/dev/null; then
         FL_LOG_OK=1
@@ -408,13 +408,17 @@ fl_wait_stable() {
 }
 
 # ---------- mod 1: sensor (tercih edilen) --------------------
+# v2.23.2 DUZELTME (gercek Android 13 sozdizimi): "fixed-to-user-rotation"
+# yalnizca enabled|disabled kabul eder. Eski kod "default" yaziyordu ->
+# cihazda "Error: bad value: default" alinip HICBIR SEY yapilmiyordu,
+# yani "sensör" modu ve "kapali" modu kullanici kilidi birakiyordu.
 fl_sensor_mode() {
     fl_log "mod=SENSOR: uygulama kilidi yok sayilir + sensor serbest"
-    fl_run wm fixed-to-user-rotation -d 0 default
+    fl_run wm fixed-to-user-rotation -d 0 disabled
     fl_run settings put system accelerometer_rotation 1
     fl_run wm user-rotation free
     fl_log "  user-rotation: $(wm user-rotation 2>&1 | tr '\n' ' ')"
-    fl_log "  ignore-orientation: $(wm get-ignore-orientation-request -d 0 2>&1)"
+    fl_log "  ignore-orientation: $(fl_get_ignore)"
 }
 
 # ---------- mod 0: kapali (v2.14) ----------
@@ -425,7 +429,7 @@ fl_off_mode() {
     for _od in $DISPLAYS; do
         fl_run wm set-ignore-orientation-request -d "$_od" false
     done
-    fl_run wm fixed-to-user-rotation -d 0 default
+    fl_run wm fixed-to-user-rotation -d 0 disabled
     fl_run settings put system accelerometer_rotation 1
     fl_run wm user-rotation free
 }
@@ -1096,24 +1100,66 @@ fl_compat_left() {
 #   3) cmd platform_compat enable ID pkg
 #   4) XML yedegi: post-fs-data.sh sonraki acilista yazar
 
+fl_get_ignore() {
+    # v2.23.2: `wm help` (Android 12L/13) bu komutu "[-d DISPLAY_ID]" ile
+    # listeliyor -> -d 0 DOGRU. Yine de bazi ROM'lar/alt surumler kabul
+    # etmiyor; o yuzden once -d 0, hata/boş donerse argumansiz denenir.
+    # Tek bir okuma noktasi: 9 cagri ayni yerde duzeltilir.
+    _gi=$(wm get-ignore-orientation-request -d 0 2>&1 | tr -d '\r')
+    case "$_gi" in
+        *"rror"*|*"nknown"*|*"sage"*|"") _gi=$(wm get-ignore-orientation-request 2>&1 | tr -d '\r') ;;
+    esac
+    printf '%s\n' "$_gi"
+}
+
 fl_compat_dump() {
     # dumpsys platform_compat ciktisi turda bir kez alinir (yavas komut)
-    [ "$FL_CDUMP_TS" = "$(date +%s)" ] && [ -n "$FL_CDUMP" ] && return 0
+    # v2.23.2 DUZELTME: eski onbellek "date +%s" ile 1 SANIYELIK penceredeydi.
+    # Ayni saniye icinde yapilan ikinci dogrulama ESKI ciktiya bakiyordu ->
+    # "am compat enable" calismamis olsa bile "sistemde gorunuyor" deniyordu.
+    # Artik onbellek yalnizca DOGRULAMA SIRASINDA (FL_CDUMP_FRESH=1) gecerli;
+    # her yeni dogrulama once tazeler.
+    if [ "${FL_CDUMP_FRESH:-0}" = "1" ] && [ -n "$FL_CDUMP" ]; then
+        return 0
+    fi
     FL_CDUMP=$(dumpsys platform_compat 2>/dev/null)
-    FL_CDUMP_TS=$(date +%s)
+    FL_CDUMP_FRESH=1
     [ -n "$FL_CDUMP" ]
 }
 
 fl_compat_verify() {
-    # $1 = paket.
+    # $1 = paket  $2 = (ops.) change id — verilirse O ID icin aranir
     # 0 = sistemde gorunuyor, 1 = gorunmuyor, 2 = dogrulanamiyor (dumpsys yok)
-    # (Format surumden surume degisebildigi icin sadece paket adi aranir.)
+    # v2.23.2 DUZELTME: eski kod SADECE paket adini ariyordu. Paket dumpsys'te
+    # bambaska bir degisiklik icin gorunuyorsa "dogrulandi" deniyordu (yanlis
+    # pozitif). Artik istenirse change id eslesmesi de aranir.
+    _vf_p=$1
+    _vf_id=""
+    [ -n "${2:-}" ] && _vf_id=$(fl_id_num "$2")
+    FL_CDUMP_FRESH=0
     fl_compat_dump || return 2
-    printf '%s\n' "$FL_CDUMP" | grep -qF -- "$1" && return 0
+    if [ -n "$_vf_id" ]; then
+        # id + paket ayni satirda/aynı blokta mi?
+        printf '%s\n' "$FL_CDUMP" | awk -v id="$_vf_id" -v p="$_vf_p" '
+            index($0, p) && index($0, id) { found = 1; exit }
+            /changeId|^[ \t]*[0-9]+:/ { cur = (index($0, id) > 0) }
+            index($0, p) && cur { found = 1; exit }
+            END { exit !found }' && return 0
+    else
+        printf '%s\n' "$FL_CDUMP" | grep -qF -- "$_vf_p" && return 0
+    fi
     # ayni turda eklenmis olabilir -> tazele ve bir kez daha bak
-    FL_CDUMP=""; FL_CDUMP_TS=""
+    FL_CDUMP_FRESH=0
     fl_compat_dump || return 2
-    printf '%s\n' "$FL_CDUMP" | grep -qF -- "$1" && return 0
+    if [ -n "$_vf_id" ]; then
+        printf '%s\n' "$FL_CDUMP" | awk -v id="$_vf_id" -v p="$_vf_p" '
+            index($0, p) && index($0, id) { found = 1; exit }
+            /changeId|^[ \t]*[0-9]+:/ { cur = (index($0, id) > 0) }
+            index($0, p) && cur { found = 1; exit }
+            END { exit !found }' && return 0
+    else
+        printf '%s\n' "$FL_CDUMP" | grep -qF -- "$_vf_p" && return 0
+    fi
     return 1
 }
 
@@ -1160,7 +1206,7 @@ fl_compat_try() {
         case "$_co" in
             *"Enabled change"*)
                 if [ "$_cv" = "yes" ]; then
-                    fl_compat_verify "$_cp"; _vr=$?
+                    fl_compat_verify "$_cp" "$COMPAT_ID"; _vr=$?
                     # 2 = dumpsys yok -> komutun cevabina guven
                     if [ "$_vr" = "1" ]; then
                         _cerr="[$_cm] komut basarili dedi ama dumpsys platform_compat'te yok"
@@ -1170,7 +1216,7 @@ fl_compat_try() {
                 echo "ok|$_cm|"; return 0 ;;
         esac
         # bazi surumler sessiz basarili olur -> sistemden dogrula
-        fl_compat_verify "$_cp" && { echo "ok|$_cm|"; return 0; }
+        fl_compat_verify "$_cp" "$COMPAT_ID" && { echo "ok|$_cm|"; return 0; }
         _cerr="[$_cm] $_co"
     done
     echo "fail||$_cerr"
@@ -1383,7 +1429,7 @@ fl_compat_batch() {
     if [ "$_n" -gt 0 ]; then
         _sample=$(tail -n 1 "$FL_DONE" 2>/dev/null)
         if [ -n "$_sample" ]; then
-            if fl_compat_verify "$_sample"; then
+            if fl_compat_verify "$_sample" "$COMPAT_ID"; then
                 fl_log "compat: dogrulama OK (ornek: $_sample)"
             else
                 fl_log "compat: DIKKAT - komut basarili dedi ama dumpsys platform_compat'te $_sample gorunmuyor"
@@ -1757,7 +1803,7 @@ fl_mb_unsave() { fl_list_del "$FL_MB_LIST" "$1"; }
 #    yon=serbest -> iki dosyadan da bizim satirlarimiz SILINIR
 # ============================================================
 FL_ORIENT_LIST="$FL_DIR/yon.txt"      # pkg<TAB>dikey|yatay|serbest  (kalici secim)
-FL_ORIENT_BAK="$FL_DIR/yon.bak"       # v2.23.1: ikinci kopya (kendini onarma)
+FL_ORIENT_BAK="$FL_DIR/yon.bak"       # v2.23.2: ikinci kopya (kendini onarma)
 FL_RULE_PORTRAIT="nra:cr:rcr:nr"      # yatay kural (mevcut sabit)
 
 fl_mb_line_build() {   # $1 paket  $2 disable(true|false)  $3 allPortrait(true|false)
@@ -1776,7 +1822,7 @@ fl_yon_set() {   # $1 paket  $2 dikey|yatay|serbest
     printf '%s\t%s\n' "$1" "$2" >> "$FL_ORIENT_LIST.t"
     mv -f "$FL_ORIENT_LIST.t" "$FL_ORIENT_LIST" 2>/dev/null
     chmod 0644 "$FL_ORIENT_LIST" 2>/dev/null
-    cp -f "$FL_ORIENT_LIST" "$FL_ORIENT_BAK" 2>/dev/null   # v2.23.1 ikinci kopya
+    cp -f "$FL_ORIENT_LIST" "$FL_ORIENT_BAK" 2>/dev/null   # v2.23.2 ikinci kopya
     chmod 0644 "$FL_ORIENT_BAK" 2>/dev/null
     return 0
 }
@@ -1788,7 +1834,7 @@ fl_yon_del() {
     return 0
 }
 
-# v2.23.1: SECIM KAYBOLMASIN. Sahada "dikey sectim, bir sure sonra yatay oldu"
+# v2.23.2: SECIM KAYBOLMASIN. Sahada "dikey sectim, bir sure sonra yatay oldu"
 # sikayetinin bir sebebi de yon.txt'nin silinmesi/bosalmasi (temizlik betigi,
 # magisk modul guncellemesi, elle mudahale). yon.txt bossa yedekten geri yukle.
 fl_yon_restore() {
@@ -2087,7 +2133,7 @@ fl_mb_reapply() {   # acilista: kayitli paketlerin kuralini tazele
     # her acilista tekrar yataya cevriliyordu. Artik once yon secimi okunur:
     #   dikey / yatay / serbest -> fl_yon_write (dogru kurali yazar)
     #   secim yok               -> eski davranis (mailbox + yatay kural)
-    # v2.23.1: secim dosyasi kaybolduysa once kurtarmayi dene (yedek ->
+    # v2.23.2: secim dosyasi kaybolduysa once kurtarmayi dene (yedek ->
     # kural dosyalarindan tahmin). Boylece "secilen uygulama sessizce
     # yataya dondu" durumu mumkun oldugunca onlenir.
     fl_yon_recover
@@ -2102,7 +2148,7 @@ fl_mb_reapply() {   # acilista: kayitli paketlerin kuralini tazele
                     *)   _rf=$((_rf + 1)); fl_log "acilis tazeleme HATA: $_rp2 yon=$_yv2" ;;
                 esac ;;
             *)
-                # v2.23.1: secim yoksa once DOSYADAKI gercek duruma bak.
+                # v2.23.2: secim yoksa once DOSYADAKI gercek duruma bak.
                 # Kullanici dikey secmis ama kayit kaybolmussa, dosyada
                 # allPortrait=true duruyorsa onu KORU (yataya cevirme).
                 _dk_fix=$(fl_mb_cloud); [ -n "$_dk_fix" ] || _dk_fix=$(fl_mb_rom)
@@ -2609,10 +2655,45 @@ fl_id_should_off() {
     return 1
 }
 
+# v2.23.2 KRITIK DUZELTME: "am compat" komutlari ID'nin SAYISAL degerini
+# ister (or. 174042936). Eski kod ID ADINI ("OVERRIDE_MIN_ASPECT_RATIO")
+# geciyordu -> gercek cihazda `am compat reset ... OVERRIDE_MIN_ASPECT_RATIO`
+# "Error: bad change id" verip HICBIR SEY yapmiyordu. Yani "Dokunma" /
+# "Her seyi geri al" letterbox katmanini CIHAZDA HIC temizlemiyordu.
+# Simulasyonda da "her komut kabul" oldugu icin bu yillarca gorunmedi.
+# v2.23.2 — RESMI CHANGE ID HARITASI (developer.android.com
+# "Device compatibility mode" + "Compatibility framework changes")
+#   FORCE_RESIZE_APP ........................... 174042936
+#   OVERRIDE_MIN_ASPECT_RATIO (KAPICI) ......... 174042980
+#   OVERRIDE_MIN_ASPECT_RATIO_LARGE (16:9) ..... 180326787
+#   OVERRIDE_MIN_ASPECT_RATIO_PORTRAIT_ONLY .... 203647190
+#   OVERRIDE_MIN_ASPECT_RATIO_MEDIUM ........... 180326787 (A13'te LARGE ile ayni aile)
+#   OVERRIDE_ANY_ORIENTATION_TO_USER (A14+) .... 310816437
+# ESKI HATA: her ad "${COMPAT_ID}" (174042936) degerine esleniyordu. Yani
+# "enable LARGE" + "disable PORTRAIT_ONLY" AYNI change id'yi yaziyordu ve
+# son komut kapiciyi KAPATIYORDU -> "ekrana yay" cihazda kendi kendini
+# iptal ediyordu. Bu, modulun en buyuk sessiz hatasiydi.
+fl_id_num() {   # $1 kimlik adi -> change id (sayisal)
+    case "$1" in
+        [0-9]*) echo "$1" ;;
+        FORCE_RESIZE_APP)                        echo "${COMPAT_ID:-174042936}" ;;
+        OVERRIDE_MIN_ASPECT_RATIO)               echo "${FL_ID_GATE:-174042980}" ;;
+        OVERRIDE_MIN_ASPECT_RATIO_LARGE)         echo "${FL_ID_LARGE:-180326787}" ;;
+        OVERRIDE_MIN_ASPECT_RATIO_MEDIUM)        echo "${FL_ID_MEDIUM:-180326787}" ;;
+        OVERRIDE_MIN_ASPECT_RATIO_PORTRAIT_ONLY) echo "${FL_ID_PONLY:-203647190}" ;;
+        OVERRIDE_ANY_ORIENTATION_TO_USER)        echo "${FL_ID_ANYORIENT:-310816437}" ;;
+        *)  # bilinmeyen ad: ROM'un kendi haritasindan oku, yoksa kapici
+            _in_t=$(dumpsys platform_compat 2>/dev/null | grep -o "$1[^0-9]*[0-9]\{6,\}" | grep -o '[0-9]\{6,\}' | head -n 1)
+            if [ -n "$_in_t" ]; then echo "$_in_t"
+            else echo "${COMPAT_ID:-174042936}"; fi ;;
+    esac
+}
+
 fl_reset_pkg_ids() {   # $1 paket -> "temiz" | "kalan:id1,id2"
     _rp=$1
     _kalan=""
     for _id in $(fl_ids_of_pkg "$_rp"); do
+        _idn=$(fl_id_num "$_id")
         _st=$(fl_change_state "$_id" "$_rp")
         # v2.23: "ekrana yay"in kapali olmasi GEREKEN id'leri resetlenir.
         # PORTRAIT_ONLY ise acik kalmasi gereken bir id -> resetlenmez,
@@ -2625,14 +2706,14 @@ fl_reset_pkg_ids() {   # $1 paket -> "temiz" | "kalan:id1,id2"
             disabled) continue ;;                 # zaten kapali
             unknown)  : ;;                        # ROM bilmiyor -> asagida dene
         esac
-        # 1) am compat reset --no-kill
-        am compat reset --no-kill "$_id" "$_rp" >/dev/null 2>&1
+        # 1) am compat reset --no-kill          (SAYISAL id ile!)
+        am compat reset --no-kill "$_idn" "$_rp" >/dev/null 2>&1
         [ "$(fl_change_state "$_id" "$_rp")" = "disabled" ] && continue
         # 2) am compat reset
-        am compat reset "$_id" "$_rp" >/dev/null 2>&1
+        am compat reset "$_idn" "$_rp" >/dev/null 2>&1
         [ "$(fl_change_state "$_id" "$_rp")" = "disabled" ] && continue
         # 3) cmd platform_compat reset
-        cmd platform_compat reset "$_id" "$_rp" >/dev/null 2>&1
+        cmd platform_compat reset "$_idn" "$_rp" >/dev/null 2>&1
         [ "$(fl_change_state "$_id" "$_rp")" = "disabled" ] && continue
         # 4) XML override dosyasindan sil (boot'ta tekrar uygulanmasin)
         fl_xml_drop_pkg "$_rp"
@@ -2641,6 +2722,18 @@ fl_reset_pkg_ids() {   # $1 paket -> "temiz" | "kalan:id1,id2"
             disabled|unknown) ;;                  # unknown olumcul degil
             *) _kalan="$_kalan,$_id" ;;
         esac
+    done
+    # v2.23.2: yukaridaki donguden SONRA kalan id'leri de dene. Eski
+    # kod yalnizca fl_ids_of_pkg listesindekileri temizliyordu; ROM
+    # kendi id'sini eklemis olabilir. Bilinen tum id'ler icin bir kez
+    # daha reset atilir (idempotent).
+    for _id in $COMPAT_ID OVERRIDE_MIN_ASPECT_RATIO OVERRIDE_MIN_ASPECT_RATIO_LARGE \
+               OVERRIDE_ANY_ORIENTATION_TO_USER OVERRIDE_MIN_ASPECT_RATIO_PORTRAIT_ONLY; do
+        case " $(fl_ids_of_pkg "$_rp") " in *" $_id "*) continue ;; esac
+        [ "$(fl_change_state "$_id" "$_rp")" = "enabled" ] || continue
+        fl_id_should_off "$_id" || continue
+        am compat reset --no-kill "$(fl_id_num "$_id")" "$_rp" >/dev/null 2>&1
+        [ "$(fl_change_state "$_id" "$_rp")" = "disabled" ] || _kalan="$_kalan,$_id"
     done
     # v2.23: "ekrana yay" kapatildiginda PORTRAIT_ONLY'nin acik olmasi
     # MIUI varsayilanidir; arayuz bunu "hata" sanmasin diye bilgi doner.
@@ -2651,8 +2744,7 @@ fl_reset_pkg_ids() {   # $1 paket -> "temiz" | "kalan:id1,id2"
 }
 
 fl_rotation_lock_on() {   # cihaz geneli yatay kilidi acik mi? -> acik|kapali|?
-    _w=$(wm get-ignore-orientation-request -d 0 2>/dev/null | tr -d '\r')
-    [ -n "$_w" ] || _w=$(wm get-ignore-orientation-request 2>/dev/null | tr -d '\r')
+    _w=$(fl_get_ignore)
     case "$_w" in
         *true*)  echo "acik"  ;;
         *false*) echo "kapali" ;;
@@ -2885,9 +2977,13 @@ fl_miui_softreboot() {
 #  "unknown" kelimesi arayuzde artik "kayıt yok" olarak gorunur.
 # ============================================================
 fl_compat_xml_state() {   # $1 id  $2 pkg -> enabled|disabled|(bos)
+    # v2.23.2 DUZELTME: dosyada <change id="174042936"> (SAYISAL) yazar.
+    # Eski kod ID ADINI aradigi icin hicbir zaman eslesmiyordu ->
+    # XML'den yazilan override "okunamadi" sayiliyordu.
     _xs_f=/data/misc/appcompat/compat_framework_overrides.xml
     [ -f "$_xs_f" ] || return 0
-    awk -v id="$1" -v p="$2" '
+    _xs_n=$(fl_id_num "$1")
+    awk -v id="$_xs_n" -v p="$2" '
         /<change[ \t]/ { on = (index($0, "id=\"" id "\"") > 0); next }
         on && /<package[ \t]/ {
             if (index($0, "name=\"" p "\"") > 0) {
@@ -2898,20 +2994,28 @@ fl_compat_xml_state() {   # $1 id  $2 pkg -> enabled|disabled|(bos)
 }
 
 fl_compat_state_src() {   # $1 id  $2 pkg -> "<state>|<kaynak>"
+    # v2.23.2 IKI KRITIK DUZELTME:
+    #  (a) `am compat state` SAYISAL id ister; ID adi gecirilirse cihaz
+    #      "Error: bad change id" doner ve durum HIC okunamaz.
+    #  (b) SOURCES: "DISABLED" kelimesi "ENABLED" icerir! Eski `case` deseni
+    #      *ENABLED* once denendigi icin KAPALI bir override "enabled"
+    #      olarak okunuyordu. Yani arayuz "acik" diyor, gercekte kapaliydi.
+    #      Artik once DISABLED/LOGGED (daha uzun ve kesin) kontrol edilir.
     _ss_id=$1; _ss_p=$2
     [ -n "$_ss_id" ] && [ -n "$_ss_p" ] || { echo "unknown|paket-yok"; return; }
-    _ss_o=$(am compat state "$_ss_id" "$_ss_p" 2>/dev/null | tr -d '\r')
+    _ss_n=$(fl_id_num "$_ss_id")
+    _ss_o=$(am compat state "$_ss_n" "$_ss_p" 2>/dev/null | tr -d '\r')
     case "$_ss_o" in
+        *DISABLED*) echo "disabled|am-compat";         return ;;
         *LOGGED*)   echo "disabled|am-compat(logged)"; return ;;
         *ENABLED*)  echo "enabled|am-compat";          return ;;
-        *DISABLED*) echo "disabled|am-compat";         return ;;
     esac
     _ss_d=$(dumpsys platform_compat 2>/dev/null)
     if [ -n "$_ss_d" ]; then
         _ss_l=$(printf '%s\n' "$_ss_d" | grep -F "$_ss_p" | grep -F "$_ss_id" | head -n 1)
         case "$_ss_l" in
-            *ENABLED*)  echo "enabled|platform_compat";  return ;;
             *DISABLED*) echo "disabled|platform_compat"; return ;;
+            *ENABLED*)  echo "enabled|platform_compat";  return ;;
         esac
     fi
     case "$(fl_compat_xml_state "$_ss_id" "$_ss_p")" in
@@ -3014,22 +3118,26 @@ fl_am_cmd() {   # $1 enable|disable|reset  $2 id  $3 paket ; basarili -> stdout:
     # (Google/OPPO A13 kilavuzu). Eski kod once "am compat --no-kill enable"
     # deniyordu; ROM bunu "Usage:" ile reddederse cikti hata kalibina
     # uymadigi icin BASARILI sanilabiliyordu.
-    _o=$(am compat "$1" "$2" "$3" 2>&1 </dev/null)
+    # v2.23.2: <degisim> SAYISAL olmali. ID adi ("OVERRIDE_MIN_ASPECT_RATIO")
+    # gecirilirse gercek cihaz "Error: bad change id" der -> "ekrana yay"
+    # hic uygulanmaz. Ad -> sayi cevirisi burada yapilir.
+    _an=$(fl_id_num "$2")
+    _o=$(am compat "$1" "$_an" "$3" 2>&1 </dev/null)
     case "$_o" in
         *"nknown"*|*"rror"*|*"xception"*|*"ailed"*|*"ot found"*|*"Usage"*) : ;;
         *) echo "am"; return 0 ;;
     esac
-    _o=$(am compat "$1" --no-kill "$2" "$3" 2>&1 </dev/null)   # bazi ROM'lar sonda ister
+    _o=$(am compat "$1" --no-kill "$_an" "$3" 2>&1 </dev/null)   # bazi ROM'lar sonda ister
     case "$_o" in
         *"nknown"*|*"rror"*|*"xception"*|*"ailed"*|*"ot found"*|*"Usage"*) : ;;
         *) echo "am-nokill-son"; return 0 ;;
     esac
-    _o=$(am compat --no-kill "$1" "$2" "$3" 2>&1 </dev/null)
+    _o=$(am compat --no-kill "$1" "$_an" "$3" 2>&1 </dev/null)
     case "$_o" in
         *"nknown"*|*"rror"*|*"xception"*|*"ailed"*|*"ot found"*|*"Usage"*) : ;;
         *) echo "am-nokill"; return 0 ;;
     esac
-    _o=$(cmd platform_compat "$1" "$2" "$3" 2>&1 </dev/null)
+    _o=$(cmd platform_compat "$1" "$_an" "$3" 2>&1 </dev/null)
     case "$_o" in
         *"nknown"*|*"rror"*|*"xception"*|*"ailed"*|*"ot found"*|*"Usage"*|"") : ;;
         *) echo "cmd"; return 0 ;;
@@ -3054,8 +3162,12 @@ fl_appmode_apply() {   # $1 paket -> "ok|<yontemler>" | "fail|<sebep>" (return 1
     case "$_sdk" in ''|*[!0-9]*) _sdk=33 ;; esac
 
     # 1) KAPICI: acilmadan hicbir oran override'i islemez
-    _w=$(fl_am_cmd enable "$FL_AM_GATE" "$_ap" 2>/dev/null)
-    _ok=$?
+    # v2.23.2 DUZELTME: "$( )" ATAMASINDAN SONRA $? HER ZAMAN 0'dir
+    # (atama komutunun kendi cikis kodu). Eski kod "_w=$(...); _ok=$?" ile
+    # komutun basarisini olcuyordu -> her zaman 0 -> kapici reddetse bile
+    # "basarili" sayiliyordu. Bu yuzden "ekrana yay" cihazda sessizce
+    # yarim kaliyordu. Artik if ile dogrudan cikis kodu olculur.
+    if _w=$(fl_am_cmd enable "$FL_AM_GATE" "$_ap" 2>/dev/null); then _ok=0; else _ok=1; fi
     _st=$(fl_am_state "$FL_AM_GATE" "$_ap")
     [ "$_ok" = "0" ] || [ "$_st" = "on" ] || { echo "fail|kapici-reddetti"; return 1; }
     _m="MIN:${_w:-state}"
@@ -3348,7 +3460,7 @@ fl_apply() {
             fl_run wm set-ignore-orientation-request -d "$_d" true \
                 || fl_run wm set-ignore-orientation-request true
         done
-        _g=$(wm get-ignore-orientation-request -d 0 2>&1)
+        _g=$(fl_get_ignore)
         case "$_g" in
             *true*) FL_IGN_OK=yes ;;
             *)      FL_IGN_OK=no ;;
@@ -3372,8 +3484,15 @@ fl_apply() {
     fi
 
     # 2b) Multi-window katmani: resize edilemeyen uygulamalari da boyutlanabilir say
+    # v2.23.2: IKI KATMAN birlikte uygulanir.
+    #  1) wm set-multi-window-config -> 12L/13'te VAR, ama GECICI (reboot'ta
+    #     sifirlanir). "Ekrana yay"in aninda islemesi icin gerekli.
+    #  2) settings force_resizable_activities -> KALICI, reboot sonrasi korunur.
+    # Ikisi de denenir; biri desteklenmiyorsa digeri devam eder (asla olumcul degil).
     fl_run wm set-multi-window-config --supportsNonResizable 1
     fl_log "  multi-window: $(wm get-multi-window-config 2>&1 | tr '\n' ' ')"
+    fl_run settings put global force_resizable_activities 1
+    fl_run settings put global enable_non_resizable_multi_window 1
 
     # 3) Mod secimi
     _mode=$ROTATION_MODE
@@ -3514,10 +3633,11 @@ fl_report_body() {
     echo "aci         : $ROTATION          ignore-orientation: $FL_IGN_OK"
     echo "---- WindowManager ----"
     echo "wm size                     : $(wm size 2>&1 | tr '\n' ' ')"
-    echo "ignore-orientation          : $(wm get-ignore-orientation-request -d 0 2>&1)"
+    echo "ignore-orientation          : $(fl_get_ignore)"
     echo "user-rotation               : $(wm user-rotation 2>&1 | tr '\n' ' ')"
     echo "fixed-to-user-rotation      : $(wm fixed-to-user-rotation -d 0 2>&1)"
     echo "multi-window config         : $(wm get-multi-window-config 2>&1 | tr '\n' ' ')"
+    echo "force_resizable_activities  : $(settings get global force_resizable_activities 2>&1)"
     echo "ekran (cur)                 : $(fl_cur_size)"
     fl_is_landscape
     _lr=$?
@@ -3620,7 +3740,7 @@ fl_status() {
     fl_prepare
     echo " ---------- Force Landscape $FL_MODVER ----------"
     echo " mod (istenen/uygulanan)  : $ROTATION_MODE / $FL_MODE  (aci $ROTATION)"
-    echo " ignore-orientation       : $(wm get-ignore-orientation-request -d 0 2>&1)"
+    echo " ignore-orientation       : $(fl_get_ignore)"
     echo " user-rotation            : $(wm user-rotation 2>&1 | tr '\n' ' ')"
     echo " fixed-to-user-rotation   : $(wm fixed-to-user-rotation -d 0 2>&1)"
     echo " force_resizable          : $(settings get global force_resizable_activities 2>&1)"
@@ -3648,9 +3768,10 @@ fl_restore() {
     for _d in $DISPLAYS; do
         wm set-ignore-orientation-request -d "$_d" false >>"$FL_LOG" 2>&1
     done
-    wm fixed-to-user-rotation -d 0 default >>"$FL_LOG" 2>&1
+    wm fixed-to-user-rotation -d 0 disabled >>"$FL_LOG" 2>&1
     wm user-rotation free >>"$FL_LOG" 2>&1
     wm reset-multi-window-config >>"$FL_LOG" 2>&1
+    settings delete global enable_non_resizable_multi_window >>"$FL_LOG" 2>&1
     settings put system accelerometer_rotation 1 >>"$FL_LOG" 2>&1
     settings put global force_resizable_activities 0 >>"$FL_LOG" 2>&1
     for _list in "$FL_DONE" "$FL_SKIP"; do

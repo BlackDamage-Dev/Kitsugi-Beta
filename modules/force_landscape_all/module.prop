@@ -1,6 +1,6 @@
 id=force_landscape_all
 name=Force Landscape - All Apps
-version=v2.23.1
-versionCode=39
+version=v2.23.2
+versionCode=40
 author=Arena.ai Agent
-description=v2.23.1: "her dugme tek tek test edildi" surumu. (1) UYGULAMA BAZLI YON KILIDI: her uygulama icin dikey / yatay / serbest — MIUI allPortrait semasina yazilir, DOSYADAN GERI OKUNARAK dogrulanir, reboot sonrasi korunur. (2) DUZELTME: islem surerken TUM SAYFA siliniyordu (detay penceresi kayboluyor, "bastim bisey olmadi" hissi) -> artik ustune katman cikar, sayfa yerinde kalir. (3) DUZELTME: yedek metni render sonrasi siliniyordu -> "Yedekten yukle" hep "alan bos" diyordu, artik kalici. (4) DUZELTME: panoya kopyalama sessizce basarisiz oluyordu -> 3 yol denenir, olmazsa metin ekranda acilir. (5) DUZELTME: acilista "dikey sectigim yatay oldu" hatasi. (6) DUZELTME: yedek geri yukleme listeleri bozuyordu (global degisken ezilmesi). (7) Bilinmeyen komut artik HATA doner; kurulu olmayan paket kural dosyasini kirletmez.
+description=v2.23.2: "komut denetimi" surumu — sahte AOSP araclari KATI hale getirilip tum komutlar tek tek denetlendi. (1) BUYUK HATA: am compat cagrilarinda TUM change adlari ayni sayiya (174042936) esleniyordu -> "ekrana yay" acarken son adim KAPICIYI kapatiyordu; artik resmi harita (kapici 174042980, LARGE 180326787, PORTRAIT_ONLY 203647190). (2) BUYUK HATA: "$( )" atamasindan sonra $? her zaman 0 -> komut basarisiz olsa da basarili sayiliyordu. (3) BUYUK HATA: dumpsys dogrulamasi 1 saniyelik bayat onbellek + sadece paket adi ariyordu -> "6 paket uygulandi" derken sistemde 0 override vardi. (4) wm fixed-to-user-rotation gecersiz "default" degeri -> disabled. (5) "*ENABLED*" deseni DISABLED kelimesini de yakaliyordu -> her override "acik" okunuyordu. (6) am compat sayisal change-id ister; ad geciriliyordu. (7) get-ignore-orientation-request / multi-window-config tek noktadan ve yedekli. (8) ekrana yay / letterbox artik GERCEKTEN yaziyor: 6 hedef -> 6 gercek override.

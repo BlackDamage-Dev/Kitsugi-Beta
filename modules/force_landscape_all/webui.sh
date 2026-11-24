@@ -85,7 +85,7 @@ status)
     # state.txt ilk uygulamadan once yok/bos olabilir -> canli deger dene
     _lv_ign=$ST_IGN
     if [ -z "$_lv_ign" ]; then
-        case "$(wm get-ignore-orientation-request -d 0 2>/dev/null)" in
+        case "$(fl_get_ignore 2>/dev/null)" in
             *true*)  _lv_ign=yes ;;
             *false*) _lv_ign=no ;;
             *)       _lv_ign=bilinmiyor ;;
@@ -137,7 +137,7 @@ status-full)   # yavas: canli wm/dumpsys/logcat sorgulari (Teşhis icin)
     echo "rom|$(getprop ro.build.version.incremental)"
     echo "mod_istenen|$ROTATION_MODE"
     echo "aci|$ROTATION"
-    echo "ignore_orientation|$(wm get-ignore-orientation-request -d 0 2>&1)"
+    echo "ignore_orientation|$(fl_get_ignore)"
     echo "user_rotation|$(wm user-rotation 2>&1 | tr '\n' ' ')"
     echo "fixed_to_user_rotation|$(wm fixed-to-user-rotation -d 0 2>&1)"
     echo "force_resizable|$(settings get global force_resizable_activities 2>&1)"
@@ -756,7 +756,7 @@ diag) # "hala dar sutun" teshisi
     echo "mod|$COMPAT_MODE"
     echo "ozet|$(fl_compat_summary)"
     echo "test|$(fl_compat_test_line)"
-    echo "ignore|$(wm get-ignore-orientation-request -d 0 2>&1)"
+    echo "ignore|$(fl_get_ignore)"
     echo "ekran|$(fl_cur_size)"
     echo "xml|$([ -f "$FL_XMLFLAG" ] && echo HAZIR || echo gerekmedi)"
     echo "-- odaklanan pencere --"
@@ -1118,7 +1118,7 @@ tani)   # yapilandirilmis tani: her satir KONTROL|OK|HATA|<aciklama>
     else echo "KONTROL|HATA|onbellek|apps_cache.txt yok (apps-refresh calistir)"; fi
     if [ -s "$FL_META" ]; then echo "KONTROL|OK|paket_meta|$(grep -c . "$FL_META" 2>/dev/null) paket"
     else echo "UYARI|paket_meta|surum/boyut bilgisi yok (dumpsys package okunamadi)"; fi
-    _wr=$(wm get-ignore-orientation-request -d 0 2>&1)
+    _wr=$(fl_get_ignore)
     case "$_wr" in *true*) echo "KONTROL|OK|ignore-orientation|$_wr" ;; *) echo "KONTROL|HATA|ignore-orientation|$_wr" ;; esac
     _fr=$(settings get global force_resizable_activities 2>&1)
     case "$_fr" in 1) echo "KONTROL|OK|force_resizable|1" ;; *) echo "UYARI|force_resizable|$_fr" ;; esac

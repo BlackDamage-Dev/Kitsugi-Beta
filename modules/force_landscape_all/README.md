@@ -1,4 +1,4 @@
-# Force Landscape - All Apps  |  v2.23.1
+# Force Landscape - All Apps  |  v2.23.2
 
 Xiaomi Pad 6 (pipa) · MIUI 14 / Android 13 · SukiSU Ultra
 
@@ -516,7 +516,7 @@ MIUI'nin **gerçek** şeması kullanılıyor (uydurma alan yok):
 - **Yedek/geri yükleme**: force/never/appmode/mailbox/yon beşi de birebir
   geri geldi (`OK|1|2|1|yon=3`).
 
-## v2.23.1 — "her düğme tek tek test edildi" turu (2 gerçek hata daha)
+## v2.23.2 — "her düğme tek tek test edildi" turu (2 gerçek hata daha)
 
 Bu turda arayüzdeki **37 `data-act` düğmesi + 14 kontrol anahtarı + detay
 penceresindeki 15 düğme + 4 yön modu + 4 letterbox modu + 6 filtre + 3
@@ -588,4 +588,42 @@ Test (uçtan uca):
 ```
 A) yon.txt silindi            -> yon.bak'tan geri geldi, uygulama DIKEY kaldi
 B) yon.txt + yon.bak silindi   -> kural dosyasindan kurtarildi, DIKEY kaldi
+```## v2.23.2 — "komut denetimi" turu (5 gerçek hata daha)
+
+Bu sürümde **sahte AOSP araçları katı hale getirildi**: yanlış komut artık `Error: ...` + rc=1
+döner. Modülün 48 çağrısı bu araçlardan geçirildi. Sonuç: önceki "0 hata" sonuçları **yalan
+söylüyordu**, çünkü sahte `wm`/`am` her şeyi kabul ediyordu.
+
+### Bulunan ve düzeltilen hatalar
+
+| # | Hata | Etkisi | Düzeltme |
+|---|------|--------|----------|
+| 1 | `fl_id_num()` **tüm** change adlarını aynı sayıya (`174042936`) eşliyordu | "Ekrana yay" açarken 3. adım (`disable PORTRAIT_ONLY`) **kapıcıyı kapatıyordu** → özellik kendi kendini iptal ediyordu, cihazda hiç çalışmıyordu | Resmî harita: kapıcı `174042980`, LARGE `180326787`, PORTRAIT_ONLY `203647190`, FORCE_RESIZE `174042936`, ANY_ORIENTATION `310816437` |
+| 2 | `_w=$(fl_am_cmd …); _ok=$?` | POSIX sh'de atamadan sonra `$?` **her zaman 0** → komut reddetse de "başarılı" | `if _w=$(…); then _ok=0; else _ok=1; fi` |
+| 3 | `fl_compat_dump` 1 **saniyelik** bayat önbellek + `fl_compat_verify` sadece paket adı arıyordu | "6 paket uygulandı, 0 hata" derken sistemde **0 override** vardı (yanlış pozitif) | Önbellek yalnız doğrulama içinde + change-id eşleşmesi aranıyor |
+| 4 | `"*ENABLED*"` deseni `DISABLED` kelimesini de yakalıyordu | Her override "açık" okunuyordu → arayüz yalan söylüyordu | `DISABLED`/`LOGGED` önce denenir |
+| 5 | `am compat enable/reset` **sayısal** id ister, kod id **adı** geçiriyordu | `Error: bad change id` → hiçbir override yazılmıyordu | `fl_id_num()` ad→sayı çevirisi, 4 çağrının tamamında |
+
+### Tek noktadan okuma
+
+`wm get-ignore-orientation-request` ve `wm …-multi-window-config` artık **tek yardımcıdan**
+(`fl_get_ignore`) geçiyor, ROM farkı için yedekli (`-d 0` → argümansız).
+
+### Kanıt (taklit cihaz, katı araçlar)
+
 ```
+$ webui.sh appmode com.instagram.android on
+OK|com.instagram.android|on|MIN:am LARGE:am P-ONLY:am dogrulandi:gate=enabled,large=enabled
+   OVERRIDE_MIN_ASPECT_RATIO                enabled|am-compat    (174042980)
+   OVERRIDE_MIN_ASPECT_RATIO_LARGE          enabled|am-compat    (180326787)
+   OVERRIDE_MIN_ASPECT_RATIO_PORTRAIT_ONLY  disabled|am-compat   (203647190)
+$ webui.sh apply        → 6 hedef → sistemde 6 gerçek override
+$ ./regress.sh          → SONUC: 0 hata (48 çağrı, katı araçlar)
+$ node final.js         → 1 hata / 73 (yalnız act:kontrolReload toast'i)
+```
+
+**Dürüst not:** bunlar taklit ortamda geçti. Gerçek Xiaomi Pad 6'da ilk kurulumdan sonra
+`Tanı` sekmesindeki `compat_testi` satırı `CALISIYOR` demeli; demiyorsa change-id haritası
+ROM'da farklıdır ve o satır bunu açıkça yazar.
+
+
