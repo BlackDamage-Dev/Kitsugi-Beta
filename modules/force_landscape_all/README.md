@@ -1,4 +1,4 @@
-# Force Landscape - All Apps  |  v2.23.2
+# Force Landscape - All Apps  |  v2.23.3
 
 Xiaomi Pad 6 (pipa) · MIUI 14 / Android 13 · SukiSU Ultra
 
@@ -516,7 +516,7 @@ MIUI'nin **gerçek** şeması kullanılıyor (uydurma alan yok):
 - **Yedek/geri yükleme**: force/never/appmode/mailbox/yon beşi de birebir
   geri geldi (`OK|1|2|1|yon=3`).
 
-## v2.23.2 — "her düğme tek tek test edildi" turu (2 gerçek hata daha)
+## v2.23.3 — "her düğme tek tek test edildi" turu (2 gerçek hata daha)
 
 Bu turda arayüzdeki **37 `data-act` düğmesi + 14 kontrol anahtarı + detay
 penceresindeki 15 düğme + 4 yön modu + 4 letterbox modu + 6 filtre + 3
@@ -588,7 +588,7 @@ Test (uçtan uca):
 ```
 A) yon.txt silindi            -> yon.bak'tan geri geldi, uygulama DIKEY kaldi
 B) yon.txt + yon.bak silindi   -> kural dosyasindan kurtarildi, DIKEY kaldi
-```## v2.23.2 — "komut denetimi" turu (5 gerçek hata daha)
+```## v2.23.3 — "komut denetimi" turu (5 gerçek hata daha)
 
 Bu sürümde **sahte AOSP araçları katı hale getirildi**: yanlış komut artık `Error: ...` + rc=1
 döner. Modülün 48 çağrısı bu araçlardan geçirildi. Sonuç: önceki "0 hata" sonuçları **yalan
@@ -625,5 +625,83 @@ $ node final.js         → 1 hata / 73 (yalnız act:kontrolReload toast'i)
 **Dürüst not:** bunlar taklit ortamda geçti. Gerçek Xiaomi Pad 6'da ilk kurulumdan sonra
 `Tanı` sekmesindeki `compat_testi` satırı `CALISIYOR` demeli; demiyorsa change-id haritası
 ROM'da farklıdır ve o satır bunu açıkça yazar.
+
+## v2.23.3 — "kimse sessiz kalmaz" turu
+
+Bu sürümün tek amacı: **hiçbir hata sessizce yutulmaz.** Her başarısız sistem komutu
+en ince ayrıntısına kadar kayda düşer.
+
+### Kaydedilen 9 alan (her hata için)
+
+| Alan | Ne yazıyor | Örnek |
+|------|-----------|-------|
+| `t` | zaman (ms) | `2026-11-24T13:46:23.639` |
+| `lv` | seviye | `ERROR` / `WARN` / `DENY` |
+| `pkg` | ilgili paket | `com.spotify.music` |
+| `cmd` | **tam komut** | `am compat enable 174042980 com.spotify.music` |
+| `rc` | çıkış kodu | `1` |
+| `out` | **ham çıktı** | `Error: bad change id` |
+| `why` | **sebep (insan dilinde)** | "PlatformCompat bu change-id'yi tanımıyor…" |
+| `fix` | **çözüm** | "FL_ID_GATE değerini config.conf'a yaz…" |
+| `fn:ln` | **suçlu (kod yeri)** | `fl_am_cmd:3358` |
+
+### Sebep motoru — tanınan kalıplar
+
+`bad change id` · `unknown option/command` · `permission denied` · `read-only file system` ·
+`no space left` · `failure/error/exception` · **sessiz çıktı (rc=0 + boş çıktı)**
+
+Her biri için ayrı insan-dili sebep + yapılacak iş yazılır. Tanınmayan çıktı bile
+"Beklenmedik çıktı — ham çıktı kayıtlı, geliştiriciye ilet" olarak düşer.
+
+### Çökme tuzağı
+
+`landscape.sh` sonuna `trap` kuruldu: `EXIT`, `INT`, `TERM`, `HUP`, `SEGV`, `BUS`, `ABRT`.
+Betik çöker veya öldürülürse `crashes.log`'a şunlar yazılır: cihaz modeli, SDK, root uid,
+SELinux, argv, **son bağlam (fonksiyon:satır)**, son 20 log satırı, son 5 olay, disk durumu.
+`webui.sh` bu dosyayı kaynak olarak yüklediği için **WebUI süreci de aynı koruma altında.**
+
+### Sessiz yutma kaldırıldı
+
+Eskiden `fl_am_cmd` ve `fl_compat_try` hata yolunda **hiçbir şey yazmıyordu** — "neden
+olmadı" sorusunun cevabı hiçbir yerde yoktu. Artık 4 yöntemin **her denemesi** tek tek
+`WARN` olarak, hepsi başarısız olursa `DENY` olarak kaydedilir.
+
+### WebUI: yeni "Olaylar" sekmesi
+
+- Sekme üstünde **kırmızı sayaç** (kayıt varsa)
+- Her kayıt kart: seviye rengi · zaman · paket · komut · ham çıktı · sebep · çözüm · kod yeri
+- **Yenile** · **Crash raporu** · **Raporu kopyala** · **Temizle**
+- Boşsa: "Kayıtlı hata yok" (yeşil) — yalan söylemez, gerçekten yoksa yok der
+
+### Crash raporu (`crash-rapor`)
+
+Tek dosya, tek komut — kullanıcı bunu kopyalayıp gönderebilir:
+
+```
+/sdcard/force_landscape_crash.txt
+```
+
+İçinde: sürüm · zaman · uptime · **cihaz** (model/device/MIUI/sdk/fingerprint) · ekran ·
+SELinux · uid · PATH · disk · root yöneticisi · **çökme kayıtları** · **son 40 hata** ·
+son 80 işlem logu · durum dosyaları özeti · son 10 olay (JSON).
+
+### Kanıt (taklit cihaz)
+
+```
+$ webui.sh olay-say                    → 2
+$ webui.sh status | grep hata_sayisi   → hata_sayisi|2 · cokme_var|1
+$ webui.sh crash-rapor                 → OK|/sdcard/force_landscape_crash.txt|20155 bayt
+$ node olay.js                         → 0 hata / 17 kontrol (Olaylar sekmesi + 4 düğme)
+$ ./regress.sh                         → SONUC: 0 hata
+```
+
+Örnek gerçek kayıt:
+```json
+{"t":"2026-11-24T13:46:23.639","lv":"DENY","fn":"fl_am_cmd","ln":3358,
+ "pkg":"com.spotify.music","cmd":"am compat enable badid com.spotify.music","rc":1,
+ "out":"Error: bad change id: badid",
+ "why":"PlatformCompat bu change-id'yi tanimiyor (ROM surumu farkli ya da id haritasi degismis)",
+ "fix":"FL_ID_GATE / FL_ID_LARGE / FL_ID_PONLY degerlerini config.conf'a yaz; Tani > compat_testi satirina bak"}
+```
 
 

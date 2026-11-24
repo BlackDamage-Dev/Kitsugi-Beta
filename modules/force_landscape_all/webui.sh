@@ -107,6 +107,9 @@ status)
     echo "compat_kalan|$(fl_compat_left)"
     echo "compat_ozet|$(fl_compat_summary)"
     echo "compat_hatali|$(awk -F'\t' '$2=="fail" && $3!="geri-alindi"' "$FL_CSTAT" 2>/dev/null | grep -c .)"
+    # v2.23.3: Olaylar sekmesi rozeti (errors.log satir sayisi, ust sinir 999)
+    echo "hata_sayisi|$( [ -f "$FL_ERR" ] && { _hs=$(grep -c . "$FL_ERR" 2>/dev/null); [ "${_hs:-0}" -gt 999 ] && echo 999 || echo "${_hs:-0}"; } || echo 0)"
+    echo "cokme_var|$( [ -s "$FL_CRASH" ] && echo 1 || echo 0)"
     echo "son_hata|$(fl_compat_errors_tail 1 2>/dev/null | cut -f2- | cut -c1-180)"
     echo "duraklatildi|$([ -f "$(fl_moddir)/disable" ] && echo 1 || echo 0)"
     echo "force_liste|$(fl_count "$FL_FORCE")"
@@ -851,6 +854,83 @@ logs) # logs <kaynak> <satir>   kaynak: modul | hata | compat | sistem | test | 
     ;;
 
 # ------------------------------------------------------------
+# v2.23.3 — OLAY GUNLUGU (forensic)
+olaylar)   # ham JSON satirlari (index.html olayParse ile cozer)
+    [ -f "$FL_ERR" ] || : > "$FL_ERR" 2>/dev/null
+    # son 200 olay (dosya buyurse arayuz bogulmasin)
+    tail -n 200 "$FL_ERR" 2>/dev/null
+    ;;
+
+olay-say)  # sekme rozeti icin
+    [ -f "$FL_ERR" ] && grep -c . "$FL_ERR" 2>/dev/null || echo 0
+    ;;
+
+olay-temizle)
+    : > "$FL_EVT" 2>/dev/null
+    : > "$FL_ERR" 2>/dev/null
+    : > "$FL_CRASH" 2>/dev/null
+    rm -f "$FL_DIR/son_hata.txt" 2>/dev/null
+    fl_log "webui: olay gunceleri temizlendi"
+    echo "OK|temizlendi"
+    ;;
+
+crash-rapor)   # tek dosyada TAM tesihs: kullanici bunu kopyalayip gonderir
+    _cr=$(mktemp 2>/dev/null || echo "$FL_DIR/.crash_rpt")
+    {
+        echo "================ FORCE LANDSCAPE — CRASH / TANI RAPORU ================"
+        echo "surum      : $FL_MODVER"
+        echo "zaman      : $(date '+%Y-%m-%d %H:%M:%S %Z')"
+        echo "calisma    : $(uptime 2>/dev/null)"
+        echo ""
+        echo "--- CIHAZ ---"
+        for _p in ro.product.model ro.product.device ro.product.manufacturer ro.build.version.release \
+                  ro.build.version.sdk ro.miui.ui.version.name ro.mi.os.version.name \
+                  ro.build.fingerprint ro.boot.verifiedbootstate; do
+            printf '%-32s %s\n' "$_p" "$(getprop "$_p" 2>/dev/null)"
+        done
+        echo "ekran      : $(wm size 2>&1 | tr '\n' ' ') / $(wm density 2>&1 | tr '\n' ' ')"
+        echo "selinux    : $(getenforce 2>/dev/null) | uid=$(id -u 2>/dev/null)"
+        echo ""
+        echo "--- ORTAM ---"
+        printf 'PATH       : %s\n' "$PATH"
+        printf 'disk /data : %s\n' "$(df -h /data 2>/dev/null | tail -1)"
+        printf 'modul yolu : %s\n' "$0"
+        echo ""
+        echo "--- ROOT / KERNEL ---"
+        for _b in magisk ksud sukisu apd; do
+            command -v "$_b" >/dev/null 2>&1 && echo "bulundu: $_b -> $(command -v $_b)"
+        done
+        printf 'ksud surum : %s\n' "$(ksud -V 2>/dev/null | head -1)"
+        echo ""
+        echo "--- COKME KAYITLARI (crashes.log) ---"
+        if [ -f "$FL_CRASH" ] && [ -s "$FL_CRASH" ]; then tail -n 120 "$FL_CRASH"; else echo "(cokme kaydi yok)"; fi
+        echo ""
+        echo "--- SON HATALAR (errors.log, son 40) ---"
+        if [ -f "$FL_ERR" ] && [ -s "$FL_ERR" ]; then tail -n 40 "$FL_ERR"; else echo "(hata kaydi yok)"; fi
+        echo ""
+        echo "--- SON ISLEM LOGU (landscape.log, son 80) ---"
+        tail -n 80 "$FL_LOG" 2>/dev/null || echo "(log yok)"
+        echo ""
+        echo "--- DURUM DOSYALARI ---"
+        for _f in force.txt never.txt appmode.txt appmode_state.txt compat_applied.txt \
+                  compat_status.txt compat_errors.txt compat_skip.txt yon.txt state.txt; do
+            printf '%-22s %s\n' "$_f" "$([ -f "$FL_DIR/$_f" ] && grep -c . "$FL_DIR/$_f" 2>/dev/null || echo 0) satir"
+        done
+        echo ""
+        echo "--- SON OLAYLAR (JSON, son 10) ---"
+        tail -n 10 "$FL_ERR" 2>/dev/null
+        echo "======================== RAPOR SONU ========================"
+    } > "$_cr" 2>&1
+    # kullaniciya ulasabilecek yere de kopyala
+    _dst=/sdcard/force_landscape_crash.txt
+    if cp "$_cr" "$_dst" 2>/dev/null; then
+        echo "OK|$_dst|$(wc -c < "$_cr" 2>/dev/null) bayt"
+    else
+        echo "OK|$_cr|$(wc -c < "$_cr" 2>/dev/null) bayt"
+    fi
+    cat "$_cr"
+    ;;
+
 logstat)   # log dosyalarinin durumu (log neden bos olabilir?)
     echo "log_yolu|$FL_LOG"
     echo "log_bayt|$([ -f "$FL_LOG" ] && wc -c < "$FL_LOG" 2>/dev/null || echo 0)"

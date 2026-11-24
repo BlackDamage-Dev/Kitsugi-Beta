@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta http-equiv="cache-control" content="no-store, must-revalidate">
 <meta http-equiv="pragma" content="no-cache">
-<title>Force Landscape v2.23.2</title>
+<title>Force Landscape v2.23.3</title>
 <style>
 :root{
   --bg:#0e1116; --bg2:#151a22; --card:#1a2029; --line:#26303d; --txt:#e8eef7;
@@ -162,7 +162,7 @@ button{max-width:100%}
 <header>
   <div class="hrow">
     <div>
-      <div class="title">Force Landscape <span class="sub" id="ver">v2.23.2</span></div>
+      <div class="title">Force Landscape <span class="sub" id="ver">v2.23.3</span></div>
       <div class="sub" id="hdev">cihaz bilgisi yükleniyor…</div>
     </div>
     <div class="spacer"></div>
@@ -181,7 +181,7 @@ button{max-width:100%}
 <script>
 "use strict";
 /* ============================================================
-   Force Landscape v2.23.2 — WebUI
+   Force Landscape v2.23.3 — WebUI
    Tasarım kuralları:
    * Açılışta en fazla 2 arka uç çağrısı (status + apps).
    * Otomatik yenileme SADECE başlık rozetlerini günceller; sekme
@@ -548,7 +548,7 @@ function appName(pkg){
 /* Yoneticiden (KernelSU/SukiSU) gercek uygulama adi, surumu ve ikonu.
    API yoksa sessizce atlanir; asagidaki sozluk/turetilmis ad kullanilir. */
 let MG = {};          // pkg -> {label, versionName, versionCode, isSystem}
-let UI_VER = "v2.23.2";       // bu sayfanın sürümü (arka uçla karşılaştırılır)
+let UI_VER = "v2.23.3";       // bu sayfanın sürümü (arka uçla karşılaştırılır)
 /* v2.23: uygulama bazli yon kilidi (dikey / yatay / serbest) */
 let YON = {};          // pkg -> "dikey" | "yatay" | "serbest"
 let YON_OK = false;    // arka uc hala eski surum mu? (ozellik kapaliysa uyari) 
@@ -781,7 +781,7 @@ async function loadSys(){
    ============================================================ */
 const TABS = [
   ["durum","Durum"], ["uygulamalar","Uygulamalar"], ["letterbox","Letterbox"],
-  ["kontrol","Kontrol"], ["kayitlar","Kayıtlar"], ["cihaz","Cihaz"],
+  ["kontrol","Kontrol"], ["olaylar","Olaylar"], ["kayitlar","Kayıtlar"], ["cihaz","Cihaz"],
   ["ayarlar","Ayarlar"], ["yardim","Yardım"]
 ];
 /* v2.11.2: "kontrol tamamen bende" paneli — her anahtar tek yerde,
@@ -823,6 +823,10 @@ function renderTabs(){
   $("tabs").innerHTML = TABS.map(([id,label])=>{
     let n = "";
     if(id === "uygulamalar" && APPS.length) n = ` <span style="opacity:.65">${APPS.length}</span>`;
+    if(id === "olaylar"){
+      const e = parseInt(ST.hata_sayisi||"0",10);
+      if(e > 0) n = ` <span style="background:var(--bad);color:#fff;border-radius:8px;padding:0 6px;font-weight:800">${e}</span>`;
+    }
     if(id === "letterbox"){
       const h = parseInt(ST.compat_hatali||"0",10);
       if(h > 0) n = ` <span style="color:var(--bad);font-weight:800">!</span>`;
@@ -850,6 +854,13 @@ async function render(){
       try{ await loadKontrol(); }catch(e){}
     }
     v.innerHTML = viewKontrol();
+  }
+  else if(TAB === "olaylar"){
+    if(!OLAYLAR.length){
+      v.innerHTML = `<div class="centered"><span class="spin"></span>olay günlüğü okunuyor…</div>`;
+      try{ OLAYLAR = olayParse(await out("olaylar")); }catch(e){ OLAYLAR = []; }
+    }
+    v.innerHTML = viewOlaylar();
   }
   else if(TAB === "kayitlar") v.innerHTML = viewLog();
   else if(TAB === "cihaz"){
@@ -1233,6 +1244,60 @@ function stopLogAuto(){ if(logTimer){ clearInterval(logTimer); logTimer = null; 
 
 /* ---------------- CİHAZ ---------------- */
 let SYS = {};
+/* ---------------- OLAYLAR (v2.23.3) ----------------
+   Ham errors.log (JSON satirlari) burada insan diline cevrilir.
+   Her satir: zaman · seviye · PAKET · KOMUT · SEBEP · COZUM · fonksiyon:satir
+   "Suclu" alani = fn:ln -> geliştirici kodun tam yerini görür. */
+let OLAYLAR = [];
+function olayParse(txt){
+  const rows = [];
+  String(txt||"").split("\n").forEach(l => {
+    if(l.charAt(0) !== "{") return;
+    try { rows.push(JSON.parse(l)); } catch(e) { /* bozuk satir atlanir */ }
+  });
+  return rows.reverse();   // en yeni ustte
+}
+function olaySeviyeRenk(lv){
+  return lv === "DENY" ? "var(--bad)" : (lv === "ERROR" ? "var(--bad)" : "var(--warn)");
+}
+function viewOlaylar(){
+  const n = OLAYLAR.length;
+  const head = n === 0
+    ? `<div class="hint" style="color:var(--ok)"><b>Kayıtlı hata yok.</b><br>
+         Her başarısız sistem komutu buraya <b>komut + rc + ham çıktı + sebep + çözüm +
+         fonksiyon:satır</b> olarak düşer. Liste boşsa ya hiç hata olmadı ya da log kapalı
+         (Ayarlar → Günlük).</div>`
+    : `<div class="hint">${n} kayıt · en yeni üstte · dosya: <code>errors.log</code></div>`;
+  const list = OLAYLAR.map(d => `
+    <div class="card" style="border-left:4px solid ${olaySeviyeRenk(d.lv)};padding:10px 12px">
+      <div class="row" style="justify-content:space-between;margin-bottom:6px">
+        <b style="color:${olaySeviyeRenk(d.lv)}">${esc(d.lv)}</b>
+        <span style="opacity:.7;font-size:12px">${esc(d.t)}</span>
+      </div>
+      <div style="font-size:13px;line-height:1.6">
+        <div><b>Paket:</b> ${esc(d.pkg)}</div>
+        <div><b>Komut:</b> <code>${esc(d.cmd)}</code> <span style="opacity:.7">(rc=${esc(String(d.rc))})</span></div>
+        <div><b>Ham çıktı:</b> <code style="color:var(--bad)">${esc(d.out || "(boş)")}</code></div>
+        <div><b>Sebep:</b> ${esc(d.why)}</div>
+        <div><b>Çözüm:</b> ${esc(d.fix)}</div>
+        <div style="opacity:.7"><b>Suçlu (kod yeri):</b> <code>${esc(d.fn)}:${esc(String(d.ln))}</code>
+          ${d.note ? " · " + esc(d.note) : ""}</div>
+      </div>
+    </div>`).join("");
+  return `
+  <div class="card">
+    <h2>Olay günlüğü</h2>
+    ${head}
+    <div class="row" style="margin-top:10px">
+      <button data-act="olayYenile">Yenile</button>
+      <button class="ghost" data-act="crashRapor">Crash raporu</button>
+      <button class="ghost" data-act="olayKopyala">Raporu kopyala</button>
+      <button class="ghost" data-act="olayTemizle">Temizle</button>
+    </div>
+  </div>
+  ${list}`;
+}
+
 function viewCihaz(){
   /* v2.7: sayfa ASLA "—", "NaN °C", "?(API —)" gibi cop gostermez.
      Deger yoksa satir HIC cizilmez; hic deger yoksa uyari + tek dugme. */
@@ -1440,6 +1505,24 @@ document.addEventListener("click", ev=>{
    HİÇ kontrol etmiyordu: 3 kopyalama yolu da başarısız olsa bile hiçbir
    şey yapmıyordu. Artık sırayla denenir ve gerçekten olmadıysa metin
    ekranda açılır (elle seçip kopyalayabilirsin). */
+/* v2.23.3: panoya yazmayi dener, olmazsa metni ekranda acar */
+async function kopyalaVeyaGoster(baslik, metin){
+  try{
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      await navigator.clipboard.writeText(metin);
+      toast(baslik + " panoya kopyalandı");
+      return;
+    }
+  }catch(e){}
+  try{
+    const ta = document.createElement("textarea");
+    ta.value = metin; document.body.appendChild(ta); ta.select();
+    const ok = document.execCommand("copy");
+    document.body.removeChild(ta);
+    if(ok){ toast(baslik + " panoya kopyalandı"); return; }
+  }catch(e){}
+  copyMetinGoster(metin, baslik + " — panoya yazılamadı");
+}
 function copyMetinGoster(s, sebep){
   const host = $("sheetHost");
   if(host) host.innerHTML = `<div class="sheet" data-close="1"><div class="box">
@@ -1779,6 +1862,41 @@ async function appAction(cmd, pkg, label){
 }
 
 const ACT = {
+  /* v2.23.3 — OLAYLAR sekmesi eylemleri */
+  async olayYenile(){
+    OLAYLAR = [];
+    try{ OLAYLAR = olayParse(await out("olaylar")); }catch(e){ OLAYLAR = []; }
+    await render();
+    toast(OLAYLAR.length ? OLAYLAR.length + " kayıt" : "kayıt yok");
+  },
+  async crashRapor(){
+    busyStart("Crash raporu hazırlanıyor…");
+    let t = "";
+    try{ t = await out("crash-rapor"); }
+    catch(e){ t = String((e && e.message) || e); }
+    busyEnd();
+    /* Rapor metnini ekranda göster: kullanıcı panoya kopyalayıp gönderebilsin */
+    if(typeof kopyalaVeyaGoster === "function") return kopyalaVeyaGoster("Crash / tanı raporu", t);
+    toast(t.slice(0, 120));
+  },
+  async olayKopyala(){
+    const t = OLAYLAR.map(d =>
+      `[${d.t}] ${d.lv} pkg=${d.pkg}\n  cmd: ${d.cmd} (rc=${d.rc})\n  out: ${d.out}\n` +
+      `  sebep: ${d.why}\n  çözüm: ${d.fix}\n  yer: ${d.fn}:${d.ln}`
+    ).join("\n\n") || "(kayıt yok)";
+    if(typeof kopyalaVeyaGoster === "function") return kopyalaVeyaGoster("Olay raporu", t);
+    toast("kopyalanacak kayıt yok");
+  },
+  async olayTemizle(){
+    const ok = await askConfirm("Olay kayıtları silinsin mi?",
+                                "Tüm hata/olay kayıtları kalıcı olarak silinecek.", "Sil");
+    if(!ok) return;
+    try{ await out("olay-temizle"); }catch(e){}
+    OLAYLAR = [];
+    try{ await loadStatus(); }catch(e){}
+    await render();
+    toast("olay kayıtları silindi");
+  },
   /* v2.12: MIUI kurallarini yeniden baslatmadan okut */
   async rulesReload(){
     busyStart("MIUI kuralları yeniden yükleniyor…");

@@ -64,6 +64,11 @@ device_config(){ command device_config "$@" </dev/null; }
 FL_DIR=/data/adb/force_landscape
 FL_CFG=$FL_DIR/config.conf
 FL_LOG=$FL_DIR/landscape.log
+FL_EVT=$FL_DIR/events.log          # her komut denemesi (JSON satiri)
+FL_ERR=$FL_DIR/errors.log          # yalnizca BASARISIZ olaylar (JSON satiri)
+FL_CRASH=$FL_DIR/crashes.log
+FL_ARGV=${FL_ARGV:-$0 $*}
+FL_SELF=${FL_SELF:-/data/adb/modules/force_landscape_all/landscape.sh}       # yakalanmamis hata / beklenmedik cikis
 FL_DEFAULT_CFG=/data/adb/modules/force_landscape_all/config.default.conf
 FL_DONE=$FL_DIR/compat_applied.txt
 FL_QUEUE=$FL_DIR/compat_queue.txt
@@ -94,7 +99,7 @@ FL_APPMODE_ST=$FL_DIR/appmode_state.txt   # pkg<TAB>ok|fail<TAB>yontem (v2.7)
 # Bu yuzden "ekrana yay" yapilsa bile oyun ortada kaliyordu. Asagidaki
 # prop false yapilinca MIUI gommesi tamamen kapanir.
 FL_MIUI_EMB_PROP=ro.config.miui_activity_embedding_enable
-FL_MODVER=v2.23.2
+FL_MODVER=v2.23.3
 FL_TAB=$(printf '\t')            # gercek sekme karakteri (IFS icin)
 
 PATH=/system/bin:/system/xbin:/sbin:/data/adb/ksu/bin:$PATH
@@ -169,9 +174,11 @@ FL_TIMEOUT=$(command -v timeout 2>/dev/null)
 
 # Komut gercekten var mi? (yoksa 1)
 fl_have() { command -v "$1" >/dev/null 2>&1 ; }
+    FL_CTX=fl_have; FL_LINE=${LINENO:-0}
 
 # "$1" argumanlarinda selinux arac gerekiyor mu -> sessizce devam
 fl_is_root() { [ "$(id -u 2>/dev/null)" = "0" ] ; }
+    FL_CTX=fl_is_root; FL_LINE=${LINENO:-0}
 
 # ---- v2.23: IZIN/SAHIP DUZELTME — SONUCU BILDIRIR -------------------
 # Eski hata: chown/chmod basarisiz olsa da modul "yazdim" diyordu; MIUI
@@ -179,6 +186,7 @@ fl_is_root() { [ "$(id -u 2>/dev/null)" = "0" ] ; }
 # olculur ve tek satir kanit doner:  "ok|izin=660|sahip=1000:1000|selinux=..."
 #                                                  ^ satir = hala YANLIS
 fl_perm_strict() {   # $1 dosya -> "ok|<izin>|<sahip>|<selinux>" | "hata|<sebep>"
+    FL_CTX=fl_perm_strict; FL_LINE=${LINENO:-0}
     _psf=$1
     [ -f "$_psf" ] || { echo "hata|dosya-yok"; return 1; }
     _sebep=""
@@ -209,11 +217,13 @@ fl_perm_strict() {   # $1 dosya -> "ok|<izin>|<sahip>|<selinux>" | "hata|<sebep>
 }
 
 fl_count() {   # $1 = dosya -> satir sayisi (dosya yoksa 0)
+    FL_CTX=fl_count; FL_LINE=${LINENO:-0}
     _c=$(grep -c . "$1" 2>/dev/null)
     echo "${_c:-0}"
 }
 
 fl_prepare() {
+    FL_CTX=fl_prepare; FL_LINE=${LINENO:-0}
     # v2.23: fonksiyon HER ZAMAN 0 doner. Eskiden son komutun kodu
     # (orn. `rm` veya `[ -f ]`) disariya siziyordu; bunu `. landscape.sh`
     # ile alan betikler sessizce oluyordu (sahada: "webui hic cevap yok").
@@ -235,7 +245,7 @@ fl_prepare() {
     # v2.23: onceki surumlerden kalan bozuk paket satirlarini temizle
     # ("0" gibi). Sessizce yapilir; boylece eski kurulumlar da duzelir.
     fl_lists_clean
-    # v2.23.2: yon secimleri kaybolmasin (yedekten ya da kural dosyasindan)
+    # v2.23.3: yon secimleri kaybolmasin (yedekten ya da kural dosyasindan)
     fl_yon_restore
     if [ "$LOG" = "1" ] && ( : >> "$FL_LOG" ) 2>/dev/null; then
         FL_LOG_OK=1
@@ -251,6 +261,7 @@ fl_prepare() {
 #     yeni varsayilana cekilir (v1.5'te bu anahtar hicbir sey yapmiyordu),
 #  3) dosyaya surum isareti yazilir (bir daha dokunulmaz).
 fl_config_migrate() {
+    FL_CTX=fl_config_migrate; FL_LINE=${LINENO:-0}
     [ -f "$FL_CFG" ] || return 0
     [ -f "$FL_DEFAULT_CFG" ] || return 0
     _tmp=$FL_DIR/.cfg.new
@@ -318,8 +329,151 @@ fl_log() {
     ) 2>/dev/null
 }
 
+# ============================================================
+# v2.23.3 — OLAY GUNLUGU (forensic log)
+# Amac: "bir sey ters gitti" cumlesini YASAK etmek. Her basarisiz
+# islem su 9 alanla yazilir, eksik alan "?" ile isaretlenir:
+#   t  : zaman (ms)
+#   lv : ERROR | WARN | DENY
+#   fn : hatanin olustugu FONKSIYON (fl_shoot kendini yakalar)
+#   ln : landscape.sh icindeki SATIR numarasi
+#   pkg: ilgili paket (yoksa "-")
+#   cmd: calistirilan TAM komut + argumanlari
+#   rc : cikis kodu
+#   out: komutun ham ciktisi (kirpilmis)
+#   why: SEBEP tahmini (matcher tablosu)
+#   fix: NE YAPMALI (ayni tablodan)
+# JSON satir formati -> `jq -c .` ile dogrudan islenebilir.
+# ============================================================
+fl_json_esc() {   # $1 metin -> JSON string ici icin kacisli
+    printf '%s' "$1" | tr -d '\000-\010\013\014\016-\037' \
+        | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' -e 's/\t/\\t/g' | tr '\n' ' '
+}
+
+fl_shoot() {   # kendini yakalayan cagiran: su an calisan fonksiyon + satir
+    # POSIX sh'de otomatik yigin yok -> /proc/self/... yerine $0 + LINENO
+    # kullanilir. Bash'te FUNCNAME/BASH_LINENO varsa onlar (daha kesin).
+    _sh_fn="${FL_CTX:-main}"
+    _sh_ln="${FL_LINE:-0}"
+    # mksh/POSIX sh'de LINENO yok (Android'de /system/bin/sh = mksh).
+    # O zaman fonksiyonun TANIM satirini betigin kendisinden buluruz:
+    # "fl_am_cmd" -> landscape.sh:1143. Bu, cagri satiri olmasa da
+    # gelistiricinin kodu bulmasi icin yeterli ve her zaman dogru.
+    case "$_sh_ln" in ''|0)
+        _sh_ln=$(awk -v f="$_sh_fn" '$0 == f "() {" || $0 ~ ("^" f "\\(\\) \\{") { print NR; exit }' "$FL_SELF" 2>/dev/null)
+        [ -n "$_sh_ln" ] || _sh_ln=0 ;;
+    esac
+    printf '%s|%s\n' "$_sh_fn" "$_sh_ln"
+}
+
+fl_why() {   # $1 komut  $2 cikti  $3 rc -> "sebep<TAB>cozum"
+    _wy_o=$(printf '%s' "$2" | tr 'A-Z' 'a-z')
+    case "$_wy_o" in
+        *"bad change id"*|*"invalid change id"*)
+            printf '%s\t%s\n' "PlatformCompat bu change-id'yi tanimiyor (ROM surumu farkli ya da id haritasi degismis)" \
+                "FL_ID_GATE / FL_ID_LARGE / FL_ID_PONLY degerlerini config.conf'a yaz; Tani > compat_testi satirina bak" ;;
+        *"unknown option"*|*"unrecognized"*|*"unknown argument"*)
+            printf '%s\t%s\n' "Bu ROM o komutun bu parametresini desteklemiyor (surum farki)" \
+                "Modul yedek yolu denemeli; Tani raporundaki satiri kontrol et" ;;
+        *"unknown command"*|*"not found"*|*"no such"*)
+            printf '%s\t%s\n' "Komut/arac cihazda yok (PATH veya ROM kisitlamasi)" \
+                "which <komut> ile dogrula; KSU/Magisk root kabugu aktif mi bak" ;;
+        *"permission denied"*|*"operation not permitted"*|*"not allowed"*)
+            printf '%s\t%s\n' "SELinux veya izin engeli (root baglami yanlis)" \
+                "getenforce ve ls -Z <dosya> ile baglami kontrol et; service.sh icindeki restorecon satiri" ;;
+        *"read-only file system"*|*"no space left"*)
+            printf '%s\t%s\n' "Dosya sistemi salt-okunur veya disk dolu" \
+                "df -h /data ve mount | grep ' /data ' ile kontrol et" ;;
+        *"failure"*|*"failed"*|*"error"*|*"exception"*)
+            printf '%s\t%s\n' "Sistem komutu hatayi acikca dondurdu" \
+                "Ayni komutu kabukta elle calistir, ham ciktiyi karsilastir" ;;
+        "") if [ "${3:-0}" = "0" ]; then
+                printf '%s\t%s\n' "Komut ne cikti verdi ne hata dondurdu (sessiz yutma / arac yok)" \
+                    "Aracin gercekten calistigini 'which <arac>' ile dogrula; ROM komutu desteklemiyor olabilir"
+            else
+                printf '%s\t%s\n' "Komut cikti vermeden basarisiz oldu (rc!=0)" \
+                    "Ayni komutu elle calistir; ayrica modul logunda onceki satirlara bak"
+            fi ;;
+        *)  printf '%s\t%s\n' "Beklenmeyen cikti (matcher tablosunda eslesme yok)" \
+                "Ham cikti kayitli; Tani > rapor ile gelistiriciye ilet" ;;
+    esac
+}
+
+fl_evt() {   # $1 seviye(ERROR|WARN|DENY) $2 komut $3 rc $4 cikti $5 paket $6 ek-not
+    [ "$LOG" = "1" ] || return 0
+    _ev_ctx=$(fl_shoot)
+    _ev_fn=$(printf '%s' "$_ev_ctx" | cut -d'|' -f1)
+    _ev_ln=$(printf '%s' "$_ev_ctx" | cut -d'|' -f2)
+    _ev_w=$(fl_why "$2" "$4" "$3")
+    _ev_why=$(printf '%s' "$_ev_w" | cut -f1)
+    _ev_fix=$(printf '%s' "$_ev_w" | cut -f2)
+    [ -n "$5" ] || set -- "$1" "$2" "$3" "$4" "-" "$6"
+    _ev_line=$(printf '{"t":"%s.%03d","lv":"%s","fn":"%s","ln":%s,"pkg":"%s","cmd":"%s","rc":%s,"out":"%s","why":"%s","fix":"%s","note":"%s","ver":"%s"}' \
+        "$(date '+%Y-%m-%dT%H:%M:%S')" "$(( $(date +%N 2>/dev/null | cut -c1-3 | sed 's/^0*//' || echo 0) + 0 ))" \
+        "$1" "$(fl_json_esc "$_ev_fn")" "${_ev_ln:-0}" "$(fl_json_esc "$5")" \
+        "$(fl_json_esc "$2")" "${3:-0}" "$(fl_json_esc "$(printf '%s' "$4" | cut -c1-400)")" \
+        "$(fl_json_esc "$_ev_why")" "$(fl_json_esc "$_ev_fix")" \
+        "$(fl_json_esc "${6:-}")" "$FL_MODVER")
+    printf '%s\n' "$_ev_line" >> "$FL_EVT" 2>/dev/null
+    case "$1" in ERROR|DENY) printf '%s\n' "$_ev_line" >> "$FL_ERR" 2>/dev/null ;; esac
+    # v2.23.3: rc=0 olsa da ciktida hata kaliplari varsa WARN'a yukselt.
+    # ("komut basarili gorunuyor ama sistem reddetmis" sessiz hatasi)
+    if [ "${3:-0}" = "0" ]; then
+        case "$(printf '%s' "$4" | tr 'A-Z' 'a-z')" in
+            *error*|*failed*|*failure*|*denied*|*"not allowed"*|*unknown*)
+                [ "$1" = "WARN" ] || fl_log "!! SUPHELI rc=0 ama ciktida hata var: $2 -> $4" ;;
+        esac
+    fi
+    # insan-okur ozet de ana loga duser (mevcut davranis bozulmasin)
+    fl_log "!! $1 [$5] $2 -> rc=$3 | SEBEP: $_ev_why | COZUM: $_ev_fix | @${_ev_fn}:${_ev_ln}"
+    # aninda gorunurluk: WebUI'nin okudugu son-hata dosyasi
+    printf '%s|%s|%s|%s|%s\n' "$(date '+%H:%M:%S')" "$1" "$5" "$_ev_why" "$_ev_fix" > "$FL_DIR/son_hata.txt" 2>/dev/null
+    chmod 0644 "$FL_EVT" "$FL_ERR" "$FL_DIR/son_hata.txt" 2>/dev/null
+    return 0
+}
+
+# ---------- cokme tuzagi: beklenmedik cikis / sinyal ----------
+fl_traceback() {
+    # mksh/POSIX'te gercek yigin yok; elimizde olani yazariz:
+    # son calisan baglam (FL_CTX/FL_LINE) + cagiran betik + son 20 log satiri
+    printf 'son-baglam: %s:%s | betik: %s | pid: %s\n' "${FL_CTX:-?}" "${FL_LINE:-0}" "$FL_SELF" "$$"
+}
+
+fl_crash() {   # $1 = sinyal/exit nedeni
+    _cr_rc=$?
+    [ "$LOG" = "1" ] || return 0
+    # basarili cikis (rc=0) cokme degildir
+    [ "$1" = "EXIT" ] && [ "$_cr_rc" = "0" ] && return 0
+    [ "$FL_OK_EXIT" = "1" ] && return 0
+    {
+        printf '=== COKME %s === rc=%s ver=%s\n' "$1" "$_cr_rc" "$FL_MODVER"
+        printf 'zaman: %s\n' "$(date '+%Y-%m-%d %H:%M:%S')"
+        printf 'cihaz: %s (%s) sdk=%s\n' "$(getprop ro.product.model 2>/dev/null)" "$(getprop ro.product.device 2>/dev/null)" "$(getprop ro.build.version.sdk 2>/dev/null)"
+        printf 'root: id=%s selinux=%s\n' "$(id -u 2>/dev/null)" "$(getenforce 2>/dev/null)"
+        printf 'argv: %s\n' "${FL_ARGV:-$0}"
+        fl_traceback
+        printf -- '--- son log satirlari ---\n'
+        tail -n 20 "$FL_LOG" 2>/dev/null
+        printf -- '--- son olay satirlari ---\n'
+        tail -n 5 "$FL_ERR" 2>/dev/null
+        printf -- '--- ortam ---\n'
+        printf 'FREE=%s DIR=%s\n' "$(df -h /data 2>/dev/null | tail -1)" "$(ls -la "$FL_DIR" 2>/dev/null | head -20)"
+        printf '=== COKME SONU ===\n\n'
+    } >> "$FL_CRASH" 2>/dev/null
+    chmod 0644 "$FL_CRASH" 2>/dev/null
+    # insan-okur kopya ana loga
+    fl_log "!! COKME $1 rc=$_cr_rc (ayrinti: crashes.log)"
+    return 0
+}
+
+fl_die() {   # $1 mesaj  $2 cozum  -> olumcul; loglar ve cikar
+    fl_evt ERROR "${FL_CTX:-?}" 1 "$1" "${FL_CTX_PKG:--}" "${2:-}"
+    exit 1
+}
+
 # ---------- komut calistirici: rc + hata ciktisi loga ---------
 fl_run() {
+    FL_CTX=fl_run; FL_LINE=${LINENO:-0}
     if [ "$DRY_RUN" = "true" ]; then
         fl_log "   (deneme) $*"
         return 0
@@ -330,16 +484,22 @@ fl_run() {
         _o=$("$@" 2>&1); _r=$?
     fi
     _o=$(printf '%s' "$_o" | tr '\n' ' ')
+    FL_LINE="${FL_LINE:-0}"
     if [ -n "$_o" ]; then
         fl_log "   \$ $* -> rc=$_r | $_o"
     else
         fl_log "   \$ $* -> rc=$_r"
+    fi
+    # v2.23.3: basarisiz komut ARTIK SESSIZ KALMAZ -> ayrintili olay kaydi
+    if [ "$_r" != "0" ]; then
+        fl_evt ERROR "$*" "$_r" "$_o" "${FL_CTX_PKG:--}"
     fi
     return "$_r"
 }
 
 # ---------- ekran durumu okuma -------------------------------
 fl_cur_size() {
+    FL_CTX=fl_cur_size; FL_LINE=${LINENO:-0}
     _c=$(dumpsys window displays 2>/dev/null | tr '\n' ' ' \
          | grep -o 'cur=[0-9][0-9]*x[0-9][0-9]*' | head -n 1)
     [ -n "$_c" ] || return 1
@@ -348,6 +508,7 @@ fl_cur_size() {
 
 # 0 = yatay, 1 = dikey, 2 = okunamadi
 fl_is_landscape() {
+    FL_CTX=fl_is_landscape; FL_LINE=${LINENO:-0}
     _cs=$(fl_cur_size) || return 2
     _cw=${_cs%x*}
     _ch=${_cs#*x}
@@ -360,6 +521,7 @@ fl_is_landscape() {
 }
 
 fl_detect_landscape() {
+    FL_CTX=fl_detect_landscape; FL_LINE=${LINENO:-0}
     _ps=$(wm size 2>/dev/null | sed -n 's/.*Physical size: *//p' | head -n 1)
     _w=${_ps%x*}
     _h=${_ps#*x}
@@ -370,6 +532,7 @@ fl_detect_landscape() {
 
 # ---------- bekleme ------------------------------------------
 fl_wait_boot() {
+    FL_CTX=fl_wait_boot; FL_LINE=${LINENO:-0}
     _i=0
     while [ "$(getprop sys.boot_completed 2>/dev/null)" != "1" ]; do
         sleep 2
@@ -380,6 +543,7 @@ fl_wait_boot() {
 }
 
 fl_wait_wm() {
+    FL_CTX=fl_wait_wm; FL_LINE=${LINENO:-0}
     _i=0
     while [ "$_i" -lt 20 ]; do
         [ -n "$(wm size 2>/dev/null)" ] && return 0
@@ -391,6 +555,7 @@ fl_wait_wm() {
 }
 
 fl_wait_stable() {
+    FL_CTX=fl_wait_stable; FL_LINE=${LINENO:-0}
     # system_server kararli mi? (boot sirasinda cokme dongusu olursa
     # agir isleri erteleyelim - sahadaki logda 22 saniyede 4 system_server
     # baslatildi). Kararliysa 0 doner.
@@ -408,11 +573,12 @@ fl_wait_stable() {
 }
 
 # ---------- mod 1: sensor (tercih edilen) --------------------
-# v2.23.2 DUZELTME (gercek Android 13 sozdizimi): "fixed-to-user-rotation"
+# v2.23.3 DUZELTME (gercek Android 13 sozdizimi): "fixed-to-user-rotation"
 # yalnizca enabled|disabled kabul eder. Eski kod "default" yaziyordu ->
 # cihazda "Error: bad value: default" alinip HICBIR SEY yapilmiyordu,
 # yani "sensör" modu ve "kapali" modu kullanici kilidi birakiyordu.
 fl_sensor_mode() {
+    FL_CTX=fl_sensor_mode; FL_LINE=${LINENO:-0}
     fl_log "mod=SENSOR: uygulama kilidi yok sayilir + sensor serbest"
     fl_run wm fixed-to-user-rotation -d 0 disabled
     fl_run settings put system accelerometer_rotation 1
@@ -425,6 +591,7 @@ fl_sensor_mode() {
 # Eskiden ROTATION_MODE=off fl_apply'da "*) -> lock" dalina dusuyordu:
 # kullanici WebUI'dan kapatiyor, yeniden basinca ekran yataya KILITLENIYORDU.
 fl_off_mode() {
+    FL_CTX=fl_off_mode; FL_LINE=${LINENO:-0}
     fl_log "mod=KAPALI: ignore-orientation kapatiliyor, sensor serbest"
     for _od in $DISPLAYS; do
         fl_run wm set-ignore-orientation-request -d "$_od" false
@@ -436,6 +603,7 @@ fl_off_mode() {
 
 # ---------- mod 2: kilit (garantili, sensor kapali) ----------
 fl_lock_landscape() {
+    FL_CTX=fl_lock_landscape; FL_LINE=${LINENO:-0}
     fl_log "mod=KILIT: ekran $ROTATION acisina kilitleniyor (uygulama istekleri yok sayilir)"
     fl_run wm fixed-to-user-rotation -d 0 enabled
     fl_run wm user-rotation lock "$ROTATION"
@@ -485,6 +653,7 @@ FL_BUILTIN_SKIP="com.supercell.clashroyale com.supercell.clashofclans com.superc
 
 # sistem/hariç paketler (config: COMPAT_EXCLUDE)
 fl_pkg_excluded() {
+    FL_CTX=fl_pkg_excluded; FL_LINE=${LINENO:-0}
     case " $COMPAT_EXCLUDE " in
         *" $1 "*) return 0 ;;
     esac
@@ -493,6 +662,7 @@ fl_pkg_excluded() {
 
 # yerleşik "yatay calisir" oyun/video listesi (zorla denmedikce atlanir)
 fl_builtin_skip() {
+    FL_CTX=fl_builtin_skip; FL_LINE=${LINENO:-0}
     case " $FL_BUILTIN_SKIP " in
         *" $1 "*) return 0 ;;
     esac
@@ -501,6 +671,7 @@ fl_builtin_skip() {
 
 # ---------- elle secim listeleri (v2.0) ----------
 fl_list_has() {
+    FL_CTX=fl_list_has; FL_LINE=${LINENO:-0}
     [ -f "$1" ] || return 1
     grep -qx "$2" "$1" 2>/dev/null
 }
@@ -509,6 +680,7 @@ fl_list_has() {
 # "0" gibi cop degerler listeden listeye dolasip "force-apply(miui): 0"
 # gibi anlamsiz islemlere ve kalici kirlilige yol aciyordu.
 fl_pkg_sane() {
+    FL_CTX=fl_pkg_sane; FL_LINE=${LINENO:-0}
     case "$1" in
         ''|*[!a-zA-Z0-9_.]*) return 1 ;;
         [0-9]*) return 1 ;;
@@ -518,6 +690,7 @@ fl_pkg_sane() {
 
 # v2.23: kayitli listelerdeki anlamsiz satirlari at (bir kez, aciliste).
 fl_lists_clean() {
+    FL_CTX=fl_lists_clean; FL_LINE=${LINENO:-0}
     for _lc_f in "$FL_FORCE" "$FL_NEVER" "$FL_APPMODE" "$FL_MB_LIST" "$FL_ORIENT_LIST"; do
         [ -f "$_lc_f" ] || continue
         awk -F'\t' '{
@@ -539,6 +712,7 @@ fl_lists_clean() {
 # yazmak kural dosyasini kirletiyor ve arayuzde hayalet kayit birakiyordu.
 # 0 = kurulu | 1 = kurulu degil | 2 = bilinmiyor (pm cevap vermedi; ENGELLEME)
 fl_pkg_installed() {
+    FL_CTX=fl_pkg_installed; FL_LINE=${LINENO:-0}
     [ -n "$1" ] || return 1
     _pi_l=$(pm list packages 2>/dev/null | sed 's/^package://')
     if [ -n "$_pi_l" ]; then
@@ -552,6 +726,7 @@ fl_pkg_installed() {
 }
 
 fl_list_add() {
+    FL_CTX=fl_list_add; FL_LINE=${LINENO:-0}
     [ -n "$2" ] || return 1
     touch "$1" 2>/dev/null
     fl_list_has "$1" "$2" && return 0
@@ -561,6 +736,7 @@ fl_list_add() {
 }
 
 fl_list_del() {
+    FL_CTX=fl_list_del; FL_LINE=${LINENO:-0}
     [ -f "$1" ] || return 0
     grep -vx "$2" "$1" > "$1.tmp" 2>/dev/null
     mv -f "$1.tmp" "$1" 2>/dev/null
@@ -571,6 +747,7 @@ fl_list_del() {
 # Tek karar noktasi: cikti "force" ya da "skip".
 # Sira: dokunma listesi > sistem hariç > zorla listesi > oyun listesi > mod
 fl_app_decision() {
+    FL_CTX=fl_app_decision; FL_LINE=${LINENO:-0}
     _ap=$1
     fl_in_never "$_ap" && { echo skip; return 0; }
     fl_pkg_excluded "$_ap" && { echo skip; return 0; }
@@ -589,6 +766,7 @@ fl_app_decision() {
 }
 
 fl_decision_why() {
+    FL_CTX=fl_decision_why; FL_LINE=${LINENO:-0}
     _ap=$1
     fl_in_never "$_ap" && { echo "dokunma-listesi"; return 0; }
     fl_pkg_excluded "$_ap" && { echo "sistem-haric"; return 0; }
@@ -611,6 +789,7 @@ fl_decision_why() {
 
 # ---------- yon ogrenme (dumpsys activity activities) --------
 fl_learn_orientation() {
+    FL_CTX=fl_learn_orientation; FL_LINE=${LINENO:-0}
     [ "$LEARN_ORIENTATION" = "true" ] || return 0
     dumpsys activity activities 2>/dev/null > "$FL_ACTDUMP"
     if [ ! -s "$FL_ACTDUMP" ]; then
@@ -662,8 +841,10 @@ fl_learn_orientation() {
 # v2.0: hiz. Yuzlerce paket icin her seferinde awk/grep acmamak uzere
 # listeler bir kez belleğe alinir (tek surec icinde).
 fl_maps_reset() { FL_MAPS_LOADED=""; FL_FORCE_MAP=""; FL_NEVER_MAP=""; FL_ORIENT_MAP=""; }
+    FL_CTX=fl_maps_reset; FL_LINE=${LINENO:-0}
 
 fl_maps_load() {
+    FL_CTX=fl_maps_load; FL_LINE=${LINENO:-0}
     [ "$FL_MAPS_LOADED" = "1" ] && return 0
     FL_MAPS_LOADED=1
     if [ -f "$FL_FORCE" ]; then FL_FORCE_MAP=" $(tr '\n' ' ' < "$FL_FORCE") "; else FL_FORCE_MAP=" "; fi
@@ -679,9 +860,12 @@ fl_maps_load() {
 }
 
 fl_in_force() { fl_maps_load; case "$FL_FORCE_MAP" in *" $1 "*) return 0 ;; esac; return 1; }
+    FL_CTX=fl_in_force; FL_LINE=${LINENO:-0}
 fl_in_never() { fl_maps_load; case "$FL_NEVER_MAP" in *" $1 "*) return 0 ;; esac; return 1; }
+    FL_CTX=fl_in_never; FL_LINE=${LINENO:-0}
 
 fl_orient_class() {
+    FL_CTX=fl_orient_class; FL_LINE=${LINENO:-0}
     fl_maps_load
     case "$FL_ORIENT_MAP" in
         *" $1:landscape "*) echo landscape; return ;;
@@ -700,6 +884,7 @@ fl_orient_class() {
 # fl_decide <paket> -> FLD (force|skip), FLDW (gerekce), FLOC (yon)
 # Alt kabuk (subshell) YOK: sadece case/pattern -> paket basina 0 fork.
 fl_decide() {
+    FL_CTX=fl_decide; FL_LINE=${LINENO:-0}
     _dp=$1
     fl_maps_load
     FLOC=unknown
@@ -729,11 +914,13 @@ fl_decide() {
 
 # ---------- v2.3: paket ust verisi + cihaz bilgisi ----------
 fl_file_tail() {   # $1 dosya  $2 satir  -> son N satir (tail komutuna bagimli degil)
+    FL_CTX=fl_file_tail; FL_LINE=${LINENO:-0}
     [ -f "$1" ] || { echo "(dosya yok: $1)"; return 0; }
     awk -v n="${2:-200}" '{ a[NR]=$0 } END { s=NR-n+1; if (s<1) s=1; for (i=s;i<=NR;i++) print a[i] }' "$1" 2>/dev/null
 }
 
 fl_log_tail() {   # $1 satir : modul logu (tum kusaklar, eskiden yeniye)
+    FL_CTX=fl_log_tail; FL_LINE=${LINENO:-0}
     _ln=${1:-200}
     if [ ! -f "$FL_LOG" ] && [ ! -f "$FL_LOG.1" ]; then
         echo "(log dosyasi yok: $FL_LOG)"
@@ -749,6 +936,7 @@ fl_log_tail() {   # $1 satir : modul logu (tum kusaklar, eskiden yeniye)
 }
 
 fl_perms_fix() {   # WebUI'nin okuyabilmesi icin durum dosyalarini 0644 yap
+    FL_CTX=fl_perms_fix; FL_LINE=${LINENO:-0}
     chmod 0755 "$FL_DIR" 2>/dev/null
     for _pf in "$FL_DIR"/*.txt "$FL_DIR"/config.conf "$FL_LOG"; do
         [ -f "$_pf" ] && chmod 0644 "$_pf" 2>/dev/null
@@ -757,6 +945,7 @@ fl_perms_fix() {   # WebUI'nin okuyabilmesi icin durum dosyalarini 0644 yap
 }
 
 fl_pkg_meta_build() {   # tek dumpsys cagrisi -> tum paketlerin surum/boyut bilgisi
+    FL_CTX=fl_pkg_meta_build; FL_LINE=${LINENO:-0}
     _d=$(dumpsys package packages 2>/dev/null)
     [ -n "$_d" ] || return 1
     printf '%s\n' "$_d" | awk '
@@ -786,11 +975,13 @@ fl_pkg_meta_build() {   # tek dumpsys cagrisi -> tum paketlerin surum/boyut bilg
 }
 
 fl_meta_get() {   # $1 = paket  -> alanlar (bos ise hepsi "-")
+    FL_CTX=fl_meta_get; FL_LINE=${LINENO:-0}
     _mg=$(awk -F'\t' -v p="$1" '$1==p { print $2"\t"$3"\t"$4"\t"$5"\t"$6"\t"$7; exit }' "$FL_META" 2>/dev/null)
     [ -n "$_mg" ] && echo "$_mg" || printf -- "-\t-\t-\t-\t-\t-\n"
 }
 
 fl_apk_size() {   # $1 = yol (dosya YA DA dizin) -> bayt (yoksa 0)
+    FL_CTX=fl_apk_size; FL_LINE=${LINENO:-0}
     if [ -f "$1" ]; then
         _b=$(wc -c < "$1" 2>/dev/null | tr -d ' ')
         case "$_b" in ''|*[!0-9]*) echo 0 ;; *) echo "$_b" ;; esac
@@ -804,12 +995,14 @@ fl_apk_size() {   # $1 = yol (dosya YA DA dizin) -> bayt (yoksa 0)
 }
 
 fl_app_label_guess() {   # paket adindan okunabilir ad (WebUI yoksa yedek)
+    FL_CTX=fl_app_label_guess; FL_LINE=${LINENO:-0}
     _lp=$1
     _lp=${_lp##*.}
     echo "$_lp"
 }
 
 fl_sysinfo() {   # cihaz bilgisi (tek cagri ~0.7 s)
+    FL_CTX=fl_sysinfo; FL_LINE=${LINENO:-0}
     _g() { getprop "$1" 2>/dev/null; }
     _mt=$(awk '/^MemTotal:/{print $2}' /proc/meminfo 2>/dev/null)
     _ma=$(awk '/^MemAvailable:/{print $2}' /proc/meminfo 2>/dev/null)
@@ -871,6 +1064,7 @@ fl_sysinfo() {   # cihaz bilgisi (tek cagri ~0.7 s)
 }
 
 fl_appinfo() {   # $1 = paket -> ayrintili bilgi (tek paket, ~0.4 s)
+    FL_CTX=fl_appinfo; FL_LINE=${LINENO:-0}
     _ip=$1
     fl_maps_load
     fl_decide "$_ip"
@@ -913,6 +1107,7 @@ fl_appinfo() {   # $1 = paket -> ayrintili bilgi (tek paket, ~0.4 s)
 }
 
 fl_app_start() {   # uygulamayi ac (yeni yon ayari devreye girsin diye)
+    FL_CTX=fl_app_start; FL_LINE=${LINENO:-0}
     _sp=$1
     monkey -p "$_sp" -c android.intent.category.LAUNCHER 1 > /dev/null 2>&1 && return 0
     _sa=$(cmd package resolve-activity --brief "$_sp" 2>/dev/null | tail -n 1)
@@ -921,8 +1116,10 @@ fl_app_start() {   # uygulamayi ac (yeni yon ayari devreye girsin diye)
 }
 
 fl_app_stop() { am force-stop "$1" > /dev/null 2>&1; }
+    FL_CTX=fl_app_stop; FL_LINE=${LINENO:-0}
 
 fl_app_restart() {
+    FL_CTX=fl_app_restart; FL_LINE=${LINENO:-0}
     _rp=$1
     fl_app_stop "$_rp"
     sleep 1
@@ -930,6 +1127,7 @@ fl_app_restart() {
 }
 
 fl_apps_cache_build() {
+    FL_CTX=fl_apps_cache_build; FL_LINE=${LINENO:-0}
     # pkg  karar  uygulanmis  yon  neden  surum  boyut  hedefSdk  kurulum  ekranaYay (+ son satir #ts|)
     fl_appmode_map
     fl_compat_queue || return 1
@@ -966,6 +1164,7 @@ fl_apps_cache_build() {
 }
 
 fl_compat_status_get() {   # pkg -> ok|fail|-
+    FL_CTX=fl_compat_status_get; FL_LINE=${LINENO:-0}
     [ -f "$FL_CSTAT" ] || { echo "-"; return 0; }
     _v=$(awk -F'\t' -v p="$1" '$1 == p { print $2; exit }' "$FL_CSTAT" 2>/dev/null)
     [ -n "$_v" ] || _v="-"
@@ -973,6 +1172,7 @@ fl_compat_status_get() {   # pkg -> ok|fail|-
 }
 
 fl_cache_update_one() {   # tek paketin satirini onbellekte guncelle (10 sutun korunur)
+    FL_CTX=fl_cache_update_one; FL_LINE=${LINENO:-0}
     _p=$1
     [ -s "$FL_APPS" ] || return 0
     fl_appmode_map
@@ -1001,6 +1201,7 @@ fl_cache_update_one() {   # tek paketin satirini onbellekte guncelle (10 sutun k
 }
 
 fl_apps_cache_age() {
+    FL_CTX=fl_apps_cache_age; FL_LINE=${LINENO:-0}
     [ -s "$FL_APPS" ] || { echo 999999; return; }
     _t=$(sed -n 's/^#ts|//p' "$FL_APPS" 2>/dev/null | head -n 1)
     case "$_t" in ''|*[!0-9]*) echo 999999; return ;; esac
@@ -1008,6 +1209,7 @@ fl_apps_cache_age() {
 }
 
 fl_state_set() {  # anahtar deger  (state.txt icinde tek satir guncelle/ekle)
+    FL_CTX=fl_state_set; FL_LINE=${LINENO:-0}
     [ -f "$FL_STATE" ] || : > "$FL_STATE" 2>/dev/null
     [ -f "$FL_STATE" ] || return 0
     _k=$1; _v=$2
@@ -1020,16 +1222,19 @@ fl_state_set() {  # anahtar deger  (state.txt icinde tek satir guncelle/ekle)
 }
 
 fl_skip_add() {
+    FL_CTX=fl_skip_add; FL_LINE=${LINENO:-0}
     [ -f "$FL_SKIP" ] || : > "$FL_SKIP"
     grep -qx "$1" "$FL_SKIP" 2>/dev/null || echo "$1" >> "$FL_SKIP"
 }
 
 fl_skip_has() {
+    FL_CTX=fl_skip_has; FL_LINE=${LINENO:-0}
     [ -f "$FL_SKIP" ] || return 1
     grep -qx "$1" "$FL_SKIP" 2>/dev/null
 }
 
 fl_compat_queue() {
+    FL_CTX=fl_compat_queue; FL_LINE=${LINENO:-0}
     _tmp=$FL_DIR/.pkgs.new
     : > "$_tmp" 2>/dev/null
     # v2.4: "pm list packages -3" bazi ROM'larda bos donebiliyor
@@ -1053,11 +1258,13 @@ fl_compat_queue() {
 }
 
 fl_compat_count() {
+    FL_CTX=fl_compat_count; FL_LINE=${LINENO:-0}
     [ -f "$FL_DONE" ] || { echo 0; return; }
     grep -c . "$FL_DONE" 2>/dev/null | head -n 1
 }
 
 fl_compat_skipped() {
+    FL_CTX=fl_compat_skipped; FL_LINE=${LINENO:-0}
     [ -f "$FL_SKIP" ] || { echo 0; return; }
     grep -c . "$FL_SKIP" 2>/dev/null | head -n 1
 }
@@ -1065,6 +1272,7 @@ fl_compat_skipped() {
 # v2.0: hedef listesi (compat_targets.txt) uzerinden "kalan" hesabi.
 # Hedefler her turda fl_compat_targets ile yeniden uretilir.
 fl_compat_targets() {
+    FL_CTX=fl_compat_targets; FL_LINE=${LINENO:-0}
     : > "$FL_TARGETS" 2>/dev/null
     [ -f "$FL_QUEUE" ] || return 0
     for _tp in $(cat "$FL_QUEUE" 2>/dev/null); do
@@ -1075,6 +1283,7 @@ fl_compat_targets() {
 }
 
 fl_compat_left() {
+    FL_CTX=fl_compat_left; FL_LINE=${LINENO:-0}
     if [ -f "$FL_TARGETS" ]; then
         _l=$(awk 'NR==FNR { h[$0] = 1; next } NF && !($0 in h)' "$FL_DONE" "$FL_TARGETS" 2>/dev/null | grep -c .)
         echo "${_l:-0}"
@@ -1101,7 +1310,8 @@ fl_compat_left() {
 #   4) XML yedegi: post-fs-data.sh sonraki acilista yazar
 
 fl_get_ignore() {
-    # v2.23.2: `wm help` (Android 12L/13) bu komutu "[-d DISPLAY_ID]" ile
+    FL_CTX=fl_get_ignore; FL_LINE=${LINENO:-0}
+    # v2.23.3: `wm help` (Android 12L/13) bu komutu "[-d DISPLAY_ID]" ile
     # listeliyor -> -d 0 DOGRU. Yine de bazi ROM'lar/alt surumler kabul
     # etmiyor; o yuzden once -d 0, hata/boş donerse argumansiz denenir.
     # Tek bir okuma noktasi: 9 cagri ayni yerde duzeltilir.
@@ -1113,8 +1323,9 @@ fl_get_ignore() {
 }
 
 fl_compat_dump() {
+    FL_CTX=fl_compat_dump; FL_LINE=${LINENO:-0}
     # dumpsys platform_compat ciktisi turda bir kez alinir (yavas komut)
-    # v2.23.2 DUZELTME: eski onbellek "date +%s" ile 1 SANIYELIK penceredeydi.
+    # v2.23.3 DUZELTME: eski onbellek "date +%s" ile 1 SANIYELIK penceredeydi.
     # Ayni saniye icinde yapilan ikinci dogrulama ESKI ciktiya bakiyordu ->
     # "am compat enable" calismamis olsa bile "sistemde gorunuyor" deniyordu.
     # Artik onbellek yalnizca DOGRULAMA SIRASINDA (FL_CDUMP_FRESH=1) gecerli;
@@ -1128,9 +1339,10 @@ fl_compat_dump() {
 }
 
 fl_compat_verify() {
+    FL_CTX=fl_compat_verify; FL_LINE=${LINENO:-0}
     # $1 = paket  $2 = (ops.) change id — verilirse O ID icin aranir
     # 0 = sistemde gorunuyor, 1 = gorunmuyor, 2 = dogrulanamiyor (dumpsys yok)
-    # v2.23.2 DUZELTME: eski kod SADECE paket adini ariyordu. Paket dumpsys'te
+    # v2.23.3 DUZELTME: eski kod SADECE paket adini ariyordu. Paket dumpsys'te
     # bambaska bir degisiklik icin gorunuyorsa "dogrulandi" deniyordu (yanlis
     # pozitif). Artik istenirse change id eslesmesi de aranir.
     _vf_p=$1
@@ -1164,6 +1376,7 @@ fl_compat_verify() {
 }
 
 fl_compat_status_set() {   # pkg  ok|fail  yontem
+    FL_CTX=fl_compat_status_set; FL_LINE=${LINENO:-0}
     [ -f "$FL_CSTAT" ] || : > "$FL_CSTAT" 2>/dev/null
     _cs=$FL_CSTAT.tmp
     awk -F'\t' -v p="$1" 'NF && $1 != p' "$FL_CSTAT" 2>/dev/null > "$_cs"
@@ -1172,6 +1385,7 @@ fl_compat_status_set() {   # pkg  ok|fail  yontem
 }
 
 fl_compat_error_add() {   # $1 paket  $2 hata
+    FL_CTX=fl_compat_error_add; FL_LINE=${LINENO:-0}
     [ -f "$FL_CERR" ] || : > "$FL_CERR" 2>/dev/null
     # ayni hata metni tekrar tekrar yazilmasin (log sismesin)
     _msg=$(printf '%s' "$2" | tr -d '\n' | cut -c1-300)
@@ -1187,43 +1401,35 @@ fl_compat_error_add() {   # $1 paket  $2 hata
 }
 
 fl_compat_try() {
+    FL_CTX=fl_compat_try; FL_LINE=${LINENO:-0}
     # $1 = paket   $2 = dogrula (yes|no)
     # Cikti: "ok|<yontem>|" ya da "fail||<son hata>"
+    # v2.23.3: Bu fonksiyon kendi komut dongusunu calistiriyordu -> tum
+    # yontem denemeleri LOGSUZ yutuluyordu. Artik tek kaynak: fl_am_cmd
+    # (her deneme WARN, hepsi basarisizsa DENY olarak events.log'a duser).
     _cp=$1
     _cv=${2:-no}
-    _cerr=""
-    case "${FL_METHOD_START:-1}" in
-        2) _morder="2 3 1" ;;
-        3) _morder="3 2 1" ;;
-        *) _morder="1 2 3" ;;
-    esac
-    for _m in $_morder; do
-        case "$_m" in
-            1) _co=$(am compat enable --no-kill "$COMPAT_ID" "$_cp" 2>&1); _cm=am-nokill ;;
-            2) _co=$(am compat enable "$COMPAT_ID" "$_cp" 2>&1);           _cm=am-kalici ;;
-            3) _co=$(cmd platform_compat enable "$COMPAT_ID" "$_cp" 2>&1); _cm=platform-compat ;;
-        esac
-        case "$_co" in
-            *"Enabled change"*)
-                if [ "$_cv" = "yes" ]; then
-                    fl_compat_verify "$_cp" "$COMPAT_ID"; _vr=$?
-                    # 2 = dumpsys yok -> komutun cevabina guven
-                    if [ "$_vr" = "1" ]; then
-                        _cerr="[$_cm] komut basarili dedi ama dumpsys platform_compat'te yok"
-                        continue
-                    fi
-                fi
-                echo "ok|$_cm|"; return 0 ;;
-        esac
-        # bazi surumler sessiz basarili olur -> sistemden dogrula
-        fl_compat_verify "$_cp" "$COMPAT_ID" && { echo "ok|$_cm|"; return 0; }
-        _cerr="[$_cm] $_co"
-    done
-    echo "fail||$_cerr"
+    _ct_cmd="am compat enable $COMPAT_ID $_cp"
+    if _ct_m=$(fl_am_cmd enable "$COMPAT_ID" "$_cp"); then
+        if [ "$_cv" = "yes" ]; then
+            fl_compat_verify "$_cp" "$COMPAT_ID"; _vr=$?
+            case "$_vr" in
+                0) : ;;
+                2) fl_evt WARN "$_ct_cmd" 0 "dumpsys ciktisi yok" "$_cp" "dogrulama yapilamadi, komut cevabina guvenildi" ;;
+                *) # KOMUT YALAN SOYLEDI -> en onemli kayit
+                   fl_evt ERROR "$_ct_cmd" 1 "komut basarili dedi ama dumpsys platform_compat'te change $COMPAT_ID gorunmuyor" "$_cp" "yanlis-pozitif: override gercekte yazilmadi"
+                   echo "fail||dogrulanmadi"; return 1 ;;
+            esac
+        fi
+        echo "ok|$_ct_m|"; return 0
+    fi
+    _ct_e=$(cut -d'|' -f4 "$FL_DIR/son_hata.txt" 2>/dev/null)
+    echo "fail||${_ct_e:-tum yontemler basarisiz (events.log'a bak)}"
     return 1
 }
 
 fl_compat_one() {
+    FL_CTX=fl_compat_one; FL_LINE=${LINENO:-0}
     # $1 = paket   $2 = dogrula (yes|no)
     _cp=$1
     _cr=$(fl_compat_try "$_cp" "${2:-no}")
@@ -1243,11 +1449,13 @@ fl_compat_one() {
 }
 
 fl_compat_test_line() {
+    FL_CTX=fl_compat_test_line; FL_LINE=${LINENO:-0}
     [ -f "$FL_CTEST" ] || { echo "henuz test edilmedi"; return; }
     grep -m1 '^SONUC:' "$FL_CTEST" 2>/dev/null || head -n 1 "$FL_CTEST" 2>/dev/null
 }
 
 fl_compat_probe() {
+    FL_CTX=fl_compat_probe; FL_LINE=${LINENO:-0}
     # Kisa test: tek paket uzerinde mekanizmayi dener, FL_COMPAT_OK ayarlar.
     FL_COMPAT_OK=no
     [ -f "$FL_QUEUE" ] || return 1
@@ -1288,6 +1496,7 @@ fl_compat_probe() {
 # XML yedek yolu: post-fs-data.sh bir sonraki acilista bu dosyayi
 # /data/misc/appcompat/compat_framework_overrides.xml icine yazar.
 fl_xml_prepare() {
+    FL_CTX=fl_xml_prepare; FL_LINE=${LINENO:-0}
     case "$COMPAT_XML_FALLBACK" in
         off) rm -f "$FL_XMLFLAG" 2>/dev/null; return 0 ;;
         on)  : ;;
@@ -1306,6 +1515,7 @@ fl_xml_prepare() {
 }
 
 fl_compat_batch() {
+    FL_CTX=fl_compat_batch; FL_LINE=${LINENO:-0}
     FL_COMPAT_LAST=0
     FL_COMPAT_FAIL=0
     if [ "$COMPAT_FORCE_RESIZE" != "true" ] || [ "$COMPAT_MODE" = "off" ]; then
@@ -1449,6 +1659,7 @@ fl_compat_batch() {
 }
 
 fl_progress_write() {   # $1 durum  $2 islenen  $3 toplam  $4 kalan
+    FL_CTX=fl_progress_write; FL_LINE=${LINENO:-0}
     {
         echo "durum=$1"
         echo "islenen=$2"
@@ -1462,6 +1673,7 @@ fl_progress_write() {   # $1 durum  $2 islenen  $3 toplam  $4 kalan
 }
 
 fl_progress_read() {   # key|value satirlari
+    FL_CTX=fl_progress_read; FL_LINE=${LINENO:-0}
     [ -f "$FL_PROG" ] || { echo "durum|yok"; return 0; }
     while IFS='=' read -r _k _v; do
         [ -n "$_k" ] && echo "$_k|$_v"
@@ -1469,6 +1681,7 @@ fl_progress_read() {   # key|value satirlari
 }
 
 fl_compat_summary() {
+    FL_CTX=fl_compat_summary; FL_LINE=${LINENO:-0}
     # webui/action icin tek satirlik ozet
     _ok=0; _bad=0
     if [ -f "$FL_CSTAT" ]; then
@@ -1479,6 +1692,7 @@ fl_compat_summary() {
 }
 
 fl_compat_errors_tail() {  # $1 = satir sayisi
+    FL_CTX=fl_compat_errors_tail; FL_LINE=${LINENO:-0}
     [ -f "$FL_CERR" ] || return 0
     tail -n "${1:-5}" "$FL_CERR" 2>/dev/null
 }
@@ -1522,6 +1736,7 @@ FL_AM_LIST="OVERRIDE_MIN_ASPECT_RATIO OVERRIDE_MIN_ASPECT_RATIO_LARGE OVERRIDE_M
 # ============================================================
 
 fl_resetprop_bin() {
+    FL_CTX=fl_resetprop_bin; FL_LINE=${LINENO:-0}
     for _b in /data/adb/ksu/bin/resetprop /data/adb/magisk/resetprop \
               /data/adb/ap/bin/resetprop /system/bin/resetprop; do
         [ -x "$_b" ] && { echo "$_b"; return 0; }
@@ -1532,11 +1747,13 @@ fl_resetprop_bin() {
 }
 
 fl_miui_var() {   # 0 = MIUI, 1 = degil
+    FL_CTX=fl_miui_var; FL_LINE=${LINENO:-0}
     case "$(getprop ro.miui.ui.version.name 2>/dev/null)" in ''|unknown) return 1 ;; esac
     return 0
 }
 
 fl_miui_embed_state() {   # "acik" | "kapali" | "yok"
+    FL_CTX=fl_miui_embed_state; FL_LINE=${LINENO:-0}
     _v=$(getprop "$FL_MIUI_EMB_PROP" 2>/dev/null)
     case "$_v" in
         true|1)   echo "acik" ;;
@@ -1546,6 +1763,7 @@ fl_miui_embed_state() {   # "acik" | "kapali" | "yok"
 }
 
 fl_miui_engine_guard() {   # -> acik|kapaliydi-acildi|kapali-acilamadi|yok
+    FL_CTX=fl_miui_engine_guard; FL_LINE=${LINENO:-0}
     # v2.18: per-app MIUI kurallarini isleyen motorun acik oldugunu
     # dogrula; kapaliysa acmayi dene. v2.17 ve oncesi, acilis betigi
     # bu motoru varsayilan olarak kapattigi icin per-app kurallar
@@ -1566,6 +1784,7 @@ fl_miui_engine_guard() {   # -> acik|kapaliydi-acildi|kapali-acilamadi|yok
 }
 
 fl_miui_embed_set() {   # $1 = off|on  -> "ok|<yontem>" | "fail|<sebep>"
+    FL_CTX=fl_miui_embed_set; FL_LINE=${LINENO:-0}
     _want=false
     [ "$1" = "on" ] && _want=true
     _cur=$(getprop "$FL_MIUI_EMB_PROP" 2>/dev/null)
@@ -1625,6 +1844,7 @@ FL_EMB_CLOUD_PATHS="/data/system/cloudFeature_embedded_rules_list.xml"
 FL_MB_LIST="$FL_DIR/mailbox.txt"
 
 fl_first_file() {
+    FL_CTX=fl_first_file; FL_LINE=${LINENO:-0}
     for _ffp in "$@"; do
         [ -n "$_ffp" ] || continue
         if [ -f "$_ffp" ]; then printf '%s' "$_ffp"; return 0; fi
@@ -1632,11 +1852,16 @@ fl_first_file() {
     printf ''
 }
 fl_mb_rom()   { fl_first_file $FL_MB_ROM_PATHS ; }
+    FL_CTX=fl_mb_rom; FL_LINE=${LINENO:-0}
 fl_mb_cloud() { fl_first_file $FL_MB_CLOUD_PATHS ; }
+    FL_CTX=fl_mb_cloud; FL_LINE=${LINENO:-0}
 fl_emb_rom()  { fl_first_file $FL_EMB_ROM_PATHS ; }
+    FL_CTX=fl_emb_rom; FL_LINE=${LINENO:-0}
 fl_emb_cloud(){ fl_first_file $FL_EMB_CLOUD_PATHS ; }
+    FL_CTX=fl_emb_cloud; FL_LINE=${LINENO:-0}
 
 fl_moddir() {
+    FL_CTX=fl_moddir; FL_LINE=${LINENO:-0}
     if [ -n "${MODDIR:-}" ] && [ -d "$MODDIR" ]; then printf '%s' "$MODDIR"; return 0; fi
     if [ -d /data/adb/modules/force_landscape_all ]; then
         printf '%s' /data/adb/modules/force_landscape_all; return 0
@@ -1646,10 +1871,12 @@ fl_moddir() {
 # NOT: "/product/etc" dizesi BITISIK yazilmaz; test ortaminin yol donusumu
 # modul katmani yolunu bozmasin diye parcali kurulur.
 fl_emb_overlay() {
+    FL_CTX=fl_emb_overlay; FL_LINE=${LINENO:-0}
     printf '%s/system/%s/etc/embedded_rules_list.xml' "$(fl_moddir)" "product"
 }
 
 fl_pkg_line() {   # $1 dosya  $2 paket -> o paketin <package ... /> satiri
+    FL_CTX=fl_pkg_line; FL_LINE=${LINENO:-0}
     [ -f "$1" ] || return 0
     [ -n "$2" ] || return 0
     awk -v p="$2" '
@@ -1658,6 +1885,7 @@ fl_pkg_line() {   # $1 dosya  $2 paket -> o paketin <package ... /> satiri
 }
 
 fl_mb_state() {   # $1 paket -> yok | varsayilan | aktif | kapali
+    FL_CTX=fl_mb_state; FL_LINE=${LINENO:-0}
     _msf=$(fl_mb_cloud)
     [ -n "$_msf" ] || _msf=$(fl_mb_rom)
     [ -n "$_msf" ] || { echo "yok"; return; }
@@ -1674,6 +1902,7 @@ fl_mb_state() {   # $1 paket -> yok | varsayilan | aktif | kapali
 # ayni paketin eski satir(lar)ini at, yeni satiri son kapanis etiketinden
 # hemen once yaz. Sonra dosyadan geri okuyup DOGRULA.
 fl_xml_upsert() {   # $1 dosya $2 paket $3 yeni satir -> ok|<dosya> | fail|<sebep>
+    FL_CTX=fl_xml_upsert; FL_LINE=${LINENO:-0}
     _xu=$1; _xp=$2; _xl=$3
     [ -f "$_xu" ] || { echo "fail|dosya-yok"; return 1; }
     [ -w "$_xu" ] || chmod 0660 "$_xu" 2>/dev/null
@@ -1705,6 +1934,7 @@ fl_xml_upsert() {   # $1 dosya $2 paket $3 yeni satir -> ok|<dosya> | fail|<sebe
 }
 
 fl_xml_drop() {   # $1 dosya $2 paket -> 0 yazildi | 1 olmadi
+    FL_CTX=fl_xml_drop; FL_LINE=${LINENO:-0}
     _xd=$1; _xdp=$2
     [ -f "$_xd" ] || return 1
     [ -w "$_xd" ] || return 1
@@ -1718,6 +1948,7 @@ fl_xml_drop() {   # $1 dosya $2 paket -> 0 yazildi | 1 olmadi
 }
 
 fl_mb_ensure() {   # mailbox kural dosyasi (yoksa ROM kopyasindan olustur) -> yol | bos
+    FL_CTX=fl_mb_ensure; FL_LINE=${LINENO:-0}
     _me=$(fl_mb_cloud)
     [ -n "$_me" ] && { printf '%s' "$_me"; return 0; }
     _mer=$(fl_mb_rom)
@@ -1732,6 +1963,7 @@ fl_mb_ensure() {   # mailbox kural dosyasi (yoksa ROM kopyasindan olustur) -> yo
 }
 
 fl_mb_set() {   # $1 paket $2 true|false -> ok|<dosya> | fail|<sebep>
+    FL_CTX=fl_mb_set; FL_LINE=${LINENO:-0}
     _msf2=$(fl_mb_ensure)
     [ -n "$_msf2" ] || { echo "fail|kural-dosyasi-yok"; return 1; }
     _msr=$(fl_xml_upsert "$_msf2" "$1" "  <package name=\"$1\" disable=\"$2\" />")
@@ -1742,6 +1974,7 @@ fl_mb_set() {   # $1 paket $2 true|false -> ok|<dosya> | fail|<sebep>
 }
 
 fl_emb_write() {   # $1 paket -> ok|<yol>|hemen | ok|<yol>|yeniden-baslat | fail|<sebep>
+    FL_CTX=fl_emb_write; FL_LINE=${LINENO:-0}
     _ep=$1
     _eline="  <package name=\"$_ep\" fullRule=\"${FL_RULE_LANDSCAPE:-nra:cr:rcr:nr}\" />"
     for _et in "$(fl_emb_cloud)" "$(fl_emb_rom)"; do
@@ -1766,6 +1999,7 @@ fl_emb_write() {   # $1 paket -> ok|<yol>|hemen | ok|<yol>|yeniden-baslat | fail
 }
 
 fl_emb_state() {   # $1 paket -> yok | var|hemen | var|yeniden-baslat
+    FL_CTX=fl_emb_state; FL_LINE=${LINENO:-0}
     for _esd in "$(fl_emb_cloud)" "$(fl_emb_rom)"; do
         [ -n "$_esd" ] || continue
         [ -n "$(fl_pkg_line "$_esd" "$1")" ] && { echo "var|hemen"; return; }
@@ -1778,7 +2012,9 @@ fl_emb_state() {   # $1 paket -> yok | var|hemen | var|yeniden-baslat
 }
 
 fl_mb_save()   { fl_pkg_sane "$1" || return 1; fl_list_add "$FL_MB_LIST" "$1"; }
+    FL_CTX=fl_mb_save; FL_LINE=${LINENO:-0}
 fl_mb_unsave() { fl_list_del "$FL_MB_LIST" "$1"; }
+    FL_CTX=fl_mb_unsave; FL_LINE=${LINENO:-0}
 
 # ============================================================
 #  v2.23 — UYGULAMA BAZLI YON KILIDI  (dikey / yatay / serbest)
@@ -1803,30 +2039,34 @@ fl_mb_unsave() { fl_list_del "$FL_MB_LIST" "$1"; }
 #    yon=serbest -> iki dosyadan da bizim satirlarimiz SILINIR
 # ============================================================
 FL_ORIENT_LIST="$FL_DIR/yon.txt"      # pkg<TAB>dikey|yatay|serbest  (kalici secim)
-FL_ORIENT_BAK="$FL_DIR/yon.bak"       # v2.23.2: ikinci kopya (kendini onarma)
+FL_ORIENT_BAK="$FL_DIR/yon.bak"       # v2.23.3: ikinci kopya (kendini onarma)
 FL_RULE_PORTRAIT="nra:cr:rcr:nr"      # yatay kural (mevcut sabit)
 
 fl_mb_line_build() {   # $1 paket  $2 disable(true|false)  $3 allPortrait(true|false)
+    FL_CTX=fl_mb_line_build; FL_LINE=${LINENO:-0}
     printf '  <package name="%s" disable="%s" allPortrait="%s" isScale="false" relaunch="false" />' \
         "$1" "$2" "$3"
 }
 
 # yon listesi: pkg -> dikey|yatay|serbest
 fl_yon_get() {
+    FL_CTX=fl_yon_get; FL_LINE=${LINENO:-0}
     [ -f "$FL_ORIENT_LIST" ] || { echo ""; return; }
     awk -F'\t' -v p="$1" '$1==p { print $2; exit }' "$FL_ORIENT_LIST" 2>/dev/null
 }
 fl_yon_set() {   # $1 paket  $2 dikey|yatay|serbest
+    FL_CTX=fl_yon_set; FL_LINE=${LINENO:-0}
     [ -f "$FL_ORIENT_LIST" ] || : > "$FL_ORIENT_LIST" 2>/dev/null
     awk -F'\t' -v p="$1" '$1 != p' "$FL_ORIENT_LIST" 2>/dev/null > "$FL_ORIENT_LIST.t"
     printf '%s\t%s\n' "$1" "$2" >> "$FL_ORIENT_LIST.t"
     mv -f "$FL_ORIENT_LIST.t" "$FL_ORIENT_LIST" 2>/dev/null
     chmod 0644 "$FL_ORIENT_LIST" 2>/dev/null
-    cp -f "$FL_ORIENT_LIST" "$FL_ORIENT_BAK" 2>/dev/null   # v2.23.2 ikinci kopya
+    cp -f "$FL_ORIENT_LIST" "$FL_ORIENT_BAK" 2>/dev/null   # v2.23.3 ikinci kopya
     chmod 0644 "$FL_ORIENT_BAK" 2>/dev/null
     return 0
 }
 fl_yon_del() {
+    FL_CTX=fl_yon_del; FL_LINE=${LINENO:-0}
     [ -f "$FL_ORIENT_LIST" ] || return 0
     awk -F'\t' -v p="$1" '$1 != p' "$FL_ORIENT_LIST" 2>/dev/null > "$FL_ORIENT_LIST.t"
     mv -f "$FL_ORIENT_LIST.t" "$FL_ORIENT_LIST" 2>/dev/null
@@ -1834,10 +2074,11 @@ fl_yon_del() {
     return 0
 }
 
-# v2.23.2: SECIM KAYBOLMASIN. Sahada "dikey sectim, bir sure sonra yatay oldu"
+# v2.23.3: SECIM KAYBOLMASIN. Sahada "dikey sectim, bir sure sonra yatay oldu"
 # sikayetinin bir sebebi de yon.txt'nin silinmesi/bosalmasi (temizlik betigi,
 # magisk modul guncellemesi, elle mudahale). yon.txt bossa yedekten geri yukle.
 fl_yon_restore() {
+    FL_CTX=fl_yon_restore; FL_LINE=${LINENO:-0}
     if [ -s "$FL_ORIENT_LIST" ]; then
         # asil dosya dolu -> yedegi tazele
         cmp -s "$FL_ORIENT_LIST" "$FL_ORIENT_BAK" 2>/dev/null || cp -f "$FL_ORIENT_LIST" "$FL_ORIENT_BAK" 2>/dev/null
@@ -1855,6 +2096,7 @@ fl_yon_restore() {
 # Kural dosyalarindan secimi TAHMIN et (son care): allPortrait=true -> dikey,
 # yatay kural varsa -> yatay. Boylece dosya kaybi bile tamamen sessiz kalmaz.
 fl_yon_recover() {
+    FL_CTX=fl_yon_recover; FL_LINE=${LINENO:-0}
     [ -s "$FL_ORIENT_LIST" ] && return 0
     _yr_fix=$(fl_mb_cloud); [ -n "$_yr_fix" ] || _yr_fix=$(fl_mb_rom)
     _yr_emb=$(fl_emb_cloud); [ -n "$_yr_emb" ] || _yr_emb=$(fl_emb_rom)
@@ -1883,6 +2125,7 @@ fl_yon_recover() {
 
 # Dosyadan GERI OKUMA: tek paketin satirindaki alan
 fl_xml_attr() {   # $1 dosya  $2 paket  $3 alan -> deger | (bos)
+    FL_CTX=fl_xml_attr; FL_LINE=${LINENO:-0}
     [ -f "$1" ] || return 0
     _xa=$(fl_pkg_line "$1" "$2")
     [ -n "$_xa" ] || return 0
@@ -1890,6 +2133,7 @@ fl_xml_attr() {   # $1 dosya  $2 paket  $3 alan -> deger | (bos)
 }
 
 fl_yon_write() {   # $1 paket  $2 dikey|yatay|serbest -> "ok|<aciklama>" | "HATA|<sebep>"
+    FL_CTX=fl_yon_write; FL_LINE=${LINENO:-0}
     _yp=$1; _yv=$2
     [ -n "$_yp" ] || { echo "HATA|paket-yok"; return 1; }
     case "$_yv" in dikey|yatay|serbest) : ;; *) echo "HATA|gecersiz-yon:$_yv"; return 1 ;; esac
@@ -1974,6 +2218,7 @@ fl_yon_write() {   # $1 paket  $2 dikey|yatay|serbest -> "ok|<aciklama>" | "HATA
 
 # Acilista: kayitli yon secimlerini tazele (boot'ta da kalici olsun)
 fl_yon_pass() {
+    FL_CTX=fl_yon_pass; FL_LINE=${LINENO:-0}
     [ -f "$FL_ORIENT_LIST" ] || return 0
     while IFS=$FL_TAB read -r _ypk _yvl; do
         [ -n "$_ypk" ] || continue
@@ -1998,6 +2243,7 @@ fl_yon_pass() {
 # ============================================================
 FL_MIUI_CMD_CACHE=""
 fl_miui_cmd_avail() {   # 0 = servis var, 1 = yok (islem ici onbellekli)
+    FL_CTX=fl_miui_cmd_avail; FL_LINE=${LINENO:-0}
     case "$FL_MIUI_CMD_CACHE" in evet) return 0 ;; hayir) return 1 ;; esac
     _mo=$(cmd miui_embedding_window help 2>&1 </dev/null)
     case "$_mo" in
@@ -2016,6 +2262,7 @@ fl_miui_cmd_avail() {   # 0 = servis var, 1 = yok (islem ici onbellekli)
 }
 
 fl_miui_cmd_run() {   # cmd miui_embedding_window <args> -> 0 ok | 1 fail
+    FL_CTX=fl_miui_cmd_run; FL_LINE=${LINENO:-0}
     _mo=$(cmd miui_embedding_window "$@" 2>&1 </dev/null)
     _mrc=$?
     fl_log "  miui-cmd: $* -> rc=$_mrc $(printf '%s' "$_mo" | tr '\n' ' ' | cut -c1-140)"
@@ -2026,6 +2273,7 @@ fl_miui_cmd_run() {   # cmd miui_embedding_window <args> -> 0 ok | 1 fail
 }
 
 fl_miui_cmd_apply() {   # $1 paket -> ok|yok : canli yatay + mailbox kapat
+    FL_CTX=fl_miui_cmd_apply; FL_LINE=${LINENO:-0}
     fl_miui_cmd_avail || { echo yok; return 1; }
     _ok=ok
     fl_miui_cmd_run update-rule "$1" "fullRule::${FL_RULE_LANDSCAPE:-nra:cr:rcr:nr}" || _ok=yok
@@ -2035,11 +2283,13 @@ fl_miui_cmd_apply() {   # $1 paket -> ok|yok : canli yatay + mailbox kapat
 }
 
 fl_miui_cmd_mailbox() {   # $1 paket $2 true|false -> 0/1 (sadece mailbox, canli)
+    FL_CTX=fl_miui_cmd_mailbox; FL_LINE=${LINENO:-0}
     fl_miui_cmd_avail || return 1
     fl_miui_cmd_run set-fixedOri "$1" "disable::$2"
 }
 
 fl_miui_cmd_revert() {   # $1 paket : canli kurallari geri al -> "tam|kismi|fail"
+    FL_CTX=fl_miui_cmd_revert; FL_LINE=${LINENO:-0}
     # v2.20 (CIHAZ LOGU KANITI): servis bos parametreyi reddediyor:
     #   update-rule <pkg> fullRule::  ->  "Error! Please check RULE::PARAM."
     # Yani eski silme bicimi canli kurali HIC dusurmuyordu; dosya temiz
@@ -2071,6 +2321,7 @@ fl_miui_cmd_revert() {   # $1 paket : canli kurallari geri al -> "tam|kismi|fail
 }
 
 fl_miui_apply() {   # $1 paket -> ok|<aciklama> | fail|<sebep>
+    FL_CTX=fl_miui_apply; FL_LINE=${LINENO:-0}
     _mp=$1
     [ -n "$_mp" ] || { echo "fail|paket-yok"; return 1; }
     fl_miui_engine_guard >/dev/null 2>&1   # v2.18: motor kapaliysa acmayi dene + logla
@@ -2103,6 +2354,7 @@ fl_miui_apply() {   # $1 paket -> ok|<aciklama> | fail|<sebep>
 }
 
 fl_miui_clear() {   # $1 paket -> MIUI kural kayitlarini sil (geri alma)
+    FL_CTX=fl_miui_clear; FL_LINE=${LINENO:-0}
     _cp2=$1
     [ -n "$_cp2" ] || return 0
     # v2.14: yazma yolu hangi dosyaya yazdiysa silme yolu da AYNISINDAN siler.
@@ -2127,13 +2379,14 @@ fl_miui_clear() {   # $1 paket -> MIUI kural kayitlarini sil (geri alma)
 }
 
 fl_mb_reapply() {   # acilista: kayitli paketlerin kuralini tazele
+    FL_CTX=fl_mb_reapply; FL_LINE=${LINENO:-0}
     # v2.23 DUZELTME (sahada: "dikey sectim, yeniden baslatinca yatay oldu"):
     # Eskiden burada HER kayit icin fl_miui_apply cagriliyordu; o fonksiyon
     # kosulsuz olarak YATAY kuralini yazar. Yani "dikey" secilmis uygulama
     # her acilista tekrar yataya cevriliyordu. Artik once yon secimi okunur:
     #   dikey / yatay / serbest -> fl_yon_write (dogru kurali yazar)
     #   secim yok               -> eski davranis (mailbox + yatay kural)
-    # v2.23.2: secim dosyasi kaybolduysa once kurtarmayi dene (yedek ->
+    # v2.23.3: secim dosyasi kaybolduysa once kurtarmayi dene (yedek ->
     # kural dosyalarindan tahmin). Boylece "secilen uygulama sessizce
     # yataya dondu" durumu mumkun oldugunca onlenir.
     fl_yon_recover
@@ -2148,7 +2401,7 @@ fl_mb_reapply() {   # acilista: kayitli paketlerin kuralini tazele
                     *)   _rf=$((_rf + 1)); fl_log "acilis tazeleme HATA: $_rp2 yon=$_yv2" ;;
                 esac ;;
             *)
-                # v2.23.2: secim yoksa once DOSYADAKI gercek duruma bak.
+                # v2.23.3: secim yoksa once DOSYADAKI gercek duruma bak.
                 # Kullanici dikey secmis ama kayit kaybolmussa, dosyada
                 # allPortrait=true duruyorsa onu KORU (yataya cevirme).
                 _dk_fix=$(fl_mb_cloud); [ -n "$_dk_fix" ] || _dk_fix=$(fl_mb_rom)
@@ -2214,6 +2467,7 @@ fl_mb_reapply() {   # acilista: kayitli paketlerin kuralini tazele
 #  kurali gormuyordu. "Hicbir sey olmuyor" sikayetinin bir nedeni bu.
 # ============================================================
 fl_chown_system() {   # $1 dosya -> MIUI'nin bekledigi sahip/izin
+    FL_CTX=fl_chown_system; FL_LINE=${LINENO:-0}
     [ -f "$1" ] || return 1
     chown 1000:1000 "$1" 2>/dev/null || chown system:system "$1" 2>/dev/null
     chmod 0660 "$1" 2>/dev/null
@@ -2221,6 +2475,7 @@ fl_chown_system() {   # $1 dosya -> MIUI'nin bekledigi sahip/izin
 }
 
 fl_product_rw() {   # /product (ya da /) yazilabilir mi? -> 0 evet
+    FL_CTX=fl_product_rw; FL_LINE=${LINENO:-0}
     case "$(fl_prod_state 2>/dev/null)" in ok) return 0 ;; esac
     mount -o rw,remount /product >/dev/null 2>&1
     [ -w /product/etc ] && { echo ok > "$FL_DIR/.prod_rw" 2>/dev/null; return 0; }
@@ -2230,8 +2485,10 @@ fl_product_rw() {   # /product (ya da /) yazilabilir mi? -> 0 evet
     return 1
 }
 fl_prod_state() { [ -w /product/etc ] && echo ok || echo ro ; }
+    FL_CTX=fl_prod_state; FL_LINE=${LINENO:-0}
 
 fl_rules_reload() {   # MIUI kurallari yeniden okusun: 4 yol, her biri denenir
+    FL_CTX=fl_rules_reload; FL_LINE=${LINENO:-0}
     # Amac: yeniden baslatmadan kuralin gecerli olmasi. Hicbiri tutmazsa
     # durustce "yeniden-baslat" deriz (yalan yok).
     _rl_done=""
@@ -2259,6 +2516,7 @@ fl_rules_reload() {   # MIUI kurallari yeniden okusun: 4 yol, her biri denenir
 }
 
 fl_emb_write2() {   # $1 paket -> ok|<yol>|hemen | ok|katman|yeniden-baslat | fail|<sebep>
+    FL_CTX=fl_emb_write2; FL_LINE=${LINENO:-0}
     _e2p=$1
     _e2l="  <package name=\"$_e2p\" fullRule=\"${FL_RULE_LANDSCAPE:-nra:cr:rcr:nr}\" />"
     # v2.14 ARASTIRMA SONUCU (ybcq/MIUI-MagicWindow + achzehn/magic_window):
@@ -2306,6 +2564,7 @@ fl_emb_write2() {   # $1 paket -> ok|<yol>|hemen | ok|katman|yeniden-baslat | fa
 }
 
 fl_mb_write2() {   # $1 paket [$2 true|false] -> ok|<yol>|hemen | ok|katman|... | fail
+    FL_CTX=fl_mb_write2; FL_LINE=${LINENO:-0}
     _m2p=$1
     _m2v=${2:-true}
     _m2l="  <package name=\"$_m2p\" disable=\"$_m2v\" />"
@@ -2345,6 +2604,7 @@ fl_mb_write2() {   # $1 paket [$2 true|false] -> ok|<yol>|hemen | ok|katman|... 
 #  Her adim olculur; donus: ADIM|n|OK|... / SONUC|...
 # ------------------------------------------------------------
 fl_uygula_hepsi() {   # $1 paket
+    FL_CTX=fl_uygula_hepsi; FL_LINE=${LINENO:-0}
     _ah=$1
     [ -n "$_ah" ] || { echo "SONUC|OLMADI|paket-yok"; return 1; }
     # v2.15: "HER SEYI UYGULA" artik paketi listelere de ekler ve letterbox
@@ -2405,6 +2665,7 @@ fl_uygula_hepsi() {   # $1 paket
 }
 
 fl_kapat_hepsi() {   # $1 paket
+    FL_CTX=fl_kapat_hepsi; FL_LINE=${LINENO:-0}
     _kh=$1
     [ -n "$_kh" ] || { echo "SONUC|OLMADI|paket-yok"; return 1; }
     # v2.15: paket Force/Never listelerinden de cikarilir. Eskiden listede
@@ -2448,6 +2709,7 @@ fl_kapat_hepsi() {   # $1 paket
 }
 
 fl_kesin() {   # $1 paket -> ADIM satirlari + SONUC satiri
+    FL_CTX=fl_kesin; FL_LINE=${LINENO:-0}
     _kp=$1
     [ -n "$_kp" ] || { echo "SONUC|OLMADI|paket-yok"; return 1; }
 
@@ -2538,6 +2800,7 @@ fl_kesin() {   # $1 paket -> ADIM satirlari + SONUC satiri
 }
 
 fl_screen_size() {
+    FL_CTX=fl_screen_size; FL_LINE=${LINENO:-0}
     _ss=$(wm size 2>/dev/null | tr -d '\r' | awk '/Override size:/{print $3} /Physical size:/{p=$3} END{if(!p) p=""; print p}' | head -n 1)
     _so=$(wm size 2>/dev/null | tr -d '\r' | awk '/Override size:/{print $3; exit}')
     [ -n "$_so" ] && _ss=$_so
@@ -2548,6 +2811,7 @@ fl_screen_size() {
 }
 
 fl_find_task() {   # $1 paket -> gorev kimligi (yoksa bos)
+    FL_CTX=fl_find_task; FL_LINE=${LINENO:-0}
     _ft=$(dumpsys activity activities 2>/dev/null | tr -d '\r' | awk -v p="$1" '
         /Task\{/ && index($0, "A=" p) { if (match($0, /#[0-9]+/)) { print substr($0, RSTART+1, RLENGTH-1); exit } }
     ')
@@ -2558,6 +2822,7 @@ fl_find_task() {   # $1 paket -> gorev kimligi (yoksa bos)
 }
 
 fl_task_is_full() {   # $1 paket -> "evet" | "hayir" | "?"
+    FL_CTX=fl_task_is_full; FL_LINE=${LINENO:-0}
     # 1) pencere dokumu: MID_BOUND var mi?
     _rb=$(fl_embed_check "$1")
     case "$_rb" in
@@ -2578,6 +2843,7 @@ fl_task_is_full() {   # $1 paket -> "evet" | "hayir" | "?"
 }
 
 fl_task_fullscreen() {   # $1 paket -> "OK|tam" | "HATA|sebep"
+    FL_CTX=fl_task_fullscreen; FL_LINE=${LINENO:-0}
     _fp=$1
     [ -n "$_fp" ] || { echo "HATA|paket-yok"; return 1; }
     _tid=$(fl_find_task "$_fp")
@@ -2605,6 +2871,7 @@ fl_task_fullscreen() {   # $1 paket -> "OK|tam" | "HATA|sebep"
 }
 
 fl_watch_on() {   # izleyici calisiyor mu -> acik|kapali
+    FL_CTX=fl_watch_on; FL_LINE=${LINENO:-0}
     _wp=$(cat "$FL_DIR/watch.pid" 2>/dev/null)
     if [ -n "$_wp" ] && [ -d "/proc/$_wp" ]; then echo "acik"; else echo "kapali"; fi
 }
@@ -2619,6 +2886,7 @@ fl_watch_on() {   # izleyici calisiyor mu -> acik|kapali
 #  am compat state / dumpsys ile DOGRULANIR, kalan varsa HATA doner.
 # ============================================================
 fl_xml_drop_pkg() {   # $1 paket -> istenen listesinden ve XML'den cikar
+    FL_CTX=fl_xml_drop_pkg; FL_LINE=${LINENO:-0}
     _xp=$1
     [ -n "$_xp" ] || return 0
     if [ -f "$FL_WANT" ]; then
@@ -2639,6 +2907,7 @@ fl_xml_drop_pkg() {   # $1 paket -> istenen listesinden ve XML'den cikar
 }
 
 fl_ids_of_pkg() {   # $1 paket -> bu uygulamaya uygulanmis olabilecek id listesi
+    FL_CTX=fl_ids_of_pkg; FL_LINE=${LINENO:-0}
     # v2.23: "ekrana yay" KAPATILDIKTAN sonra PORTRAIT_ONLY tekrar ACIK
     # yazilir (MIUI varsayilani). Bu yuzden geri alma listesinde o id
     # BULUNAMASA DA "fail|geri-alindi" yaziliyor ve arayuz kirmizi
@@ -2649,19 +2918,20 @@ fl_ids_of_pkg() {   # $1 paket -> bu uygulamaya uygulanmis olabilecek id listesi
 
 # Bu id "kapali olmasi gereken" mi? (0 = evet, 1 = hayir)
 fl_id_should_off() {
+    FL_CTX=fl_id_should_off; FL_LINE=${LINENO:-0}
     case " $COMPAT_ID OVERRIDE_MIN_ASPECT_RATIO OVERRIDE_MIN_ASPECT_RATIO_LARGE OVERRIDE_ANY_ORIENTATION_TO_USER " in
         *" $1 "*) return 0 ;;
     esac
     return 1
 }
 
-# v2.23.2 KRITIK DUZELTME: "am compat" komutlari ID'nin SAYISAL degerini
+# v2.23.3 KRITIK DUZELTME: "am compat" komutlari ID'nin SAYISAL degerini
 # ister (or. 174042936). Eski kod ID ADINI ("OVERRIDE_MIN_ASPECT_RATIO")
 # geciyordu -> gercek cihazda `am compat reset ... OVERRIDE_MIN_ASPECT_RATIO`
 # "Error: bad change id" verip HICBIR SEY yapmiyordu. Yani "Dokunma" /
 # "Her seyi geri al" letterbox katmanini CIHAZDA HIC temizlemiyordu.
 # Simulasyonda da "her komut kabul" oldugu icin bu yillarca gorunmedi.
-# v2.23.2 — RESMI CHANGE ID HARITASI (developer.android.com
+# v2.23.3 — RESMI CHANGE ID HARITASI (developer.android.com
 # "Device compatibility mode" + "Compatibility framework changes")
 #   FORCE_RESIZE_APP ........................... 174042936
 #   OVERRIDE_MIN_ASPECT_RATIO (KAPICI) ......... 174042980
@@ -2674,6 +2944,7 @@ fl_id_should_off() {
 # son komut kapiciyi KAPATIYORDU -> "ekrana yay" cihazda kendi kendini
 # iptal ediyordu. Bu, modulun en buyuk sessiz hatasiydi.
 fl_id_num() {   # $1 kimlik adi -> change id (sayisal)
+    FL_CTX=fl_id_num; FL_LINE=${LINENO:-0}
     case "$1" in
         [0-9]*) echo "$1" ;;
         FORCE_RESIZE_APP)                        echo "${COMPAT_ID:-174042936}" ;;
@@ -2690,6 +2961,7 @@ fl_id_num() {   # $1 kimlik adi -> change id (sayisal)
 }
 
 fl_reset_pkg_ids() {   # $1 paket -> "temiz" | "kalan:id1,id2"
+    FL_CTX=fl_reset_pkg_ids; FL_LINE=${LINENO:-0}
     _rp=$1
     _kalan=""
     for _id in $(fl_ids_of_pkg "$_rp"); do
@@ -2723,7 +2995,7 @@ fl_reset_pkg_ids() {   # $1 paket -> "temiz" | "kalan:id1,id2"
             *) _kalan="$_kalan,$_id" ;;
         esac
     done
-    # v2.23.2: yukaridaki donguden SONRA kalan id'leri de dene. Eski
+    # v2.23.3: yukaridaki donguden SONRA kalan id'leri de dene. Eski
     # kod yalnizca fl_ids_of_pkg listesindekileri temizliyordu; ROM
     # kendi id'sini eklemis olabilir. Bilinen tum id'ler icin bir kez
     # daha reset atilir (idempotent).
@@ -2744,6 +3016,7 @@ fl_reset_pkg_ids() {   # $1 paket -> "temiz" | "kalan:id1,id2"
 }
 
 fl_rotation_lock_on() {   # cihaz geneli yatay kilidi acik mi? -> acik|kapali|?
+    FL_CTX=fl_rotation_lock_on; FL_LINE=${LINENO:-0}
     _w=$(fl_get_ignore)
     case "$_w" in
         *true*)  echo "acik"  ;;
@@ -2762,6 +3035,7 @@ fl_rotation_lock_on() {   # cihaz geneli yatay kilidi acik mi? -> acik|kapali|?
 #  hala yatay". Cozum: 4 saglayici sirayla denenir, her biri
 #  am compat state / dumpsys ile DOGRULANIR, kalan varsa HATA doner.
 fl_list_clear() {   # $1 dosya -> icini bosalt
+    FL_CTX=fl_list_clear; FL_LINE=${LINENO:-0}
     [ -n "$1" ] || return 0
     : > "$1" 2>/dev/null
     chmod 0644 "$1" 2>/dev/null
@@ -2769,6 +3043,7 @@ fl_list_clear() {   # $1 dosya -> icini bosalt
 }
 # Uygulama su anda MIUI'nin orta penceresinde mi? (canli kontrol)
 fl_embed_check() {   # $1 = paket  -> "orta|<gen>x<yuk>" | "tam" | "?"
+    FL_CTX=fl_embed_check; FL_LINE=${LINENO:-0}
     # v2.8 DUZELTME: v2.7'de paket adi ile MID_BOUND AYNI SATIRDA araniyordu.
     # Gercek dumpsys'te MID_BOUND ayri satirda -> kontrol hep "?" donuyordu
     # ve "ekrana yayildi" yalanini ortaya cikaramiyordu. Artik pencere blogu
@@ -2831,6 +3106,7 @@ fl_embed_check() {   # $1 = paket  -> "orta|<gen>x<yuk>" | "tam" | "?"
 
 # MIUI'de gomme kapali mi? (tanı/UI icin tek satir)
 fl_embed_status_line() {
+    FL_CTX=fl_embed_status_line; FL_LINE=${LINENO:-0}
     if ! fl_miui_var; then echo "MIUI degil (gerekmiyor)"; return; fi
     case "$(fl_miui_embed_state)" in
         kapali) echo "kapali (orta pencere yok)" ;;
@@ -2848,6 +3124,7 @@ fl_embed_status_line() {
 #  panelde dosya dosya KANIT olarak gosterilir.
 # ============================================================
 fl_miui_fixperm() {   # $1 dosya -> "izin|sahip|selinux"
+    FL_CTX=fl_miui_fixperm; FL_LINE=${LINENO:-0}
     _fp=$1
     [ -f "$_fp" ] || return 1
     chown 1000:1000 "$_fp" 2>/dev/null
@@ -2863,6 +3140,7 @@ fl_miui_fixperm() {   # $1 dosya -> "izin|sahip|selinux"
 }
 
 fl_rules_proof() {   # [$1 paket] -> dosya/satir kanit satirlari
+    FL_CTX=fl_rules_proof; FL_LINE=${LINENO:-0}
     _pp=$1
     for _pf in /data/system/cloudFeature_fixed_orientation_list.xml \
                /data/system/cloudFeature_embedded_rules_list.xml \
@@ -2897,6 +3175,7 @@ fl_rules_proof() {   # [$1 paket] -> dosya/satir kanit satirlari
 }
 
 fl_diag_bundle() {   # SukiSU tarzi tek dosyalik teshis paketi (stdout)
+    FL_CTX=fl_diag_bundle; FL_LINE=${LINENO:-0}
     echo "===== FORCE LANDSCAPE TEŞHİS PAKETİ ====="
     echo "surum|$(fl_modver 2>/dev/null || echo $FL_MODVER)"
     echo "tarih|$(date '+%Y-%m-%d %H:%M:%S')"
@@ -2949,6 +3228,7 @@ fl_diag_bundle() {   # SukiSU tarzi tek dosyalik teshis paketi (stdout)
 # root ile tek yol zygote/system_server tazelemek (yumusak yeniden
 # baslatma, ~20 sn; uygulama verisi SILINMEZ).
 fl_miui_softreboot() {
+    FL_CTX=fl_miui_softreboot; FL_LINE=${LINENO:-0}
     if command -v setprop >/dev/null 2>&1; then
         if setprop ctl.restart zygote >/dev/null 2>&1; then
             echo "tetiklendi|setprop ctl.restart zygote"; return 0
@@ -2977,7 +3257,8 @@ fl_miui_softreboot() {
 #  "unknown" kelimesi arayuzde artik "kayıt yok" olarak gorunur.
 # ============================================================
 fl_compat_xml_state() {   # $1 id  $2 pkg -> enabled|disabled|(bos)
-    # v2.23.2 DUZELTME: dosyada <change id="174042936"> (SAYISAL) yazar.
+    FL_CTX=fl_compat_xml_state; FL_LINE=${LINENO:-0}
+    # v2.23.3 DUZELTME: dosyada <change id="174042936"> (SAYISAL) yazar.
     # Eski kod ID ADINI aradigi icin hicbir zaman eslesmiyordu ->
     # XML'den yazilan override "okunamadi" sayiliyordu.
     _xs_f=/data/misc/appcompat/compat_framework_overrides.xml
@@ -2994,7 +3275,8 @@ fl_compat_xml_state() {   # $1 id  $2 pkg -> enabled|disabled|(bos)
 }
 
 fl_compat_state_src() {   # $1 id  $2 pkg -> "<state>|<kaynak>"
-    # v2.23.2 IKI KRITIK DUZELTME:
+    FL_CTX=fl_compat_state_src; FL_LINE=${LINENO:-0}
+    # v2.23.3 IKI KRITIK DUZELTME:
     #  (a) `am compat state` SAYISAL id ister; ID adi gecirilirse cihaz
     #      "Error: bad change id" doner ve durum HIC okunamaz.
     #  (b) SOURCES: "DISABLED" kelimesi "ENABLED" icerir! Eski `case` deseni
@@ -3026,10 +3308,12 @@ fl_compat_state_src() {   # $1 id  $2 pkg -> "<state>|<kaynak>"
 }
 
 fl_change_state() {   # $1 id $2 pkg -> enabled|disabled|unknown
+    FL_CTX=fl_change_state; FL_LINE=${LINENO:-0}
     fl_compat_state_src "$1" "$2" | cut -d'|' -f1
 }
 
 fl_change_state_src() {   # $1 id $2 pkg -> "<kaynak-dili>|<kaynak>"
+    FL_CTX=fl_change_state_src; FL_LINE=${LINENO:-0}
     _c2=$(fl_compat_state_src "$1" "$2")
     _c2s=$(printf '%s' "$_c2" | cut -d'|' -f1)
     _c2k=$(printf '%s' "$_c2" | cut -d'|' -f2-)
@@ -3039,6 +3323,7 @@ fl_change_state_src() {   # $1 id $2 pkg -> "<kaynak-dili>|<kaynak>"
 
 # Tek paketi TAM geri al: letterbox + ekrana-yay + listeler + durdur
 fl_revert_pkg() {   # $1 = paket  [$2 = "never" ise dokunma listesine ekle]
+    FL_CTX=fl_revert_pkg; FL_LINE=${LINENO:-0}
     #   -> "OK|temiz" (0) | "HATA|kalan:..." (1)
     #   NOT: "dokunma" listesine eklemek SADECE kullanici acikca istediginde
     #   olur. Global geri alma (restore / revert-all) listeye YAZMAZ; yoksa
@@ -3096,6 +3381,7 @@ fl_revert_pkg() {   # $1 = paket  [$2 = "never" ise dokunma listesine ekle]
 }
 
 fl_appmode_map() {
+    FL_CTX=fl_appmode_map; FL_LINE=${LINENO:-0}
     if [ -f "$FL_APPMODE" ]; then
         FL_AM_MAP=" $(tr '\n' ' ' < "$FL_APPMODE" 2>/dev/null) "
     else
@@ -3103,9 +3389,13 @@ fl_appmode_map() {
     fi
 }
 fl_appmode_has() { case "$FL_AM_MAP" in *" $1 "*) return 0 ;; esac; return 1; }
+    FL_CTX=fl_appmode_has; FL_LINE=${LINENO:-0}
 fl_appmode_add() { fl_list_add "$FL_APPMODE" "$1"; fl_appmode_map; }
+    FL_CTX=fl_appmode_add; FL_LINE=${LINENO:-0}
 fl_appmode_del() { fl_list_del "$FL_APPMODE" "$1"; fl_appmode_map; }
+    FL_CTX=fl_appmode_del; FL_LINE=${LINENO:-0}
 fl_appmode_count() {
+    FL_CTX=fl_appmode_count; FL_LINE=${LINENO:-0}
     # NOT: "grep -c" bos dosyada "0" yazip 1 ile cikar; eski "|| echo 0"
     # yuzunden deger "0\n0" oluyordu (state.txt'ye fazladan satir). v2.7.1
     _c=$(grep -c . "$FL_APPMODE" 2>/dev/null)
@@ -3114,38 +3404,34 @@ fl_appmode_count() {
 }
 
 fl_am_cmd() {   # $1 enable|disable|reset  $2 id  $3 paket ; basarili -> stdout: yontem
-    # v2.16: once BELGELENMIS sozdizimi: am compat enable <degisim> <paket>
-    # (Google/OPPO A13 kilavuzu). Eski kod once "am compat --no-kill enable"
-    # deniyordu; ROM bunu "Usage:" ile reddederse cikti hata kalibina
-    # uymadigi icin BASARILI sanilabiliyordu.
-    # v2.23.2: <degisim> SAYISAL olmali. ID adi ("OVERRIDE_MIN_ASPECT_RATIO")
-    # gecirilirse gercek cihaz "Error: bad change id" der -> "ekrana yay"
-    # hic uygulanmaz. Ad -> sayi cevirisi burada yapilir.
+    FL_CTX=fl_am_cmd; FL_LINE=${LINENO:-0}
     _an=$(fl_id_num "$2")
-    _o=$(am compat "$1" "$_an" "$3" 2>&1 </dev/null)
-    case "$_o" in
-        *"nknown"*|*"rror"*|*"xception"*|*"ailed"*|*"ot found"*|*"Usage"*) : ;;
-        *) echo "am"; return 0 ;;
-    esac
-    _o=$(am compat "$1" --no-kill "$_an" "$3" 2>&1 </dev/null)   # bazi ROM'lar sonda ister
-    case "$_o" in
-        *"nknown"*|*"rror"*|*"xception"*|*"ailed"*|*"ot found"*|*"Usage"*) : ;;
-        *) echo "am-nokill-son"; return 0 ;;
-    esac
-    _o=$(am compat --no-kill "$1" "$_an" "$3" 2>&1 </dev/null)
-    case "$_o" in
-        *"nknown"*|*"rror"*|*"xception"*|*"ailed"*|*"ot found"*|*"Usage"*) : ;;
-        *) echo "am-nokill"; return 0 ;;
-    esac
-    _o=$(cmd platform_compat "$1" "$_an" "$3" 2>&1 </dev/null)
-    case "$_o" in
-        *"nknown"*|*"rror"*|*"xception"*|*"ailed"*|*"ot found"*|*"Usage"*|"") : ;;
-        *) echo "cmd"; return 0 ;;
-    esac
+    _ac_id="$2"
+    [ "$_an" = "$2" ] || _ac_id="$2(${_an})"
+    # v2.23.3: HER yontem denemesi kayda duser. Onceki kod hata yolunda
+    # SESSIZ donuyordu -> "neden olmadi" sorusunun cevabi hicbir yerde yoktu.
+    _ac_try() {   # $1 etiket ; geri kalan = komut
+        _at_l=$1; shift
+        _at_o=$("$@" 2>&1 </dev/null); _at_rc=$?
+        case "$_at_o" in
+            *"nknown"*|*"rror"*|*"xception"*|*"ailed"*|*"ot found"*|*"Usage"*|"")
+                fl_evt WARN "$*" "$_at_rc" "$_at_o" "$_ap_evt" "yontem=$_at_l denendi, olmadi"
+                return 1 ;;
+            *)  fl_log "   compat yontemi tuttu: $_at_l ($*)"
+                printf '%s\n' "$_at_l"; return 0 ;;
+        esac
+    }
+    _ap_evt="$3"
+    _ac_try am am compat "$1" "$_an" "$3" && return 0
+    _ac_try am-nokill-son am compat "$1" --no-kill "$_an" "$3" && return 0
+    _ac_try am-nokill am compat --no-kill "$1" "$_an" "$3" && return 0
+    _ac_try cmd cmd platform_compat "$1" "$_an" "$3" && return 0
+    fl_evt DENY "am compat $1 $_ac_id $3" 1 "4 yontemin tamami basarisiz | son cikti: $_at_o" "$3" "change-id ROM'da gecerli degil olabilir"
     return 1
 }
 
 fl_am_state() {   # $1 id  $2 paket -> on | off | (bos)
+    FL_CTX=fl_am_state; FL_LINE=${LINENO:-0}
     # v2.13: `am compat state` A13'te yok -> 3 kaynakli okuyucu
     case "$(fl_compat_state_src "$1" "$2" | cut -d'|' -f1)" in
         enabled)  echo on  ;;
@@ -3155,6 +3441,7 @@ fl_am_state() {   # $1 id  $2 paket -> on | off | (bos)
 }
 
 fl_appmode_apply() {   # $1 paket -> "ok|<yontemler>" | "fail|<sebep>" (return 1)
+    FL_CTX=fl_appmode_apply; FL_LINE=${LINENO:-0}
     _ap=$1
     [ -n "$_ap" ] || { echo "fail|paket-yok"; return 1; }
     fl_pkg_excluded "$_ap" && { echo "fail|sistem-paketi"; return 1; }
@@ -3162,7 +3449,7 @@ fl_appmode_apply() {   # $1 paket -> "ok|<yontemler>" | "fail|<sebep>" (return 1
     case "$_sdk" in ''|*[!0-9]*) _sdk=33 ;; esac
 
     # 1) KAPICI: acilmadan hicbir oran override'i islemez
-    # v2.23.2 DUZELTME: "$( )" ATAMASINDAN SONRA $? HER ZAMAN 0'dir
+    # v2.23.3 DUZELTME: "$( )" ATAMASINDAN SONRA $? HER ZAMAN 0'dir
     # (atama komutunun kendi cikis kodu). Eski kod "_w=$(...); _ok=$?" ile
     # komutun basarisini olcuyordu -> her zaman 0 -> kapici reddetse bile
     # "basarili" sayiliyordu. Bu yuzden "ekrana yay" cihazda sessizce
@@ -3216,6 +3503,7 @@ fl_appmode_apply() {   # $1 paket -> "ok|<yontemler>" | "fail|<sebep>" (return 1
 }
 
 fl_appmode_clear() {   # $1 paket -> her seyi fabrika degerine dondur
+    FL_CTX=fl_appmode_clear; FL_LINE=${LINENO:-0}
     # v2.23 DUZELTME: burada OVERRIDE_MIN_ASPECT_RATIO_PORTRAIT_ONLY
     # TEKRAR ACILIYOR (MIUI varsayilani). Sonra fl_revert_pkg -> fl_reset_pkg_ids
     # "geri alindi mi?" diye bakinca bu id'i "acik" goruyor ve arayuz
@@ -3238,6 +3526,7 @@ fl_appmode_clear() {   # $1 paket -> her seyi fabrika degerine dondur
 }
 
 fl_appmode_state_set() {   # pkg  ok|fail  yontem
+    FL_CTX=fl_appmode_state_set; FL_LINE=${LINENO:-0}
     [ -f "$FL_APPMODE_ST" ] || : > "$FL_APPMODE_ST" 2>/dev/null
     _t=$FL_APPMODE_ST.tmp
     awk -F'\t' -v p="$1" 'NF && $1 != p' "$FL_APPMODE_ST" 2>/dev/null > "$_t"
@@ -3247,6 +3536,7 @@ fl_appmode_state_set() {   # pkg  ok|fail  yontem
 }
 
 fl_appmode_state_get() {   # pkg -> ok|fail|-
+    FL_CTX=fl_appmode_state_get; FL_LINE=${LINENO:-0}
     [ -f "$FL_APPMODE_ST" ] || { echo "-"; return; }
     _v=$(awk -F'\t' -v p="$1" '$1 == p { print $2; exit }' "$FL_APPMODE_ST" 2>/dev/null)
     [ -n "$_v" ] || _v="-"
@@ -3256,6 +3546,7 @@ fl_appmode_state_get() {   # pkg -> ok|fail|-
 # Acilista / "Uygula" sonrasi: listedeki her pakete ekrana-yay uygula.
 # Liste kucuk oldugu icin hizli; zaten uygulanmissa tekrar yazmak zararsizdir.
 fl_appmode_pass() {
+    FL_CTX=fl_appmode_pass; FL_LINE=${LINENO:-0}
     fl_appmode_map
     _n=$(grep -c . "$FL_APPMODE" 2>/dev/null)
     case "$_n" in ''|*[!0-9]*) _n=0 ;; esac
@@ -3299,6 +3590,7 @@ fl_appmode_pass() {
 #  Cikti: OK|<cozulen-mod>|ignore=..|accel=..|urot=..  |  HATA|<sebep>
 # ============================================================
 fl_apply_orientation() {
+    FL_CTX=fl_apply_orientation; FL_LINE=${LINENO:-0}
     _om=$1
     case "$_om" in sensor|lock|off|auto) : ;; *) echo "HATA|gecersiz-mod:$_om"; return 1 ;; esac
     if [ "$AUTO_LANDSCAPE" = "true" ]; then
@@ -3376,6 +3668,7 @@ fl_apply_orientation() {
 #  Cikti: OK|<pkg>|force|letterbox=<s> mailbox=<s> kural=<s> yay=<s>
 # ============================================================
 fl_force_apply() {
+    FL_CTX=fl_force_apply; FL_LINE=${LINENO:-0}
     # v2.19: MIUI'li cihazda "Yatay zorla" = MIUI'NIN KENDI PROTOKOLU:
     #   embedded_rules_list fullRule + fixed_orientation disable="true"
     #   (dosya = kalicilik) + cmd miui_embedding_window (canli) + motor acik.
@@ -3429,6 +3722,7 @@ fl_force_apply() {
 }
 
 fl_apply() {
+    FL_CTX=fl_apply; FL_LINE=${LINENO:-0}
     fl_prepare
     fl_perms_fix
     fl_log "=== apply $FL_MODVER basladi | istenen=$ROTATION_MODE aci=$ROTATION dry=$DRY_RUN ==="
@@ -3484,7 +3778,7 @@ fl_apply() {
     fi
 
     # 2b) Multi-window katmani: resize edilemeyen uygulamalari da boyutlanabilir say
-    # v2.23.2: IKI KATMAN birlikte uygulanir.
+    # v2.23.3: IKI KATMAN birlikte uygulanir.
     #  1) wm set-multi-window-config -> 12L/13'te VAR, ama GECICI (reboot'ta
     #     sifirlanir). "Ekrana yay"in aninda islemesi icin gerekli.
     #  2) settings force_resizable_activities -> KALICI, reboot sonrasi korunur.
@@ -3605,12 +3899,14 @@ fl_apply() {
 
 # ---------- tani raporu --------------------------------------
 fl_appmode_list_one_line() {
+    FL_CTX=fl_appmode_list_one_line; FL_LINE=${LINENO:-0}
     _n=$(grep -c . "$FL_APPMODE" 2>/dev/null)
     case "$_n" in ''|0|*[!0-9]*) echo "yok"; return ;; esac
     tr '\n' ' ' < "$FL_APPMODE" 2>/dev/null | cut -c1-200
 }
 
 fl_report_body() {
+    FL_CTX=fl_report_body; FL_LINE=${LINENO:-0}
     # v2.7: service.sh rapordan ONCE apply etmiyor olabilir -> "unknown"
     # yazmak yerine son bilinen durumu state dosyasindan oku.
     if [ "$FL_MODE" = "unknown" ] || [ -z "$FL_MODE" ]; then
@@ -3715,6 +4011,7 @@ fl_report_body() {
 }
 
 fl_report() {
+    FL_CTX=fl_report; FL_LINE=${LINENO:-0}
     [ "$MAKE_REPORT" = "true" ] || return 0
     _rep=$FL_REPORT
     # v2.23: /sdcard bazi ortamlarda (kurulum oncesi, kullanici profili
@@ -3737,6 +4034,7 @@ fl_report() {
 
 # ---------- durum (Action dugmesi / konsol) ------------------
 fl_status() {
+    FL_CTX=fl_status; FL_LINE=${LINENO:-0}
     fl_prepare
     echo " ---------- Force Landscape $FL_MODVER ----------"
     echo " mod (istenen/uygulanan)  : $ROTATION_MODE / $FL_MODE  (aci $ROTATION)"
@@ -3764,6 +4062,7 @@ fl_status() {
 
 # ---------- geri alma ---------------------------------------
 fl_restore() {
+    FL_CTX=fl_restore; FL_LINE=${LINENO:-0}
     fl_prepare
     for _d in $DISPLAYS; do
         wm set-ignore-orientation-request -d "$_d" false >>"$FL_LOG" 2>&1
@@ -3805,3 +4104,18 @@ fl_restore() {
     rm -f "$FL_DONE" "$FL_SKIP" "$FL_TARGETS" "$FL_CSTAT" "$FL_CERR" "$FL_APPMODE_ST" 2>/dev/null
     fl_log "ayarlar geri alindi (auto-rotate acik, dikey istekler gecerli)"
 }
+
+# ============================================================
+# v2.23.3 — TUZAKLAR (betik burada BITER; webui.sh bunu . ile
+# kaynak olarak yukler, yani tuzaklar WebUI surecini de kapsar)
+#   EXIT    : beklenmedik cikis (rc != 0) -> crashes.log
+#   INT/TERM/HUP/SEGV/BUS/ABRT : sinyal -> crashes.log
+#   Bir kez yazilir (FL_CRASHED=1) ki dongude spam olmasin.
+# ============================================================
+trap 'fl_crash INT'  INT  2>/dev/null
+trap 'fl_crash TERM' TERM 2>/dev/null
+trap 'fl_crash HUP'  HUP  2>/dev/null
+trap 'fl_crash SEGV' SEGV 2>/dev/null
+trap 'fl_crash BUS'  BUS  2>/dev/null
+trap 'fl_crash ABRT' ABRT 2>/dev/null
+trap 'fl_crash EXIT' EXIT 2>/dev/null
