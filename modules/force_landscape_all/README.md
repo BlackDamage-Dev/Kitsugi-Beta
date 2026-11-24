@@ -2,6 +2,23 @@
 
 Xiaomi Pad 6 (pipa) · MIUI 14 / Android 13 · SukiSU Ultra
 
+## İndirme (Google Drive)
+
+Klasör: https://drive.google.com/drive/folders/1EfhlGo-y7mCivtLEjD-blDrF20c2BJEF
+→ `v2.23.3/` altında:
+
+| Dosya | Ne işe yarar |
+|-------|--------------|
+| **ForceLandscape-AllApps-v2.23.3.zip** | **KURULACAK DOSYA** (145 KB) |
+| `README.md` | Bu kılavuz |
+| `KOMUT-DENETIM-RAPORU.md` | Tüm komutların AOSP 13 ile karşılaştırması + 7 hata |
+| `KURULUM-VE-DOGRULAMA.md` | Adım adım kurulum |
+| `kaynak-dosyalar/` | Açılmış kaynak (incelemek için) |
+
+Doğrudan indirme:
+https://drive.google.com/uc?export=download&id=1SMn7RPl1hnm0RfcTyPvCX8VFP5zUX8sP
+
+
 Dikey çalışan uygulamaları **tam ekran yataya** zorlar, kendi kendine yatay
 çalışan oyunlara/video uygulamalarına **dokunmaz**. Arayüz **WebUI**.
 
