@@ -16,7 +16,7 @@ Klasör: https://drive.google.com/drive/folders/1EfhlGo-y7mCivtLEjD-blDrF20c2BJE
 | `kaynak-dosyalar/` | Açılmış kaynak (incelemek için) |
 
 Doğrudan indirme:
-https://drive.google.com/uc?export=download&id=1xtT71DT9ArzpCWo2oPiiG-wgsqvaEP7X
+https://drive.google.com/uc?export=download&id=12FHPcjjPB_Djo8Ht-_1pj1W5fdOVmgR8
 
 
 Dikey çalışan uygulamaları **tam ekran yataya** zorlar, kendi kendine yatay
